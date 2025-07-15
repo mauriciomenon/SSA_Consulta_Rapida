@@ -1,44 +1,67 @@
-# interface/display.py
+# interface/display.py (versão 2 - com paginação e formato otimizado)
 import pandas as pd
 from tabulate import tabulate
 from typing import Dict
+import os
+
+def get_terminal_height():
+    """Retorna a altura do terminal em número de linhas."""
+    try:
+        # os.get_terminal_size() retorna (colunas, linhas)
+        return os.get_terminal_size().lines
+    except OSError:
+        # Em ambientes onde o tamanho não pode ser determinado, retorna um padrão.
+        return 25
 
 def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
     """
-    Imprime um DataFrame de forma formatada e legível no terminal.
-
-    - Adiciona um índice numérico.
-    - Trunca colunas de texto longas para evitar quebra de layout.
-    - Renomeia colunas para nomes amigáveis antes de exibir.
-    - Usa a biblioteca 'tabulate' para desenhar a tabela.
+    Imprime um DataFrame de forma paginada e otimizada para o terminal.
     """
     if df.empty:
         print("Nenhum resultado para exibir.")
         return
 
-    # Cria uma cópia para não alterar o DataFrame original
     display_df = df.copy()
-
-    # Adiciona a coluna de índice numérico na primeira posição
     display_df.insert(0, '#', range(1, len(display_df) + 1))
 
-    # Trunca o texto de colunas longas para exibição
-    # Apenas para as colunas que efetivamente existem no df
+    # Truncar descrições continua sendo uma boa prática para largura
     cols_to_truncate = ['descricao_ssa', 'descricao_execucao']
     for col in cols_to_truncate:
         if col in display_df.columns:
-            display_df[col] = display_df[col].str.slice(0, 50) + '...'
+            # Garante que a coluna seja string antes de usar .str
+            display_df[col] = display_df[col].astype(str).str.slice(0, 50) + '...'
 
-    # Renomeia as colunas para seus nomes de exibição
     display_df.rename(columns=display_map, inplace=True)
+    
+    # --- LÓGICA DE PAGINAÇÃO ---
+    page_size = get_terminal_height() - 5  # Deixa espaço para cabeçalho e prompts
+    total_rows = len(display_df)
+    start_row = 0
 
-    # Usa tabulate para criar uma tabela bonita com quebra de linha
-    # 'grid' é um formato que desenha todas as bordas
-    table = tabulate(
-        display_df,
-        headers='keys',
-        tablefmt='grid',
-        showindex=False
-    )
+    while start_row < total_rows:
+        end_row = min(start_row + page_size, total_rows)
+        page_df = display_df.iloc[start_row:end_row]
 
-    print(table)
+        # MUDANÇA PRINCIPAL: Usando um formato de tabela compacto e profissional
+        table = tabulate(
+            page_df,
+            headers='keys',
+            tablefmt='psql',  # <-- O formato que muda tudo!
+            showindex=False
+        )
+        print(table)
+
+        start_row = end_row
+        
+        # Se ainda houver linhas a serem mostradas, exibe o prompt de paginação
+        if start_row < total_rows:
+            remaining = total_rows - start_row
+            prompt = f"\n-- Mais ({remaining} restantes) | Pressione Enter para continuar ou 'q' para sair --"
+            try:
+                user_choice = input(prompt)
+                if user_choice.lower() == 'q':
+                    print("...exibição interrompida.")
+                    break
+            except KeyboardInterrupt: # Permite sair com Ctrl+C
+                print("\n...exibição interrompida.")
+                break
