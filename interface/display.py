@@ -1,4 +1,4 @@
-# interface/display.py (versão 3 - com larguras de coluna controladas)
+# interface/display.py (VERSÃO ESTÁVEL E CORRIGIDA)
 import pandas as pd
 from tabulate import tabulate
 from typing import Dict
@@ -16,47 +16,42 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
         return
 
     display_df = df.copy()
-    display_df.insert(0, '#', range(1, len(display_df) + 1))
+
+    # CORREÇÃO: Removido 'dayfirst=True' para evitar o UserWarning
+    if 'data_cadastro' in display_df.columns:
+        display_df['data_cadastro'] = pd.to_datetime(
+            display_df['data_cadastro'], errors='coerce'
+        ).dt.strftime('%d/%m/%Y')
 
     cols_to_truncate = ['descricao_ssa', 'descricao_execucao']
     for col in cols_to_truncate:
         if col in display_df.columns:
-            display_df[col] = display_df[col].astype(str).str.slice(0, 45) + '...'
+            display_df[col] = display_df[col].astype(str).str.slice(0, 40) + '...'
 
+    display_df.insert(0, '#', range(1, len(display_df) + 1))
     display_df.rename(columns=display_map, inplace=True)
-    
-    wrapped_headers = []
-    for header in display_df.columns:
-        if len(header) > 8 and ' ' in header:
-            wrapped_headers.append(header.replace(' ', '\n', 1))
-        else:
-            wrapped_headers.append(header)
-    
-    # --- NOVA LÓGICA DE LARGURA DE COLUNA ---
-    # Define larguras máximas para colunas específicas para compactar a tabela
-    # O número de elementos deve corresponder ao número de colunas em display_df
-    max_widths = []
-    for col_name in display_df.columns:
-        if col_name in ['Emissor', 'Executor', 'Localização', 'Sem.\nCadastro']:
-            max_widths.append(12)  # Define uma largura máxima menor
-        else:
-            max_widths.append(None) # Deixa o tabulate decidir
-    # ----------------------------------------
+    display_df.fillna('', inplace=True)
+
+    wrapped_headers = [h.replace(' ', '\n', 1) if ' ' in h and len(h) > 8 else h for h in display_df.columns]
+    width_map = {'#': 4, 'Nº SSA': 9, 'Loc.': 10, 'Emissor': 8, 'Executor': 8, 'Sem.\nCadastro': 8, 'Data\nCadastro': 10}
+    max_widths = [width_map.get(h, None) for h in wrapped_headers]
 
     page_size = get_terminal_height() - 7
     total_rows = len(display_df)
     start_row = 0
 
+    # LÓGICA DE PAGINAÇÃO RESTAURADA E ESTÁVEL para corrigir o IndexError
     while start_row < total_rows:
         end_row = min(start_row + page_size, total_rows)
         page_df = display_df.iloc[start_row:end_row]
 
+        # A cada página, a tabela é gerada com seu próprio cabeçalho
         table = tabulate(
             page_df,
             headers=wrapped_headers,
-            tablefmt='psql',
+            tablefmt='presto',
             showindex=False,
-            maxcolwidths=max_widths # <-- Aplica as novas larguras
+            maxcolwidths=max_widths
         )
         print(table)
 
@@ -71,5 +66,4 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
                     print("...exibição interrompida.")
                     break
             except KeyboardInterrupt:
-                print("\n...exibição interrompida.")
-                break
+                print("\n...exibição interrompida."); break

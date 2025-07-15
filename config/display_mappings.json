@@ -1,6 +1,6 @@
 {
-  "numero_ssa": "Nº SSA",
-  "localizacao": "Localização",
+  "numero_ssa": "nº SSA",
+  "localizacao": "Loc.",
   "setor_emissor": "Emissor",
   "setor_executor": "Executor",
   "descricao_ssa": "Descrição da SSA",
