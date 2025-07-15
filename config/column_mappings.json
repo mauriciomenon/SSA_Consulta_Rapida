@@ -1,0 +1,34 @@
+{
+  "numero_ssa": [
+    "Número da SSA",
+    "Nº SSA",
+    "SSA"
+  ],
+  "localizacao": [
+    "Localização",
+    "Local"
+  ],
+  "setor_emissor": [
+    "Setor Emissor"
+  ],
+  "setor_executor": [
+    "Setor Executor"
+  ],
+  "descricao_ssa": [
+    "Descrição da SSA",
+    "Descrição SSA",
+    "Desc. SSA"
+  ],
+  "descricao_execucao": [
+    "Descrição Execução",
+    "Desc. Execução",
+    "Execução"
+  ],
+  "data_cadastro": [
+      "Emitida Em",
+      "Cadastrada Em"
+  ],
+  "semana_cadastro": [
+      "Semana de Cadastro"
+  ]
+}

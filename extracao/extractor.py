@@ -1,36 +1,55 @@
-# extracao/extractor.py
+# extracao/extractor.py (versão 3 - com mapeamento de colunas)
 import pandas as pd
+import json
+import os
 from typing import Tuple, Optional, Dict
+
+CONFIG_PATH = os.path.join('config', 'column_mappings.json')
+
+def _load_column_mappings() -> dict:
+    """Carrega os mapeamentos de coluna do arquivo JSON."""
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            mappings = json.load(f)
+        
+        # Inverte o mapa para o formato {alias: canonical_name} para o rename
+        rename_map = {}
+        for canonical_name, aliases in mappings.items():
+            for alias in aliases:
+                rename_map[alias] = canonical_name
+        return rename_map
+    except FileNotFoundError:
+        print(f"AVISO: Arquivo de mapeamento '{CONFIG_PATH}' não encontrado. Usando nomes de coluna originais.")
+        return {}
+    except json.JSONDecodeError:
+        print(f"ERRO: Arquivo de mapeamento '{CONFIG_PATH}' contém um JSON inválido.")
+        return {}
+
 
 def read_report(file_path: str) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, int]]]:
     """
-    Lê um relatório em formato Excel ou CSV, detectando o cabeçalho na segunda linha.
-
-    Args:
-        file_path (str): O caminho completo para o arquivo do relatório.
-
-    Returns:
-        Tuple[Optional[pd.DataFrame], Optional[Dict[str, int]]]: 
-        Uma tupla contendo o DataFrame com os dados e um dicionário
-        mapeando o nome da coluna para seu índice. Retorna (None, None) em caso de erro.
+    Lê um relatório, aplica o mapeamento de colunas para padronizá-las e
+    retorna o DataFrame e o mapa de colunas padronizadas.
     """
-    try:
-        # Ponto crucial: header=1 informa ao pandas para usar a SEGUNDA linha como cabeçalho.
-        # Isso atende ao requisito de que a primeira linha é um cabeçalho simples.
-        df = pd.read_excel(file_path, header=1)
+    rename_map = _load_column_mappings()
 
-        # Remove colunas que são completamente vazias (comuns em relatórios formatados)
+    try:
+        df = pd.read_excel(file_path, header=1)
+        
+        # Renomeia as colunas com base no mapa carregado
+        df.rename(columns=rename_map, inplace=True)
+        
         df.dropna(axis=1, how='all', inplace=True)
 
-        # Cria o mapa de NOME_DA_COLUNA -> ÍNDICE, que será vital para as buscas
+        # O mapa de colunas agora é criado com os nomes canônicos
         column_map = {name: i for i, name in enumerate(df.columns)}
 
-        print(f"Relatório '{file_path}' lido com sucesso.")
+        print(f"Relatório '{file_path}' lido e normalizado com sucesso.")
         return df, column_map
 
     except FileNotFoundError:
         print(f"Erro: O arquivo '{file_path}' não foi encontrado.")
         return None, None
     except Exception as e:
-        print(f"Ocorreu um erro inesperado ao ler o arquivo: {e}")
+        print(f"Ocorreu um erro inesperado ao ler o arquivo '{file_path}': {e}")
         return None, None
