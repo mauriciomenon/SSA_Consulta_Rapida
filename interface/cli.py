@@ -1,97 +1,91 @@
-# interface/cli.py (versão 2)
+# interface/cli.py (versão 3)
 import os
 import sys
 import pandas as pd
-import numpy as np
-from typing import List
+import json
 
 # Adiciona a raiz do projeto para encontrar outros módulos
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 from armazenamento.database import query_db
+from interface.display import pretty_print_df # <-- IMPORTA NOSSA NOVA FUNÇÃO
 
-def filter_dataframe(df: pd.DataFrame, search_terms: List[str]) -> pd.DataFrame:
-    """
-    Filtra um DataFrame em memória com base em uma lista de termos de pesquisa.
-    Aplica uma lógica 'E' entre os termos.
-    """
-    # Começa com uma máscara que seleciona todas as linhas
+def _load_display_mappings():
+    """Carrega os mapeamentos de nomes de coluna para exibição."""
+    path = os.path.join('config', 'display_mappings.json')
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        print(f"AVISO: Não foi possível carregar o mapa de exibição de '{path}'.")
+        return {}
+
+
+def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
+    # (Esta função permanece exatamente a mesma da versão anterior)
     final_mask = pd.Series(True, index=df.index)
-    
-    # Seleciona apenas colunas do tipo string/object para a busca
     string_columns = df.select_dtypes(include=[object]).columns
-    
     for term in search_terms:
-        # Para cada termo, cria uma máscara que busca em todas as colunas de texto
-        # A busca é case-insensitive (case=False)
         term_mask = df[string_columns].apply(
             lambda col: col.str.contains(term, case=False, na=False)
         ).any(axis=1)
-        # Combina a máscara do termo atual com a máscara final usando AND
         final_mask &= term_mask
-        
     return df[final_mask]
 
+
 def start_cli_loop(db_path: str, table_name: str):
-    """Inicia o loop principal da CLI, agora com gerenciamento de estado."""
+    """Inicia o loop principal da interface de linha de comando."""
     
-    print("\n--- Consulta Rápida de SSAs (v2) ---")
-    print("Comandos: [voltar], [resetar], [ajuda], [sair]")
+    print("\n--- Consulta Rápida de SSAs (v3) ---")
     
-    # Carrega todos os dados iniciais do banco para a memória
+    display_map = _load_display_mappings()
     initial_df = query_db(db_path, table_name, [])
+
     if initial_df.empty:
         print("A base de dados está vazia. Execute um importador primeiro.")
         return
         
-    # Pilha de resultados para o histórico de filtros
     results_stack = [initial_df]
     
     while True:
         current_results = results_stack[-1]
-        prompt = f"\nFiltrando sobre {len(current_results)} resultados | Pesquisar ou comando: "
+        
+        # O banner de ajuda agora está integrado ao prompt
+        prompt = (f"\nFiltrando sobre {len(current_results)} resultados | "
+                  f"Comandos: [voltar], [resetar], [ajuda], [sair]\n"
+                  f"Pesquisar: ")
+        
         user_input = input(prompt)
         
-        # --- Lógica de Comandos ---
         if user_input.lower() == 'sair':
             print("Saindo...")
             break
-            
         elif user_input.lower() == 'voltar':
             if len(results_stack) > 1:
                 results_stack.pop()
                 print("...filtro anterior restaurado.")
             else:
                 print("Não há filtros anteriores para voltar.")
-            
         elif user_input.lower() == 'resetar':
             results_stack = [initial_df]
             print("...todos os filtros foram removidos.")
-            
         elif user_input.lower() == 'ajuda':
             print("\n- Digite termos separados por vírgula para filtrar os resultados atuais.")
             print("- 'voltar': Desfaz o último filtro.")
             print("- 'resetar': Limpa todos os filtros e volta ao conjunto de dados completo.")
             print("- 'sair': Encerra o programa.")
-            continue # Pula a exibição de resultados e pede novo input
-            
-        # --- Lógica de Filtragem ---
+            continue
         else:
             search_terms = [term.strip() for term in user_input.split(',') if term.strip()]
             if not search_terms:
                 print("Nenhum termo de pesquisa inserido.")
                 continue
-
-            # Filtra o DataFrame que está no topo da pilha (o resultado atual)
             new_filtered_df = filter_dataframe(current_results, search_terms)
             results_stack.append(new_filtered_df)
 
-        # --- Exibição de Resultados ---
         final_results = results_stack[-1]
-        if not final_results.empty:
-            print(f"\nExibindo {len(final_results)} de {len(initial_df)} registros totais:")
-            with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
-                print(final_results)
-        else:
-            print("Nenhum resultado encontrado para o filtro aplicado.")
+        print(f"\nExibindo {len(final_results)} de {len(initial_df)} registros totais:")
+        
+        # MUDANÇA PRINCIPAL: Usa nossa nova função para imprimir a tabela!
+        pretty_print_df(final_results, display_map)

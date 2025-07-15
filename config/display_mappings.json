@@ -1,0 +1,10 @@
+{
+  "numero_ssa": "Nº SSA",
+  "localizacao": "Localização",
+  "setor_emissor": "Emissor",
+  "setor_executor": "Executor",
+  "descricao_ssa": "Descrição da SSA",
+  "descricao_execucao": "Descrição da Execução",
+  "data_cadastro": "Data Cadastro",
+  "semana_cadastro": "Sem. Cadastro"
+}
