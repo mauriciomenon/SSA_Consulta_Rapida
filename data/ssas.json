@@ -1,0 +1,34 @@
+[
+  {
+    "Número da SSA": "2025001",
+    "Localização": "U01",
+    "Setor Emissor": "IEE3",
+    "Setor Executor": "MEL4",
+    "Descrição da SSA": "Verificar ruído estranho no motor principal.",
+    "Descrição da Execução": "Ruído era causado por um parafuso solto. Parafuso reapertado."
+  },
+  {
+    "Número da SSA": "2025002",
+    "Localização": "U02",
+    "Setor Emissor": "SMM1",
+    "Setor Executor": "MEL4",
+    "Descrição da SSA": "Painel de controle não responde.",
+    "Descrição da Execução": "Reiniciado o sistema de controle. Problema resolvido."
+  },
+  {
+    "Número da SSA": "2025003",
+    "Localização": "U01",
+    "Setor Emissor": "IEE3",
+    "Setor Executor": "SVP-07",
+    "Descrição da SSA": "Vazamento de óleo identificado na base.",
+    "Descrição da Execução": "Análise pendente. Necessário investigar a causa do vazamento."
+  },
+  {
+    "Número da SSA": "2025004",
+    "Localização": "U03",
+    "Setor Emissor": "IEE3",
+    "Setor Executor": "MEL4",
+    "Descrição da SSA": "Luz de alerta piscando intermitentemente.",
+    "Descrição da Execução": "Nenhuma anomalia encontrada nos logs. Monitorar."
+  }
+]
