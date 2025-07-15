@@ -1,0 +1,4 @@
+# pyproject.toml
+[project]
+name = "ssa_consulta_rapida"
+version = "0.1.0"
