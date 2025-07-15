@@ -1,10 +1,13 @@
-# main.py (versão 3 - com verificação de estrutura)
+# main.py (versão 3.1 - correção de nomes canônicos)
 import os
 import sys
 import glob
 import pandas as pd
 
 # Garante que os módulos do projeto sejam encontrados
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(project_root)
+
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(project_root)
 
@@ -15,12 +18,16 @@ from interface.cli import start_cli_loop
 # --- Configurações ---
 DOCS_DIR = 'docs'
 DATA_DIR = 'data'
-CONFIG_DIR = 'config' # Nova pasta para a V3
+CONFIG_DIR = 'config'
 DB_PATH = os.path.join(DATA_DIR, 'ssas.db')
 TABLE_NAME = 'ssa'
+
+# CORREÇÃO PRINCIPAL:
+# A lista de colunas agora usa os nomes CANÔNICOS definidos no JSON.
 COLUNAS_FINAIS = [
-    "Número da SSA", "Localização", "Setor Emissor", 
-    "Setor Executor", "Descrição da SSA", "Descrição Execução"
+    "numero_ssa", "localizacao", "setor_emissor", 
+    "setor_executor", "descricao_ssa", "descricao_execucao",
+    "data_cadastro", "semana_cadastro"
 ]
 
 def ensure_project_structure():
@@ -41,7 +48,7 @@ def ensure_project_structure():
     
     if not all_ok:
         print("Estrutura de pastas necessária ausente. O programa não pode continuar.")
-        sys.exit() # Encerra o programa se o usuário recusar a criação
+        sys.exit()
     print("Estrutura de pastas OK.")
 
 
@@ -50,7 +57,6 @@ def run_importer():
     Verifica a pasta /docs por relatórios .xlsx e oferece a importação.
     Combina dados de múltiplos relatórios, remove duplicatas e salva no BD.
     """
-    # (O código desta função permanece o mesmo da última versão)
     report_files = glob.glob(os.path.join(DOCS_DIR, '*.xlsx'))
     
     if not report_files:
@@ -83,9 +89,9 @@ def run_importer():
     
     final_df = combined_df[colunas_para_salvar].copy()
 
-    if "Número da SSA" in final_df.columns:
+    if "numero_ssa" in final_df.columns:
         linhas_antes = len(final_df)
-        final_df = final_df.drop_duplicates(subset=["Número da SSA"], keep='last')
+        final_df = final_df.drop_duplicates(subset=["numero_ssa"], keep='last')
         linhas_depois = len(final_df)
         if linhas_antes > linhas_depois:
             print(f"Removidas {linhas_antes - linhas_depois} SSAs duplicadas.")
@@ -96,16 +102,9 @@ def run_importer():
 def main():
     """Função principal que orquestra a aplicação."""
     print("--- Iniciando SSA Consulta Rápida ---")
-    
-    # 1. Garante que a estrutura de pastas exista
     ensure_project_structure()
-    
-    # 2. Executa a rotina de importação
     run_importer()
-    
-    # 3. Inicia a interface de consulta interativa
     start_cli_loop(db_path=DB_PATH, table_name=TABLE_NAME)
-
 
 if __name__ == "__main__":
     main()
