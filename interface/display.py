@@ -1,4 +1,4 @@
-# interface/display.py (versão 3 - com quebra de cabeçalho)
+# interface/display.py (versão 3 - com larguras de coluna controladas)
 import pandas as pd
 from tabulate import tabulate
 from typing import Dict
@@ -21,21 +21,29 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
     cols_to_truncate = ['descricao_ssa', 'descricao_execucao']
     for col in cols_to_truncate:
         if col in display_df.columns:
-            display_df[col] = display_df[col].astype(str).str.slice(0, 50) + '...'
+            display_df[col] = display_df[col].astype(str).str.slice(0, 45) + '...'
 
     display_df.rename(columns=display_map, inplace=True)
     
-    # --- NOVA LÓGICA DE QUEBRA DE CABEÇALHO ---
     wrapped_headers = []
     for header in display_df.columns:
-        # Se o cabeçalho for longo e tiver um espaço, quebramos em duas linhas
         if len(header) > 8 and ' ' in header:
             wrapped_headers.append(header.replace(' ', '\n', 1))
         else:
             wrapped_headers.append(header)
-    # -----------------------------------------
+    
+    # --- NOVA LÓGICA DE LARGURA DE COLUNA ---
+    # Define larguras máximas para colunas específicas para compactar a tabela
+    # O número de elementos deve corresponder ao número de colunas em display_df
+    max_widths = []
+    for col_name in display_df.columns:
+        if col_name in ['Emissor', 'Executor', 'Localização', 'Sem.\nCadastro']:
+            max_widths.append(12)  # Define uma largura máxima menor
+        else:
+            max_widths.append(None) # Deixa o tabulate decidir
+    # ----------------------------------------
 
-    page_size = get_terminal_height() - 7 # Mais espaço para cabeçalhos de 2 linhas
+    page_size = get_terminal_height() - 7
     total_rows = len(display_df)
     start_row = 0
 
@@ -45,9 +53,10 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
 
         table = tabulate(
             page_df,
-            headers=wrapped_headers, # <-- Usa os cabeçalhos com quebra de linha
+            headers=wrapped_headers,
             tablefmt='psql',
-            showindex=False
+            showindex=False,
+            maxcolwidths=max_widths # <-- Aplica as novas larguras
         )
         print(table)
 
