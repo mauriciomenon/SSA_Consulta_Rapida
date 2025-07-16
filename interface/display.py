@@ -1,4 +1,4 @@
-# interface/display.py (VERSÃO ESTÁVEL E CORRIGIDA)
+# interface/display.py (v2.0 - Exibicao Robusta)
 import pandas as pd
 from tabulate import tabulate
 from typing import Dict
@@ -15,9 +15,15 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
         print("Nenhum resultado para exibir.")
         return
 
-    display_df = df.copy()
+    # CORRECAO CRITICA: So vamos exibir as colunas que estao no nosso mapa.
+    # Isso impede que colunas inesperadas do schema dinamico quebrem a tabela.
+    cols_to_display = [col for col in display_map.keys() if col in df.columns]
+    if not cols_to_display:
+        print("Nenhuma coluna mapeada para exibicao foi encontrada nos resultados.")
+        return
+        
+    display_df = df[cols_to_display].copy()
 
-    # CORREÇÃO: Removido 'dayfirst=True' para evitar o UserWarning
     if 'data_cadastro' in display_df.columns:
         display_df['data_cadastro'] = pd.to_datetime(
             display_df['data_cadastro'], errors='coerce'
@@ -40,12 +46,10 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
     total_rows = len(display_df)
     start_row = 0
 
-    # LÓGICA DE PAGINAÇÃO RESTAURADA E ESTÁVEL para corrigir o IndexError
     while start_row < total_rows:
         end_row = min(start_row + page_size, total_rows)
         page_df = display_df.iloc[start_row:end_row]
 
-        # A cada página, a tabela é gerada com seu próprio cabeçalho
         table = tabulate(
             page_df,
             headers=wrapped_headers,
@@ -61,9 +65,8 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str]):
             remaining = total_rows - start_row
             prompt = f"\n-- Mais ({remaining} restantes) | Pressione Enter para continuar ou 'q' para sair --"
             try:
-                user_choice = input(prompt)
-                if user_choice.lower() == 'q':
-                    print("...exibição interrompida.")
+                if input(prompt).lower() == 'q':
+                    print("...exibicao interrompida.")
                     break
             except KeyboardInterrupt:
-                print("\n...exibição interrompida."); break
+                print("\n...exibicao interrompida."); break
