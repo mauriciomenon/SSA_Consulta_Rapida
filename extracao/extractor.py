@@ -1,4 +1,4 @@
-# extracao/extractor.py (versão 6 - estável)
+# extracao/extractor.py (v6.1 - Refatoracao de data)
 import pandas as pd
 import json
 import os
@@ -7,33 +7,45 @@ from typing import Tuple, Optional, Dict
 CONFIG_PATH = os.path.join('config', 'column_mappings.json')
 
 def _load_column_mappings() -> dict:
+    """Carrega o mapeamento de nomes de colunas a partir do arquivo JSON."""
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             mappings = json.load(f)
+        # Inverte o mapa para {alias: canonical} para uso no rename()
         return {alias: canonical for canonical, aliases in mappings.items() for alias in aliases}
-    except:
+    except (FileNotFoundError, json.JSONDecodeError):
+        print("AVISO: Arquivo 'column_mappings.json' nao encontrado ou invalido. A normalizacao de colunas pode falhar.")
         return {}
 
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
-    """Converte colunas-chave para tipos de dados padronizados."""
+    """Converte colunas-chave para tipos de dados padronizados, especialmente datas."""
     if 'data_cadastro' in df.columns:
-        # pd.to_datetime é poderoso. 'coerce' transforma erros em NaT (Not a Time).
-        # Removido 'dayfirst=True' para deixar o pandas inferir o formato e evitar warnings.
+        # REFATORACAO: Adicionado dayfirst=True para interpretar corretamente
+        # formatos de data brasileiros (dd/mm/yyyy) e silenciar o UserWarning.
         df['data_cadastro'] = pd.to_datetime(
             df['data_cadastro'], 
-            errors='coerce'
+            errors='coerce',
+            dayfirst=True
         )
-        print("Coluna 'data_cadastro' normalizada para datetime.")
+        # O print foi removido para deixar a saida do importador mais limpa.
+        # A operacao e confiavel e nao precisa ser anunciada a cada arquivo.
     return df
 
 def read_report(file_path: str) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, int]]]:
-    """Lê, normaliza nomes de colunas e normaliza tipos de dados de um relatório."""
+    """
+    Le um relatorio Excel, normaliza os nomes das colunas e os tipos de dados.
+    """
     rename_map = _load_column_mappings()
     try:
+        # O cabecalho esta na segunda linha (indice 1)
         df = pd.read_excel(file_path, header=1)
         df.rename(columns=rename_map, inplace=True)
-        df = _normalize_datatypes(df)
+        
+        # Remove colunas que so contem valores nulos (comuns em relatorios mal formatados)
         df.dropna(axis=1, how='all', inplace=True)
+
+        df = _normalize_datatypes(df)
+        
         return df, {name: i for i, name in enumerate(df.columns)}
     except Exception as e:
         print(f"ERRO ao processar o arquivo '{file_path}': {e}")

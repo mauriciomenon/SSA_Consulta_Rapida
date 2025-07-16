@@ -1,85 +1,102 @@
-# armazenamento/database.py
+# armazenamento/database.py (v2.1 - Correcao de NameError)
 import sqlite3
 import pandas as pd
 from typing import List
 
+def _get_existing_columns(conn: sqlite3.Connection, table_name: str) -> List[str]:
+    """
+    Busca e retorna a lista de nomes de colunas existentes em uma tabela.
+    Usa o comando PRAGMA table_info, que e eficiente e seguro.
+    """
+    try:
+        cursor = conn.execute(f"PRAGMA table_info({table_name})")
+        return [row[1] for row in cursor.fetchall()]
+    except sqlite3.Error:
+        # A tabela pode nao existir ainda na primeira execucao
+        return []
+
+def _add_missing_columns(conn: sqlite3.Connection, table_name: str, df_columns: List[str]):
+    """
+    Compara as colunas do DataFrame com as da tabela e adiciona as que faltam.
+    """
+    existing_columns = _get_existing_columns(conn, table_name)
+    missing_columns = [col for col in df_columns if col not in existing_columns]
+
+    if not missing_columns:
+        return # Nenhuma alteracao necessaria
+
+    cursor = conn.cursor()
+    print(f"Novas colunas encontradas. Atualizando banco de dados: {', '.join(missing_columns)}")
+    for column in missing_columns:
+        try:
+            # Adiciona a coluna. Usamos TEXT como um tipo de dado universal e seguro.
+            # A sanitizacao do nome da coluna evita injecao de SQL.
+            safe_column_name = f'"{column}"'
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {safe_column_name} TEXT")
+            print(f" -> Coluna '{column}' adicionada com sucesso.")
+        except sqlite3.Error as e:
+            print(f"AVISO: Nao foi possivel adicionar a coluna '{column}'. Erro: {e}")
+    conn.commit()
+
 def save_to_db(df: pd.DataFrame, table_name: str, db_path: str):
     """
-    Salva um DataFrame em uma tabela de um banco de dados SQLite.
-
-    Se a tabela já existir, ela será substituída completamente.
-
-    Args:
-        df (pd.DataFrame): O DataFrame a ser salvo.
-        table_name (str): O nome da tabela onde os dados serão salvos.
-        db_path (str): O caminho para o arquivo do banco de dados SQLite.
+    Salva um DataFrame em uma tabela SQLite, garantindo que todas as colunas
+    do DataFrame existam na tabela antes da insercao.
     """
+    if df.empty:
+        print("DataFrame vazio, nada para salvar no banco de dados.")
+        return
+
     try:
-        conn = sqlite3.connect(db_path)
-        
-        # Usamos o método to_sql do pandas, que é extremamente eficiente.
-        # if_exists='replace': apaga a tabela antiga e cria uma nova.
-        # index=False: não salva o índice do DataFrame como uma coluna no BD.
-        df.to_sql(name=table_name, con=conn, if_exists='replace', index=False)
-        
-        print(f"DataFrame salvo com sucesso na tabela '{table_name}' do banco '{db_path}'.")
-        print(f"Total de {len(df)} linhas inseridas.")
-        
+        with sqlite3.connect(db_path) as conn:
+            # A abordagem com if_exists='replace' e mais simples e robusta.
+            # Ela recria a tabela a cada importacao, garantindo que o schema
+            # esteja sempre perfeitamente sincronizado com os dados mais recentes.
+            # Isso elimina a necessidade de chamar a funcao _add_missing_columns
+            # e evita potenciais conflitos de tipo de dados.
+            df.to_sql(table_name, conn, if_exists='replace', index=False)
+            
+            print(f"\nOperacao concluida: {len(df)} registros foram salvos com sucesso na tabela '{table_name}'.")
+            print(f"O banco de dados '{db_path}' esta atualizado.")
+
+    except sqlite3.Error as e:
+        print(f"ERRO CRITICO ao interagir com o banco de dados: {e}")
     except Exception as e:
-        print(f"Ocorreu um erro ao salvar os dados no banco: {e}")
-    finally:
-        if conn:
-            conn.close()
+        print(f"ERRO INESPERADO durante a operacao com o banco de dados: {e}")
 
-def query_db(db_path: str, table_name: str, search_terms: List[str]) -> pd.DataFrame:
+
+def query_db(db_path: str, table_name: str, columns: List[str] = None) -> pd.DataFrame:
     """
-    Consulta o banco de dados com uma lista de termos de pesquisa.
-    A busca é feita em todas as colunas de texto com um 'E' lógico entre os termos.
-
-    Args:
-        db_path (str): Caminho para o arquivo do banco de dados.
-        table_name (str): Nome da tabela a ser consultada.
-        search_terms (List[str]): Lista de strings para buscar.
-
-    Returns:
-        pd.DataFrame: DataFrame com os resultados da consulta.
+    Consulta uma tabela SQLite e retorna os dados como um DataFrame pandas.
+    Se 'columns' for uma lista vazia ou None, seleciona todas as colunas.
     """
-    conn = None
+    if not columns:
+        select_clause = "*"
+    else:
+        # Garante que os nomes das colunas sejam seguros para a consulta
+        safe_columns = [f'"{col}"' for col in columns]
+        select_clause = ", ".join(safe_columns)
+
     try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        with sqlite3.connect(db_path) as conn:
+            # Verifica se a tabela existe antes de consultar
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+            if cursor.fetchone() is None:
+                print(f"AVISO: A tabela '{table_name}' nao existe no banco de dados '{db_path}'.")
+                return pd.DataFrame()
 
-        # Pega o nome de todas as colunas da tabela
-        cursor.execute(f"PRAGMA table_info({table_name});")
-        columns = [row[1] for row in cursor.fetchall()]
+            query = f"SELECT {select_clause} FROM {table_name}"
+            df = pd.read_sql_query(query, conn)
 
-        # Constrói a query dinamicamente
-        base_query = f"SELECT * FROM {table_name}"
-        
-        if search_terms:
-            where_clauses = []
-            params = []
-            for term in search_terms:
-                # Para cada termo, cria uma busca em todas as colunas (condição OR)
-                term_clause = " OR ".join([f'"{col}" LIKE ?' for col in columns])
-                where_clauses.append(f"({term_clause})")
-                # Adiciona o parâmetro para cada coluna
-                params.extend([f"%{term}%"] * len(columns))
+            # Normaliza os tipos de dados que sao lidos do banco
+            if 'data_cadastro' in df.columns:
+                df['data_cadastro'] = pd.to_datetime(df['data_cadastro'], errors='coerce')
 
-            # Junta todas as buscas de termos com AND
-            base_query += " WHERE " + " AND ".join(where_clauses)
-            
-            # pd.read_sql_query é a forma mais segura e fácil de executar
-            df = pd.read_sql_query(base_query, conn, params=params)
-        else:
-            # Se não houver termos, retorna a tabela inteira
-            df = pd.read_sql_query(base_query, conn)
-            
-        return df
-
+            return df
+    except sqlite3.Error as e:
+        print(f"ERRO ao consultar o banco de dados: {e}")
+        return pd.DataFrame()
     except Exception as e:
-        print(f"Erro ao consultar o banco de dados: {e}")
-        return pd.DataFrame() # Retorna um DataFrame vazio em caso de erro
-    finally:
-        if conn:
-            conn.close()
+        print(f"ERRO INESPERADO ao ler o banco de dados: {e}")
+        return pd.DataFrame()
