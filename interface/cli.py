@@ -1,4 +1,4 @@
-# interface/cli.py (v5.0 - Arquitetura e Exportacao Refatoradas)
+# interface/cli.py (v5.1 - Correção de Argumento e Estabilidade)
 import os
 import sys
 import pandas as pd
@@ -48,18 +48,19 @@ def print_help():
     print("  -s, sair          : Encerra o programa.")
     print("="*50)
 
+# CORREÇÃO: Adicionado o parâmetro 'output_dir' que estava faltando.
 def start_cli_loop(db_path: str, table_name: str, output_dir: str):
     display_map = _load_mappings('display_mappings.json')
     try:
         initial_df = query_db(db_path, table_name)
         if initial_df.empty:
-            print("A base de dados está vazia ou não foi encontrada."); return
+            print("A base de dados está vazia. Coloque relatórios na pasta 'docs_entrada' e reinicie o programa."); return
     except Exception as e:
         print(f"Erro fatal ao carregar o banco de dados: {e}"); return
         
     results_stack = [initial_df]
     
-    print(f"\n--- Consulta Rápida de SSAs (v10.0 - Final) ---")
+    print(f"\n--- Consulta Rápida de SSAs (v11.0 - Estável) ---")
     print(f"Banco de dados carregado com {len(initial_df)} SSAs.")
     print("Digite termos para pesquisar ou '-h' para ajuda.")
     
