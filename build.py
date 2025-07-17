@@ -1,4 +1,4 @@
-# build.py (v1.2 - Build Final e Completo)
+# build.py (v1.2)
 import os
 import sys
 import shutil
@@ -11,8 +11,7 @@ DIST_DIR = "dist"
 BUILD_DIR = "build"
 FINAL_ZIP_NAME = f"{APP_NAME}_v1.2"
 
-# CORREÇÃO: Definindo a estrutura de pastas e arquivos a serem incluídos
-# na distribuição final de forma explícita.
+# Estrutura de pastas e arquivos a serem incluídos
 DIST_STRUCTURE = {
     "dirs": ['docs_entrada', 'docs_saida'],
     "files": {
@@ -24,7 +23,7 @@ def run_pyinstaller():
     """Executa o PyInstaller para criar o executável."""
     print("--- Iniciando o PyInstaller para criar o .exe ---")
     
-    # CORREÇÃO: Removida a flag '--noconsole'.
+    # Removida a flag '--noconsole'.
     command = [
         sys.executable,
         '-m', 'PyInstaller',
