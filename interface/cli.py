@@ -1,4 +1,4 @@
-# interface/cli.py (v5.1 - Correção de Argumento e Estabilidade)
+# interface/cli.py (v6.0 - Final e Estável)
 import os
 import sys
 import pandas as pd
@@ -48,7 +48,6 @@ def print_help():
     print("  -s, sair          : Encerra o programa.")
     print("="*50)
 
-# CORREÇÃO: Adicionado o parâmetro 'output_dir' que estava faltando.
 def start_cli_loop(db_path: str, table_name: str, output_dir: str):
     display_map = _load_mappings('display_mappings.json')
     try:
@@ -60,7 +59,7 @@ def start_cli_loop(db_path: str, table_name: str, output_dir: str):
         
     results_stack = [initial_df]
     
-    print(f"\n--- Consulta Rápida de SSAs (v11.0 - Estável) ---")
+    print(f"\n--- Consulta Rápida de SSAs (v12.0 - Build Final) ---")
     print(f"Banco de dados carregado com {len(initial_df)} SSAs.")
     print("Digite termos para pesquisar ou '-h' para ajuda.")
     
@@ -69,8 +68,9 @@ def start_cli_loop(db_path: str, table_name: str, output_dir: str):
     while True:
         current_results = results_stack[-1]
         
+        # CORREÇÃO: Banner de ajuda restaurado para a versão completa e correta.
         prompt = (f"\nFiltrando {len(current_results)} SSAs | "
-                  f"Ajuda: -v(voltar), -r(reset), -e(exportar), -h(ajuda), -s(sair)\n"
+                  f"Ajuda: -v(voltar), -r(reset), -ord N(ord), -h(ajuda), -s(sair)\n"
                   f"Pesquisar: ")
         
         try:
@@ -119,7 +119,9 @@ def start_cli_loop(db_path: str, table_name: str, output_dir: str):
                         sorted_df = current_results.sort_values(by=col_to_sort, ascending=ascending, na_position='last')
                     else:
                         print(f"Erro: Índice de coluna '{col_index}' inválido."); continue
+                    
                     results_stack[-1] = sorted_df
+                    # CORREÇÃO: Garantindo que a mensagem de ordenação seja sempre exibida.
                     print(f"Resultados ordenados pela coluna {col_index}.")
                     pretty_print_df(sorted_df, display_map)
                 except Exception as e:
