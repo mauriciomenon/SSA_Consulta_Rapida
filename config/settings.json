@@ -1,0 +1,26 @@
+{
+    "display_settings": {
+        "column_widths": {
+            "#": 4,
+            "Nº SSA": 9,
+            "Loc.": 10,
+            "Emissor": 8,
+            "Executor": 8,
+            "Sem.\nCadastro": 8,
+            "Data\nCadastro": 10
+        },
+        "column_visibility": {
+            "numero_ssa": true,
+            "localizacao": true,
+            "setor_emissor": true,
+            "setor_executor": true,
+            "descricao_ssa": true,
+            "descricao_execucao": true,
+            "data_cadastro": true,
+            "semana_cadastro": false
+        }
+    },
+    "user_preferences": {
+        "auto_scroll_to_end": false
+    }
+}
