@@ -17,10 +17,10 @@
             "descricao_ssa": true,
             "descricao_execucao": true,
             "data_cadastro": true,
-            "semana_cadastro": false
+            "semana_cadastro": true
         }
     },
     "user_preferences": {
-        "auto_scroll_to_end": false
+        "auto_scroll_to_end": true
     }
 }
