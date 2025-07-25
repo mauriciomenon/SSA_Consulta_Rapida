@@ -1,34 +1,151 @@
 {
-  "numero_ssa": [
-    "Número da SSA",
-    "Nº SSA",
-    "SSA"
-  ],
-  "localizacao": [
-    "Localização",
-    "Local"
-  ],
-  "setor_emissor": [
-    "Setor Emissor"
-  ],
-  "setor_executor": [
-    "Setor Executor"
-  ],
-  "descricao_ssa": [
-    "Descrição da SSA",
-    "Descrição SSA",
-    "Desc. SSA"
-  ],
-  "descricao_execucao": [
-    "Descrição Execução",
-    "Desc. Execução",
-    "Execução"
-  ],
-  "data_cadastro": [
-      "Emitida Em",
-      "Cadastrada Em"
-  ],
-  "semana_cadastro": [
-      "Semana de Cadastro"
-  ]
+    "numero_ssa": [
+        "Nº SSA",
+        "Nº SSA*",
+        "Nº SSA Original",
+        "Numero SSA",
+        "Nº da SSA"
+    ],
+    "situacao": [
+        "Situação",
+        "Situacao",
+        "Status"
+    ],
+    "derivada_de": [
+        "Derivada de",
+        "Derivada De"
+    ],
+    "localizacao_codigo": [
+        "Loc.",
+        "Localização",
+        "Cod. Localização",
+        "Codigo Localizacao"
+    ],
+    "descricao_localizacao": [
+        "Desc. Loc.",
+        "Descrição da Localização",
+        "Descricao Localizacao"
+    ],
+    "equipamento": [
+        "Equip.",
+        "Equipamento"
+    ],
+    "semana_cadastro": [
+        "Sem.\nCadastro",
+        "Sem. Cadastro",
+        "Semana Cadastro"
+    ],
+    "data_cadastro": [
+        "Emitida Em",
+        "Data de Emissão",
+        "Data Cadastro",
+        "Data/Hora de Cadastro"
+    ],
+    "descricao_ssa": [
+        "Descrição da SSA",
+        "Descricao da SSA",
+        "Descricao"
+    ],
+    "setor_emissor": [
+        "Emissor",
+        "Setor Emissor"
+    ],
+    "setor_executor": [
+        "Executor",
+        "Setor Executor"
+    ],
+    "solicitante": [
+        "Solicitante"
+    ],
+    "servico_origem": [
+        "Serv. Origem",
+        "Serviço de Origem"
+    ],
+    "grau_prioridade_emissao": [
+        "Prior. Emissão",
+        "Prioridade Emissão",
+        "Grau Prioridade Emissão"
+    ],
+    "grau_prioridade_planejamento": [
+        "Prior. Planej.",
+        "Prioridade Planejamento",
+        "Grau Prioridade Planejamento"
+    ],
+    "execucao_simples": [
+        "Exec. Simples",
+        "Execução Simples"
+    ],
+    "responsavel_programacao": [
+        "Resp. Prog.",
+        "Responsável Programação"
+    ],
+    "semana_programada": [
+        "Sem. Prog.",
+        "Semana Programada"
+    ],
+    "responsavel_execucao": [
+        "Resp. Exec.",
+        "Responsável Execução"
+    ],
+    "descricao_execucao": [
+        "Descrição da Execução",
+        "Descricao da Execucao"
+    ],
+    "prazo_limite": [
+        "Prazo Limite"
+    ],
+    "tempo_disponivel": [
+        "Tempo Disp.",
+        "Tempo Disponível"
+    ],
+    "data_limite": [
+        "Data Limite"
+    ],
+    "tempo_excedido": [
+        "Tempo Excedido"
+    ],
+    "desde": [
+        "Desde"
+    ],
+    "tempo_total": [
+        "Tempo Total"
+    ],
+    "desde_1": [
+        "Desde (1)"
+    ],
+    "total_tempo_tpe_planejado": [
+        "Tempo TPE Plan.",
+        "Total Tempo TPE Planejado"
+    ],
+    "total_tempo_tex_planejado": [
+        "Tempo TEX Plan.",
+        "Total Tempo TEX Planejado"
+    ],
+    "total_tempo_tpo_planejado": [
+        "Tempo TPO Plan.",
+        "Total Tempo TPO Planejado"
+    ],
+    "total_horas_programadas": [
+        "Horas Prog.",
+        "Total Horas Programadas"
+    ],
+    "semana_executada": [
+        "Sem. Exec.",
+        "Semana Executada"
+    ],
+    "num_reprogramacoes": [
+        "Nº Reprog.",
+        "Número de Reprogramações"
+    ],
+    "execucao_parcial": [
+        "Exec. Parcial",
+        "Execução Parcial"
+    ],
+    "anomalia": [
+        "Anomalia"
+    ],
+    "sistema_origem": [
+        "Sis. Origem",
+        "Sistema de Origem"
+    ]
 }

@@ -1,87 +1,105 @@
-# core/config_manager.py 20250721 120510 (v2.0 - Inteligente)
+# core/config_manager.py 20250725 163000 (v2.1 - Melhorias de Erro, Logging)
+"""
+Gerenciador de configurações da aplicação.
+
+Responsável por carregar, salvar e garantir a existência do arquivo settings.json.
+"""
+
 import json
 import os
+import shutil
+import logging
+from typing import Dict, Any
 
-SETTINGS_PATH = os.path.join('config', 'settings.json')
-DISPLAY_MAPPINGS_PATH = os.path.join('config', 'display_mappings.json')
+logger = logging.getLogger(__name__)
 
-def _get_all_display_columns() -> dict:
-    """Lê o display_mappings para obter todas as colunas possíveis e define sua visibilidade padrão."""
+# Caminhos padrão
+CONFIG_DIR = 'config'
+DEFAULT_SETTINGS_FILE = os.path.join(CONFIG_DIR, 'default_settings.json')
+USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, 'settings.json')
+DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
+COLUMN_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'column_mappings.json')
+
+def load_settings() -> Dict[str, Any]:
+    """
+    Carrega as configurações do usuário. Se não existir, carrega as padrões.
+    
+    Returns:
+        Dict[str, Any]: Um dicionário com as configurações.
+    """
+    settings_path = USER_SETTINGS_FILE
+    if not os.path.exists(settings_path):
+        logger.info(f"Arquivo de configuração do usuário '{settings_path}' não encontrado. Carregando padrões.")
+        settings_path = DEFAULT_SETTINGS_FILE
+
     try:
-        with open(DISPLAY_MAPPINGS_PATH, 'r', encoding='utf-8') as f:
-            display_map = json.load(f)
-        
-        # Por padrão, todas as colunas são visíveis, exceto 'semana_cadastro'
-        visibility = {key: True for key in display_map.keys()}
-        if 'semana_cadastro' in visibility:
-            visibility['semana_cadastro'] = False
-        return visibility
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+        logger.debug(f"Configurações carregadas de '{settings_path}'.")
+        return settings
+    except FileNotFoundError:
+        logger.critical(f"Arquivo de configuração '{settings_path}' não encontrado.")
+        # Retorna um dicionário vazio ou padrão mínimo como último recurso?
+        # Ou lança uma exceção? Vamos lançar para que o chamador decida.
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Erro ao decodificar JSON em '{settings_path}': {e}")
+        raise
 
-def _get_default_settings() -> dict:
-    """Cria a estrutura de configurações padrão completa."""
-    return {
-        "display_settings": {
-            "column_widths": {
-                "#": 4, "Nº SSA": 9, "Loc.": 10, "Emissor": 8, "Executor": 8,
-                "Sem.\nCadastro": 8, "Data\nCadastro": 10
-            },
-            "column_visibility": _get_all_display_columns()
-        },
-        "user_preferences": {
-            "auto_scroll_to_end": False
-        }
+def save_settings(settings: Dict[str, Any]):
+    """
+    Salva as configurações do usuário.
+    
+    Args:
+        settings (Dict[str, Any]): O dicionário de configurações a ser salvo.
+    """
+    try:
+        os.makedirs(os.path.dirname(USER_SETTINGS_FILE), exist_ok=True)
+        with open(USER_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=4, ensure_ascii=False)
+        logger.info(f"Configurações salvas em '{USER_SETTINGS_FILE}'.")
+    except IOError as e:
+        logger.error(f"Erro ao salvar configurações em '{USER_SETTINGS_FILE}': {e}")
+        raise
+
+def ensure_default_settings():
+    """
+    Garante que os arquivos de configuração padrão existam.
+    Se não existirem, os copia dos arquivos de exemplo ou os cria.
+    """
+    required_files = {
+        DEFAULT_SETTINGS_FILE: 'default_settings.json.example',
+        DISPLAY_MAPPINGS_FILE: 'display_mappings.json.example',
+        COLUMN_MAPPINGS_FILE: 'column_mappings.json.example',
+        # Adicione outros arquivos de configuração aqui se necessário
     }
 
-def _merge_settings(user_settings: dict, default_settings: dict) -> tuple[dict, bool]:
-    """Garante que as configurações do usuário contenham todas as chaves padrão."""
-    settings_changed = False
-    # Garante que a seção column_visibility exista
-    if 'column_visibility' not in user_settings.get('display_settings', {}):
-        user_settings.setdefault('display_settings', {})['column_visibility'] = {}
-        settings_changed = True
+    for target_file, example_file in required_files.items():
+        if not os.path.exists(target_file):
+            example_path = os.path.join(CONFIG_DIR, example_file)
+            if os.path.exists(example_path):
+                try:
+                    shutil.copyfile(example_path, target_file)
+                    logger.info(f"Arquivo de configuração padrão criado: {target_file}")
+                except IOError as e:
+                    logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
+            else:
+                # Se o arquivo exemplo também não existir, cria um padrão mínimo ou loga um aviso
+                logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
+                # Aqui você poderia criar um arquivo padrão mínimo, se desejado.
+                # Por enquanto, apenas avisa.
 
-    # Verifica se falta alguma coluna na configuração do usuário e a adiciona
-    default_visibility = default_settings['display_settings']['column_visibility']
-    user_visibility = user_settings['display_settings']['column_visibility']
-    
-    for key, value in default_visibility.items():
-        if key not in user_visibility:
-            user_visibility[key] = value
-            settings_changed = True
-            
-    return user_settings, settings_changed
-
-def load_settings() -> dict:
-    """
-    Carrega as configurações do settings.json, criando ou atualizando o arquivo
-    conforme necessário para ser amigável ao usuário.
-    """
-    default_settings = _get_default_settings()
-    
-    if not os.path.exists(SETTINGS_PATH):
-        print(f"AVISO: Arquivo de configurações não encontrado. Criando '{SETTINGS_PATH}' com valores padrão.")
-        try:
-            with open(SETTINGS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(default_settings, f, indent=4)
-            return default_settings
-        except IOError:
-            return default_settings
-
-    try:
-        with open(SETTINGS_PATH, 'r', encoding='utf-8') as f:
-            user_settings = json.load(f)
-        
-        # Mescla para garantir que novas colunas sejam adicionadas
-        final_settings, changed = _merge_settings(user_settings, default_settings)
-        
-        if changed:
-            print(f"AVISO: O arquivo de configurações foi atualizado com novas opções. Salvando alterações em '{SETTINGS_PATH}'.")
-            with open(SETTINGS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(final_settings, f, indent=4)
-
-        return final_settings
-    except (json.JSONDecodeError, IOError):
-        print(f"ERRO: Não foi possível ler o arquivo de configurações. Usando padrões.")
-        return default_settings
+# --- Placeholder para handler de configuração via CLI ---
+# Este handler pode ser expandido para um menu interativo ou edição direta.
+def handle_config_command():
+    """Handler para o comando '-c' ou 'config' na CLI."""
+    print("\n--- Menu de Configurações ---")
+    print("Funcionalidade de configuração ainda não implementada.")
+    print("Edite o arquivo 'config/settings.json' manualmente para alterar as configurações.")
+    print("Reinicie o programa para que as mudanças tenham efeito.")
+    # Futura implementação poderia:
+    # 1. Carregar settings atuais
+    # 2. Mostrar opções (ex: auto_scroll, visibilidade de colunas)
+    # 3. Permitir edição
+    # 4. Salvar settings atualizadas
+    # 5. Notificar que as mudanças terão efeito na próxima execução ou recarregar

@@ -2,7 +2,7 @@
     "display_settings": {
         "column_widths": {
             "#": 4,
-            "Nº SSA": 9,
+            "N\u00ba SSA": 9,
             "Loc.": 10,
             "Emissor": 8,
             "Executor": 8,
@@ -17,10 +17,41 @@
             "descricao_ssa": true,
             "descricao_execucao": true,
             "data_cadastro": true,
-            "semana_cadastro": true
+            "semana_cadastro": true,
+            "#": true,
+            "situacao": true,
+            "derivada_de": true,
+            "descricao_localizacao": true,
+            "equipamento": true,
+            "data_emissao": true,
+            "solicitante": true,
+            "servico_origem": true,
+            "grau_prioridade_emissao": true,
+            "grau_prioridade_planejamento": true,
+            "execucao_simples": true,
+            "responsavel_programacao": true,
+            "semana_programada": true,
+            "responsavel_execucao": true,
+            "anomalia": true,
+            "sistema_origem": true,
+            "prazo_limite": true,
+            "tempo_disponivel": true,
+            "data_limite": true,
+            "tempo_excedido": true,
+            "desde": true,
+            "tempo_total": true,
+            "desde_1": true,
+            "total_tempo_tpe_planejado": true,
+            "total_tempo_tex_planejado": true,
+            "total_tempo_tpo_planejado": true,
+            "total_horas_programadas": true,
+            "semana_executada": true,
+            "num_reprogramacoes": true,
+            "execucao_parcial": true
         }
     },
     "user_preferences": {
         "auto_scroll_to_end": true
-    }
+    },
+    "default_filters": []
 }
