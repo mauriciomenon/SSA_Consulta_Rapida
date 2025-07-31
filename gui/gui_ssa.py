@@ -177,8 +177,10 @@ class DataPaginator(QWidget):
         self.page_size = page_size
         self.current_page = 1
         self.total_pages = 1
-        self.update_pagination_info()
+        # Inicializa a interface primeiro para criar page_info_label
         self.init_ui()
+        # Depois atualiza as informações de paginação
+        self.update_pagination_info()
 
     def init_ui(self):
         layout = QHBoxLayout(self)

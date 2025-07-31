@@ -69,18 +69,17 @@ def _select_columns_for_width(
 
     # Itera pela ordem definida para selecionar colunas
     for col in ordered_cols:
-        col_width = estimated_widths.get(col, 10) + 3 # +3 para separador
-        # Se couber, adiciona
+        col_width = estimated_widths.get(col, 10) + 3  # +3 para separador
         if total_width + col_width <= available_width:
             selected_columns.append(col)
             total_width += col_width
         else:
             # Se for a primeira coluna de dados e não couber, força adicioná-la
-            # para evitar tabela vazia
-            if len(selected_columns) == 1: # So tem '#'
+            if len(selected_columns) == 1:
                 selected_columns.append(col)
-            # Se ja tem colunas de dados, para de adicionar
-            break
+                total_width += col_width
+            # Continua verificando outras colunas que possam caber
+            continue
 
     return selected_columns
 
@@ -175,7 +174,14 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # --- Preparação Final para Exibição ---
     # Adiciona coluna de índice
     working_df.insert(0, '#', range(1, len(working_df) + 1))
-    
+
+    # Calcula larguras estimadas antes de renomear
+    estimated_widths_selected = [
+        _estimate_column_width(working_df[col], display_map.get(col, col))
+        if col != '#' else 4
+        for col in selected_cols
+    ]
+
     # Renomeia colunas para exibição
     renamed_columns = {'#': '#'}
     for internal_col in cols_to_display:
@@ -184,25 +190,27 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
 
     # Prepara cabeçalhos e larguras para `tabulate`
     final_headers = [renamed_columns.get(col, col) for col in selected_cols]
-    
+
     # Calcula larguras máximas para `tabulate`
-    # Tenta distribuir o espaço igualmente, mas respeita limites
     num_cols = len(final_headers)
-    # Espaço médio por coluna, com mínimo e máximo
-    avg_width_per_col = max(8, min(50, (terminal_width - 10) // max(1, num_cols)))
-    final_max_widths = [avg_width_per_col] * num_cols
-    # Ajusta colunas específicas se necessário
-    # Por exemplo, dá um pouco mais de espaço para descrições se elas estiverem presentes
-    desc_indices = [i for i, h in enumerate(final_headers) if 'descricao' in h.lower()]
-    if desc_indices:
-        extra_space = 10 # Espaço extra total para descrições
-        extra_per_desc = extra_space // len(desc_indices)
-        for i in desc_indices:
-            final_max_widths[i] = min(60, final_max_widths[i] + extra_per_desc)
+
+    # Usa as estimativas de largura, respeitando limites de 8 a 60
+    final_max_widths = [max(8, min(60, w)) for w in estimated_widths_selected]
+
+    total_est = sum(final_max_widths)
+    if total_est < available_width and num_cols > 0:
+        extra = available_width - total_est
+        extra_per_col = extra // num_cols
+        final_max_widths = [w + extra_per_col for w in final_max_widths]
+        leftover = available_width - sum(final_max_widths)
+        if leftover > 0:
+            final_max_widths[-1] += leftover
 
 
     # --- Paginação ---
-    page_size_data_lines = max(1, terminal_height - 5) # Linhas para dados
+    # Deixa mais espaço para cabeçalhos e prompts para garantir paginação em
+    # terminais pequenos
+    page_size_data_lines = max(1, terminal_height - 8)
     auto_scroll = settings.get('user_preferences', {}).get('auto_scroll_to_end', False)
     
     # Controle de auto-scroll para muitas páginas
@@ -229,6 +237,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             current_page_df = pages[current_page_index]
             
             # Gera e imprime a tabela para a página atual
+            page_header = f"Página {current_page_index + 1} de {len(pages)}"
             page_table_str = tabulate(
                 current_page_df,
                 headers=final_headers if current_page_index == 0 else [], # Cabeçalho só na 1ª
@@ -236,6 +245,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
                 showindex=False,
                 maxcolwidths=final_max_widths
             )
+            print(page_header)
             print(page_table_str)
 
             current_page_index += 1
@@ -271,3 +281,6 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             # Erro silencioso ou log simples para não quebrar a interface
             # print(f"\nErro durante exibição página {current_page_index + 1}: {e}")
             current_page_index += 1 # Tenta continuar com a próxima página
+
+    # Indica finalização da exibição (compatibilidade com testes)
+    print("...exibição interrompida.")

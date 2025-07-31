@@ -20,6 +20,11 @@ class ExtractionError(Exception):
     """Erro durante a extração de dados de um arquivo."""
     pass
 
+def read_report(file_path: str):
+    """Compatibilidade com versões antigas que utilizavam read_report."""
+    df = extract_data_from_excel(file_path)
+    return df, None
+
 def _load_column_mappings() -> dict:
     """
     Carrega o mapeamento de nomes de colunas a partir do arquivo JSON.

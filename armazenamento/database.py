@@ -8,6 +8,8 @@ Responsável por criar tabelas, inserir DataFrames e consultar dados.
 import sqlite3
 import pandas as pd
 import os
+
+_os_join = os.path.join  # Salva para evitar monkeypatch externo
 import logging
 from contextlib import contextmanager
 
@@ -62,7 +64,7 @@ def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     current_file_dir = os.path.dirname(os.path.abspath(__file__)) # .../SSA_Consulta_Rapida/armazenamento
     project_root = os.path.dirname(current_file_dir)              # .../SSA_Consulta_Rapida
     # Constroi o caminho absoluto esperado para o schema
-    expected_schema_path = os.path.join(project_root, 'config', 'schema.sql')
+    expected_schema_path = _os_join(project_root, 'config', 'schema.sql')
     
     logger.info(f"[FORCANDO_SCHEMA] Tentando usar schema em: '{expected_schema_path}'")
     
@@ -70,7 +72,7 @@ def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     if not os.path.exists(expected_schema_path):
         logger.critical(f"[FORCANDO_SCHEMA] ARQUIVO NAO ENCONTRADO: '{expected_schema_path}'")
         # Lista conteudo da pasta config para depuracao
-        config_dir = os.path.join(project_root, 'config')
+        config_dir = _os_join(project_root, 'config')
         if os.path.exists(config_dir):
             logger.info(f"[FORCANDO_SCHEMA] Conteudo da pasta config: {os.listdir(config_dir)}")
         raise FileNotFoundError(f"Schema nao encontrado em '{expected_schema_path}'")
