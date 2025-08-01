@@ -23,21 +23,21 @@ CREATE TABLE IF NOT EXISTS ssas (
     semana_programada INTEGER,
     responsavel_execucao TEXT,
     descricao_execucao TEXT,
-    prazo_limite TEXT,                 -- COLUNA ADICIONADA
-    tempo_disponivel TEXT,             -- COLUNA ADICIONADA
-    data_limite TEXT,                  -- COLUNA ADICIONADA
-    tempo_excedido TEXT,               -- COLUNA ADICIONADA
-    desde TEXT,                        -- COLUNA ADICIONADA
-    tempo_total TEXT,                  -- COLUNA ADICIONADA
-    desde_1 TEXT,                      -- COLUNA ADICIONADA
-    total_tempo_tpe_planejado REAL,    -- COLUNA ADICIONADA
-    total_tempo_tex_planejado REAL,    -- COLUNA ADICIONADA
-    total_tempo_tpo_planejado REAL,    -- COLUNA ADICIONADA
-    total_horas_programadas REAL,      -- COLUNA ADICIONADA
-    semana_executada INTEGER,          -- COLUNA ADICIONADA
-    num_reprogramacoes INTEGER,        -- COLUNA ADICIONADA
-    execucao_parcial TEXT,             -- COLUNA ADICIONADA
-    anomalia TEXT,                     -- COLUNA ADICIONADA
+    prazo_limite TEXT,                 
+    tempo_disponivel TEXT,             
+    data_limite TEXT,                  
+    tempo_excedido TEXT,               
+    desde TEXT,                        
+    tempo_total TEXT,                  
+    desde_1 TEXT,                      
+    total_tempo_tpe_planejado REAL,    
+    total_tempo_tex_planejado REAL,    
+    total_tempo_tpo_planejado REAL,    
+    total_horas_programadas REAL,      
+    semana_executada INTEGER,          
+    num_reprogramacoes INTEGER,        
+    execucao_parcial TEXT,             
+    anomalia TEXT,                     
     sistema_origem TEXT,               -- COLUNA ADICIONADA
-    PRIMARY KEY(numero_ssa) ON CONFLICT REPLACE -- Garante que SSAs sejam únicas ou atualizadas
+    PRIMARY KEY(numero_ssa) ON CONFLICT REPLACE
 );
