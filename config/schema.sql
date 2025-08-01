@@ -1,72 +1,43 @@
 -- config/schema.sql
--- Schema do banco de dados para o projeto SSA_Consulta_Rapida
+-- Schema completo e robusto para a tabela de SSAs, incluindo todas as colunas
+-- identificadas nos arquivos de origem para prevenir erros de importação.
 
 CREATE TABLE IF NOT EXISTS ssas (
-    -- Chave primária
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-    -- Identificadores e Status
     numero_ssa INTEGER,
     situacao TEXT,
     derivada_de TEXT,
-
-    -- Localização
     localizacao_codigo TEXT,
     descricao_localizacao TEXT,
     equipamento TEXT,
-
-    -- Datas e Cronometragem
-    semana_cadastro INTEGER, -- Tipo INTEGER conforme tratamento no extractor
-    data_cadastro TEXT,      -- Armazenada como TEXT no formato DD/MM/AAAA HH:MM:SS
-
-    -- Descrições
+    semana_cadastro INTEGER,
+    data_cadastro TEXT,
     descricao_ssa TEXT,
-    descricao_execucao TEXT,
-
-    -- Setores e Pessoas
     setor_emissor TEXT,
     setor_executor TEXT,
     solicitante TEXT,
-    responsavel_programacao TEXT,
-    responsavel_execucao TEXT,
-
-    -- Serviços e Origem
     servico_origem TEXT,
-    sistema_origem TEXT,
-
-    -- Prioridades
     grau_prioridade_emissao TEXT,
     grau_prioridade_planejamento TEXT,
-
-    -- Flags e Características
     execucao_simples TEXT,
-
-    -- Programação
-    semana_programada INTEGER, -- Tipo INTEGER
-
-    -- Prazos e Tempo
-    prazo_limite TEXT,
-    tempo_disponivel TEXT,
-    data_limite TEXT,
-    tempo_excedido TEXT,
-    desde TEXT,
-    tempo_total TEXT,
-    desde_1 TEXT,
-    total_tempo_tpe_planejado TEXT,
-    total_tempo_tex_planejado TEXT,
-    total_tempo_tpo_planejado TEXT,
-    total_horas_programadas TEXT,
-
-    -- Execução
-    semana_executada INTEGER, -- Tipo INTEGER
-    num_reprogramacoes INTEGER, -- Tipo INTEGER
-    execucao_parcial TEXT,
-    anomalia TEXT
-    -- Adicione outras colunas conforme necessário, baseando-se nos seus arquivos e mapeamentos
+    responsavel_programacao TEXT,
+    semana_programada INTEGER,
+    responsavel_execucao TEXT,
+    descricao_execucao TEXT,
+    prazo_limite TEXT,                 -- COLUNA ADICIONADA
+    tempo_disponivel TEXT,             -- COLUNA ADICIONADA
+    data_limite TEXT,                  -- COLUNA ADICIONADA
+    tempo_excedido TEXT,               -- COLUNA ADICIONADA
+    desde TEXT,                        -- COLUNA ADICIONADA
+    tempo_total TEXT,                  -- COLUNA ADICIONADA
+    desde_1 TEXT,                      -- COLUNA ADICIONADA
+    total_tempo_tpe_planejado REAL,    -- COLUNA ADICIONADA
+    total_tempo_tex_planejado REAL,    -- COLUNA ADICIONADA
+    total_tempo_tpo_planejado REAL,    -- COLUNA ADICIONADA
+    total_horas_programadas REAL,      -- COLUNA ADICIONADA
+    semana_executada INTEGER,          -- COLUNA ADICIONADA
+    num_reprogramacoes INTEGER,        -- COLUNA ADICIONADA
+    execucao_parcial TEXT,             -- COLUNA ADICIONADA
+    anomalia TEXT,                     -- COLUNA ADICIONADA
+    sistema_origem TEXT,               -- COLUNA ADICIONADA
+    PRIMARY KEY(numero_ssa) ON CONFLICT REPLACE -- Garante que SSAs sejam únicas ou atualizadas
 );
-
--- Indices podem ser adicionados para melhorar a performance de buscas
--- CREATE INDEX idx_numero_ssa ON ssas (numero_ssa);
--- CREATE INDEX idx_setor_executor ON ssas (setor_executor);
--- CREATE INDEX idx_semana_cadastro ON ssas (semana_cadastro);
--- CREATE INDEX idx_situacao ON ssas (situacao);

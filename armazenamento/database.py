@@ -153,3 +153,46 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
     except Exception as e:
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
         return False
+# Dentro de armazenamento/database.py
+
+def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_exists: str = 'append') -> bool:
+    """
+    Insere um DataFrame em uma tabela do banco de dados em lotes (chunks)
+    para evitar erros de limite de variáveis do SQLite.
+
+    Args:
+        df (pd.DataFrame): O DataFrame a ser inserido.
+        db_path (str): Caminho para o banco de dados.
+        table_name (str): Nome da tabela de destino.
+        if_exists (str): O que fazer se a tabela já existir ('fail', 'replace', 'append').
+
+    Returns:
+        bool: True se a inserção foi bem-sucedida, False caso contrário.
+    """
+    if df.empty:
+        logger.warning("DataFrame vazio fornecido para inserção. Nada a fazer.")
+        return True
+
+    # CORREÇÃO: Define um chunksize para dividir grandes inserções.
+    # 900 é um valor seguro, pois o limite do SQLite é geralmente 999
+    # e depende do número de colunas.
+    chunk_size = 900 // max(1, len(df.columns))
+    
+    logger.debug(f"Inserindo {len(df)} linhas em lotes de {chunk_size} no banco de dados '{db_path}', tabela '{table_name}'...")
+    try:
+        with get_db_connection(db_path) as conn:
+            # Usa to_sql com chunksize
+            df.to_sql(
+                table_name, 
+                conn, 
+                if_exists=if_exists, 
+                index=False, 
+                method='multi',
+                chunksize=chunk_size # <--- A MUDANÇA CRÍTICA
+            )
+            conn.commit()
+        logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
+        return True
+    except Exception as e:
+        logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
+        return False
