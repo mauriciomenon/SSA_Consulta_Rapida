@@ -212,4 +212,5 @@ docs/~$*.xlsx
 # Ignorar arquivos grandes de dados (mais de 100MB)
 data/ssas.json
 data/*.json
+data/*.db
 data/*.db-journal
