@@ -37,7 +37,13 @@ CREATE TABLE IF NOT EXISTS ssas (
     semana_executada INTEGER,          
     num_reprogramacoes INTEGER,        
     execucao_parcial TEXT,             
-    anomalia TEXT,                     
+    anomalia TEXT,
     sistema_origem TEXT,               -- COLUNA ADICIONADA
     PRIMARY KEY(numero_ssa) ON CONFLICT REPLACE
 );
+
+-- Adiciona índices para melhorar o desempenho das consultas
+CREATE INDEX IF NOT EXISTS idx_ssas_setor_executor ON ssas(setor_executor);
+CREATE INDEX IF NOT EXISTS idx_ssas_situacao ON ssas(situacao);
+CREATE INDEX IF NOT EXISTS idx_ssas_data_cadastro ON ssas(data_cadastro);
+CREATE INDEX IF NOT EXISTS idx_ssas_numero_ssa ON ssas(numero_ssa);

@@ -113,14 +113,15 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         final_df = combined_df[final_cols]
         
         # Normalização de tipos (agora em um DF já filtrado)
+        # Corrigido para usar .loc e evitar SettingWithCopyWarning
         if 'numero_ssa' in final_df.columns:
-            final_df['numero_ssa'] = pd.to_numeric(final_df['numero_ssa'], errors='coerce').astype('Int64')
+            final_df.loc[:, 'numero_ssa'] = pd.to_numeric(final_df['numero_ssa'], errors='coerce').astype('Int64')
         if 'data_cadastro' in final_df.columns:
-            final_df['data_cadastro'] = pd.to_datetime(final_df['data_cadastro'], errors='coerce', dayfirst=True)
+            final_df.loc[:, 'data_cadastro'] = pd.to_datetime(final_df['data_cadastro'], errors='coerce', dayfirst=True)
         
         logger.info(f"Extração concluída com sucesso. {len(final_df)} linhas extraídas e validadas contra o schema.")
         return final_df
 
     except Exception as e:
         logger.error(f"Erro inesperado ao processar '{file_path}': {e}", exc_info=True)
-        return None
+        raise ExtractionError(f"Erro ao extrair dados do arquivo {file_path}") from e

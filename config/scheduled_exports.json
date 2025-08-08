@@ -1,0 +1,20 @@
+{
+    "daily_summary": {
+        "frequency": "daily",
+        "output_dir": "docs_saida/scheduled",
+        "base_filename": "daily_summary",
+        "last_export": "2025-08-08T10:13:55.655859",
+        "filters": {
+            "situacao": "SPG"
+        }
+    },
+    "weekly_report": {
+        "frequency": "weekly",
+        "output_dir": "docs_saida/scheduled",
+        "base_filename": "weekly_report",
+        "last_export": "2025-08-08T10:14:02.210339",
+        "filters": {
+            "setor_executor": "MEL4"
+        }
+    }
+}

@@ -50,6 +50,32 @@ def get_db_connection(db_path: str):
 
 # armazenamento/database.py
 
+def query_db(db_path: str, table_name: str, query: str = None, params: tuple = ()):
+    """
+    Consulta dados no banco de dados SQLite.
+    
+    Args:
+        db_path (str): Caminho para o arquivo do banco de dados SQLite
+        table_name (str): Nome da tabela a ser consultada
+        query (str, optional): Consulta SQL personalizada. Se None, seleciona tudo da tabela
+        params (tuple, optional): Parâmetros para a consulta
+        
+    Returns:
+        pandas.DataFrame: DataFrame contendo os dados consultados
+    """
+    try:
+        with get_db_connection(db_path) as conn:
+            if query is None:
+                query = f"SELECT * FROM {table_name}"
+                
+            # Executa a consulta e retorna como DataFrame
+            df = pd.read_sql_query(query, conn, params=params)
+            
+        return df
+    except Exception as e:
+        logger.error(f"Erro ao consultar o banco de dados: {e}")
+        return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro
+
 def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     """
     Inicializa o banco de dados, criando tabelas conforme o schema.
@@ -96,6 +122,28 @@ def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
         logger.critical(f"[FORCANDO_SCHEMA] Falha ao aplicar schema: {e}")
         raise
 
+def create_indexes(db_path: str) -> bool:
+    """
+    Cria índices para melhorar o desempenho das consultas.
+    
+    Args:
+        db_path (str): Caminho para o banco de dados.
+        
+    Returns:
+        bool: True se os índices foram criados com sucesso, False caso contrário.
+    """
+    try:
+        with get_db_connection(db_path) as conn:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ssas_setor_executor ON ssas(setor_executor)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ssas_situacao ON ssas(situacao)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ssas_data_cadastro ON ssas(data_cadastro)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ssas_numero_ssa ON ssas(numero_ssa)")
+            conn.commit()
+        logger.info("Índices criados com sucesso.")
+        return True
+    except Exception as e:
+        logger.error(f"Falha ao criar índices: {e}")
+        return False
 def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ()) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
@@ -183,10 +231,10 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
         with get_db_connection(db_path) as conn:
             # Usa to_sql com chunksize
             df.to_sql(
-                table_name, 
-                conn, 
-                if_exists=if_exists, 
-                index=False, 
+                table_name,
+                conn,
+                if_exists=if_exists,
+                index=False,
                 method='multi',
                 chunksize=chunk_size # <--- A MUDANÇA CRÍTICA
             )
@@ -195,4 +243,4 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
         return True
     except Exception as e:
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
-        return False
+        raise

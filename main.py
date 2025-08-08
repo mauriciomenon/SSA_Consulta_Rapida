@@ -44,6 +44,9 @@ def main():
             # de path hardcoded. Ela deve funcionar, mas o ideal seria torná-la
             # mais flexível. Por agora, vamos usá-la como está.
             initialize_database(db_path, schema_path)
+# Cria índices para melhorar o desempenho
+            from armazenamento.database import create_indexes
+            create_indexes(db_path)
         except FileNotFoundError as e:
              logging.error(f"ERRO CRÍTICO: {e}. Verifique se 'config/schema.sql' existe.")
              sys.exit(1)
@@ -64,7 +67,22 @@ def main():
     try:
         all_data_df = query_db(db_path, 'ssas')
         settings = load_settings()
+        
+        # Tenta obter o mapeamento de exibição
         display_map = settings.get('display_mappings', {})
+        
+        # Se não encontrar no settings, carrega diretamente do arquivo
+        if not display_map:
+            import json
+            try:
+                display_path = os.path.join('config', 'display_mappings.json')
+                if os.path.exists(display_path):
+                    with open(display_path, 'r', encoding='utf-8') as f:
+                        display_map = json.load(f)
+                    logging.info("Mapeamento de exibição carregado diretamente do arquivo.")
+            except Exception as e:
+                logging.warning(f"Não foi possível carregar mapeamento direto do arquivo: {e}")
+                display_map = {}
     except Exception as e:
         logging.error(f"Não foi possível carregar dados ou configurações: {e}")
         sys.exit(1)
@@ -79,11 +97,17 @@ def main():
         app = QApplication(sys.argv)
         window = AppGuiWindow(all_data_df, display_map)
         window.show()
+# Executar exportações agendadas
+        from core.app_logic import run_scheduled_exports
+        run_scheduled_exports(all_data_df, display_map)
         sys.exit(app.exec())
     else:
         print("Iniciando interface de linha de comando...")
         from interface.cli import start_cli_loop
         output_dir = os.path.join(project_root, 'docs_saida')
+# Executar exportações agendadas
+        from core.app_logic import run_scheduled_exports
+        run_scheduled_exports(all_data_df, display_map)
         start_cli_loop(all_data_df, display_map, output_dir)
 
 if __name__ == "__main__":

@@ -3,12 +3,13 @@ import sys
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLineEdit, QTableView, QLabel, 
-                             QPushButton, QStatusBar, QHeaderView)
+                             QPushButton, QStatusBar, QHeaderView, QComboBox,
+                             QFormLayout, QGroupBox, QDateEdit)
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
 
 from utils.pagination import Paginator
-from core.app_logic import filter_dataframe
+from core.app_logic import filter_dataframe, advanced_filter_dataframe
 
 class PandasModel(QStandardItemModel):
     def __init__(self, df=pd.DataFrame()):
@@ -35,6 +36,7 @@ class AppGuiWindow(QMainWindow):
         self.paginator = Paginator(df_display, page_size=50)
         
         self.init_ui()
+        self.setup_filters()
 
     def init_ui(self):
         self.setWindowTitle("SSA Consulta Rápida")
@@ -43,10 +45,38 @@ class AppGuiWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
 
+        # Create filter group
+        filter_group = QGroupBox("Filtros")
+        filter_layout = QVBoxLayout(filter_group)
+        
+        # Text filter
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("Filtrar por (termos separados por vírgula)...")
         self.filter_input.textChanged.connect(self.apply_filter)
-        layout.addWidget(self.filter_input)
+        filter_layout.addWidget(QLabel("Busca Geral:"))
+        filter_layout.addWidget(self.filter_input)
+        
+        # Advanced filters layout
+        advanced_filter_layout = QHBoxLayout()
+        
+        # Setor Executor filter
+        self.executor_combo = QComboBox()
+        self.executor_combo.setEditable(True)
+        self.executor_combo.setPlaceholderText("Selecione ou digite o setor executor")
+        self.executor_combo.currentTextChanged.connect(self.apply_filter)
+        advanced_filter_layout.addWidget(QLabel("Executor:"))
+        advanced_filter_layout.addWidget(self.executor_combo)
+        
+        # Situacao filter
+        self.situacao_combo = QComboBox()
+        self.situacao_combo.setEditable(True)
+        self.situacao_combo.setPlaceholderText("Selecione ou digite a situação")
+        self.situacao_combo.currentTextChanged.connect(self.apply_filter)
+        advanced_filter_layout.addWidget(QLabel("Situação:"))
+        advanced_filter_layout.addWidget(self.situacao_combo)
+        
+        filter_layout.addLayout(advanced_filter_layout)
+        layout.addWidget(filter_group)
 
         self.table_view = QTableView()
         self.table_view.setSortingEnabled(True)
@@ -72,11 +102,44 @@ class AppGuiWindow(QMainWindow):
         self.setStatusBar(QStatusBar(self))
         self.apply_filter()
 
+    def setup_filters(self):
+        """Populate filter dropdowns with unique values"""
+        if not self.df_completo.empty:
+            # Populate executor combo
+            if 'setor_executor' in self.df_completo.columns:
+                executores = self.df_completo['setor_executor'].dropna().unique()
+                self.executor_combo.addItem("")  # Empty option for no filter
+                self.executor_combo.addItems(sorted([str(e) for e in executores if str(e).strip()]))
+            
+            # Populate situacao combo
+            if 'situacao' in self.df_completo.columns:
+                situacoes = self.df_completo['situacao'].dropna().unique()
+                self.situacao_combo.addItem("")  # Empty option for no filter
+                self.situacao_combo.addItems(sorted([str(s) for s in situacoes if str(s).strip()]))
+
     def apply_filter(self):
+        # Prepare filters dictionary
+        filters = {}
+        
+        # Text filter
         filter_text = self.filter_input.text()
-        # Filtra o DataFrame original (com nomes internos)
-        filtered_df = filter_dataframe(self.df_completo, filter_text.split(','))
-        # Renomeia as colunas para exibição antes de passar para o paginador
+        if filter_text:
+            filters['search_terms'] = filter_text.split(',')
+        
+        # Executor filter
+        executor_filter = self.executor_combo.currentText()
+        if executor_filter:
+            filters['setor_executor'] = executor_filter
+        
+        # Situacao filter
+        situacao_filter = self.situacao_combo.currentText()
+        if situacao_filter:
+            filters['situacao'] = situacao_filter
+        
+        # Apply advanced filtering
+        filtered_df = advanced_filter_dataframe(self.df_completo, filters)
+        
+        # Rename columns for display
         filtered_df_display = filtered_df.rename(columns=self.display_map)
         
         self.paginator.set_data(filtered_df_display)
