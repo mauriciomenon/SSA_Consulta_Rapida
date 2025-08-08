@@ -208,3 +208,8 @@ __marimo__/
 
 # Ignorar arquivos temporários do Excel na pasta docs
 docs/~$*.xlsx
+
+# Ignorar arquivos grandes de dados (mais de 100MB)
+data/ssas.json
+data/*.json
+data/*.db-journal
