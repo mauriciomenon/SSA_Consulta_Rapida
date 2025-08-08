@@ -3,6 +3,8 @@ import sys
 import os
 import logging
 import argparse
+import json
+import pandas as pd
 
 # Adiciona o diretório raiz ao sys.path para garantir que todos os módulos sejam encontrados
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -13,6 +15,29 @@ from utils.setup_project_structure import setup_dirs
 from core.app_logic import run_importer_logic
 from armazenamento.database import query_db, initialize_database
 from core.config_manager import load_settings
+
+def _update_json_cache(df: pd.DataFrame, json_path: str):
+    """
+    Atualiza o cache JSON com os dados mais recentes do banco.
+    
+    Args:
+        df (pd.DataFrame): DataFrame com os dados do banco
+        json_path (str): Caminho para o arquivo JSON cache
+    """
+    try:
+        # Cria o diretório se não existir
+        os.makedirs(os.path.dirname(json_path), exist_ok=True)
+        
+        # Converte DataFrame para JSON, substituindo NaN por None
+        json_data = df.where(pd.notna(df), None).to_dict('records')
+        
+        # Salva o JSON
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, ensure_ascii=False, indent=2)
+        
+        logging.info(f"Cache JSON atualizado com {len(json_data)} registros em '{json_path}'")
+    except Exception as e:
+        logging.error(f"Erro ao atualizar cache JSON: {e}")
 
 def main():
     """Função principal que orquestra a aplicação."""
@@ -56,8 +81,9 @@ def main():
 
     # 4. Roda o importador de dados
     print("Verificando por novos relatórios para importar...")
+    db_updated = False
     try:
-        run_importer_logic(force_import=args.rescan)
+        db_updated = run_importer_logic(force_import=args.rescan)
     except Exception as e:
         logging.error(f"Ocorreu um erro durante a importação: {e}")
         # Decide se continua ou não. Por ora, vamos continuar com os dados existentes.
@@ -67,6 +93,10 @@ def main():
     try:
         all_data_df = query_db(db_path, 'ssas')
         settings = load_settings()
+        
+        # Se o banco foi atualizado, atualiza o cache JSON
+        if db_updated:
+            _update_json_cache(all_data_df, os.path.join(project_root, 'data', 'ssas.json'))
         
         # Tenta obter o mapeamento de exibição
         display_map = settings.get('display_mappings', {})

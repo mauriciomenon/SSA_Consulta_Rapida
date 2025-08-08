@@ -11,6 +11,10 @@ import os
 import logging
 from contextlib import contextmanager
 
+from utils import data_validation
+from utils.file_metadata import get_file_metadata, should_update_ssa
+
+# Configura logger específico para este módulo
 logger = logging.getLogger(__name__)
 
 # --- Gerenciamento de Conexão ---
@@ -45,6 +49,40 @@ def get_db_connection(db_path: str):
     finally:
         if conn:
             conn.close()
+
+# --- Funções de Banco de Dados ---
+
+def prepare_dataframe_for_sqlite(df):
+    """
+    Prepara um DataFrame para inserção no SQLite, convertendo tipos problemáticos.
+    
+    Args:
+        df (pd.DataFrame): DataFrame original
+        
+    Returns:
+        pd.DataFrame: DataFrame com tipos convertidos para SQLite
+    """
+    df_prepared = df.copy()
+    
+    for col in df_prepared.columns:
+        # Verifica se a coluna contém objetos Timestamp
+        if df_prepared[col].dtype == 'object':
+            # Detecta se há Timestamp objects na coluna
+            sample_non_null = df_prepared[col].dropna()
+            if len(sample_non_null) > 0:
+                first_value = sample_non_null.iloc[0]
+                if hasattr(first_value, 'strftime'):  # É um objeto de data/hora
+                    try:
+                        # Converte Timestamp para string
+                        df_prepared[col] = df_prepared[col].apply(
+                            lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) and hasattr(x, 'strftime') else x
+                        )
+                        logger.debug(f"Coluna '{col}' convertida de Timestamp para string")
+                    except Exception as e:
+                        logger.warning(f"Erro ao processar coluna '{col}': {e}. Convertendo para string.")
+                        df_prepared[col] = df_prepared[col].astype(str)
+    
+    return df_prepared
 
 # --- Funções de Banco de Dados ---
 
@@ -191,10 +229,20 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
 
     logger.debug(f"Inserindo {len(df)} linhas no banco de dados '{db_path}', tabela '{table_name}'...")
     try:
+        # Prepara DataFrame para SQLite (converte Timestamp e outros tipos problemáticos)
+        df_prepared = prepare_dataframe_for_sqlite(df)
+        
         with get_db_connection(db_path) as conn:
             # to_sql é o método recomendado do Pandas
             # index=False evita inserir a coluna de índice do DataFrame
-            df.to_sql(table_name, conn, if_exists=if_exists, index=False, method='multi')
+            df_prepared.to_sql(
+                table_name, 
+                conn, 
+                if_exists=if_exists, 
+                index=False, 
+                method='multi',
+                dtype='TEXT'  # Força todos os campos como texto para evitar problemas de tipo
+            )
             conn.commit()
         logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
         return True
@@ -228,15 +276,19 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
     
     logger.debug(f"Inserindo {len(df)} linhas em lotes de {chunk_size} no banco de dados '{db_path}', tabela '{table_name}'...")
     try:
+        # Prepara DataFrame para SQLite (converte Timestamp e outros tipos problemáticos)
+        df_prepared = prepare_dataframe_for_sqlite(df)
+        
         with get_db_connection(db_path) as conn:
             # Usa to_sql com chunksize
-            df.to_sql(
+            df_prepared.to_sql(
                 table_name,
                 conn,
                 if_exists=if_exists,
                 index=False,
                 method='multi',
-                chunksize=chunk_size # <--- A MUDANÇA CRÍTICA
+                chunksize=chunk_size, # <--- A MUDANÇA CRÍTICA
+                dtype='TEXT'  # Força todos os campos como texto para evitar problemas de tipo
             )
             conn.commit()
         logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
@@ -244,3 +296,121 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
     except Exception as e:
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
         raise
+
+def insert_dataframe_with_smart_upsert(
+    df: pd.DataFrame, 
+    db_path: str, 
+    table_name: str, 
+    file_path: str
+) -> bool:
+    """
+    Insere um DataFrame com controle inteligente de duplicatas baseado na data do arquivo.
+    
+    Para cada SSA, verifica se já existe no banco e se o arquivo atual é mais recente.
+    Só atualiza se o arquivo for mais recente que o registro existente.
+    
+    Args:
+        df (pd.DataFrame): O DataFrame a ser inserido.
+        db_path (str): Caminho para o banco de dados.
+        table_name (str): Nome da tabela de destino.
+        file_path (str): Caminho do arquivo Excel de origem (para extrair metadados).
+        
+    Returns:
+        bool: True se a inserção foi bem-sucedida, False caso contrário.
+    """
+    if df.empty:
+        logger.warning("DataFrame vazio fornecido para inserção. Nada a fazer.")
+        return True
+        
+    # Extrai metadados do arquivo
+    filename, file_datetime_iso, import_datetime_iso = get_file_metadata(file_path)
+    
+    # Adiciona colunas de metadados ao DataFrame
+    df_with_metadata = df.copy()
+    df_with_metadata['arquivo_origem'] = filename
+    df_with_metadata['data_arquivo_origem'] = file_datetime_iso
+    df_with_metadata['data_importacao'] = import_datetime_iso
+    df_with_metadata['versao_dados'] = 1  # Será atualizado se necessário
+    
+    # Se não tem numero_ssa, usa inserção normal
+    if 'numero_ssa' not in df_with_metadata.columns:
+        logger.debug("DataFrame sem coluna 'numero_ssa', usando inserção normal")
+        return insert_dataframe_to_db(df_with_metadata, db_path, table_name)
+    
+    # Remove SSAs inválidas (sem número)
+    df_valid = df_with_metadata.dropna(subset=['numero_ssa'])
+    if df_valid.empty:
+        logger.warning("Nenhuma SSA válida encontrada (todas sem número)")
+        return True
+    
+    logger.info(f"Processando {len(df_valid)} SSAs com controle de duplicatas inteligente...")
+    
+    try:
+        with get_db_connection(db_path) as conn:
+            # Para cada SSA, verifica se deve atualizar
+            updates_count = 0
+            inserts_count = 0
+            skipped_count = 0
+            
+            for index, row in df_valid.iterrows():
+                numero_ssa = row['numero_ssa']
+                
+                # Verifica se a SSA já existe no banco
+                existing_query = f"""
+                    SELECT data_arquivo_origem, versao_dados 
+                    FROM {table_name} 
+                    WHERE numero_ssa = ?
+                """
+                existing = pd.read_sql_query(existing_query, conn, params=[numero_ssa])
+                
+                should_process = False
+                
+                if existing.empty:
+                    # SSA não existe, insere
+                    should_process = True
+                    inserts_count += 1
+                    logger.debug(f"SSA {numero_ssa}: Nova, será inserida")
+                else:
+                    # SSA existe, verifica se deve atualizar
+                    existing_file_date = existing.iloc[0]['data_arquivo_origem']
+                    existing_version = existing.iloc[0]['versao_dados']
+                    
+                    if should_update_ssa(existing_file_date, file_datetime_iso):
+                        should_process = True
+                        updates_count += 1
+                        # Incrementa versão
+                        df_valid.at[index, 'versao_dados'] = existing_version + 1
+                        logger.debug(f"SSA {numero_ssa}: Arquivo mais recente, será atualizada (v{existing_version + 1})")
+                    else:
+                        skipped_count += 1
+                        logger.debug(f"SSA {numero_ssa}: Arquivo mais antigo, pulando")
+                
+                if should_process:
+                    # Converte a linha para DataFrame
+                    single_row_df = pd.DataFrame([row])
+                    
+                    # Prepara para SQLite
+                    prepared_df = prepare_dataframe_for_sqlite(single_row_df)
+                    
+                    # Insere/atualiza (REPLACE do SQLite)
+                    prepared_df.to_sql(
+                        table_name,
+                        conn,
+                        if_exists='append',
+                        index=False,
+                        method='multi',
+                        dtype='TEXT'
+                    )
+            
+            conn.commit()
+            
+            logger.info(
+                f"Processamento concluído: {inserts_count} inserções, "
+                f"{updates_count} atualizações, {skipped_count} ignoradas"
+            )
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"Erro no upsert inteligente: {e}")
+        return False

@@ -75,8 +75,10 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
                 value = series[key]
                 
                 # Trata valores NA/NaN/nulos de forma mais robusta
-                if pd.isna(value) or value is None or (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '']):
-                    display_value = '-'
+                if (pd.isna(value) or value is None or 
+                    (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '', 'null', 'nat']) or
+                    (isinstance(value, float) and (value != value))):  # NaN check
+                    continue  # Pula campos nulos na exibição
                 else:
                     display_value = str(value)
                 
@@ -104,8 +106,10 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
                 if key not in displayed_fields:
                     display_name = display_map.get(key, key)
                     
-                    if pd.isna(value) or value is None or (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '']):
-                        display_value = '-'
+                    if (pd.isna(value) or value is None or 
+                        (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '', 'null', 'nat']) or
+                        (isinstance(value, float) and (value != value))):  # NaN check
+                        continue  # Pula campos nulos na exibição
                     else:
                         display_value = str(value)
                         

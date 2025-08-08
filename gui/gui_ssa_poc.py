@@ -220,10 +220,15 @@ class SSAMainWindow(QMainWindow):
         # Preenche a tabela com os dados
         for row_idx in range(len(df)):
             for col_idx, col_name in enumerate(df.columns):
-                # Obtem o valor da celula
+                # Obtém o valor da celula
                 value = df.iloc[row_idx, col_idx]
-                # Converte para string, tratando valores NA/NaN
-                item_text = "" if pd.isna(value) else str(value)
+                # Aplica filtro abrangente para valores nulos
+                if (pd.isna(value) or value is None or 
+                    (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '', 'null', 'nat']) or
+                    (isinstance(value, float) and (value != value))):  # NaN check
+                    item_text = ""  # Exibe célula vazia para valores nulos
+                else:
+                    item_text = str(value)
                 # Cria um item da tabela
                 item = QTableWidgetItem(item_text)
                 # Alinha o texto ao centro verticalmente

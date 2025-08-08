@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS ssas (
     execucao_parcial TEXT,             
     anomalia TEXT,
     sistema_origem TEXT,               -- COLUNA ADICIONADA
+    
+    -- Metadados de importação para controle de versões
+    arquivo_origem TEXT,               -- Nome do arquivo Excel de origem
+    data_arquivo_origem TEXT,          -- Data/hora extraída do nome do arquivo (formato ISO)
+    data_importacao TEXT,              -- Timestamp da importação no sistema
+    versao_dados INTEGER DEFAULT 1,   -- Contador de versão para a SSA
+    
     PRIMARY KEY(numero_ssa) ON CONFLICT REPLACE
 );
 

@@ -105,7 +105,8 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
             validation_messages = data_validation.validate_ssa_data(df)
             for message in validation_messages:
                 logger.info(f"Validação para '{file_path}': {message}")
-            success = database.insert_dataframe_to_db(df, db_path, table_name)
+            # Usa inserção inteligente que controla duplicatas por data do arquivo
+            success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name, file_path)
             if success:
                 logger.info(f"Importação de '{file_path}' concluída com sucesso.")
                 return True
@@ -220,8 +221,7 @@ def run_importer_logic(
 def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca.
-    Os termos são procurados em todas as colunas de texto do DataFrame.
-    Versão otimizada para uso de memória e performance.
+    VERSÃO OTIMIZADA - Usa operações vetorizadas para máxima performance.
 
     Args:
         df (pd.DataFrame): O DataFrame a ser filtrado.
@@ -234,85 +234,95 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     if not search_terms or df.empty:
         return df
 
-    # Limpar termos de busca (remover espaços, termos vazios)
+    # Limpar termos de busca
     clean_terms = [term.strip().lower() for term in search_terms if term.strip()]
     
     if not clean_terms:
         return df
         
     try:
-        # Seleciona apenas colunas que são strings (object) ou categorias para otimizar
-        str_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        # Seleciona apenas colunas prioritárias para busca (otimização crítica)
+        priority_cols = ['numero_ssa', 'executor', 'emissor', 'situacao', 'descricao_ssa']
+        
+        # Pega apenas as colunas mais importantes para busca rápida
+        str_cols = []
+        df_cols_lower = [col.lower() for col in df.columns]
+        
+        # Busca colunas por prioridade
+        for priority in ['numero_ssa', 'executor', 'emissor', 'descricao_ssa', 'situacao']:
+            for i, col_lower in enumerate(df_cols_lower):
+                if priority in col_lower and df.columns[i] not in str_cols:
+                    if df[df.columns[i]].dtype in ['object', 'category']:
+                        str_cols.append(df.columns[i])
+                        break
+        
+        # Se não achou as prioritárias, pega algumas essenciais
+        if len(str_cols) < 3:
+            for col in df.columns[:10]:  # Apenas primeiras 10 colunas
+                if (df[col].dtype in ['object', 'category'] and 
+                    col not in str_cols and len(str_cols) < 5):
+                    str_cols.append(col)
+        
+        # Limita a máximo 5 colunas para performance
+        str_cols = str_cols[:5]
         
         if not str_cols:
             logger.warning("Nenhuma coluna de texto encontrada para busca")
             return df
         
-        # Inicializa o índice com todos os registros
-        # Usamos uma abordagem de filtro progressivo, que é mais eficiente em memória
-        matching_indices = set(range(len(df)))
+        # OTIMIZAÇÃO CRÍTICA: Pré-converte e concatena colunas relevantes uma só vez
+        logger.debug(f"Buscando em {len(str_cols)} colunas: {str_cols}")
         
-        # Para cada termo, filtramos o conjunto de índices
+        # Cria uma única string de busca por linha (muito mais eficiente)
+        # CORREÇÃO: trata colunas categóricas adequadamente
+        search_data = df[str_cols].apply(
+            lambda row: ' '.join(str(val) if pd.notna(val) else '' for val in row.values).lower(), 
+            axis=1
+        )
+        
+        # Aplica filtros sequencialmente usando operações vetorizadas
+        mask = pd.Series([True] * len(df), dtype=bool)
+        
         for term in clean_terms:
-            if not term:  # Pula termos vazios
+            if not term:
                 continue
-                
-            term_lower = term  # já está em minúsculas
+            # Operação vetorizada super rápida
+            term_mask = search_data.str.contains(term.lower(), case=False, na=False, regex=False)
+            mask = mask & term_mask
             
-            # Para cada termo, encontramos os índices que correspondem em qualquer coluna
-            term_matching_indices = set()
-            
-            for col in str_cols:
-                try:
-                    # Iteração otimizada para uso de memória - processa cada coluna separadamente
-                    # e não cria máscaras intermediárias para todo o DataFrame
-                    col_series = df[col].astype(str).str.lower()
-                    for idx in matching_indices:  # Só procurar nos índices ainda válidos
-                        try:
-                            if term_lower in col_series.iloc[idx]:
-                                term_matching_indices.add(idx)
-                        except:
-                            continue
-                except Exception as col_err:
-                    logger.warning(f"Erro ao processar coluna {col}: {col_err}")
-                    continue
-                    
-                # Otimização: se já encontramos todas as linhas atuais para este termo,
-                # não precisamos verificar mais colunas
-                if term_matching_indices == matching_indices:
-                    break
-                    
-            # Atualiza o conjunto de índices correspondentes para a interseção
-            # de índices que correspondem a todos os termos até agora
-            matching_indices = term_matching_indices
-            
-            # Se não há mais registros correspondentes, podemos parar
-            if not matching_indices:
+            # Otimização: se não sobrou nada, para
+            if not mask.any():
                 break
         
-        # Cria o DataFrame filtrado usando os índices encontrados
-        result_df = df.iloc[sorted(matching_indices)] if matching_indices else df.iloc[0:0]
-        logger.debug(f"Filtro aplicado com {len(result_df)} resultados encontrados.")
+        result_df = df[mask]
+        logger.debug(f"Filtro aplicado: {len(clean_terms)} termos, {len(result_df)} resultados encontrados.")
         return result_df
+        
     except Exception as e:
-        logger.error(f"Erro ao aplicar filtro: {e}", exc_info=True)
-        # Em caso de erro, tenta a abordagem anterior, mais simples
+        logger.error(f"Erro ao aplicar filtro otimizado: {e}", exc_info=True)
+        
+        # Fallback ainda mais simples e rápido
         try:
-            # Cria uma máscara booleana inicialmente falsa
+            # Usa apenas as 3 primeiras colunas de texto para busca rápida
+            fallback_cols = df.select_dtypes(include=['object']).columns[:3]
+            if not fallback_cols.any():
+                return df
+                
             mask = pd.Series([False] * len(df), dtype=bool)
             
-            # Para cada termo de busca, verifica se ele está presente em qualquer coluna de texto
             for term in clean_terms:
                 term_mask = pd.Series([False] * len(df))
-                for col in str_cols:
-                    col_mask = df[col].astype(str).str.lower().str.contains(term, na=False, regex=False)
-                    term_mask = term_mask | col_mask
+                for col in fallback_cols:
+                    try:
+                        col_mask = df[col].astype(str).str.contains(term, case=False, na=False, regex=False)
+                        term_mask = term_mask | col_mask
+                    except:
+                        continue
                 mask = mask | term_mask
                 
             return df[mask]
-        except:
-            # Se ambos os métodos falharem, retorna o DataFrame original
-            logger.error("Método alternativo de filtro também falhou, retornando dados originais")
+        except Exception as fallback_err:
+            logger.error(f"Fallback também falhou: {fallback_err}")
             return df
 def advanced_filter_dataframe(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     """
