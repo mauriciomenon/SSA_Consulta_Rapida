@@ -214,3 +214,4 @@ data/ssas.json
 data/*.json
 data/*.db
 data/*.db-journal
+SSA_Consulta_Rapida_backup/
