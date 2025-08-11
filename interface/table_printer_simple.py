@@ -1,3 +1,15 @@
+"""
+DEPRECATED: Use interface.table_printer.format_dataframe_for_cli.
+
+Este módulo simples foi mantido apenas por compatibilidade. Ele não é usado
+no fluxo principal e pode ser removido futuramente.
+"""
+import warnings
+warnings.warn(
+    "interface.table_printer_simple está depreciado; use interface.table_printer",
+    DeprecationWarning,
+    stacklevel=2,
+)
 # interface/table_printer_simple.py
 import pandas as pd
 from tabulate import tabulate

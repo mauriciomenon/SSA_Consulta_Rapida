@@ -39,7 +39,16 @@ def get_db_connection(db_path: str):
             
         conn = sqlite3.connect(db_path)
         # Configurações recomendadas para performance e segurança
-        conn.execute("PRAGMA foreign_keys = ON") # Se estiver usando FKs
+        conn.execute("PRAGMA foreign_keys = ON")  # Se estiver usando FKs
+        # PRAGMAs seguros para melhorar performance sem comprometer integridade
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+            conn.execute("PRAGMA temp_store = MEMORY")
+            conn.execute("PRAGMA busy_timeout = 3000")  # 3s de espera para locks
+        except sqlite3.Error:
+            # Ignora falhas em PRAGMAs (ambiente pode não suportar todos)
+            pass
         yield conn
     except sqlite3.Error as e:
         logger.error(f"Erro de banco de dados: {e}")
@@ -85,34 +94,6 @@ def prepare_dataframe_for_sqlite(df):
     return df_prepared
 
 # --- Funções de Banco de Dados ---
-
-# armazenamento/database.py
-
-def query_db(db_path: str, table_name: str, query: str = None, params: tuple = ()):
-    """
-    Consulta dados no banco de dados SQLite.
-    
-    Args:
-        db_path (str): Caminho para o arquivo do banco de dados SQLite
-        table_name (str): Nome da tabela a ser consultada
-        query (str, optional): Consulta SQL personalizada. Se None, seleciona tudo da tabela
-        params (tuple, optional): Parâmetros para a consulta
-        
-    Returns:
-        pandas.DataFrame: DataFrame contendo os dados consultados
-    """
-    try:
-        with get_db_connection(db_path) as conn:
-            if query is None:
-                query = f"SELECT * FROM {table_name}"
-                
-            # Executa a consulta e retorna como DataFrame
-            df = pd.read_sql_query(query, conn, params=params)
-            
-        return df
-    except Exception as e:
-        logger.error(f"Erro ao consultar o banco de dados: {e}")
-        return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro
 
 def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     """
@@ -212,47 +193,6 @@ def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ())
 
 def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_exists: str = 'append') -> bool:
     """
-    Insere um DataFrame em uma tabela do banco de dados.
-
-    Args:
-        df (pd.DataFrame): O DataFrame a ser inserido.
-        db_path (str): Caminho para o banco de dados.
-        table_name (str): Nome da tabela de destino.
-        if_exists (str): O que fazer se a tabela já existir ('fail', 'replace', 'append').
-
-    Returns:
-        bool: True se a inserção foi bem-sucedida, False caso contrário.
-    """
-    if df.empty:
-        logger.warning("DataFrame vazio fornecido para inserção. Nada a fazer.")
-        return True
-
-    logger.debug(f"Inserindo {len(df)} linhas no banco de dados '{db_path}', tabela '{table_name}'...")
-    try:
-        # Prepara DataFrame para SQLite (converte Timestamp e outros tipos problemáticos)
-        df_prepared = prepare_dataframe_for_sqlite(df)
-        
-        with get_db_connection(db_path) as conn:
-            # to_sql é o método recomendado do Pandas
-            # index=False evita inserir a coluna de índice do DataFrame
-            df_prepared.to_sql(
-                table_name, 
-                conn, 
-                if_exists=if_exists, 
-                index=False, 
-                method='multi',
-                dtype='TEXT'  # Força todos os campos como texto para evitar problemas de tipo
-            )
-            conn.commit()
-        logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
-        return True
-    except Exception as e:
-        logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
-        return False
-# Dentro de armazenamento/database.py
-
-def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_exists: str = 'append') -> bool:
-    """
     Insere um DataFrame em uma tabela do banco de dados em lotes (chunks)
     para evitar erros de limite de variáveis do SQLite.
 
@@ -278,7 +218,7 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
     try:
         # Prepara DataFrame para SQLite (converte Timestamp e outros tipos problemáticos)
         df_prepared = prepare_dataframe_for_sqlite(df)
-        
+
         with get_db_connection(db_path) as conn:
             # Usa to_sql com chunksize
             df_prepared.to_sql(
@@ -287,7 +227,7 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
                 if_exists=if_exists,
                 index=False,
                 method='multi',
-                chunksize=chunk_size, # <--- A MUDANÇA CRÍTICA
+                chunksize=chunk_size,  # <--- a estratégia consolidada
                 dtype='TEXT'  # Força todos os campos como texto para evitar problemas de tipo
             )
             conn.commit()
@@ -295,7 +235,7 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
         return True
     except Exception as e:
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
-        raise
+        return False
 
 def insert_dataframe_with_smart_upsert(
     df: pd.DataFrame, 

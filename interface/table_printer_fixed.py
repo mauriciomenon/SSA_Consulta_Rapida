@@ -1,3 +1,14 @@
+"""
+DEPRECATED: Use interface.table_printer.format_dataframe_for_cli.
+
+Mantido apenas como fallback de referência; não use em código novo.
+"""
+import warnings
+warnings.warn(
+    "interface.table_printer_fixed está depreciado; use interface.table_printer",
+    DeprecationWarning,
+    stacklevel=2,
+)
 import pandas as pd
 import os
 
