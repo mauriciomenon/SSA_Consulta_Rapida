@@ -72,7 +72,7 @@ def save_cache(cache: Dict[str, str], cache_file: str):
     except IOError as e:
         logger.error(f"Erro ao salvar cache em '{cache_file}': {e}")
 
-def get_files_to_process(docs_dir: str, cache_file: str) -> List[str]:
+def get_files_to_process(docs_dir: str, cache_file) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
     
@@ -80,7 +80,11 @@ def get_files_to_process(docs_dir: str, cache_file: str) -> List[str]:
         List[str]: Lista de caminhos completos para arquivos que precisam ser processados.
     """
     logger.debug("Iniciando comparação de arquivos com cache...")
-    current_cache = load_cache(cache_file)
+    # Permite receber diretamente um dicionário de cache (compatível com testes)
+    if isinstance(cache_file, dict):
+        current_cache = cache_file
+    else:
+        current_cache = load_cache(cache_file)
     all_xlsx_files = get_all_xlsx_files(docs_dir)
     
     files_to_process = []

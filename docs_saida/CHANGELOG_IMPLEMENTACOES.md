@@ -20,6 +20,7 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
   - Filtro opcional por período de Data de Cadastro (checkbox + QDateEdit início/fim).
 - Paginação dupla: mantém alinhamento entre dados "raw" e exibidos para o diálogo de detalhes.
 - Diálogo de Detalhes: acessível por duplo-clique ou botão, renderiza via `interface.display.pretty_print_details` usando rótulos verbosos.
+- Painel de detalhes inferior: mostra automaticamente os detalhes da linha selecionada; atualiza na mudança de seleção.
 - Cabeçalhos: usam `short_labels` do config quando disponíveis.
 - Formatação compartilhada: GUI agora usa `interface.table_printer.format_cell_data` para exibição consistente (datas/semana/SSA/NaN).
 
@@ -71,6 +72,12 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
 - Utilitários:
   - `utils/pagination.py`: Paginator usado em CLI/GUI.
   - `utils/caching.py`: cache de arquivos importados.
+  - `utils/file_metadata.py`: extração de data/hora do nome de arquivo e decisão de atualização por data (com testes).
+
+## Hooks de Git para arquivos grandes
+- Pre-commit: `scripts/pre-commit-size-check.ps1` bloqueia arquivos >99MB por tamanho.
+- Pre-push: `scripts/pre-push-large-object-check.ps1` bloqueia pushes que contenham objetos Git >99MB (histórico).
+  - Para ativar: copie para `.git/hooks/pre-push` e configure `core.hooksPath` (ver comentários no `main.py`).
 
 ## Mapeamento de testes -> funções
 - `tests/test_table_printer.py` → `interface.table_printer`: seleção/ordem/formatador e paginação.

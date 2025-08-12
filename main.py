@@ -45,9 +45,11 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     # Lembrete: leia o diário de implementações para contexto e padrões
     logging.info("Consulte docs_saida/CHANGELOG_IMPLEMENTACOES.md para arquitetura, prioridades e regras de formatação.")
-    # Dica: configure o hook de pre-commit para bloquear arquivos >99MB
-    # Para ativar (uma vez):
+    # Dica: configure hooks para bloquear arquivos grandes
+    # Pre-commit (tamanho por arquivo >99MB):
     #   pwsh -NoProfile -Command "Copy-Item scripts/pre-commit-size-check.ps1 .git/hooks/pre-commit; git config core.hooksPath .git/hooks"
+    # Pre-push (objetos grandes >99MB no histórico):
+    #   pwsh -NoProfile -Command "Copy-Item scripts/pre-push-large-object-check.ps1 .git/hooks/pre-push; git config core.hooksPath .git/hooks"
     
     # Argumentos da linha de comando
     parser = argparse.ArgumentParser(description="Consulta Rápida de SSAs.")

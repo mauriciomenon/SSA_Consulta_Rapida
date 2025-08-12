@@ -68,20 +68,18 @@ def test_get_db_connection_context_manager(temp_db_path):
     # (Difícil de testar diretamente, mas o contexto garante)
 
 
-def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypatch):
-    """Testa a inicialização bem-sucedida do banco de dados."""
-    # Mocka o caminho do schema para usar o temporário
-    monkeypatch.setattr("armazenamento.database.os.path.join", lambda *args: sample_schema_file if 'schema.sql' in args else os.path.join(*args))
-    
-    # Mocka o nome do arquivo schema
-    monkeypatch.setattr("armazenamento.database.schema_file", os.path.basename(sample_schema_file))
-    
-    # Como o patching do caminho pode ser tricky, vamos testar a lógica principal
-    # simulando a criação da tabela diretamente e verificando se funciona.
-    # Um teste mais robusto exigiria refatorar initialize_database para injetar o caminho do schema.
-    
-    # Alternativa: Testar query_db e insert_dataframe_to_db que dependem de um DB válido.
-    pass # Placeholder para este teste complexo de setup
+def test_initialize_database_success(temp_db_path, sample_schema_file):
+    """Testa a inicialização bem-sucedida do banco de dados usando um schema explícito."""
+    # Usa initialize_database com o caminho explícito do schema temporário
+    from armazenamento.database import initialize_database
+    ok = initialize_database(temp_db_path, schema_file=sample_schema_file)
+    assert ok is True
+
+    # Verifica se a tabela 'usuarios' foi criada conforme o schema
+    with get_db_connection(temp_db_path) as conn:
+        cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios';")
+        row = cur.fetchone()
+        assert row is not None and row[0] == 'usuarios'
 
 
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):

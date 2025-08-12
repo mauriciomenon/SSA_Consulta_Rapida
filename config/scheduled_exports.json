@@ -3,7 +3,7 @@
         "frequency": "daily",
         "output_dir": "docs_saida/scheduled",
         "base_filename": "daily_summary",
-        "last_export": "2025-08-08T10:13:55.655859",
+        "last_export": "2025-08-11T16:46:58.089040",
         "filters": {
             "situacao": "SPG"
         }

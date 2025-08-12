@@ -6,7 +6,7 @@ import json
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLineEdit, QTableView, QLabel, 
                              QPushButton, QStatusBar, QHeaderView, QComboBox,
-                             QFormLayout, QGroupBox, QDateEdit, QCheckBox)
+                             QFormLayout, QGroupBox, QDateEdit, QCheckBox, QTextEdit)
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt, QDate
 
@@ -151,7 +151,19 @@ class AppGuiWindow(QMainWindow):
         self.table_view.setModel(self.table_model)
         # Open details on double click
         self.table_view.doubleClicked.connect(self.open_details_for_selected)
+        # Update bottom details when selection changes
+        self.table_view.selectionModel().currentRowChanged.connect(
+            lambda cur, prev=None: self.update_details_pane()
+        )
         layout.addWidget(self.table_view)
+
+        # Bottom details pane
+        self.details_group = QGroupBox("Detalhes da Seleção")
+        details_layout = QVBoxLayout(self.details_group)
+        self.details_text = QTextEdit()
+        self.details_text.setReadOnly(True)
+        details_layout.addWidget(self.details_text)
+        layout.addWidget(self.details_group)
 
         # Paginator controls
         paginator_layout = QHBoxLayout()
@@ -237,6 +249,15 @@ class AppGuiWindow(QMainWindow):
         self.page_info_label.setText(f"Página {self.paginator.current_page} de {self.paginator.total_pages}")
         self.prev_button.setEnabled(self.paginator.current_page > 1)
         self.next_button.setEnabled(self.paginator.current_page < self.paginator.total_pages)
+        # Update details pane with first row when available
+        try:
+            if not page_df.empty:
+                self.table_view.selectRow(0)
+                self.update_details_pane()
+            else:
+                self.details_text.setPlainText("")
+        except Exception:
+            pass
 
     def _prepare_display_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """Return a reordered and renamed DataFrame for display.
@@ -306,6 +327,28 @@ class AppGuiWindow(QMainWindow):
             dlg.exec()
         except Exception:
             pass
+
+    def update_details_pane(self):
+        """Render details of the current selection in the bottom pane."""
+        try:
+            selection = self.table_view.selectionModel().currentIndex()
+            if not selection.isValid():
+                self.details_text.setPlainText("")
+                return
+            row_idx = selection.row()
+            raw_page = self.paginator_raw.get_current_page_data()
+            if row_idx < 0 or row_idx >= len(raw_page):
+                self.details_text.setPlainText("")
+                return
+            series = raw_page.iloc[row_idx]
+            from io import StringIO
+            import contextlib
+            buf = StringIO()
+            with contextlib.redirect_stdout(buf):
+                pretty_print_details(series, self.display_map_verbose)
+            self.details_text.setPlainText(buf.getvalue())
+        except Exception:
+            self.details_text.setPlainText("")
 
     def prev_page(self):
         if self.paginator.prev_page():
