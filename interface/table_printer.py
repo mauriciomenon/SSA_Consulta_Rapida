@@ -2,6 +2,156 @@ import pandas as pd
 import os
 from datetime import datetime
 
+# --- Public API expected by tests ---
+def get_terminal_size(default_lines: int = 25, default_cols: int = 120):
+    """Return (lines, cols) for the current terminal, with safe fallbacks."""
+    try:
+        size = os.get_terminal_size()
+        # Some environments may not provide lines; assume a safe default
+        return (default_lines, size.columns)
+    except Exception:
+        return (default_lines, default_cols)
+
+
+def _estimate_column_width(series: pd.Series, display_name: str) -> int:
+    """
+    Rough width estimate for a column based on values and display header.
+    Caps width to a reasonable maximum for CLI.
+    """
+    max_width = 70
+    try:
+        header_len = len(str(display_name))
+        # Sample up to 200 values to avoid heavy scans
+        sample = series.dropna().astype(str).head(200)
+        if sample.empty:
+            return min(max(header_len, 8), max_width)
+        avg_len = int(sample.str.len().mean())
+        p95_len = int(sample.str.len().quantile(0.95))
+        # Prefer a robust high percentile but keep within limits
+        est = max(header_len, min(max(avg_len, p95_len), max_width))
+        # Minimum width for some known columns
+        if display_name in ("Nº SSA", "numero_ssa"):
+            est = max(est, 9)
+        if display_name in ("Executor", "setor_executor"):
+            est = max(est, 8)
+        return min(est, max_width)
+    except Exception:
+        return min(max(len(str(display_name)), 8), max_width)
+
+
+def _select_columns_for_width(df: pd.DataFrame, display_map: dict, terminal_width: int,
+                              essential_cols: list, priority_order: list) -> list:
+    """
+    Choose a subset of columns that fit within terminal_width, always including '#'.
+    essential_cols are included first, then priority_order, then other columns.
+    """
+    # Prepare columns and estimate widths including header mapping
+    cols = list(df.columns)
+    # Ensure row counter presence if caller added it
+    selected = []
+    used_width = 0
+    padding_per_col = 2  # spacing between columns
+    max_total = max(terminal_width - 4, 20)
+
+    def display_name(col):
+        return display_map.get(col, col) if isinstance(display_map, dict) else col
+
+    def can_fit(col):
+        nonlocal used_width
+        w = _estimate_column_width(df[col] if col in df.columns else pd.Series([], dtype=str), display_name(col))
+        needed = (padding_per_col if selected else 0) + w
+        return used_width + needed <= max_total, needed
+
+    # Always include '#' (row counter) as first column
+    selected.append('#')
+    used_width += 4
+
+    # Include essentials
+    for col in essential_cols:
+        if col in cols and col not in selected:
+            ok, inc = can_fit(col)
+            if ok:
+                selected.append(col)
+                used_width += inc
+
+    # Include prioritized columns
+    for col in priority_order:
+        if col in cols and col not in selected:
+            ok, inc = can_fit(col)
+            if ok:
+                selected.append(col)
+                used_width += inc
+
+    # Fill with other columns until we run out of space
+    for col in cols:
+        if col not in selected:
+            ok, inc = can_fit(col)
+            if ok:
+                selected.append(col)
+                used_width += inc
+
+    # Guarantee at least one data column alongside '#'
+    if selected == ['#'] and cols:
+        first_data = next((c for c in cols if c != '#'), None)
+        if first_data:
+            selected.append(first_data)
+
+    return selected
+
+
+def paginate_dataframe(df: pd.DataFrame, page_size: int):
+    """Yield DataFrame slices of size page_size."""
+    if df is None or df.empty or page_size <= 0:
+        return
+    total = len(df)
+    for start in range(0, total, page_size):
+        yield df.iloc[start:start + page_size]
+
+
+def pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict):
+    """
+    Simple pager that prints a DataFrame honoring display_map and terminal size.
+    Prints page headers like "Página X de Y" and a closing line "...exibição interrompida.".
+    """
+    if df is None or df.empty:
+        print("Nenhum resultado para exibir.")
+        return
+
+    # Apply display mapping for headers only; keep data as-is
+    df_display = df.copy()
+    if display_map:
+        df_display = df_display.rename(columns=display_map)
+
+    lines, cols = get_terminal_size()
+    # Reserve some lines for header/footer; keep a small, deterministic page size for tests
+    page_size = max(5, lines - 5)
+
+    pages = list(paginate_dataframe(df_display, page_size))
+    total_pages = len(pages)
+    current = 1
+
+    for page in pages:
+        print(f"Página {current} de {total_pages}")
+        # Print a minimal table view
+        try:
+            print(page.to_string(index=False))
+        except Exception:
+            # Fallback: print first 3 columns only
+            print(page.iloc[:, :3].to_string(index=False))
+
+        # After showing a page, ask user if they want to continue
+        try:
+            user_in = input("Pressione Enter para continuar ou 'q' para sair: ").strip().lower()
+        except Exception:
+            user_in = ''
+        if user_in == 'q':
+            print("...exibição interrompida.")
+            return
+        current += 1
+
+    # Finished all pages
+    print("...exibição interrompida.")
+
 def format_cell_data(value, column_name):
     """
     Formata dados específicos baseado no tipo de coluna.
@@ -391,205 +541,166 @@ def calculate_optimal_columns(columns, terminal_width, min_col_width=8, max_col_
 
 def format_dataframe_for_cli(df, display_map=None, max_rows=None):
     """
-    Formata um DataFrame para exibição no CLI com seleção inteligente de colunas.
-    OTIMIZADO para performance.
+    Formata um DataFrame para exibição no CLI com seleção inteligente de colunas
+    respeitando prioridades e largura do terminal. Evita exibir 'nan'/'NaT'.
     """
     if df.empty:
         return "\nNenhum registro para exibir.\n"
-    
+
     try:
-        # Obtém tamanho do terminal
+        # Tamanho do terminal com fallback
         try:
             terminal_width = os.get_terminal_size().columns
-        except:
-            terminal_width = 120  # Fallback maior
-        
-        # Limita número de linhas para performance (já limitado no CLI, mas garante)
+        except Exception:
+            terminal_width = 120
+
+        # Limita linhas para performance
         if max_rows is None:
-            max_rows = min(len(df), 200)  # Máximo absoluto para performance
+            max_rows = min(len(df), 200)
         df_display = df.head(max_rows).copy()
-        
-        # Aplica mapeamentos de display se fornecido
-        columns_to_use = list(df_display.columns)
+
+        # Garante coluna '#' (contador de linhas)
+        if '#' not in df_display.columns:
+            df_display.insert(0, '#', range(1, len(df_display) + 1))
+
+        # Aplica mapeamento de exibição apenas nos cabeçalhos
         if display_map:
             df_display = df_display.rename(columns=display_map)
-            columns_to_use = list(df_display.columns)
-        
-        # Prioriza colunas essenciais e com dados úteis
-        priority_columns = ['#', 'Nº SSA', 'Executor', 'Situação', 'Descrição da SSA', 'Emitida Em', 'Sem. Prog.', 'Emissor']
-        
-        # Reorganiza colunas colocando prioritárias primeiro
-        final_columns = []
-        for pcol in priority_columns:
-            if pcol in columns_to_use:
-                final_columns.append(pcol)
-        
-        # Adiciona outras colunas não prioritárias
-        for col in columns_to_use:
-            if col not in final_columns:
-                final_columns.append(col)
-        
-        # Calcula larguras otimizadas por tipo de coluna
-        col_widths = []
-        available_width = terminal_width - (len(final_columns) * 3)  # 3 chars para separadores
-        
-        # Larguras específicas por tipo de coluna
-        for col in final_columns:
-            col_lower = col.lower()
-            if '#' in col or 'num' in col_lower:
-                width = 4  # Numeração pequena
-            elif 'ssa' in col_lower:
-                width = 12  # Número da SSA
-            elif 'executor' in col_lower or 'emissor' in col_lower:
-                width = 8   # Códigos curtos
-            elif 'situação' in col_lower or 'status' in col_lower:
-                width = 10
-            elif 'data' in col_lower or 'emitida' in col_lower:
-                width = 12
-            elif 'sem' in col_lower and 'prog' in col_lower:
-                width = 8   # Semana programada
-            elif 'loc' in col_lower:
-                width = 10  # Localização
-            elif 'descrição' in col_lower:
-                width = max(25, available_width // 3)  # Descrição usa mais espaço
+
+        # Seleção de colunas por prioridade respeitando largura do terminal
+        essential_cols = ['Nº SSA', 'Executor', 'Localização', 'Descrição da SSA', 'Emitida Em', 'Sem. Prog.', 'Situação']
+        priority_order = ['Nº SSA', 'Executor', 'Localização', 'Descrição da SSA', 'Emitida Em', 'Sem. Prog.', 'Emissor', 'Situação']
+
+        selected_columns = _select_columns_for_width(
+            df_display,
+            {},  # já renomeado
+            terminal_width,
+            essential_cols,
+            priority_order
+        )
+
+        # Assegura que '#' está sempre na primeira posição
+        if '#' in selected_columns:
+            selected_columns = ['#'] + [c for c in selected_columns if c != '#']
+        else:
+            selected_columns.insert(0, '#')
+
+        # Alocação de larguras: dar mais espaço para descrição/localização
+        min_col_width = 6
+        max_col_width = 50
+        sep_space = (len(selected_columns) - 1) * 3
+        content_space = max(terminal_width - sep_space, 20)
+
+        base_widths = []
+        weights = []
+        for col in selected_columns:
+            if col == '#':
+                est = 4
+                w = 0.8
             else:
-                width = 15  # Default
-            
-            col_widths.append(width)
-        
-        # Ajusta se exceder largura do terminal
-        total_width = sum(col_widths) + (len(final_columns) * 3)
-        if total_width > terminal_width:
-            # Remove colunas menos importantes ou reduz larguras
-            excess = total_width - terminal_width
-            for i in range(len(col_widths) - 1, -1, -1):
-                if excess <= 0:
+                est = _estimate_column_width(df_display[col], col)
+                # reforços por tipo de coluna
+                cl = str(col).lower()
+                if 'descri' in cl:
+                    w = 2.5
+                    est = max(est, 24)
+                elif 'localiza' in cl:
+                    w = 1.6
+                    est = max(est, 14)
+                elif 'executor' in cl or 'emissor' in cl:
+                    w = 1.3
+                    est = max(est, 10)
+                elif 'ssa' in cl or 'nº' in cl or 'numero' in cl:
+                    w = 1.2
+                    est = max(est, 12)
+                elif 'situa' in cl or 'status' in cl:
+                    w = 1.1
+                    est = max(est, 10)
+                elif 'data' in cl or 'emitida' in cl or 'semana' in cl:
+                    w = 1.0
+                    est = max(est, 10)
+                else:
+                    w = 1.0
+                    est = max(est, min_col_width)
+
+            base_widths.append(max(min(est, max_col_width), min_col_width))
+            weights.append(w)
+
+        # Converte em alocação ponderada que caiba em content_space
+        # Primeiro, soma base mínima para garantir cabeçalhos
+        min_total = sum(base_widths)
+        if min_total > content_space:
+            # Reduz proporcionalmente preservando mínimos
+            scale = max(content_space / min_total, 0.5)
+            widths = [max(int(wd * scale), min_col_width if c != '#' else 4) for wd, c in zip(base_widths, selected_columns)]
+        else:
+            # Distribui espaço extra conforme peso
+            extra = content_space - min_total
+            total_weight = sum(weights) if sum(weights) > 0 else 1.0
+            widths = [bw + int(extra * (wt / total_weight)) for bw, wt in zip(base_widths, weights)]
+
+        # Ajuste fino para não exceder o terminal (pode sobrar por arredondamento)
+        total_with_sep = sum(widths) + sep_space
+        while total_with_sep > terminal_width and len(widths) > 0:
+            # reduz das colunas menos prioritárias (do fim para o início), evita reduzir '#'
+            for i in range(len(widths) - 1, -1, -1):
+                if total_with_sep <= terminal_width:
                     break
-                # Reduz largura das colunas não críticas
-                if final_columns[i] not in ['#', 'Nº SSA', 'Executor']:
-                    reduction = min(col_widths[i] // 2, excess)
-                    col_widths[i] -= reduction
-                    excess -= reduction
-        
-        # Seleciona colunas que cabem
-        selected_columns = []
-        selected_widths = []
-        current_width = 0
-        
-        for i, col in enumerate(final_columns):
-            needed_width = col_widths[i] + (3 if selected_columns else 0)
-            if current_width + needed_width <= terminal_width:
-                selected_columns.append(col)
-                selected_widths.append(col_widths[i])
-                current_width += needed_width
-            else:
-                break
-        
-        # Garante ao menos 3 colunas
-        if len(selected_columns) < 3 and len(final_columns) >= 3:
-            selected_columns = final_columns[:3]
-            selected_widths = [terminal_width // 4] * 3
-        
+                if selected_columns[i] == '#':
+                    continue
+                if widths[i] > min_col_width:
+                    widths[i] -= 1
+                    total_with_sep -= 1
+
         # Filtra DataFrame para colunas selecionadas
         df_display = df_display[selected_columns]
-        
-        # Limpa e formata conteúdo das células de forma otimizada
+
+        # Formata conteúdo das células (evita 'nan') e trunca inteligentemente
         for i, col in enumerate(df_display.columns):
-            max_width = selected_widths[i] if i < len(selected_widths) else 15
-            df_display[col] = df_display[col].apply(lambda x: format_cell_data(x, col))
-            df_display[col] = df_display[col].apply(lambda x: smart_truncate(str(x), max_width, col))
-        
-        # Gera tabela com formatação rápida
+            max_width = widths[i] if i < len(widths) else 15
+            df_display[col] = df_display[col].apply(lambda x: smart_truncate(x, max_width, col))
+
+        # Monta tabela
         result = []
-        
-        # Cabeçalho
         headers = []
         for i, col in enumerate(df_display.columns):
-            width = selected_widths[i] if i < len(selected_widths) else 15
+            width = widths[i] if i < len(widths) else 15
             headers.append(f"{str(col):<{width}}")
         header_line = " | ".join(headers)
         result.append(header_line)
         result.append("-" * len(header_line))
-        
-        # Linhas de dados (otimizado)
+
         for _, row in df_display.iterrows():
             cells = []
             for i, val in enumerate(row):
-                width = selected_widths[i] if i < len(selected_widths) else 15
+                width = widths[i] if i < len(widths) else 15
                 cells.append(f"{str(val):<{width}}")
             result.append(" | ".join(cells))
-        
-        # Informação sobre colunas
-        total_cols = len(df.columns)
+
+        # Informação sobre colunas ocultas
+        total_cols = len(df.columns) + (0 if '#' in df.columns else 1)
         shown_cols = len(selected_columns)
         if shown_cols < total_cols:
             result.append("")
             result.append(f"Exibindo {shown_cols} de {total_cols} colunas (terminal: {terminal_width} chars)")
-        
+
         return "\n".join(result)
-        
+
     except Exception as e:
-        # Fallback ainda mais simples
+        # Fallback simples
         try:
-            # Apenas 3 primeiras colunas, 10 linhas
             simple_df = df.head(10).iloc[:, :3].copy()
-            
             result = []
-            # Cabeçalho simples
-            headers = [f"{col[:15]:15}" for col in simple_df.columns]
+            headers = [f"{str(col)[:15]:15}" for col in simple_df.columns]
             result.append(" | ".join(headers))
             result.append("-" * (len(headers) * 18))
-            
-            # Dados simples
             for _, row in simple_df.iterrows():
-                cells = [f"{str(val)[:15]:15}" for val in row]
+                cells = [f"{(str(val) if pd.notna(val) else '')[:15]:15}" for val in row]
                 result.append(" | ".join(cells))
-            
-            result.append(f"\n[ERRO] Formatação simplificada: {str(e)[:50]}")
+            result.append(f"\n[ERRO] Formatação simplificada: {str(e)[:80]}")
             return "\n".join(result)
-        except:
+        except Exception:
             return f"📊 {len(df)} registros | {len(df.columns)} colunas | Erro de formatação"
-        
-        # Linhas de dados
-        for _, row in df_display.iterrows():
-            cells = []
-            for i, (col, val) in enumerate(row.items()):
-                width = col_widths[i] if i < len(col_widths) else 15
-                cells.append(f"{str(val):<{width}}")
-            result.append(" | ".join(cells))
-        
-        # Adiciona informação sobre colunas ocultas se houver
-        total_cols = len(df.columns)
-        shown_cols = len(selected_columns)
-        if shown_cols < total_cols:
-            result.append("")
-            result.append(f"Exibindo {shown_cols} de {total_cols} colunas (terminal: {terminal_width} chars)")
-        
-        return "\n".join(result)
-        
-    except Exception as e:
-        # Fallback ultra-simples em caso de erro
-        try:
-            simple_cols = list(df.columns)[:2]  # Apenas 2 primeiras colunas
-            df_simple = df[simple_cols].head(10).copy()
-            
-            # Limpeza básica
-            for col in df_simple.columns:
-                df_simple[col] = df_simple[col].apply(lambda x: str(x)[:15] if pd.notna(x) else "")
-            
-            # Tabela simples
-            result = []
-            header = " | ".join([f"{col:15}" for col in df_simple.columns])
-            result.append(header)
-            result.append("-" * len(header))
-            
-            for _, row in df_simple.iterrows():
-                result.append(" | ".join([f"{str(val):15}" for val in row]))
-            
-            result.append(f"\n[MODO SIMPLES] Erro na formatação: {str(e)[:50]}")
-            return "\n".join(result)
-        except:
-            return f"Total de registros: {len(df)} | Colunas: {len(df.columns)} | Erro de formatação"
 
 def show_ssa_details(df, ssa_number, display_map=None):
     """

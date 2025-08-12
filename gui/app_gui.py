@@ -1,5 +1,6 @@
 # gui/app_gui.py
 import sys
+import os
 import pandas as pd
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLineEdit, QTableView, QLabel, 
@@ -7,6 +8,15 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QFormLayout, QGroupBox, QDateEdit)
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtCore import Qt, QDate
+
+# Garante que o diretório raiz do projeto esteja no sys.path
+try:
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
+except Exception:
+    pass
 
 from utils.pagination import Paginator
 from core.app_logic import filter_dataframe, advanced_filter_dataframe
