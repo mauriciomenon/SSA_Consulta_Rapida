@@ -31,10 +31,15 @@ def _estimate_column_width(series: pd.Series, display_name: str) -> int:
         # Prefer a robust high percentile but keep within limits
         est = max(header_len, min(max(avg_len, p95_len), max_width))
         # Minimum width for some known columns
-        if display_name in ("Nº SSA", "numero_ssa"):
+        if display_name in ("Nº SSA", "numero_ssa", "No"):
             est = max(est, 9)
-        if display_name in ("Executor", "setor_executor"):
+        if display_name in ("Executor", "setor_executor", "Exec"):
             est = max(est, 8)
+        # Keep status and week compact
+        if display_name.lower().startswith("stat") or display_name.lower().startswith("situa"):
+            est = max(len(str(display_name)), 8)
+        if display_name.lower().startswith("sem"):
+            est = max(len(str(display_name)), 8)
         return min(est, max_width)
     except Exception:
         return min(max(len(str(display_name)), 8), max_width)
@@ -54,20 +59,9 @@ def _select_columns_for_width(df: pd.DataFrame, display_map: dict, terminal_widt
     padding_per_col = 2  # spacing between columns
     max_total = max(terminal_width - 4, 20)
 
-    # Load priorities and short labels from config
-    config_path = os.path.join(os.path.dirname(__file__), '../config/column_priority.json')
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        priority_order_cfg = config.get('priority_order', [])
-        short_labels_cfg = config.get('short_labels', {})
-    except Exception:
-        priority_order_cfg = []
-        short_labels_cfg = {}
-
-    def display_name(col):
-        # Prefer short label from config, fallback to display_map, then col name
-        return short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col)
+    def display_name(cname):
+        # Prefer provided display_map (already merged with short labels), fallback to col name
+        return display_map.get(cname, cname) if isinstance(display_map, dict) else cname
 
     def can_fit(col):
         nonlocal used_width
@@ -87,12 +81,22 @@ def _select_columns_for_width(df: pd.DataFrame, display_map: dict, terminal_widt
                 selected.append(col)
                 used_width += inc
 
-    # Include prioritized columns from config
-    for col in priority_order_cfg:
-        if col in cols and col not in selected:
-            ok, inc = can_fit(col)
+    # Include prioritized columns (provided) with alias resolution
+    alias_map = {
+        'localizacao': ['localizacao', 'descricao_localizacao', 'localizacao_codigo'],
+        'emitida_em': ['emitida_em', 'data_cadastro'],
+        'numero_ssa': ['numero_ssa', 'Nº SSA', 'numero_ssa_original'],
+        'situacao': ['situacao', 'status'],
+        'setor_executor': ['setor_executor', 'executor'],
+        'setor_emissor': ['setor_emissor', 'emissor'],
+    }
+    for key in priority_order:
+        candidates = alias_map.get(key, [key])
+        chosen = next((c for c in candidates if c in cols and c not in selected), None)
+        if chosen:
+            ok, inc = can_fit(chosen)
             if ok:
-                selected.append(col)
+                selected.append(chosen)
                 used_width += inc
 
     # Fill with other columns until we run out of space
@@ -610,19 +614,15 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
         except Exception:
             pass
 
-        # Aplica short labels do config nos cabeçalhos
-        if short_labels_cfg:
-            df_display = df_display.rename(columns=short_labels_cfg)
-        elif display_map:
-            df_display = df_display.rename(columns=display_map)
+        # Não renomeia colunas para preservar chaves canônicas; só usaremos labels na renderização
 
         # Seleção de colunas por prioridade respeitando largura do terminal
-        essential_cols = [short_labels_cfg.get(c, c) for c in ['numero_ssa', 'setor_executor', 'localizacao', 'descricao_ssa', 'emitida_em', 'semana_programada', 'situacao']]
-        priority_order = [short_labels_cfg.get(c, c) for c in priority_order_cfg]
+        essential_cols = ['numero_ssa', 'setor_executor', 'localizacao', 'descricao_ssa', 'emitida_em', 'semana_programada', 'situacao']
+        priority_order = priority_order_cfg
 
         selected_columns = _select_columns_for_width(
             df_display,
-            short_labels_cfg,
+            short_labels_cfg or (display_map if isinstance(display_map, dict) else {}),
             terminal_width,
             essential_cols,
             priority_order
@@ -703,9 +703,11 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
 
         result = []
         headers = []
+        # Construir cabeçalhos usando short_labels (ou display_map) sem alterar as chaves de dados
         for i, col in enumerate(df_display.columns):
             width = widths[i] if i < len(widths) else 15
-            headers.append(f"{str(col):<{width}}")
+            label = short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col)
+            headers.append(f"{str(label):<{width}}")
         header_line = " | ".join(headers)
         result.append(header_line)
         result.append("-" * len(header_line))

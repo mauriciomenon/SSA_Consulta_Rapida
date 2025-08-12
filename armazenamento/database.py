@@ -295,6 +295,12 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
     logger.debug(f"Inserindo {len(df)} linhas em lotes de {chunk_size} no banco de dados '{db_path}', tabela '{table_name}'...")
     try:
         # Prepara DataFrame para SQLite (converte Timestamp e outros tipos problemáticos)
+        # Normaliza entrada que não seja DataFrame propriamente dito
+        if not isinstance(df, pd.DataFrame):
+            try:
+                df = pd.DataFrame(df)
+            except Exception:
+                raise ValueError("Objeto fornecido não é um DataFrame nem conversível em DataFrame")
         df_prepared = prepare_dataframe_for_sqlite(df)
 
         with get_db_connection(db_path) as conn:

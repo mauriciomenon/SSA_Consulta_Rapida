@@ -279,21 +279,24 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
             lambda row: ' '.join(str(val) if pd.notna(val) else '' for val in row.values).lower(), 
             axis=1
         )
-        
+
         # Aplica filtros sequencialmente usando operações vetorizadas
-        mask = pd.Series([True] * len(df), dtype=bool)
-        
+        # Alinha a máscara ao índice atual do DataFrame para evitar reindex warnings/bugs
+        mask = pd.Series(True, index=df.index)
+
         for term in clean_terms:
             if not term:
                 continue
             # Operação vetorizada super rápida
             term_mask = search_data.str.contains(term.lower(), case=False, na=False, regex=False)
+            # Garante alinhamento de índices
+            term_mask = term_mask.reindex(df.index, fill_value=False)
             mask = mask & term_mask
-            
+
             # Otimização: se não sobrou nada, para
             if not mask.any():
                 break
-        
+
         result_df = df[mask]
         logger.debug(f"Filtro aplicado: {len(clean_terms)} termos, {len(result_df)} resultados encontrados.")
         return result_df
@@ -304,11 +307,11 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
         # Fallback ainda mais simples e rápido
         try:
             # Usa apenas as 3 primeiras colunas de texto para busca rápida
-            fallback_cols = df.select_dtypes(include=['object']).columns[:3]
+            fallback_cols = df.select_dtypes(include=['object', 'category']).columns[:3]
             if not fallback_cols.any():
                 return df
-                
-            mask = pd.Series([False] * len(df), dtype=bool)
+            
+            mask = pd.Series(False, index=df.index)
             
             for term in clean_terms:
                 term_mask = pd.Series([False] * len(df))
@@ -316,9 +319,10 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
                     try:
                         col_mask = df[col].astype(str).str.contains(term, case=False, na=False, regex=False)
                         term_mask = term_mask | col_mask
-                    except:
+                    except Exception:
                         continue
-                mask = mask | term_mask
+                # Reindex term_mask para garantir alinhamento
+                mask = mask | term_mask.reindex(df.index, fill_value=False)
                 
             return df[mask]
         except Exception as fallback_err:
