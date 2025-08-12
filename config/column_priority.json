@@ -1,0 +1,22 @@
+{
+  "priority_order": [
+    "numero_ssa", "localizacao", "setor_executor", "descricao_ssa", "emitida_em", "situacao", "semana_programada", "derivada_de", "setor_emissor", "semana_executada", "num_reprogramacoes", "descricao_execucao", "solicitante", "responsavel_execucao", "descricao_localizacao"
+  ],
+  "short_labels": {
+    "numero_ssa": "No",
+    "localizacao": "Loc",
+    "setor_executor": "Exec",
+    "descricao_ssa": "Desc SSA",
+    "emitida_em": "Emit",
+    "situacao": "Stat",
+    "semana_programada": "Sem Prog",
+    "derivada_de": "Deriv",
+    "setor_emissor": "Emi",
+    "semana_executada": "Sem Exec",
+    "num_reprogramacoes": "Reprog",
+    "descricao_execucao": "Desc Exec",
+    "solicitante": "Solic",
+    "responsavel_execucao": "Resp",
+    "descricao_localizacao": "Desc Loc"
+  }
+}

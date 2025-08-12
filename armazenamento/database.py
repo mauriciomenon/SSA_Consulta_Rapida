@@ -19,6 +19,32 @@ logger = logging.getLogger(__name__)
 
 # --- Gerenciamento de Conexão ---
 
+def normalize_numero_ssa(value):
+    """Normaliza o número da SSA para 9 dígitos conforme regras de exibição.
+    - Remove zeros à esquerda
+    - Se até 5 dígitos, prefixa ano corrente (2025) e completa 5 dígitos
+    - Se menos de 9 dígitos, completa à esquerda até 9
+    - Se já tiver 9 dígitos numéricos, mantém
+    Caso não seja numérico, retorna como string original.
+    """
+    try:
+        # Trata nulos explicitamente
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        s = str(value).strip()
+        if s == "" or s.lower() in {"nan", "none", "null"}:
+            return None
+        s = s.lstrip('0')
+        if s.isdigit() and len(s) <= 5:
+            return f"2025{s.zfill(5)}"
+        if s.isdigit() and len(s) == 9:
+            return s
+        if s.isdigit() and len(s) < 9:
+            return s.zfill(9)
+        return s
+    except Exception:
+        return value
+
 @contextmanager
 def get_db_connection(db_path: str):
     """
@@ -101,44 +127,58 @@ def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     Esta versao usa um caminho explicito para evitar problemas de resolucao.
     """
     import os
-    
-    # --- CAMINHO EXPLICITO E ABSOLUTO PARA O SCHEMA ---
-    # Determina a raiz do projeto de forma robusta
-    current_file_dir = os.path.dirname(os.path.abspath(__file__)) # .../SSA_Consulta_Rapida/armazenamento
-    project_root = os.path.dirname(current_file_dir)              # .../SSA_Consulta_Rapida
-    # Constroi o caminho absoluto esperado para o schema
-    expected_schema_path = os.path.join(project_root, 'config', 'schema.sql')
-    
-    logger.info(f"[FORCANDO_SCHEMA] Tentando usar schema em: '{expected_schema_path}'")
-    
+
+    # 1) Se schema_file for um caminho existente (absoluto ou relativo), usar diretamente
+    schema_path = None
+    if schema_file:
+        # caminho absoluto fornecido e existente
+        if os.path.isabs(schema_file) and os.path.exists(schema_file):
+            schema_path = schema_file
+        else:
+            # relativo ao cwd
+            rel_path = os.path.abspath(schema_file)
+            if os.path.exists(rel_path):
+                schema_path = rel_path
+
+    # 2) Caso contrário, tenta caminho padrão no projeto: <root>/config/schema.sql
+    if not schema_path:
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))  # .../SSA_Consulta_Rapida/armazenamento
+        project_root = os.path.dirname(current_file_dir)               # .../SSA_Consulta_Rapida
+        schema_path = os.path.join(project_root, 'config', 'schema.sql')
+
+    logger.info(f"[SCHEMA] Usando schema em: '{schema_path}'")
+
     # --- VERIFICA SE O ARQUIVO EXISTE ---
-    if not os.path.exists(expected_schema_path):
-        logger.critical(f"[FORCANDO_SCHEMA] ARQUIVO NAO ENCONTRADO: '{expected_schema_path}'")
+    if not os.path.exists(schema_path):
+        logger.critical(f"[SCHEMA] ARQUIVO NAO ENCONTRADO: '{schema_path}'")
         # Lista conteudo da pasta config para depuracao
-        config_dir = os.path.join(project_root, 'config')
-        if os.path.exists(config_dir):
-            logger.info(f"[FORCANDO_SCHEMA] Conteudo da pasta config: {os.listdir(config_dir)}")
-        raise FileNotFoundError(f"Schema nao encontrado em '{expected_schema_path}'")
-        
+        try:
+            config_dir = os.path.join(project_root, 'config') if 'project_root' in locals() else None
+            if config_dir and os.path.exists(config_dir):
+                logger.info(f"[SCHEMA] Conteudo da pasta config: {os.listdir(config_dir)}")
+        except Exception:
+            pass
+        raise FileNotFoundError(f"Schema nao encontrado em '{schema_path}'")
+
     # --- LE O CONTEUDO ---
     try:
-        with open(expected_schema_path, 'r', encoding='utf-8') as f:
+        with open(schema_path, 'r', encoding='utf-8') as f:
             schema_sql = f.read()
-        logger.debug(f"[FORCANDO_SCHEMA] Schema lido com sucesso. Tamanho: {len(schema_sql)} chars.")
+        logger.debug(f"[SCHEMA] Schema lido com sucesso. Tamanho: {len(schema_sql)} chars.")
     except Exception as e:
-        logger.critical(f"[FORCANDO_SCHEMA] Erro ao ler schema: {e}")
+        logger.critical(f"[SCHEMA] Erro ao ler schema: {e}")
         raise
 
     # --- APLICA O SCHEMA ---
-    logger.info("[FORCANDO_SCHEMA] Aplicando schema ao banco de dados...")
+    logger.info("[SCHEMA] Aplicando schema ao banco de dados...")
     try:
         with get_db_connection(db_path) as conn:
             conn.executescript(schema_sql)
             conn.commit()
-        logger.info("[FORCANDO_SCHEMA] Banco de dados inicializado com sucesso.")
+        logger.info("[SCHEMA] Banco de dados inicializado com sucesso.")
         return True
     except Exception as e:
-        logger.critical(f"[FORCANDO_SCHEMA] Falha ao aplicar schema: {e}")
+        logger.critical(f"[SCHEMA] Falha ao aplicar schema: {e}")
         raise
 
 def create_indexes(db_path: str) -> bool:
@@ -278,6 +318,13 @@ def insert_dataframe_with_smart_upsert(
         return insert_dataframe_to_db(df_with_metadata, db_path, table_name)
     
     # Remove SSAs inválidas (sem número)
+    # Normaliza numero_ssa para consistência no banco (sem alterar outros campos)
+    try:
+        if 'numero_ssa' in df_with_metadata.columns:
+            df_with_metadata['numero_ssa'] = df_with_metadata['numero_ssa'].apply(normalize_numero_ssa)
+    except Exception:
+        pass
+
     df_valid = df_with_metadata.dropna(subset=['numero_ssa'])
     if df_valid.empty:
         logger.warning("Nenhuma SSA válida encontrada (todas sem número)")
