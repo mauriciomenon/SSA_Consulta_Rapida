@@ -30,6 +30,14 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
 - Formatação aplicada antes de renomear cabeçalhos (SSA, semanas, datas).
 
 ## Banco de Dados
+- Reset do DB:
+  - `reset_database(db_path, mode='file'|'table')`: apaga o arquivo e recria via schema (file) ou apenas limpa a tabela `ssas` (table).
+  - `main.py` expõe `--reset-db` antes da importação para cenários de limpeza total.
+- Upsert inteligente e versionamento:
+  - `insert_dataframe_with_smart_upsert()` agora armazena `arquivo_origem`, `data_arquivo_origem` e `data_importacao`, e controla `versao_dados` por SSA.
+  - Critério principal: data do arquivo (extraída do nome) — arquivos mais novos substituem dados antigos.
+  - Empate/sem data: desempate por avanço de situação (ordem preferencial: ASE, ADI, ASE, ADI, APL, APG, SPG, SEE, SAD, STE).
+  - Correção: incremento de `versao_dados` é persistido na linha inserida.
 ## Arquitetura, arquivos e funções (guia para devs)
 - Entry point: `main.py`
   - Orquestra inicialização (pastas, DB/schema, importador), carrega dados (`armazenamento.database.query_db`), configura display map, inicia CLI ou GUI.
@@ -99,9 +107,10 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
 - Normalização de `numero_ssa` aplicada no momento do upsert (`armazenamento.database.normalize_numero_ssa`), assegurando consistência entre DB/CLI/GUI.
 
 ## Testes
-- 29 testes passando.
+- 47 testes passando.
 - `tests/test_cli_formatting.py`: verifica short labels e normalização do número de SSA.
 - `tests/test_table_printer.py`: largura/seleção de colunas, paginação, e pretty_print_df.
+- `tests/test_db_reset_and_upsert.py`: cobre reset do DB (arquivo/tabela) e upsert com preferência por arquivo mais recente e desempate por situação.
 
 ## Itens Pendentes / Próximos Passos
 - Smoke test manual da GUI com dados reais (checar filtros por data, detalhes e ordenação).

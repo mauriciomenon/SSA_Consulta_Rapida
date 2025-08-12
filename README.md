@@ -22,6 +22,16 @@ python main.py
 ```pwsh
 python main.py --gui
 ```
+- Reset do banco (antes da importação):
+```pwsh
+python main.py --reset-db file   # recria o arquivo do DB via schema
+# ou
+python main.py --reset-db table  # limpa apenas a tabela ssas
+```
+
+Notas sobre importação e versões:
+- Arquivos mais novos (pela data no nome) prevalecem sobre dados antigos.
+- Em empate/sem data, desempata por avanço de situação (sequência ASE → ADI → APL → APG → SPG → SEE → SAD → STE).
 
 ## Regras de exibição (CLI/GUI)
 - Numero SSA com 9 dígitos (prefixo ano para <=5 dígitos; zfill para outros casos)

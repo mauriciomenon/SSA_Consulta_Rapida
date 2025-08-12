@@ -55,6 +55,7 @@ def main():
     parser = argparse.ArgumentParser(description="Consulta Rápida de SSAs.")
     parser.add_argument("--gui", action="store_true", help="Inicia a interface gráfica (GUI).")
     parser.add_argument("--rescan", action="store_true", help="Força a reimportação de todos os arquivos.")
+    parser.add_argument("--reset-db", choices=["file","table"], help="Zera o banco (file=apaga e recria; table=limpa a tabela ssas).")
     args = parser.parse_args()
 
     print("=" * 50)
@@ -68,7 +69,15 @@ def main():
     db_path = os.path.join('data', 'ssas.db')
     schema_path = os.path.join('config', 'schema.sql')
     
-    # 3. Inicializa o banco de dados se não existir
+    # 3. Reset opcional do banco
+    if args.reset_db:
+        from armazenamento.database import reset_database
+        ok = reset_database(db_path, mode=args.reset_db, schema_file=os.path.join('config','schema.sql'))
+        if not ok:
+            logging.error("Falha ao resetar o banco.")
+            sys.exit(1)
+
+    # 4. Inicializa o banco de dados se não existir
     if not os.path.exists(db_path):
         print("Banco de dados não encontrado. Inicializando...")
         try:
@@ -86,7 +95,7 @@ def main():
             logging.error(f"Falha ao inicializar o banco de dados: {e}")
             sys.exit(1)
 
-    # 4. Roda o importador de dados
+    # 5. Roda o importador de dados
     print("Verificando por novos relatórios para importar...")
     db_updated = False
     try:
@@ -95,7 +104,7 @@ def main():
         logging.error(f"Ocorreu um erro durante a importação: {e}")
         # Decide se continua ou não. Por ora, vamos continuar com os dados existentes.
 
-    # 5. Carrega os dados do DB para a memória
+    # 6. Carrega os dados do DB para a memória
     print("Carregando dados do banco...")
     try:
         all_data_df = query_db(db_path, 'ssas')
@@ -124,7 +133,7 @@ def main():
         logging.error(f"Não foi possível carregar dados ou configurações: {e}")
         sys.exit(1)
 
-    # 6. Inicia a interface escolhida
+    # 7. Inicia a interface escolhida
     if args.gui:
         print("Iniciando interface gráfica...")
         # Importações da GUI aqui para não carregar PyQt6 desnecessariamente no CLI

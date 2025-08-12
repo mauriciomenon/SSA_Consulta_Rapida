@@ -45,6 +45,17 @@ def normalize_numero_ssa(value):
     except Exception:
         return value
 
+# --- Regras auxiliares ---
+# Sequência preferencial de estados (valores maiores = mais avançado)
+STATE_ORDER = ['ASE', 'ADI', 'ASE', 'ADI', 'APL', 'APG', 'SPG', 'SEE', 'SAD', 'STE']
+STATE_RANK = {s: i for i, s in enumerate(STATE_ORDER, start=1)}
+
+def _state_rank(state: str) -> int:
+    if not state:
+        return 0
+    s = str(state).strip().upper()
+    return STATE_RANK.get(s, 0)
+
 @contextmanager
 def get_db_connection(db_path: str):
     """
@@ -203,6 +214,33 @@ def create_indexes(db_path: str) -> bool:
     except Exception as e:
         logger.error(f"Falha ao criar índices: {e}")
         return False
+
+def reset_database(db_path: str, mode: str = 'file', schema_file: str | None = None) -> bool:
+    """Zera o banco de dados.
+    - mode='file': remove o arquivo e recria pelo schema.
+    - mode='table': limpa apenas a tabela 'ssas'.
+    """
+    try:
+        if mode == 'file':
+            if os.path.exists(db_path):
+                os.remove(db_path)
+            initialize_database(db_path, schema_file or 'config/schema.sql')
+            create_indexes(db_path)
+            return True
+        elif mode == 'table':
+            with get_db_connection(db_path) as conn:
+                try:
+                    conn.execute("DELETE FROM ssas")
+                    conn.commit()
+                except Exception:
+                    pass
+            return True
+        else:
+            logger.error(f"Modo de reset inválido: {mode}")
+            return False
+    except Exception as e:
+        logger.error(f"Falha ao resetar banco: {e}")
+        return False
 def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ()) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
@@ -344,9 +382,11 @@ def insert_dataframe_with_smart_upsert(
                 
                 # Verifica se a SSA já existe no banco
                 existing_query = f"""
-                    SELECT data_arquivo_origem, versao_dados 
-                    FROM {table_name} 
+                    SELECT data_arquivo_origem, versao_dados, situacao
+                    FROM {table_name}
                     WHERE numero_ssa = ?
+                    ORDER BY COALESCE(versao_dados, 0) DESC
+                    LIMIT 1
                 """
                 existing = pd.read_sql_query(existing_query, conn, params=[numero_ssa])
                 
@@ -361,19 +401,40 @@ def insert_dataframe_with_smart_upsert(
                     # SSA existe, verifica se deve atualizar
                     existing_file_date = existing.iloc[0]['data_arquivo_origem']
                     existing_version = existing.iloc[0]['versao_dados']
-                    
+                    existing_state = existing.iloc[0]['situacao'] if 'situacao' in existing.columns else None
+
                     if should_update_ssa(existing_file_date, file_datetime_iso):
                         should_process = True
                         updates_count += 1
                         # Incrementa versão
-                        df_valid.at[index, 'versao_dados'] = existing_version + 1
-                        logger.debug(f"SSA {numero_ssa}: Arquivo mais recente, será atualizada (v{existing_version + 1})")
+                        new_version = (existing_version or 1) + 1
+                        df_valid.at[index, 'versao_dados'] = new_version
+                        # também atualiza o objeto da linha que será inserido
+                        try:
+                            row['versao_dados'] = new_version
+                        except Exception:
+                            pass
+                        logger.debug(f"SSA {numero_ssa}: Arquivo mais recente, será atualizada (v{new_version})")
                     else:
-                        skipped_count += 1
-                        logger.debug(f"SSA {numero_ssa}: Arquivo mais antigo, pulando")
+                        # Empate ou ausência de datas: usa estado como indício auxiliar
+                        new_state = row['situacao'] if 'situacao' in row.index else None
+                        tie = (existing_file_date == file_datetime_iso) or (not existing_file_date and not file_datetime_iso)
+                        if tie and _state_rank(new_state) > _state_rank(existing_state):
+                            should_process = True
+                            updates_count += 1
+                            new_version = (existing_version or 1) + 1
+                            df_valid.at[index, 'versao_dados'] = new_version
+                            try:
+                                row['versao_dados'] = new_version
+                            except Exception:
+                                pass
+                            logger.debug(f"SSA {numero_ssa}: Atualizada por avanço de estado ({existing_state} -> {new_state})")
+                        else:
+                            skipped_count += 1
+                            logger.debug(f"SSA {numero_ssa}: Arquivo mais antigo/igual e sem avanço de estado, pulando")
                 
                 if should_process:
-                    # Converte a linha para DataFrame
+                    # Converte a linha para DataFrame (usa a versão atualizada)
                     single_row_df = pd.DataFrame([row])
                     
                     # Prepara para SQLite
