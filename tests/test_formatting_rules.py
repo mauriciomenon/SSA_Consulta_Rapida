@@ -58,3 +58,15 @@ def test_advanced_filter_date_range():
     out = advanced_filter_dataframe(df, filters)
     assert len(out) == 1
     assert out.iloc[0]['setor_executor'] == 'B'
+
+def test_ssa_formatting_variants():
+    vals = ['123', '0009876', '202512345', None, '']
+    out = [format_cell_data(v, 'numero_ssa') for v in vals]
+    # <=5 dígitos: prefixa ano atual (2025)
+    assert out[0] == '202500123'
+    # 7 dígitos com zeros à esquerda vira 4 dígitos após strip -> prefixa ano (2025)
+    assert out[1] == '202509876'
+    # Já 9 dígitos: mantém
+    assert out[2] == '202512345'
+    # Nulos -> vazio
+    assert out[3] == '' and out[4] == ''
