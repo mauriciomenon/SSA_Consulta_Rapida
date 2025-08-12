@@ -67,7 +67,7 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
             'descricao_execucao'
         ]
         
-        # Primeiro exibe os campos prioritários na ordem definida
+    # Primeiro exibe os campos prioritários na ordem definida
         displayed_fields = set()
         for key in priority_fields:
             if key in series:
@@ -78,7 +78,7 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
                 if (pd.isna(value) or value is None or 
                     (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '', 'null', 'nat']) or
                     (isinstance(value, float) and (value != value))):  # NaN check
-                    continue  # Pula campos nulos na exibição
+                    display_value = '-'  # Exibe placeholder para valores nulos
                 else:
                     display_value = str(value)
                 
@@ -104,12 +104,12 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
             other_fields = []
             for key, value in series.items():
                 if key not in displayed_fields:
-                    display_name = display_map.get(key, key)
+                    display_name = display_map.get(key, key) + ":"
                     
                     if (pd.isna(value) or value is None or 
                         (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '', 'null', 'nat']) or
                         (isinstance(value, float) and (value != value))):  # NaN check
-                        continue  # Pula campos nulos na exibição
+                        display_value = '-'  # Exibe placeholder para valores nulos
                     else:
                         display_value = str(value)
                         

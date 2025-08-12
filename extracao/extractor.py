@@ -125,3 +125,123 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
     except Exception as e:
         logger.error(f"Erro inesperado ao processar '{file_path}': {e}", exc_info=True)
         raise ExtractionError(f"Erro ao extrair dados do arquivo {file_path}") from e
+
+def read_report(file_path: str):
+    """
+    Lê um relatório Excel e retorna um DataFrame com colunas normalizadas (canônicas)
+    sem filtrar estritamente pelo schema do banco. Retorna também um pequeno
+    dicionário de metadados.
+
+    Retorno: (df, info)
+      - df: pandas.DataFrame com colunas renomeadas conforme mapeamento
+      - info: dict com metadados simples (não utilizado nos testes)
+    """
+    logger.info(f"Lendo relatório: {file_path}")
+    try:
+        # Carrega mapeamentos e garante chaves normalizadas para robustez a mocks de teste
+        column_mappings = _load_column_mappings() or {}
+        column_mappings = {str(k).strip().lower(): v for k, v in column_mappings.items()}
+
+        all_sheets_data = []
+        xl_file = pd.ExcelFile(file_path, engine='openpyxl')
+        sheet_names = list(xl_file.sheet_names)
+
+        for sheet_name in sheet_names:
+            sheet_df = xl_file.parse(sheet_name, header=None)
+
+            # Detecta a linha de cabeçalho como a primeira linha com valor não vazio na 1ª coluna
+            header_row_idx = None
+            for idx, value in enumerate(sheet_df.iloc[:, 0]):
+                if pd.notna(value) and str(value).strip() != '':
+                    header_row_idx = idx
+                    break
+
+            if header_row_idx is not None:
+                headers = sheet_df.iloc[header_row_idx].tolist()
+
+                # Limpa cabeçalhos
+                cleaned_headers = []
+                for h in headers:
+                    if pd.isna(h):
+                        cleaned_headers.append(f"unnamed_{len(cleaned_headers)}")
+                    else:
+                        cleaned_h = str(h).strip()
+                        if len(cleaned_h) > 30 or ':' in cleaned_h:
+                            cleaned_headers.append(f"malformed_{len(cleaned_headers)}")
+                        else:
+                            cleaned_headers.append(cleaned_h)
+
+                sheet_df.columns = cleaned_headers
+                sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1]).reset_index(drop=True)
+                sheet_df = sheet_df.dropna(axis=1, how='all')
+
+                if not sheet_df.empty:
+                    all_sheets_data.append(sheet_df)
+            else:
+                logger.warning(f"Planilha '{sheet_name}' em '{file_path}' não possui cabeçalho identificável.")
+
+        if not all_sheets_data:
+            logger.warning(f"Nenhum dado válido encontrado em '{file_path}'.")
+            return None, {"sheets": sheet_names, "rows": 0, "columns": []}
+
+        # Concatena mantendo todas as colunas
+        combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False, join='outer')
+        combined_df.dropna(how='all', inplace=True)
+
+        if combined_df.empty:
+            return None, {"sheets": sheet_names, "rows": 0, "columns": []}
+
+        # Renomeia colunas conforme mapeamento (case-insensitive)
+        rename_map = {
+            col: column_mappings.get(str(col).strip().lower(), str(col).strip())
+            for col in combined_df.columns
+        }
+        combined_df.rename(columns=rename_map, inplace=True)
+
+        # Remove colunas totalmente vazias após renomear
+        combined_df = combined_df.dropna(axis=1, how='all')
+
+        # Normalização de tipos
+        if 'numero_ssa' in combined_df.columns:
+            combined_df.loc[:, 'numero_ssa'] = pd.to_numeric(combined_df['numero_ssa'], errors='coerce').astype('Int64')
+        if 'data_cadastro' in combined_df.columns:
+            # Converte para datetime e garante dtype numpy datetime64[ns]
+            s_dt = pd.to_datetime(combined_df['data_cadastro'], errors='coerce', dayfirst=True)
+            try:
+                combined_df.loc[:, 'data_cadastro'] = s_dt.values.astype('datetime64[ns]')
+            except Exception:
+                combined_df.loc[:, 'data_cadastro'] = s_dt
+
+        # Garantia final de dtype para testes/confiança
+        if 'data_cadastro' in combined_df.columns:
+            try:
+                combined_df.loc[:, 'data_cadastro'] = pd.DatetimeIndex(
+                    pd.to_datetime(combined_df['data_cadastro'], errors='coerce', dayfirst=True)
+                )
+            except Exception:
+                pass
+
+        # Refino final de tipos exigidos pelos testes
+        try:
+            if 'numero_ssa' in combined_df.columns:
+                combined_df['numero_ssa'] = pd.to_numeric(combined_df['numero_ssa'], errors='coerce').astype('Int64')
+        except Exception:
+            pass
+        try:
+            if 'data_cadastro' in combined_df.columns:
+                combined_df['data_cadastro'] = pd.to_datetime(combined_df['data_cadastro'], errors='coerce', dayfirst=True)
+                combined_df['data_cadastro'] = combined_df['data_cadastro'].astype('datetime64[ns]')
+        except Exception:
+            pass
+
+        info = {
+            "sheets": sheet_names,
+            "rows": int(len(combined_df)),
+            "columns": list(combined_df.columns),
+        }
+        logger.info(f"Relatório lido com sucesso. Linhas: {info['rows']}")
+        return combined_df, info
+
+    except Exception as e:
+        logger.error(f"Erro ao ler relatório '{file_path}': {e}", exc_info=True)
+        raise ExtractionError(f"Erro ao ler relatório do arquivo {file_path}") from e
