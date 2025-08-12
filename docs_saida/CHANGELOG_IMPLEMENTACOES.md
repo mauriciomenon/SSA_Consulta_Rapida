@@ -29,6 +29,66 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
 - Formatação aplicada antes de renomear cabeçalhos (SSA, semanas, datas).
 
 ## Banco de Dados
+## Arquitetura, arquivos e funções (guia para devs)
+- Entry point: `main.py`
+  - Orquestra inicialização (pastas, DB/schema, importador), carrega dados (`armazenamento.database.query_db`), configura display map, inicia CLI ou GUI.
+  - Lê e indica ao dev o arquivo `docs_saida/CHANGELOG_IMPLEMENTACOES.md` (este guia).
+  - Sugere configurar hook de pre-commit para bloquear arquivos >99MB.
+- Camada Core:
+  - `core/app_logic.py`
+    - `run_importer_logic()`: decide quais arquivos Excel importar, coordena extração, validação e inserção no DB; atualiza cache.
+    - `filter_dataframe()`: filtro rápido vetorizado por termos em colunas de alta relevância; usado por CLI/GUI.
+    - `advanced_filter_dataframe()`: filtros por termos, executor, situação, e período de data de cadastro; usado pela GUI.
+    - `run_scheduled_exports()`: dispara exportações agendadas.
+  - `core/config_manager.py`: carrega settings, mapeamentos e utilidades de configuração.
+- Persistência:
+  - `armazenamento/database.py`
+    - `get_db_connection()`: conexão SQLite com PRAGMAs seguros.
+    - `initialize_database()`: aplica schema de `config/schema.sql`.
+    - `create_indexes()`: cria índices úteis.
+    - `query_db()`: SELECT como DataFrame.
+    - `insert_dataframe_to_db()`: inserção chunked com conversões para SQLite.
+    - `normalize_numero_ssa()`: normaliza número da SSA para 9 dígitos; usada no upsert.
+    - `insert_dataframe_with_smart_upsert()`: insere/atualiza por número de SSA e data do arquivo de origem (controle de versão).
+- Extração/Validação:
+  - `extracao/extractor.py`: extrai DataFrames dos relatórios Excel.
+  - `utils/data_validation.py`: validações dos dados (mensagens de aviso).
+  - `utils/file_metadata.py`: extrai data/hora do nome do arquivo e decide atualização (`should_update_ssa`).
+- Interface CLI:
+  - `interface/cli.py`
+    - Loop de comandos com paginação ou rolagem contínua; exportação; detalhes por linha/SSA; agora com opção para adicionar filtro extra quando há muitos resultados.
+  - `interface/table_printer.py`
+    - `format_dataframe_for_cli()`: resolve prioridades, aplica rótulos curtos, pré-formata campos, aloca larguras e imprime tabela.
+    - `format_cell_data()`: regra única de formatação (datas, semanas, SSA, NaN) compartilhada com GUI.
+    - Auxiliares: seleção por largura (`_select_columns_for_width`), truncamento inteligente etc.
+  - `interface/display.py`: `pretty_print_details()` imprime detalhes legíveis por humano.
+- Interface GUI:
+  - `gui/app_gui.py`
+    - Janela principal com filtro de texto, Executor, Situação e filtro opcional por data; paginação dupla e detalhes por duplo-clique/botão.
+    - Aplica `format_cell_data` a todas as colunas para consistência com CLI; usa prioridades/short_labels do config.
+- Exportação:
+  - `exportacao/exporter.py`, `exportacao/scheduled_exporter.py`: exportações imediatas e agendadas.
+- Utilitários:
+  - `utils/pagination.py`: Paginator usado em CLI/GUI.
+  - `utils/caching.py`: cache de arquivos importados.
+
+## Mapeamento de testes -> funções
+- `tests/test_table_printer.py` → `interface.table_printer`: seleção/ordem/formatador e paginação.
+- `tests/test_cli_formatting.py` → `format_dataframe_for_cli`: rótulos curtos e SSA 9 dígitos.
+- `tests/test_formatting_rules.py` → `format_cell_data`, `format_dataframe_for_cli`, `advanced_filter_dataframe`: semanas sem .0, datas sem horário, cabeçalhos, filtro por período.
+- `tests/test_database.py` → `armazenamento.database`: conexão, init schema, to_sql chunked, query.
+- `tests/test_ssa_normalization_db.py` → `normalize_numero_ssa`: normalização de SSA.
+- `tests/test_extracao.py` → `extracao.extractor`: extração básica.
+- `tests/test_display.py` → `interface.display.pretty_print_details`.
+- `tests/test_interface.py` → integrações leves CLI/formatador.
+- `tests/test_exporter.py` → exportadores.
+- `tests/test_caching.py` → `utils.caching`.
+
+## Notas de projeto e contrato de exibição
+- Prioridades de colunas e rótulos curtos em `config/column_priority.json` (GUI e CLI consomem).
+- Regras fixas de exibição: sem “.0” em semanas, datas sem horário, sem “nan/NaT/None”, SSA com 9 dígitos.
+- Formatação é aplicada antes de renomear cabeçalhos para evitar ambiguidades com short labels.
+
 - Normalização de `numero_ssa` aplicada no momento do upsert (`armazenamento.database.normalize_numero_ssa`), assegurando consistência entre DB/CLI/GUI.
 
 ## Testes

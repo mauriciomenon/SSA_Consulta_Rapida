@@ -43,6 +43,11 @@ def main():
     """Função principal que orquestra a aplicação."""
     # Configuração de Logging (pode ser movida para um utils/logger.py)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Lembrete: leia o diário de implementações para contexto e padrões
+    logging.info("Consulte docs_saida/CHANGELOG_IMPLEMENTACOES.md para arquitetura, prioridades e regras de formatação.")
+    # Dica: configure o hook de pre-commit para bloquear arquivos >99MB
+    # Para ativar (uma vez):
+    #   pwsh -NoProfile -Command "Copy-Item scripts/pre-commit-size-check.ps1 .git/hooks/pre-commit; git config core.hooksPath .git/hooks"
     
     # Argumentos da linha de comando
     parser = argparse.ArgumentParser(description="Consulta Rápida de SSAs.")

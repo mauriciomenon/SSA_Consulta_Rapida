@@ -84,7 +84,6 @@ def start_cli_loop(initial_df: pd.DataFrame, display_map: Dict[str, str], output
             elif rolagem_continua:
                 # Modo rolagem contínua - com limite inteligente para performance
                 try:
-                    # Limite para performance - mais de 100 registros pergunta primeiro
                     if len(df_filtrado) > 100:
                         print(f"\n⚠️  Encontrados {len(df_filtrado)} registros.")
                         print("Exibir todos pode demorar. Opções:")
@@ -92,8 +91,9 @@ def start_cli_loop(initial_df: pd.DataFrame, display_map: Dict[str, str], output
                         print("  2 - Primeiros 100 registros (médio)")
                         print("  3 - Todos os registros (pode demorar)")
                         print("  4 - Modo paginação")
+                        print("  5 - Adicionar mais um filtro agora")
                         try:
-                            choice = input("Escolha (1/2/3/4): ").strip()
+                            choice = input("Escolha (1/2/3/4/5): ").strip()
                             if choice == "1":
                                 display_count = 50
                             elif choice == "2":
@@ -135,6 +135,21 @@ def start_cli_loop(initial_df: pd.DataFrame, display_map: Dict[str, str], output
                                         print(f"Erro na paginação: {e}")
                                         is_paginating = False
                                 continue  # Pula o resto da exibição contínua
+                            elif choice == "5":
+                                # Permite refinar o filtro antes de exibir
+                                try:
+                                    extra = input("Digite termos adicionais (separados por vírgula): ").strip()
+                                except (EOFError, KeyboardInterrupt):
+                                    extra = ""
+                                if extra:
+                                    termos = [t.strip() for t in extra.split(',') if t.strip()]
+                                    if termos:
+                                        df_filtrado = filter_dataframe(df_filtrado, termos)
+                                        filtros_aplicados.append(f"+{extra}")
+                                        # Reinicia loop principal para recalcular opções com novo tamanho
+                                        mostrar_resultados = True
+                                        continue
+                                # Caso não informe nada, cai para exibição completa
                             else:
                                 display_count = len(df_filtrado)  # Todos
                         except (EOFError, KeyboardInterrupt):
@@ -152,13 +167,13 @@ def start_cli_loop(initial_df: pd.DataFrame, display_map: Dict[str, str], output
                     print(formatted_table)
                     
                     if len(df_filtrado) > display_count:
-                        print(f"--- Mostrando {display_count} de {len(df_filtrado)} registros (use paginação para ver todos) ---")
+                        print(f"--- Mostrando {display_count} de {len[df_filtrado]} registros (use paginação para ver todos) ---")
                     else:
                         print(f"--- Fim dos resultados ({len(df_filtrado)} registros) ---")
                         
                 except Exception as e:
                     logger.error(f"Erro ao formatar tabela: {e}")
-                    print(f"\nErro ao exibir tabela completa. {len(df_filtrado)} registros encontrados.")
+                    print(f"\nErro ao exibir tabela completa. {len[df_filtrado]} registros encontrados.")
             else:
                 # Modo paginação (apenas se solicitado)
                 paginator = Paginator(df_filtrado, page_size=page_size)
