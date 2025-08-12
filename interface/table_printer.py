@@ -1,4 +1,5 @@
 import pandas as pd
+import json
 import os
 from datetime import datetime
 
@@ -53,8 +54,20 @@ def _select_columns_for_width(df: pd.DataFrame, display_map: dict, terminal_widt
     padding_per_col = 2  # spacing between columns
     max_total = max(terminal_width - 4, 20)
 
+    # Load priorities and short labels from config
+    config_path = os.path.join(os.path.dirname(__file__), '../config/column_priority.json')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        priority_order_cfg = config.get('priority_order', [])
+        short_labels_cfg = config.get('short_labels', {})
+    except Exception:
+        priority_order_cfg = []
+        short_labels_cfg = {}
+
     def display_name(col):
-        return display_map.get(col, col) if isinstance(display_map, dict) else col
+        # Prefer short label from config, fallback to display_map, then col name
+        return short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col)
 
     def can_fit(col):
         nonlocal used_width
@@ -74,8 +87,8 @@ def _select_columns_for_width(df: pd.DataFrame, display_map: dict, terminal_widt
                 selected.append(col)
                 used_width += inc
 
-    # Include prioritized columns
-    for col in priority_order:
+    # Include prioritized columns from config
+    for col in priority_order_cfg:
         if col in cols and col not in selected:
             ok, inc = can_fit(col)
             if ok:
@@ -165,8 +178,9 @@ def format_cell_data(value, column_name):
         (isinstance(value, float) and pd.isna(value))):
         return ""
     
-    # Formatação de data - remover horário
-    if 'data_cadastro' in column_name.lower() or 'emitida em' in column_name.lower():
+    # Formatação de data - remover horário (mais abrangente: qualquer coluna com 'data' ou 'emit')
+    name_l = column_name.lower()
+    if ('data' in name_l) or ('emit' in name_l):
         try:
             if isinstance(value, str) and len(value) > 10:  # Tem horário
                 # Tenta fazer parse e formatar apenas a data
@@ -178,7 +192,7 @@ def format_cell_data(value, column_name):
             return str(value)
     
     # Formatação de semana programada - remover .0
-    if 'semana_programada' in column_name.lower() or 'sem. prog' in column_name.lower():
+    if ('sem' in name_l):
         try:
             if isinstance(value, float) and value.is_integer():
                 return str(int(value))
@@ -191,11 +205,18 @@ def format_cell_data(value, column_name):
     # Formatação de número da SSA - garantir formato correto de 9 dígitos
     if 'numero_ssa' in column_name.lower() or 'nº ssa' in column_name.lower():
         try:
-            # Converte para string e remove espaços
             ssa_str = str(value).strip()
+            # Remove espaços e zeros à esquerda
+            ssa_str = ssa_str.lstrip('0')
             # Se for um número simples, adiciona o ano
             if ssa_str.isdigit() and len(ssa_str) <= 5:
-                return f"2025{ssa_str:0>5}"  # Ano atual + número com 5 dígitos
+                return f"2025{ssa_str.zfill(5)}"  # Ano atual + número com 5 dígitos
+            # Se for um número de 9 dígitos, retorna como está
+            if ssa_str.isdigit() and len(ssa_str) == 9:
+                return ssa_str
+            # Se for menor que 9, preenche à esquerda
+            if ssa_str.isdigit() and len(ssa_str) < 9:
+                return ssa_str.zfill(9)
             return ssa_str
         except:
             return str(value)
@@ -548,6 +569,17 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
         return "\nNenhum registro para exibir.\n"
 
     try:
+        # Load priorities and short labels from config
+        config_path = os.path.join(os.path.dirname(__file__), '../config/column_priority.json')
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            priority_order_cfg = config.get('priority_order', [])
+            short_labels_cfg = config.get('short_labels', {})
+        except Exception:
+            priority_order_cfg = []
+            short_labels_cfg = {}
+
         # Tamanho do terminal com fallback
         try:
             terminal_width = os.get_terminal_size().columns
@@ -563,17 +595,34 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
         if '#' not in df_display.columns:
             df_display.insert(0, '#', range(1, len(df_display) + 1))
 
-        # Aplica mapeamento de exibição apenas nos cabeçalhos
-        if display_map:
+        # Pré-formata campos antes de renomear cabeçalhos (independente de labels)
+        try:
+            if 'numero_ssa' in df_display.columns:
+                df_display['numero_ssa'] = df_display['numero_ssa'].apply(lambda v: format_cell_data(v, 'numero_ssa'))
+            if 'semana_programada' in df_display.columns:
+                df_display['semana_programada'] = df_display['semana_programada'].apply(lambda v: format_cell_data(v, 'semana_programada'))
+            if 'semana_cadastro' in df_display.columns:
+                df_display['semana_cadastro'] = df_display['semana_cadastro'].apply(lambda v: format_cell_data(v, 'semana_cadastro'))
+            if 'data_cadastro' in df_display.columns:
+                df_display['data_cadastro'] = df_display['data_cadastro'].apply(lambda v: format_cell_data(v, 'data_cadastro'))
+            if 'emitida_em' in df_display.columns:
+                df_display['emitida_em'] = df_display['emitida_em'].apply(lambda v: format_cell_data(v, 'emitida_em'))
+        except Exception:
+            pass
+
+        # Aplica short labels do config nos cabeçalhos
+        if short_labels_cfg:
+            df_display = df_display.rename(columns=short_labels_cfg)
+        elif display_map:
             df_display = df_display.rename(columns=display_map)
 
         # Seleção de colunas por prioridade respeitando largura do terminal
-        essential_cols = ['Nº SSA', 'Executor', 'Localização', 'Descrição da SSA', 'Emitida Em', 'Sem. Prog.', 'Situação']
-        priority_order = ['Nº SSA', 'Executor', 'Localização', 'Descrição da SSA', 'Emitida Em', 'Sem. Prog.', 'Emissor', 'Situação']
+        essential_cols = [short_labels_cfg.get(c, c) for c in ['numero_ssa', 'setor_executor', 'localizacao', 'descricao_ssa', 'emitida_em', 'semana_programada', 'situacao']]
+        priority_order = [short_labels_cfg.get(c, c) for c in priority_order_cfg]
 
         selected_columns = _select_columns_for_width(
             df_display,
-            {},  # já renomeado
+            short_labels_cfg,
             terminal_width,
             essential_cols,
             priority_order
@@ -599,24 +648,23 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
                 w = 0.8
             else:
                 est = _estimate_column_width(df_display[col], col)
-                # reforços por tipo de coluna
                 cl = str(col).lower()
-                if 'descri' in cl:
+                if 'desc' in cl:
                     w = 2.5
                     est = max(est, 24)
-                elif 'localiza' in cl:
+                elif 'loc' in cl:
                     w = 1.6
                     est = max(est, 14)
-                elif 'executor' in cl or 'emissor' in cl:
+                elif 'exec' in cl or 'emi' in cl:
                     w = 1.3
                     est = max(est, 10)
                 elif 'ssa' in cl or 'nº' in cl or 'numero' in cl:
                     w = 1.2
                     est = max(est, 12)
-                elif 'situa' in cl or 'status' in cl:
+                elif 'situa' in cl or 'stat' in cl:
                     w = 1.1
                     est = max(est, 10)
-                elif 'data' in cl or 'emitida' in cl or 'semana' in cl:
+                elif 'data' in cl or 'emit' in cl or 'semana' in cl:
                     w = 1.0
                     est = max(est, 10)
                 else:
@@ -627,22 +675,17 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
             weights.append(w)
 
         # Converte em alocação ponderada que caiba em content_space
-        # Primeiro, soma base mínima para garantir cabeçalhos
         min_total = sum(base_widths)
         if min_total > content_space:
-            # Reduz proporcionalmente preservando mínimos
             scale = max(content_space / min_total, 0.5)
             widths = [max(int(wd * scale), min_col_width if c != '#' else 4) for wd, c in zip(base_widths, selected_columns)]
         else:
-            # Distribui espaço extra conforme peso
             extra = content_space - min_total
             total_weight = sum(weights) if sum(weights) > 0 else 1.0
             widths = [bw + int(extra * (wt / total_weight)) for bw, wt in zip(base_widths, weights)]
 
-        # Ajuste fino para não exceder o terminal (pode sobrar por arredondamento)
         total_with_sep = sum(widths) + sep_space
         while total_with_sep > terminal_width and len(widths) > 0:
-            # reduz das colunas menos prioritárias (do fim para o início), evita reduzir '#'
             for i in range(len(widths) - 1, -1, -1):
                 if total_with_sep <= terminal_width:
                     break
@@ -652,15 +695,12 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
                     widths[i] -= 1
                     total_with_sep -= 1
 
-        # Filtra DataFrame para colunas selecionadas
         df_display = df_display[selected_columns]
 
-        # Formata conteúdo das células (evita 'nan') e trunca inteligentemente
         for i, col in enumerate(df_display.columns):
             max_width = widths[i] if i < len(widths) else 15
             df_display[col] = df_display[col].apply(lambda x: smart_truncate(x, max_width, col))
 
-        # Monta tabela
         result = []
         headers = []
         for i, col in enumerate(df_display.columns):
@@ -677,7 +717,6 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
                 cells.append(f"{str(val):<{width}}")
             result.append(" | ".join(cells))
 
-        # Informação sobre colunas ocultas
         total_cols = len(df.columns) + (0 if '#' in df.columns else 1)
         shown_cols = len(selected_columns)
         if shown_cols < total_cols:
@@ -687,7 +726,6 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
         return "\n".join(result)
 
     except Exception as e:
-        # Fallback simples
         try:
             simple_df = df.head(10).iloc[:, :3].copy()
             result = []
