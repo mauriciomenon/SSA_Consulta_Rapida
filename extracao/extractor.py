@@ -197,3 +197,23 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
     except Exception as e:
         logger.error(f"Erro inesperado ao processar '{file_path}': {e}", exc_info=True)
         return None
+
+def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+    """
+    Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
+
+    Esta função é um invólucro (wrapper) em torno de `extract_data_from_excel`,
+    mantendo compatibilidade com chamadas existentes que esperam uma tupla
+    (df, meta).
+
+    Args:
+        file_path: Caminho do arquivo .xlsx a ser lido.
+
+    Returns:
+        Tuple[Optional[pd.DataFrame], Dict[str, Any]]: O DataFrame resultante (ou None em caso de erro)
+        e um dicionário de metadados mínimos contendo ao menos o caminho de origem.
+    """
+    df = extract_data_from_excel(file_path)
+    metadata: Dict[str, Any] = {"source_path": file_path}
+    # Poderemos adicionar mais metadados no futuro (ex.: número de planilhas, tempo de execução, etc.)
+    return df, metadata
