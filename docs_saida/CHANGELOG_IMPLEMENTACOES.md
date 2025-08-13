@@ -126,3 +126,14 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
   - Larguras fixas: Executor=6, Emissor=6, Semana programada=8, Status=5.
   - Paginação: permite aplicar novos filtros durante a navegação; `-d` (detalhes) continua disponível a qualquer momento.
   - Testes permanecem verdes (51). Commits registrados na branch `feature/data-import-fixes`.
+
+### Patch v2.4.1
+- CLI
+  - Autodetecção de suporte ANSI ajustada (Windows e TTY) e respeito a `NO_COLOR`/`SSA_NO_COLOR` para desativar destaques.
+  - Melhorias de UX consolidadas: filtros negativos cobertos por testes e verificação de larguras fixas nos cabeçalhos.
+- Testes
+  - Suite expandida para 54 testes, incluindo:
+    - Comportamento de destaque ANSI sob diferentes ambientes (com e sem `NO_COLOR`).
+    - Filtros negativos combinados com positivos no `filter_dataframe`.
+    - Presença de rótulos com larguras fixas (Exec/Emi/Sem Prog/Stat) no output do CLI.
+  - Todos os testes passando.
