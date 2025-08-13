@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import os
+import sys
 from datetime import datetime
 
 # --- Public API expected by tests ---
@@ -564,7 +565,7 @@ def calculate_optimal_columns(columns, terminal_width, min_col_width=8, max_col_
     
     return [], []
 
-def format_dataframe_for_cli(df, display_map=None, max_rows=None):
+def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_terms=None):
     """
     Formata um DataFrame para exibição no CLI com seleção inteligente de colunas
     respeitando prioridades e largura do terminal. Evita exibir 'nan'/'NaT'.
@@ -725,6 +726,64 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None):
             result.append("")
             result.append(f"Exibindo {shown_cols} de {total_cols} colunas (terminal: {terminal_width} chars)")
 
+        # Optional highlight of search terms (applied only to data lines)
+        if highlight_terms:
+            try:
+                def _supports_ansi() -> bool:
+                    # Honor NO_COLOR and custom SSA_NO_COLOR
+                    if os.environ.get('NO_COLOR') or os.environ.get('SSA_NO_COLOR'):
+                        return False
+                    try:
+                        if not sys.stdout.isatty():
+                            return False
+                    except Exception:
+                        return False
+                    if os.name != 'nt':
+                        return True
+                    # Windows: detect modern terminals
+                    env = os.environ
+                    if env.get('WT_SESSION') or env.get('TERM_PROGRAM') or env.get('ANSICON') or env.get('ConEmuANSI') == 'ON':
+                        return True
+                    term = env.get('TERM', '')
+                    if term.startswith('xterm') or term.startswith('vt'):
+                        return True
+                    try:
+                        ver = sys.getwindowsversion()
+                        return getattr(ver, 'major', 0) >= 10
+                    except Exception:
+                        return False
+
+                if _supports_ansi():
+                    ansi_on = "\033[1m"
+                    ansi_off = "\033[0m"
+                    # Prepare lowercased terms, skip negatives (starting with '!' or '-')
+                    terms = [t.lower() for t in highlight_terms if isinstance(t, str) and t and not t.strip().startswith(('!', '-'))]
+                    if terms:
+                        for idx in range(2, len(result)):
+                            line_lower = result[idx].lower()
+                            new_line = result[idx]
+                            for t in terms:
+                                if t in line_lower:
+                                    # Replace plain occurrences with bold; do a simple case-insensitive approach
+                                    out = []
+                                    src = result[idx]
+                                    low = line_lower
+                                    start = 0
+                                    tl = len(t)
+                                    while True:
+                                        pos = low.find(t, start)
+                                        if pos == -1:
+                                            out.append(src[start:])
+                                            break
+                                        out.append(src[start:pos])
+                                        out.append(ansi_on + src[pos:pos+tl] + ansi_off)
+                                        start = pos + tl
+                                    new_line = ''.join(out)
+                                    line_lower = new_line.lower()
+                                    result[idx] = new_line
+                # else: no ANSI support, keep plain text
+            except Exception:
+                pass
         return "\n".join(result)
 
     except Exception as e:

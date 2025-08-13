@@ -116,3 +116,13 @@ Este arquivo documenta solicitações, decisões e implementações recentes par
 - Smoke test manual da GUI com dados reais (checar filtros por data, detalhes e ordenação).
 - Ajustar/expandir testes para mais campos formatados (datas/semana) quando necessário.
 - Opcional: mover normalização de SSA para camada de dados para consistência no banco.
+## 2025-08-13
+- GUI
+  - Corrigido RecursionError ao redimensionar cabeçalhos: `_recompute_visibility` agora possui guarda de reentrada e bloqueio de sinais. Atualizações da tabela são desabilitadas durante mudanças em lote para evitar avisos de QPainter. Colunas ocultas pelo usuário são persistidas (QSettings) e re-aplicadas.
+  - Menu no cabeçalho para seleção de colunas (rótulos completos) com persistência. Splitter vertical redimensionável e painel de detalhes.
+- CLI
+  - Suporte a filtros negativos com `!` ou `-` (ex.: `MEL4,!cancelada`).
+  - Destaque de termos da última busca em negrito (ANSI) quando o terminal suporta; autodetecção melhora compatibilidade no Windows. Defina `NO_COLOR=1` (ou `SSA_NO_COLOR=1`) para desativar.
+  - Larguras fixas: Executor=6, Emissor=6, Semana programada=8, Status=5.
+  - Paginação: permite aplicar novos filtros durante a navegação; `-d` (detalhes) continua disponível a qualquer momento.
+  - Testes permanecem verdes (51). Commits registrados na branch `feature/data-import-fixes`.
