@@ -202,6 +202,16 @@ def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]
     """
     Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
 
+    Wrapper de compatibilidade que retorna (df, metadata).
+    """
+    df = extract_data_from_excel(file_path)
+    metadata: Dict[str, Any] = {"source_path": file_path}
+    return df, metadata
+
+def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+    """
+    Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
+
     Esta função é um invólucro (wrapper) em torno de `extract_data_from_excel`,
     mantendo compatibilidade com chamadas existentes que esperam uma tupla
     (df, meta).
