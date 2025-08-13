@@ -53,51 +53,53 @@ def get_db_connection(db_path: str):
 
 # armazenamento/database.py
 
-def initialize_database(db_path: str, schema_file: str = schema_file):
+def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
     """
-    Inicializa o banco de dados, criando tabelas conforme o schema.
-    Esta versao usa um caminho explicito para evitar problemas de resolucao.
-    """
-    import os
-    
-    # --- CAMINHO EXPLICITO E ABSOLUTO PARA O SCHEMA ---
-    # Determina a raiz do projeto de forma robusta
-    current_file_dir = os.path.dirname(os.path.abspath(__file__)) # .../SSA_Consulta_Rapida/armazenamento
-    project_root = os.path.dirname(current_file_dir)              # .../SSA_Consulta_Rapida
-    # Constroi o caminho absoluto esperado para o schema
-    expected_schema_path = os.path.join(project_root, 'config', 'schema.sql')
-    
-    logger.info(f"[FORCANDO_SCHEMA] Tentando usar schema em: '{expected_schema_path}'")
-    
-    # --- VERIFICA SE O ARQUIVO EXISTE ---
-    if not os.path.exists(expected_schema_path):
-        logger.critical(f"[FORCANDO_SCHEMA] ARQUIVO NAO ENCONTRADO: '{expected_schema_path}'")
-        # Lista conteudo da pasta config para depuracao
-        config_dir = os.path.join(project_root, 'config')
-        if os.path.exists(config_dir):
-            logger.info(f"[FORCANDO_SCHEMA] Conteudo da pasta config: {os.listdir(config_dir)}")
-        raise FileNotFoundError(f"Schema nao encontrado em '{expected_schema_path}'")
-        
-    # --- LE O CONTEUDO ---
-    try:
-        with open(expected_schema_path, 'r', encoding='utf-8') as f:
-            schema_sql = f.read()
-        logger.debug(f"[FORCANDO_SCHEMA] Schema lido com sucesso. Tamanho: {len(schema_sql)} chars.")
-    except Exception as e:
-        logger.critical(f"[FORCANDO_SCHEMA] Erro ao ler schema: {e}")
-        raise
+    Inicializa o banco de dados aplicando o schema SQL informado.
 
-    # --- APLICA O SCHEMA ---
-    logger.info("[FORCANDO_SCHEMA] Aplicando schema ao banco de dados...")
-    try:
-        with get_db_connection(db_path) as conn:
-            conn.executescript(schema_sql)
-            conn.commit()
-        logger.info("[FORCANDO_SCHEMA] Banco de dados inicializado com sucesso.")
-        return True
-    except Exception as e:
-        logger.critical(f"[FORCANDO_SCHEMA] Falha ao aplicar schema: {e}")
-        raise
+    Args:
+        db_path: Caminho para o arquivo SQLite a ser criado/alterado.
+        schema_file: Caminho para o arquivo .sql do schema. Pode ser absoluto ou relativo.
+            - Se relativo e existir no diretório atual, será usado.
+            - Caso não exista no CWD, será buscado em <raiz_projeto>/config/<schema_file>.
+
+    Returns:
+        True em caso de sucesso.
+
+    Raises:
+        FileNotFoundError: Se o arquivo de schema não for encontrado.
+        Exception: Erros ao aplicar o schema serão propagados.
+    """
+    # Resolve o caminho do schema respeitando o parâmetro
+    schema_path = schema_file
+    # Caminho absoluto e existente
+    if not (os.path.isabs(schema_path) and os.path.exists(schema_path)):
+        # Caminho relativo: se existir no CWD, usa; senão, fallback para <project_root>/config
+        if not os.path.exists(schema_path):
+            current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_file_dir)
+            candidate = os.path.join(project_root, 'config', os.path.basename(schema_path))
+            schema_path = candidate
+
+    if not os.path.exists(schema_path):
+        # Ajuda na depuração: lista conteudo da pasta config
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_file_dir)
+        config_dir = os.path.join(project_root, 'config')
+        if os.path.isdir(config_dir):
+            logger.info(f"Conteúdo da pasta config: {os.listdir(config_dir)}")
+        raise FileNotFoundError(f"Arquivo de schema não encontrado: '{schema_path}'")
+
+    logger.info(f"Aplicando schema a partir de: '{schema_path}'")
+    with open(schema_path, 'r', encoding='utf-8') as f:
+        schema_sql = f.read()
+
+    with get_db_connection(db_path) as conn:
+        conn.executescript(schema_sql)
+        conn.commit()
+
+    logger.info("Banco de dados inicializado com sucesso.")
+    return True
 
 def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ()) -> pd.DataFrame:
     """
