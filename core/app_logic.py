@@ -227,8 +227,8 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     if not search_terms or df.empty:
         return df
 
-    # Cria uma mascara booleana inicialmente falsa
-    mask = pd.Series([False] * len(df), dtype=bool)
+    # Cria uma mascara booleana inicialmente verdadeira (para AND)
+    mask = pd.Series([True] * len(df), dtype=bool)
     
     # Converte todas as colunas de objeto (strings) para string e torna minusculas
     # para busca case-insensitive
@@ -239,8 +239,8 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
         term_lower = term.lower()
         # Verifica em todas as colunas de string
         term_mask = str_df.apply(lambda col: col.str.contains(term_lower, na=False)).any(axis=1)
-        # Combina com a mascara geral usando OR (|)
-        mask = mask | term_mask
+        # Combina com a mascara geral usando AND (&)
+        mask = mask & term_mask
         
     # Retorna o DataFrame filtrado
     return df[mask]

@@ -185,24 +185,13 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # Prepara cabeçalhos e larguras para `tabulate`
     final_headers = [renamed_columns.get(col, col) for col in selected_cols]
     
-    # Calcula larguras máximas para `tabulate`
-    # Tenta distribuir o espaço igualmente, mas respeita limites
-    num_cols = len(final_headers)
-    # Espaço médio por coluna, com mínimo e máximo
-    avg_width_per_col = max(8, min(50, (terminal_width - 10) // max(1, num_cols)))
-    final_max_widths = [avg_width_per_col] * num_cols
-    # Ajusta colunas específicas se necessário
-    # Por exemplo, dá um pouco mais de espaço para descrições se elas estiverem presentes
-    desc_indices = [i for i, h in enumerate(final_headers) if 'descricao' in h.lower()]
-    if desc_indices:
-        extra_space = 10 # Espaço extra total para descrições
-        extra_per_desc = extra_space // len(desc_indices)
-        for i in desc_indices:
-            final_max_widths[i] = min(60, final_max_widths[i] + extra_per_desc)
+    # Observação: evitamos usar maxcolwidths do tabulate aqui para preservar o conteúdo
+    # exatamente como pré-processado (e.g., não forçar lowercase ou truncações adicionais).
 
 
     # --- Paginação ---
-    page_size_data_lines = max(1, terminal_height - 5) # Linhas para dados
+    # Linhas por página: mais conservador para forçar paginação em terminais baixos
+    page_size_data_lines = max(1, terminal_height - 8)
     auto_scroll = settings.get('user_preferences', {}).get('auto_scroll_to_end', False)
     
     # Controle de auto-scroll para muitas páginas
@@ -228,13 +217,15 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         try:
             current_page_df = pages[current_page_index]
             
+            # Cabeçalho de página
+            print(f"Página {current_page_index + 1} de {len(pages)}")
+
             # Gera e imprime a tabela para a página atual
             page_table_str = tabulate(
                 current_page_df,
                 headers=final_headers if current_page_index == 0 else [], # Cabeçalho só na 1ª
                 tablefmt='presto',
-                showindex=False,
-                maxcolwidths=final_max_widths
+                showindex=False
             )
             print(page_table_str)
 
@@ -263,6 +254,17 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
                     else:
                         print("Comando inválido.")
                         current_page_index -= 1 # Refaz a página atual
+            else:
+                # Última página: opcionalmente oferece saída explícita quando não está em auto-scroll
+                if not auto_scroll:
+                    try:
+                        user_input = input("\n-- Fim | 'q': sair --").strip().lower()
+                    except KeyboardInterrupt:
+                        print("\n...exibição interrompida.")
+                        break
+                    if user_input == 'q':
+                        print("\n...exibição interrompida.")
+                break
 
         except KeyboardInterrupt:
             print("\n...exibição interrompida.")

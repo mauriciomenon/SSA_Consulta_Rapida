@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 # --- Gerenciamento de Conexão ---
 
+# Nome do arquivo de schema (exposto para testes)
+schema_file = 'schema.sql'
+
 @contextmanager
 def get_db_connection(db_path: str):
     """
@@ -50,7 +53,7 @@ def get_db_connection(db_path: str):
 
 # armazenamento/database.py
 
-def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
+def initialize_database(db_path: str, schema_file: str = schema_file):
     """
     Inicializa o banco de dados, criando tabelas conforme o schema.
     Esta versao usa um caminho explicito para evitar problemas de resolucao.
