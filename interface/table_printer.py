@@ -565,7 +565,7 @@ def calculate_optimal_columns(columns, terminal_width, min_col_width=8, max_col_
     
     return [], []
 
-def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_terms=None):
+def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_terms=None, max_width=None):
     """
     Formata um DataFrame para exibição no CLI com seleção inteligente de colunas
     respeitando prioridades e largura do terminal. Evita exibir 'nan'/'NaT'.
@@ -585,11 +585,14 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_term
             priority_order_cfg = []
             short_labels_cfg = {}
 
-        # Tamanho do terminal com fallback
-        try:
-            terminal_width = os.get_terminal_size().columns
-        except Exception:
-            terminal_width = 120
+        # Tamanho do terminal com fallback e override por max_width (útil para testes)
+        if isinstance(max_width, int) and max_width > 0:
+            terminal_width = max_width
+        else:
+            try:
+                terminal_width = os.get_terminal_size().columns
+            except Exception:
+                terminal_width = 120
 
         # Limita linhas para performance
         if max_rows is None:
@@ -698,6 +701,22 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_term
 
         df_display = df_display[selected_columns]
 
+        # Enforce fixed widths for known short labels to keep output predictable
+        fixed_label_widths = {
+            'Exec': 6,
+            'Emi': 6,
+            'Sem Prog': 8,
+            'Stat': 5,
+        }
+        # Build resolved labels for selected columns
+        resolved_labels = []
+        for col in df_display.columns:
+            resolved_labels.append(short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col))
+        # Apply fixed widths where applicable
+        for i, lab in enumerate(resolved_labels):
+            if isinstance(lab, str) and lab in fixed_label_widths:
+                widths[i] = fixed_label_widths[lab]
+
         for i, col in enumerate(df_display.columns):
             max_width = widths[i] if i < len(widths) else 15
             df_display[col] = df_display[col].apply(lambda x: smart_truncate(x, max_width, col))
@@ -707,7 +726,7 @@ def format_dataframe_for_cli(df, display_map=None, max_rows=None, highlight_term
         # Construir cabeçalhos usando short_labels (ou display_map) sem alterar as chaves de dados
         for i, col in enumerate(df_display.columns):
             width = widths[i] if i < len(widths) else 15
-            label = short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col)
+            label = resolved_labels[i] if i < len(resolved_labels) else (short_labels_cfg.get(col, display_map.get(col, col) if isinstance(display_map, dict) else col))
             headers.append(f"{str(label):<{width}}")
         header_line = " | ".join(headers)
         result.append(header_line)

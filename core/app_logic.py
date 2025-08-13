@@ -234,11 +234,19 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     if not search_terms or df.empty:
         return df
 
-    # Limpar termos de busca
-    clean_terms = [term.strip().lower() for term in search_terms if term.strip()]
-    
-    if not clean_terms:
+    # Limpar termos de busca e separar positivos/negativos
+    raw_terms = [term.strip() for term in search_terms if isinstance(term, str) and term.strip()]
+    if not raw_terms:
         return df
+    positive_terms = []
+    negative_terms = []
+    for t in raw_terms:
+        if t.startswith('!') or t.startswith('-'):
+            neg = t[1:].strip().lower()
+            if neg:
+                negative_terms.append(neg)
+        else:
+            positive_terms.append(t.lower())
         
     try:
         # Seleciona apenas colunas prioritárias para busca (otimização crítica)
@@ -284,23 +292,31 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
         # Alinha a máscara ao índice atual do DataFrame para evitar reindex warnings/bugs
         mask = pd.Series(True, index=df.index)
 
-        for term in clean_terms:
+        # Aplica positivos (AND)
+        for term in positive_terms:
             if not term:
                 continue
-            # Operação vetorizada super rápida
-            term_mask = search_data.str.contains(term.lower(), case=False, na=False, regex=False)
-            # Garante alinhamento de índices
+            term_mask = search_data.str.contains(term, case=False, na=False, regex=False)
             term_mask = term_mask.reindex(df.index, fill_value=False)
             mask = mask & term_mask
-
-            # Otimização: se não sobrou nada, para
             if not mask.any():
                 break
 
+        # Aplica negativos (exclude)
+        if mask.any() and negative_terms:
+            for term in negative_terms:
+                if not term:
+                    continue
+                neg_mask = search_data.str.contains(term, case=False, na=False, regex=False)
+                neg_mask = neg_mask.reindex(df.index, fill_value=False)
+                mask = mask & (~neg_mask)
+                if not mask.any():
+                    break
+
         result_df = df[mask]
-        logger.debug(f"Filtro aplicado: {len(clean_terms)} termos, {len(result_df)} resultados encontrados.")
+        logger.debug(f"Filtro aplicado: +{len(positive_terms)} / -{len(negative_terms)} termos, {len(result_df)} resultados encontrados.")
         return result_df
-        
+
     except Exception as e:
         logger.error(f"Erro ao aplicar filtro otimizado: {e}", exc_info=True)
         
@@ -313,7 +329,10 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
             
             mask = pd.Series(False, index=df.index)
             
-            for term in clean_terms:
+            # Positivos em OR e depois remove negativos
+            positives = [t for t in positive_terms if t]
+            negatives = [t for t in negative_terms if t]
+            for term in positives:
                 term_mask = pd.Series([False] * len(df))
                 for col in fallback_cols:
                     try:
@@ -323,6 +342,17 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
                         continue
                 # Reindex term_mask para garantir alinhamento
                 mask = mask | term_mask.reindex(df.index, fill_value=False)
+            # Remove negativos
+            if negatives:
+                neg_mask_any = pd.Series([False] * len(df), index=df.index)
+                for term in negatives:
+                    for col in fallback_cols:
+                        try:
+                            col_mask = df[col].astype(str).str.contains(term, case=False, na=False, regex=False)
+                            neg_mask_any = neg_mask_any | col_mask
+                        except Exception:
+                            continue
+                mask = mask & (~neg_mask_any)
                 
             return df[mask]
         except Exception as fallback_err:
