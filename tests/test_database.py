@@ -71,7 +71,12 @@ def test_get_db_connection_context_manager(temp_db_path):
 def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypatch):
     """Testa a inicialização bem-sucedida do banco de dados."""
     # Mocka o caminho do schema para usar o temporário
-    monkeypatch.setattr("armazenamento.database.os.path.join", lambda *args: sample_schema_file if 'schema.sql' in args else os.path.join(*args))
+    # Captura a função original para evitar recursão ao chamar dentro do lambda
+    _orig_join = os.path.join
+    monkeypatch.setattr(
+        "armazenamento.database.os.path.join",
+        lambda *args: sample_schema_file if 'schema.sql' in args else _orig_join(*args)
+    )
     
     # Mocka o nome do arquivo schema
     monkeypatch.setattr("armazenamento.database.schema_file", os.path.basename(sample_schema_file))
