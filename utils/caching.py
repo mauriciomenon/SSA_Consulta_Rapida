@@ -9,7 +9,7 @@ import os
 import json
 import hashlib
 import logging
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Union
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def save_cache(cache: Dict[str, str], cache_file: str):
     except IOError as e:
         logger.error(f"Erro ao salvar cache em '{cache_file}': {e}")
 
-def get_files_to_process(docs_dir: str, cache_file: str) -> List[str]:
+def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, str]]) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
     
@@ -80,7 +80,11 @@ def get_files_to_process(docs_dir: str, cache_file: str) -> List[str]:
         List[str]: Lista de caminhos completos para arquivos que precisam ser processados.
     """
     logger.debug("Iniciando comparação de arquivos com cache...")
-    current_cache = load_cache(cache_file)
+    # Aceita tanto um caminho para cache (str) quanto um dicionário já carregado
+    if isinstance(cache_or_path, dict):
+        current_cache = cache_or_path
+    else:
+        current_cache = load_cache(cache_or_path)
     all_xlsx_files = get_all_xlsx_files(docs_dir)
     
     files_to_process = []
