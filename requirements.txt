@@ -173,9 +173,9 @@ python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
 python-slugify==8.0.4
 pytz==2025.2
-pywin32==310
-pywin32-ctypes==0.2.3
-pywinpty==2.0.15
+pywin32>=306; sys_platform == 'win32'
+pywin32-ctypes==0.2.3; sys_platform == 'win32'
+pywinpty==2.0.15; sys_platform == 'win32'
 PyYAML==6.0.2
 pyzmq==27.0.0
 RapidFuzz==3.13.0
@@ -229,6 +229,6 @@ webencodings==0.5.1
 websocket-client==1.8.0
 websockets==15.0.1
 widgetsnbextension==4.0.14
-win32_setctime==1.2.0
+win32_setctime==1.2.0; sys_platform == 'win32'
 yarl==1.20.1
 zstandard==0.23.0
