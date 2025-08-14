@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
     QMenu, QGroupBox, QTextEdit
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer
 from PyQt6.QtGui import QAction
 
 # --- Constantes ---
@@ -287,6 +287,12 @@ class SSAMainWindow(QMainWindow):
         # Garante que colunas padrão existam no mapeamento
         self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
 
+    # Debounce de filtro (250ms)
+    self._debounce_timer = QTimer(self)
+    self._debounce_timer.setSingleShot(True)
+    self._debounce_timer.setInterval(250)
+    self._debounce_timer.timeout.connect(self.initiate_filtering)
+
         self.init_ui()
 
     def init_ui(self):
@@ -319,6 +325,8 @@ class SSAMainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Digite termos separados por virgula...")
         self.search_input.returnPressed.connect(self.initiate_filtering)
+    # Aplica debounce ao digitar
+    self.search_input.textChanged.connect(self._on_search_text_changed)
         
         self.search_button = QPushButton("Buscar")
         self.search_button.clicked.connect(self.initiate_filtering)
@@ -358,6 +366,12 @@ class SSAMainWindow(QMainWindow):
         # --- Conecta Workers ---
         self.data_loader_thread = None
         self.filter_thread = None
+
+    def _on_search_text_changed(self, _text: str):
+        """Reinicia o temporizador de debounce ao digitar na busca."""
+        if self._debounce_timer.isActive():
+            self._debounce_timer.stop()
+        self._debounce_timer.start()
 
     # --- Slots e Handlers ---
 
