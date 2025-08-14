@@ -71,24 +71,35 @@ def initialize_database(db_path: str, schema_file: str = 'schema.sql'):
         Exception: Erros ao aplicar o schema serão propagados.
     """
     # Resolve o caminho do schema respeitando o parâmetro
-    schema_path = schema_file
-    # Caminho absoluto e existente
-    if not (os.path.isabs(schema_path) and os.path.exists(schema_path)):
-        # Caminho relativo: se existir no CWD, usa; senão, fallback para <project_root>/config
-        if not os.path.exists(schema_path):
+    # 1) Se for absoluto, deve existir; caso contrário, erro imediato
+    if os.path.isabs(schema_file):
+        if not os.path.exists(schema_file):
+            raise FileNotFoundError(f"Arquivo de schema absoluto não encontrado: '{schema_file}'")
+        schema_path = schema_file
+    else:
+        # 2) Relativo: primeiro tenta no CWD
+        if os.path.exists(schema_file):
+            schema_path = schema_file
+        else:
+            # 3) Fallback para <project_root>/config/<basename>
             current_file_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(current_file_dir)
-            candidate = os.path.join(project_root, 'config', os.path.basename(schema_path))
-            schema_path = candidate
-
-    if not os.path.exists(schema_path):
-        # Ajuda na depuração: lista conteudo da pasta config
-        current_file_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(current_file_dir)
-        config_dir = os.path.join(project_root, 'config')
-        if os.path.isdir(config_dir):
-            logger.info(f"Conteúdo da pasta config: {os.listdir(config_dir)}")
-        raise FileNotFoundError(f"Arquivo de schema não encontrado: '{schema_path}'")
+            candidate = os.path.join(project_root, 'config', os.path.basename(schema_file))
+            if os.path.exists(candidate):
+                schema_path = candidate
+            else:
+                # Log auxiliar com conteúdo de config, se houver
+                config_dir = os.path.join(project_root, 'config')
+                if os.path.isdir(config_dir):
+                    try:
+                        logger.info(f"Conteúdo da pasta config: {os.listdir(config_dir)}")
+                    except Exception:
+                        pass
+                raise FileNotFoundError(
+                    f"Arquivo de schema não encontrado. Tentativas: '\n"
+                    f"- relativo ao CWD: {os.path.abspath(schema_file)}\n"
+                    f"- em config do projeto: {candidate}"
+                )
 
     logger.info(f"Aplicando schema a partir de: '{schema_path}'")
     with open(schema_path, 'r', encoding='utf-8') as f:
