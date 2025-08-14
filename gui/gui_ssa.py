@@ -272,13 +272,13 @@ class SSAMainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
 
         self.df_completo = pd.DataFrame()
-        self.df_exibido = pd.DataFrame() # DataFrame filtrado
-        self.df_para_tabela = pd.DataFrame() # DataFrame paginado para exibição
+        self.df_exibido = pd.DataFrame()  # DataFrame filtrado
+        self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibição
 
         # Carrega mapeamentos de exibição
         self.display_map = load_display_mappings()
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
-        
+
         # Colunas padrão para exibição (prioritárias)
         self.default_columns = [
             'numero_ssa', 'setor_executor', 'situacao', 'descricao_ssa',
@@ -287,11 +287,11 @@ class SSAMainWindow(QMainWindow):
         # Garante que colunas padrão existam no mapeamento
         self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
 
-    # Debounce de filtro (250ms)
-    self._debounce_timer = QTimer(self)
-    self._debounce_timer.setSingleShot(True)
-    self._debounce_timer.setInterval(250)
-    self._debounce_timer.timeout.connect(self.initiate_filtering)
+        # Debounce de filtro (250ms)
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(250)
+        self._debounce_timer.timeout.connect(self.initiate_filtering)
 
         self.init_ui()
 
@@ -302,10 +302,10 @@ class SSAMainWindow(QMainWindow):
 
         # --- Barra de Ferramentas Superior ---
         toolbar_layout = QHBoxLayout()
-        
+
         self.load_button = QPushButton("1. Carregar Dados")
         self.load_button.clicked.connect(self.load_data)
-        
+
         self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
 
         self.progress_bar = QProgressBar()
@@ -316,7 +316,7 @@ class SSAMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.status_label)
         toolbar_layout.addWidget(self.progress_bar)
         toolbar_layout.addStretch()
-        
+
         main_layout.addLayout(toolbar_layout)
 
         # --- Barra de Pesquisa e Filtros ---
@@ -325,12 +325,12 @@ class SSAMainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Digite termos separados por virgula...")
         self.search_input.returnPressed.connect(self.initiate_filtering)
-    # Aplica debounce ao digitar
-    self.search_input.textChanged.connect(self._on_search_text_changed)
-        
+        # Aplica debounce ao digitar
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+
         self.search_button = QPushButton("Buscar")
         self.search_button.clicked.connect(self.initiate_filtering)
-        
+
         self.clear_filter_button = QPushButton("Limpar Filtro")
         self.clear_filter_button.clicked.connect(self.clear_filter)
         self.clear_filter_button.setEnabled(False)
@@ -357,7 +357,7 @@ class SSAMainWindow(QMainWindow):
         self.table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
-        
+
         # Conecta clique duplo para mostrar detalhes (placeholder)
         self.table_widget.doubleClicked.connect(self.on_table_double_click)
 
@@ -369,16 +369,15 @@ class SSAMainWindow(QMainWindow):
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
-        if self._debounce_timer.isActive():
-            self._debounce_timer.stop()
+        # Chamar start() novamente reinicia o QTimer automaticamente
         self._debounce_timer.start()
 
     # --- Slots e Handlers ---
 
     def load_data(self):
         if not os.path.exists(DB_PATH):
-             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' não encontrado. Execute o programa principal primeiro.")
-             return
+            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' não encontrado. Execute o programa principal primeiro.")
+            return
 
         self.status_label.setText("Status: Carregando dados...")
         self.progress_bar.setVisible(True)
@@ -394,7 +393,7 @@ class SSAMainWindow(QMainWindow):
     def on_data_loaded(self, df: pd.DataFrame):
         self.df_completo = df.copy()
         # Inicialmente, exibimos todos os dados
-        self.df_exibido = df.copy() 
+        self.df_exibido = df.copy()
         # Atualiza o paginador com o DataFrame completo
         self.paginator.set_dataframe(self.df_exibido)
         # Exibe a primeira página
@@ -473,7 +472,7 @@ class SSAMainWindow(QMainWindow):
         """Exibe a página especificada do DataFrame filtrado."""
         # Obtem o slice de dados para a página atual do paginator
         self.df_para_tabela = self.paginator.get_current_slice()
-        
+
         if self.df_para_tabela.empty:
             self.table_widget.setRowCount(0)
             self.table_widget.setColumnCount(0)
@@ -485,20 +484,26 @@ class SSAMainWindow(QMainWindow):
             # Se nenhuma coluna selecionada for valida, mostra as padroes
             cols_to_show = [col for col in self.default_columns if col in self.df_para_tabela.columns]
             if not cols_to_show:
-                 # Ultimo recurso: mostra todas
-                 cols_to_show = self.df_para_tabela.columns.tolist()
-        
+                # Ultimo recurso: mostra todas
+                cols_to_show = self.df_para_tabela.columns.tolist()
+
         display_df = self.df_para_tabela[cols_to_show].copy()
 
         # Adiciona a coluna de índice '#'
         if '#' not in display_df.columns:
-            display_df.insert(0, '#', range((self.paginator.current_page - 1) * self.paginator.page_size + 1, 
-                                            (self.paginator.current_page - 1) * self.paginator.page_size + 1 + len(display_df)))
+            display_df.insert(
+                0,
+                '#',
+                range(
+                    (self.paginator.current_page - 1) * self.paginator.page_size + 1,
+                    (self.paginator.current_page - 1) * self.paginator.page_size + 1 + len(display_df)
+                ),
+            )
 
         # Configura a tabela
         self.table_widget.setRowCount(len(display_df))
         self.table_widget.setColumnCount(len(display_df.columns))
-        
+
         # Define cabeçalhos de exibição
         display_headers = []
         for col in display_df.columns:
@@ -513,40 +518,46 @@ class SSAMainWindow(QMainWindow):
             for col_idx, col_name in enumerate(display_df.columns):
                 value = display_df.iloc[row_idx, col_idx]
                 item_text = "" if pd.isna(value) else str(value)
-                
+
                 # Trunca texto muito longo para a tabela
                 if len(item_text) > 50:
                     item_text = item_text[:47] + "..."
-                    
+
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 # Armazena o índice da linha original nos dados filtrados para referência
-                if col_name == '#': 
-                    item.setData(Qt.ItemDataRole.UserRole, row_idx + (self.paginator.current_page - 1) * self.paginator.page_size)
+                if col_name == '#':
+                    item.setData(
+                        Qt.ItemDataRole.UserRole,
+                        row_idx + (self.paginator.current_page - 1) * self.paginator.page_size,
+                    )
                 self.table_widget.setItem(row_idx, col_idx, item)
-        
+
         # Ajusta largura das colunas
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         for i in range(self.table_widget.columnCount()):
-             width = self.table_widget.columnWidth(i)
-             if width > 250:
-                 self.table_widget.setColumnWidth(i, 250)
+            width = self.table_widget.columnWidth(i)
+            if width > 250:
+                self.table_widget.setColumnWidth(i, 250)
 
     def on_table_double_click(self, index):
         """Placeholder para ação de clique duplo (ex: mostrar detalhes)."""
         row = index.row()
         # O item da coluna '#' contém o índice da linha original
-        index_item = self.table_widget.item(row, 0) # Assume '#' é a primeira coluna
+        index_item = self.table_widget.item(row, 0)  # Assume '#' é a primeira coluna
         if index_item:
             original_index = index_item.data(Qt.ItemDataRole.UserRole)
             if original_index is not None and 0 <= original_index < len(self.df_exibido):
                 # Aqui você chamaria uma função para mostrar detalhes
                 # Ex: show_details_window(self.df_exibido.iloc[original_index])
-                QMessageBox.information(self, "Detalhes", 
+                QMessageBox.information(
+                    self,
+                    "Detalhes",
                     f"Detalhes para SSA na linha {original_index + 1} (página {self.paginator.current_page})\n"
-                    f"Dados: {self.df_exibido.iloc[original_index].to_dict()}")
+                    f"Dados: {self.df_exibido.iloc[original_index].to_dict()}",
+                )
             else:
-                 QMessageBox.information(self, "Info", "Não foi possível encontrar os dados detalhados para esta linha.")
+                QMessageBox.information(self, "Info", "Não foi possível encontrar os dados detalhados para esta linha.")
 
 # --- Ponto de Entrada ---
 if __name__ == '__main__':
