@@ -18,8 +18,9 @@ import pandas as pd
 
 # --- Configuração do Path do Projeto ---
 # Adiciona o diretório raiz do projeto ao sys.path para poder importar os módulos
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe

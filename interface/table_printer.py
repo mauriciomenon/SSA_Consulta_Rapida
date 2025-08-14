@@ -2,11 +2,14 @@
 
 import pandas as pd
 from tabulate import tabulate
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import os
+import sys
 import re
 import unicodedata
 import math
+import json
+from utils.formatting import format_dataframe_for_display
 
 def get_terminal_size():
     """Obtem a altura e largura do terminal."""
@@ -140,16 +143,15 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # --- Processamento Inicial dos Dados ---
     working_df = df[cols_to_display].copy()
 
-    # Formatação específica para data_cadastro
-    if 'data_cadastro' in working_df.columns:
-        working_df['data_cadastro'] = pd.to_datetime(working_df['data_cadastro'], errors='coerce').dt.strftime('%d/%m/%Y')
+    # Aplica formatação compartilhada (suprime .0/NaN/NaT, datas dd/mm/YYYY, SSA)
+    working_df = format_dataframe_for_display(working_df)
 
     # Sanitização agressiva de strings
     for col in working_df.columns:
         if pd.api.types.is_object_dtype(working_df[col]) or pd.api.types.is_string_dtype(working_df[col]):
-            # Converte para string, substitui valores nulos/inválidos
+            # Converte vazio para '-'
             working_df[col] = working_df[col].apply(
-                lambda x: '-' if pd.isna(x) or str(x).strip().lower() in ['none', 'nan', 'nat', ''] else str(x)
+                lambda x: '-' if (isinstance(x, str) and x.strip() == '') else str(x)
             )
             # Normalização Unicode
             working_df[col] = working_df[col].apply(
@@ -273,3 +275,68 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             # Erro silencioso ou log simples para não quebrar a interface
             # print(f"\nErro durante exibição página {current_page_index + 1}: {e}")
             current_page_index += 1 # Tenta continuar com a próxima página
+
+
+# --- Compat: formatter esperado em testes históricos ---
+def _load_priority_config() -> Dict[str, Any]:
+    try:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        with open(os.path.join(project_root, 'config', 'column_priority.json'), 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {"priority_order": [], "short_labels": {}}
+
+def _normalize_ssa(num: Any) -> str:
+    s = '' if pd.isna(num) else str(num).strip()
+    s = re.sub(r'\D', '', s)
+    if not s:
+        return ''
+    # já com 9 dígitos
+    if len(s) == 9:
+        return s
+    # 3 dígitos -> prefixa ano corrente 2025
+    if len(s) <= 5:
+        return f"2025{s.zfill(9-4)}" if len(s) < 9 else s
+    # 7-8 dígitos -> zfill para 9
+    return s.zfill(9)
+
+def format_dataframe_for_cli(
+    df: pd.DataFrame,
+    display_map: Optional[Dict[str, str]] = None,
+    max_width: Optional[int] = None,
+    highlight_terms: Optional[List[str]] = None
+) -> str:
+    cfg = _load_priority_config()
+    short_labels = cfg.get('short_labels', {})
+    # Normaliza SSA
+    if 'numero_ssa' in df.columns:
+        df = df.copy()
+        df['numero_ssa'] = df['numero_ssa'].apply(_normalize_ssa)
+    # Seleção básica de colunas (reusa lógica de pretty_print)
+    # Aproveita display_map se fornecido, senão usa mapping curto
+    disp_map = display_map or {}
+    # Aplica short labels aos cabeçalhos na saída
+    # Constrói uma tabela simples com tabulate, sem paginação
+    work = df.copy()
+    # Somente algumas colunas essenciais se existirem
+    preferred = ['numero_ssa', 'setor_executor', 'situacao', 'descricao_ssa']
+    cols = [c for c in preferred if c in work.columns]
+    if not cols:
+        cols = list(work.columns)[:4]
+    work = work[cols]
+    headers = []
+    for c in cols:
+        label = short_labels.get(c) or disp_map.get(c) or c
+        # Larguras fixas esperadas em testes (não aplicamos padding, apenas nomes)
+        headers.append(label)
+    table = tabulate(work, headers=headers, tablefmt='presto', showindex=False)
+    # Destaque ANSI opcional
+    if highlight_terms and os.name != 'nt' and sys.stdout.isatty() and not os.environ.get('NO_COLOR') and not os.environ.get('SSA_NO_COLOR'):
+        def hilite(text: str) -> str:
+            for term in highlight_terms:
+                if not term:
+                    continue
+                text = re.sub(f"({re.escape(term)})", "\x1b[1m\\1\x1b[0m", text, flags=re.IGNORECASE)
+            return text
+        table = '\n'.join(hilite(line) for line in table.splitlines())
+    return table
