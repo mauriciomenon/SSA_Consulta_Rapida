@@ -17,6 +17,7 @@ import sys
 import os
 import pandas as pd
 import json
+from utils.formatting import format_dataframe_for_display
 
 # --- Configuração do Path do Projeto ---
 # project_root = os.path.dirname(os.path.abspath(__file__))
@@ -499,6 +500,13 @@ class SSAMainWindow(QMainWindow):
                     (self.paginator.current_page - 1) * self.paginator.page_size + 1 + len(display_df)
                 ),
             )
+
+        # Aplica formatação compartilhada para exibição (datas, numeros, SSA, nulls)
+        try:
+            display_df = format_dataframe_for_display(display_df)
+        except Exception:
+            # falha de formatação não deve quebrar a GUI; segue sem formatar
+            pass
 
         # Configura a tabela
         self.table_widget.setRowCount(len(display_df))
