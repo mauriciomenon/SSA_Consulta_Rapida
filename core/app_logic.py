@@ -229,18 +229,34 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
 
     # Cria uma mascara booleana inicialmente verdadeira (para AND)
     mask = pd.Series([True] * len(df), dtype=bool)
-    
+
     # Converte todas as colunas de objeto (strings) para string e torna minusculas
     # para busca case-insensitive
     str_df = df.select_dtypes(include=['object']).astype(str).apply(lambda x: x.str.lower())
-    
-    # Para cada termo de busca, verifica se ele esta presente em qualquer celula da linha
-    for term in search_terms:
-        term_lower = term.lower()
-        # Verifica em todas as colunas de string
+
+    # Separa termos positivos e negativos (prefixos '!' ou '-')
+    positives = []
+    negatives = []
+    for t in search_terms:
+        if not isinstance(t, str):
+            continue
+        t = t.strip()
+        if not t:
+            continue
+        if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
+            negatives.append(t[1:].lower())
+        else:
+            positives.append(t.lower())
+
+    # Aplica termos positivos: linha deve conter TODOS em alguma coluna de texto
+    for term_lower in positives:
         term_mask = str_df.apply(lambda col: col.str.contains(term_lower, na=False)).any(axis=1)
-        # Combina com a mascara geral usando AND (&)
         mask = mask & term_mask
+
+    # Aplica termos negativos: linha deve NÃO conter NENHUM desses termos
+    for term_lower in negatives:
+        neg_mask = str_df.apply(lambda col: col.str.contains(term_lower, na=False)).any(axis=1)
+        mask = mask & (~neg_mask)
         
     # Retorna o DataFrame filtrado
     return df[mask]

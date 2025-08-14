@@ -50,6 +50,11 @@ def main(cli_args=None):
         help='Força a reimportação de todos os arquivos Excel, ignorando o cache.'
     )
     parser.add_argument(
+        '--gui',
+        action='store_true',
+        help='Inicia a interface gráfica (GUI) em vez da CLI.'
+    )
+    parser.add_argument(
         '--log-level',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         default='INFO',
@@ -86,11 +91,29 @@ def main(cli_args=None):
         else:
             logger.info("Nenhum novo ou modificado relatório encontrado.")
 
-        # --- 4. Início da CLI ---
+        # --- 4. Início da Interface ---
         db_path = os.path.join(project_root, 'data', 'ssas.db')
         table_name = 'ssas'
-        logger.info("Iniciando interface de linha de comando...")
-        start_cli_loop(db_path, table_name)
+        if args.gui:
+            logger.info("Iniciando interface gráfica (GUI)...")
+            try:
+                # Import tardio para evitar dependência obrigatória em ambientes sem PyQt6
+                from gui.gui_ssa import SSAMainWindow
+                from PyQt6.QtWidgets import QApplication
+            except Exception as e:
+                logger.error(f"Falha ao iniciar GUI: {e}")
+                logger.info("Recuando para CLI.")
+                start_cli_loop(db_path, table_name)
+                return
+
+            app = QApplication(sys.argv)
+            window = SSAMainWindow()
+            window.show()
+            # Executa o loop de eventos
+            app.exec()
+        else:
+            logger.info("Iniciando interface de linha de comando...")
+            start_cli_loop(db_path, table_name)
 
     except KeyboardInterrupt:
         logger.info("\nOperação interrompida pelo usuário. Saindo...")
