@@ -46,8 +46,8 @@
 	"short_labels": {
 		"numero_ssa": "Nº SSA",
 		"localizacao_codigo": "Loc.",
-		"setor_executor": "Exec.",
-		"situacao": "Stat.",
+		"setor_executor": "Exe.",
+		"situacao": "St.",
 		"descricao_ssa": "Desc.",
 		"data_cadastro": "Emitido",
 		"semana_cadastro": "Sem.Cad.",

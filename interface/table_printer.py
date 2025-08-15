@@ -193,6 +193,22 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         print("Nenhuma coluna para exibição foi encontrada ou selecionada.")
         return
 
+    # Reordena para garantir ordem fixa inicial e manter headers alinhados
+    # Ordem fixa após '#' -> numero_ssa, localizacao_codigo, setor_executor, situacao, descricao_ssa
+    pinned = ['numero_ssa', 'localizacao_codigo', 'setor_executor', 'situacao', 'descricao_ssa']
+    # Garante presença de numero_ssa em selected_cols (após '#')
+    if 'numero_ssa' in df.columns and 'numero_ssa' not in selected_cols:
+        selected_cols = ['#', 'numero_ssa'] + [c for c in selected_cols if c != '#']
+    # Aplica reordenação respeitando os já selecionados
+    def _reorder(cols: List[str]) -> List[str]:
+        if not cols:
+            return cols
+        head = ['#'] if '#' in cols else []
+        body = [c for c in cols if c != '#']
+        fixed = [c for c in pinned if c in body]
+        tail = [c for c in body if c not in fixed]
+        return head + fixed + tail
+    selected_cols = _reorder(selected_cols)
     cols_to_display = [col for col in selected_cols if col != '#']
     if not cols_to_display:
         print("Nenhuma coluna de dados para exibição foi encontrada.")
@@ -272,18 +288,36 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # Prepara cabeçalhos e larguras para `tabulate` e aplica truncagem por largura fixa
     final_headers = [renamed_columns.get(col, col) for col in selected_cols]
 
-    # Aplicar truncagem por coluna de acordo com fixed_widths (após formatação) para melhorar aproveitamento
+    # Calcula mapa de larguras finais estáveis para todas as páginas
     col_width_map = {}
     for col in cols_to_display:
-        if col in fixed_widths:
-            col_width_map[renamed_columns.get(col, col)] = fixed_widths[col]
+        # width preferida: fixed_widths -> estimada por conteúdo -> comprimento do cabeçalho
+        disp = renamed_columns.get(col, col)
+        pref = fixed_widths.get(col)
+        if pref is None:
+            series = working_df[disp].astype(str)
+            # limite baseado no percentil 95 com cap
+            est = int(series.str.len().quantile(0.95, interpolation='lower')) if len(series) else len(disp)
+            pref = min(max(len(disp), est, 3), 70)
+        col_width_map[disp] = pref
 
-    if col_width_map:
-        for disp_col, maxw in col_width_map.items():
-            if disp_col in working_df.columns:
-                working_df[disp_col] = working_df[disp_col].astype(str).apply(
-                    lambda s: s if len(s) <= maxw else (s[: max(0, maxw - 3)].rstrip() + '...')
-                )
+    # Ajuste: dê todo espaço restante para 'Descrição da SSA' se presente
+    desc_disp = renamed_columns.get('descricao_ssa')
+    if desc_disp and desc_disp in col_width_map:
+        # Calcula largura exata para preencher o espaço disponível
+        hash_width = 4
+        sep_cost = 3 * (len(cols_to_display) + 1)
+        other_sum = sum(w for k, w in col_width_map.items() if k != desc_disp)
+        needed = available_width - (hash_width + sep_cost + other_sum)
+        if needed > 0:
+            col_width_map[desc_disp] = min(max(col_width_map[desc_disp], needed), 200)
+
+    # Aplica truncagem e padding fixos para manter páginas uniformes
+    for disp_col, maxw in col_width_map.items():
+        if disp_col in working_df.columns:
+            working_df[disp_col] = working_df[disp_col].astype(str).apply(
+                lambda s, w=maxw: (s[: max(0, w - 3)].rstrip() + '...') if len(s) > w else s.ljust(w)
+            )
     
     # Observação: evitamos usar maxcolwidths do tabulate aqui para preservar o conteúdo
     # exatamente como pré-processado (e.g., não forçar lowercase ou truncações adicionais).
@@ -323,7 +357,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             # Gera e imprime a tabela para a página atual
             page_table_str = tabulate(
                 current_page_df,
-                headers=final_headers if current_page_index == 0 else [], # Cabeçalho só na 1ª
+                headers=final_headers if current_page_index == 0 else ["" for _ in final_headers], # Mantém largura com cabeçalho vazio
                 tablefmt='presto',
                 showindex=False
             )
@@ -401,8 +435,8 @@ def _default_column_priority_config() -> Dict[str, Any]:
         "short_labels": {
             "numero_ssa": "Nº SSA",
             "localizacao_codigo": "Loc.",
-            "setor_executor": "Exec.",
-            "situacao": "Stat.",
+            "setor_executor": "Exe.",
+            "situacao": "St.",
             "descricao_ssa": "Desc.",
             "data_cadastro": "Emitido",
             "semana_cadastro": "Sem.Cad.",

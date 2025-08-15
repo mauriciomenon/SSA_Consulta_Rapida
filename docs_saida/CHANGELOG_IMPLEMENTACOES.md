@@ -34,6 +34,16 @@ Como validar hoje:
 - `pytest -q` deve reportar 56 passed.
 - Remova temporariamente `display_mappings.json` ou `column_mappings.json` em um `SSA_CONFIG_DIR` de teste e rode a aplicação: os arquivos serão recriados com log.
 
+Patch 3.0.3 (UX CLI, logging e configurações):
+- CLI: sem listagem automática do DB ao iniciar; apenas contagem + dica + comandos. Ajuda com alias `?`.
+- Colunas: “Nº SSA” sempre visível (2ª posição após `#`). Ordem inicial “pinned” de colunas: `# | Nº SSA | Loc. | Exe. | St. | Desc. | …`.
+- Larguras: 1ª página idêntica às demais; cabeçalho vazio em páginas seguintes para manter alinhamento; “Descrição da SSA” ocupa o espaço remanescente.
+- Filtros: termos separados por espaço acumulam; negativos com `!` funcionam em conjunto.
+- Rótulos curtos: padronizados para `Exe.`, `St.`, `Prog.`, `Emi.`.
+- Logging: arquivo com rotação `logs/ssa.log` (1MB, 1 backup); console somente warnings+. Silenciado aviso de parsing ISO datetime.
+- Config: geração automática de `default_settings.json` quando `.example` ausente; auto-regeneração de `display_mappings.json` e `column_mappings.json` quando exemplos ausentes; respeita `SSA_CONFIG_DIR`.
+- Testes: 67 passando.
+
 ## 2025-08-14
 - Paridade CLI/GUI de formatação: detalhes na CLI usam `utils.formatting.format_cell` (datas dd/mm/YYYY, suprimir .0, `nan/NaT/None` escondidos, semanas inteiras, SSA normalizado).
 - Lista e manipulação de filtros (CLI):

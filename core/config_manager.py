@@ -335,10 +335,43 @@ def ensure_default_settings():
                 except IOError as e:
                     logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
             else:
-                # Se o arquivo exemplo também não existir, cria um padrão mínimo ou loga um aviso
-                logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
-                # Aqui você poderia criar um arquivo padrão mínimo, se desejado.
-                # Por enquanto, apenas avisa.
+                # Cria um arquivo padrão mínimo quando o exemplo não existir
+                try:
+                    os.makedirs(CONFIG_DIR, exist_ok=True)
+                    if target_file.endswith('default_settings.json'):
+                        default_content = {
+                            "display_settings": {
+                                "column_visibility": {},
+                                "column_widths": {
+                                    "#": 4,
+                                    "Nº SSA": 9,
+                                    "Loc.": 10,
+                                    "Emi.": 6,
+                                    "Exe.": 6
+                                },
+                                "max_auto_scroll_pages": 3
+                            },
+                            "user_preferences": {
+                                "auto_scroll_to_end": False,
+                                "filter_mode_default": "contains"
+                            },
+                            "default_filters": []
+                        }
+                        with open(target_file, 'w', encoding='utf-8') as f:
+                            json.dump(default_content, f, indent=2, ensure_ascii=False)
+                        logger.info(f"Arquivo padrão gerado: {target_file}")
+                    elif target_file.endswith('display_mappings.json'):
+                        with open(target_file, 'w', encoding='utf-8') as f:
+                            json.dump(DEFAULT_DISPLAY_MAPPINGS, f, indent=2, ensure_ascii=False)
+                        logger.info(f"Arquivo padrão gerado: {target_file}")
+                    elif target_file.endswith('column_mappings.json'):
+                        with open(target_file, 'w', encoding='utf-8') as f:
+                            json.dump(DEFAULT_COLUMN_MAPPINGS, f, indent=2, ensure_ascii=False)
+                        logger.info(f"Arquivo padrão gerado: {target_file}")
+                    else:
+                        logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
+                except Exception as e:
+                    logger.error(f"Falha ao gerar arquivo padrão '{target_file}': {e}")
 
 # --- Placeholder para handler de configuração via CLI ---
 # Este handler pode ser expandido para um menu interativo ou edição direta.
