@@ -33,17 +33,23 @@ def _configure_logging(project_root: str, level_console: int = logging.WARNING, 
     )
     file_handler.setLevel(level_file)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
-    # Console handler (WARNING+)
+    # Console handler (WARNING+ by default) on root only to keep CLI clean
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level_console)
     console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
-    # Attach to named logger and root of our package
+    # Attach file handler to package logger
     logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    # Also route library/module logs under our package to the same handlers
-    pkg_logger = logging.getLogger()
-    pkg_logger.setLevel(logging.WARNING)  # default root level
-    pkg_logger.addHandler(console_handler)
+    # Attach console handler only to root, avoid duplicates and keep console quiet
+    root_logger = logging.getLogger()
+    # Prevent adding multiple equal handlers if called twice in interactive sessions
+    existing_console = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
+    if not existing_console:
+        root_logger.addHandler(console_handler)
+    # Root level conservative
+    if root_logger.level == logging.NOTSET:
+        root_logger.setLevel(logging.WARNING)
+    # Ensure our logger propagates to root for console warnings/errors
+    logger.propagate = True
     _logging_configured = True
 
 # Adiciona o diretório raiz do projeto ao sys.path

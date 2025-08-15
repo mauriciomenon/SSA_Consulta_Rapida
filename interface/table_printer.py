@@ -260,8 +260,14 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             working_df[col] = working_df[col].astype(str).apply(_truncate)
 
     # --- Preparação Final para Exibição ---
-    # Adiciona coluna de índice
+    # Adiciona coluna de índice e aplica largura fixa para manter páginas uniformes
     working_df.insert(0, '#', range(1, len(working_df) + 1))
+    hash_width = 4
+    try:
+        working_df['#'] = working_df['#'].astype(str).str.rjust(hash_width)
+    except Exception:
+        # fallback simples
+        working_df['#'] = working_df['#'].astype(str)
     
     # Renomeia colunas para exibição
     # Prefer nomes completos (display_map) em terminais largos; use short_labels apenas em modo compacto ou largura estreita
@@ -282,11 +288,26 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         short = cfg.get('short_labels', {}).get(internal_col)
         full = display_map.get(internal_col, internal_col)
         # Cabeçalho: usa full quando houver espaço, short quando compacto
-        renamed_columns[internal_col] = (short if (use_compact_headers and short) else full)
+        header_label = (short if (use_compact_headers and short) else full)
+        # Em consoles Windows, evite caracteres não-ASCII no cabeçalho para prevenir erros de encoding
+        try:
+            if os.name == 'nt':
+                header_label.encode(sys.stdout.encoding or 'utf-8')
+        except Exception:
+            # Fallback: normaliza e remove acentos; caso específico para "Nº" -> "N°" -> "Nº" pode falhar
+            # Usa substituição segura: "No" para "Nº" e remove diacríticos em geral
+            safe = header_label.replace('Nº', 'No').replace('nº', 'no')
+            try:
+                safe = unicodedata.normalize('NFKD', safe).encode('ascii', 'ignore').decode('ascii')
+            except Exception:
+                pass
+            header_label = safe
+        renamed_columns[internal_col] = header_label
     working_df.rename(columns=renamed_columns, inplace=True)
 
     # Prepara cabeçalhos e larguras para `tabulate` e aplica truncagem por largura fixa
-    final_headers = [renamed_columns.get(col, col) for col in selected_cols]
+    # Base: nomes de exibição calculados
+    final_headers_raw = [renamed_columns.get(col, col) for col in selected_cols]
 
     # Calcula mapa de larguras finais estáveis para todas as páginas
     col_width_map = {}
@@ -305,7 +326,6 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     desc_disp = renamed_columns.get('descricao_ssa')
     if desc_disp and desc_disp in col_width_map:
         # Calcula largura exata para preencher o espaço disponível
-        hash_width = 4
         sep_cost = 3 * (len(cols_to_display) + 1)
         other_sum = sum(w for k, w in col_width_map.items() if k != desc_disp)
         needed = available_width - (hash_width + sep_cost + other_sum)
@@ -319,6 +339,26 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
                 lambda s, w=maxw: (s[: max(0, w - 3)].rstrip() + '...') if len(s) > w else s.ljust(w)
             )
     
+    # Ajusta cabeçalhos para caberem exatamente nas larguras previstas
+    def _fit_header(text: str, w: int) -> str:
+        if w <= 0:
+            return ''
+        if len(text) > w:
+            if w >= 3:
+                return text[: max(0, w - 3)].rstrip() + '...'
+            return text[:w]
+        return text.ljust(w)
+
+    # Constrói cabeçalhos finais alinhados às larguras calculadas
+    final_headers = []
+    # Primeiro a coluna '#'
+    final_headers.append(_fit_header('#', hash_width))
+    # Depois as demais colunas na ordem selecionada (ignorando '#')
+    for internal_col in [c for c in selected_cols if c != '#']:
+        disp = renamed_columns.get(internal_col, internal_col)
+        width = col_width_map.get(disp, len(disp))
+        final_headers.append(_fit_header(disp, width))
+
     # Observação: evitamos usar maxcolwidths do tabulate aqui para preservar o conteúdo
     # exatamente como pré-processado (e.g., não forçar lowercase ou truncações adicionais).
 
