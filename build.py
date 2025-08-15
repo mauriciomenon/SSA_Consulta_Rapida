@@ -15,7 +15,9 @@ FINAL_ZIP_NAME = f"{APP_NAME}_v1.2"
 DIST_STRUCTURE = {
     "dirs": ['docs_entrada', 'docs_saida'],
     "files": {
-        'config': ['config/column_mappings.json', 'config/display_mappings.json']
+        'config': ['config/column_mappings.json', 'config/display_mappings.json', 'config/column_priority.json'],
+        '.': ['README.md', 'CHANGELOG_IMPLEMENTACOES.md'],
+        'docs_saida': ['docs_saida/CHANGELOG_IMPLEMENTACOES.md']
     }
 }
 
@@ -77,7 +79,7 @@ def create_distribution_package():
             if os.path.exists(file_path):
                 shutil.copy(file_path, dest_dir)
             else:
-                print(f"AVISO: Arquivo de configuração '{file_path}' não encontrado. Ele não será incluído.")
+                print(f"AVISO: Arquivo não encontrado: '{file_path}'. Não será incluído no pacote.")
 
     print("Estrutura de pastas do pacote criada.")
 

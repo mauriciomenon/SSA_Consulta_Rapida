@@ -5,14 +5,18 @@ import json
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
-from core.config_manager import load_settings
+from core.config_manager import load_settings, load_display_mappings_integrity
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
+    if file_name == 'display_mappings.json':
+        return load_display_mappings_integrity()
     path = os.path.join('config', file_name)
     try:
-        with open(path, 'r', encoding='utf-8') as f: return json.load(f)
-    except: return {}
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
