@@ -1,6 +1,6 @@
 {
   "numero_ssa": "Nº SSA",
-  "situacao": "Stat.",
+  "situacao": "St.",
   "derivada_de": "Derivada de",
   "localizacao_codigo": "Loc.",
   "descricao_localizacao": "Desc. Loc.",
@@ -9,7 +9,7 @@
   "data_cadastro": "Emitida Em",
   "descricao_ssa": "Descrição da SSA",
   "setor_emissor": "Emi.",
-  "setor_executor": "Exec.",
+  "setor_executor": "Exe.",
   "solicitante": "Solicitante",
   "servico_origem": "Serv. Origem",
   "grau_prioridade_emissao": "Prior. Emissão",
