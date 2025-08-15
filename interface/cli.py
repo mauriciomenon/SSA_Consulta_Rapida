@@ -18,7 +18,7 @@ sys.path.insert(0, project_root)
 # Importações relativas
 from armazenamento.database import query_db
 from core.app_logic import run_importer_logic, filter_dataframe, parse_search_terms
-from core.config_manager import load_settings, handle_config_command
+from core.config_manager import load_settings, handle_config_command, load_display_mappings_integrity
 from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Importa a versão revisada
 from utils.version import get_app_version, get_app_version_long
@@ -334,7 +334,8 @@ def start_cli_loop(db_path: str, table_name: str):
     logger.debug("Iniciando loop da CLI...")
     
     settings = load_settings()
-    display_map = settings.get("display_mappings", {})
+    # Carrega display_mappings com integridade (arquivo ou default restaurado)
+    display_map = load_display_mappings_integrity()
     output_dir = os.path.join(project_root, 'docs_saida')
     
     # --- Estado Inicial ---
@@ -370,7 +371,7 @@ def start_cli_loop(db_path: str, table_name: str):
         try:
             # Recarrega configurações a cada iteração para refletir mudanças
             settings = load_settings() 
-            display_map = settings.get("display_mappings", {}) # Atualiza display_map também
+            display_map = load_display_mappings_integrity() # Atualiza display_map também
             
             current_df, current_filter_terms = results_stack[-1]
             
@@ -405,7 +406,7 @@ def start_cli_loop(db_path: str, table_name: str):
                      handler()
                      # Após configurar, força um refresh do estado e exibição
                      settings = load_settings()
-                     display_map = settings.get("display_mappings", {})
+                     display_map = load_display_mappings_integrity()
                      # Recarrega o estado inicial com as novas configurações
                      initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
                      results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]

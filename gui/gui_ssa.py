@@ -17,12 +17,15 @@ import sys
 import os
 import pandas as pd
 import json
+
+# --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from utils.formatting import format_dataframe_for_display
 
-# --- Configuração do Path do Projeto ---
-# project_root = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, project_root)
+# (mantido acima)
 
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe, parse_search_terms

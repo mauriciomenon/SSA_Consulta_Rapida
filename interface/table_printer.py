@@ -78,7 +78,7 @@ def _select_columns_for_width(
         if col not in seen:
             ordered_cols.append(col)
 
-    # Calcula larguras estimadas
+    # Calcula larguras estimadas (baseado em conteúdo OU fixo quando houver)
     estimated_widths = {'#': 4} # Largura fixa para '#'
     for col in valid_cols:
         # Prefer short label para estimar largura do cabeçalho
@@ -257,11 +257,25 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     for internal_col in cols_to_display:
         short = cfg.get('short_labels', {}).get(internal_col)
         full = display_map.get(internal_col, internal_col)
-        renamed_columns[internal_col] = (short if use_compact_headers and short else full)
+        # Cabeçalho: usa full quando houver espaço, short quando compacto
+        renamed_columns[internal_col] = (short if (use_compact_headers and short) else full)
     working_df.rename(columns=renamed_columns, inplace=True)
 
-    # Prepara cabeçalhos e larguras para `tabulate`
+    # Prepara cabeçalhos e larguras para `tabulate` e aplica truncagem por largura fixa
     final_headers = [renamed_columns.get(col, col) for col in selected_cols]
+
+    # Aplicar truncagem por coluna de acordo com fixed_widths (após formatação) para melhorar aproveitamento
+    col_width_map = {}
+    for col in cols_to_display:
+        if col in fixed_widths:
+            col_width_map[renamed_columns.get(col, col)] = fixed_widths[col]
+
+    if col_width_map:
+        for disp_col, maxw in col_width_map.items():
+            if disp_col in working_df.columns:
+                working_df[disp_col] = working_df[disp_col].astype(str).apply(
+                    lambda s: s if len(s) <= maxw else (s[: max(0, maxw - 3)].rstrip() + '...')
+                )
     
     # Observação: evitamos usar maxcolwidths do tabulate aqui para preservar o conteúdo
     # exatamente como pré-processado (e.g., não forçar lowercase ou truncações adicionais).
