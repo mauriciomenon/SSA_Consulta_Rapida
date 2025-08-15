@@ -30,23 +30,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Detect JS/TS files and ESLint config
+        id: detect
+        shell: bash
+        run: |
+          js_count=$(git ls-files '**/*.js' '**/*.jsx' '**/*.ts' '**/*.tsx' | wc -l | tr -d ' ')
+          echo "file_count=$js_count" >> "$GITHUB_OUTPUT"
+          if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.cjs" ] || [ -f ".eslintrc.json" ] || [ -f ".eslintrc.yml" ] || [ -f ".eslintrc.yaml" ] || [ -f ".eslintrc" ]; then
+            has_config=true
+          else
+            has_config=false
+          fi
+          echo "has_config=$has_config" >> "$GITHUB_OUTPUT"
+          if [ "$js_count" -gt 0 ] && [ "$has_config" = true ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install ESLint
+        if: steps.detect.outputs.should_run == 'true'
         run: |
           npm install eslint@8.10.0
           npm install @microsoft/eslint-formatter-sarif@3.1.0
 
       - name: Run ESLint
+        if: steps.detect.outputs.should_run == 'true'
         env:
           SARIF_ESLINT_IGNORE_SUPPRESSED: "true"
-        run: npx eslint .
-          --config .eslintrc.js
-          --ext .js,.jsx,.ts,.tsx
-          --format @microsoft/eslint-formatter-sarif
-          --output-file eslint-results.sarif
+        run: |
+          npx eslint . \
+            --ext .js,.jsx,.ts,.tsx \
+            --format @microsoft/eslint-formatter-sarif \
+            --output-file eslint-results.sarif
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
+        if: steps.detect.outputs.should_run == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: eslint-results.sarif
           wait-for-processing: true
+
+      - name: Skip ESLint (no JS/TS or no ESLint config found)
+        if: steps.detect.outputs.should_run != 'true'
+        run: |
+          echo "Skipping ESLint SARIF upload: no JS/TS files or no ESLint config present in this repository."
