@@ -6,6 +6,11 @@ Como ler:
 - Cada dia traz tópicos, impacto e onde validar (arquivos/testes). Use em conjunto com o MAPA.
 
 ## 2025-08-15
+Patch 3.0.2 (hotfix CLI/GUI):
+- CLI tabela: restaura labels (display/short), aplica larguras fixas e ordem/prioridade; truncagem por largura fixa pós-formatação para melhor aproveitamento do terminal.
+- GUI: corrige import path para utils ao executar `python .\\gui\\gui_ssa.py`.
+- Ajuste de larguras padrão: `localizacao_codigo=10`, `setor_executor=6`, `setor_emissor=6`, `data_cadastro=12`, `derivada_de=11`.
+
 Patch 3.0.1 (manutenção CI/linters):
 - ESLint (SARIF): execução e upload condicionais (somente quando houver JS/TS e configuração); correção de comando multiline e remoção de `--config` inexistente.
 - PSScriptAnalyzer (SARIF): execução e upload condicionais (somente quando houver PowerShell); path POSIX e passo explícito de skip.

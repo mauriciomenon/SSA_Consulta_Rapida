@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.1",
-  "version_long": "SSA Consulta Rápida v3.0.1 – Harden CI/linters (ESLint/PSScriptAnalyzer) e remoção do CodeQL avançado em conflito; funcionalidades do 3.0.0 mantidas (filtro 5 opções, modo padrão, GUI instância única, 67 testes)"
+  "version_short": "3.0.2",
+  "version_long": "SSA Consulta Rápida v3.0.2 – Correções: labels e larguras fixas na CLI (melhor aproveitamento), ordem/prioridade restauradas; fix de import na GUI; 67 testes."
 }
