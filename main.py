@@ -9,6 +9,7 @@ e inicialização da interface de linha de comando.
 import os
 import sys
 import argparse
+import socket
 import logging
 from datetime import datetime
 
@@ -110,11 +111,27 @@ def main(cli_args=None):
                 return
 
             try:
+                # Guarda de instância única da GUI via socket local
+                # Se a porta estiver ocupada, assume GUI já em execução
+                SINGLE_INSTANCE_PORT = 51234
+                single_instance_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    single_instance_sock.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
+                    single_instance_sock.listen(1)
+                except OSError:
+                    logger.warning("Outra instância da GUI já está em execução. Encerrando esta execução.")
+                    print("Já existe uma janela da GUI aberta. Use-a ou feche-a antes de abrir outra.")
+                    return
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
                 window.show()
                 # Executa o loop de eventos
                 app.exec()
+                # Fecha o socket da guarda ao sair
+                try:
+                    single_instance_sock.close()
+                except Exception:
+                    pass
             except Exception as e:
                 logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
                 logger.info("Recuando para CLI.")

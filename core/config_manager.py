@@ -60,6 +60,159 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "execucao_parcial": "Exec. Parcial"
 }
 
+# Default mapping used if column_mappings.json is missing/invalid
+DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
+    "numero_ssa": [
+        "Nº SSA",
+        "Nº SSA*",
+        "Nº SSA Original",
+        "Numero SSA",
+        "Nº da SSA"
+    ],
+    "situacao": [
+        "Situação",
+        "Situacao",
+        "Status"
+    ],
+    "derivada_de": [
+        "Derivada de",
+        "Derivada De"
+    ],
+    "localizacao_codigo": [
+        "Loc.",
+        "Localização",
+        "Cod. Localização",
+        "Codigo Localizacao"
+    ],
+    "descricao_localizacao": [
+        "Desc. Loc.",
+        "Descrição da Localização",
+        "Descricao Localizacao"
+    ],
+    "equipamento": [
+        "Equip.",
+        "Equipamento"
+    ],
+    "semana_cadastro": [
+        "Sem.\nCadastro",
+        "Sem. Cadastro",
+        "Semana Cadastro"
+    ],
+    "data_cadastro": [
+        "Emitida Em",
+        "Data de Emissão",
+        "Data Cadastro",
+        "Data/Hora de Cadastro"
+    ],
+    "descricao_ssa": [
+        "Descrição da SSA",
+        "Descricao da SSA",
+        "Descricao"
+    ],
+    "setor_emissor": [
+        "Emissor",
+        "Setor Emissor"
+    ],
+    "setor_executor": [
+        "Executor",
+        "Setor Executor"
+    ],
+    "solicitante": [
+        "Solicitante"
+    ],
+    "servico_origem": [
+        "Serv. Origem",
+        "Serviço de Origem"
+    ],
+    "grau_prioridade_emissao": [
+        "Prior. Emissão",
+        "Prioridade Emissão",
+        "Grau Prioridade Emissão"
+    ],
+    "grau_prioridade_planejamento": [
+        "Prior. Planej.",
+        "Prioridade Planejamento",
+        "Grau Prioridade Planejamento"
+    ],
+    "execucao_simples": [
+        "Exec. Simples",
+        "Execução Simples"
+    ],
+    "responsavel_programacao": [
+        "Resp. Prog.",
+        "Responsável Programação"
+    ],
+    "semana_programada": [
+        "Sem. Prog.",
+        "Semana Programada"
+    ],
+    "responsavel_execucao": [
+        "Resp. Exec.",
+        "Responsável Execução"
+    ],
+    "descricao_execucao": [
+        "Descrição da Execução",
+        "Descricao da Execucao"
+    ],
+    "prazo_limite": [
+        "Prazo Limite"
+    ],
+    "tempo_disponivel": [
+        "Tempo Disp.",
+        "Tempo Disponível"
+    ],
+    "data_limite": [
+        "Data Limite"
+    ],
+    "tempo_excedido": [
+        "Tempo Excedido"
+    ],
+    "desde": [
+        "Desde"
+    ],
+    "tempo_total": [
+        "Tempo Total"
+    ],
+    "desde_1": [
+        "Desde (1)"
+    ],
+    "total_tempo_tpe_planejado": [
+        "Tempo TPE Plan.",
+        "Total Tempo TPE Planejado"
+    ],
+    "total_tempo_tex_planejado": [
+        "Tempo TEX Plan.",
+        "Total Tempo TEX Planejado"
+    ],
+    "total_tempo_tpo_planejado": [
+        "Tempo TPO Plan.",
+        "Total Tempo TPO Planejado"
+    ],
+    "total_horas_programadas": [
+        "Horas Prog.",
+        "Total Horas Programadas"
+    ],
+    "semana_executada": [
+        "Sem. Exec.",
+        "Semana Executada"
+    ],
+    "num_reprogramacoes": [
+        "Nº Reprog.",
+        "Número de Reprogramações"
+    ],
+    "execucao_parcial": [
+        "Exec. Parcial",
+        "Execução Parcial"
+    ],
+    "anomalia": [
+        "Anomalia"
+    ],
+    "sistema_origem": [
+        "Sis. Origem",
+        "Sistema de Origem"
+    ]
+}
+
 def _get_config_dir() -> str:
     """Allow tests/overrides via SSA_CONFIG_DIR; default to 'config'."""
     return os.environ.get('SSA_CONFIG_DIR') or CONFIG_DIR
@@ -86,6 +239,37 @@ def load_display_mappings_integrity() -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
     return DEFAULT_DISPLAY_MAPPINGS.copy()
+
+def load_column_mappings_integrity() -> Dict[str, list]:
+    """Load column_mappings.json; if missing/invalid, recreate with defaults and return it.
+
+    Estrutura esperada: { canonical_name: [list_of_aliases, ...], ... }
+    """
+    cfg_dir = _get_config_dir()
+    path = os.path.join(cfg_dir, 'column_mappings.json')
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict) and data:
+            # Sanidade superficial: todas as chaves devem mapear para listas não vazias
+            ok = all(isinstance(v, list) and len(v) > 0 for v in data.values())
+            if ok:
+                return data
+            else:
+                logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
+        else:
+            logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
+    except Exception:
+        logger.warning(f"column_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
+    # Restore
+    try:
+        os.makedirs(cfg_dir, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(DEFAULT_COLUMN_MAPPINGS, f, indent=2, ensure_ascii=False)
+        logger.warning(f"column_mappings.json foi recriado em '{path}' com valores padrão.")
+    except Exception as e:
+        logger.error(f"Falha ao restaurar column_mappings.json: {e}")
+    return DEFAULT_COLUMN_MAPPINGS.copy()
 
 def load_settings() -> Dict[str, Any]:
     """
@@ -159,14 +343,47 @@ def ensure_default_settings():
 # --- Placeholder para handler de configuração via CLI ---
 # Este handler pode ser expandido para um menu interativo ou edição direta.
 def handle_config_command():
-    """Handler para o comando '-c' ou 'config' na CLI."""
-    print("\n--- Menu de Configurações ---")
-    print("Funcionalidade de configuração ainda não implementada.")
-    print("Edite o arquivo 'config/settings.json' manualmente para alterar as configurações.")
-    print("Reinicie o programa para que as mudanças tenham efeito.")
-    # Futura implementação poderia:
-    # 1. Carregar settings atuais
-    # 2. Mostrar opções (ex: auto_scroll, visibilidade de colunas)
-    # 3. Permitir edição
-    # 4. Salvar settings atualizadas
-    # 5. Notificar que as mudanças terão efeito na próxima execução ou recarregar
+    """Handler para o comando '-c' ou 'config' na CLI.
+
+    Implementa um menu simples para configurar:
+      - user_preferences.filter_mode_default
+      - default_filters (substituir lista inteira, opcional)
+    """
+    try:
+        settings = load_settings()
+    except Exception as e:
+        print(f"Erro ao carregar configurações: {e}")
+        return
+
+    user_prefs = settings.get('user_preferences') or {}
+    current_mode = user_prefs.get('filter_mode_default', 'contains')
+    allowed = ['contains', 'prefix', 'suffix', 'exact', 'regex']
+
+    print("\n--- Configurações ---")
+    print("1) Modo de filtro padrão (aplicado a termos SEM marcador):")
+    print("   - Valores permitidos:", ", ".join(allowed))
+    print(f"   - Atual: {current_mode}")
+    new_mode = input("   > Novo valor (Enter para manter): ").strip().lower()
+    if new_mode:
+        if new_mode not in allowed:
+            print("Valor inválido. Nenhuma alteração aplicada ao modo padrão.")
+        else:
+            user_prefs['filter_mode_default'] = new_mode
+            settings['user_preferences'] = user_prefs
+            print(f"Modo padrão atualizado para: {new_mode}")
+
+    print("\n2) Substituir filtros padrão (opcional):")
+    print("   - Digite termos separados por vírgula para substituir a lista inteira;")
+    print("   - Deixe em branco para manter a lista atual.")
+    print(f"   - Atual: {settings.get('default_filters', [])}")
+    new_filters_raw = input("   > Nova lista (ex.: adm, ^mel, !$2025) [Enter p/ manter]: ").strip()
+    if new_filters_raw:
+        new_filters = [t.strip() for t in new_filters_raw.split(',') if t.strip()]
+        settings['default_filters'] = new_filters
+        print(f"Filtros padrão atualizados: {new_filters}")
+
+    try:
+        save_settings(settings)
+        print("Configurações salvas. Elas serão aplicadas imediatamente na CLI e no próximo filtro da GUI.")
+    except Exception as e:
+        print(f"Falha ao salvar configurações: {e}")

@@ -2,10 +2,27 @@
 
 Linha do tempo abrangente do projeto SSA_Consulta_Rapida: decisões, arquitetura, correções, otimizações e cobertura de testes. Foco em previsibilidade, desempenho e paridade CLI/GUI. Atualizado em 2025-08-15.
 
+Como ler:
+- Cada dia traz tópicos, impacto e onde validar (arquivos/testes). Use em conjunto com o MAPA.
+
 ## 2025-08-15
-- Correção de regressão na CLI: consertado bloco de exibição inicial e `try/except` após adição de `-clear`, `-clearall` e `-f/-filtros`. 50 → 51 testes.
-- Seleção de colunas em terminais estreitos: colunas `always_visible` nunca são descartadas; estimativa de largura usa `short_labels`. Novo teste para largura extremamente pequena.
-- Novo documento de rastreabilidade criado: `MAPA_PEDIDOS_IMPLEMENTACOES.md` mapeando pedidos → commits, incluindo ajustes e itens pendentes de commit (integrity checks de configs e proteções adicionais de arquivos críticos).
+- Filtro “5 opções” implementado end-to-end:
+	- Parser compartilhado `core/app_logic.parse_search_terms` e aplicação em `filter_dataframe`
+	- Negativos com `!`/`-`; regex com fallback para literal quando inválida
+	- Detalhe: com modo padrão `regex`, `^`/`$` agem como âncoras, não como trocadores de modo
+	- CLI/GUI integram o parser; CLI ajuda e GUI tooltip atualizados
+- Preferência `user_preferences.filter_mode_default` configurável via `-c` (menu simples)
+- GUI: proteção de instância única (main.py) para evitar múltiplas janelas abertas
+- Testes novos: `tests/test_filter_modes.py`, `tests/test_default_filter_mode.py` → suíte agora com 67 testes
+- CLI: correção de regressão na exibição inicial e tratamento de exceções após `-clear`, `-clearall`, `-f/-filtros`.
+- Seleção em terminais estreitos: `always_visible` nunca somem; estimativa usa `short_labels`. Adicionado teste de largura extrema.
+- MAPA de pedidos criado/expandido: `docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md` com pedidos → entregas → validação, incluindo larguras fixas e plano do filtro “5 opções”.
+- Integridade e proteção: `display_mappings.json` com auto-restauração e log (core/config_manager.py); adicionada a lista de protegidos (utils/file_metadata.py).
+- Integridade (novo): `column_mappings.json` com loader (core/config_manager.load_column_mappings_integrity), uso no extractor e proteção em `utils/file_metadata.py`. Teste dedicado `tests/test_column_mappings_integrity.py`.
+
+Como validar hoje:
+- `pytest -q` deve reportar 56 passed.
+- Remova temporariamente `display_mappings.json` ou `column_mappings.json` em um `SSA_CONFIG_DIR` de teste e rode a aplicação: os arquivos serão recriados com log.
 
 ## 2025-08-14
 - Paridade CLI/GUI de formatação: detalhes na CLI usam `utils.formatting.format_cell` (datas dd/mm/YYYY, suprimir .0, `nan/NaT/None` escondidos, semanas inteiras, SSA normalizado).
@@ -15,11 +32,17 @@ Linha do tempo abrangente do projeto SSA_Consulta_Rapida: decisões, arquitetura
 	- `-clearall`: limpa filtros do usuário e default para a sessão, recarregando o estado.
 - Banner/versão: versão curta e longa de `config/version.json` via `utils/version.py`.
 
+Validação rápida:
+- Conferir CLI com buscas contendo números inteiros e datas; verificar ocultação de nulos e formato de datas.
+
 ## 2025-08-13
 - Resolução de conflito e restauração de `config/column_priority.json` (versão mais detalhada):
 	- Campos: `essential`, `always_visible`, `priority_order`, `fixed_widths`, `short_labels`.
 	- `interface/table_printer.py` passa a: mesclar `fixed_widths` com `settings.display_settings.column_widths` (por rótulo), respeitar `column_visibility`, e usar `short_labels` nos headers.
 - Testes ampliados para seleção inteligente de colunas, truncação com reticências apenas quando necessário e visibilidade obrigatória.
+
+Validação rápida:
+- Reduzir o terminal e confirmar que `numero_ssa` permanece visível; observar headers alternando para short_labels quando necessário.
 
 ## 2025-08-12
 - CLI: comandos restaurados e ampliados:
@@ -29,9 +52,15 @@ Linha do tempo abrangente do projeto SSA_Consulta_Rapida: decisões, arquitetura
 - Atualização da ajuda e mensagens do prompt; `NO_COLOR` respeitado para destaque.
 - Testes adicionados para comandos novos (subindo a suíte para ~48).
 
+Validação rápida:
+- `-ordn` com nome de rótulo e `-x` para remoção de termo específico.
+
 ## 2025-08-10
 - GUI: debounce de filtro (~350ms) e opção para desativar aplicação automática a cada tecla. Paginator robusto; correção de crash em inicialização quando não há dados.
 - Fallback GUI→CLI no `main.py` com log amigável em caso de erro de GUI.
+
+Validação rápida:
+- Habilitar/desabilitar “Aplicar automaticamente” e observar a diferença de desempenho.
 
 ## 2025-08-08
 - Formatação unificada (`utils/formatting.py`) para todas as superfícies:
@@ -42,6 +71,9 @@ Linha do tempo abrangente do projeto SSA_Consulta_Rapida: decisões, arquitetura
 	- Normalização de SSA (9 dígitos; prefixo ano quando <=5; `zfill` para 7-8).
 - `interface/display.py`: detalhes usam `format_cell` e padronizam vazios.
 
+Validação rápida:
+- Abrir o painel de detalhes na GUI e comparar com a tabela.
+
 ## 2025-08-05
 - Banco de dados/ingestão:
 	- Reset granular (`--reset-db file|table`).
@@ -49,6 +81,9 @@ Linha do tempo abrangente do projeto SSA_Consulta_Rapida: decisões, arquitetura
 	- Upsert inteligente por `numero_ssa` com desempate por `data_cadastro` (mais novo vence).
 	- Normalização de `numero_ssa` na extração/carga.
 - Testes de ingestão, normalização e índices.
+
+Validação rápida:
+- Rodar `--reset-db table` e reimportar; conferir que SSAs com mesma chave respeitam desempate por `data_cadastro`.
 
 ## 2025-07-31
 - CLI tabela: seleção adaptativa por largura do terminal; truncação inteligente de descrições com reticências apenas se houver truncamento; cabeçalhos com `short_labels` quando disponíveis.

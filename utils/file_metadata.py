@@ -22,6 +22,7 @@ PROTECTED_FILENAMES = {
     'changelog_implementacoes.md',
     'column_priority.json',
     'display_mappings.json',
+    'column_mappings.json',
 }
 
 DATE_NAME_REGEXES = [

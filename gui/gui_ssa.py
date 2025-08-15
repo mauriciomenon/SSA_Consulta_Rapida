@@ -25,7 +25,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 # --- Importações do Projeto ---
-from core.app_logic import filter_dataframe
+from core.app_logic import filter_dataframe, parse_search_terms
 from armazenamento.database import query_db
 from core.config_manager import load_settings, load_display_mappings_integrity # Para carregar display_mappings
 
@@ -78,15 +78,17 @@ class FilterWorker(QThread):
     filter_finished = pyqtSignal(pd.DataFrame) # Emite o DataFrame filtrado
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, df_completo, search_terms):
+    def __init__(self, df_completo, search_terms, default_mode: str = 'contains'):
         super().__init__()
         self.df_completo = df_completo
         self.search_terms = search_terms
+        self.default_mode = default_mode
 
     def run(self):
         try:
             if self.search_terms:
-                df_filtrado = filter_dataframe(self.df_completo, self.search_terms)
+                parsed = parse_search_terms(self.search_terms, default_mode=self.default_mode)
+                df_filtrado = filter_dataframe(self.df_completo, parsed)
             else:
                 df_filtrado = self.df_completo.copy()
             self.filter_finished.emit(df_filtrado)
@@ -321,7 +323,16 @@ class SSAMainWindow(QMainWindow):
         search_layout = QHBoxLayout()
         self.search_label = QLabel("2. Pesquisar:")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Digite termos separados por virgula...")
+        self.search_input.setPlaceholderText("Termos por vírgula. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
+        self.search_input.setToolTip(
+            "Modos por termo: \n"
+            "- contém (padrão): foo\n"
+            "- começa com: ^foo\n"
+            "- termina com: foo$\n"
+            "- igual: =foo\n"
+            "- regex: ~foo.*bar\n"
+            "- negativos: prefixe ! (ex.: !^adm, !$2025)"
+        )
         self.search_input.returnPressed.connect(self.initiate_filtering)
         # Aplica debounce ao digitar
         self.search_input.textChanged.connect(self._on_search_text_changed)
@@ -427,8 +438,14 @@ class SSAMainWindow(QMainWindow):
         self.load_button.setEnabled(False)
         self.search_button.setEnabled(False)
 
+        # Descobre default_mode nas configurações
+        try:
+            settings = load_settings()
+            default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
+        except Exception:
+            default_mode = 'contains'
         # Inicia a thread de filtragem
-        self.filter_thread = FilterWorker(self.df_completo, search_terms)
+        self.filter_thread = FilterWorker(self.df_completo, search_terms, default_mode=default_mode)
         self.filter_thread.filter_finished.connect(self.on_filter_finished)
         self.filter_thread.error_occurred.connect(self.on_filter_error)
         self.filter_thread.finished.connect(self.on_filter_finished_cleanup)

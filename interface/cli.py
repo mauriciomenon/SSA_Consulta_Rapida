@@ -17,7 +17,7 @@ sys.path.insert(0, project_root)
 
 # Importações relativas
 from armazenamento.database import query_db
-from core.app_logic import run_importer_logic, filter_dataframe
+from core.app_logic import run_importer_logic, filter_dataframe, parse_search_terms
 from core.config_manager import load_settings, handle_config_command
 from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Importa a versão revisada
@@ -36,7 +36,9 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     default_filters = settings.get("default_filters", [])
     if default_filters:
         logger.debug(f"Aplicando filtros padrão: {default_filters}")
-        return filter_dataframe(df, default_filters)
+    default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
+    parsed = parse_search_terms(default_filters, default_mode=default_mode)
+    return filter_dataframe(df, parsed)
     return df
 
 def _get_initial_state(
@@ -95,6 +97,13 @@ Comandos disponíveis:
 Pesquisa:
   Digite um ou mais termos separados por vírgula para filtrar os resultados.
   Exemplo: 'ADM, MEL3, 2025' filtra por Situação ADM, Executor MEL3 ou Nº SSA 2025.
+    Modos avançados por termo (case-insensitive):
+        - contém (padrão): foo
+        - começa com: ^foo
+        - termina com: foo$
+        - igual: =foo
+        - regex: ~foo.*bar
+        - negativos: prefixar ! (ex.: !^adm, !$2025, !=fechado, !~cancel.*)
 """
     print(help_text)
 
@@ -434,10 +443,13 @@ def start_cli_loop(db_path: str, table_name: str):
                 search_terms_input = user_input.split(',')
                 processed_search_terms = [term.strip() for term in search_terms_input if term.strip()]
                 if processed_search_terms: # Só filtra se houver termos
-                    new_filtered_df = filter_dataframe(current_df, processed_search_terms)
+                    default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
+                    parsed_terms = parse_search_terms(processed_search_terms, default_mode=default_mode)
+                    new_filtered_df = filter_dataframe(current_df, parsed_terms)
                     if new_filtered_df.empty:
                         print("Nenhum resultado encontrado para o filtro. Tente outros termos.")
                     else:
+                        # Guardamos os termos brutos para exibir na UI, mas aplicamos os parseados
                         results_stack.append((new_filtered_df, processed_search_terms))
                         pretty_print_df(new_filtered_df, display_map, settings)
                 else:
