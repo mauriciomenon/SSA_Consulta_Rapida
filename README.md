@@ -1,6 +1,6 @@
 # SSA_Consulta_Rapida
 
-Versão: 3.0.1 — SSA Consulta Rápida v3.0.1
+Versão: 3.0.2 — SSA Consulta Rápida v3.0.2
 
 Resumo do 3.0:
 - Filtro “5 opções” implementado (CLI/GUI) com negativos e fallback de regex
