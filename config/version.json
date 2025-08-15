@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.0",
-  "version_long": "SSA Consulta Rápida v3.0.0 – Filtro 5 opções (CLI/GUI), modo padrão configurável (-c), GUI com instância única, docs e 67 testes"
+  "version_short": "3.0.1",
+  "version_long": "SSA Consulta Rápida v3.0.1 – Harden CI/linters (ESLint/PSScriptAnalyzer) e remoção do CodeQL avançado em conflito; funcionalidades do 3.0.0 mantidas (filtro 5 opções, modo padrão, GUI instância única, 67 testes)"
 }
