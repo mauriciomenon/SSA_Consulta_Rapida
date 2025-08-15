@@ -405,10 +405,11 @@ def _default_column_priority_config() -> Dict[str, Any]:
         "fixed_widths": {
             "numero_ssa": 9,
             "localizacao_codigo": 10,
-            "setor_emissor": 8,
-            "setor_executor": 8,
+            "setor_emissor": 6,
+            "setor_executor": 6,
             "semana_cadastro": 8,
-            "data_cadastro": 10
+            "data_cadastro": 12,
+            "derivada_de": 11
         },
         "hidden_by_default": []
     }
