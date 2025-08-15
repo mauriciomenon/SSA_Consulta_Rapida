@@ -227,9 +227,12 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     for col in cols_to_truncate:
         if col in working_df.columns:
             # Calcula largura máxima com base no espaço disponível e número de colunas
-            # Prioriza um mínimo de 30 caracteres para descrições
-            base_width = max(30, (terminal_width // max(2, len(cols_to_display))))
-            max_len = min(base_width, 100)  # Limite máximo
+            # Prioriza um mínimo de 40 caracteres e, se houver espaço, expande até 140
+            base_width = max(40, (terminal_width // max(2, len(cols_to_display))))
+            # Se poucas colunas, permita mais espaço ainda
+            if len(cols_to_display) <= 4:
+                base_width = max(base_width, terminal_width - 20)
+            max_len = min(base_width, 140)
             def _truncate(val: str) -> str:
                 s = val or ''
                 if len(s) > max_len:
@@ -249,7 +252,12 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     use_compact_headers = False
     try:
         # available_width foi calculado acima
-        use_compact_headers = (available_width < 80) or (settings.get('display_settings', {}).get('prefer_short_labels', False))
+        # Prefira cabeçalhos compactos quando a largura for moderada/baixa ou quando muitos campos forem exibidos
+        use_compact_headers = (
+            available_width < 100
+            or len(cols_to_display) >= 6
+            or (settings.get('display_settings', {}).get('prefer_short_labels', False))
+        )
     except Exception:
         use_compact_headers = False
 
@@ -391,16 +399,16 @@ def _default_column_priority_config() -> Dict[str, Any]:
             "semana_executada", "num_reprogramacoes", "execucao_simples"
         ],
         "short_labels": {
-            "numero_ssa": "#SSA",
+            "numero_ssa": "Nº SSA",
             "localizacao_codigo": "Loc.",
             "setor_executor": "Exec.",
-            "situacao": "Sit.",
+            "situacao": "Stat.",
             "descricao_ssa": "Desc.",
             "data_cadastro": "Emitido",
             "semana_cadastro": "Sem.Cad.",
-            "semana_programada": "Sem.Prog.",
+            "semana_programada": "Prog.",
             "descricao_execucao": "Desc.Exec.",
-            "setor_emissor": "Emis."
+            "setor_emissor": "Emi."
         },
         "fixed_widths": {
             "numero_ssa": 9,
