@@ -20,31 +20,32 @@ Rastreia de ponta a ponta: o que foi pedido, o que foi feito (arquivos), como va
   - Testes: tests/test_formatting.py, tests/test_cli_formatting.py
   - Como validar: rodar CLI/GUI e conferir datas, números inteiros e nulos ocultos
 
-- Cabeçalhos largos x curtos; short_labels
+- Cabeçalhos largos x curtos; short_labels (atualizado)
   - Implementação: interface/table_printer.py decide labels completos vs short_labels
   - Config: config/column_priority.json (short_labels), settings.display_settings.prefer_short_labels
   - Testes: tests/test_table_printer.py
-  - Como validar: redimensionar terminal; ver headers mudarem sem perder clareza
+  - Como validar: redimensionar terminal; ver headers mudarem sem perder clareza. Rótulos curtos padronizados: Exe., St., Prog., Emi.
 
-- Seleção adaptativa de colunas (sempre visíveis + prioridade)
+- Seleção adaptativa de colunas (sempre visíveis + prioridade, com ordem inicial “pinned”)
   - Implementação: table_printer._select_columns_for_width (ordem: always_visible → essential → priority_order; garante '#')
+  - Ordem inicial fixa: `# | Nº SSA | Loc. | Exe. | St. | Desc. | …` (com “Nº SSA” sempre visível)
   - Testes: tests/test_cli_column_selection.py (inclui largura extrema)
   - Como validar: usar -cols e variar largura do terminal
 
-- Larguras fixas de colunas (pedido)
+- Larguras fixas de colunas (pedido) e largura estável entre páginas
   - Implementação: fixed_widths em column_priority.json; overrides por rótulo em settings.display_settings.column_widths
-  - Mescla: table_printer correlaciona rótulo→coluna para compor fixed_widths efetivo
+  - Mescla: table_printer correlaciona rótulo→coluna para compor fixed_widths efetivo. 1ª página tem a mesma largura das demais; cabeçalho vazio é usado nas páginas seguintes para manter alinhamento.
   - Testes: tests/test_docs_and_priority.py, tests/test_cli_column_selection.py
   - Como validar: definir largura para “Executor”/“Emissor” no settings e observar efeito na seleção
 
 - Truncação inteligente de descrições
-  - Implementação: table_printer limita e só adiciona “...” quando necessário
+  - Implementação: table_printer limita e só adiciona “...” quando necessário. A coluna “Descrição da SSA” ocupa exatamente o espaço remanescente após outras colunas.
   - Como validar: reduzir terminal e observar descrições
 
-- CLI: ordenação, colunas, filtros, listar/remover/limpar
+- CLI: ordenação, colunas, filtros, listar/remover/limpar, banner limpo e ajuda curta
   - Implementação: interface/cli.py (+ display.py, table_printer.py)
   - Testes: tests/test_cli_commands.py, tests/test_cli_formatting.py
-  - Como validar: ver seção “Exemplos de CLI” abaixo
+  - Como validar: ver seção “Exemplos de CLI” abaixo. Ao iniciar, não listar DB completo; mostrar apenas contagem + dica + comandos. Ajuda via `?`.
 
 - Filtro “5 opções” (implementado)
   - 5 modos por termo (contém, começa, termina, igual, regex) e negativos
@@ -53,7 +54,7 @@ Rastreia de ponta a ponta: o que foi pedido, o que foi feito (arquivos), como va
   - Marcadores aceitos: `^` (prefixo), `$` (sufixo) também como atalho inicial, `=` (igual), `~` (regex), `!`/`-` para negativos
   - Ponto fino: quando o modo padrão é `regex`, `^`/`$` funcionam como âncoras em vez de trocar o modo
   - Testes: tests/test_filter_modes.py e tests/test_default_filter_mode.py
-  - UX: GUI exibe tooltip com os 5 modos; CLI ajuda inclui sintaxe
+  - UX: GUI exibe tooltip com os 5 modos; CLI ajuda inclui sintaxe. Termos separados por espaço são acumulativos; negativos com `!` funcionam em conjunto.
 
 - GUI: debounce, seletor de colunas, detalhes
   - Implementação: gui/gui_ssa.py (QTimer ~250ms; paginação; duplo clique para detalhes)
@@ -125,8 +126,8 @@ Exemplos (opcionais para testar):
 # listar colunas com rótulos
 -cols
 
-# aplicar filtro contendo e negativo
-MEL4,!cancelada
+# aplicar filtro contendo (acumula por espaço) e negativo
+MEL4 !cancelada
 
 # remover último termo
 -v
@@ -161,6 +162,10 @@ Filtro “5 opções” (planejamento detalhado)
 - Botão Buscar: alternativa previsível (aplica imediatamente)
 - Seleção de colunas: baseada em display_mappings; persistência; detalhes em diálogo
 - Paridade: usa utils/formatting e table_printer (onde aplicável) para consistência visual
+
+Banner limpo e logging
+- Banner inicial sem timestamps/INFO; apenas 3 linhas: contagem, dica, comandos.
+- Logging com rotação (arquivo até 1MB, 1 backup) em `logs/ssa.log`; console somente warnings+.
 
 ---
 

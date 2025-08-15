@@ -11,16 +11,40 @@ import sys
 import argparse
 import socket
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
-# Configuração básica de logging
-# Em produção, poderia ser configurado para salvar em arquivo também
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ssa")
+logger.setLevel(logging.DEBUG)
+_logging_configured = False
+
+def _configure_logging(project_root: str, level_console: int = logging.WARNING, level_file: int = logging.INFO):
+    global _logging_configured
+    if _logging_configured:
+        return
+    logs_dir = os.path.join(project_root, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    # File handler (INFO+), rotating 1MB, keep 1 backup (total 2 files)
+    file_handler = RotatingFileHandler(
+        filename=os.path.join(logs_dir, 'ssa.log'),
+        maxBytes=1_000_000,
+        backupCount=1,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(level_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+    # Console handler (WARNING+)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level_console)
+    console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+    # Attach to named logger and root of our package
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    # Also route library/module logs under our package to the same handlers
+    pkg_logger = logging.getLogger()
+    pkg_logger.setLevel(logging.WARNING)  # default root level
+    pkg_logger.addHandler(console_handler)
+    _logging_configured = True
 
 # Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -67,12 +91,12 @@ def main(cli_args=None):
     # Permite que argparse use `cli_args` para testes
     args = parser.parse_args(cli_args) if cli_args is not None else parser.parse_args()
     
-    # Atualiza o nível de log com base no argumento
+    # Configura logging (arquivo + console) e nível
+    _configure_logging(project_root)
     logger.setLevel(getattr(logging, args.log_level))
 
-    logger.info("=" * 50)
-    logger.info(f" Iniciando Consulta Rapida de SSAs {APP_VERSION} ")
-    logger.info("=" * 50)
+    # Banner amigável sem prefixos de log
+    print(f"Consulta Rápida de SSAs {APP_VERSION}")
 
     try:
         # --- 1. Preparação do Ambiente ---

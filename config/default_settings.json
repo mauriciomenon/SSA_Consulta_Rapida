@@ -1,0 +1,18 @@
+{
+  "display_settings": {
+    "column_visibility": {},
+    "column_widths": {
+      "#": 4,
+      "Nº SSA": 9,
+      "Loc.": 10,
+      "Emi.": 6,
+      "Exe.": 6
+    },
+    "max_auto_scroll_pages": 3
+  },
+  "user_preferences": {
+    "auto_scroll_to_end": false,
+    "filter_mode_default": "contains"
+  },
+  "default_filters": []
+}

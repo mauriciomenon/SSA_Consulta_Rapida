@@ -320,6 +320,7 @@ COMMAND_HANDLERS = {
     'exit': _handle_quit,
     'quit': _handle_quit,
     '-h': _handle_help,
+    '?': _handle_help,
     'ajuda': _handle_help,
     '-v': _handle_back,
     'voltar': _handle_back,
@@ -343,20 +344,14 @@ def start_cli_loop(db_path: str, table_name: str):
     initial_df, initial_filter_terms = _get_initial_state(db_path, table_name, settings)
     results_stack = [(initial_df, initial_filter_terms)]
 
-    # --- Exibição Inicial ---
-    header = f"\n=== Consulta Rápida de SSAs v{APP_VERSION} ==="
-    if APP_VERSION_LONG:
-        header += f"\n{APP_VERSION_LONG}"
-    print(header)
-    print(f"Base: {len(initial_df)} SSAs")
-    
+    # --- Exibição Inicial (sem banner decorativo) ---
     if not initial_df.empty:
         # Não exibe a tabela completa automaticamente ao iniciar; apenas um resumo e instruções.
         filter_status_at_start_text = ""
         if initial_filter_terms:
             filter_status_at_start_text = f" - Filtro(s) Aplicado(s): {', '.join(initial_filter_terms)}"
-        print(f"Pronto. {len(initial_df)} SSAs carregadas{filter_status_at_start_text}.")
-        print("Dica: digite termos separados por espaço ou vírgula para filtrar (ex.: svp mel4), ou -h para ajuda.")
+        print(f"{len(initial_df)} SSAs carregadas{filter_status_at_start_text}.")
+        print("Dica: termos separados por espaço ou vírgula (ex.: svp mel4). Ajuda: -h ou ?. Detalhe rápido: -d <#linha>.")
         print("Comandos: -d, -v, -e, -r, -rescan, -c, -h, -q | Extras: -ord/-ordi <#>, -ordn/-ordni <nome>, -cols, -x [termo]")
     else:
         print("Nenhum dado disponível para exibição.")
@@ -381,7 +376,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 filter_status_runtime_text = f" - Filtro(s) Aplicado(s): {', '.join(current_filter_terms)}"
             
             prompt_text = (
-                f"[{len(current_df)} SSAs{filter_status_runtime_text}] Buscar (vírgulas p/ múltiplos) ou comando: "
+                f"[{len(current_df)} SSAs{filter_status_runtime_text}] Buscar (espaço/ vírgula p/ múltiplos) ou comando: "
             )
             user_input = input(prompt_text).strip()
             

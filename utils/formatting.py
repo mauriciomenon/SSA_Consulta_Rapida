@@ -81,6 +81,9 @@ def _format_date_like(v) -> str:
             # ISO-like YYYY-MM-DD
             if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
                 ts = pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
+            # ISO-like with time YYYY-MM-DD HH:MM:SS or with 'T'
+            elif re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$", s):
+                ts = pd.to_datetime(s, format="%Y-%m-%d %H:%M:%S", errors="coerce")
             else:
                 ts = pd.to_datetime(s, errors="coerce", dayfirst=True)
         else:

@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.2",
-  "version_long": "SSA Consulta Rápida v3.0.2 – Correções: labels e larguras fixas na CLI (melhor aproveitamento), ordem/prioridade restauradas; fix de import na GUI; 67 testes."
+  "version_short": "3.0.3",
+  "version_long": "SSA Consulta Rápida v3.0.3 – UX CLI refinada (sem auto-lista, alias '?', 'Nº SSA' fixo 2ª col., ordem inicial pinned, páginas com larguras iguais, descrição ocupa sobra), logs rotativos (1MB/1 backup, console warnings+), geração automática de defaults e silenciamento de aviso ISO datetime; 67 testes."
 }
