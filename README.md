@@ -1,5 +1,13 @@
 # SSA_Consulta_Rapida
 
+Versão: 3.0.0 — SSA Consulta Rápida v3.0.0
+
+Resumo do 3.0:
+- Filtro “5 opções” implementado (CLI/GUI) com negativos e fallback de regex
+- Modo padrão de filtro configurável (-c) e default_filters aplicados no start
+- GUI com proteção de instância única e tooltip de ajuda nos modos
+- Documentação revisada (README/MAPA/CHANGELOG); 67 testes passando
+
 Ferramenta para consulta rápida de SSAs com CLI e GUI (Python). Foco em previsibilidade, desempenho e paridade de exibição.
 
 Links úteis:
