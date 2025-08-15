@@ -29,8 +29,9 @@ from utils import setup_project_structure
 from core.app_logic import run_importer_logic
 from interface.cli import start_cli_loop
 from core.config_manager import ensure_default_settings
+from utils.version import get_app_version
 
-APP_VERSION = "4.0.0"
+APP_VERSION = get_app_version()
 
 def main(cli_args=None):
     """
@@ -44,8 +45,10 @@ def main(cli_args=None):
         description=f"Consulta Rápida de SSAs v{APP_VERSION}",
         formatter_class=argparse.RawTextHelpFormatter
     )
+    # Suporta --rescan como alias histórico de --force-rescan
     parser.add_argument(
-        '--force-rescan',
+        '--force-rescan', '--rescan',
+        dest='force_rescan',
         action='store_true',
         help='Força a reimportação de todos os arquivos Excel, ignorando o cache.'
     )
@@ -106,11 +109,16 @@ def main(cli_args=None):
                 start_cli_loop(db_path, table_name)
                 return
 
-            app = QApplication(sys.argv)
-            window = SSAMainWindow()
-            window.show()
-            # Executa o loop de eventos
-            app.exec()
+            try:
+                app = QApplication(sys.argv)
+                window = SSAMainWindow()
+                window.show()
+                # Executa o loop de eventos
+                app.exec()
+            except Exception as e:
+                logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
+                logger.info("Recuando para CLI.")
+                start_cli_loop(db_path, table_name)
         else:
             logger.info("Iniciando interface de linha de comando...")
             start_cli_loop(db_path, table_name)

@@ -20,6 +20,73 @@ USER_SETTINGS_FILE = os.path.join(CONFIG_DIR, 'settings.json')
 DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
 COLUMN_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'column_mappings.json')
 
+# Default mapping used if display_mappings.json is missing/invalid
+DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
+    "numero_ssa": "Nº SSA",
+    "situacao": "Situação",
+    "derivada_de": "Derivada de",
+    "localizacao_codigo": "Loc.",
+    "descricao_localizacao": "Desc. Loc.",
+    "equipamento": "Equip.",
+    "semana_cadastro": "Sem.\nCadastro",
+    "data_cadastro": "Emitida Em",
+    "descricao_ssa": "Descrição da SSA",
+    "setor_emissor": "Emissor",
+    "setor_executor": "Executor",
+    "solicitante": "Solicitante",
+    "servico_origem": "Serv. Origem",
+    "grau_prioridade_emissao": "Prior. Emissão",
+    "grau_prioridade_planejamento": "Prior. Planej.",
+    "execucao_simples": "Exec. Simples",
+    "responsavel_programacao": "Resp. Prog.",
+    "semana_programada": "Sem. Prog.",
+    "responsavel_execucao": "Resp. Exec.",
+    "descricao_execucao": "Descrição da Execução",
+    "anomalia": "Anomalia",
+    "sistema_origem": "Sis. Origem",
+    "prazo_limite": "Prazo Limite",
+    "tempo_disponivel": "Tempo Disp.",
+    "data_limite": "Data Limite",
+    "tempo_excedido": "Tempo Excedido",
+    "desde": "Desde",
+    "tempo_total": "Tempo Total",
+    "desde_1": "Desde (1)",
+    "total_tempo_tpe_planejado": "Tempo TPE Plan.",
+    "total_tempo_tex_planejado": "Tempo TEX Plan.",
+    "total_tempo_tpo_planejado": "Tempo TPO Plan.",
+    "total_horas_programadas": "Horas Prog.",
+    "semana_executada": "Sem. Exec.",
+    "num_reprogramacoes": "Nº Reprog.",
+    "execucao_parcial": "Exec. Parcial"
+}
+
+def _get_config_dir() -> str:
+    """Allow tests/overrides via SSA_CONFIG_DIR; default to 'config'."""
+    return os.environ.get('SSA_CONFIG_DIR') or CONFIG_DIR
+
+def load_display_mappings_integrity() -> Dict[str, str]:
+    """Load display_mappings.json; if missing/invalid, recreate with defaults and return it."""
+    cfg_dir = _get_config_dir()
+    path = os.path.join(cfg_dir, 'display_mappings.json')
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict) and data:
+            return data
+        else:
+            logger.warning(f"display_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
+    except Exception:
+        logger.warning(f"display_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
+    # Restore
+    try:
+        os.makedirs(cfg_dir, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(DEFAULT_DISPLAY_MAPPINGS, f, indent=2, ensure_ascii=False)
+        logger.warning(f"display_mappings.json foi recriado em '{path}' com valores padrão.")
+    except Exception as e:
+        logger.error(f"Falha ao restaurar display_mappings.json: {e}")
+    return DEFAULT_DISPLAY_MAPPINGS.copy()
+
 def load_settings() -> Dict[str, Any]:
     """
     Carrega as configurações do usuário. Se não existir, carrega as padrões.

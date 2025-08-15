@@ -16,6 +16,14 @@ import re
 from datetime import datetime
 from typing import Optional, Iterable, Tuple
 
+# Arquivos protegidos: nunca devem participar de lógica de "arquivo mais recente"
+PROTECTED_FILENAMES = {
+    'readme.md',
+    'changelog_implementacoes.md',
+    'column_priority.json',
+    'display_mappings.json',
+}
+
 DATE_NAME_REGEXES = [
     # e.g.: 14-07-2025_0343PM
     re.compile(r"(?P<d>\d{2})-(?P<m>\d{2})-(?P<y>\d{4})[_\- ](?P<h>\d{2})(?P<M>\d{2})(?P<ampm>AM|PM)", re.IGNORECASE),
@@ -88,6 +96,13 @@ def choose_latest(files: Iterable[str]) -> Optional[str]:
     """
     best: Optional[Tuple[datetime, str]] = None
     for f in files or []:
+        # Ignora arquivos protegidos por nome
+        try:
+            base = os.path.basename(f).lower()
+            if base in PROTECTED_FILENAMES:
+                continue
+        except Exception:
+            pass
         dt = best_datetime_for_file(f)
         if dt is None:
             continue

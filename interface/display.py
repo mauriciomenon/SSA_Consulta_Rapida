@@ -3,6 +3,7 @@ import pandas as pd
 from typing import Dict, Any
 import sys
 import logging
+from utils.formatting import format_cell
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,9 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
         # Itera sobre os itens da Series
         for key, value in series.items():
             header = display_map.get(key, key)
-            # Trata valores NA/NaN/nulos de forma mais robusta
-            if pd.isna(value) or value is None or (isinstance(value, str) and value.strip().lower() in ['none', 'nan', '']):
-                display_value = '-'
-            else:
-                display_value = str(value)
+            # Usa format_cell para padronizar datas, numeros, SSA e ocultar nulls
+            formatted = format_cell(value, key)
+            display_value = formatted if (formatted is not None and formatted != "") else "-"
             print(f"{header+':':<25} {display_value}")
             
         print("="*50)

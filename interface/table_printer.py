@@ -9,7 +9,9 @@ import re
 import unicodedata
 import math
 import json
+import logging
 from utils.formatting import format_dataframe_for_display
+logger = logging.getLogger(__name__)
 
 def get_terminal_size():
     """Obtem a altura e largura do terminal."""
@@ -38,14 +40,29 @@ def _select_columns_for_width(
     display_map: Dict[str, str],
     available_width: int,
     essential_columns: List[str],
-    priority_order: List[str]
+    priority_order: List[str],
+    always_visible: List[str] = None,
+    fixed_widths: Dict[str, int] = None
 ) -> list:
     """Seleciona colunas priorizando as essenciais e distribuindo o espaço."""
     valid_cols = [col for col in df.columns if not col.startswith('Unnamed:')]
+    always_visible = always_visible or []
+    fixed_widths = fixed_widths or {}
+    # Carrega short_labels para estimar largura de cabeçalhos de forma mais compacta
+    try:
+        cfg = _load_priority_config()
+        short_labels = cfg.get('short_labels', {}) if isinstance(cfg, dict) else {}
+    except Exception:
+        short_labels = {}
 
-    # Cria lista ordenada: essenciais primeiro, depois prioridade, depois o resto
+    # Cria lista ordenada: sempre visíveis, essenciais, prioridade, depois o resto
     ordered_cols = []
     seen = set()
+    # 0. Sempre visíveis primeiro
+    for col in always_visible:
+        if col in valid_cols and col not in seen:
+            ordered_cols.append(col)
+            seen.add(col)
     # 1. Adiciona colunas essenciais na ordem EXATA
     for col in essential_columns:
         if col in valid_cols and col not in seen:
@@ -64,8 +81,12 @@ def _select_columns_for_width(
     # Calcula larguras estimadas
     estimated_widths = {'#': 4} # Largura fixa para '#'
     for col in valid_cols:
-        renamed_col = display_map.get(col, col)
-        estimated_widths[col] = _estimate_column_width(df[col], renamed_col)
+        # Prefer short label para estimar largura do cabeçalho
+        renamed_col = short_labels.get(col) or display_map.get(col, col)
+        if col in fixed_widths:
+            estimated_widths[col] = fixed_widths[col]
+        else:
+            estimated_widths[col] = _estimate_column_width(df[col], renamed_col)
 
     selected_columns = ['#'] # Sempre inclui '#'
     total_width = estimated_widths['#'] + 3 # Espaço inicial
@@ -73,6 +94,11 @@ def _select_columns_for_width(
     # Itera pela ordem definida para selecionar colunas
     for col in ordered_cols:
         col_width = estimated_widths.get(col, 10) + 3 # +3 para separador
+        if col in always_visible:
+            # Sempre inclui colunas marcadas como sempre visíveis, mesmo se ultrapassar a largura disponível
+            selected_columns.append(col)
+            total_width += col_width
+            continue
         # Se couber, adiciona
         if total_width + col_width <= available_width:
             selected_columns.append(col)
@@ -80,9 +106,9 @@ def _select_columns_for_width(
         else:
             # Se for a primeira coluna de dados e não couber, força adicioná-la
             # para evitar tabela vazia
-            if len(selected_columns) == 1: # So tem '#'
+            if len(selected_columns) == 1: # Só tem '#'
                 selected_columns.append(col)
-            # Se ja tem colunas de dados, para de adicionar
+            # Se já tem colunas de dados, para de adicionar
             break
 
     return selected_columns
@@ -108,14 +134,13 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # Deixa uma margem de segurança
     available_width = max(terminal_width - 10, 20)
 
-    # --- Definição de Ordem de Colunas ---
-    # Ordem EXATA solicitada para as colunas mais importantes
-    essential_columns_in_order = [
+    # --- Definição de Ordem de Colunas (a partir de config/column_priority.json, com fallback) ---
+    cfg = _load_priority_config()
+    essential_columns_in_order = cfg.get('essential') or [
         'numero_ssa', 'setor_executor', 'situacao', 'descricao_ssa',
         'data_cadastro', 'semana_cadastro', 'semana_programada', 'descricao_execucao'
     ]
-    # Demais colunas em ordem de importância
-    subsequent_priority = [
+    subsequent_priority = cfg.get('priority_order') or [
         'setor_emissor', 'derivada_de', 'data_limite', 'execucao_parcial',
         'anomalia', 'sistema_origem', 'grau_prioridade_emissao',
         'grau_prioridade_planejamento', 'solicitante', 'servico_origem',
@@ -125,10 +150,43 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         'total_tempo_tpo_planejado', 'total_horas_programadas',
         'semana_executada', 'num_reprogramacoes', 'execucao_simples'
     ]
+    always_visible = cfg.get('always_visible', [])
+    fixed_widths = cfg.get('fixed_widths', {})
+    # Mescla larguras fixas do settings.display_settings.column_widths (chaves por rótulo de exibição)
+    settings_display = (settings or {}).get('display_settings', {}) if isinstance(settings, dict) else {}
+    label_widths = settings_display.get('column_widths', {}) if isinstance(settings_display, dict) else {}
+    # Constrói um mapa internal->width a partir dos labels
+    if isinstance(label_widths, dict) and label_widths:
+        for internal_col in df.columns:
+            # Usa short label se existir, senão display_map
+            short = cfg.get('short_labels', {}).get(internal_col)
+            label = short or display_map.get(internal_col, internal_col)
+            if label in label_widths and isinstance(label_widths[label], int):
+                fixed_widths[internal_col] = label_widths[label]
+        # Largura da coluna '#' (índice) se configurada
+        if '#' in label_widths and isinstance(label_widths['#'], int):
+            pass  # Já tratamos '#' diretamente fora deste dict
+
+    # --- Respeita visibilidade configurada ---
+    visibility_map = {}
+    try:
+        visibility_map = (settings or {}).get('display_settings', {}).get('column_visibility', {}) if isinstance(settings, dict) else {}
+        if not isinstance(visibility_map, dict):
+            visibility_map = {}
+    except Exception:
+        visibility_map = {}
+
+    allowed_columns = []
+    for col in df.columns:
+        visible_flag = visibility_map.get(col, True)
+        if visible_flag or col in always_visible:
+            allowed_columns.append(col)
+
+    df_visible = df[allowed_columns] if allowed_columns else df
 
     # --- Seleção Inteligente de Colunas ---
     selected_cols = _select_columns_for_width(
-        df, display_map, available_width, essential_columns_in_order, subsequent_priority
+        df_visible, display_map, available_width, essential_columns_in_order, subsequent_priority, always_visible, fixed_widths
     )
 
     if not selected_cols or (len(selected_cols) == 1 and selected_cols[0] == '#'):
@@ -168,20 +226,38 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     cols_to_truncate = ['descricao_ssa', 'descricao_execucao']
     for col in cols_to_truncate:
         if col in working_df.columns:
-             # Calcula largura máxima com base no espaço disponível e número de colunas
-             # Prioriza um mínimo de 30 caracteres para descrições
-             base_width = max(30, (terminal_width // max(2, len(cols_to_display))))
-             max_len = min(base_width, 100) # Limite máximo
-             working_df[col] = working_df[col].str.slice(0, max_len) + '...'
+            # Calcula largura máxima com base no espaço disponível e número de colunas
+            # Prioriza um mínimo de 30 caracteres para descrições
+            base_width = max(30, (terminal_width // max(2, len(cols_to_display))))
+            max_len = min(base_width, 100)  # Limite máximo
+            def _truncate(val: str) -> str:
+                s = val or ''
+                if len(s) > max_len:
+                    s = s[:max_len].rstrip()
+                    # Evita '...' repetido
+                    if not s.endswith('...'):
+                        s += '...'
+                return s
+            working_df[col] = working_df[col].astype(str).apply(_truncate)
 
     # --- Preparação Final para Exibição ---
     # Adiciona coluna de índice
     working_df.insert(0, '#', range(1, len(working_df) + 1))
     
     # Renomeia colunas para exibição
+    # Prefer nomes completos (display_map) em terminais largos; use short_labels apenas em modo compacto ou largura estreita
+    use_compact_headers = False
+    try:
+        # available_width foi calculado acima
+        use_compact_headers = (available_width < 80) or (settings.get('display_settings', {}).get('prefer_short_labels', False))
+    except Exception:
+        use_compact_headers = False
+
     renamed_columns = {'#': '#'}
     for internal_col in cols_to_display:
-        renamed_columns[internal_col] = display_map.get(internal_col, internal_col)
+        short = cfg.get('short_labels', {}).get(internal_col)
+        full = display_map.get(internal_col, internal_col)
+        renamed_columns[internal_col] = (short if use_compact_headers and short else full)
     working_df.rename(columns=renamed_columns, inplace=True)
 
     # Prepara cabeçalhos e larguras para `tabulate`
@@ -278,13 +354,95 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
 
 
 # --- Compat: formatter esperado em testes históricos ---
+def _default_column_priority_config() -> Dict[str, Any]:
+    return {
+        "essential": [
+            "numero_ssa",
+            "localizacao_codigo",
+            "setor_executor",
+            "situacao",
+            "descricao_ssa",
+            "data_cadastro",
+            "semana_cadastro",
+            "semana_programada",
+            "descricao_execucao"
+        ],
+        "always_visible": ["numero_ssa", "localizacao_codigo", "setor_executor", "situacao"],
+        "priority_order": [
+            "setor_emissor", "derivada_de", "data_limite", "execucao_parcial", "anomalia", "sistema_origem",
+            "grau_prioridade_emissao", "grau_prioridade_planejamento", "solicitante", "servico_origem",
+            "responsavel_programacao", "responsavel_execucao", "prazo_limite", "tempo_disponivel",
+            "tempo_excedido", "desde", "tempo_total", "desde_1", "total_tempo_tpe_planejado",
+            "total_tempo_tex_planejado", "total_tempo_tpo_planejado", "total_horas_programadas",
+            "semana_executada", "num_reprogramacoes", "execucao_simples"
+        ],
+        "short_labels": {
+            "numero_ssa": "#SSA",
+            "localizacao_codigo": "Loc.",
+            "setor_executor": "Exec.",
+            "situacao": "Sit.",
+            "descricao_ssa": "Desc.",
+            "data_cadastro": "Emitido",
+            "semana_cadastro": "Sem.Cad.",
+            "semana_programada": "Sem.Prog.",
+            "descricao_execucao": "Desc.Exec.",
+            "setor_emissor": "Emis."
+        },
+        "fixed_widths": {
+            "numero_ssa": 9,
+            "localizacao_codigo": 10,
+            "setor_emissor": 8,
+            "setor_executor": 8,
+            "semana_cadastro": 8,
+            "data_cadastro": 10
+        },
+        "hidden_by_default": []
+    }
+
 def _load_priority_config() -> Dict[str, Any]:
-    try:
+    # Allow tests or runtime to override config dir via env var
+    cfg_dir = os.environ.get('SSA_CONFIG_DIR')
+    if not cfg_dir:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        with open(os.path.join(project_root, 'config', 'column_priority.json'), 'r', encoding='utf-8') as f:
-            return json.load(f)
+        cfg_dir = os.path.join(project_root, 'config')
+    cfg_path = os.path.join(cfg_dir, 'column_priority.json')
+
+    def _is_valid(cfg: Dict[str, Any]) -> bool:
+        required = [
+            'essential', 'always_visible', 'priority_order', 'short_labels', 'fixed_widths', 'hidden_by_default'
+        ]
+        return isinstance(cfg, dict) and all(k in cfg for k in required)
+
+    try:
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            loaded = json.load(f)
+        if _is_valid(loaded):
+            return loaded
+        else:
+            logger.warning(f"column_priority.json inválido em '{cfg_path}'. Será restaurado para o padrão.")
     except Exception:
-        return {"priority_order": [], "short_labels": {}}
+        # fallthrough to restore
+        logger.warning(f"column_priority.json ausente ou ilegível em '{cfg_path}'. Será restaurado para o padrão.")
+
+    # If missing/invalid/empty: restore canonical default and return it
+    try:
+        os.makedirs(cfg_dir, exist_ok=True)
+        default_cfg = _default_column_priority_config()
+        with open(cfg_path, 'w', encoding='utf-8') as f:
+            json.dump(default_cfg, f, indent=2, ensure_ascii=False)
+        logger.warning(f"column_priority.json foi recriado em '{cfg_path}' com valores padrão.")
+        return default_cfg
+    except Exception:
+        # As a last resort, return a minimal structure to avoid crashes
+        logger.error("Falha ao restaurar column_priority.json. Usando estrutura mínima em memória.")
+        return {
+            "essential": [],
+            "always_visible": [],
+            "priority_order": [],
+            "short_labels": {},
+            "fixed_widths": {},
+            "hidden_by_default": []
+        }
 
 def _normalize_ssa(num: Any) -> str:
     s = '' if pd.isna(num) else str(num).strip()
