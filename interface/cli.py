@@ -21,10 +21,12 @@ from core.app_logic import run_importer_logic, filter_dataframe
 from core.config_manager import load_settings, handle_config_command
 from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Importa a versão revisada
+from utils.version import get_app_version, get_app_version_long
 
 # Configura logger específico para este módulo
 logger = logging.getLogger(__name__)
-APP_VERSION = "4.0.0"
+APP_VERSION = get_app_version()
+APP_VERSION_LONG = get_app_version_long()
 
 # --- Funções Auxiliares Refatoradas ---
 
@@ -79,8 +81,15 @@ Comandos disponíveis:
   -r             : Reseta todos os filtros e recarrega a base completa.
   -rescan        : Reimporta todos os arquivos Excel e recarrega os dados.
   -c             : Abre o menu de configurações.
-  -ord <Nº>      : Ordena pela coluna de índice <Nº> (crescente).
-  -ordi <Nº>     : Ordena pela coluna de índice <Nº> (decrescente).
+    -ord <Nº>      : Ordena pela coluna de índice <Nº> (crescente).
+    -ordi <Nº>     : Ordena pela coluna de índice <Nº> (decrescente).
+    -ordn <nome>   : Ordena pela coluna com este nome (crescente). Aceita nome interno ou de exibição.
+    -ordni <nome>  : Ordena pela coluna com este nome (decrescente). Aceita nome interno ou de exibição.
+    -cols          : Lista as colunas visíveis com nomes de exibição.
+    -x [termo]     : Remove um termo do filtro atual; sem termo equivale a -v.
+    -f, -filtros   : Mostra os filtros atualmente aplicados.
+    -clear         : Limpa filtros aplicados pelo usuário (mantém filtros padrão).
+    -clearall      : Limpa todos os filtros (usuário e padrão) para esta sessão.
   -h             : Mostra esta ajuda.
   -q, sair, exit : Sai do programa.
 Pesquisa:
@@ -116,6 +125,16 @@ def _handle_export(parts: List[str], current_df: 'pd.DataFrame', output_dir: str
         print("Exportação concluída.")
     except Exception as e:
         print(f"Erro durante a exportação: {e}")
+
+def _handle_list_columns(current_df: 'pd.DataFrame', display_map: dict):
+    """Lista colunas atuais com índices (1-based) e nomes de exibição."""
+    if current_df is None or current_df.empty:
+        print("Sem dados.")
+        return
+    print("\nColunas disponíveis:")
+    for idx, col in enumerate(current_df.columns, start=1):
+        display = display_map.get(col, col)
+        print(f"  {idx:>2}: {col}  ->  {display}")
 
 def _handle_back(results_stack: list):
     """Handler para o comando de voltar."""
@@ -176,6 +195,112 @@ def _handle_sort(parts: List[str], results_stack: list, display_map: dict, setti
     except Exception as e:
         print(f"Erro ao ordenar: {e}")
 
+def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool):
+    """Ordena por nome de coluna (interna ou de exibição)."""
+    current_df, current_filter_terms = results_stack[-1]
+    try:
+        if len(parts) < 2:
+            print("Erro: use -ordn <nome> ou -ordni <nome>.")
+            return
+        name = parts[1]
+        # Mapeia display->interno
+        inverse_map = {v.lower(): k for k, v in display_map.items()}
+        # Tenta casar interno direto
+        if name in current_df.columns:
+            col_name = name
+        else:
+            # Tenta casar display insensitive
+            col_name = inverse_map.get(name.lower())
+        if not col_name or col_name not in current_df.columns:
+            print("Coluna não encontrada. Use -cols para ver as opções.")
+            return
+        sorted_df = current_df.sort_values(by=col_name, ascending=ascending, na_position='last')
+        results_stack.append((sorted_df, current_filter_terms))
+        print(f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'}).")
+        pretty_print_df(sorted_df, display_map, settings)
+    except Exception as e:
+        print(f"Erro ao ordenar por nome: {e}")
+
+def _handle_remove_filter(parts: List[str], results_stack: list, display_map: dict, settings: dict):
+    """Remove um termo do filtro atual e re-aplica sobre o estado anterior.
+
+    Uso: -x <termo>
+    Sem termo: equivale a voltar (-v).
+    """
+    if len(results_stack) == 0:
+        print("Sem estado atual.")
+        return
+    current_df, current_terms = results_stack[-1]
+    # Sem termo -> volta
+    if len(parts) < 2:
+        _handle_back(results_stack)
+        # Exibe topo após voltar, se houver
+        if results_stack:
+            pretty_print_df(results_stack[-1][0], display_map, settings)
+        return
+    term_to_remove = parts[1].strip()
+    if not current_terms:
+        print("Nenhum termo de filtro atual para remover.")
+        return
+    remaining = [t for t in current_terms if t.lower() != term_to_remove.lower()]
+    # Base para re-aplicar é o estado anterior, se existir; senão o mesmo current_df
+    if len(results_stack) >= 2:
+        base_df = results_stack[-2][0]
+    else:
+        base_df = current_df
+    if remaining:
+        new_df = filter_dataframe(base_df, remaining)
+        results_stack[-1] = (new_df, remaining)
+        print(f"Removido termo '{term_to_remove}'. Filtro atual: {', '.join(remaining)}")
+        pretty_print_df(new_df, display_map, settings)
+    else:
+        # Sem termos restantes, volta ao estado anterior
+        _handle_back(results_stack)
+        if results_stack:
+            pretty_print_df(results_stack[-1][0], display_map, settings)
+
+def _handle_show_filters(results_stack: list):
+    """Exibe os filtros atualmente aplicados."""
+    if not results_stack:
+        print("Sem estado atual.")
+        return
+    terms = results_stack[-1][1] or []
+    if not terms:
+        print("Nenhum filtro aplicado.")
+        return
+    neg = [t for t in terms if t.startswith('!') or t.startswith('-')]
+    pos = [t for t in terms if t not in neg]
+    print("Filtros atuais:")
+    if pos:
+        print("  + ", ", ".join(pos))
+    if neg:
+        print("  - ", ", ".join(neg))
+
+def _handle_clear_filters(results_stack: list, display_map: dict, settings: dict):
+    """Limpa filtros do usuário voltando ao estado base (mantém filtros padrão)."""
+    if not results_stack:
+        print("Sem estado atual.")
+        return
+    base_state = results_stack[0]
+    results_stack.clear()
+    results_stack.append(base_state)
+    print("Filtros do usuário limpos. Voltando ao estado base.")
+    pretty_print_df(base_state[0], display_map, settings)
+
+def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict):
+    """Limpa todos os filtros (incluindo padrão) recarregando a base sem aplicar default_filters."""
+    if not results_stack:
+        print("Sem estado atual.")
+        return
+    # Clona settings sem default_filters
+    fresh_settings = dict(settings or {})
+    fresh_settings['default_filters'] = []
+    df = query_db(db_path, table_name)
+    results_stack.clear()
+    results_stack.append((df, []))
+    print("Todos os filtros foram limpos para esta sessão.")
+    pretty_print_df(df, display_map, fresh_settings)
+
 # --- Loop Principal Refatorado ---
 
 # Mapeamento de comandos para funções
@@ -208,8 +333,11 @@ def start_cli_loop(db_path: str, table_name: str):
     results_stack = [(initial_df, initial_filter_terms)]
 
     # --- Exibição Inicial ---
-    print(f"\n--- Consulta Rápida de SSAs {APP_VERSION} ---")
-    print(f"Base de dados carregada: {len(initial_df)} SSAs.")
+    header = f"\n=== Consulta Rápida de SSAs v{APP_VERSION} ==="
+    if APP_VERSION_LONG:
+        header += f"\n{APP_VERSION_LONG}"
+    print(header)
+    print(f"Base: {len(initial_df)} SSAs")
     
     if not initial_df.empty:
         # Mostra o estado inicial
@@ -217,9 +345,7 @@ def start_cli_loop(db_path: str, table_name: str):
         if initial_filter_terms:
             filter_status_at_start_text = f" - Filtro(s) Aplicado(s): {', '.join(initial_filter_terms)}"
         print(f"Filtrando {len(initial_df)} SSAs{filter_status_at_start_text}")
-        print("Comandos: -d(etalhes), -v(oltar filtro), -e(xportar), -r(eset), -c(onfigurar), -h(elp), -q(uit)")
-        print("Pesquisar (virgulas para multiplos termos):")
-        
+        print("Comandos: -d, -v, -e, -r, -rescan, -c, -h, -q | Extras: -ord/-ordi <#>, -ordn/-ordni <nome>, -cols, -x [termo]")
         logger.debug("Chamando pretty_print_df inicial.")
         pretty_print_df(initial_df, display_map, settings)
     else:
@@ -229,7 +355,7 @@ def start_cli_loop(db_path: str, table_name: str):
 
     # --- Loop Principal ---
     # Comandos que requerem lógica inline ou handlers não mapeados diretamente
-    INLINE_COMMAND_PREFIXES = ['-d', '-detalhe', '-e', '-exportar', '-ord', '-ordi']
+    INLINE_COMMAND_PREFIXES = ['-d', '-detalhe', '-e', '-exportar', '-ord', '-ordi', '-ordn', '-ordni', '-cols', '-x', '-f', '-filtros', '-clear', '-clearall']
 
     while True:
         try:
@@ -245,9 +371,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 filter_status_runtime_text = f" - Filtro(s) Aplicado(s): {', '.join(current_filter_terms)}"
             
             prompt_text = (
-                f"Filtrando {len(current_df)} SSAs{filter_status_runtime_text}\n"
-                f"Comandos: -d(etalhes), -v(oltar filtro), -e(xportar), -r(eset), -c(onfigurar), -h(elp), -q(uit)\n"
-                f"Pesquisar (virgulas para multiplos termos): "
+                f"[{len(current_df)} SSAs{filter_status_runtime_text}] Buscar (vírgulas p/ múltiplos) ou comando: "
             )
             user_input = input(prompt_text).strip()
             
@@ -290,6 +414,19 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['-ord', '-ordi']:
                     ascending = (command == '-ord')
                     _handle_sort(parts, results_stack, display_map, settings, ascending)
+                elif command in ['-ordn', '-ordni']:
+                    ascending = (command == '-ordn')
+                    _handle_sort_by_name(parts, results_stack, display_map, settings, ascending)
+                elif command in ['-cols']:
+                    _handle_list_columns(current_df, display_map)
+                elif command in ['-x']:
+                    _handle_remove_filter(parts, results_stack, display_map, settings)
+                elif command in ['-clear']:
+                    _handle_clear_filters(results_stack, display_map, settings)
+                elif command in ['-f', '-filtros']:
+                    _handle_show_filters(results_stack)
+                elif command in ['-clearall']:
+                    _handle_clear_all_filters(db_path, table_name, results_stack, display_map, settings)
             
             # --- 3. Tratamento como Pesquisa/Busca ---
             else:

@@ -27,7 +27,7 @@ sys.path.insert(0, project_root)
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe
 from armazenamento.database import query_db
-from core.config_manager import load_settings # Para carregar display_mappings
+from core.config_manager import load_settings, load_display_mappings_integrity # Para carregar display_mappings
 
 # --- Importações do PyQt6 ---
 from PyQt6.QtWidgets import (
@@ -48,13 +48,8 @@ DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
-    """Carrega o mapeamento de nomes internos para nomes de exibição."""
-    try:
-        with open(DISPLAY_MAPPINGS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Aviso: Erro ao carregar display_mappings.json: {e}. Usando nomes internos.")
-        return {}
+    """Carrega o mapeamento de nomes internos para nomes de exibição com verificação de integridade."""
+    return load_display_mappings_integrity()
 
 # --- Worker Threads ---
 
@@ -179,8 +174,8 @@ class DataPaginator(QWidget):
         self.page_size = page_size
         self.current_page = 1
         self.total_pages = 1
-        self.update_pagination_info()
         self.init_ui()
+        self.update_pagination_info()
 
     def init_ui(self):
         layout = QHBoxLayout(self)
@@ -224,7 +219,9 @@ class DataPaginator(QWidget):
         else:
             self.total_pages = 1
             self.current_page = 1
-        self.page_info_label.setText(f"Página {self.current_page} de {self.total_pages}")
+        # Pode ser chamado antes do init_ui terminar em alguns cenários; proteja acesso
+        if hasattr(self, 'page_info_label') and self.page_info_label is not None:
+            self.page_info_label.setText(f"Página {self.current_page} de {self.total_pages}")
 
     def update_buttons(self):
         self.prev_button.setEnabled(self.current_page > 1)
