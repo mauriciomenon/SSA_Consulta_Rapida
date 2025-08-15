@@ -6,6 +6,11 @@ Como ler:
 - Cada dia traz tópicos, impacto e onde validar (arquivos/testes). Use em conjunto com o MAPA.
 
 ## 2025-08-15
+Patch 3.0.1 (manutenção CI/linters):
+- ESLint (SARIF): execução e upload condicionais (somente quando houver JS/TS e configuração); correção de comando multiline e remoção de `--config` inexistente.
+- PSScriptAnalyzer (SARIF): execução e upload condicionais (somente quando houver PowerShell); path POSIX e passo explícito de skip.
+- Remoção do workflow CodeQL avançado que conflita com o Default Setup (elimina erros de processamento de análises).
+
 - Filtro “5 opções” implementado end-to-end:
 	- Parser compartilhado `core/app_logic.parse_search_terms` e aplicação em `filter_dataframe`
 	- Negativos com `!`/`-`; regex com fallback para literal quando inválida
