@@ -8,6 +8,7 @@ Permite pesquisar, filtrar, ordenar, exportar e visualizar detalhes das SSAs.
 import os
 import sys
 import logging
+import re
 import pandas as pd
 from typing import Tuple, List, Dict, Any
 
@@ -350,14 +351,13 @@ def start_cli_loop(db_path: str, table_name: str):
     print(f"Base: {len(initial_df)} SSAs")
     
     if not initial_df.empty:
-        # Mostra o estado inicial
+        # Não exibe a tabela completa automaticamente ao iniciar; apenas um resumo e instruções.
         filter_status_at_start_text = ""
         if initial_filter_terms:
             filter_status_at_start_text = f" - Filtro(s) Aplicado(s): {', '.join(initial_filter_terms)}"
-        print(f"Filtrando {len(initial_df)} SSAs{filter_status_at_start_text}")
+        print(f"Pronto. {len(initial_df)} SSAs carregadas{filter_status_at_start_text}.")
+        print("Dica: digite termos separados por espaço ou vírgula para filtrar (ex.: svp mel4), ou -h para ajuda.")
         print("Comandos: -d, -v, -e, -r, -rescan, -c, -h, -q | Extras: -ord/-ordi <#>, -ordn/-ordni <nome>, -cols, -x [termo]")
-        logger.debug("Chamando pretty_print_df inicial.")
-        pretty_print_df(initial_df, display_map, settings)
     else:
         print("Nenhum dado disponível para exibição.")
         # Mesmo com dados vazios, entra no loop para permitir rescan, etc.
@@ -441,8 +441,9 @@ def start_cli_loop(db_path: str, table_name: str):
             # --- 3. Tratamento como Pesquisa/Busca ---
             else:
                 # Assume que qualquer entrada que não seja um comando conhecido é um termo de busca
-                search_terms_input = user_input.split(',')
-                processed_search_terms = [term.strip() for term in search_terms_input if term.strip()]
+                # Aceita separação por vírgulas OU espaços (um ou mais)
+                parts_terms = re.split(r"[\s,]+", user_input)
+                processed_search_terms = [term.strip() for term in parts_terms if term.strip()]
                 if processed_search_terms: # Só filtra se houver termos
                     default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
                     parsed_terms = parse_search_terms(processed_search_terms, default_mode=default_mode)
