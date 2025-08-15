@@ -11,6 +11,7 @@ import json
 import os
 from typing import Optional, Dict, Any
 import logging
+from core.config_manager import load_column_mappings_integrity
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +30,12 @@ def _load_column_mappings() -> dict:
               Retorna um dicionário vazio se o arquivo não for encontrado.
     """
     try:
-        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-            mappings = json.load(f)
-        # Inverte o mapa para {alias: canonical}
+        mappings = load_column_mappings_integrity()
         inverted_map = {alias: canonical for canonical, aliases in mappings.items() for alias in aliases}
-        logger.debug(f"Mapeamento de colunas carregado com {len(inverted_map)} entradas.")
+        logger.debug(f"Mapeamento de colunas carregado com {len(inverted_map)} entradas (via integridade).")
         return inverted_map
-    except FileNotFoundError:
-        logger.warning(f"Arquivo de mapeamento '{CONFIG_PATH}' não encontrado. "
-                       "A normalização de colunas pode falhar.")
-        return {}
-    except json.JSONDecodeError as e:
-        logger.error(f"Erro ao decodificar '{CONFIG_PATH}': {e}")
+    except Exception as e:
+        logger.error(f"Falha ao carregar mapeamentos de coluna com integridade: {e}")
         return {}
 
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:

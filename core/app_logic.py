@@ -10,7 +10,8 @@ import os
 import sys
 import logging
 import pandas as pd
-from typing import List, Set
+import re
+from typing import List, Set, Dict, Any
 
 # Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -211,52 +212,126 @@ def run_importer_logic(
         raise ImporterError("Erro crítico no processo de importação.") from e
 
 
-def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
+def parse_search_terms(search_terms: List[str], default_mode: str = 'contains') -> List[Dict[str, Any]]:
     """
-    Filtra um DataFrame com base em uma lista de termos de busca.
-    Os termos sao procurados em todas as colunas de texto do DataFrame.
+    Converte termos brutos em uma estrutura padronizada com modo e polaridade.
 
-    Args:
-        df (pd.DataFrame): O DataFrame a ser filtrado.
-        search_terms (list): Uma lista de strings para buscar.
-
-    Returns:
-        pd.DataFrame: Um novo DataFrame contendo apenas as linhas que
-                      correspondem aos criterios de busca.
+    Modos aceitos por termo:
+    - contém (padrão): foo
+    - começa com: ^foo
+    - termina com: foo$
+    - igual: =foo
+    - regex: ~foo.*bar
+    Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
     """
-    if not search_terms or df.empty:
-        return df
-
-    # Cria uma mascara booleana inicialmente verdadeira (para AND)
-    mask = pd.Series([True] * len(df), dtype=bool)
-
-    # Converte todas as colunas de objeto (strings) para string e torna minusculas
-    # para busca case-insensitive
-    str_df = df.select_dtypes(include=['object']).astype(str).apply(lambda x: x.str.lower())
-
-    # Separa termos positivos e negativos (prefixos '!' ou '-')
-    positives = []
-    negatives = []
-    for t in search_terms:
-        if not isinstance(t, str):
+    parsed: List[Dict[str, Any]] = []
+    if not search_terms:
+        return parsed
+    for raw in search_terms:
+        if not isinstance(raw, str):
             continue
-        t = t.strip()
+        t = raw.strip()
         if not t:
             continue
+        negative = False
         if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
-            negatives.append(t[1:].lower())
-        else:
-            positives.append(t.lower())
+            negative = True
+            t = t[1:]
+        # modo padrão configurável (contains/prefix/suffix/exact/regex)
+        mode = default_mode if default_mode in {'contains','prefix','suffix','exact','regex'} else 'contains'
+        value = t
+        # Marcadores explícitos têm precedência (exceto âncoras ^/$ quando default é regex)
+        if t.startswith('~') and len(t) > 1:
+            mode = 'regex'
+            value = t[1:]
+        elif t.startswith('=') and len(t) > 1:
+            mode = 'exact'
+            value = t[1:]
+        elif t.startswith('$') and len(t) > 1:
+            # Suporte ao atalho '!$foo' / '$foo' para sufixo
+            mode = 'suffix'
+            value = t[1:]
+        elif default_mode != 'regex' and t.startswith('^') and len(t) > 1:
+            mode = 'prefix'
+            value = t[1:]
+        elif default_mode != 'regex' and t.endswith('$') and len(t) > 1:
+            mode = 'suffix'
+            value = t[:-1]
+        parsed.append({
+            'raw': raw,
+            'mode': mode,
+            'value': value,
+            'negative': negative,
+        })
+    return parsed
 
-    # Aplica termos positivos: linha deve conter TODOS em alguma coluna de texto
-    for term_lower in positives:
-        term_mask = str_df.apply(lambda col: col.str.contains(term_lower, na=False)).any(axis=1)
+
+def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
+    """
+    Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
+    termos já parseados por parse_search_terms(). Busca em todas as colunas de texto.
+
+    Modos por termo: contém (padrão), começa (^), termina ($), igual (=), regex (~),
+    com suporte a negativos (! ou -).
+    """
+    if df is None or df.empty or not search_terms:
+        return df
+
+    # Extrai colunas de texto base para buscas (sem lower; usaremos case=False nos métodos)
+    base_str_df = df.select_dtypes(include=['object']).astype(str)
+    if base_str_df.shape[1] == 0:
+        # Sem colunas de texto, não há onde buscar: retorna o próprio df
+        return df
+
+    # Permite tanto termos brutos (str) quanto parseados (dict)
+    if search_terms and isinstance(search_terms[0], dict):
+        terms = search_terms  # já parseados
+    else:
+        terms = parse_search_terms(search_terms)
+
+    # Separa positivos e negativos
+    positives = [t for t in terms if not t.get('negative')]
+    negatives = [t for t in terms if t.get('negative')]
+
+    # Máscara acumulada (AND entre termos)
+    mask = pd.Series(True, index=df.index)
+
+    def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
+        mode = term.get('mode', 'contains')
+        value = term.get('value', '') or ''
+        if mode == 'contains':
+            return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
+        elif mode == 'prefix':
+            escaped = re.escape(value)
+            pattern = f'^{escaped}'
+            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
+        elif mode == 'suffix':
+            escaped = re.escape(value)
+            pattern = f'{escaped}$'
+            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
+        elif mode == 'exact':
+            escaped = re.escape(value)
+            pattern = f'^{escaped}$'
+            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
+        elif mode == 'regex':
+            try:
+                # Tenta aplicar como regex (case-insensitive)
+                return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=True)).any(axis=1)
+            except re.error:
+                # Regex inválida: faz fallback para 'contains' literal
+                return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
+        else:
+            # fallback defensivo para contains
+            return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
+
+    # Aplica positivos (linha deve satisfazer TODOS)
+    for term in positives:
+        term_mask = _mask_for_term(term)
         mask = mask & term_mask
 
-    # Aplica termos negativos: linha deve NÃO conter NENHUM desses termos
-    for term_lower in negatives:
-        neg_mask = str_df.apply(lambda col: col.str.contains(term_lower, na=False)).any(axis=1)
-        mask = mask & (~neg_mask)
-        
-    # Retorna o DataFrame filtrado
+    # Aplica negativos (linha deve NÃO satisfazer nenhum)
+    for term in negatives:
+        term_mask = _mask_for_term(term)
+        mask = mask & (~term_mask)
+
     return df[mask]
