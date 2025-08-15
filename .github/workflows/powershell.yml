@@ -31,12 +31,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect PowerShell files
+        id: detect_ps
+        shell: bash
+        run: |
+          ps_count=$(git ls-files '**/*.ps1' '**/*.psm1' '**/*.psd1' | wc -l | tr -d ' ')
+          echo "file_count=$ps_count" >> "$GITHUB_OUTPUT"
+          if [ "$ps_count" -gt 0 ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run PSScriptAnalyzer
+        if: steps.detect_ps.outputs.should_run == 'true'
         uses: microsoft/psscriptanalyzer-action@6b2948b1944407914a58661c49941824d149734f
         with:
           # Check https://github.com/microsoft/action-psscriptanalyzer for more info about the options.
           # The below set up runs PSScriptAnalyzer to your entire repository and runs some basic security rules.
-          path: .\
+          path: .
           recurse: true
           # Include your own basic security rules. Removing this option will run all the rules
           includeRule: '"PSAvoidGlobalAliases", "PSAvoidUsingConvertToSecureStringWithPlainText"'
@@ -44,7 +57,13 @@ jobs:
 
       # Upload the SARIF file generated in the previous step
       - name: Upload SARIF results file
+        if: steps.detect_ps.outputs.should_run == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
           wait-for-processing: true
+
+      - name: Skip PSScriptAnalyzer (no PowerShell files found)
+        if: steps.detect_ps.outputs.should_run != 'true'
+        run: |
+          echo "Skipping PSScriptAnalyzer SARIF upload: no .ps1/.psm1/.psd1 files present in this repository."
