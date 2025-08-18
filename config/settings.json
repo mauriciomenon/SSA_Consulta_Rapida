@@ -2,7 +2,7 @@
     "display_settings": {
         "column_widths": {
             "#": 4,
-            "N\u00ba SSA": 9,
+            "Nº SSA": 9,
             "Loc.": 10,
             "Emissor": 8,
             "Executor": 8,
@@ -48,6 +48,15 @@
             "semana_executada": true,
             "num_reprogramacoes": true,
             "execucao_parcial": true
+        },
+        "gui_column_widths": {
+            "#": 40,
+            "numero_ssa": 40,
+            "setor_executor": 40,
+            "situacao": 40,
+            "descricao_ssa": 40,
+            "data_cadastro": 40,
+            "semana_cadastro": 40
         }
     },
     "user_preferences": {
