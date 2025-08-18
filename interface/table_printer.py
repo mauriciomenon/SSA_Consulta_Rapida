@@ -395,11 +395,14 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
             print(f"Página {current_page_index + 1} de {len(pages)}")
 
             # Gera e imprime a tabela para a página atual
+            # Usa os mesmos cabeçalhos em todas as páginas para garantir largura estável
             page_table_str = tabulate(
                 current_page_df,
-                headers=final_headers if current_page_index == 0 else ["" for _ in final_headers], # Mantém largura com cabeçalho vazio
+                headers=final_headers,
                 tablefmt='presto',
-                showindex=False
+                showindex=False,
+                stralign='left',
+                disable_numparse=True
             )
             print(page_table_str)
 

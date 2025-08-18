@@ -1,0 +1,19 @@
+{
+    "kiroAgent.configureMCP": "Disabled",
+    "editor.defaultFormatter": "GitHub.copilot",
+    "editor.defaultFoldingRangeProvider": "GitHub.copilot",
+    "notebook.defaultFormatter": "GitHub.copilot",
+    "github.copilot.chat.byok.ollamaEndpoint": "http://localhost:3000",
+    "github.copilot.chat.codesearch.enabled": true,
+    "github.copilot.chat.agent.thinkingTool": true,
+    "github.copilot.chat.editor.temporalContext.enabled": true,
+    "github.copilot.chat.edits.temporalContext.enabled": true,
+    "github.copilot.chat.enableRetryAfterFilteredResponse": true,
+    "github.copilot.chat.generateTests.codeLens": true,
+    "github.copilot.chat.languageContext.fix.typescript.enabled": true,
+    "github.copilot.chat.languageContext.inline.typescript.enabled": true,
+    "github.copilot.chat.languageContext.typescript.cacheTimeout": 700,
+    "github.copilot.chat.languageContext.typescript.enabled": true,
+    "github.copilot.chat.newWorkspace.useContext7": true,
+    "github.copilot.chat.notebook.followCellExecution.enabled": true
+}
