@@ -30,7 +30,11 @@ from utils.formatting import format_dataframe_for_display
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe, parse_search_terms
 from armazenamento.database import query_db
-from core.config_manager import load_settings, load_display_mappings_integrity # Para carregar display_mappings
+from core.config_manager import (
+    load_settings,
+    save_settings,
+    load_display_mappings_integrity,  # Para carregar display_mappings
+)
 
 # --- Importações do PyQt6 ---
 from PyQt6.QtWidgets import (
@@ -290,6 +294,31 @@ class SSAMainWindow(QMainWindow):
         # Garante que colunas padrão existam no mapeamento
         self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
 
+        # Preferências do usuário (persistência GUI)
+        try:
+            settings = load_settings()
+        except Exception:
+            settings = {}
+        display_settings = (settings.get('display_settings') or {})
+        # Restaura colunas visíveis se existir em settings
+        gui_visible = display_settings.get('gui_visible_columns')
+        if isinstance(gui_visible, list) and gui_visible:
+            # Filtra apenas colunas válidas
+            self.visible_columns = [c for c in gui_visible if c in self.internal_to_display or c == '#']
+            if not self.visible_columns:
+                self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
+        # Página: restaura page_size se disponível
+        self._restored_page_size = display_settings.get('gui_page_size')
+        # Larguras salvas por coluna (internas)
+        self._saved_gui_column_widths = {}
+        gw = display_settings.get('gui_column_widths')
+        if isinstance(gw, dict):
+            for k, v in gw.items():
+                try:
+                    self._saved_gui_column_widths[k] = int(v)
+                except Exception:
+                    continue
+
         # Debounce de filtro (250ms)
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
@@ -362,18 +391,36 @@ class SSAMainWindow(QMainWindow):
         self.paginator = DataPaginator(self.df_para_tabela)
         self.paginator.page_changed.connect(self.display_current_page)
         main_layout.addWidget(self.paginator)
+        # Restaura page size se configurado
+        if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
+            self.paginator.page_size_spinbox.setValue(self._restored_page_size)
+        # Persiste alterações do page size
+        self.paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
 
         # --- Tabela de Dados ---
-        self.table_widget = QTableWidget()
+    self.table_widget = QTableWidget()
         self.table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    # Começa como Interativo; após preencher a página, aplicamos larguras fixas para estabilidade
+    self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
 
         # Conecta clique duplo para mostrar detalhes (placeholder)
-        self.table_widget.doubleClicked.connect(self.on_table_double_click)
+    self.table_widget.doubleClicked.connect(self.on_table_double_click)
+    # Atualiza painel de detalhes quando a seleção muda
+    self.table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
+    # Salva largura quando usuário redimensionar uma coluna
+    self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
 
         main_layout.addWidget(self.table_widget)
+
+    # --- Painel de Detalhes ---
+    self.details_group = QGroupBox("Detalhes da SSA Selecionada")
+    details_layout = QVBoxLayout(self.details_group)
+    self.details_text = QTextEdit()
+    self.details_text.setReadOnly(True)
+    details_layout.addWidget(self.details_text)
+    main_layout.addWidget(self.details_group)
 
         # --- Conecta Workers ---
         self.data_loader_thread = None
@@ -458,6 +505,8 @@ class SSAMainWindow(QMainWindow):
         self.df_exibido = df_filtrado
         # Atualiza o paginador com o DataFrame filtrado
         self.paginator.set_dataframe(self.df_exibido)
+    # Pré-calcula larguras estáveis para todas as colunas exibíveis com base no conjunto filtrado
+    self._compute_gui_column_widths(self.df_exibido)
         # Exibe a primeira página dos resultados filtrados
         self.display_current_page(1)
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas.")
@@ -485,6 +534,18 @@ class SSAMainWindow(QMainWindow):
         self.visible_columns = new_columns
         # Reexibe a página atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
+        # Persiste preferências
+        try:
+            settings = load_settings()
+        except Exception:
+            settings = {}
+        display_settings = (settings.get('display_settings') or {})
+        display_settings['gui_visible_columns'] = list(self.visible_columns)
+        settings['display_settings'] = display_settings
+        try:
+            save_settings(settings)
+        except Exception:
+            pass
 
     def display_current_page(self, page_number):
         """Exibe a página especificada do DataFrame filtrado."""
@@ -505,7 +566,17 @@ class SSAMainWindow(QMainWindow):
                 # Ultimo recurso: mostra todas
                 cols_to_show = self.df_para_tabela.columns.tolist()
 
-        display_df = self.df_para_tabela[cols_to_show].copy()
+        # Pina ordem essencial: '#' depois numero_ssa, loc, executor, situacao, descricao_ssa
+        def _pin(cols):
+            pinned = ['numero_ssa', 'localizacao_codigo', 'setor_executor', 'situacao', 'descricao_ssa']
+            fixed = [c for c in pinned if c in cols]
+            tail = [c for c in cols if c not in fixed]
+            return fixed + tail
+        cols_to_show = _pin(cols_to_show)
+
+    display_df = self.df_para_tabela[cols_to_show].copy()
+    # Mantém colunas atuais para mapear índice->nome ao salvar larguras
+    self._current_display_columns = ['#'] + list(display_df.columns)
 
         # Adiciona a coluna de índice '#'
         if '#' not in display_df.columns:
@@ -525,7 +596,7 @@ class SSAMainWindow(QMainWindow):
             # falha de formatação não deve quebrar a GUI; segue sem formatar
             pass
 
-        # Configura a tabela
+    # Configura a tabela
         self.table_widget.setRowCount(len(display_df))
         self.table_widget.setColumnCount(len(display_df.columns))
 
@@ -558,12 +629,89 @@ class SSAMainWindow(QMainWindow):
                     )
                 self.table_widget.setItem(row_idx, col_idx, item)
 
-        # Ajusta largura das colunas
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        for i in range(self.table_widget.columnCount()):
-            width = self.table_widget.columnWidth(i)
-            if width > 250:
-                self.table_widget.setColumnWidth(i, 250)
+        # Aplica larguras estáveis por coluna (em pixels) com modo Fixed para estabilidade entre páginas
+        header = self.table_widget.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        for i, col_name in enumerate(['#'] + list(display_df.columns)):
+            # Busca largura salva (prioritária), senão a computada
+            px = self._saved_gui_column_widths.get(col_name)
+            if px is None:
+                px = self._gui_column_pixel_widths.get(col_name)
+            # Fallbacks razoáveis: '#' pequeno, numeros médios, descrição maior
+            if px is None:
+                if col_name == '#':
+                    px = 40
+                elif col_name == 'numero_ssa':
+                    px = 80
+                elif col_name in ('descricao_ssa', 'descricao_execucao'):
+                    px = 360
+                else:
+                    px = 100
+            # Limites
+            px = max(40, min(int(px), 600))
+            self.table_widget.setColumnWidth(i, px)
+
+        # Seleciona a primeira linha (se houver) e atualiza detalhes
+        if self.table_widget.rowCount() > 0:
+            self.table_widget.selectRow(0)
+        self.update_details_from_selection()
+
+    def _compute_gui_column_widths(self, df: pd.DataFrame):
+        """Calcula larguras em pixels baseadas no conteúdo filtrado para estabilidade entre páginas."""
+        self._gui_column_pixel_widths = {}
+        if df is None or df.empty:
+            return
+        # Mapeia colunas internas -> nomes de exibição
+        disp_map = {c: self.internal_to_display.get(c, c) for c in df.columns}
+        # Estima com base no comprimento 95º percentil e cabeçalho
+        # Usa fator ~7 px por caractere como heurística (fonte monoespaçada aproximada)
+        for col in df.columns:
+            header = disp_map[col]
+            try:
+                series = df[col].dropna().astype(str)
+            except Exception:
+                series = pd.Series(dtype=str)
+            if not series.empty:
+                p95 = int(series.str.len().quantile(0.95, interpolation='lower'))
+            else:
+                p95 = 0
+            target_chars = max(len(header), p95, 3)
+            # Tweaks específicos
+            if col == 'numero_ssa':
+                target_chars = max(target_chars, 9)
+            if col in ('descricao_ssa', 'descricao_execucao'):
+                target_chars = max(target_chars, 40)
+            # Converte caracteres em pixels (aprox. 7 px por char) + margem
+            px = target_chars * 7 + 16
+            self._gui_column_pixel_widths[col] = px
+        # Inclui '#' default
+        self._gui_column_pixel_widths['#'] = max(40, self._saved_gui_column_widths.get('#', 40))
+
+    def _on_header_section_resized(self, logical_index: int, old_size: int, new_size: int):
+        """Salva a largura ajustada pelo usuário na configuração persistente."""
+        try:
+            cols = getattr(self, '_current_display_columns', None)
+            if not cols or logical_index < 0 or logical_index >= len(cols):
+                return
+            col_name = cols[logical_index]
+            # Persist only reasonable sizes
+            new_px = max(30, min(int(new_size), 1200))
+            # Atualiza cache local
+            self._saved_gui_column_widths[col_name] = new_px
+            # Salva em settings
+            try:
+                settings = load_settings()
+            except Exception:
+                settings = {}
+            ds = (settings.get('display_settings') or {})
+            col_widths = (ds.get('gui_column_widths') or {})
+            col_widths[col_name] = new_px
+            ds['gui_column_widths'] = col_widths
+            settings['display_settings'] = ds
+            save_settings(settings)
+        except Exception:
+            # Evita quebrar a GUI por falhas de IO
+            pass
 
     def on_table_double_click(self, index):
         """Placeholder para ação de clique duplo (ex: mostrar detalhes)."""
@@ -583,6 +731,57 @@ class SSAMainWindow(QMainWindow):
                 )
             else:
                 QMessageBox.information(self, "Info", "Não foi possível encontrar os dados detalhados para esta linha.")
+
+    def _save_page_size_pref(self, new_size: int):
+        """Persiste o tamanho da página no settings."""
+        try:
+            settings = load_settings()
+        except Exception:
+            settings = {}
+        display_settings = (settings.get('display_settings') or {})
+        display_settings['gui_page_size'] = int(new_size)
+        settings['display_settings'] = display_settings
+        try:
+            save_settings(settings)
+        except Exception:
+            pass
+
+    def update_details_from_selection(self):
+        """Atualiza o painel de detalhes com base na linha selecionada."""
+        if self.table_widget.rowCount() == 0:
+            self.details_text.clear()
+            return
+        selected_rows = self.table_widget.selectionModel().selectedRows()
+        if not selected_rows:
+            self.details_text.clear()
+            return
+        row = selected_rows[0].row()
+        index_item = self.table_widget.item(row, 0)
+        if not index_item:
+            self.details_text.clear()
+            return
+        original_index = index_item.data(Qt.ItemDataRole.UserRole)
+        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
+            self.details_text.clear()
+            return
+
+        # Usa dados originais (não formatados) para detalhes
+        series = self.df_exibido.iloc[int(original_index)]
+        # Constrói um texto amigável com nomes de exibição
+        lines = []
+        for col, value in series.items():
+            display_name = self.internal_to_display.get(col, col)
+            # Mostra numero_ssa "natural" (int se possível)
+            if col == 'numero_ssa':
+                try:
+                    if pd.notna(value):
+                        value = int(value)
+                except Exception:
+                    pass
+            text = "" if pd.isna(value) else str(value)
+            lines.append(f"{display_name}: {text}")
+        details_str = "\n".join(lines)
+        self.details_text.setPlainText(details_str)
 
 # --- Ponto de Entrada ---
 if __name__ == '__main__':
