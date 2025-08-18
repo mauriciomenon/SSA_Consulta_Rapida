@@ -311,6 +311,7 @@ class SSAMainWindow(QMainWindow):
         self._restored_page_size = display_settings.get('gui_page_size')
         # Larguras salvas por coluna (internas)
         self._saved_gui_column_widths = {}
+        self._gui_column_pixel_widths = {}  # Inicializa o atributo que estava faltando
         gw = display_settings.get('gui_column_widths')
         if isinstance(gw, dict):
             for k, v in gw.items():
@@ -398,29 +399,29 @@ class SSAMainWindow(QMainWindow):
         self.paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
 
         # --- Tabela de Dados ---
-    self.table_widget = QTableWidget()
+        self.table_widget = QTableWidget()
         self.table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-    # Começa como Interativo; após preencher a página, aplicamos larguras fixas para estabilidade
-    self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        # Começa como Interativo; após preencher a página, aplicamos larguras fixas para estabilidade
+        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
 
         # Conecta clique duplo para mostrar detalhes (placeholder)
-    self.table_widget.doubleClicked.connect(self.on_table_double_click)
-    # Atualiza painel de detalhes quando a seleção muda
-    self.table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-    # Salva largura quando usuário redimensionar uma coluna
-    self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
+        self.table_widget.doubleClicked.connect(self.on_table_double_click)
+        # Atualiza painel de detalhes quando a seleção muda
+        self.table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
+        # Salva largura quando usuário redimensionar uma coluna
+        self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
 
         main_layout.addWidget(self.table_widget)
 
-    # --- Painel de Detalhes ---
-    self.details_group = QGroupBox("Detalhes da SSA Selecionada")
-    details_layout = QVBoxLayout(self.details_group)
-    self.details_text = QTextEdit()
-    self.details_text.setReadOnly(True)
-    details_layout.addWidget(self.details_text)
-    main_layout.addWidget(self.details_group)
+        # --- Painel de Detalhes ---
+        self.details_group = QGroupBox("Detalhes da SSA Selecionada")
+        details_layout = QVBoxLayout(self.details_group)
+        self.details_text = QTextEdit()
+        self.details_text.setReadOnly(True)
+        details_layout.addWidget(self.details_text)
+        main_layout.addWidget(self.details_group)
 
         # --- Conecta Workers ---
         self.data_loader_thread = None
@@ -505,8 +506,8 @@ class SSAMainWindow(QMainWindow):
         self.df_exibido = df_filtrado
         # Atualiza o paginador com o DataFrame filtrado
         self.paginator.set_dataframe(self.df_exibido)
-    # Pré-calcula larguras estáveis para todas as colunas exibíveis com base no conjunto filtrado
-    self._compute_gui_column_widths(self.df_exibido)
+        # Pré-calcula larguras estáveis para todas as colunas exibíveis com base no conjunto filtrado
+        self._compute_gui_column_widths(self.df_exibido)
         # Exibe a primeira página dos resultados filtrados
         self.display_current_page(1)
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas.")
@@ -574,9 +575,9 @@ class SSAMainWindow(QMainWindow):
             return fixed + tail
         cols_to_show = _pin(cols_to_show)
 
-    display_df = self.df_para_tabela[cols_to_show].copy()
-    # Mantém colunas atuais para mapear índice->nome ao salvar larguras
-    self._current_display_columns = ['#'] + list(display_df.columns)
+        display_df = self.df_para_tabela[cols_to_show].copy()
+        # Mantém colunas atuais para mapear índice->nome ao salvar larguras
+        self._current_display_columns = ['#'] + list(display_df.columns)
 
         # Adiciona a coluna de índice '#'
         if '#' not in display_df.columns:
