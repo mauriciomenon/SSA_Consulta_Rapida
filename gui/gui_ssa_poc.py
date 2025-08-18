@@ -26,6 +26,51 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# --- Função para Carregar Configurações da GUI PoC ---
+def load_gui_preferences():
+    """Carrega configurações específicas da GUI PoC do arquivo JSON"""
+    config_path = os.path.join(project_root, 'config', 'gui_poc_preferences.json')
+    
+    # Configurações padrão caso o arquivo não exista
+    default_config = {
+        "display_columns": [
+            "numero_ssa", "situacao", "derivada_de", "localizacao_codigo",
+            "semana_cadastro", "data_cadastro", "descricao_ssa",
+            "setor_executor", "setor_emissor", "solicitante", "semana_programada",
+            "descricao_execucao"
+        ],
+        "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
+        "column_display_names": {
+            "numero_ssa": "Número SSA", "situacao": "Situação", 
+            "derivada_de": "Derivada de", "localizacao_codigo": "Localização",
+            "semana_cadastro": "Cadastro", "data_cadastro": "Data Cadastro",
+            "descricao_ssa": "Descrição da SSA", "setor_executor": "Executor",
+            "setor_emissor": "Emissor", "solicitante": "Solicitante",
+            "semana_programada": "Sem. Prog.", "descricao_execucao": "Descrição Execução"
+        },
+        "column_widths": {
+            "numero_ssa": 85, "situacao": 65, "derivada_de": 85,
+            "localizacao_codigo": 85, "semana_cadastro": 65, "data_cadastro": 85,
+            "setor_executor": 65, "setor_emissor": 60, "solicitante": 120,
+            "semana_programada": 75, "descricao_ssa": 350, "descricao_execucao": 130
+        },
+        "stretch_columns": ["descricao_ssa"]
+    }
+    
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            print(f"Arquivo de configuração não encontrado em {config_path}, usando padrões.")
+            return default_config
+    except Exception as e:
+        print(f"Erro ao carregar configurações: {e}, usando padrões.")
+        return default_config
+
+# Carrega as configurações globalmente
+GUI_PREFERENCES = load_gui_preferences()
+
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe
 from armazenamento.database import query_db
@@ -44,34 +89,10 @@ from PyQt6.QtGui import QClipboard, QFont, QAction
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
 TABLE_NAME = 'ssas'
 
-# Mapeamento de títulos das colunas conforme especificado
-COLUMN_DISPLAY_NAMES = {
-    'numero_ssa': 'Número SSA',
-    'situacao': 'Situação', 
-    'derivada_de': 'Derivada de',
-    'localizacao_codigo': 'Localização',
-    'descricao_localizacao': 'Descrição Localização',
-    'equipamento': 'Equipamento',
-    'semana_cadastro': 'Cadastro',  # Encurtado conforme solicitado
-    'data_cadastro': 'Data Cadastro',
-    'descricao_ssa': 'Descrição da SSA',
-    'setor_executor': 'Executor',
-    'setor_emissor': 'Emissor',
-    'solicitante': 'Solicitante',  # Corrigido conforme solicitado
-    'servico_origem': 'Origem',  # Encurtado conforme solicitado
-    'grau_prioridade_emissao': 'Prio. Emissão',  # Encurtado conforme solicitado
-    'execucao_simples': 'Exec. Simples',  # Encurtado conforme solicitado
-    'semana_programada': 'Sem. Prog.',  # Encurtado conforme solicitado
-    'tempo_disponivel': 'Tempo Disponível',
-    'data_limite': 'Data Limite',
-    'tempo_excedido': 'Tempo Excedido',
-    'desde': 'Desde',
-    'tempo_total': 'Tempo Total',
-    'desde_1': 'Desde1'  # Conforme solicitado
-}
-
-# Colunas que não devem ser exibidas
-HIDDEN_COLUMNS = ['descricao_localizacao', 'equipamento']
+# --- Configurações Dinâmicas da GUI PoC (carregadas do JSON) ---
+COLUMN_DISPLAY_NAMES = GUI_PREFERENCES.get("column_display_names", {})
+PRIORITY_COLUMNS = GUI_PREFERENCES.get("display_columns", [])
+HIDDEN_COLUMNS = GUI_PREFERENCES.get("hidden_columns", [])
 
 # --- Diálogo de Ajuda para Filtros ---
 class FilterHelpDialog(QDialog):
@@ -195,13 +216,14 @@ class SSAMainWindow(QMainWindow):
         toolbar_layout = QHBoxLayout()
         
         # Botão de carregar dados
-        self.load_button = QPushButton("Carregar Dados")
-        self.load_button.clicked.connect(self.load_data)
+        # Botão About (antigo carregar dados)
+        self.about_button = QPushButton("About")
+        self.about_button.clicked.connect(self.show_about)
         
-        # Botão de ajuda para filtros (mesmo tamanho que carregar dados)
+        # Botão de ajuda para filtros (mesmo tamanho que about)
         self.help_button = QPushButton("Ajuda Filtros")
         self.help_button.clicked.connect(self.show_filter_help)
-        self.help_button.setMinimumWidth(self.load_button.sizeHint().width())
+        self.help_button.setMinimumWidth(self.about_button.sizeHint().width())
         
         # Botão para navegar e carregar outro DB
         self.browse_button = QPushButton("Abrir DB...")
@@ -222,7 +244,7 @@ class SSAMainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0) # Modo indeterminado
 
-        toolbar_layout.addWidget(self.load_button)
+        toolbar_layout.addWidget(self.about_button)
         toolbar_layout.addWidget(self.help_button)
         toolbar_layout.addWidget(self.browse_button)
         toolbar_layout.addStretch() # Espaco vazio
@@ -252,6 +274,9 @@ class SSAMainWindow(QMainWindow):
         # Conecta duplo clique no divisor para otimizar largura da coluna
         self.table_widget.horizontalHeader().sectionDoubleClicked.connect(self.optimize_column_width)
         
+        # Conecta duplo clique na linha para mostrar detalhes completos
+        self.table_widget.cellDoubleClicked.connect(self.show_row_details)
+        
         # Configura menu de contexto
         self.table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_widget.customContextMenuRequested.connect(self.show_context_menu)
@@ -275,6 +300,75 @@ class SSAMainWindow(QMainWindow):
         """Mostra o diálogo de ajuda para filtros."""
         help_dialog = FilterHelpDialog(self)
         help_dialog.exec()
+    
+    def show_about(self):
+        """Mostra informações sobre o programa e funcionalidades implementadas."""
+        about_dialog = QDialog(self)
+        about_dialog.setWindowTitle("Sobre - Consulta Rápida SSAs PoC")
+        about_dialog.setFixedSize(600, 500)
+        
+        layout = QVBoxLayout()
+        
+        # Título
+        title = QLabel("Consulta Rápida de SSAs - PoC Melhorada")
+        title_font = QFont()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Conteúdo
+        content = QTextEdit()
+        content.setReadOnly(True)
+        content.setHtml("""
+        <h3>Funcionalidades Implementadas</h3>
+        <ul>
+            <li><b>Carregamento Automático:</b> Dados carregados automaticamente na inicialização</li>
+            <li><b>Sistema de Filtros Avançado:</b> Busca por múltiplos termos (vírgula ou espaço)</li>
+            <li><b>Ajuda de Filtros:</b> Instruções detalhadas sobre como usar os filtros</li>
+            <li><b>Ordenação por Colunas:</b> Clique no cabeçalho para ordenar</li>
+            <li><b>Cópia de Dados:</b> Menu botão direito - Copiar valor ou linha inteira</li>
+            <li><b>Títulos Personalizados:</b> Nomes de colunas otimizados e encurtados</li>
+            <li><b>Otimizações de Performance:</b> Limitação inteligente a 300 registros</li>
+            <li><b>Barra de Progresso:</b> Feedback visual para operações longas</li>
+            <li><b>Otimização de Colunas:</b> Duplo clique no divisor ajusta largura</li>
+            <li><b>Interface Responsiva:</b> Carregamento em lotes para evitar travamentos</li>
+            <li><b>Detalhes de Linha:</b> Duplo clique na linha mostra todos os dados da SSA</li>
+        </ul>
+        
+        <h3>Melhorias de Performance</h3>
+        <ul>
+            <li><b>Limitação Inteligente:</b> Exibe máximo 300 registros, busca em todo o dataset</li>
+            <li><b>Carregamento em Lotes:</b> Processamento em batches para UI responsiva</li>
+            <li><b>Colunas Prioritárias:</b> Mostra apenas colunas essenciais até 'Descrição Execução'</li>
+            <li><b>Threading:</b> Operações de I/O em threads separadas</li>
+            <li><b>Números Otimizados:</b> Remove decimais desnecessários (202542.0 → 202542)</li>
+        </ul>
+        
+        <h3>Como Usar</h3>
+        <ul>
+            <li><b>Filtros:</b> Digite termos separados por vírgula ou espaço</li>
+            <li><b>Cópia:</b> Botão direito → Copiar Valor ou Copiar Linha</li>
+            <li><b>Ordenação:</b> Clique no cabeçalho da coluna</li>
+            <li><b>Ajuste de Colunas:</b> Duplo clique entre divisores</li>
+            <li><b>Banco Externo:</b> Use 'Abrir DB...' para carregar outro banco</li>
+            <li><b>Detalhes Completos:</b> Duplo clique na linha para ver todos os campos da SSA</li>
+        </ul>
+        
+        <p><b>Versão:</b> PoC Otimizada v2.0<br>
+        <b>Data:</b> 2025-08-18<br>
+        <b>Repositório:</b> <a href="https://github.com/mauriciomenon/SSA_Consulta_Rapida">https://github.com/mauriciomenon/SSA_Consulta_Rapida</a></p>
+        """)
+        layout.addWidget(content)
+        
+        # Botão OK
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        button_box.accepted.connect(about_dialog.accept)
+        layout.addWidget(button_box)
+        
+        about_dialog.setLayout(layout)
+        about_dialog.exec()
     
     def browse_database(self):
         """Permite navegar e selecionar um arquivo de banco de dados."""
@@ -338,9 +432,15 @@ class SSAMainWindow(QMainWindow):
              QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' não encontrado. Execute o programa principal primeiro.")
              return
 
+        # OTIMIZAÇÃO: Verifica se já existe uma thread rodando
+        if hasattr(self, 'data_loader_thread') and self.data_loader_thread is not None:
+            if self.data_loader_thread.isRunning():
+                self.status_label.setText("Status: Carregamento já em andamento...")
+                return
+            
         self.status_label.setText("Status: Carregando dados...")
         self.progress_bar.setVisible(True)
-        self.load_button.setEnabled(False)
+        self.about_button.setEnabled(False)
         self.search_button.setEnabled(False)
 
         # Cria e inicia a thread de carregamento
@@ -375,7 +475,7 @@ class SSAMainWindow(QMainWindow):
     def on_load_finished(self):
         """Callback chamado quando a thread de carregamento termina."""
         self.progress_bar.setVisible(False)
-        self.load_button.setEnabled(True)
+        self.about_button.setEnabled(True)
         self.search_button.setEnabled(True)
         # Limpa a referencia da thread
         self.data_loader_thread = None
@@ -387,6 +487,13 @@ class SSAMainWindow(QMainWindow):
             return
 
         search_text = self.search_input.text().strip()
+        
+        # Limita tamanho do texto de busca para evitar problemas
+        if len(search_text) > 100:
+            QMessageBox.warning(self, "Filtro muito longo", "O filtro foi limitado a 100 caracteres para evitar problemas de performance.")
+            search_text = search_text[:100]
+            self.search_input.setText(search_text)
+        
         if not search_text:
             # OTIMIZAÇÃO: Se vazio, limita a 300 registros para evitar travamento
             MAX_DISPLAY = 300
@@ -401,9 +508,18 @@ class SSAMainWindow(QMainWindow):
             return
 
         try:
-            # Divide os termos de busca por vírgula ou espaço
+            # Divide os termos de busca por vírgula ou espaço (mais robusto)
             import re
-            search_terms = [term.strip() for term in re.split(r'[,\s]+', search_text) if term.strip()]
+            search_terms = []
+            
+            # Sanitiza entrada para evitar regex problemáticos
+            safe_text = re.sub(r'[^\w\s,!.-]', '', search_text)
+            raw_terms = re.split(r'[,\s]+', safe_text)
+            
+            for term in raw_terms:
+                term = term.strip()
+                if term and len(term) >= 1:  # Evita termos muito curtos que podem causar match excessivo
+                    search_terms.append(term)
             
             if search_terms:
                 # Mostra progresso para operações longas
@@ -412,7 +528,16 @@ class SSAMainWindow(QMainWindow):
                     QApplication.processEvents()  # Atualiza a UI
                 
                 # IMPORTANTE: Usa a funcao de filtragem existente do projeto em TODO o dataset
-                df_filtrado_completo = filter_dataframe(self.df_completo, search_terms)
+                # Adiciona timeout/limite para evitar travamento
+                try:
+                    df_filtrado_completo = filter_dataframe(self.df_completo, search_terms)
+                except Exception as filter_error:
+                    self.progress_bar.setVisible(False)
+                    QMessageBox.critical(self, "Erro de Filtro", 
+                                       f"Erro durante a filtragem: {filter_error}\n\n"
+                                       f"Termos de busca: {search_terms}")
+                    self.status_label.setText("Status: Erro ao aplicar filtro.")
+                    return
                 
                 # OTIMIZAÇÃO: Limita exibição dos resultados filtrados a 300 para performance
                 MAX_FILTERED_DISPLAY = 300
@@ -432,13 +557,19 @@ class SSAMainWindow(QMainWindow):
                     self.progress_bar.setVisible(False)
             else:
                  # Caso todos os termos sejam vazios apos o strip
-                 self.df_exibido = self.df_completo.copy()
+                 self.df_exibido = self.df_completo.head(300).copy()  # Limita para evitar travamento
                  self.display_data(self.df_exibido)
-                 self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs exibidas (sem filtro).")
+                 self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs exibidas (filtro vazio).")
         except Exception as e:
             self.progress_bar.setVisible(False)
-            QMessageBox.critical(self, "Erro de Filtro", f"Ocorreu um erro ao aplicar o filtro: {e}")
+            QMessageBox.critical(self, "Erro de Filtro", 
+                               f"Ocorreu um erro inesperado ao aplicar o filtro: {e}\n\n"
+                               f"Texto de busca: '{search_text}'\n"
+                               f"Se o problema persistir, tente termos mais simples.")
             self.status_label.setText("Status: Erro ao aplicar filtro.")
+            # Recupera estado seguro
+            self.df_exibido = self.df_completo.head(300).copy()
+            self.display_data(self.df_exibido)
 
     def display_data(self, df: pd.DataFrame):
         """Exibe o DataFrame em QTableWidget com mapeamento de colunas e ocultação de colunas."""
@@ -447,9 +578,35 @@ class SSAMainWindow(QMainWindow):
             self.table_widget.setColumnCount(0)
             return
 
-        # Filtra colunas para exibição (remove as ocultas)
-        visible_columns = [col for col in df.columns if col not in HIDDEN_COLUMNS]
-        df_display = df[visible_columns].copy()
+        # Use PRIORITY_COLUMNS para definir quais colunas exibir
+        # Filtra apenas colunas que existem no DataFrame e não estão ocultas
+        # CORREÇÃO: Tenta variações de nomes de colunas para pegar os dados corretos
+        available_columns = []
+        
+        # Mapeamento de colunas prioritárias com alternativas
+        column_alternatives = {
+            'numero_ssa': ['Número da SSA', 'numero_ssa'],
+            'semana_cadastro': ['Semana de Cadastro', 'semana_cadastro'], 
+            'descricao_execucao': ['Descrição Execução', 'descricao_execucao']
+        }
+        
+        for col in PRIORITY_COLUMNS:
+            column_found = None
+            
+            # Se a coluna tem alternativas, tenta encontrar a melhor
+            if col in column_alternatives:
+                for alt_col in column_alternatives[col]:
+                    if alt_col in df.columns and alt_col not in HIDDEN_COLUMNS:
+                        column_found = alt_col
+                        break
+            # Senão, usa o nome original
+            elif col in df.columns and col not in HIDDEN_COLUMNS:
+                column_found = col
+                
+            if column_found:
+                available_columns.append(column_found)
+        
+        df_display = df[available_columns].copy()
 
         # Otimização: desativa atualizações durante o preenchimento
         self.table_widget.setUpdatesEnabled(False)
@@ -488,12 +645,14 @@ class SSAMainWindow(QMainWindow):
                             item_text = str(int(value))
                         else:
                             item_text = str(value)
+                            
+                        # CORREÇÃO: Formatação especial para data_cadastro (remove hora/minuto/segundo)
+                        if col_name == 'data_cadastro' and len(item_text) > 10:
+                            if ' ' in item_text:
+                                item_text = item_text.split(' ')[0]  # Pega só a data
                         
-                        # Limite de tamanho para descrições longas
-                        if col_name == 'descricao_ssa' and len(item_text) > 120:  # Aumentei o limite
-                            item_text = item_text[:117] + "..."
-                        elif col_name == 'descricao_execucao' and len(item_text) > 80:  # Novo limite para descrição execução
-                            item_text = item_text[:77] + "..."
+                        # Texto completo sem limitações para melhor visualização
+                        # (As colunas agora são largas o suficiente para mostrar mais conteúdo)
                         
                         # Cria um item da tabela
                         item = QTableWidgetItem(item_text)
@@ -513,34 +672,34 @@ class SSAMainWindow(QMainWindow):
             # Sempre reativa as atualizações
             self.table_widget.setUpdatesEnabled(True)
         
-        # Ajusta o cabecalho horizontal para o conteudo, mas com limites
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # CONFIGURAÇÃO DE LARGURAS DAS COLUNAS DINÂMICA (do JSON)
+        column_widths = GUI_PREFERENCES.get("column_widths", {})
+        stretch_columns = GUI_PREFERENCES.get("stretch_columns", [])
         
-        # Define larguras máximas para colunas específicas
-        column_max_widths = {
-            'numero_ssa': 120,
-            'situacao': 80,
-            'derivada_de': 100,
-            'localizacao_codigo': 120,
-            'semana_cadastro': 100,
-            'data_cadastro': 120,
-            'descricao_ssa': 300,
-            'setor_executor': 80,
-            'setor_emissor': 80
-        }
-        
+        # Aplica larguras configuradas no JSON
         for i, col_name in enumerate(df_display.columns):
-            width = self.table_widget.columnWidth(i)
-            max_width = column_max_widths.get(col_name, 200)
-            if width > max_width:
-                self.table_widget.setColumnWidth(i, max_width)
-                
-        # Permite que a descrição da SSA use mais espaço se disponível
-        if 'descricao_ssa' in df_display.columns:
-            desc_col_idx = list(df_display.columns).index('descricao_ssa')
-            self.table_widget.horizontalHeader().setSectionResizeMode(
-                desc_col_idx, QHeaderView.ResizeMode.Stretch
-            )
+            # Verifica primeiro por nome exato, depois por alternativas
+            width = column_widths.get(col_name)
+            if width is None:
+                # Tenta alternativas comuns
+                if col_name == 'Número da SSA':
+                    width = column_widths.get('numero_ssa', 85)
+                elif col_name == 'Semana de Cadastro':
+                    width = column_widths.get('semana_cadastro', 65)
+                elif col_name == 'Descrição Execução':
+                    width = column_widths.get('descricao_execucao', 130)
+                else:
+                    width = 100  # Largura padrão
+            
+            self.table_widget.setColumnWidth(i, width)
+        
+        # Configura modo de resize para colunas que devem crescer
+        for stretch_col in stretch_columns:
+            if stretch_col in df_display.columns:
+                stretch_idx = list(df_display.columns).index(stretch_col)
+                self.table_widget.horizontalHeader().setSectionResizeMode(
+                    stretch_idx, QHeaderView.ResizeMode.Stretch
+                )
 
     def show_context_menu(self, position: QPoint):
         """Mostra menu de contexto para copiar dados."""
@@ -605,6 +764,89 @@ class SSAMainWindow(QMainWindow):
             self.table_widget.setColumnWidth(logical_index, optimized_width)
             
             self.status_label.setText(f"Status: Coluna otimizada para largura {optimized_width}px.")
+
+    def show_row_details(self, row: int, column: int):
+        """Mostra uma janela com todos os detalhes da SSA selecionada."""
+        if row < 0 or row >= len(self.df_exibido):
+            return
+            
+        # Obtém todos os dados da linha (do dataset completo, não apenas exibido)
+        ssa_data = self.df_exibido.iloc[row]
+        
+        # Cria o diálogo de detalhes
+        details_dialog = QDialog(self)
+        details_dialog.setWindowTitle(f"Detalhes da SSA - {ssa_data.get('numero_ssa', 'N/A')}")
+        details_dialog.setFixedSize(700, 600)
+        
+        layout = QVBoxLayout()
+        
+        # Título
+        title = QLabel(f"📋 SSA #{ssa_data.get('numero_ssa', 'N/A')} - {ssa_data.get('situacao', 'N/A')}")
+        title_font = QFont()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        layout.addWidget(title)
+        
+        # Conteúdo detalhado
+        content = QTextEdit()
+        content.setReadOnly(True)
+        
+        # Monta o HTML com todos os dados
+        html_content = "<table border='1' cellpadding='5' cellspacing='0' width='100%'>"
+        
+        for col_name, value in ssa_data.items():
+            if pd.notna(value):
+                display_name = self.get_display_name(col_name)
+                # Formata valores numéricos
+                if isinstance(value, float) and value.is_integer():
+                    display_value = str(int(value))
+                else:
+                    display_value = str(value)
+                    
+                html_content += f"""
+                <tr>
+                    <td width='30%'><b>{display_name}:</b></td>
+                    <td width='70%'>{display_value}</td>
+                </tr>
+                """
+        
+        html_content += "</table>"
+        content.setHtml(html_content)
+        layout.addWidget(content)
+        
+        # Botões
+        button_layout = QHBoxLayout()
+        
+        # Botão copiar todos os dados
+        copy_all_button = QPushButton("Copiar Todos os Dados")
+        copy_all_button.clicked.connect(lambda: self.copy_all_ssa_data(ssa_data))
+        button_layout.addWidget(copy_all_button)
+        
+        # Botão fechar
+        close_button = QPushButton("Fechar")
+        close_button.clicked.connect(details_dialog.accept)
+        button_layout.addWidget(close_button)
+        
+        layout.addLayout(button_layout)
+        details_dialog.setLayout(layout)
+        details_dialog.exec()
+    
+    def copy_all_ssa_data(self, ssa_data):
+        """Copia todos os dados da SSA para a área de transferência."""
+        data_text = ""
+        for col_name, value in ssa_data.items():
+            if pd.notna(value):
+                display_name = self.get_display_name(col_name)
+                if isinstance(value, float) and value.is_integer():
+                    display_value = str(int(value))
+                else:
+                    display_value = str(value)
+                data_text += f"{display_name}: {display_value}\n"
+        
+        clipboard = QApplication.clipboard()
+        clipboard.setText(data_text)
+        self.status_label.setText("Status: Todos os dados da SSA copiados para área de transferência.")
 
 # --- Ponto de Entrada da Aplicacao ---
 if __name__ == '__main__':

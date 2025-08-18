@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""
+Testes de Estabilidade para GUI SSA PoC
+=====================================
+
+Este módulo contém testes específicos para monitorar travamentos e performance
+da GUI SSA PoC conforme solicitado.
+
+Autor: GitHub Copilot
+Data: 2025-08-18
+"""
+
+import sys
+import os
+import time
+import unittest
+from unittest.mock import patch
+import pandas as pd
+
+# Adiciona o projeto ao path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+# Importações específicas
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtTest import QTest
+from PyQt6.QtCore import Qt
+from gui.gui_ssa_poc import SSAMainWindow
+
+
+class TestGUIStability(unittest.TestCase):
+    """Testes de estabilidade para a GUI."""
+    
+    @classmethod
+    def setUpClass(cls):
+        """Configuração inicial dos testes."""
+        if not QApplication.instance():
+            cls.app = QApplication([])
+        else:
+            cls.app = QApplication.instance()
+    
+    def setUp(self):
+        """Configuração antes de cada teste."""
+        self.window = SSAMainWindow()
+        self.window.show()
+        
+        # Mock data para testes
+        self.mock_data = pd.DataFrame({
+            'numero_ssa': [20251, 20252, 20253, 20254, 20255],
+            'situacao': ['Pendente', 'Executada', 'Em Execução', 'Cancelada', 'Pendente'],
+            'derivada_de': ['', '', '', '', ''],
+            'localizacao_codigo': ['G076', 'G077', 'G078', 'G079', 'G080'],
+            'equipamento': ['EQ001', 'EQ002', 'EQ003', 'EQ004', 'EQ005'],
+            'semana_cadastro': [1, 2, 3, 4, 5],
+            'data_cadastro': ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05'],
+            'descricao_ssa': ['Teste 1', 'Teste 2', 'Teste 3', 'Teste 4', 'Teste 5'],
+            'setor_executor': ['MEL3', 'MEL4', 'MEL3', 'MEL4', 'MEL3'],
+            'setor_emissor': ['IE3', 'IE3', 'IE4', 'IE3', 'IE4'],
+            'solicitante': ['JOÃO', 'MARIA', 'PEDRO', 'ANA', 'CARLOS'],
+            'servico_origem': ['SV1', 'SV2', 'SV3', 'SV4', 'SV5'],
+            'grau_prioridade_emissao': [1, 2, 3, 4, 5],
+            'execucao_simples': ['Sim', 'Não', 'Sim', 'Não', 'Sim'],
+            'semana_programada': [10, 11, 12, 13, 14],
+            'descricao_execucao': ['Descrição 1', 'Descrição 2', 'Descrição 3', 'Descrição 4', 'Descrição 5']
+        })
+        
+        # Simula dados carregados
+        self.window.df_completo = self.mock_data.copy()
+        self.window.df_exibido = self.mock_data.copy()
+    
+    def tearDown(self):
+        """Limpeza após cada teste."""
+        self.window.close()
+    
+    def test_filtro_travamento_svp(self):
+        """Testa especificamente o filtro 'svp' que causava travamento."""
+        print("\n🧪 Testando filtro 'svp' que causava travamento...")
+        
+        start_time = time.time()
+        
+        # Simula digitação do filtro problemático
+        self.window.search_input.setText("svp")
+        
+        # Simula pressionar Enter
+        QTest.keyPress(self.window.search_input, Qt.Key.Key_Return)
+        
+        # Permite processamento
+        QApplication.processEvents()
+        
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        # Verifica se não travou (resposta em menos de 2 segundos)
+        self.assertLess(response_time, 2.0, f"Filtro 'svp' demorou {response_time:.2f}s - possível travamento")
+        print(f"✅ Filtro 'svp' processado em {response_time:.3f}s")
+    
+    def test_filtros_problematicos(self):
+        """Testa filtros que podem causar problemas."""
+        filtros_teste = [
+            "svp", "mel", "g076", "pendente", "executada", 
+            "!", "!!!", "", "   ", ",,,", "mel,svp,g076"
+        ]
+        
+        print(f"\n🧪 Testando {len(filtros_teste)} filtros potencialmente problemáticos...")
+        
+        for filtro in filtros_teste:
+            with self.subTest(filtro=filtro):
+                start_time = time.time()
+                
+                # Simula filtro
+                self.window.search_input.setText(filtro)
+                self.window.filter_data()
+                QApplication.processEvents()
+                
+                end_time = time.time()
+                response_time = end_time - start_time
+                
+                # Verifica se não travou
+                self.assertLess(response_time, 2.0, 
+                               f"Filtro '{filtro}' demorou {response_time:.2f}s - possível travamento")
+                print(f"  ✅ '{filtro}': {response_time:.3f}s")
+    
+    def test_carregamento_dados_grandes(self):
+        """Testa performance com datasets grandes."""
+        print("\n🧪 Testando performance com dataset grande...")
+        
+        # Cria dataset grande (1000 registros)
+        large_data = pd.concat([self.mock_data] * 200, ignore_index=True)
+        large_data['numero_ssa'] = range(20001, 20001 + len(large_data))
+        
+        start_time = time.time()
+        
+        # Simula carregamento
+        self.window.df_completo = large_data
+        self.window.df_exibido = large_data.head(300)  # Limitação implementada
+        self.window.display_data(self.window.df_exibido)
+        QApplication.processEvents()
+        
+        end_time = time.time()
+        load_time = end_time - start_time
+        
+        # Verifica se carregou em tempo aceitável
+        self.assertLess(load_time, 5.0, f"Carregamento de {len(large_data)} registros demorou {load_time:.2f}s")
+        print(f"✅ Dataset de {len(large_data)} registros carregado em {load_time:.3f}s")
+    
+    def test_colunas_obrigatorias(self):
+        """Verifica se as colunas obrigatórias estão sendo exibidas."""
+        print("\n🧪 Testando exibição de colunas obrigatórias...")
+        
+        # Força exibição dos dados
+        self.window.display_data(self.window.df_exibido)
+        QApplication.processEvents()
+        
+        # Verifica se a tabela foi populada
+        self.assertGreater(self.window.table_widget.columnCount(), 0, "Nenhuma coluna foi exibida")
+        self.assertGreater(self.window.table_widget.rowCount(), 0, "Nenhuma linha foi exibida")
+        
+        # Verifica colunas específicas mencionadas pelo usuário
+        headers = [self.window.table_widget.horizontalHeaderItem(i).text() 
+                  for i in range(self.window.table_widget.columnCount())]
+        
+        colunas_obrigatorias = ['Número SSA', 'Cadastro', 'Prio. Emissão', 'Descrição Execução']
+        for coluna in colunas_obrigatorias:
+            self.assertIn(coluna, headers, f"Coluna obrigatória '{coluna}' não encontrada. Headers: {headers}")
+            print(f"  ✅ Coluna '{coluna}' presente")
+    
+    def test_menu_contexto(self):
+        """Testa o menu de contexto sem travamento."""
+        print("\n🧪 Testando menu de contexto...")
+        
+        # Força exibição dos dados
+        self.window.display_data(self.window.df_exibido)
+        QApplication.processEvents()
+        
+        start_time = time.time()
+        
+        # Simula clique direito na primeira célula
+        if self.window.table_widget.rowCount() > 0:
+            item = self.window.table_widget.item(0, 0)
+            if item:
+                # Simula criação do menu (sem exibi-lo)
+                try:
+                    # Testa os métodos relacionados ao menu
+                    self.window.copy_cell_value(item)
+                    self.window.copy_row_data(0)
+                    print("✅ Funções do menu de contexto funcionaram")
+                except Exception as e:
+                    self.fail(f"Erro nas funções do menu: {e}")
+        
+        end_time = time.time()
+        menu_time = end_time - start_time
+        
+        self.assertLess(menu_time, 1.0, f"Operações do menu demoraram {menu_time:.2f}s")
+        print(f"✅ Operações do menu executadas em {menu_time:.3f}s")
+    
+    def test_responsividade_ui(self):
+        """Testa se a UI mantém responsividade durante operações."""
+        print("\n🧪 Testando responsividade da interface...")
+        
+        start_time = time.time()
+        iterations = 0
+        max_iterations = 100
+        
+        # Simula operações repetidas
+        while time.time() - start_time < 2.0 and iterations < max_iterations:
+            self.window.search_input.setText(f"teste{iterations % 5}")
+            QApplication.processEvents()  # Permite UI responder
+            iterations += 1
+        
+        end_time = time.time()
+        total_time = end_time - start_time
+        
+        # Verifica se conseguiu processar um número razoável de iterações
+        self.assertGreater(iterations, 10, f"UI travou - apenas {iterations} iterações em {total_time:.2f}s")
+        print(f"✅ UI responsiva: {iterations} iterações em {total_time:.3f}s")
+
+
+def run_stability_tests():
+    """Executa todos os testes de estabilidade."""
+    print("=" * 60)
+    print("🔧 TESTES DE ESTABILIDADE DA GUI SSA POC")
+    print("=" * 60)
+    print("Objetivo: Monitorar travamentos e performance conforme solicitado")
+    print("Data: 2025-08-18")
+    print("=" * 60)
+    
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromTestCase(TestGUIStability)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    print("\n" + "=" * 60)
+    if result.wasSuccessful():
+        print("🎉 TODOS OS TESTES DE ESTABILIDADE PASSARAM!")
+        print("✅ GUI está estável e sem travamentos detectados")
+    else:
+        print("⚠️  ALGUNS TESTES FALHARAM!")
+        print(f"❌ Falhas: {len(result.failures)}")
+        print(f"❌ Erros: {len(result.errors)}")
+    print("=" * 60)
+    
+    return result.wasSuccessful()
+
+
+if __name__ == "__main__":
+    run_stability_tests()
