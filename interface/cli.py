@@ -31,6 +31,44 @@ APP_VERSION_LONG = get_app_version_long()
 
 # --- Funções Auxiliares Refatoradas ---
 
+def _cached_pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict, cache: dict):
+    """
+    Versão com cache do pretty_print_df para evitar reprocessamento de dados inalterados.
+    """
+    # Gera hash baseado no DataFrame e configurações
+    df_hash = hash(str(df.shape) + str(list(df.columns)) + str(df.iloc[0].values.tobytes() if len(df) > 0 else ''))
+    settings_hash = hash(str(sorted(settings.items())) if settings else '')
+    display_hash = hash(str(sorted(display_map.items())))
+    
+    cache_key = f"{df_hash}:{settings_hash}:{display_hash}"
+    
+    # Se está em cache, apenas imprime (reutiliza saída capturada)
+    if cache_key in cache:
+        print(cache[cache_key])
+        return
+    
+    # Captura a saída do pretty_print_df
+    import io
+    import sys
+    old_stdout = sys.stdout
+    sys.stdout = captured_output = io.StringIO()
+    
+    try:
+        pretty_print_df(df, display_map, settings)
+        output = captured_output.getvalue()
+        
+        # Salva no cache (limita tamanho do cache para evitar memory leak)
+        if len(cache) > 20:  # Limita a 20 entradas
+            cache.clear()
+        cache[cache_key] = output
+        
+        # Restaura stdout e imprime
+        sys.stdout = old_stdout
+        print(output, end='')
+        
+    finally:
+        sys.stdout = old_stdout
+
 def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     """Aplica os filtros padrão definidos nas configurações."""
     import pandas as pd # Import local para evitar problemas de importacao circular
@@ -38,7 +76,16 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     if default_filters:
         logger.debug(f"Aplicando filtros padrão: {default_filters}")
     default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
-    parsed = parse_search_terms(default_filters, default_mode=default_mode)
+    
+    # OTIMIZAÇÃO: Cache para parsing de termos padrão
+    cache_key = f"{','.join(default_filters)}:{default_mode}"
+    if not hasattr(_apply_default_filters, '_cache'):
+        _apply_default_filters._cache = {}
+    
+    if cache_key not in _apply_default_filters._cache:
+        _apply_default_filters._cache[cache_key] = parse_search_terms(default_filters, default_mode=default_mode)
+    
+    parsed = _apply_default_filters._cache[cache_key]
     return filter_dataframe(df, parsed)
     return df
 
@@ -154,16 +201,16 @@ def _handle_back(results_stack: list):
     else:
         print("Nenhum filtro anterior para restaurar.")
 
-def _handle_reset(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict):
+def _handle_reset(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Handler para o comando de resetar."""
     print("...todos os filtros foram zerados e a base completa (ou com filtros padrão) foi recarregada.")
     initial_df_reset, initial_filter_terms_reset = _get_initial_state(db_path, table_name, settings)
     results_stack.clear()
     results_stack.append((initial_df_reset, initial_filter_terms_reset))
     # Exibe o novo estado
-    pretty_print_df(results_stack[-1][0], display_map, settings)
+    _cached_pretty_print_df(results_stack[-1][0], display_map, settings, print_cache)
 
-def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict):
+def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Handler para o comando de reanalisar."""
     print("Forçando reanálise dos relatórios...")
     try:
@@ -174,13 +221,13 @@ def _handle_rescan(db_path: str, table_name: str, results_stack: list, display_m
             results_stack.append((initial_df_rescan, initial_filter_terms_rescan))
             print("Dados recarregados.")
             # Chama a exibição após rescan
-            pretty_print_df(results_stack[-1][0], display_map, settings)
+            _cached_pretty_print_df(results_stack[-1][0], display_map, settings, print_cache)
         else:
             print("Nenhuma alteração detectada durante o rescan.")
     except Exception as e:
         print(f"Erro durante o rescan: {e}")
 
-def _handle_sort(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool):
+def _handle_sort(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool, print_cache: dict):
     """Handler para os comandos de ordenação (-ord, -ordi)."""
     current_df, current_filter_terms = results_stack[-1]
     try:
@@ -199,13 +246,13 @@ def _handle_sort(parts: List[str], results_stack: list, display_map: dict, setti
             # Empilha o resultado ordenado
             results_stack.append((sorted_df, current_filter_terms))
             print(f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'}).")
-            pretty_print_df(sorted_df, display_map, settings)
+            _cached_pretty_print_df(sorted_df, display_map, settings, print_cache)
         else:
             print("Erro: Índice da coluna inválido.")
     except Exception as e:
         print(f"Erro ao ordenar: {e}")
 
-def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool):
+def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dict, settings: dict, ascending: bool, print_cache: dict):
     """Ordena por nome de coluna (interna ou de exibição)."""
     current_df, current_filter_terms = results_stack[-1]
     try:
@@ -227,11 +274,11 @@ def _handle_sort_by_name(parts: List[str], results_stack: list, display_map: dic
         sorted_df = current_df.sort_values(by=col_name, ascending=ascending, na_position='last')
         results_stack.append((sorted_df, current_filter_terms))
         print(f"Resultados ordenados por '{col_name}' ({'asc' if ascending else 'desc'}).")
-        pretty_print_df(sorted_df, display_map, settings)
+        _cached_pretty_print_df(sorted_df, display_map, settings, print_cache)
     except Exception as e:
         print(f"Erro ao ordenar por nome: {e}")
 
-def _handle_remove_filter(parts: List[str], results_stack: list, display_map: dict, settings: dict):
+def _handle_remove_filter(parts: List[str], results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Remove um termo do filtro atual e re-aplica sobre o estado anterior.
 
     Uso: -x <termo>
@@ -246,7 +293,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         _handle_back(results_stack)
         # Exibe topo após voltar, se houver
         if results_stack:
-            pretty_print_df(results_stack[-1][0], display_map, settings)
+            _cached_pretty_print_df(results_stack[-1][0], display_map, settings, print_cache)
         return
     term_to_remove = parts[1].strip()
     if not current_terms:
@@ -262,12 +309,12 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         new_df = filter_dataframe(base_df, remaining)
         results_stack[-1] = (new_df, remaining)
         print(f"Removido termo '{term_to_remove}'. Filtro atual: {', '.join(remaining)}")
-        pretty_print_df(new_df, display_map, settings)
+        _cached_pretty_print_df(new_df, display_map, settings, print_cache)
     else:
         # Sem termos restantes, volta ao estado anterior
         _handle_back(results_stack)
         if results_stack:
-            pretty_print_df(results_stack[-1][0], display_map, settings)
+            _cached_pretty_print_df(results_stack[-1][0], display_map, settings, print_cache)
 
 def _handle_show_filters(results_stack: list):
     """Exibe os filtros atualmente aplicados."""
@@ -335,10 +382,15 @@ def start_cli_loop(db_path: str, table_name: str):
     """Inicia o loop principal da interface de linha de comando."""
     logger.debug("Iniciando loop da CLI...")
     
+    # OTIMIZAÇÃO: Cache inicial de configurações
     settings = load_settings()
-    # Carrega display_mappings com integridade (arquivo ou default restaurado)
     display_map = load_display_mappings_integrity()
     output_dir = os.path.join(project_root, 'docs_saida')
+    
+    # Flags para controle de cache
+    _config_changed = False
+    _parse_cache = {}  # Cache para parse_search_terms
+    _print_cache = {}  # Cache para pretty_print_df
     
     # --- Estado Inicial ---
     initial_df, initial_filter_terms = _get_initial_state(db_path, table_name, settings)
@@ -364,9 +416,11 @@ def start_cli_loop(db_path: str, table_name: str):
 
     while True:
         try:
-            # Recarrega configurações a cada iteração para refletir mudanças
-            settings = load_settings() 
-            display_map = load_display_mappings_integrity() # Atualiza display_map também
+            # OTIMIZAÇÃO: Só recarrega configurações quando necessário
+            if _config_changed:
+                settings = load_settings() 
+                display_map = load_display_mappings_integrity()
+                _config_changed = False
             
             current_df, current_filter_terms = results_stack[-1]
             
@@ -393,19 +447,20 @@ def start_cli_loop(db_path: str, table_name: str):
                 if command in ['-v', 'voltar']:
                     handler(results_stack)
                 elif command in ['-r', 'resetar']:
-                    handler(db_path, table_name, results_stack, display_map, settings)
+                    handler(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['-rescan']:
-                    handler(db_path, table_name, results_stack, display_map, settings)
+                    handler(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['-c', 'config']:
-                     # O handler de config pode modificar settings
+                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
                      handler()
+                     _config_changed = True
                      # Após configurar, força um refresh do estado e exibição
                      settings = load_settings()
                      display_map = load_display_mappings_integrity()
                      # Recarrega o estado inicial com as novas configurações
                      initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
                      results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]
-                     pretty_print_df(initial_df_after_config, display_map, settings)
+                     _cached_pretty_print_df(initial_df_after_config, display_map, settings, _print_cache)
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     handler()
@@ -418,14 +473,14 @@ def start_cli_loop(db_path: str, table_name: str):
                     _handle_export(parts, current_df, output_dir, display_map)
                 elif command in ['-ord', '-ordi']:
                     ascending = (command == '-ord')
-                    _handle_sort(parts, results_stack, display_map, settings, ascending)
+                    _handle_sort(parts, results_stack, display_map, settings, ascending, _print_cache)
                 elif command in ['-ordn', '-ordni']:
                     ascending = (command == '-ordn')
-                    _handle_sort_by_name(parts, results_stack, display_map, settings, ascending)
+                    _handle_sort_by_name(parts, results_stack, display_map, settings, ascending, _print_cache)
                 elif command in ['-cols']:
                     _handle_list_columns(current_df, display_map)
                 elif command in ['-x']:
-                    _handle_remove_filter(parts, results_stack, display_map, settings)
+                    _handle_remove_filter(parts, results_stack, display_map, settings, _print_cache)
                 elif command in ['-clear']:
                     _handle_clear_filters(results_stack, display_map, settings)
                 elif command in ['-f', '-filtros']:
@@ -441,14 +496,20 @@ def start_cli_loop(db_path: str, table_name: str):
                 processed_search_terms = [term.strip() for term in parts_terms if term.strip()]
                 if processed_search_terms: # Só filtra se houver termos
                     default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
-                    parsed_terms = parse_search_terms(processed_search_terms, default_mode=default_mode)
+                    
+                    # OTIMIZAÇÃO: Cache para parse_search_terms
+                    cache_key = f"{','.join(processed_search_terms)}:{default_mode}"
+                    if cache_key not in _parse_cache:
+                        _parse_cache[cache_key] = parse_search_terms(processed_search_terms, default_mode=default_mode)
+                    parsed_terms = _parse_cache[cache_key]
+                    
                     new_filtered_df = filter_dataframe(current_df, parsed_terms)
                     if new_filtered_df.empty:
                         print("Nenhum resultado encontrado para o filtro. Tente outros termos.")
                     else:
                         # Guardamos os termos brutos para exibir na UI, mas aplicamos os parseados
                         results_stack.append((new_filtered_df, processed_search_terms))
-                        pretty_print_df(new_filtered_df, display_map, settings)
+                        _cached_pretty_print_df(new_filtered_df, display_map, settings, _print_cache)
                 else:
                     # Se o usuário digitou algo que não é comando nem termo (só espaços?), apenas continua
                     continue
