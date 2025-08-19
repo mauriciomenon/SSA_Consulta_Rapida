@@ -4,7 +4,14 @@ Elimina as 6 estratégias conflitantes de largura da GUI.
 """
 
 from typing import Dict, List, Optional, Tuple, Any
-import pandas as pd
+
+# Importação lazy do pandas para evitar travamento na inicialização
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
 
 
 class WidthManager:
@@ -50,9 +57,10 @@ class WidthManager:
     
     def compute_optimal_widths(
         self, 
-        df: pd.DataFrame, 
+        df: Any,  # pd.DataFrame quando pandas disponível
         available_width: int,
-        display_mappings: Optional[Dict[str, str]] = None
+        display_mappings: Optional[Dict[str, str]] = None,
+        saved_widths: Optional[Dict[str, int]] = None
     ) -> Dict[str, int]:
         """
         Calcula larguras otimizadas para o DataFrame dado.
@@ -61,10 +69,15 @@ class WidthManager:
             df: DataFrame para calcular larguras
             available_width: Largura total disponível
             display_mappings: Mapeamentos de exibição (opcional)
+            saved_widths: Larguras salvas pelo usuário (opcional)
             
         Returns:
             Dict com larguras por coluna
         """
+        if not PANDAS_AVAILABLE:
+            # Fallback quando pandas não está disponível
+            return {col: 100 for col in getattr(df, 'columns', ['col1', 'col2'])}
+            
         # Gera hash único do DataFrame
         df_hash = self._generate_df_hash(df, available_width)
         
@@ -73,7 +86,7 @@ class WidthManager:
             return self._computed_widths[df_hash].copy()
         
         # Calcula larguras
-        widths = self._calculate_widths(df, available_width, display_mappings)
+        widths = self._calculate_widths(df, available_width, display_mappings, saved_widths)
         
         # Armazena no cache
         self._computed_widths[df_hash] = widths.copy()
@@ -86,19 +99,24 @@ class WidthManager:
         
         return widths
     
-    def _generate_df_hash(self, df: pd.DataFrame, available_width: int) -> str:
+    def _generate_df_hash(self, df: Any, available_width: int) -> str:
         """Gera hash único para o DataFrame e largura disponível."""
-        return f"{len(df)}x{len(df.columns)}_{available_width}_{hash(tuple(df.columns))}"
+        try:
+            return f"{len(df)}x{len(df.columns)}_{available_width}_{hash(tuple(df.columns))}"
+        except:
+            return f"fallback_{available_width}"
     
     def _calculate_widths(
         self, 
-        df: pd.DataFrame, 
+        df: Any,  # pd.DataFrame
         available_width: int,
-        display_mappings: Optional[Dict[str, str]] = None
+        display_mappings: Optional[Dict[str, str]] = None,
+        saved_widths: Optional[Dict[str, int]] = None
     ) -> Dict[str, int]:
         """Executa o cálculo real das larguras."""
         
         display_mappings = display_mappings or {}
+        saved_widths = saved_widths or {}
         widths = {}
         
         # 1. Calcula larguras mínimas

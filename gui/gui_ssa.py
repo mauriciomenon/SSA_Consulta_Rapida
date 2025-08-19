@@ -24,6 +24,9 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Importações dos managers unificados
+from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager
+
 # --- Função para Carregar Configurações da GUI Principal ---
 def load_gui_main_preferences():
     """Carrega configurações específicas da GUI Principal do arquivo JSON"""
@@ -377,15 +380,12 @@ class SSAMainWindow(QMainWindow):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
         
-        # Larguras salvas por coluna (das configurações JSON)
-        self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
-        self._gui_column_pixel_widths = {}  # Inicializa o atributo que estava faltando
+        # Inicializa managers unificados (substitui código frankenstein)
+        self.width_manager = SimpleWidthManager()
+        self.cache_manager = SimpleCacheManager()
         
-        # Cache para operações de performance
-        self._column_sets_cache = {}  # Cache para sets de colunas frequentemente usados
-        self._widths_computed_for_df_hash = None
-        self._cached_default_mode = None
-        self._formatted_df_cache = {}
+        # Larguras salvas por coluna (das configurações JSON) - mantido para compatibilidade
+        self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
 
         # Debounce de filtro (da configuração JSON)
         debounce_delay = gui_settings.get("debounce_delay", 250)
@@ -710,17 +710,20 @@ class SSAMainWindow(QMainWindow):
         # Aplica formatação compartilhada para exibição (datas, numeros, SSA, nulls)
         # OTIMIZAÇÃO: Cache formatação para evitar reformatar dados inalterados
         display_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)) + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else ''))
-        if not hasattr(self, '_formatted_df_cache') or self._formatted_df_cache.get('hash') != display_df_hash:
+        
+        # Usa CacheManager unificado para cache de DataFrame formatado
+        cached_formatted = self.cache_manager.get_cached_formatted_df(display_df_hash)
+        if cached_formatted is None:
             try:
                 formatted_df = format_dataframe_for_display(display_df)
-                self._formatted_df_cache = {'hash': display_df_hash, 'df': formatted_df}
+                self.cache_manager.cache_formatted_df(display_df_hash, formatted_df)
                 display_df = formatted_df
             except Exception:
                 # falha de formatação não deve quebrar a GUI; segue sem formatar
                 pass
         else:
             # Usa versão formatada do cache
-            display_df = self._formatted_df_cache['df']
+            display_df = cached_formatted
 
     # Configura a tabela
         self.table_widget.setRowCount(len(display_df))
@@ -771,7 +774,7 @@ class SSAMainWindow(QMainWindow):
             # Usa a coluna diretamente do DataFrame (que já inclui '#')
             col_key = col_name
                 
-            px = self._gui_column_pixel_widths.get(col_key)
+            px = getattr(self, '_gui_column_pixel_widths', {}).get(col_key)
             
             # Se não há largura calculada, usa configuração salva manualmente pelo usuário
             if px is None:
@@ -831,171 +834,45 @@ class SSAMainWindow(QMainWindow):
 
     def _compute_gui_column_widths(self, df: pd.DataFrame):
         """
-        Calcula larguras otimizadas usando lógica de best-fit.
-        Ocupa todo o espaço disponível, priorizando descrição_ssa e descrição_execução.
+        Calcula larguras de colunas usando o WidthManager unificado.
+        Substitui 150+ linhas de código frankenstein por uma chamada limpa.
         """
-        self._gui_column_pixel_widths = {}
-        if df is None or df.empty:
-            return
-            
-        # Tamanhos mínimos em caracteres (otimizados para espaço)
-        MIN_CHAR_SIZES = {
-            '#': 3,                    # Coluna sequencial mínima
-            'numero_ssa': 9,           # SSA number
-            'localizacao_codigo': 8,   # Location code
-            'situacao': 4,             # Status (agora "Sit.")
-            'descricao_ssa': 30,       # Mínimo reduzido para permitir expansão
-            'data_cadastro': 10,       # Date
-            'setor_emissor': 5,        # Agora "Emis."
-            'setor_executor': 5,       # Agora "Exec."
-            'derivada_de': 9,
-            'semana_programada': 6,    # Agora "Prog."
-            'descricao_execucao': 25,  # Mínimo reduzido
-            'semana_cadastro': 8,      # "Sem. Cad."
-            'solicitante': 18,         # Aumentado para comportar "MAURICIO MENON" (14 chars)
-        }
-        
-        # Colunas obrigatórias que sempre devem ser visíveis
-        ESSENTIAL_COLUMNS = ['numero_ssa', 'localizacao_codigo', 'setor_executor', 'situacao', 'descricao_ssa']
-        
-        # Colunas que recebem espaço extra (por ordem de prioridade)
-        EXPANDABLE_COLUMNS = ['descricao_ssa', 'descricao_execucao']
-        
-        # Largura real da tabela (otimizada para telas modernas)
         try:
-            # Usa a largura real do widget da tabela
+            # Obtém largura da tabela
             widget_width = self.table_widget.width()
             viewport_width = self.table_widget.viewport().width()
             
-            # Se a tabela ainda não foi exibida, usa a largura da janela principal
-            if widget_width < 500:
-                table_width = max(1400, self.width() - 50)  # Assume tela moderna
+            if widget_width < 500:  # Tabela ainda não inicializada
+                table_width = max(1400, self.width() - 50)
             else:
-                table_width = widget_width - 40  # 40px para scrollbar + margens
-                
-            # Mínimo para funcionamento adequado
+                table_width = widget_width - 40  # Margem para scrollbars
+            
+            # Garante largura mínima para funcionamento adequado
             table_width = max(table_width, 1400)
-                
-            print(f"DEBUG: Largura calculada da tabela: {table_width}px (widget: {widget_width}px, viewport: {viewport_width}px)")
-        except:
-            table_width = 1400  # Valor padrão para telas modernas
             
-        # Mapeia colunas internas -> nomes de exibição
-        disp_map = {c: self.internal_to_display.get(c, c) for c in df.columns}
-        
-        # 1. Calcula larguras mínimas para todas as colunas
-        total_min_width = 0
-        column_widths = {}
-        
-        # Coluna '#' sempre presente
-        column_widths['#'] = MIN_CHAR_SIZES['#'] * 7 + 16
-        total_min_width += column_widths['#']
-        
-        for col in df.columns:
-            # Usa tamanho mínimo configurado ou calcula baseado no conteúdo
-            min_chars = MIN_CHAR_SIZES.get(col)
-            if min_chars is None:
-                # Para colunas não especificadas, usa tamanho do cabeçalho + margem
-                header = disp_map.get(col, col)
-                min_chars = max(len(header), 8)  # Mínimo geral de 8 caracteres
-                
-            # Converte caracteres em pixels (7px por char + 16px de margem)
-            min_width = min_chars * 7 + 16
-            column_widths[col] = min_width
-            total_min_width += min_width
+            # Usa o WidthManager para calcular larguras otimizadas
+            column_widths = self.width_manager.compute_optimal_widths(
+                df=df,
+                available_width=table_width,
+                display_mappings=self.internal_to_display,
+                saved_widths=self._saved_gui_column_widths
+            )
             
-        # 2. Calcula espaço excedente disponível
-        available_extra_space = max(0, table_width - total_min_width)
-        print(f"DEBUG: Espaço total: {table_width}px, Mínimo necessário: {total_min_width}px, Extra disponível: {available_extra_space}px")
-        
-        # 3. Distribui espaço extra de forma inteligente usando operações otimizadas
-        if available_extra_space > 0:
-            # Use cache para sets de colunas frequentemente usados
-            df_columns_key = f"df_columns_{len(df.columns)}"
-            if df_columns_key not in self._column_sets_cache:
-                self._column_sets_cache[df_columns_key] = set(df.columns)
-            df_columns_set = self._column_sets_cache[df_columns_key]
+            print(f"DEBUG: WidthManager calculou larguras para {len(column_widths)} colunas, largura total: {table_width}px")
             
-            expandable_key = f"expandable_{df_columns_key}"
-            if expandable_key not in self._column_sets_cache:
-                self._column_sets_cache[expandable_key] = [col for col in EXPANDABLE_COLUMNS if col in df_columns_set]
-            expandable_in_view = self._column_sets_cache[expandable_key]
+            # Mantém compatibilidade com código existente
+            self._gui_column_pixel_widths = column_widths
             
-            print(f"DEBUG: Colunas expandíveis encontradas: {expandable_in_view}")
-            
-            if expandable_in_view:
-                # Para muito espaço extra (tela maximizada), distribui melhor
-                if available_extra_space > 800:  # Tela grande
-                    # 60% para descrições, 40% para outras colunas importantes
-                    desc_space = available_extra_space * 0.6
-                    other_space = available_extra_space * 0.4
-                    
-                    # Distribui entre descrições usando dict comprehension para eficiência
-                    desc_weights = {'descricao_ssa': 0.7, 'descricao_execucao': 0.3}
-                    for col in expandable_in_view:
-                        weight = desc_weights.get(col, 0.1)
-                        extra_space = desc_space * weight
-                        column_widths[col] += int(extra_space)
-                        print(f"DEBUG: Tela grande - Adicionando {extra_space:.0f}px para {col}")
-                    
-                    # Distribui espaço restante para outras colunas importantes usando cache
-                    important_key = f"important_{df_columns_key}"
-                    if important_key not in self._column_sets_cache:
-                        important_cols = ['solicitante', 'data_cadastro', 'semana_programada']
-                        self._column_sets_cache[important_key] = [col for col in important_cols if col in df_columns_set]
-                    important_in_view = self._column_sets_cache[important_key]
-                    
-                    if important_in_view:
-                        extra_per_important = other_space / len(important_in_view)
-                        for col in important_in_view:
-                            column_widths[col] += int(extra_per_important)
-                            print(f"DEBUG: Tela grande - Adicionando {extra_per_important:.0f}px para {col}")
-                else:
-                    # Comportamento normal para telas menores
-                    desc_weights = {'descricao_ssa': 0.7, 'descricao_execucao': 0.3}
-                    for col in expandable_in_view:
-                        weight = desc_weights.get(col, 0.1)
-                        extra_space = available_extra_space * weight
-                        column_widths[col] += int(extra_space)
-                        print(f"DEBUG: Adicionando {extra_space:.0f}px para {col}")
-            else:
-                # Se não há colunas expandíveis, distribui igualmente usando cache
-                expand_key = f"expand_{df_columns_key}"
-                if expand_key not in self._column_sets_cache:
-                    self._column_sets_cache[expand_key] = [col for col in df_columns_set if col != '#']
-                cols_to_expand = self._column_sets_cache[expand_key]
-                
-                if cols_to_expand:
-                    extra_per_col = available_extra_space // len(cols_to_expand)
-                    for col in cols_to_expand:
-                        column_widths[col] += extra_per_col
-        
-        # 4. Aplica limites máximos razoáveis
-        for col in column_widths:
-            old_width = column_widths[col]
-            if col == '#':
-                column_widths[col] = max(30, min(column_widths[col], 60))
-            elif col in EXPANDABLE_COLUMNS:
-                column_widths[col] = max(column_widths[col], MIN_CHAR_SIZES.get(col, 40) * 7 + 16)
-                column_widths[col] = min(column_widths[col], 2000)  # Limite mais alto para descrições
-            else:
-                # Para outras colunas, só aplica mínimo - sem máximo restritivo
-                min_for_col = MIN_CHAR_SIZES.get(col, 8) * 7 + 16
-                column_widths[col] = max(column_widths[col], min_for_col)
-                # Sem limite máximo restritivo para telas grandes
-                
-            if old_width != column_widths[col]:
-                print(f"DEBUG: Largura da coluna '{col}' ajustada de {old_width}px para {column_widths[col]}px")
-                
-        # 5. Salva as larguras calculadas
-        self._gui_column_pixel_widths = column_widths
-        # print(f"DEBUG: Larguras finais calculadas: {column_widths}")
+        except Exception as e:
+            print(f"ERRO em _compute_gui_column_widths: {e}")
+            # Fallback para larguras mínimas
+            self._gui_column_pixel_widths = {col: 100 for col in df.columns}
 
     def _calculate_max_chars_for_column(self, col_name: str, col_idx: int) -> int:
         """Calcula o número máximo de caracteres baseado na largura da coluna."""
         try:
-            # Usa largura calculada ou largura atual da coluna
-            width_px = self._gui_column_pixel_widths.get(col_name)
+            # Usa largura calculada pelo WidthManager ou largura atual da coluna
+            width_px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
             if width_px is None:
                 width_px = self.table_widget.columnWidth(col_idx)
             
@@ -1371,20 +1248,18 @@ class SSAMainWindow(QMainWindow):
         """Recalcula e aplica larguras das colunas após resize da janela."""
         if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
             print(f"DEBUG: Recalculando larguras após resize da janela")
-            # Limpa larguras calculadas para forçar novo cálculo
-            self._gui_column_pixel_widths = {}
-            # Recalcula larguras com nova dimensão da janela
+            # Recalcula larguras com nova dimensão da janela usando WidthManager
             self._compute_gui_column_widths(self.df_para_tabela)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
 
     def _apply_computed_widths_only(self):
-        """Aplica apenas as larguras calculadas pelo best-fit (ignora configurações salvas)."""
+        """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
         if not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty:
             return
             
         for i, col_name in enumerate(self.df_para_tabela.columns):
-            px = self._gui_column_pixel_widths.get(col_name)
+            px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
             if px is not None:
                 px = max(30, min(int(px), 1000))
                 self.table_widget.setColumnWidth(i, px)
