@@ -4,7 +4,8 @@
         "Nº SSA*",
         "Nº SSA Original",
         "Numero SSA",
-        "Nº da SSA"
+        "Nº da SSA",
+        "Número da SSA"
     ],
     "situacao": [
         "Situação",
@@ -33,7 +34,8 @@
     "semana_cadastro": [
         "Sem.\nCadastro",
         "Sem. Cadastro",
-        "Semana Cadastro"
+        "Semana Cadastro",
+        "Semana de Cadastro"
     ],
     "data_cadastro": [
         "Emitida Em",
@@ -64,12 +66,14 @@
     "grau_prioridade_emissao": [
         "Prior. Emissão",
         "Prioridade Emissão",
-        "Grau Prioridade Emissão"
+        "Grau Prioridade Emissão",
+        "Grau de Prioridade Emissão"
     ],
     "grau_prioridade_planejamento": [
         "Prior. Planej.",
         "Prioridade Planejamento",
-        "Grau Prioridade Planejamento"
+        "Grau Prioridade Planejamento",
+        "Grau de Prioridade Planejamento"
     ],
     "execucao_simples": [
         "Exec. Simples",
@@ -77,7 +81,8 @@
     ],
     "responsavel_programacao": [
         "Resp. Prog.",
-        "Responsável Programação"
+        "Responsável Programação",
+        "Responsável na Programação"
     ],
     "semana_programada": [
         "Sem. Prog.",
@@ -85,11 +90,13 @@
     ],
     "responsavel_execucao": [
         "Resp. Exec.",
-        "Responsável Execução"
+        "Responsável Execução",
+        "Responsável na Execução"
     ],
     "descricao_execucao": [
         "Descrição da Execução",
-        "Descricao da Execucao"
+        "Descricao da Execucao",
+        "Descrição Execução"
     ],
     "prazo_limite": [
         "Prazo Limite"
