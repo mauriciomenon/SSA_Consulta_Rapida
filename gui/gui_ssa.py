@@ -752,19 +752,36 @@ class SSAMainWindow(QMainWindow):
                 if col_name == '#':
                     px = 40
                 elif col_name == 'numero_ssa':
-                    px = 80
+                    px = 100  # Aumentado de 80 para 100
                 elif col_name in ('descricao_ssa', 'descricao_execucao'):
                     px = 360
                 else:
                     px = 100
-            # Limites
-            px = max(40, min(int(px), 600))
+            # Limites - ajustado para permitir colunas maiores
+            px = max(40, min(int(px), 800))  # Aumentado de 600 para 800
             self.table_widget.setColumnWidth(i, px)
+            
+        # CORREÇÃO: Força reaplica as larguras depois de um pequeno delay
+        # para garantir que não sejam sobrescritas
+        QTimer.singleShot(100, self._force_column_widths)
 
         # Seleciona a primeira linha (se houver) e atualiza detalhes
         if self.table_widget.rowCount() > 0:
             self.table_widget.selectRow(0)
         self.update_details_from_selection()
+
+    def _force_column_widths(self):
+        """Força reaplicação das larguras das colunas para garantir que sejam respeitadas."""
+        if not hasattr(self, 'visible_columns') or not self.visible_columns:
+            return
+            
+        for i, col_name in enumerate(['#'] + self.visible_columns):
+            # Busca largura salva das configurações
+            px = self._saved_gui_column_widths.get(col_name)
+            if px is not None:
+                current_width = self.table_widget.columnWidth(i)
+                if current_width != px:
+                    self.table_widget.setColumnWidth(i, int(px))
 
     def _compute_gui_column_widths(self, df: pd.DataFrame):
         """Calcula larguras em pixels baseadas no conteúdo filtrado para estabilidade entre páginas."""
