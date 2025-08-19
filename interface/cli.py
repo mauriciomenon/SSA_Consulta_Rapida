@@ -333,7 +333,7 @@ def _handle_show_filters(results_stack: list):
     if neg:
         print("  - ", ", ".join(neg))
 
-def _handle_clear_filters(results_stack: list, display_map: dict, settings: dict):
+def _handle_clear_filters(results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Limpa filtros do usuário voltando ao estado base (mantém filtros padrão)."""
     if not results_stack:
         print("Sem estado atual.")
@@ -342,9 +342,9 @@ def _handle_clear_filters(results_stack: list, display_map: dict, settings: dict
     results_stack.clear()
     results_stack.append(base_state)
     print("Filtros do usuário limpos. Voltando ao estado base.")
-    pretty_print_df(base_state[0], display_map, settings)
+    _cached_pretty_print_df(base_state[0], display_map, settings, print_cache)
 
-def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict):
+def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list, display_map: dict, settings: dict, print_cache: dict):
     """Limpa todos os filtros (incluindo padrão) recarregando a base sem aplicar default_filters."""
     if not results_stack:
         print("Sem estado atual.")
@@ -356,7 +356,7 @@ def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list
     results_stack.clear()
     results_stack.append((df, []))
     print("Todos os filtros foram limpos para esta sessão.")
-    pretty_print_df(df, display_map, fresh_settings)
+    _cached_pretty_print_df(df, display_map, fresh_settings, print_cache)
 
 # --- Loop Principal Refatorado ---
 
@@ -482,11 +482,11 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['-x']:
                     _handle_remove_filter(parts, results_stack, display_map, settings, _print_cache)
                 elif command in ['-clear']:
-                    _handle_clear_filters(results_stack, display_map, settings)
+                    _handle_clear_filters(results_stack, display_map, settings, _print_cache)
                 elif command in ['-f', '-filtros']:
                     _handle_show_filters(results_stack)
                 elif command in ['-clearall']:
-                    _handle_clear_all_filters(db_path, table_name, results_stack, display_map, settings)
+                    _handle_clear_all_filters(db_path, table_name, results_stack, display_map, settings, _print_cache)
             
             # --- 3. Tratamento como Pesquisa/Busca ---
             else:

@@ -380,6 +380,12 @@ class SSAMainWindow(QMainWindow):
         # Larguras salvas por coluna (das configurações JSON)
         self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
         self._gui_column_pixel_widths = {}  # Inicializa o atributo que estava faltando
+        
+        # Cache para operações de performance
+        self._column_sets_cache = {}  # Cache para sets de colunas frequentemente usados
+        self._widths_computed_for_df_hash = None
+        self._cached_default_mode = None
+        self._formatted_df_cache = {}
 
         # Debounce de filtro (da configuração JSON)
         debounce_delay = gui_settings.get("debounce_delay", 250)
@@ -720,19 +726,19 @@ class SSAMainWindow(QMainWindow):
         self.table_widget.setRowCount(len(display_df))
         self.table_widget.setColumnCount(len(display_df.columns))
 
-        # Define cabeçalhos de exibição
-        display_headers = []
-        for col in display_df.columns:
-            if col == '#':
-                display_headers.append('#')
-            else:
-                display_headers.append(self.internal_to_display.get(col, col))
+        # Define cabeçalhos de exibição usando list comprehension otimizada
+        display_headers = [
+            '#' if col == '#' else self.internal_to_display.get(col, col)
+            for col in display_df.columns
+        ]
         self.table_widget.setHorizontalHeaderLabels(display_headers)
 
-        # Preenche os dados
+        # Preenche os dados usando batch operations para melhor performance
+        columns_list = list(display_df.columns)
         for row_idx in range(len(display_df)):
-            for col_idx, col_name in enumerate(display_df.columns):
-                value = display_df.iloc[row_idx, col_idx]
+            row_data = display_df.iloc[row_idx]
+            for col_idx, col_name in enumerate(columns_list):
+                value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
 
                 # Trunca texto baseado na largura da coluna (dinâmico)
@@ -902,9 +908,19 @@ class SSAMainWindow(QMainWindow):
         available_extra_space = max(0, table_width - total_min_width)
         print(f"DEBUG: Espaço total: {table_width}px, Mínimo necessário: {total_min_width}px, Extra disponível: {available_extra_space}px")
         
-        # 3. Distribui espaço extra de forma inteligente
+        # 3. Distribui espaço extra de forma inteligente usando operações otimizadas
         if available_extra_space > 0:
-            expandable_in_view = [col for col in EXPANDABLE_COLUMNS if col in df.columns]
+            # Use cache para sets de colunas frequentemente usados
+            df_columns_key = f"df_columns_{len(df.columns)}"
+            if df_columns_key not in self._column_sets_cache:
+                self._column_sets_cache[df_columns_key] = set(df.columns)
+            df_columns_set = self._column_sets_cache[df_columns_key]
+            
+            expandable_key = f"expandable_{df_columns_key}"
+            if expandable_key not in self._column_sets_cache:
+                self._column_sets_cache[expandable_key] = [col for col in EXPANDABLE_COLUMNS if col in df_columns_set]
+            expandable_in_view = self._column_sets_cache[expandable_key]
+            
             print(f"DEBUG: Colunas expandíveis encontradas: {expandable_in_view}")
             
             if expandable_in_view:
@@ -914,21 +930,21 @@ class SSAMainWindow(QMainWindow):
                     desc_space = available_extra_space * 0.6
                     other_space = available_extra_space * 0.4
                     
-                    # Distribui entre descrições
+                    # Distribui entre descrições usando dict comprehension para eficiência
+                    desc_weights = {'descricao_ssa': 0.7, 'descricao_execucao': 0.3}
                     for col in expandable_in_view:
-                        if col == 'descricao_ssa':
-                            extra_space = desc_space * 0.7
-                            print(f"DEBUG: Tela grande - Adicionando {extra_space:.0f}px para descricao_ssa")
-                        elif col == 'descricao_execucao':
-                            extra_space = desc_space * 0.3
-                            print(f"DEBUG: Tela grande - Adicionando {extra_space:.0f}px para descricao_execucao")
-                        else:
-                            extra_space = desc_space * 0.1
+                        weight = desc_weights.get(col, 0.1)
+                        extra_space = desc_space * weight
                         column_widths[col] += int(extra_space)
+                        print(f"DEBUG: Tela grande - Adicionando {extra_space:.0f}px para {col}")
                     
-                    # Distribui espaço restante para outras colunas importantes
-                    important_cols = ['solicitante', 'data_cadastro', 'semana_programada']
-                    important_in_view = [col for col in important_cols if col in df.columns]
+                    # Distribui espaço restante para outras colunas importantes usando cache
+                    important_key = f"important_{df_columns_key}"
+                    if important_key not in self._column_sets_cache:
+                        important_cols = ['solicitante', 'data_cadastro', 'semana_programada']
+                        self._column_sets_cache[important_key] = [col for col in important_cols if col in df_columns_set]
+                    important_in_view = self._column_sets_cache[important_key]
+                    
                     if important_in_view:
                         extra_per_important = other_space / len(important_in_view)
                         for col in important_in_view:
@@ -936,19 +952,19 @@ class SSAMainWindow(QMainWindow):
                             print(f"DEBUG: Tela grande - Adicionando {extra_per_important:.0f}px para {col}")
                 else:
                     # Comportamento normal para telas menores
+                    desc_weights = {'descricao_ssa': 0.7, 'descricao_execucao': 0.3}
                     for col in expandable_in_view:
-                        if col == 'descricao_ssa':
-                            extra_space = available_extra_space * 0.7
-                            print(f"DEBUG: Adicionando {extra_space:.0f}px para descricao_ssa")
-                        elif col == 'descricao_execucao':
-                            extra_space = available_extra_space * 0.3
-                            print(f"DEBUG: Adicionando {extra_space:.0f}px para descricao_execucao")
-                        else:
-                            extra_space = available_extra_space * 0.1
+                        weight = desc_weights.get(col, 0.1)
+                        extra_space = available_extra_space * weight
                         column_widths[col] += int(extra_space)
+                        print(f"DEBUG: Adicionando {extra_space:.0f}px para {col}")
             else:
-                # Se não há colunas expandíveis, distribui igualmente
-                cols_to_expand = [col for col in df.columns if col not in ['#']]
+                # Se não há colunas expandíveis, distribui igualmente usando cache
+                expand_key = f"expand_{df_columns_key}"
+                if expand_key not in self._column_sets_cache:
+                    self._column_sets_cache[expand_key] = [col for col in df_columns_set if col != '#']
+                cols_to_expand = self._column_sets_cache[expand_key]
+                
                 if cols_to_expand:
                     extra_per_col = available_extra_space // len(cols_to_expand)
                     for col in cols_to_expand:
