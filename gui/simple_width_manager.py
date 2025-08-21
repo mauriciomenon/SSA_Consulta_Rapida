@@ -24,8 +24,9 @@ class SimpleWidthManager:
             'semana_programada': 6,
             'descricao_execucao': 20,
             'semana_cadastro': 7,
-            'solicitante': 14,
-            'grau_prioridade': 4
+            'solicitante': 18,  # Aumentado para acomodar "MAURICIO MENON"
+            'grau_prioridade_emissao': 4,
+            'grau_prioridade_planejamento': 4
         }
         
         self.expandable_columns = ['descricao_ssa', 'descricao_execucao', 'solicitante']
@@ -35,80 +36,145 @@ class SimpleWidthManager:
         df,  # DataFrame
         available_width: int,
         display_mappings=None,
-        saved_widths=None
+        saved_widths=None,
+        column_order=None
     ):
         """
-        Calcula larguras otimizadas para o DataFrame dado.
+        ALGORITMO SIMPLES E FUNCIONAL - LARGURAS FIXAS DETERMINÍSTICAS COM CRESCIMENTO
+        
+        Larguras fixas para colunas estáticas + crescimento proporcional para descrições.
+        Divisão 50/50 entre descricao_ssa e descricao_execucao para espaço extra.
+        
+        Args:
+            column_order: Lista explícita da ordem correta das colunas (inclui '#')
         """
         display_mappings = display_mappings or {}
         saved_widths = saved_widths or {}
         
-        # Lista de colunas (incluindo '#' se presente)
-        columns = ['#'] + list(df.columns) if '#' not in df.columns else list(df.columns)
+        if df is None or df.empty:
+            return {}
         
-        # 1. Calcula larguras mínimas
-        widths = {}
-        total_min_width = 0
+        # Usa a ordem explícita fornecida, ou fallback para colunas ordenadas deterministicamente
+        if column_order:
+            columns = column_order
+        else:
+            # Lista de colunas ordenada deterministicamente
+            df_columns = sorted(df.columns.tolist())
+            columns = ['#'] + df_columns if '#' not in df_columns else sorted(df.columns.tolist())
         
-        for col in columns:
-            # Usa largura salva se disponível
-            if col in saved_widths and saved_widths[col] > 0:
-                widths[col] = saved_widths[col]
-            else:
-                # Calcula largura baseada em caracteres
-                min_chars = self.min_char_sizes.get(col, 8)
-                if col not in self.min_char_sizes:
-                    # Para colunas não mapeadas, usa tamanho do header
-                    header = display_mappings.get(col, col)
-                    min_chars = max(len(header), 8)
-                
-                # Converte caracteres em pixels (7px por char + 16px margem)
-                widths[col] = min_chars * 7 + 16
+        # IMPORTANTE: Para forçar larguras fixas, ignora saved_widths temporariamente
+        print(f"DEBUG SIMPLES: saved_widths recebido: {saved_widths}")
+        saved_widths = {}  # FORÇA uso das larguras fixas
+        print(f"DEBUG SIMPLES: saved_widths LIMPO - usando larguras fixas")
+        
+        # LARGURAS FIXAS CONSTANTES - TAMANHO EXATO SEMPRE IGUAL
+        fixed_widths = {}
+        expandable_cols = []  # Colunas que podem crescer
+        
+        print(f"DEBUG SIMPLES: Processando {len(columns)} colunas na ordem: {columns}")
+        
+        for i, col in enumerate(columns):
+            print(f"DEBUG SIMPLES: [{i+1}] Processando coluna '{col}'")
             
-            total_min_width += widths[col]
-        
-        # 2. Distribui espaço extra
-        available_extra = max(0, available_width - total_min_width)
-        
-        if available_extra > 0:
-            # Identifica colunas expandíveis presentes
-            expandable_present = [col for col in self.expandable_columns if col in columns]
-            
-            if expandable_present:
-                # Distribui espaço extra entre colunas expandíveis
-                if available_extra > 800:  # Tela grande
-                    # 70% para descrição_ssa, 30% para outras
-                    if 'descricao_ssa' in expandable_present:
-                        widths['descricao_ssa'] += int(available_extra * 0.7)
-                        remaining_extra = available_extra * 0.3
-                        other_expandable = [col for col in expandable_present if col != 'descricao_ssa']
-                        if other_expandable:
-                            extra_per_col = remaining_extra / len(other_expandable)
-                            for col in other_expandable:
-                                widths[col] += int(extra_per_col)
-                    else:
-                        # Distribui igualmente entre expandíveis
-                        extra_per_col = available_extra / len(expandable_present)
-                        for col in expandable_present:
-                            widths[col] += int(extra_per_col)
-                else:
-                    # Tela menor - distribui proporcionalmente
-                    weights = {'descricao_ssa': 0.6, 'descricao_execucao': 0.25, 'solicitante': 0.15}
-                    for col in expandable_present:
-                        weight = weights.get(col, 0.1)
-                        widths[col] += int(available_extra * weight)
-        
-        # 3. Aplica limites
-        for col in widths:
             if col == '#':
-                widths[col] = max(30, min(widths[col], 60))
-            elif col in self.expandable_columns:
-                widths[col] = max(widths[col], 100)
-                widths[col] = min(widths[col], 2000)
+                fixed_widths[col] = 25
+                print(f"  -> FIXO: 25px")
+                
+            elif col in saved_widths and saved_widths[col] > 0:
+                fixed_widths[col] = saved_widths[col]
+                print(f"  -> SALVA: {saved_widths[col]}px")
+                
+            elif col == 'numero_ssa':
+                fixed_widths[col] = 65
+                print(f"  -> NUMERO_SSA: 65px")
+                
+            elif col == 'situacao':
+                fixed_widths[col] = 35
+                print(f"  -> SITUACAO: 35px")
+                
+            elif col == 'setor_executor':
+                fixed_widths[col] = 40
+                print(f"  -> SETOR_EXECUTOR: 40px")
+                
+            elif col == 'setor_emissor':
+                fixed_widths[col] = 40
+                print(f"  -> SETOR_EMISSOR: 40px")
+                
+            elif col == 'localizacao_codigo':
+                fixed_widths[col] = 50  # CORRIGIDO: 45 -> 50px
+                print(f"  -> LOCALIZACAO: 50px")
+                
+            elif col == 'data_cadastro':
+                fixed_widths[col] = 85
+                print(f"  -> DATA_CADASTRO: 85px")
+                
+            elif col == 'semana_cadastro':
+                fixed_widths[col] = 60  # CORRIGIDO: 55 -> 60px
+                print(f"  -> SEMANA_CADASTRO: 60px")
+                
+            elif col == 'semana_programada':
+                fixed_widths[col] = 45
+                print(f"  -> SEMANA_PROGRAMADA: 45px")
+                
+            elif col == 'derivada_de':
+                fixed_widths[col] = 65  # CORRIGIDO: 60 -> 65px
+                print(f"  -> DERIVADA_DE: 65px")
+                
+            elif col == 'grau_prioridade_emissao':
+                fixed_widths[col] = 65
+                print(f"  -> GRAU_PRIO_EMIS: 65px")
+                
+            elif col == 'grau_prioridade_planejamento':
+                fixed_widths[col] = 65
+                print(f"  -> GRAU_PRIO_PLAN: 65px")
+                
+            elif col == 'solicitante':
+                fixed_widths[col] = 160
+                print(f"  -> SOLICITANTE: 160px")
+                
+            elif col == 'descricao_ssa':
+                fixed_widths[col] = 450  # VOLTOU ao valor solicitado
+                expandable_cols.append(col)
+                print(f"  -> DESCRICAO_SSA: 450px (base, expansível)")
+                
+            elif col == 'descricao_execucao':
+                fixed_widths[col] = 350  # VOLTOU ao valor solicitado
+                expandable_cols.append(col)
+                print(f"  -> DESCRICAO_EXEC: 350px (base, expansível)")
+                
             else:
-                widths[col] = max(widths[col], 50)
+                # Outros campos: largura padrão
+                fixed_widths[col] = 120
+                print(f"  -> OUTROS: 120px")
         
-        return widths
+        # CÁLCULO DE CRESCIMENTO PROPORCIONAL MELHORADO
+        total_fixed = sum(fixed_widths.values())
+        available_extra = max(0, available_width - total_fixed)
+        
+        print(f"DEBUG CRESCIMENTO: Total fixo: {total_fixed}px, Disponível: {available_width}px")
+        print(f"DEBUG CRESCIMENTO: Espaço extra: {available_extra}px")
+        
+        if available_extra > 0 and expandable_cols:
+            # Divisão proporcional do espaço extra com tratamento de resto
+            extra_per_col = available_extra // len(expandable_cols)
+            remainder = available_extra % len(expandable_cols)
+            
+            for i, col in enumerate(expandable_cols):
+                # Primeira coluna recebe o resto para evitar pixels perdidos
+                extra_bonus = remainder if i == 0 else 0
+                total_extra = extra_per_col + extra_bonus
+                
+                fixed_widths[col] += total_extra
+                print(f"DEBUG CRESCIMENTO: {col} cresceu para {fixed_widths[col]}px (+{total_extra}px)")
+        
+        total_final = sum(fixed_widths.values())
+        print(f"DEBUG SIMPLES: Total final: {total_final}px, Disponível: {available_width}px")
+        
+        # Lista larguras finais
+        for col, width in sorted(fixed_widths.items()):
+            print(f"  FINAL: {col} = {width}px")
+        
+        return fixed_widths
 
 
 class SimpleCacheManager:

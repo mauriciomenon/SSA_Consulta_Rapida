@@ -1,18 +1,17 @@
 {
   "display_columns": [
     "numero_ssa",
-    "localizacao_codigo",
-    "setor_executor", 
     "situacao",
-    "descricao_ssa",
-    "data_cadastro",
-    "setor_emissor",
-    "derivada_de",
-    "semana_programada",
-    "descricao_execucao",
     "semana_cadastro",
-    "grau_prioridade",
-    "solicitante"
+    "semana_programada",
+    "derivada_de",
+    "localizacao_codigo",
+    "data_cadastro", 
+    "descricao_ssa",
+    "setor_executor",
+    "setor_emissor",
+    "solicitante",
+    "descricao_execucao"
   ],
   "hidden_columns": [
     "descricao_localizacao",

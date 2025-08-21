@@ -40,23 +40,7 @@
     "descricao_execucao": "Descrição Execução",
     "Descrição Execução": "Descrição Execução"
   },
-  "column_widths": {
-    "numero_ssa": 85,
-    "Número da SSA": 85,
-    "situacao": 65,
-    "derivada_de": 85,
-    "localizacao_codigo": 85,
-    "semana_cadastro": 65,
-    "Semana de Cadastro": 65,
-    "data_cadastro": 85,
-    "setor_executor": 65,
-    "setor_emissor": 60,
-    "solicitante": 120,
-    "semana_programada": 75,
-    "descricao_ssa": 350,
-    "descricao_execucao": 130,
-    "Descrição Execução": 130
-  },
+  "column_widths": {},
   "stretch_columns": ["descricao_ssa"],
   "version": "1.0.1",
   "description": "Configurações específicas da GUI PoC - NÃO AFETAR CLI"

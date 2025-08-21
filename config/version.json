@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.3",
-  "version_long": "SSA Consulta Rápida v3.0.3 – UX CLI refinada (sem auto-lista, alias '?', 'Nº SSA' fixo 2ª col., ordem inicial pinned, páginas com larguras iguais, descrição ocupa sobra), logs rotativos (1MB/1 backup, console warnings+), geração automática de defaults e silenciamento de aviso ISO datetime; 67 testes."
+  "version_short": "3.0.4",
+  "version_long": "SSA Consulta Rápida v3.0.4 – Correção crítica do algoritmo de larguras GUI: larguras fixas exatas por tipo de coluna (# = 25px, numero_ssa = 65px, etc.), crescimento proporcional 50/50 para descrições, correção do mapeamento de índices de colunas (filtradas vs DataFrame completo), ordem determinística de colunas via gui_main_preferences.json."
 }
