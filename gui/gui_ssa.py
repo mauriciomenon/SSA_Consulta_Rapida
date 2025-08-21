@@ -36,14 +36,14 @@ def load_gui_main_preferences():
     default_config = {
         "display_columns": [
             "numero_ssa", "setor_executor", "situacao", "descricao_ssa",
-            "data_cadastro", "semana_cadastro", "localizacao_codigo", "grau_prioridade"
+            "data_cadastro", "semana_cadastro", "localizacao_codigo", "grau_prioridade_emissao"
         ],
         "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
         "column_display_names": {
-            "numero_ssa": "Número SSA", "setor_executor": "Setor Executor",
-            "situacao": "Situação", "descricao_ssa": "Descrição da SSA",
-            "data_cadastro": "Data Cadastro", "semana_cadastro": "Semana Cadastro",
-            "localizacao_codigo": "Localização", "grau_prioridade": "Prioridade"
+            "numero_ssa": "Nº SSA", "setor_executor": "Exec.", 
+            "situacao": "Sit.", "descricao_ssa": "Desc.",
+            "data_cadastro": "Data Cad.", "semana_cadastro": "Sem.Cad.",
+            "localizacao_codigo": "Loc.", "grau_prioridade_emissao": "Prio.Emis."
         },
         "column_widths": {
             "#": 50, "numero_ssa": 120, "setor_executor": 150, "situacao": 120,
@@ -684,13 +684,13 @@ class SSAMainWindow(QMainWindow):
                 # Ultimo recurso: mostra todas
                 cols_to_show = self.df_para_tabela.columns.tolist()
 
-        # Pina ordem essencial: '#' depois numero_ssa, loc, executor, situacao, descricao_ssa
-        def _pin(cols):
-            pinned = ['numero_ssa', 'localizacao_codigo', 'setor_executor', 'situacao', 'descricao_ssa']
-            fixed = [c for c in pinned if c in cols]
-            tail = [c for c in cols if c not in fixed]
-            return fixed + tail
-        cols_to_show = _pin(cols_to_show)
+        # DEBUG: Verifica o que está sendo filtrado
+        print(f"DEBUG FILTRO: visible_columns = {self.visible_columns}")
+        print(f"DEBUG FILTRO: cols_to_show = {cols_to_show}")
+        print(f"DEBUG FILTRO: df_para_tabela.columns.tolist() = {self.df_para_tabela.columns.tolist()}")
+
+        # CORREÇÃO: Mantém a ordem EXATA definida em gui_main_preferences.json
+        # Sem reordenação para garantir correspondência com as larguras calculadas
 
         display_df = self.df_para_tabela[cols_to_show].copy()
         # Mantém colunas atuais para mapear índice->nome ao salvar larguras
@@ -838,6 +838,24 @@ class SSAMainWindow(QMainWindow):
         Substitui 150+ linhas de código frankenstein por uma chamada limpa.
         """
         try:
+            # Garante que visible_columns esteja definido
+            if not hasattr(self, 'visible_columns') or not self.visible_columns:
+                return
+            
+            # CORREÇÃO CRÍTICA: Filtra visible_columns para incluir apenas colunas que EXISTEM no DataFrame
+            if hasattr(df, 'columns'):
+                existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
+                if not existing_visible_cols:
+                    print("ERRO: Nenhuma coluna visível encontrada no DataFrame")
+                    return
+                
+                # IMPORTANTE: Mantém a ordem exata de self.visible_columns
+                visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
+                print(f"DEBUG: Larguras para {len(existing_visible_cols)} colunas visíveis de {len(df.columns)} total")
+                print(f"DEBUG: Ordem das colunas mantida: {existing_visible_cols}")
+            else:
+                visible_df = df
+            
             # Obtém largura da tabela
             widget_width = self.table_widget.width()
             viewport_width = self.table_widget.viewport().width()
@@ -850,23 +868,27 @@ class SSAMainWindow(QMainWindow):
             # Garante largura mínima para funcionamento adequado
             table_width = max(table_width, 1400)
             
-            # Usa o WidthManager para calcular larguras otimizadas
+            # Usa o WidthManager para calcular larguras otimizadas  
+            # IMPORTANTE: Força ordem correta das colunas (adiciona '#' no início)
+            correct_column_order = ['#'] + existing_visible_cols
             column_widths = self.width_manager.compute_optimal_widths(
-                df=df,
+                df=visible_df,
                 available_width=table_width,
                 display_mappings=self.internal_to_display,
-                saved_widths=self._saved_gui_column_widths
+                saved_widths=self._saved_gui_column_widths,
+                column_order=correct_column_order
             )
             
-            print(f"DEBUG: WidthManager calculou larguras para {len(column_widths)} colunas, largura total: {table_width}px")
+            print(f"DEBUG: WidthManager calculou larguras para {len(column_widths)} colunas visíveis de {len(df.columns)} total, largura total: {table_width}px")
             
             # Mantém compatibilidade com código existente
             self._gui_column_pixel_widths = column_widths
             
         except Exception as e:
             print(f"ERRO em _compute_gui_column_widths: {e}")
-            # Fallback para larguras mínimas
-            self._gui_column_pixel_widths = {col: 100 for col in df.columns}
+            # Fallback para larguras mínimas das colunas visíveis apenas
+            visible_cols = ['#'] + (self.visible_columns if hasattr(self, 'visible_columns') else [])
+            self._gui_column_pixel_widths = {col: 100 for col in visible_cols}
 
     def _calculate_max_chars_for_column(self, col_name: str, col_idx: int) -> int:
         """Calcula o número máximo de caracteres baseado na largura da coluna."""
@@ -907,8 +929,8 @@ class SSAMainWindow(QMainWindow):
             col_name = cols[logical_index]
             # Persist only reasonable sizes
             new_px = max(30, min(int(new_size), 1200))
-            # Atualiza cache local
-            self._saved_gui_column_widths[col_name] = new_px
+            # Atualiza cache local - TEMPORARIAMENTE DESABILITADO para usar larguras fixas
+            # self._saved_gui_column_widths[col_name] = new_px
             # Nota: Persistência removida para isolamento do CLI
             # As larguras ficam configuradas no arquivo gui_main_preferences.json
         except Exception:
@@ -1246,24 +1268,64 @@ class SSAMainWindow(QMainWindow):
 
     def _recompute_column_widths_on_resize(self):
         """Recalcula e aplica larguras das colunas após resize da janela."""
-        if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
+        try:
+            # Verifica se widgets estão em estado válido
+            if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
+                not self.table_widget or not self.table_widget.isVisible()):
+                return
+                
             print(f"DEBUG: Recalculando larguras após resize da janela")
             # Recalcula larguras com nova dimensão da janela usando WidthManager
             self._compute_gui_column_widths(self.df_para_tabela)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
+        except Exception as e:
+            print(f"AVISO: Erro durante recálculo de larguras no resize: {e}")
 
     def _apply_computed_widths_only(self):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
-        if not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty:
-            return
+        try:
+            if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
+                not hasattr(self, '_gui_column_pixel_widths') or 
+                not self.table_widget or not self.table_widget.isVisible()):
+                return
             
-        for i, col_name in enumerate(self.df_para_tabela.columns):
-            px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
-            if px is not None:
-                px = max(30, min(int(px), 1000))
-                self.table_widget.setColumnWidth(i, px)
-                # print(f"DEBUG: Resize - Aplicando largura {px}px para coluna '{col_name}' (índice {i})")
+            # CORREÇÃO CRÍTICA: Usar _current_display_columns que contém apenas as colunas visíveis filtradas
+            # Em vez de ['#'] + todas as colunas do df_para_tabela
+            if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
+                print("DEBUG APLICAÇÃO: ⚠️  _current_display_columns não definido!")
+                return
+                
+            table_columns = self._current_display_columns
+            
+            print(f"DEBUG APLICAÇÃO: Aplicando larguras para {len(table_columns)} colunas")
+            print(f"DEBUG APLICAÇÃO: Colunas da tabela (filtradas): {table_columns}")
+            print(f"DEBUG APLICAÇÃO: Larguras disponíveis: {list(self._gui_column_pixel_widths.keys())}")
+            
+            # Aplicar larguras para todas as colunas definidas
+            for col_name, px in self._gui_column_pixel_widths.items():
+                if col_name in table_columns and px and px > 0:
+                    col_index = table_columns.index(col_name)
+                    if col_index < self.table_widget.columnCount():
+                        current_width = self.table_widget.columnWidth(col_index)
+                        if current_width != px:  # Só aplica se diferente
+                            self.table_widget.setColumnWidth(col_index, px)
+                            print(f"DEBUG APLICAÇÃO: Coluna {col_index} ({col_name}): {current_width}px → {px}px")
+                        else:
+                            print(f"DEBUG APLICAÇÃO: Coluna {col_index} ({col_name}): MANTIDA em {px}px")
+                    else:
+                        print(f"DEBUG APLICAÇÃO: ⚠️  Coluna {col_name}: ÍNDICE {col_index} FORA DO LIMITE {self.table_widget.columnCount()}")
+                else:
+                    if col_name in table_columns:
+                        print(f"DEBUG APLICAÇÃO: ⚠️  Coluna {col_name}: SEM LARGURA VÁLIDA (px={px})")
+            
+            # Identificar colunas da tabela sem larguras definidas
+            for i, col_name in enumerate(table_columns):
+                if i < self.table_widget.columnCount() and col_name not in self._gui_column_pixel_widths:
+                    print(f"DEBUG APLICAÇÃO: ⚠️  Coluna {i} ({col_name}): NÃO CONFIGURADA (usando largura automática)")
+                    
+        except Exception as e:
+            print(f"AVISO: Erro durante aplicação de larguras: {e}")
 
 # --- Ponto de Entrada ---
 if __name__ == '__main__':

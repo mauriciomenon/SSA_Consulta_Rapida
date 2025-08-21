@@ -87,7 +87,6 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     
     parsed = _apply_default_filters._cache[cache_key]
     return filter_dataframe(df, parsed)
-    return df
 
 def _get_initial_state(
     db_path: str, 
