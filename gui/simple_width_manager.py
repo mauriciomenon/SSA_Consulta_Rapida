@@ -77,8 +77,8 @@ class SimpleWidthManager:
             print(f"DEBUG SIMPLES: [{i+1}] Processando coluna '{col}'")
             
             if col == '#':
-                fixed_widths[col] = 25
-                print(f"  -> FIXO: 25px")
+                fixed_widths[col] = 20  # Ajuste v3.0.4: 25px → 20px (-5px)
+                print(f"  -> FIXO: 20px")
                 
             elif col in saved_widths and saved_widths[col] > 0:
                 fixed_widths[col] = saved_widths[col]
@@ -101,8 +101,8 @@ class SimpleWidthManager:
                 print(f"  -> SETOR_EMISSOR: 40px")
                 
             elif col == 'localizacao_codigo':
-                fixed_widths[col] = 50  # CORRIGIDO: 45 -> 50px
-                print(f"  -> LOCALIZACAO: 50px")
+                fixed_widths[col] = 60  # Ajuste v3.0.4: 50px → 60px (+10px)
+                print(f"  -> LOCALIZACAO: 60px")
                 
             elif col == 'data_cadastro':
                 fixed_widths[col] = 85

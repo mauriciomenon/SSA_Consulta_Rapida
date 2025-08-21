@@ -528,6 +528,11 @@ class SSAMainWindow(QMainWindow):
         # Começa como Interativo; após preencher a página, aplicamos larguras fixas para estabilidade
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
+        
+        # CORREÇÃO v3.0.4: Habilita word wrap para utilizar larguras completas
+        self.table_widget.setWordWrap(True)
+        # Ajusta altura das linhas automaticamente para acomodar texto quebrado
+        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         # Conecta clique duplo para mostrar detalhes (placeholder)
         self.table_widget.doubleClicked.connect(self.on_table_double_click)
@@ -744,10 +749,19 @@ class SSAMainWindow(QMainWindow):
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
 
-                # Trunca texto baseado na largura da coluna (dinâmico)
-                max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
-                if len(item_text) > max_chars:
-                    item_text = item_text[:max_chars-3] + "..."
+        columns_list = list(display_df.columns)
+        for row_idx in range(len(display_df)):
+            row_data = display_df.iloc[row_idx]
+            for col_idx, col_name in enumerate(columns_list):
+                value = row_data.iloc[col_idx]
+                item_text = "" if pd.isna(value) else str(value)
+
+                # CORREÇÃO v3.0.4: Não truncar colunas de descrição e responsável - deixar word wrap funcionar
+                if col_name not in ['descricao_ssa', 'descricao_execucao', 'responsavel_programacao', 'responsavel_execucao']:
+                    # Trunca apenas colunas que não são de descrição
+                    max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
+                    if len(item_text) > max_chars:
+                        item_text = item_text[:max_chars-3] + "..."
 
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)

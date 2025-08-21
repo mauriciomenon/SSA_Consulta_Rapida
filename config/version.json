@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.4",
-  "version_long": "SSA Consulta Rápida v3.0.4 – Correção crítica do algoritmo de larguras GUI: larguras fixas exatas por tipo de coluna (# = 25px, numero_ssa = 65px, etc.), crescimento proporcional 50/50 para descrições, correção do mapeamento de índices de colunas (filtradas vs DataFrame completo), ordem determinística de colunas via gui_main_preferences.json."
+  "version_short": "3.0.5",
+  "version_long": "SSA Consulta Rápida v3.0.5 – Finalização UX GUI: word wrap habilitado, altura automática de linhas, text rendering otimizado sem truncamento forçado nas descrições, ajustes finos de largura (# = 20px, localizacao = 60px), colunas responsável incluídas no word wrap."
 }
