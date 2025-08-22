@@ -756,8 +756,8 @@ class SSAMainWindow(QMainWindow):
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
 
-                # CORREÇÃO v3.0.4: Não truncar colunas de descrição e responsável - deixar word wrap funcionar
-                if col_name not in ['descricao_ssa', 'descricao_execucao', 'responsavel_programacao', 'responsavel_execucao']:
+                # CORREÇÃO v3.0.5: Não truncar colunas de descrição e solicitante - deixar word wrap funcionar
+                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
                     # Trunca apenas colunas que não são de descrição
                     max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
                     if len(item_text) > max_chars:
