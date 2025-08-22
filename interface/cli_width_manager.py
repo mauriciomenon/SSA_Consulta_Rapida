@@ -30,7 +30,7 @@ class CLIWidthManager:
             'semana_cadastro': 8,      # GUI: 60px ÷ 8 ≈ 8 chars
             'semana_programada': 6,    # GUI: 45px ÷ 8 ≈ 6 chars
             'derivada_de': 9,          # GUI: 65px ÷ 8 ≈ 9 chars
-            'solicitante': 20,         # GUI: 160px ÷ 8 ≈ 20 chars
+            'solicitante': 25,         # GUI: 160px ÷ 8 ≈ 20 chars (aumentado para 25)
             'descricao_ssa': 56,       # GUI: 450px ÷ 8 ≈ 56 chars (base)
             'descricao_execucao': 44,  # GUI: 350px ÷ 8 ≈ 44 chars (base)
             'grau_prioridade_emissao': 9,      # GUI: 65px ÷ 8 ≈ 9 chars
@@ -100,23 +100,18 @@ class CLIWidthManager:
         available_columns = ['#'] + [col for col in df.columns if col in column_order]
         columns_to_process = [col for col in column_order if col in available_columns]
         
-        print(f"DEBUG CLI: Processando {len(columns_to_process)} colunas na ordem: {columns_to_process}")
-        
         # LARGURAS FIXAS DETERMINÍSTICAS (igual à GUI)
         calculated_widths = {}
         expandable_cols = []
         
         for i, col in enumerate(columns_to_process):
-            print(f"DEBUG CLI: [{i+1}] Processando coluna '{col}'")
             
             if col in self.fixed_widths:
                 calculated_widths[col] = self.fixed_widths[col]
-                print(f"  -> FIXO: {self.fixed_widths[col]} chars")
                 
                 # Marca como expansível se aplicável
                 if col in self.expandable_columns:
                     expandable_cols.append(col)
-                    print(f"  -> EXPANSÍVEL")
             else:
                 # Largura padrão para outras colunas
                 calculated_widths[col] = 15
@@ -127,9 +122,6 @@ class CLIWidthManager:
         separator_space = (len(columns_to_process) * 3)  # Espaço para separadores
         usable_width = max(0, available_width - separator_space)
         available_extra = max(0, usable_width - total_fixed)
-        
-        print(f"DEBUG CLI: Total fixo: {total_fixed} chars, Terminal: {available_width} chars")
-        print(f"DEBUG CLI: Largura utilizável: {usable_width}, Espaço extra: {available_extra}")
         
         if available_extra > 10 and expandable_cols:  # Mínimo de 10 chars extras para expandir
             # Divisão proporcional 50/50 entre descrições (igual à GUI)
@@ -142,14 +134,6 @@ class CLIWidthManager:
                 total_extra = extra_per_col + extra_bonus
                 
                 calculated_widths[col] += total_extra
-                print(f"DEBUG CLI: {col} cresceu para {calculated_widths[col]} chars (+{total_extra})")
-        
-        total_final = sum(calculated_widths.values())
-        print(f"DEBUG CLI: Total final: {total_final} chars, Disponível: {usable_width}")
-        
-        # Lista larguras finais
-        for col, width in sorted(calculated_widths.items()):
-            print(f"  FINAL CLI: {col} = {width} chars")
         
         return calculated_widths
         
@@ -254,7 +238,7 @@ class CLIWidthManager:
         
         # 3-5 dígitos -> prefixa ano corrente 2025
         if len(s) <= 5:
-            return f"2025{s.zfill(9-4)}" if len(s) < 5 else s
+            return f"2025{s.zfill(5)}"
         
         # 7-8 dígitos -> zfill para 9
         return s.zfill(9)
