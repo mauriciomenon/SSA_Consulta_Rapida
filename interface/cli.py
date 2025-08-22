@@ -21,7 +21,9 @@ from armazenamento.database import query_db
 from core.app_logic import run_importer_logic, filter_dataframe, parse_search_terms
 from core.config_manager import load_settings, handle_config_command, load_display_mappings_integrity
 from interface.display import pretty_print_details
-from interface.table_printer import pretty_print_df # Importa a versão revisada
+from interface.table_printer import pretty_print_df # Versão antiga como fallback
+from interface.enhanced_table_printer import EnhancedTablePrinter
+from interface.cli_enhancement_manager import enhancement_manager
 from utils.version import get_app_version, get_app_version_long
 
 # Configura logger específico para este módulo
@@ -34,6 +36,7 @@ APP_VERSION_LONG = get_app_version_long()
 def _cached_pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict, cache: dict):
     """
     Versão com cache do pretty_print_df para evitar reprocessamento de dados inalterados.
+    Usa enhanced table printer quando habilitado via enhancement manager.
     """
     # Gera hash baseado no DataFrame e configurações
     df_hash = hash(str(df.shape) + str(list(df.columns)) + str(df.iloc[0].values.tobytes() if len(df) > 0 else ''))
@@ -47,7 +50,26 @@ def _cached_pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict,
         print(cache[cache_key])
         return
     
-    # Captura a saída do pretty_print_df
+    # Usa enhanced table printer se habilitado
+    if enhancement_manager.is_enhanced_printer_enabled():
+        try:
+            if enhancement_manager.is_debug_enabled():
+                print("DEBUG CLI: Usando Enhanced Table Printer")
+            
+            # Usa o Enhanced Table Printer
+            printer = EnhancedTablePrinter()
+            printer.print_dataframe_enhanced(df, display_map, settings)
+            
+            # Para manter compatibilidade com cache, salva uma entrada simples
+            if len(cache) > 20:  # Limita a 20 entradas
+                cache.clear()
+            cache[cache_key] = "rendered_enhanced"  # Placeholder para cache
+            return
+            
+        except Exception as e:
+            logger.warning(f"Enhanced printer falhou, usando fallback: {e}")
+    
+    # Fallback para versão original
     import io
     import sys
     old_stdout = sys.stdout
@@ -65,7 +87,7 @@ def _cached_pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict,
         # Restaura stdout e imprime
         sys.stdout = old_stdout
         print(output, end='')
-        
+            
     finally:
         sys.stdout = old_stdout
 
@@ -141,6 +163,13 @@ Comandos disponíveis:
     -clearall      : Limpa todos os filtros (usuário e padrão) para esta sessão.
   -h             : Mostra esta ajuda.
   -q, sair, exit : Sai do programa.
+
+Melhorias CLI (v3.0.5+):
+  status-cli     : Exibe status das melhorias implementadas.
+  toggle-debug   : Liga/desliga modo debug do Enhanced Table Printer.
+  enhanced-on    : Ativa Enhanced Table Printer.
+  enhanced-off   : Desativa Enhanced Table Printer (volta ao original).
+
 Pesquisa:
   Digite um ou mais termos separados por vírgula para filtrar os resultados.
   Exemplo: 'ADM, MEL3, 2025' filtra por Situação ADM, Executor MEL3 ou Nº SSA 2025.
@@ -375,6 +404,15 @@ COMMAND_HANDLERS = {
     '-rescan': _handle_rescan,
     '-c': handle_config_command, # Diretamente do config_manager
     'config': handle_config_command,
+    # Comandos das melhorias CLI
+    'status-cli': lambda: print(enhancement_manager.get_status_report()),
+    'cli-status': lambda: print(enhancement_manager.get_status_report()),
+    'toggle-debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
+    'debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
+    'enhanced-on': lambda: (enhancement_manager.enable_enhanced_printer(), print("✅ Enhanced Table Printer ATIVADO")),
+    'enable-enhanced': lambda: (enhancement_manager.enable_enhanced_printer(), print("✅ Enhanced Table Printer ATIVADO")),
+    'enhanced-off': lambda: (enhancement_manager.disable_enhanced_printer(), print("❌ Enhanced Table Printer DESATIVADO")),
+    'disable-enhanced': lambda: (enhancement_manager.disable_enhanced_printer(), print("❌ Enhanced Table Printer DESATIVADO")),
 }
 
 def start_cli_loop(db_path: str, table_name: str):
