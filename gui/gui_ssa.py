@@ -529,10 +529,13 @@ class SSAMainWindow(QMainWindow):
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
         
-        # CORREÇÃO v3.0.4: Habilita word wrap para utilizar larguras completas
-        self.table_widget.setWordWrap(True)
-        # Ajusta altura das linhas automaticamente para acomodar texto quebrado
-        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # CORREÇÃO v3.0.5: Performance otimizada - removido word wrap global e resize automático
+        # Word wrap causa lentidão extrema em grandes datasets
+        # self.table_widget.setWordWrap(True)  # ← REMOVIDO - causava travamentos
+        
+        # Altura fixa otimizada ao invés de resize automático
+        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.table_widget.verticalHeader().setDefaultSectionSize(24)  # Altura fixa otimizada
 
         # Conecta clique duplo para mostrar detalhes (placeholder)
         self.table_widget.doubleClicked.connect(self.on_table_double_click)
