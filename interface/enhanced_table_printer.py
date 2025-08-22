@@ -39,7 +39,8 @@ class EnhancedTablePrinter:
         df: pd.DataFrame, 
         display_map: Dict[str, str], 
         settings: dict,
-        highlight_terms: Optional[List[str]] = None
+        highlight_terms: Optional[List[str]] = None,
+        filter_terms: Optional[List[str]] = None
     ):
         """
         Renderiza DataFrame com sistema melhorado.
@@ -57,8 +58,6 @@ class EnhancedTablePrinter:
         # Obtém dimensões do terminal
         terminal_height, terminal_width = self.get_terminal_size()
         available_width = max(terminal_width - 5, 80)  # Margem de segurança
-        
-        print(f"DEBUG CLI: Terminal {terminal_width}x{terminal_height}, usando {available_width} chars")
         
         # Obtém ordem das colunas da configuração unificada
         column_order = self.width_manager.get_column_order()
@@ -102,7 +101,7 @@ class EnhancedTablePrinter:
         formatted_df = self._apply_formatting_and_wrap(working_df, widths, display_names)
         
         # Renderiza com paginação
-        self._render_paginated(formatted_df, widths, settings, highlight_terms)
+        self._render_paginated(formatted_df, widths, settings, highlight_terms, filter_terms)
     
     def _select_columns_smart(
         self, 
@@ -158,9 +157,6 @@ class EnhancedTablePrinter:
                 if estimated_width + col_width + 3 <= available_width * 0.9:  # 90% para outras
                     selected.append(col)
                     estimated_width += col_width + 3
-        
-        print(f"DEBUG CLI: Selecionadas {len(selected)} colunas: {selected}")
-        print(f"DEBUG CLI: Largura estimada: {estimated_width} chars")
         
         return selected
     
@@ -246,7 +242,8 @@ class EnhancedTablePrinter:
         df: pd.DataFrame, 
         widths: Dict[str, int],
         settings: dict,
-        highlight_terms: Optional[List[str]] = None
+        highlight_terms: Optional[List[str]] = None,
+        filter_terms: Optional[List[str]] = None
     ):
         """
         Renderiza DataFrame com paginação.
@@ -310,7 +307,13 @@ class EnhancedTablePrinter:
                         continue
                     else:
                         remaining = len(pages) - current_page
-                        prompt = f"\n-- Mais ({remaining} pág. restante(s)) | Enter: continuar, 'f': até o final, 'q': sair --"
+                        
+                        # Monta informação sobre filtros aplicados
+                        filter_info = ""
+                        if filter_terms:
+                            filter_info = f" - Filtros: {', '.join(filter_terms)}"
+                        
+                        prompt = f"\n-- Mais ({remaining} pág. restante(s)){filter_info} | Enter: continuar, 'f': até o final, 'd <#>': detalhe, '+filtro': adicionar, 'q': sair --"
                         try:
                             user_input = input(prompt).strip().lower()
                         except KeyboardInterrupt:
@@ -322,6 +325,15 @@ class EnhancedTablePrinter:
                             break
                         elif user_input == 'f':
                             auto_scroll = True
+                        elif user_input.startswith('+'):
+                            # Implementação simplificada para adicionar filtro
+                            # (retorna comando para processamento externo)
+                            print(f"\nPara adicionar filtro '{user_input[1:]}', use o comando principal.")
+                            continue
+                        elif user_input.startswith('d '):
+                            # Implementação simplificada para detalhe
+                            print(f"\nPara ver detalhe da linha {user_input[2:]}, use o comando principal.")
+                            continue
                         elif user_input == '':
                             continue
                         else:
@@ -374,7 +386,7 @@ class EnhancedTablePrinter:
 # Instância global para uso direto
 enhanced_printer = EnhancedTablePrinter()
 
-def pretty_print_df_enhanced(df: pd.DataFrame, display_map: Dict[str, str], settings: dict, highlight_terms: Optional[List[str]] = None):
+def pretty_print_df_enhanced(df: pd.DataFrame, display_map: Dict[str, str], settings: dict, highlight_terms: Optional[List[str]] = None, filter_terms: Optional[List[str]] = None):
     """
     Função de conveniência para usar o renderizador melhorado.
     
@@ -383,8 +395,9 @@ def pretty_print_df_enhanced(df: pd.DataFrame, display_map: Dict[str, str], sett
         display_map: Mapeamento de nomes de colunas
         settings: Configurações do sistema
         highlight_terms: Termos para destacar (opcional)
+        filter_terms: Termos de filtro aplicados (opcional)
     """
-    enhanced_printer.print_dataframe_enhanced(df, display_map, settings, highlight_terms)
+    enhanced_printer.print_dataframe_enhanced(df, display_map, settings, highlight_terms, filter_terms)
 
 
 # Função simplificada para formato CLI rápido
