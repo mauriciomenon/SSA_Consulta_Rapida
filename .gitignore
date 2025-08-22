@@ -208,3 +208,4 @@ __marimo__/
 
 # Ignorar arquivos temporários do Excel na pasta docs
 docs/~$*.xlsx
+/*.webui_secret_key
