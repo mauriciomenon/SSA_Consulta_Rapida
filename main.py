@@ -102,7 +102,7 @@ def main(cli_args=None):
     logger.setLevel(getattr(logging, args.log_level))
 
     # Banner amigável sem prefixos de log
-    print(f"Consulta Rápida de SSAs {APP_VERSION}")
+    print(f"Pesquisa Rápida de SSAs {APP_VERSION}")
 
     try:
         # --- 1. Preparação do Ambiente ---
