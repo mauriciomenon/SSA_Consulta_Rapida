@@ -1,0 +1,8 @@
+{
+  "enhanced_table_printer": true,
+  "unified_column_config": true,
+  "improved_ssa_normalization": true,
+  "word_wrap_in_cli": true,
+  "debug_output": true,
+  "version": "1.0"
+}
