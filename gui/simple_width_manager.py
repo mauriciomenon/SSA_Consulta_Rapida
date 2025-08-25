@@ -63,18 +63,13 @@ class SimpleWidthManager:
             columns = ['#'] + df_columns if '#' not in df_columns else sorted(df.columns.tolist())
         
         # IMPORTANTE: Para forçar larguras fixas, ignora saved_widths temporariamente
-        print(f"DEBUG SIMPLES: saved_widths recebido: {saved_widths}")
         saved_widths = {}  # FORÇA uso das larguras fixas
-        print(f"DEBUG SIMPLES: saved_widths LIMPO - usando larguras fixas")
         
         # LARGURAS FIXAS CONSTANTES - TAMANHO EXATO SEMPRE IGUAL
         fixed_widths = {}
         expandable_cols = []  # Colunas que podem crescer
         
-        print(f"DEBUG SIMPLES: Processando {len(columns)} colunas na ordem: {columns}")
-        
         for i, col in enumerate(columns):
-            print(f"DEBUG SIMPLES: [{i+1}] Processando coluna '{col}'")
             
             if col == '#':
                 fixed_widths[col] = 20  # Ajuste v3.0.4: 25px → 20px (-5px)
@@ -151,9 +146,6 @@ class SimpleWidthManager:
         total_fixed = sum(fixed_widths.values())
         available_extra = max(0, available_width - total_fixed)
         
-        print(f"DEBUG CRESCIMENTO: Total fixo: {total_fixed}px, Disponível: {available_width}px")
-        print(f"DEBUG CRESCIMENTO: Espaço extra: {available_extra}px")
-        
         if available_extra > 0 and expandable_cols:
             # Divisão proporcional do espaço extra com tratamento de resto
             extra_per_col = available_extra // len(expandable_cols)
@@ -165,14 +157,6 @@ class SimpleWidthManager:
                 total_extra = extra_per_col + extra_bonus
                 
                 fixed_widths[col] += total_extra
-                print(f"DEBUG CRESCIMENTO: {col} cresceu para {fixed_widths[col]}px (+{total_extra}px)")
-        
-        total_final = sum(fixed_widths.values())
-        print(f"DEBUG SIMPLES: Total final: {total_final}px, Disponível: {available_width}px")
-        
-        # Lista larguras finais
-        for col, width in sorted(fixed_widths.items()):
-            print(f"  FINAL: {col} = {width}px")
         
         return fixed_widths
 
