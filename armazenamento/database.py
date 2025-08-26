@@ -12,7 +12,7 @@ import logging
 from contextlib import contextmanager
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +167,13 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
             df = df.copy()
             df['numero_ssa'] = df['numero_ssa'].apply(_normalize_numero_ssa_value)
         with get_db_connection(db_path) as conn:
+            # Para arquivos grandes, usar chunksize para evitar "too many SQL variables"
+            batch_size = min(500, max(1, 999 // len(df.columns))) if len(df.columns) > 0 else 500
+            
             # to_sql é o método recomendado do Pandas
             # index=False evita inserir a coluna de índice do DataFrame
-            df.to_sql(table_name, conn, if_exists=if_exists, index=False, method='multi')
+            # chunksize divide em lotes menores para evitar limite de variáveis SQL
+            df.to_sql(table_name, conn, if_exists=if_exists, index=False, method='multi', chunksize=batch_size)
             conn.commit()
         logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
         return True
@@ -232,106 +236,119 @@ def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
 
 
 def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_name: str = 'ssas') -> bool:
-    """Insere DataFrame com upsert por numero_ssa, escolhendo a versão mais nova por data_cadastro.
-
-    Regras:
-    - Normaliza numero_ssa
-    - Chave de upsert: numero_ssa (linhas com numero_ssa None são apenas append)
-    - Compara por data_cadastro (parse dd/mm/yyyy ou yyyy-mm-dd); maiores datas vencem
-    - Empate: prefere linha nova
-    """
+    """Insere DataFrame com upsert inteligente por numero_ssa."""
     if df is None or df.empty:
         return True
 
-    work = df.copy()
-    if 'numero_ssa' in work.columns:
-        work['numero_ssa'] = work['numero_ssa'].apply(_normalize_numero_ssa_value)
-
-    # Linhas sem chave -> inserção direta
-    append_only = work[work.get('numero_ssa').isna()] if 'numero_ssa' in work.columns else work.iloc[0:0]
-    upsert_rows = work[work.get('numero_ssa').notna()] if 'numero_ssa' in work.columns else work.iloc[0:0]
-
     try:
+        work = df.copy().reset_index(drop=True)
+        
+        # CORREÇÃO: Verificar e corrigir índices duplicados
+        if work.index.duplicated().any():
+            logger.warning(f"Detectados {work.index.duplicated().sum()} índices duplicados. Corrigindo...")
+            work = work.reset_index(drop=True)
+        
+        # Normalizar numero_ssa
+        if 'numero_ssa' in work.columns:
+            work['numero_ssa'] = work['numero_ssa'].apply(_normalize_numero_ssa_value)
+
+        # Converter TODAS as colunas de data para string antes da inserção
+        date_columns = ['data_cadastro', 'prazo_limite', 'data_limite', 'desde', 'desde_1']
+        def convert_date_to_string(s) -> Optional[str]:
+            try:
+                if pd.isna(s) or s is None or s == '':
+                    return None
+                dt = pd.to_datetime(s, errors='coerce', dayfirst=True)
+                if pd.isna(dt):
+                    return None
+                return dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                return None
+        
+        # Aplicar conversão para todas as colunas de data de forma segura
+        for col in date_columns:
+            if col in work.columns:
+                try:
+                    # Correção: usar iloc para evitar warning de deprecação
+                    work[col] = work[col].apply(lambda x: convert_date_to_string(x) if pd.notna(x) else x)
+                except Exception as e:
+                    logger.warning(f"Erro ao converter coluna {col}: {e}")
+                    continue
+
+        # Separar linhas com e sem numero_ssa
+        has_ssa = work[work['numero_ssa'].notna()] if 'numero_ssa' in work.columns else pd.DataFrame()
+        no_ssa = work[work['numero_ssa'].isna()] if 'numero_ssa' in work.columns else work.copy()
+
         with get_db_connection(db_path) as conn:
-            if not upsert_rows.empty:
-                keys = sorted(set(upsert_rows['numero_ssa'].tolist()))
-                # Busca existentes
-                placeholders = ','.join(['?'] * len(keys))
-                existing = pd.read_sql_query(
-                    f"SELECT * FROM {table_name} WHERE numero_ssa IN ({placeholders})",
-                    conn,
-                    params=tuple(keys)
-                ) if keys else pd.DataFrame()
+            # Inserir registros sem SSA (append direto)
+            if not no_ssa.empty:
+                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=500)
+                logger.info(f"Inseridos {len(no_ssa)} registros sem numero_ssa")
 
-                # Merge por chave
-                def parse_dt(s) -> Optional[datetime]:
-                    try:
-                        return pd.to_datetime(s, errors='coerce', dayfirst=True).to_pydatetime()
-                    except Exception:
-                        return None
-
-                chosen_rows = []
-                grouped_new = upsert_rows.groupby('numero_ssa', as_index=False)
-                for k, new_group in grouped_new:
-                    new_best = new_group.copy()
-                    # Se houver várias novas para mesma chave, escolhe a mais recente
-                    if 'data_cadastro' in new_best.columns:
-                        new_best['_dt'] = new_best['data_cadastro'].apply(parse_dt)
-                        new_best = new_best.sort_values('_dt').tail(1).drop(columns=['_dt'])
-                    else:
-                        new_best = new_best.tail(1)
-                    new_row = new_best.iloc[0]
-
-                    if existing is not None and not existing.empty:
-                        old_group = existing[existing['numero_ssa'] == k]
-                    else:
-                        old_group = pd.DataFrame()
-
-                    if old_group.empty:
-                        chosen_rows.append(new_row)
-                        continue
-
-                    # Escolhe entre old e new por data
-                    old_row = old_group.copy()
-                    if 'data_cadastro' in old_row.columns:
-                        old_row['_dt'] = old_row['data_cadastro'].apply(parse_dt)
-                        old_row = old_row.sort_values('_dt').tail(1).drop(columns=['_dt'])
-                    old_row = old_row.iloc[0]
-
-                    new_dt = parse_dt(new_row.get('data_cadastro')) if 'data_cadastro' in new_row else None
-                    old_dt = parse_dt(old_row.get('data_cadastro')) if 'data_cadastro' in old_row else None
-
-                    if (new_dt and not old_dt) or (new_dt and old_dt and new_dt >= old_dt) or (not new_dt and not old_dt):
-                        chosen_rows.append(new_row)
-                    else:
-                        chosen_rows.append(old_row)
-
-                # Remove existentes para essas chaves e insere escolhidos
-                if keys:
-                    conn.execute(f"DELETE FROM {table_name} WHERE numero_ssa IN ({placeholders})", tuple(keys))
-                if chosen_rows:
-                    pd.DataFrame(chosen_rows).to_sql(table_name, conn, if_exists='append', index=False)
-
-            # Insere linhas sem chave
-            if append_only is not None and not append_only.empty:
-                append_only.to_sql(table_name, conn, if_exists='append', index=False)
-
+            # Para registros com SSA, fazer upsert manual em lotes
+            if not has_ssa.empty:
+                # Processar em chunks para evitar "too many SQL variables"
+                chunk_size = 100
+                total_inserted = 0
+                
+                for i in range(0, len(has_ssa), chunk_size):
+                    chunk = has_ssa.iloc[i:i+chunk_size].copy()
+                    
+                    # Para cada registro no chunk, verificar se existe e decidir se insere/atualiza
+                    for _, row in chunk.iterrows():
+                        numero_ssa = row['numero_ssa']
+                        
+                        # Verificar se já existe
+                        existing = pd.read_sql_query(
+                            f"SELECT * FROM {table_name} WHERE numero_ssa = ?",
+                            conn, params=[numero_ssa]
+                        )
+                        
+                        if existing.empty:
+                            # Não existe, inserir
+                            pd.DataFrame([row]).to_sql(table_name, conn, if_exists='append', index=False)
+                            total_inserted += 1
+                        else:
+                            # Existe, comparar datas e decidir
+                            existing_date = existing.iloc[0].get('data_cadastro')
+                            new_date = row.get('data_cadastro')
+                            
+                            # Se nova data é mais recente ou se não há data, atualizar
+                            should_update = False
+                            if new_date and not existing_date:
+                                should_update = True
+                            elif new_date and existing_date and new_date >= existing_date:
+                                should_update = True
+                            elif not new_date and not existing_date:
+                                should_update = True  # Empate, prefere novo
+                            
+                            if should_update:
+                                # Deletar antigo e inserir novo
+                                conn.execute(f"DELETE FROM {table_name} WHERE numero_ssa = ?", [numero_ssa])
+                                pd.DataFrame([row]).to_sql(table_name, conn, if_exists='append', index=False)
+                                total_inserted += 1
+                
+                logger.info(f"Processados {total_inserted} registros com numero_ssa via upsert")
+            
             conn.commit()
+        
+        logger.info(f"Inserção completada com sucesso")
         return True
+        
     except Exception as e:
-        logger.error(f"Falha no smart upsert: {e}")
+        logger.error(f"Falha na inserção: {e}")
         return False
 
 
 def _normalize_numero_ssa_value(v) -> int | None:
     """Normaliza um valor de numero_ssa para inteiro.
 
-    Regras conservadoras:
+    Regras para SSAs de 9 dígitos (YYYYNNNNN):
     - Remove tudo que não seja dígito
     - Se vazio após limpeza: None
-    - Se 7-8 dígitos: completa com zeros à esquerda até 9 e converte para int
-    - Se 9+ dígitos: usa os últimos 9 dígitos (para capturar sufixos usuais) e converte para int
-    - Caso 1-6 dígitos: mantém como int desses dígitos
+    - Valida se tem formato correto de ano (2019-2050) + 5 dígitos
+    - Rejeita se não está no formato correto
+    - Converte para int
     """
     try:
         if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -339,11 +356,30 @@ def _normalize_numero_ssa_value(v) -> int | None:
         s = re.sub(r"\D", "", str(v))
         if not s:
             return None
-        if len(s) < 8:
-            return int(s)
-        # Para 8+ dígitos, mantém apenas os últimos 8
-        return int(s[-8:])
-    except Exception:
+        
+        # NÃO remover zeros à esquerda - SSAs podem começar com zeros válidos!
+        
+        # Validar formato: deve ter exatamente 9 dígitos
+        if len(s) != 9:
+            logger.warning(f"SSA inválido - deve ter 9 dígitos: '{s}' (original: '{v}')")
+            return None
+            
+        # Validar ano (primeiros 4 dígitos): deve estar entre 2019-2050
+        ano_str = s[:4]
+        try:
+            ano = int(ano_str)
+            if not (2019 <= ano <= 2050):
+                logger.warning(f"SSA inválido - ano fora do range 2019-2050: '{s}' (ano: {ano})")
+                return None
+        except ValueError:
+            logger.warning(f"SSA inválido - ano não numérico: '{s}'")
+            return None
+            
+        # Converter para int
+        return int(s)
+        
+    except Exception as e:
+        logger.warning(f"Erro ao normalizar numero_ssa '{v}': {e}")
         return None
 
 
@@ -359,29 +395,354 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_numero_ssa(value) -> str | None:
-    """Normaliza numero_ssa para um formato de 9 dígitos em string.
+    """Normaliza numero_ssa para formato de exibição consistente.
 
-    Regras (compatíveis com testes históricos):
+    Regras para SSAs de 9 dígitos (YYYYNNNNN):
     - None/"" -> None
     - Remove caracteres não numéricos
-    - Se exatamente 9 dígitos: retorna como está
-    - Se após remover zeros à esquerda restarem <= 5 dígitos: prefixa ano corrente "2025"
-      e completa para 9 dígitos (2025 + 5 dígitos)
-    - Caso < 9 dígitos: completa à esquerda com zeros até 9
-    - Caso > 9 dígitos: usa os últimos 9 dígitos
+    - Se tem 7 dígitos começando com 21-25: prefixa "20" (anos 2021-2025)
+    - Se < 9 dígitos (outros casos): completa com zeros à esquerda até 9 dígitos
+    - Se >= 9 dígitos: usa os primeiros 9 dígitos
+    - Retorna como string
     """
     if value is None:
         return None
     s = re.sub(r"\D", "", str(value))
     if not s:
         return None
-    if len(s) == 9:
-        return s
-    stripped = s.lstrip('0')
-    if len(stripped) <= 5:
-        # 2025 + 5 dígitos
-        return f"2025{stripped.zfill(5)}"
-    if len(s) < 9:
-        return s.zfill(9)
-    # > 9 dígitos
-    return s[-9:]
+    
+    # Remover zeros à esquerda apenas se necessário
+    s = s.lstrip('0')
+    if not s:  # Se ficou vazio, era só zeros
+        return None
+        
+    # CORREÇÃO ESPECÍFICA: Se tem 7 dígitos começando com 21-25, prefixa "20"
+    if len(s) == 7 and s.startswith(('21', '22', '23', '24', '25')):
+        s = "20" + s
+    # Se tem menos de 9 dígitos (outros casos), completar com zeros à esquerda
+    elif len(s) < 9:
+        s = s.zfill(9)
+    # Se tem mais de 9 dígitos, usar apenas os primeiros 9
+    elif len(s) > 9:
+        s = s[:9]
+    
+    return s
+
+
+# --- Funções de Verificação e Integridade do Banco ---
+
+def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> Dict[str, Any]:
+    """
+    Verifica a integridade do banco de dados e retorna relatório detalhado.
+    
+    Args:
+        db_path: Caminho para o arquivo do banco de dados
+        table_name: Nome da tabela principal a verificar
+        
+    Returns:
+        Dict com status da verificação e detalhes dos problemas encontrados
+    """
+    verification_report = {
+        'is_valid': True,
+        'issues': [],
+        'warnings': [],
+        'database_exists': False,
+        'database_accessible': False,
+        'table_exists': False,
+        'schema_valid': False,
+        'data_consistent': False,
+        'disk_space_sufficient': False,
+        'file_permissions_ok': False
+    }
+    
+    try:
+        # 1. Verificar se o arquivo do banco existe
+        if not os.path.exists(db_path):
+            verification_report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
+            verification_report['is_valid'] = False
+            return verification_report
+        
+        verification_report['database_exists'] = True
+        
+        # 2. Verificar permissões de arquivo
+        try:
+            if not os.access(db_path, os.R_OK | os.W_OK):
+                verification_report['issues'].append(f"Permissões insuficientes para o banco: {db_path}")
+                verification_report['is_valid'] = False
+            else:
+                verification_report['file_permissions_ok'] = True
+        except Exception as e:
+            verification_report['issues'].append(f"Erro ao verificar permissões: {e}")
+            verification_report['is_valid'] = False
+        
+        # 3. Verificar espaço em disco
+        try:
+            db_dir = os.path.dirname(db_path) or '.'
+            statvfs = os.statvfs(db_dir) if hasattr(os, 'statvfs') else None
+            if statvfs:
+                free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
+                if free_space_gb < 0.1:  # Menos de 100MB disponível
+                    verification_report['warnings'].append(f"Pouco espaço em disco: {free_space_gb:.2f}GB disponível")
+                else:
+                    verification_report['disk_space_sufficient'] = True
+            else:
+                # Windows - usar shutil
+                import shutil
+                free_space_gb = shutil.disk_usage(db_dir).free / (1024**3)
+                if free_space_gb < 0.1:
+                    verification_report['warnings'].append(f"Pouco espaço em disco: {free_space_gb:.2f}GB disponível")
+                else:
+                    verification_report['disk_space_sufficient'] = True
+        except Exception as e:
+            verification_report['warnings'].append(f"Não foi possível verificar espaço em disco: {e}")
+        
+        # 4. Verificar acessibilidade do banco
+        try:
+            with get_db_connection(db_path) as conn:
+                # Testar uma operação simples
+                conn.execute("SELECT 1").fetchone()
+                verification_report['database_accessible'] = True
+        except Exception as e:
+            verification_report['issues'].append(f"Banco de dados não acessível: {e}")
+            verification_report['is_valid'] = False
+            return verification_report
+        
+        # 5. Verificar se a tabela principal existe
+        try:
+            with get_db_connection(db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?", 
+                    (table_name,)
+                )
+                if cursor.fetchone():
+                    verification_report['table_exists'] = True
+                else:
+                    verification_report['issues'].append(f"Tabela '{table_name}' não encontrada")
+                    verification_report['is_valid'] = False
+        except Exception as e:
+            verification_report['issues'].append(f"Erro ao verificar tabela: {e}")
+            verification_report['is_valid'] = False
+        
+        # 6. Verificar schema da tabela (colunas obrigatórias)
+        if verification_report['table_exists']:
+            try:
+                required_columns = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
+                with get_db_connection(db_path) as conn:
+                    cursor = conn.execute(f"PRAGMA table_info({table_name})")
+                    existing_columns = [row[1] for row in cursor.fetchall()]
+                    
+                    missing_columns = [col for col in required_columns if col not in existing_columns]
+                    if missing_columns:
+                        verification_report['issues'].append(f"Colunas obrigatórias ausentes: {missing_columns}")
+                        verification_report['is_valid'] = False
+                    else:
+                        verification_report['schema_valid'] = True
+            except Exception as e:
+                verification_report['issues'].append(f"Erro ao verificar schema: {e}")
+                verification_report['is_valid'] = False
+        
+        # 7. Verificar integridade SQLite
+        try:
+            with get_db_connection(db_path) as conn:
+                cursor = conn.execute("PRAGMA integrity_check")
+                integrity_result = cursor.fetchone()
+                if integrity_result and integrity_result[0] != 'ok':
+                    verification_report['issues'].append(f"Falha na verificação de integridade SQLite: {integrity_result[0]}")
+                    verification_report['is_valid'] = False
+                else:
+                    verification_report['data_consistent'] = True
+        except Exception as e:
+            verification_report['issues'].append(f"Erro ao verificar integridade SQLite: {e}")
+            verification_report['is_valid'] = False
+        
+        logger.info(f"Verificação de integridade concluída. Status: {'✓ Válido' if verification_report['is_valid'] else '✗ Problemas encontrados'}")
+        
+    except Exception as e:
+        verification_report['issues'].append(f"Erro inesperado na verificação: {e}")
+        verification_report['is_valid'] = False
+        logger.error(f"Erro na verificação de integridade: {e}")
+    
+    return verification_report
+
+
+def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas') -> Dict[str, Any]:
+    """
+    Valida um DataFrame antes da inserção no banco de dados.
+    
+    Args:
+        df: DataFrame a ser validado
+        table_name: Nome da tabela de destino
+        
+    Returns:
+        Dict com resultado da validação e problemas encontrados
+    """
+    validation_report = {
+        'is_valid': True,
+        'issues': [],
+        'warnings': [],
+        'row_count': len(df),
+        'invalid_rows': [],
+        'fixed_rows': 0
+    }
+    
+    try:
+        if df.empty:
+            validation_report['warnings'].append("DataFrame vazio - nada para validar")
+            return validation_report
+        
+        # 1. Verificar colunas críticas
+        critical_columns = ['numero_ssa', 'situacao']
+        for col in critical_columns:
+            if col in df.columns:
+                null_count = df[col].isnull().sum()
+                if null_count > 0:
+                    validation_report['warnings'].append(f"Coluna '{col}' tem {null_count} valores nulos")
+        
+        # 2. Validar números SSA
+        if 'numero_ssa' in df.columns:
+            invalid_ssa_mask = df['numero_ssa'].apply(lambda x: _normalize_numero_ssa_value(x) is None if pd.notna(x) else True)
+            invalid_ssa_count = invalid_ssa_mask.sum()
+            
+            if invalid_ssa_count > 0:
+                validation_report['warnings'].append(f"{invalid_ssa_count} números SSA inválidos encontrados")
+                # Marcar linhas com SSA inválido
+                invalid_indices = df[invalid_ssa_mask].index.tolist()
+                validation_report['invalid_rows'].extend(invalid_indices)
+        
+        # 3. Validar datas
+        date_columns = ['data_cadastro', 'prazo_limite', 'data_limite']
+        for col in date_columns:
+            if col in df.columns:
+                invalid_dates = 0
+                for idx, value in df[col].items():
+                    if pd.notna(value) and value != '':
+                        try:
+                            pd.to_datetime(value, errors='raise', dayfirst=True)
+                        except:
+                            invalid_dates += 1
+                            if idx not in validation_report['invalid_rows']:
+                                validation_report['invalid_rows'].append(idx)
+                
+                if invalid_dates > 0:
+                    validation_report['warnings'].append(f"Coluna '{col}' tem {invalid_dates} datas inválidas")
+        
+        # 4. Verificar duplicatas por numero_ssa
+        if 'numero_ssa' in df.columns:
+            valid_ssa_df = df[df['numero_ssa'].notna()]
+            if not valid_ssa_df.empty:
+                duplicated_ssa = valid_ssa_df.duplicated(subset=['numero_ssa'], keep=False)
+                duplicate_count = duplicated_ssa.sum()
+                
+                if duplicate_count > 0:
+                    validation_report['warnings'].append(f"{duplicate_count} números SSA duplicados encontrados")
+        
+        # 5. Verificar tamanhos de string (evitar truncamento)
+        text_columns = ['descricao_ssa', 'descricao_execucao', 'solicitante']
+        for col in text_columns:
+            if col in df.columns:
+                long_values = df[col].astype(str).str.len() > 1000  # Limite arbitrário
+                long_count = long_values.sum()
+                
+                if long_count > 0:
+                    validation_report['warnings'].append(f"Coluna '{col}' tem {long_count} valores muito longos (>1000 chars)")
+        
+        # Considerar válido mesmo com warnings (apenas issues críticos invalidam)
+        if not validation_report['issues']:
+            validation_report['is_valid'] = True
+            
+        logger.info(f"Validação concluída: {validation_report['row_count']} linhas, "
+                   f"{len(validation_report['issues'])} problemas críticos, "
+                   f"{len(validation_report['warnings'])} avisos")
+        
+    except Exception as e:
+        validation_report['issues'].append(f"Erro na validação: {e}")
+        validation_report['is_valid'] = False
+        logger.error(f"Erro na validação do DataFrame: {e}")
+    
+    return validation_report
+
+
+def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql') -> bool:
+    """
+    Tenta reparar o banco de dados se problemas forem detectados.
+    
+    Args:
+        db_path: Caminho para o banco de dados
+        schema_file: Arquivo de schema para recriação se necessário
+        
+    Returns:
+        True se reparo foi bem-sucedido ou não necessário
+    """
+    logger.info("Iniciando verificação e reparo do banco de dados...")
+    
+    try:
+        # Verificar integridade
+        integrity_report = verify_database_integrity(db_path)
+        
+        if integrity_report['is_valid']:
+            logger.info("Banco de dados íntegro - nenhum reparo necessário")
+            return True
+        
+        logger.warning(f"Problemas detectados no banco: {integrity_report['issues']}")
+        
+        # Tentar reparos básicos
+        repaired = False
+        
+        # 1. Se banco não existe, criar novo
+        if not integrity_report['database_exists']:
+            logger.info("Criando novo banco de dados...")
+            initialize_database(db_path, schema_file)
+            repaired = True
+        
+        # 2. Se tabela não existe, recriar schema
+        elif not integrity_report['table_exists']:
+            logger.info("Recriando schema do banco...")
+            initialize_database(db_path, schema_file)
+            repaired = True
+        
+        # 3. Se há problemas de integridade SQLite, tentar backup/restore
+        elif not integrity_report['data_consistent']:
+            logger.warning("Detectada corrupção no banco - tentando backup/restore...")
+            backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            try:
+                # Fazer backup do que for possível
+                import shutil
+                shutil.copy2(db_path, backup_path)
+                logger.info(f"Backup criado em: {backup_path}")
+                
+                # Tentar extrair dados válidos
+                with get_db_connection(db_path) as conn:
+                    try:
+                        df_backup = pd.read_sql_query("SELECT * FROM ssas", conn)
+                        if not df_backup.empty:
+                            # Recriar banco limpo
+                            os.remove(db_path)
+                            initialize_database(db_path, schema_file)
+                            
+                            # Reinserir dados
+                            success = insert_dataframe_with_smart_upsert(df_backup, db_path)
+                            if success:
+                                logger.info("Dados restaurados com sucesso após correção de corrupção")
+                                repaired = True
+                    except Exception as e:
+                        logger.error(f"Não foi possível extrair dados do banco corrompido: {e}")
+            except Exception as e:
+                logger.error(f"Falha no processo de backup/restore: {e}")
+        
+        # Verificar se reparo foi bem-sucedido
+        if repaired:
+            final_check = verify_database_integrity(db_path)
+            if final_check['is_valid']:
+                logger.info("✓ Reparo do banco de dados concluído com sucesso")
+                return True
+            else:
+                logger.error("✗ Reparo falhou - problemas persistem")
+                return False
+        else:
+            logger.error("Nenhum reparo foi possível para os problemas detectados")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Erro durante tentativa de reparo: {e}")
+        return False

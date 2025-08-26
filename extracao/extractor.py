@@ -180,7 +180,37 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
                 # já faz uma sanitização agressiva para exibição.
                 # Manter a original no DB pode ser útil.
                 
-        logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas extraídas.")
+        # --- VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS ---
+        logger.debug("Validando campos obrigatórios...")
+        
+        # Filtrar registros com campos essenciais vazios
+        before_validation = len(combined_df)
+        
+        # Remover registros completamente inválidos (sem SSA e sem descrição)
+        valid_mask = (
+            (combined_df.get('numero_ssa').notna() & (combined_df.get('numero_ssa') != '')) |
+            (combined_df.get('descricao_ssa').notna() & (combined_df.get('descricao_ssa') != ''))
+        )
+        
+        combined_df = combined_df[valid_mask].copy()
+        after_validation = len(combined_df)
+        
+        if before_validation > after_validation:
+            invalid_count = before_validation - after_validation
+            logger.warning(f"Removidos {invalid_count} registros inválidos (sem número SSA nem descrição)")
+        
+        # Validar campos críticos e avisar sobre problemas
+        if 'numero_ssa' in combined_df.columns:
+            empty_ssa = combined_df['numero_ssa'].isna() | (combined_df['numero_ssa'] == '')
+            if empty_ssa.sum() > 0:
+                logger.warning(f"{empty_ssa.sum()} registros sem número de SSA (mantidos com descrição válida)")
+        
+        if 'semana_cadastro' in combined_df.columns:
+            empty_week = combined_df['semana_cadastro'].isna() | (combined_df['semana_cadastro'] == '') | (combined_df['semana_cadastro'] == '-')
+            if empty_week.sum() > 0:
+                logger.warning(f"{empty_week.sum()} registros sem semana de cadastro")
+                
+        logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas válidas extraídas.")
         return combined_df
 
     except FileNotFoundError:

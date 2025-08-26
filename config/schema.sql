@@ -1,40 +1,41 @@
--- config/schema.sql
--- Schema do banco de dados para o projeto SSA_Consulta_Rapida
+-- config/schema_optimized.sql
+-- Schema otimizado para o banco de dados SSA_Consulta_Rapida
+-- Remove duplicações e padroniza estrutura mantendo compatibilidade
 
 CREATE TABLE IF NOT EXISTS ssas (
     -- Chave primária
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    -- Identificadores e Status
+    -- Identificadores e Status (CONSOLIDADO)
     numero_ssa INTEGER,
     situacao TEXT,
     derivada_de TEXT,
 
-    -- Localização
+    -- Localização (CONSOLIDADO)
     localizacao_codigo TEXT,
     descricao_localizacao TEXT,
     equipamento TEXT,
 
-    -- Datas e Cronometragem
-    semana_cadastro INTEGER, -- Tipo INTEGER conforme tratamento no extractor
-    data_cadastro TEXT,      -- Armazenada como TEXT no formato DD/MM/AAAA HH:MM:SS
+    -- Datas e Cronometragem (CONSOLIDADO)
+    semana_cadastro INTEGER,
+    data_cadastro TEXT,      -- Formato: DD/MM/AAAA HH:MM:SS ou YYYY-MM-DD HH:MM:SS
 
-    -- Descrições
+    -- Descrições (CONSOLIDADO)
     descricao_ssa TEXT,
     descricao_execucao TEXT,
 
-    -- Setores e Pessoas
+    -- Setores e Pessoas (CONSOLIDADO)
     setor_emissor TEXT,
     setor_executor TEXT,
     solicitante TEXT,
     responsavel_programacao TEXT,
     responsavel_execucao TEXT,
 
-    -- Serviços e Origem
+    -- Serviços e Origem (CONSOLIDADO)
     servico_origem TEXT,
     sistema_origem TEXT,
 
-    -- Prioridades
+    -- Prioridades (CONSOLIDADO)
     grau_prioridade_emissao TEXT,
     grau_prioridade_planejamento TEXT,
 
@@ -42,7 +43,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     execucao_simples TEXT,
 
     -- Programação
-    semana_programada INTEGER, -- Tipo INTEGER
+    semana_programada INTEGER,
 
     -- Prazos e Tempo
     prazo_limite TEXT,
@@ -58,15 +59,44 @@ CREATE TABLE IF NOT EXISTS ssas (
     total_horas_programadas TEXT,
 
     -- Execução
-    semana_executada INTEGER, -- Tipo INTEGER
-    num_reprogramacoes INTEGER, -- Tipo INTEGER
+    semana_executada INTEGER,
+    num_reprogramacoes INTEGER,
     execucao_parcial TEXT,
-    anomalia TEXT
-    -- Adicione outras colunas conforme necessário, baseando-se nos seus arquivos e mapeamentos
+    anomalia TEXT,
+
+    -- Campos adicionais encontrados nos arquivos Excel
+    registros_espera TEXT,
+    num_reprobaciones INTEGER,
+    situacao_espera TEXT,
+    numero_desvios INTEGER,
+    ate TEXT,
+    justificativa TEXT,
+    total_tempo_tex_executada TEXT,
+    parciais TEXT,
+    situacao_da_parcial TEXT
+
+    -- REMOVIDAS as seguintes colunas duplicadas:
+    -- "Número da SSA" (migrado para numero_ssa)
+    -- "Semana de Cadastro" (migrado para semana_cadastro)  
+    -- "Descrição Execução" (migrado para descricao_execucao)
+    -- "Responsável na Programação" (migrado para responsavel_programacao)
+    -- "Responsável na Execução" (migrado para responsavel_execucao)
+    -- "Grau de Prioridade Emissão" (migrado para grau_prioridade_emissao)
+    -- "Grau de Prioridade Planejamento" (migrado para grau_prioridade_planejamento)
 );
 
--- Indices podem ser adicionados para melhorar a performance de buscas
--- CREATE INDEX idx_numero_ssa ON ssas (numero_ssa);
--- CREATE INDEX idx_setor_executor ON ssas (setor_executor);
--- CREATE INDEX idx_semana_cadastro ON ssas (semana_cadastro);
--- CREATE INDEX idx_situacao ON ssas (situacao);
+-- Índices para melhorar performance de consultas
+CREATE INDEX IF NOT EXISTS idx_numero_ssa ON ssas (numero_ssa);
+CREATE INDEX IF NOT EXISTS idx_situacao ON ssas (situacao);
+CREATE INDEX IF NOT EXISTS idx_setor_executor ON ssas (setor_executor);
+CREATE INDEX IF NOT EXISTS idx_setor_emissor ON ssas (setor_emissor);
+CREATE INDEX IF NOT EXISTS idx_semana_cadastro ON ssas (semana_cadastro);
+CREATE INDEX IF NOT EXISTS idx_semana_programada ON ssas (semana_programada);
+CREATE INDEX IF NOT EXISTS idx_semana_executada ON ssas (semana_executada);
+CREATE INDEX IF NOT EXISTS idx_data_cadastro ON ssas (data_cadastro);
+CREATE INDEX IF NOT EXISTS idx_localizacao_codigo ON ssas (localizacao_codigo);
+
+-- Índices compostos para consultas complexas
+CREATE INDEX IF NOT EXISTS idx_numero_ssa_situacao ON ssas (numero_ssa, situacao);
+CREATE INDEX IF NOT EXISTS idx_setor_executor_semana ON ssas (setor_executor, semana_cadastro);
+CREATE INDEX IF NOT EXISTS idx_situacao_semana ON ssas (situacao, semana_cadastro);
