@@ -115,7 +115,6 @@ class CLIWidthManager:
             else:
                 # Largura padrão para outras colunas
                 calculated_widths[col] = 15
-                print(f"  -> PADRÃO: 15 chars")
         
         # CÁLCULO DE CRESCIMENTO PROPORCIONAL (algoritmo idêntico à GUI)
         total_fixed = sum(calculated_widths.values())

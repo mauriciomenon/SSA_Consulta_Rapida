@@ -1,0 +1,1589 @@
+{
+  "test_name": "all_excel_files_import",
+  "success": true,
+  "total_files": 21,
+  "successful_extractions": 21,
+  "successful_imports": 18,
+  "extraction_success_rate": 1.0,
+  "import_success_rate": 0.8571428571428571,
+  "total_duration_seconds": 20.053246,
+  "total_rows_extracted": 7366,
+  "total_records_imported": "6885",
+  "final_database_record_count": "6885",
+  "database_statistics": {
+    "unique_ssas": 5647,
+    "unique_situations": 22,
+    "unique_sectors": 20
+  },
+  "extraction_results": [
+    {
+      "file_name": "Consulta SSA - 14-07-2025_0343PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 14-07-2025_0343PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.580907,
+      "row_count": 55,
+      "column_count": 20,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9727272727272728,
+      "file_size_mb": 0.08540534973144531,
+      "extraction_rate_rows_per_sec": 94.67952701551195
+    },
+    {
+      "file_name": "Consulta SSA - 25-08-2025_0143PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 25-08-2025_0143PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.215087,
+      "row_count": 4,
+      "column_count": 19,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9868421052631579,
+      "file_size_mb": 0.07766342163085938,
+      "extraction_rate_rows_per_sec": 18.597125814205416
+    },
+    {
+      "file_name": "Consulta SSA - 25-08-2025_0150PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 25-08-2025_0150PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.158625,
+      "row_count": 4,
+      "column_count": 20,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.95,
+      "file_size_mb": 0.07701587677001953,
+      "extraction_rate_rows_per_sec": 25.2167060677699
+    },
+    {
+      "file_name": "Em Execução_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\Em Execução_15-08-2025_0416PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.187422,
+      "row_count": 73,
+      "column_count": 32,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "prazo_limite",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde",
+        "total_tempo_tpe_planejado",
+        "total_tempo_tex_planejado",
+        "total_tempo_tpo_planejado",
+        "total_horas_programadas",
+        "execucao_parcial"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9452054794520548,
+      "file_size_mb": 0.09196186065673828,
+      "extraction_rate_rows_per_sec": 389.4953634045096
+    },
+    {
+      "file_name": "Em Execução_15-08-2025_0417PM.xlsx",
+      "file_path": "docs_entrada\\Em Execução_15-08-2025_0417PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.187665,
+      "row_count": 7,
+      "column_count": 29,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "prazo_limite",
+        "responsavel_execucao",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde",
+        "total_tempo_tex_planejado",
+        "total_horas_programadas",
+        "execucao_parcial"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9704433497536946,
+      "file_size_mb": 0.07891082763671875,
+      "extraction_rate_rows_per_sec": 37.300508885514084
+    },
+    {
+      "file_name": "Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+      "file_path": "docs_entrada\\Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.173652,
+      "row_count": 5,
+      "column_count": 22,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "registros_espera",
+        "situacao_espera",
+        "tempo_disponivel",
+        "desde",
+        "ate",
+        "tempo_total",
+        "desde",
+        "ate",
+        "justificativa"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.8181818181818182,
+      "file_size_mb": 0.08172035217285156,
+      "extraction_rate_rows_per_sec": 28.793218621150345
+    },
+    {
+      "file_name": "Pendentes de Execução_15-07-2025_0224PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Execução_15-07-2025_0224PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.216759,
+      "row_count": 6,
+      "column_count": 27,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "prazo_limite",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde",
+        "total_tempo_tex_planejado",
+        "total_horas_programadas"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9506172839506173,
+      "file_size_mb": 0.0783834457397461,
+      "extraction_rate_rows_per_sec": 27.68051153585318
+    },
+    {
+      "file_name": "Pendentes de Execução_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Execução_15-08-2025_0416PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.175047,
+      "row_count": 27,
+      "column_count": 29,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "prazo_limite",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde",
+        "total_tempo_tpe_planejado",
+        "total_tempo_tex_planejado",
+        "total_tempo_tpo_planejado",
+        "total_horas_programadas"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9157088122605364,
+      "file_size_mb": 0.08371829986572266,
+      "extraction_rate_rows_per_sec": 154.2442886767554
+    },
+    {
+      "file_name": "Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.155926,
+      "row_count": 1,
+      "column_count": 19,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_excedido",
+        "desde",
+        "tempo_total",
+        "desde"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 1.0,
+      "file_size_mb": 0.07676982879638672,
+      "extraction_rate_rows_per_sec": 6.413298616010159
+    },
+    {
+      "file_name": "Pendentes de Programar_15-08-2025_0412PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Programar_15-08-2025_0412PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.175838,
+      "row_count": 121,
+      "column_count": 23,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_total",
+        "desde",
+        "total_tempo_tpe_planejado",
+        "total_tempo_tex_planejado",
+        "total_tempo_tpo_planejado"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9572403880704276,
+      "file_size_mb": 0.09023666381835938,
+      "extraction_rate_rows_per_sec": 688.133395511778
+    },
+    {
+      "file_name": "SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.244188,
+      "row_count": 19,
+      "column_count": 22,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "numero_desvios",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_total",
+        "desde",
+        "justificativa"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9665071770334929,
+      "file_size_mb": 0.08451080322265625,
+      "extraction_rate_rows_per_sec": 77.8089013383131
+    },
+    {
+      "file_name": "SSAs Executadas_15-08-2025_0415PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Executadas_15-08-2025_0415PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.179961,
+      "row_count": 107,
+      "column_count": 26,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "semana_executada",
+        "num_reprogramacoes",
+        "execucao_parcial",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "prazo_limite",
+        "anomalia",
+        "Total Tempo TEX Executada"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9342199856218548,
+      "file_size_mb": 0.1035299301147461,
+      "extraction_rate_rows_per_sec": 594.5732686526525
+    },
+    {
+      "file_name": "SSAs Executadas_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Executadas_15-08-2025_0416PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.227121,
+      "row_count": 339,
+      "column_count": 25,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "semana_executada",
+        "num_reprogramacoes",
+        "execucao_parcial",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "prazo_limite",
+        "Total Tempo TEX Executada"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9694395280235988,
+      "file_size_mb": 0.14773941040039062,
+      "extraction_rate_rows_per_sec": 1492.596457394957
+    },
+    {
+      "file_name": "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.186528,
+      "row_count": 35,
+      "column_count": 33,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "prazo_limite",
+        "execucao_parcial",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "Parciais",
+        "Situação da Parcial",
+        "tempo_disponivel",
+        "desde",
+        "ate",
+        "tempo_excedido",
+        "desde",
+        "ate",
+        "tempo_total",
+        "desde",
+        "ate"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.7722943722943723,
+      "file_size_mb": 0.09039497375488281,
+      "extraction_rate_rows_per_sec": 187.6393892605936
+    },
+    {
+      "file_name": "SSAs Pendentes de Aprovação na Emissão_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes de Aprovação na Emissão_15-08-2025_0411PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.194897,
+      "row_count": 1,
+      "column_count": 19,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "execucao_simples",
+        "tempo_disponivel",
+        "data_limite",
+        "tempo_total",
+        "desde",
+        "num_reprobaciones"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 1.0,
+      "file_size_mb": 0.07691001892089844,
+      "extraction_rate_rows_per_sec": 5.1309153039810775
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-07-2025_0236PM (3).xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-07-2025_0236PM (3).xlsx",
+      "success": true,
+      "duration_seconds": 0.165542,
+      "row_count": 58,
+      "column_count": 21,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "anomalia"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.8333333333333334,
+      "file_size_mb": 0.0894918441772461,
+      "extraction_rate_rows_per_sec": 350.36425801307223
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-08-2025_0413PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-08-2025_0413PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.176974,
+      "row_count": 142,
+      "column_count": 21,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "anomalia"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.8843058350100603,
+      "file_size_mb": 0.10355949401855469,
+      "extraction_rate_rows_per_sec": 802.3777504040141
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-08-2025_0414PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-08-2025_0414PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.220532,
+      "row_count": 278,
+      "column_count": 20,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.8293165467625899,
+      "file_size_mb": 0.11208724975585938,
+      "extraction_rate_rows_per_sec": 1260.5880325757712
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0419PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0419PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.437902,
+      "row_count": 1885,
+      "column_count": 22,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "sistema_origem",
+        "anomalia"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.8649626235833132,
+      "file_size_mb": 0.38490772247314453,
+      "extraction_rate_rows_per_sec": 4304.616101319473
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0425PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0425PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.683531,
+      "row_count": 3184,
+      "column_count": 20,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.940342336683417,
+      "file_size_mb": 0.6536893844604492,
+      "extraction_rate_rows_per_sec": 4658.164735761801
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0431PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0431PM.xlsx",
+      "success": true,
+      "duration_seconds": 0.291683,
+      "row_count": 1015,
+      "column_count": 21,
+      "columns": [
+        "numero_ssa",
+        "situacao",
+        "derivada_de",
+        "localizacao_codigo",
+        "descricao_localizacao",
+        "equipamento",
+        "semana_cadastro",
+        "data_cadastro",
+        "descricao_ssa",
+        "setor_emissor",
+        "setor_executor",
+        "solicitante",
+        "servico_origem",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+        "execucao_simples",
+        "responsavel_programacao",
+        "semana_programada",
+        "responsavel_execucao",
+        "descricao_execucao",
+        "anomalia"
+      ],
+      "essential_columns_found": 3,
+      "data_quality_ratio": 0.9097349284541403,
+      "file_size_mb": 0.2721138000488281,
+      "extraction_rate_rows_per_sec": 3479.8051309126686
+    }
+  ],
+  "import_results": [
+    {
+      "file_name": "Consulta SSA - 14-07-2025_0343PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 14-07-2025_0343PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.229386,
+      "initial_record_count": "0",
+      "final_record_count": "55",
+      "records_added": "55",
+      "import_rate_records_per_sec": 239.7705178171292,
+      "sample_data": [
+        {
+          "numero_ssa": 2420189,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2506990,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2509508,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2500357,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2500856,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Consulta SSA - 25-08-2025_0143PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 25-08-2025_0143PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.314184,
+      "initial_record_count": "55",
+      "final_record_count": "59",
+      "records_added": "4",
+      "import_rate_records_per_sec": 12.731393069029613,
+      "sample_data": [
+        {
+          "numero_ssa": 2510628,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510648,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510650,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510652,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2420189,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Consulta SSA - 25-08-2025_0150PM.xlsx",
+      "file_path": "docs_entrada\\Consulta SSA - 25-08-2025_0150PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.279867,
+      "initial_record_count": "59",
+      "final_record_count": "63",
+      "records_added": "4",
+      "import_rate_records_per_sec": 14.29250322474604,
+      "sample_data": [
+        {
+          "numero_ssa": 2508458,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2508459,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2508492,
+          "situacao": "STE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2508496,
+          "situacao": "ADM",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2510628,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Em Execução_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\Em Execução_15-08-2025_0416PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.371676,
+      "initial_record_count": "63",
+      "final_record_count": "136",
+      "records_added": "73",
+      "import_rate_records_per_sec": 196.40762384442363,
+      "sample_data": [
+        {
+          "numero_ssa": 2513047,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512496,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512497,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512498,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512360,
+          "situacao": "SEE",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Em Execução_15-08-2025_0417PM.xlsx",
+      "file_path": "docs_entrada\\Em Execução_15-08-2025_0417PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.442633,
+      "initial_record_count": "136",
+      "final_record_count": "143",
+      "records_added": "7",
+      "import_rate_records_per_sec": 15.81445576809682,
+      "sample_data": [
+        {
+          "numero_ssa": 2407782,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2405093,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2404581,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2317755,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2412570,
+          "situacao": "SEE",
+          "setor_executor": "IEE3"
+        }
+      ]
+    },
+    {
+      "file_name": "Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+      "file_path": "docs_entrada\\Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.467638,
+      "initial_record_count": "143",
+      "final_record_count": "148",
+      "records_added": "5",
+      "import_rate_records_per_sec": 10.69203101544357,
+      "sample_data": [
+        {
+          "numero_ssa": 25123310.0,
+          "situacao": "AAD",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 24148220.0,
+          "situacao": "AAD",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 24013970.0,
+          "situacao": "AAT",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": NaN,
+          "situacao": null,
+          "setor_executor": null
+        },
+        {
+          "numero_ssa": 23164390.0,
+          "situacao": "AAT",
+          "setor_executor": "IEE3"
+        }
+      ]
+    },
+    {
+      "file_name": "Pendentes de Execução_15-07-2025_0224PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Execução_15-07-2025_0224PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.365062,
+      "initial_record_count": "148",
+      "final_record_count": "154",
+      "records_added": "6",
+      "import_rate_records_per_sec": 16.435564369887853,
+      "sample_data": [
+        {
+          "numero_ssa": 2510403,
+          "situacao": "SPG",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2508815,
+          "situacao": "SPG",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2508163,
+          "situacao": "SPG",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2507962,
+          "situacao": "SPG",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2507130,
+          "situacao": "SPG",
+          "setor_executor": "IEE3"
+        }
+      ]
+    },
+    {
+      "file_name": "Pendentes de Execução_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Execução_15-08-2025_0416PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.280292,
+      "initial_record_count": "154",
+      "final_record_count": "181",
+      "records_added": "27",
+      "import_rate_records_per_sec": 96.32811496582136,
+      "sample_data": [
+        {
+          "numero_ssa": 2210169,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2501442,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2513033,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2513043,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2513005,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.266011,
+      "initial_record_count": "181",
+      "final_record_count": "182",
+      "records_added": "1",
+      "import_rate_records_per_sec": 3.759243038821703,
+      "sample_data": [
+        {
+          "numero_ssa": 2512404,
+          "situacao": "APL",
+          "setor_executor": "IEE4"
+        },
+        {
+          "numero_ssa": 2210169,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2501442,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2513033,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2513043,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Pendentes de Programar_15-08-2025_0412PM.xlsx",
+      "file_path": "docs_entrada\\Pendentes de Programar_15-08-2025_0412PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.276944,
+      "initial_record_count": "182",
+      "final_record_count": "303",
+      "records_added": "121",
+      "import_rate_records_per_sec": 436.91143335836847,
+      "sample_data": [
+        {
+          "numero_ssa": 2513009,
+          "situacao": "APG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512701,
+          "situacao": "APG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2511313,
+          "situacao": "APG",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511312,
+          "situacao": "APG",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511311,
+          "situacao": "APG",
+          "setor_executor": "MEL3"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.324362,
+      "initial_record_count": "303",
+      "final_record_count": "322",
+      "records_added": "19",
+      "import_rate_records_per_sec": 58.57652869325014,
+      "sample_data": [
+        {
+          "numero_ssa": 2511744,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511747,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2510434,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510241,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510240,
+          "situacao": "ACS",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Executadas_15-08-2025_0415PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Executadas_15-08-2025_0415PM.xlsx",
+      "success": false,
+      "duration_seconds": 0.309441,
+      "initial_record_count": "322",
+      "final_record_count": "322",
+      "records_added": "0",
+      "import_rate_records_per_sec": 0.0,
+      "sample_data": [
+        {
+          "numero_ssa": 2511744,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511747,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2510434,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510241,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510240,
+          "situacao": "ACS",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Executadas_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Executadas_15-08-2025_0416PM.xlsx",
+      "success": false,
+      "duration_seconds": 0.579908,
+      "initial_record_count": "322",
+      "final_record_count": "322",
+      "records_added": "0",
+      "import_rate_records_per_sec": 0.0,
+      "sample_data": [
+        {
+          "numero_ssa": 2511744,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511747,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2510434,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510241,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510240,
+          "situacao": "ACS",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
+      "success": false,
+      "duration_seconds": 1.086083,
+      "initial_record_count": "322",
+      "final_record_count": "322",
+      "records_added": "0",
+      "import_rate_records_per_sec": 0.0,
+      "sample_data": [
+        {
+          "numero_ssa": 2511744,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511747,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2510434,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510241,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510240,
+          "situacao": "ACS",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Pendentes de Aprovação na Emissão_15-08-2025_0411PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes de Aprovação na Emissão_15-08-2025_0411PM.xlsx",
+      "success": "True",
+      "duration_seconds": 1.079433,
+      "initial_record_count": "322",
+      "final_record_count": "323",
+      "records_added": "1",
+      "import_rate_records_per_sec": 0.926412292379425,
+      "sample_data": [
+        {
+          "numero_ssa": 2513176,
+          "situacao": "ADI",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2511744,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2511747,
+          "situacao": "AAT",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2510434,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2510241,
+          "situacao": "AMP",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-07-2025_0236PM (3).xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-07-2025_0236PM (3).xlsx",
+      "success": "True",
+      "duration_seconds": 1.365513,
+      "initial_record_count": "323",
+      "final_record_count": "381",
+      "records_added": "58",
+      "import_rate_records_per_sec": 42.47487940429714,
+      "sample_data": [
+        {
+          "numero_ssa": 2208082,
+          "situacao": "ADM",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2208249,
+          "situacao": "APV",
+          "setor_executor": "IEE2"
+        },
+        {
+          "numero_ssa": 2209545,
+          "situacao": "APV",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2209914,
+          "situacao": "APV",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2210466,
+          "situacao": "AAT",
+          "setor_executor": "ILA2"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-08-2025_0413PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-08-2025_0413PM.xlsx",
+      "success": "True",
+      "duration_seconds": 1.425463,
+      "initial_record_count": "381",
+      "final_record_count": "523",
+      "records_added": "142",
+      "import_rate_records_per_sec": 99.61675609959711,
+      "sample_data": [
+        {
+          "numero_ssa": 2208082,
+          "situacao": "ADM",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2210834,
+          "situacao": "ADM",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2513195,
+          "situacao": "ASE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2304639,
+          "situacao": "AAT",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2316141,
+          "situacao": "AAT",
+          "setor_executor": "IEE3"
+        }
+      ]
+    },
+    {
+      "file_name": "SSAs Pendentes Geral - 15-08-2025_0414PM.xlsx",
+      "file_path": "docs_entrada\\SSAs Pendentes Geral - 15-08-2025_0414PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.782306,
+      "initial_record_count": "523",
+      "final_record_count": "801",
+      "records_added": "278",
+      "import_rate_records_per_sec": 355.35966744470835,
+      "sample_data": [
+        {
+          "numero_ssa": 2210169,
+          "situacao": "SPG",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2210835,
+          "situacao": "ADM",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2512404,
+          "situacao": "APL",
+          "setor_executor": "IEE4"
+        },
+        {
+          "numero_ssa": 2513176,
+          "situacao": "ADI",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2318232,
+          "situacao": "AAT",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0419PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0419PM.xlsx",
+      "success": "True",
+      "duration_seconds": 1.45046,
+      "initial_record_count": "801",
+      "final_record_count": "2686",
+      "records_added": "1885",
+      "import_rate_records_per_sec": 1299.587717000124,
+      "sample_data": [
+        {
+          "numero_ssa": 2100033,
+          "situacao": "STE",
+          "setor_executor": "SOA0"
+        },
+        {
+          "numero_ssa": 2100114,
+          "situacao": "SCC",
+          "setor_executor": "MEL4"
+        },
+        {
+          "numero_ssa": 2100285,
+          "situacao": "STE",
+          "setor_executor": "OUO0"
+        },
+        {
+          "numero_ssa": 2100287,
+          "situacao": "STE",
+          "setor_executor": "SOA0"
+        },
+        {
+          "numero_ssa": 2100297,
+          "situacao": "STE",
+          "setor_executor": "SOA0"
+        }
+      ]
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0425PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0425PM.xlsx",
+      "success": "True",
+      "duration_seconds": 2.186123,
+      "initial_record_count": "2686",
+      "final_record_count": "5870",
+      "records_added": "3184",
+      "import_rate_records_per_sec": 1456.4596777034046,
+      "sample_data": [
+        {
+          "numero_ssa": 2203585,
+          "situacao": "SCA",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2203588,
+          "situacao": "SCA",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2204593,
+          "situacao": "SCA",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2204594,
+          "situacao": "SCA",
+          "setor_executor": "MEL3"
+        },
+        {
+          "numero_ssa": 2207447,
+          "situacao": "STE",
+          "setor_executor": "MEL4"
+        }
+      ]
+    },
+    {
+      "file_name": "Todas as SSAs - 15-08-2025_0431PM.xlsx",
+      "file_path": "docs_entrada\\Todas as SSAs - 15-08-2025_0431PM.xlsx",
+      "success": "True",
+      "duration_seconds": 0.620572,
+      "initial_record_count": "5870",
+      "final_record_count": "6885",
+      "records_added": "1015",
+      "import_rate_records_per_sec": 1635.5878125342426,
+      "sample_data": [
+        {
+          "numero_ssa": 2207419,
+          "situacao": "SCC",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2207513,
+          "situacao": "STE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2207558,
+          "situacao": "STE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2207666,
+          "situacao": "STE",
+          "setor_executor": "IEE3"
+        },
+        {
+          "numero_ssa": 2207714,
+          "situacao": "STE",
+          "setor_executor": "IEE3"
+        }
+      ]
+    }
+  ],
+  "performance_metrics": {
+    "avg_extraction_time": 0.24932319047619048,
+    "avg_import_time": 0.6906360476190476,
+    "total_file_size_mb": 2.940720558166504,
+    "avg_extraction_rate": 889.7247088136361
+  }
+}

@@ -234,8 +234,8 @@ class EnhancedTablePrinter:
         # Por enquanto, usa apenas a primeira linha (futuro: suporte a múltiplas linhas)
         formatted_content = wrapped_lines[0] if wrapped_lines else ''
         
-        # Padding para garantir largura fixa
-        return formatted_content.ljust(width)[:width]
+        # Remove padding fixo para evitar quebras de linha
+        return formatted_content.rstrip()[:width]
     
     def _render_paginated(
         self, 
@@ -280,8 +280,9 @@ class EnhancedTablePrinter:
             try:
                 page_df = pages[current_page]
                 
-                # Cabeçalho da página
-                print(f"Página {current_page + 1} de {len(pages)}")
+                # Cabeçalho da página (só na primeira página)
+                if current_page == 0:
+                    print(f"Página {current_page + 1} de {len(pages)}")
                 
                 # Renderiza tabela
                 table_str = tabulate(

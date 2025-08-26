@@ -73,74 +73,57 @@ class SimpleWidthManager:
             
             if col == '#':
                 fixed_widths[col] = 20  # Ajuste v3.0.4: 25px → 20px (-5px)
-                print(f"  -> FIXO: 20px")
                 
             elif col in saved_widths and saved_widths[col] > 0:
                 fixed_widths[col] = saved_widths[col]
-                print(f"  -> SALVA: {saved_widths[col]}px")
                 
             elif col == 'numero_ssa':
                 fixed_widths[col] = 65
-                print(f"  -> NUMERO_SSA: 65px")
                 
             elif col == 'situacao':
                 fixed_widths[col] = 35
-                print(f"  -> SITUACAO: 35px")
                 
             elif col == 'setor_executor':
                 fixed_widths[col] = 40
-                print(f"  -> SETOR_EXECUTOR: 40px")
                 
             elif col == 'setor_emissor':
                 fixed_widths[col] = 40
-                print(f"  -> SETOR_EMISSOR: 40px")
                 
             elif col == 'localizacao_codigo':
                 fixed_widths[col] = 60  # Ajuste v3.0.4: 50px → 60px (+10px)
-                print(f"  -> LOCALIZACAO: 60px")
                 
             elif col == 'data_cadastro':
                 fixed_widths[col] = 85
-                print(f"  -> DATA_CADASTRO: 85px")
                 
             elif col == 'semana_cadastro':
                 fixed_widths[col] = 60  # CORRIGIDO: 55 -> 60px
-                print(f"  -> SEMANA_CADASTRO: 60px")
                 
             elif col == 'semana_programada':
                 fixed_widths[col] = 45
-                print(f"  -> SEMANA_PROGRAMADA: 45px")
                 
             elif col == 'derivada_de':
                 fixed_widths[col] = 65  # CORRIGIDO: 60 -> 65px
-                print(f"  -> DERIVADA_DE: 65px")
                 
             elif col == 'grau_prioridade_emissao':
                 fixed_widths[col] = 65
-                print(f"  -> GRAU_PRIO_EMIS: 65px")
                 
             elif col == 'grau_prioridade_planejamento':
                 fixed_widths[col] = 65
-                print(f"  -> GRAU_PRIO_PLAN: 65px")
                 
             elif col == 'solicitante':
                 fixed_widths[col] = 160
-                print(f"  -> SOLICITANTE: 160px")
                 
             elif col == 'descricao_ssa':
                 fixed_widths[col] = 450  # VOLTOU ao valor solicitado
                 expandable_cols.append(col)
-                print(f"  -> DESCRICAO_SSA: 450px (base, expansível)")
                 
             elif col == 'descricao_execucao':
                 fixed_widths[col] = 350  # VOLTOU ao valor solicitado
                 expandable_cols.append(col)
-                print(f"  -> DESCRICAO_EXEC: 350px (base, expansível)")
                 
             else:
                 # Outros campos: largura padrão
                 fixed_widths[col] = 120
-                print(f"  -> OUTROS: 120px")
         
         # CÁLCULO DE CRESCIMENTO PROPORCIONAL MELHORADO
         total_fixed = sum(fixed_widths.values())

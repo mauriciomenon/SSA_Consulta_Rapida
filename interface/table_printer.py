@@ -332,11 +332,11 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         if needed > 0:
             col_width_map[desc_disp] = min(max(col_width_map[desc_disp], needed), 200)
 
-    # Aplica truncagem e padding fixos para manter páginas uniformes
+    # Aplica truncagem mas não padding fixo para evitar quebras de linha
     for disp_col, maxw in col_width_map.items():
         if disp_col in working_df.columns:
             working_df[disp_col] = working_df[disp_col].astype(str).apply(
-                lambda s, w=maxw: (s[: max(0, w - 3)].rstrip() + '...') if len(s) > w else s.ljust(w)
+                lambda s, w=maxw: (s[: max(0, w - 3)].rstrip() + '...') if len(s) > w else s.rstrip()
             )
     
     # Ajusta cabeçalhos para caberem exatamente nas larguras previstas
@@ -391,8 +391,9 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
         try:
             current_page_df = pages[current_page_index]
             
-            # Cabeçalho de página
-            print(f"Página {current_page_index + 1} de {len(pages)}")
+            # Cabeçalho de página (só na primeira página)
+            if current_page_index == 0:
+                print(f"Página {current_page_index + 1} de {len(pages)}")
 
             # Gera e imprime a tabela para a página atual
             # Usa os mesmos cabeçalhos em todas as páginas para garantir largura estável

@@ -110,30 +110,30 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
 def get_ssa_query() -> str:
     """
     Retorna a query customizada para mapear colunas corretamente.
-    Usa o mesmo mapeamento da GUI para garantir consistência.
+    Usa os nomes de coluna normalizados da tabela atual.
     """
     return '''
     SELECT 
-        "Número da SSA" as numero_ssa,
+        numero_ssa,
         situacao,
         derivada_de,
         localizacao_codigo,
         descricao_localizacao,
         equipamento,
-        "Semana de Cadastro" as semana_cadastro,
+        semana_cadastro,
         data_cadastro,
         descricao_ssa,
         setor_emissor,
         setor_executor,
         solicitante,
         servico_origem,
-        "Grau de Prioridade Emissão" as grau_prioridade_emissao,
-        "Grau de Prioridade Planejamento" as grau_prioridade_planejamento,
+        grau_prioridade_emissao,
+        grau_prioridade_planejamento,
         execucao_simples,
-        "Responsável na Programação" as responsavel_programacao,
+        responsavel_programacao,
         semana_programada,
-        "Responsável na Execução" as responsavel_execucao,
-        "Descrição Execução" as descricao_execucao,
+        responsavel_execucao,
+        descricao_execucao,
         id,
         sistema_origem,
         prazo_limite,
