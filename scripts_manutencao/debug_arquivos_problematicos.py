@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+Debug dos arquivos que falham na importação
+"""
+
+import pandas as pd
+import os
+from pathlib import Path
+
+def investigar_arquivos_problematicos():
+    """Investigar arquivos Excel que falham na importação."""
+    
+    print("=== INVESTIGAÇÃO DE ARQUIVOS PROBLEMÁTICOS ===")
+    
+    docs_entrada = Path("docs_entrada")
+    problematicos = [
+        "Em Execução_15-08-2025_0416PM.xlsx",
+        "Em Execução_15-08-2025_0417PM.xlsx", 
+        "Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+        "Pendentes de Execução_15-08-2025_0416PM.xlsx",
+        "SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
+        "SSAs Executadas_15-08-2025_0415PM.xlsx",
+        "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx"
+    ]
+    
+    for arquivo in problematicos:
+        arquivo_path = docs_entrada / arquivo
+        if arquivo_path.exists():
+            print(f"\n📄 Investigando: {arquivo}")
+            try:
+                # Ler apenas as primeiras linhas para ver a estrutura
+                df = pd.read_excel(arquivo_path, header=1, nrows=3)
+                print(f"  ✅ Leitura OK: {len(df)} linhas de exemplo")
+                print(f"  📋 Colunas ({len(df.columns)}): {list(df.columns)[:5]}...")
+                
+                # Verificar se há problemas de index
+                if df.index.duplicated().any():
+                    print(f"  ⚠️  PROBLEMA: Índices duplicados detectados")
+                    duplicados = df.index.duplicated().sum()
+                    print(f"     Total de duplicados: {duplicados}")
+                    
+                # Verificar tamanho total
+                df_full = pd.read_excel(arquivo_path, header=1)
+                print(f"  📊 Tamanho total: {len(df_full)} linhas")
+                
+                if df_full.index.duplicated().any():
+                    print(f"  🚨 CONFIRMADO: Arquivo tem índices duplicados")
+                    print(f"     Duplicados: {df_full.index.duplicated().sum()}")
+                    
+            except Exception as e:
+                print(f"  ❌ ERRO ao ler arquivo: {e}")
+        else:
+            print(f"\n❌ Arquivo não encontrado: {arquivo}")
+
+if __name__ == "__main__":
+    os.chdir(r"c:\Users\menon\git\SSA_Consulta_Rapida")
+    investigar_arquivos_problematicos()
