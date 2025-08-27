@@ -107,12 +107,12 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     parsed = _apply_default_filters._cache[cache_key]
     return filter_dataframe(df, parsed)
 
-def get_ssa_query() -> str:
+def get_ssa_query(table_name: str = 'ssa_table') -> str:
     """
     Retorna a query customizada para mapear colunas corretamente.
     Usa os nomes de coluna normalizados da tabela atual.
     """
-    return '''
+    return f'''
     SELECT 
         numero_ssa,
         situacao,
@@ -151,7 +151,7 @@ def get_ssa_query() -> str:
         anomalia,
         semana_executada,
         num_reprogramacoes
-    FROM ssas
+    FROM {table_name}
     '''
 
 def _get_initial_state(
@@ -167,7 +167,7 @@ def _get_initial_state(
     """
     logger.debug("Carregando estado inicial...")
     try:
-        initial_df = query_db(db_path, '', get_ssa_query())
+        initial_df = query_db(db_path, '', get_ssa_query(table_name))
         initial_df = _apply_default_filters(initial_df, settings)
         default_filter_terms = settings.get("default_filters", [])
         logger.debug("Estado inicial carregado.")

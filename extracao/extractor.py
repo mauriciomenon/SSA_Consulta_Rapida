@@ -192,7 +192,7 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
             (combined_df.get('descricao_ssa').notna() & (combined_df.get('descricao_ssa') != ''))
         )
         
-        combined_df = combined_df[valid_mask].copy()
+        combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
         after_validation = len(combined_df)
         
         if before_validation > after_validation:
