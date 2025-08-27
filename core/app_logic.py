@@ -2,7 +2,13 @@
 """
 Lógica central da aplicação para importação e atualização do banco de dados.
 
-Coordena a verificação de arquivos modificados, a extração de dados,
+Coordena a verificação de arqdef run_importer_logic(
+    docs_dir: str = 'docs_entrada',
+    data_dir: str = 'data',
+    db_name: str = 'ssas.db',
+    table_name: str = 'ssa_table',
+    force_import: bool = False
+) -> bool:odificados, a extração de dados,
 a atualização do banco de dados SQLite e o gerenciamento do cache.
 """
 
@@ -192,7 +198,7 @@ def run_importer_logic(
     docs_dir: str = 'docs_entrada',
     data_dir: str = 'data',
     db_name: str = 'ssas.db',
-    table_name: str = 'ssas',
+    table_name: str = 'ssa_table',
     force_import: bool = False
 ) -> bool:
     """
@@ -224,7 +230,7 @@ def run_importer_logic(
         os.makedirs(data_dir, exist_ok=True)
         
         # Verificar e reparar banco se necessário
-        if not database.repair_database_if_needed(db_path):
+        if not database.repair_database_if_needed(db_path, table_name=table_name):
             logger.error("Falha crítica: não foi possível garantir integridade do banco de dados")
             raise DatabaseCorruptionError("Banco de dados inacessível ou corrompido")
         
@@ -279,7 +285,7 @@ def run_importer_logic(
                 # Corrupção - tentar reparo e continuar
                 logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
                 logger.info("Tentando reparo automático do banco...")
-                if database.repair_database_if_needed(db_path):
+                if database.repair_database_if_needed(db_path, table_name=table_name):
                     logger.info("Reparo bem-sucedido, continuando processamento...")
                     critical_errors.append(('corruption_repaired', file_path, str(e)))
                     continue  # Tenta processar novamente após reparo

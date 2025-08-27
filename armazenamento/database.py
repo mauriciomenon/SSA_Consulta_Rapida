@@ -170,10 +170,20 @@ def insert_dataframe_to_db(df: pd.DataFrame, db_path: str, table_name: str, if_e
             # Para arquivos grandes, usar chunksize para evitar "too many SQL variables"
             batch_size = min(500, max(1, 999 // len(df.columns))) if len(df.columns) > 0 else 500
             
+            # Garantir que o DataFrame tem índices únicos antes da inserção
+            # Solução mais agressiva para resolver problema de índices duplicados
+            df = df.copy().reset_index(drop=True)
+            
+            # Verificar se ainda há problema com índices
+            if df.index.has_duplicates:
+                logger.warning("Detectados índices duplicados, forçando reindexação")
+                df = df.reset_index(drop=True)
+            
             # to_sql é o método recomendado do Pandas
             # index=False evita inserir a coluna de índice do DataFrame
             # chunksize divide em lotes menores para evitar limite de variáveis SQL
-            df.to_sql(table_name, conn, if_exists=if_exists, index=False, method='multi', chunksize=batch_size)
+            # Removendo method='multi' que pode estar causando problemas com índices
+            df.to_sql(table_name, conn, if_exists=if_exists, index=False, chunksize=batch_size)
             conn.commit()
         logger.info(f"{len(df)} linhas inseridas com sucesso na tabela '{table_name}'.")
         return True
@@ -241,12 +251,9 @@ def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_nam
         return True
 
     try:
-        work = df.copy().reset_index(drop=True)
-        
-        # CORREÇÃO: Verificar e corrigir índices duplicados
-        if work.index.duplicated().any():
-            logger.warning(f"Detectados {work.index.duplicated().sum()} índices duplicados. Corrigindo...")
-            work = work.reset_index(drop=True)
+        # CORREÇÃO RADICAL: Recriar DataFrame completamente para evitar problemas de índice
+        work = pd.DataFrame(df.values, columns=df.columns)
+        work = work.reset_index(drop=True)
         
         # Normalizar numero_ssa
         if 'numero_ssa' in work.columns:
@@ -269,24 +276,62 @@ def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_nam
         for col in date_columns:
             if col in work.columns:
                 try:
-                    # Correção: usar iloc para evitar warning de deprecação
-                    work[col] = work[col].apply(lambda x: convert_date_to_string(x) if pd.notna(x) else x)
+                    # Correção: aplicar na série completa sem usar .loc que pode ter problemas com índices duplicados
+                    work[col] = [convert_date_to_string(x) for x in work[col]]
                 except Exception as e:
                     logger.warning(f"Erro ao converter coluna {col}: {e}")
                     continue
 
-        # Separar linhas com e sem numero_ssa
-        has_ssa = work[work['numero_ssa'].notna()] if 'numero_ssa' in work.columns else pd.DataFrame()
-        no_ssa = work[work['numero_ssa'].isna()] if 'numero_ssa' in work.columns else work.copy()
+        # Separar linhas com e sem numero_ssa com índices completamente limpos
+        if 'numero_ssa' in work.columns:
+            has_ssa_mask = work['numero_ssa'].notna()
+            
+            # Criar DataFrames separados garantindo índices únicos
+            if has_ssa_mask.any():
+                has_ssa_rows = []
+                for idx in work[has_ssa_mask].index:
+                    has_ssa_rows.append(work.loc[idx].values)
+                has_ssa = pd.DataFrame(has_ssa_rows, columns=work.columns) if has_ssa_rows else pd.DataFrame()
+            else:
+                has_ssa = pd.DataFrame()
+                
+            if (~has_ssa_mask).any():
+                no_ssa_rows = []
+                for idx in work[~has_ssa_mask].index:
+                    no_ssa_rows.append(work.loc[idx].values)
+                no_ssa = pd.DataFrame(no_ssa_rows, columns=work.columns) if no_ssa_rows else pd.DataFrame()
+            else:
+                no_ssa = pd.DataFrame()
+        else:
+            has_ssa = pd.DataFrame()
+            work_rows = []
+            for idx in work.index:
+                work_rows.append(work.loc[idx].values)
+            no_ssa = pd.DataFrame(work_rows, columns=work.columns) if work_rows else pd.DataFrame()
 
         with get_db_connection(db_path) as conn:
+            # Verificar se tabela existe, se não, garantir que seja criada na primeira inserção
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [table_name])
+            table_exists = cursor.fetchone() is not None
+            
             # Inserir registros sem SSA (append direto)
             if not no_ssa.empty:
-                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=500)
+                if_exists_mode = 'append' if table_exists else 'replace'
+                no_ssa.to_sql(table_name, conn, if_exists=if_exists_mode, index=False, chunksize=500)
                 logger.info(f"Inseridos {len(no_ssa)} registros sem numero_ssa")
+                table_exists = True  # Agora existe
 
             # Para registros com SSA, fazer upsert manual em lotes
             if not has_ssa.empty:
+                # Se tabela não existe ainda, criar com primeira inserção
+                if not table_exists:
+                    # Usar primeira linha para criar a tabela
+                    first_row = has_ssa.iloc[0:1].copy()
+                    first_row.to_sql(table_name, conn, if_exists='replace', index=False)
+                    table_exists = True
+                    logger.info("Tabela criada com primeiro registro")
+                
                 # Processar em chunks para evitar "too many SQL variables"
                 chunk_size = 100
                 total_inserted = 0
@@ -306,26 +351,43 @@ def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_nam
                         
                         if existing.empty:
                             # Não existe, inserir
-                            pd.DataFrame([row]).to_sql(table_name, conn, if_exists='append', index=False)
+                            row_df = pd.DataFrame([row.values], columns=row.index)
+                            row_df.to_sql(table_name, conn, if_exists='append', index=False)
                             total_inserted += 1
                         else:
                             # Existe, comparar datas e decidir
                             existing_date = existing.iloc[0].get('data_cadastro')
                             new_date = row.get('data_cadastro')
                             
+                            # Converter datas para string para comparação segura
+                            try:
+                                if pd.isna(existing_date) or existing_date is None:
+                                    existing_date_str = None
+                                else:
+                                    existing_date_str = str(existing_date)
+                                    
+                                if pd.isna(new_date) or new_date is None:
+                                    new_date_str = None
+                                else:
+                                    new_date_str = str(new_date)
+                            except:
+                                existing_date_str = None
+                                new_date_str = None
+                            
                             # Se nova data é mais recente ou se não há data, atualizar
                             should_update = False
-                            if new_date and not existing_date:
+                            if new_date_str and not existing_date_str:
                                 should_update = True
-                            elif new_date and existing_date and new_date >= existing_date:
+                            elif new_date_str and existing_date_str and new_date_str >= existing_date_str:
                                 should_update = True
-                            elif not new_date and not existing_date:
+                            elif not new_date_str and not existing_date_str:
                                 should_update = True  # Empate, prefere novo
                             
                             if should_update:
                                 # Deletar antigo e inserir novo
                                 conn.execute(f"DELETE FROM {table_name} WHERE numero_ssa = ?", [numero_ssa])
-                                pd.DataFrame([row]).to_sql(table_name, conn, if_exists='append', index=False)
+                                row_df = pd.DataFrame([row.values], columns=row.index)
+                                row_df.to_sql(table_name, conn, if_exists='append', index=False)
                                 total_inserted += 1
                 
                 logger.info(f"Processados {total_inserted} registros com numero_ssa via upsert")
@@ -431,7 +493,7 @@ def normalize_numero_ssa(value) -> str | None:
 
 # --- Funções de Verificação e Integridade do Banco ---
 
-def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> Dict[str, Any]:
+def verify_database_integrity(db_path: str, table_name: str = 'ssa_table') -> Dict[str, Any]:
     """
     Verifica a integridade do banco de dados e retorna relatório detalhado.
     
@@ -452,14 +514,16 @@ def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> Dict[st
         'schema_valid': False,
         'data_consistent': False,
         'disk_space_sufficient': False,
-        'file_permissions_ok': False
+        'file_permissions_ok': False,
+        'needs_creation': False
     }
     
     try:
         # 1. Verificar se o arquivo do banco existe
         if not os.path.exists(db_path):
             verification_report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
-            verification_report['is_valid'] = False
+            verification_report['is_valid'] = True  # CORREÇÃO: banco inexistente é válido para criação
+            verification_report['needs_creation'] = True
             return verification_report
         
         verification_report['database_exists'] = True
@@ -662,13 +726,14 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
     return validation_report
 
 
-def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql') -> bool:
+def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql', table_name: str = 'ssa_table') -> bool:
     """
     Tenta reparar o banco de dados se problemas forem detectados.
     
     Args:
         db_path: Caminho para o banco de dados
         schema_file: Arquivo de schema para recriação se necessário
+        table_name: Nome da tabela para verificação
         
     Returns:
         True se reparo foi bem-sucedido ou não necessário
@@ -677,7 +742,7 @@ def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql') -> 
     
     try:
         # Verificar integridade
-        integrity_report = verify_database_integrity(db_path)
+        integrity_report = verify_database_integrity(db_path, table_name)
         
         if integrity_report['is_valid']:
             logger.info("Banco de dados íntegro - nenhum reparo necessário")

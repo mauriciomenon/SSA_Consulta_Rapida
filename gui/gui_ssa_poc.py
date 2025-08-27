@@ -87,7 +87,7 @@ from PyQt6.QtGui import QClipboard, QFont, QAction
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
-TABLE_NAME = 'ssas'
+TABLE_NAME = 'ssa_table'
 
 # --- Configurações Dinâmicas da GUI PoC (carregadas do JSON) ---
 COLUMN_DISPLAY_NAMES = GUI_PREFERENCES.get("column_display_names", {})

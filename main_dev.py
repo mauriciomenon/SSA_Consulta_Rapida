@@ -217,11 +217,13 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
     except:
         logger.setLevel(logging.INFO)
 
-    # Configuração de logging - INFO no console para ver progresso da importação
-    _configure_logging(project_root, level_console=logging.INFO)
+    # Configuração de logging
+    _configure_logging(project_root)
     
     # Banner inicial
-    print(f"Pesquisa Rápida de SSAs {APP_VERSION}")    try:
+    print(f"Pesquisa Rápida de SSAs {APP_VERSION}")
+
+    try:
         # Imports dinâmicos para evitar problemas
         try:
             from utils import setup_project_structure
@@ -297,7 +299,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
             logger.info("Nenhum novo ou modificado relatório encontrado.")
 
         # --- 4. Início da Interface ---
-        db_path = os.path.join(project_root, 'data', 'ssa_consulta_rapida.db')
+        db_path = os.path.join(project_root, 'data', 'ssas.db')
         table_name = 'ssa_table'
         
         if args.gui:
