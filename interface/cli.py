@@ -180,6 +180,35 @@ def _get_initial_state(
 
 # --- Handlers de Comandos ---
 
+def _show_initial_help():
+    """Exibe help inicial mais detalhado antes do prompt ficar disponível."""
+    help_text = f"""
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    CONSULTA RÁPIDA DE SSAs v{APP_VERSION} - GUIA RÁPIDO                     ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ PESQUISA                                                                      ║
+║   • Digite termos separados por vírgula: ADM, MEL3, 2025                     ║
+║   • Modos avançados: ^início, fim$, =exato, ~regex, !negativo               ║
+║                                                                               ║
+║ COMANDOS PRINCIPAIS                                                           ║
+║   h ou ?      → Ajuda completa        q         → Sair                       ║
+║   d <#>       → Detalhes da linha     v         → Voltar filtro              ║
+║   r           → Reset completo        rescan    → Reimportar dados           ║
+║   e <nome>    → Exportar resultados   c         → Configurações              ║
+║                                                                               ║
+║ ORGANIZAÇÃO                                                                   ║
+║   ord <#>     → Ordenar crescente     ordi <#>  → Ordenar decrescente        ║
+║   ordn <nome> → Ordenar por nome      cols     → Listar colunas              ║
+║   x [termo]   → Remover filtro        f        → Ver filtros ativos          ║
+║                                                                               ║
+║ DICAS                                                                         ║
+║   • Digite 'h' para help completo com exemplos                               ║
+║   • Use 'd <número>' para ver detalhes de uma linha específica               ║
+║   • Combine filtros para busca mais precisa                                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+"""
+    print(help_text)
+
 def _handle_quit():
     """Handler para o comando de sair."""
     print("Saindo...")
@@ -188,44 +217,78 @@ def _handle_quit():
 def _handle_help():
     """Handler para o comando de ajuda."""
     help_text = f"""
---- Ajuda da Consulta Rápida de SSAs v{APP_VERSION} ---
-Comandos disponíveis:
-  d <Nº>        : Mostra detalhes da SSA na linha <Nº> da tabela atual.
-  -v             : Volta para o filtro anterior.
-  -e <nome>      : Exporta os resultados atuais para XLSX e CSV com o <nome> base.
-  -r             : Reseta todos os filtros e recarrega a base completa.
-  -rescan        : Reimporta todos os arquivos Excel e recarrega os dados.
-  -c             : Abre o menu de configurações.
-    -ord <Nº>      : Ordena pela coluna de índice <Nº> (crescente).
-    -ordi <Nº>     : Ordena pela coluna de índice <Nº> (decrescente).
-    -ordn <nome>   : Ordena pela coluna com este nome (crescente). Aceita nome interno ou de exibição.
-    -ordni <nome>  : Ordena pela coluna com este nome (decrescente). Aceita nome interno ou de exibição.
-    -cols          : Lista as colunas visíveis com nomes de exibição.
-    -x [termo]     : Remove um termo do filtro atual; sem termo equivale a -v.
-    -f, -filtros   : Mostra os filtros atualmente aplicados.
-    -clear         : Limpa filtros aplicados pelo usuário (mantém filtros padrão).
-    -clearall      : Limpa todos os filtros (usuário e padrão) para esta sessão.
-  -h             : Mostra esta ajuda.
-  -q, sair, exit : Sai do programa.
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                      CONSULTA RÁPIDA DE SSAs v{APP_VERSION} - AJUDA COMPLETA                  ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║ COMANDOS DE PESQUISA E NAVEGAÇÃO                                              ║
+║   d <Nº>        → Mostra detalhes da SSA na linha <Nº> da tabela atual       ║
+║   v             → Volta para o filtro anterior (desfaz último filtro)        ║
+║   r             → Reseta todos os filtros e recarrega a base completa        ║
+║   h, ?          → Mostra esta ajuda completa                                 ║
+║   q, sair, exit → Sai do programa                                            ║
+║                                                                               ║
+║ COMANDOS DE ORGANIZAÇÃO                                                       ║
+║   ord <Nº>      → Ordena pela coluna de índice <Nº> (crescente)              ║
+║   ordi <Nº>     → Ordena pela coluna de índice <Nº> (decrescente)            ║
+║   ordn <nome>   → Ordena pela coluna com este nome (crescente)               ║
+║   ordni <nome>  → Ordena pela coluna com este nome (decrescente)             ║
+║   cols          → Lista as colunas visíveis com índices e nomes              ║
+║                                                                               ║
+║ COMANDOS DE FILTROS                                                           ║
+║   x [termo]     → Remove termo específico; sem termo equivale a 'v'          ║
+║   f, filtros    → Mostra os filtros atualmente aplicados                     ║
+║   clear         → Limpa filtros do usuário (mantém filtros padrão)           ║
+║   clearall      → Limpa TODOS os filtros (usuário + padrão) desta sessão     ║
+║                                                                               ║
+║ COMANDOS DE DADOS                                                             ║
+║   rescan        → Reimporta arquivos Excel (modo compatibilidade)            ║
+║   force-rescan  → Força reimportação completa (recomendado)                  ║
+║                                                                               ║
+║   ┌─ DIFERENÇA: rescan vs force-rescan ─────────────────────────────────────┐ ║
+║   │ rescan:       Alias histórico, mesmo comportamento                      │ ║
+║   │ force-rescan: Nome mais explícito, recomendado                          │ ║
+║   │ AMBOS fazem:  Ignora cache, processa todos os arquivos novamente        │ ║
+║   └─────────────────────────────────────────────────────────────────────────┘ ║
+║                                                                               ║
+║ COMANDOS DE EXPORTAÇÃO                                                        ║
+║   e <nome>      → Exporta resultados atuais para XLSX e CSV                  ║
+║                   Exemplo: 'e relatorio_mel' cria relatorio_mel.xlsx         ║
+║                                                                               ║
+║ COMANDOS DE CONFIGURAÇÃO                                                      ║
+║   c             → Abre menu de configurações interativo                      ║
+║                                                                               ║
+║ MELHORIAS CLI (v3.0.5+)                                                      ║
+║   status-cli    → Status das melhorias implementadas                         ║
+║   toggle-debug  → Liga/desliga modo debug do Enhanced Table Printer          ║
+║   enhanced-on   → Ativa Enhanced Table Printer                               ║
+║   enhanced-off  → Desativa Enhanced Table Printer (volta ao original)        ║
+║                                                                               ║
+║ PESQUISA AVANÇADA                                                             ║
+║   Digite termos separados por vírgula para filtrar resultados:               ║
+║   Exemplo: 'ADM, MEL3, 2025' → Situação ADM OU Executor MEL3 OU SSA 2025     ║
+║                                                                               ║
+║   MODOS AVANÇADOS POR TERMO (case-insensitive):                              ║
+║   • contém (padrão): foo          → encontra "foobar", "barfoo"              ║
+║   • começa com: ^foo              → encontra "foobar", não "barfoo"          ║
+║   • termina com: foo$             → encontra "barfoo", não "foobar"          ║
+║   • igual: =foo                   → encontra exatamente "foo"                ║
+║   • regex: ~foo.*bar              → busca com expressão regular              ║
+║   • negativos: !^adm, !$2025, !=fechado, !~cancel.*                          ║
+║                                                                               ║
+║ EXEMPLOS PRÁTICOS                                                             ║
+║   ADM                    → Situações contendo "ADM"                          ║
+║   ^MEL                   → Executores que começam com "MEL"                  ║
+║   $2025                  → SSAs que terminam com "2025"                      ║
+║   =STE                   → Situação exatamente "STE"                         ║
+║   !cancelada             → Exclui SSAs canceladas                            ║
+║   ~MEL[0-9]+             → Regex: MEL seguido de números                     ║
+║   ADM, !cancelada        → Situação ADM, mas não canceladas                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Melhorias CLI (v3.0.5+):
-  status-cli     : Exibe status das melhorias implementadas.
-  toggle-debug   : Liga/desliga modo debug do Enhanced Table Printer.
-  enhanced-on    : Ativa Enhanced Table Printer.
-  enhanced-off   : Desativa Enhanced Table Printer (volta ao original).
-
-Pesquisa:
-  Digite um ou mais termos separados por vírgula para filtrar os resultados.
-  Exemplo: 'ADM, MEL3, 2025' filtra por Situação ADM, Executor MEL3 ou Nº SSA 2025.
-    Modos avançados por termo (case-insensitive):
-        - contém (padrão): foo
-        - começa com: ^foo
-        - termina com: foo$
-        - igual: =foo
-        - regex: ~foo.*bar
-        - negativos: prefixar ! (ex.: !^adm, !$2025, !=fechado, !~cancel.*)
-"""
+Digite qualquer tecla para continuar..."""
+    
     print(help_text)
+    input()  # Pausa para o usuário ler
 
 def _handle_details(parts: List[str], current_df: 'pd.DataFrame', display_map: dict):
     """Handler para o comando de detalhes."""
@@ -461,10 +524,10 @@ COMMAND_HANDLERS = {
     'cli-status': lambda: print(enhancement_manager.get_status_report()),
     'toggle-debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
     'debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
-    'enhanced-on': lambda: (enhancement_manager.enable_enhanced_printer(), print("✅ Enhanced Table Printer ATIVADO")),
-    'enable-enhanced': lambda: (enhancement_manager.enable_enhanced_printer(), print("✅ Enhanced Table Printer ATIVADO")),
-    'enhanced-off': lambda: (enhancement_manager.disable_enhanced_printer(), print("❌ Enhanced Table Printer DESATIVADO")),
-    'disable-enhanced': lambda: (enhancement_manager.disable_enhanced_printer(), print("❌ Enhanced Table Printer DESATIVADO")),
+    'enhanced-on': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
+    'enable-enhanced': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
+    'enhanced-off': lambda: (enhancement_manager.disable_enhanced_printer(), print("Enhanced Table Printer DESATIVADO")),
+    'disable-enhanced': lambda: (enhancement_manager.disable_enhanced_printer(), print("Enhanced Table Printer DESATIVADO")),
 }
 
 def start_cli_loop(db_path: str, table_name: str):
@@ -485,18 +548,23 @@ def start_cli_loop(db_path: str, table_name: str):
     initial_df, initial_filter_terms = _get_initial_state(db_path, table_name, settings)
     results_stack = [(initial_df, initial_filter_terms)]
 
-    # --- Exibição Inicial (sem banner decorativo) ---
+    # --- Exibição Inicial (com help detalhado) ---
+    print("Pesquisa Rápida de SSAs 3.0.5")
+    print("")
+    
+    # Exibe help inicial detalhado
+    _show_initial_help()
+    
     if not initial_df.empty:
-        # Banner inicial conforme especificação
         total_ssas = len(initial_df)
-        print("Pesquisa Rápida de SSAs 3.0.5")
-        print("")
-        print("Ajuda: h ou ?.          Detalhe: d <#linha>.")
-        print("Comandos: d, v, e, r, rescan, c, h, q | Extras: ord/ordi <#>, ordn/ordni <nome>, cols, x [termo]")
-        print("")
-        print(f"[{total_ssas} SSAs] Buscar termos separados por vírgula ou digitar comando:")
+        print(f"\nDADOS CARREGADOS: {total_ssas:,} SSAs disponíveis para consulta")
+        print("" + "─" * 80)
+        print(f"[{total_ssas} SSAs] Digite seus termos de busca ou comando:")
     else:
-        print("Nenhum dado disponível para exibição.")
+        print("\nNenhum dado disponível para exibição.")
+        print("Dica: Digite 'rescan' para reimportar os dados ou 'h' para ajuda.")
+        print("" + "─" * 80)
+        print("[0 SSAs] Digite comando:")
         # Mesmo com dados vazios, entra no loop para permitir rescan, etc.
         
 
