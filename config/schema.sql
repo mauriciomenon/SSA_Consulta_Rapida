@@ -2,7 +2,7 @@
 -- Schema otimizado para o banco de dados SSA_Consulta_Rapida
 -- Remove duplicações e padroniza estrutura mantendo compatibilidade
 
-CREATE TABLE IF NOT EXISTS ssas (
+CREATE TABLE IF NOT EXISTS ssa_table (
     -- Chave primária
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -86,17 +86,17 @@ CREATE TABLE IF NOT EXISTS ssas (
 );
 
 -- Índices para melhorar performance de consultas
-CREATE INDEX IF NOT EXISTS idx_numero_ssa ON ssas (numero_ssa);
-CREATE INDEX IF NOT EXISTS idx_situacao ON ssas (situacao);
-CREATE INDEX IF NOT EXISTS idx_setor_executor ON ssas (setor_executor);
-CREATE INDEX IF NOT EXISTS idx_setor_emissor ON ssas (setor_emissor);
-CREATE INDEX IF NOT EXISTS idx_semana_cadastro ON ssas (semana_cadastro);
-CREATE INDEX IF NOT EXISTS idx_semana_programada ON ssas (semana_programada);
-CREATE INDEX IF NOT EXISTS idx_semana_executada ON ssas (semana_executada);
-CREATE INDEX IF NOT EXISTS idx_data_cadastro ON ssas (data_cadastro);
-CREATE INDEX IF NOT EXISTS idx_localizacao_codigo ON ssas (localizacao_codigo);
+CREATE INDEX IF NOT EXISTS idx_numero_ssa ON ssa_table (numero_ssa);
+CREATE INDEX IF NOT EXISTS idx_situacao ON ssa_table (situacao);
+CREATE INDEX IF NOT EXISTS idx_setor_executor ON ssa_table (setor_executor);
+CREATE INDEX IF NOT EXISTS idx_setor_emissor ON ssa_table (setor_emissor);
+CREATE INDEX IF NOT EXISTS idx_semana_cadastro ON ssa_table (semana_cadastro);
+CREATE INDEX IF NOT EXISTS idx_semana_programada ON ssa_table (semana_programada);
+CREATE INDEX IF NOT EXISTS idx_semana_executada ON ssa_table (semana_executada);
+CREATE INDEX IF NOT EXISTS idx_data_cadastro ON ssa_table (data_cadastro);
+CREATE INDEX IF NOT EXISTS idx_localizacao_codigo ON ssa_table (localizacao_codigo);
 
 -- Índices compostos para consultas complexas
-CREATE INDEX IF NOT EXISTS idx_numero_ssa_situacao ON ssas (numero_ssa, situacao);
-CREATE INDEX IF NOT EXISTS idx_setor_executor_semana ON ssas (setor_executor, semana_cadastro);
-CREATE INDEX IF NOT EXISTS idx_situacao_semana ON ssas (situacao, semana_cadastro);
+CREATE INDEX IF NOT EXISTS idx_numero_ssa_situacao ON ssa_table (numero_ssa, situacao);
+CREATE INDEX IF NOT EXISTS idx_setor_executor_semana ON ssa_table (setor_executor, semana_cadastro);
+CREATE INDEX IF NOT EXISTS idx_situacao_semana ON ssa_table (situacao, semana_cadastro);

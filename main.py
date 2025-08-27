@@ -296,7 +296,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
             logger.info("Nenhum novo ou modificado relatório encontrado.")
 
         # --- 4. Início da Interface ---
-        db_path = os.path.join(project_root, 'data', 'ssa_consulta_rapida.db')
+        db_path = os.path.join(project_root, 'data', 'ssas.db')
         table_name = 'ssa_table'
         
         if args.gui:

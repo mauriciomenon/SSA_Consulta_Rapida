@@ -39,23 +39,33 @@ def reset_database(db_path="data/ssas.db"):
         os.remove(db_path)
         print(f" Arquivo do banco removido: {db_path}")
     
-    # Cria o banco com estrutura bsica usando SQL direto
+    # Cria o banco usando o schema oficial
+    schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "schema.sql")
+    
     with sqlite3.connect(db_path) as conn:
-        # SQL para criar a tabela ssas (estrutura bsica)
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS ssas (
-            numero_ssa INTEGER PRIMARY KEY,
-            situacao TEXT,
-            setor_executor TEXT,
-            descricao_ssa TEXT,
-            data_cadastro TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        conn.execute(create_table_sql)
+        # Lê e executa o schema oficial
+        if os.path.exists(schema_path):
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                schema_sql = f.read()
+            conn.executescript(schema_sql)
+            print(" Estrutura das tabelas recriada usando schema oficial")
+        else:
+            # Fallback - cria tabela básica caso schema.sql não exista
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS ssa_table (
+                numero_ssa INTEGER PRIMARY KEY,
+                situacao TEXT,
+                setor_executor TEXT,
+                descricao_ssa TEXT,
+                data_cadastro TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            conn.execute(create_table_sql)
+            print(" Estrutura básica da tabela criada (schema.sql não encontrado)")
+        
         conn.commit()
-        print(" Estrutura das tabelas recriada")
     
     print(f" Reset completo! Banco zerado em: {db_path}")
 

@@ -162,7 +162,7 @@ class DataLoaderWorker(QThread):
                 anomalia,
                 semana_executada,
                 num_reprogramacoes
-            FROM ssas
+            FROM ssa_table
             '''
             
             df = query_db(self.db_path, '', query)
