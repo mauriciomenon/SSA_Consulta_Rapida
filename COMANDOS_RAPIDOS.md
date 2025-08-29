@@ -1,4 +1,4 @@
-# 🚀 Comandos Rápidos - SSA Consulta Rápida v3.0.6
+# 🚀 Comandos Rápidos - SSA Consulta Rápida v3.0.7
 
 ## INICIALIZAÇÃO RÁPIDA
 ```powershell

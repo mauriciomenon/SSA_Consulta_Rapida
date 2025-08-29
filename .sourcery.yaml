@@ -1,0 +1,17 @@
+version: 1
+
+# Reduce noise: disable non-critical suggestions globally
+rule_config:
+  # Disable cosmetic/structural refactor suggestions
+  class-extract-method:
+    enabled: false
+
+  # Disable broad low-code-quality comments
+  low-code-quality:
+    enabled: false
+
+# You can disable whole directories or files here if needed
+# ignore:
+#   - tests/**
+#   - docs_saida/**
+

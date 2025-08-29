@@ -1,6 +1,6 @@
 """
 Width Manager - Sistema Unificado de Gerenciamento de Larguras
-Elimina as 6 estratégias conflitantes de largura da GUI.
+Elimina as estratégias conflitantes de largura da GUI.
 """
 
 from typing import Dict, List, Optional, Tuple, Any
