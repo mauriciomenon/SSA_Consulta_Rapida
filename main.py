@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# main.py 20250827 100000 (v3.0.5+ - Help melhorado, documentação clara)
+# main.py 20250827 100000 (v3.0.7+ - Help melhorado, documentação clara)
 """
 Ponto de entrada da aplicação de Consulta Rápida de SSAs.
 
@@ -65,7 +65,7 @@ def get_app_version():
         from utils.version import get_app_version as _get_version
         return _get_version()
     except ImportError:
-        return "3.0.5+"
+        return "3.0.7+"
 
 def main(cli_args=None):
     """

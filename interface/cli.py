@@ -257,7 +257,7 @@ def _handle_help():
 ║ COMANDOS DE CONFIGURAÇÃO                                                      ║
 ║   c             → Abre menu de configurações interativo                      ║
 ║                                                                               ║
-║ MELHORIAS CLI (v3.0.5+)                                                      ║
+║ MELHORIAS CLI (v3.0.7+)                                                      ║
 ║   status-cli    → Status das melhorias implementadas                         ║
 ║   toggle-debug  → Liga/desliga modo debug do Enhanced Table Printer          ║
 ║   enhanced-on   → Ativa Enhanced Table Printer                               ║
@@ -549,7 +549,7 @@ def start_cli_loop(db_path: str, table_name: str):
     results_stack = [(initial_df, initial_filter_terms)]
 
     # --- Exibição Inicial (com help detalhado) ---
-    print("Pesquisa Rápida de SSAs 3.0.5")
+    print("Pesquisa Rápida de SSAs 3.0.7")
     print("")
     
     # Exibe help inicial detalhado

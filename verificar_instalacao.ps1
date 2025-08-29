@@ -1,4 +1,4 @@
-# Script de Verificação Automática - SSA Consulta Rápida v3.0.6
+# Script de Verificação Automática - SSA Consulta Rápida v3.0.7
 # verificar_instalacao.ps1
 # Execute com: .\verificar_instalacao.ps1
 

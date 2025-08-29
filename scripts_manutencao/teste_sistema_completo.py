@@ -170,7 +170,7 @@ def test_requirements():
 
 def main():
     """Executa todos os testes"""
-    print("🚀 SSA Consulta Rápida - Teste de Sistema v3.0.2+")
+    print("🚀 SSA Consulta Rápida - Teste de Sistema v3.0.7+")
     print("=" * 55)
     
     tests = [
