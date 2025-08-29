@@ -16,7 +16,7 @@ def get_app_version():
         from utils.version import get_app_version as _get_version
         return _get_version()
     except ImportError:
-        return "3.0.5"
+        return "3.0.7"
 
 APP_VERSION = get_app_version()
 

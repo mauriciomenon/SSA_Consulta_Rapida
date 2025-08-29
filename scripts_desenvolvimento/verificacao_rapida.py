@@ -11,7 +11,7 @@ import sqlite3
 from pathlib import Path
 
 def main():
-    print("🔍 VERIFICAÇÃO RÁPIDA - SSA Consulta Rápida v3.0.5")
+    print("🔍 VERIFICAÇÃO RÁPIDA - SSA Consulta Rápida v3.0.7")
     print("=" * 60)
     
     # Verificar estrutura básica
