@@ -1,6 +1,13 @@
 # SSA_Consulta_Rapida
 
-Versão: 3.0.2 — SSA Consulta Rápida v3.0.2
+Versão: 3.0.7 - SSA Consulta Rápida v3.0.7
+
+Novidades v3.0.7:
+- Correção: `IndentationError` no GUI PoC (`gui/gui_ssa_poc.py`) resolvido.
+- Refatoração: `filter_data` simplificado com `_parse_search_terms` e `_show_unfiltered_preview`.
+- Padronização: unificação de helpers de formatação e uso consistente na GUI.
+- Teste: adicionado smoke test da GUI (`tests/gui_poc_smoke_test.py`).
+- Tooling: `.sourcery.yaml` configurado para reduzir alertas não críticos (foco em problemas relevantes).
 
 Resumo do 3.0:
 - Filtro “5 opções” implementado (CLI/GUI) com negativos e fallback de regex
