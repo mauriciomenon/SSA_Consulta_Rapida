@@ -683,12 +683,14 @@ class SSAMainWindow(QMainWindow):
             self.table_widget.setColumnCount(0)
             return
 
-        # Seleciona colunas visíveis com fallbacks encadeados
-        cols_to_show = (
-            [col for col in self.visible_columns if col in self.df_para_tabela.columns]
-            or [col for col in self.default_columns if col in self.df_para_tabela.columns]
-            or self.df_para_tabela.columns.tolist()
-        )
+        # Seleciona apenas as colunas visíveis
+        cols_to_show = [col for col in self.visible_columns if col in self.df_para_tabela.columns]
+        if not cols_to_show:
+            # Se nenhuma coluna selecionada for valida, mostra as padroes
+            cols_to_show = [col for col in self.default_columns if col in self.df_para_tabela.columns]
+            if not cols_to_show:
+                # Ultimo recurso: mostra todas
+                cols_to_show = self.df_para_tabela.columns.tolist()
 
         # Mantém a ordem EXATA definida em gui_main_preferences.json
         # Sem reordenação para garantir correspondência com as larguras calculadas

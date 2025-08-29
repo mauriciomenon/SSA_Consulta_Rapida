@@ -13,11 +13,13 @@ def test_main_help():
     try:
         result = subprocess.run([sys.executable, "main.py", "--help"], 
                               capture_output=True, text=True, timeout=10)
-        ok = (result.returncode == 0)
-        print("✅ main.py --help funciona!" if ok else f"❌ Erro ao executar main.py --help: {result.stderr}")
-        if ok:
+        if result.returncode == 0:
+            print("✅ main.py --help funciona!")
             print(f"Argumentos disponíveis encontrados: {len(result.stdout.split('--'))}")
-        return ok
+            return True
+        else:
+            print(f"❌ Erro ao executar main.py --help: {result.stderr}")
+            return False
     except Exception as e:
         print(f"❌ Exceção ao testar main.py: {e}")
         return False
@@ -28,9 +30,12 @@ def test_gerenciar_banco():
     try:
         result = subprocess.run([sys.executable, "scripts_manutencao/gerenciar_banco.py", "status"], 
                               capture_output=True, text=True, timeout=10)
-        ok = (result.returncode == 0)
-        print("✅ gerenciar_banco.py funciona!" if ok else f"❌ Erro ao executar gerenciar_banco.py: {result.stderr}")
-        return ok
+        if result.returncode == 0:
+            print("✅ gerenciar_banco.py funciona!")
+            return True
+        else:
+            print(f"❌ Erro ao executar gerenciar_banco.py: {result.stderr}")
+            return False
     except Exception as e:
         print(f"❌ Exceção ao testar gerenciar_banco.py: {e}")
         return False
@@ -48,11 +53,10 @@ def test_requirements():
         
         print(f"✅ requirements.txt contém {len(deps)} dependências!")
         print("📦 Principais dependências encontradas:")
-        for dep in deps[:5]:
+        for dep in deps[:5]:  # Mostra as primeiras 5
             print(f"  - {dep}")
-        extra = len(deps) - 5
-        if extra > 0:
-            print(f"  ... e mais {extra} dependências")
+        if len(deps) > 5:
+            print(f"  ... e mais {len(deps)-5} dependências")
         return True
     except Exception as e:
         print(f"❌ Erro ao ler requirements.txt: {e}")
@@ -69,14 +73,15 @@ def main():
         test_main_help,
     ]
     
-    def _safe_run(t):
+    results = []
+    for test in tests:
         try:
-            return t()
+            result = test()
+            results.append(result)
         except Exception as e:
-            print(f"❌ Erro no teste {t.__name__}: {e}")
-            return False
-    results = [_safe_run(t) for t in tests]
-    print("-" * 30)
+            print(f"❌ Erro no teste {test.__name__}: {e}")
+            results.append(False)
+        print("-" * 30)
     
     # Resumo
     passed = sum(results)
@@ -86,9 +91,12 @@ def main():
     print(f"✅ Passou: {passed}/{total}")
     print(f"❌ Falhou: {total-passed}/{total}")
     
-    all_ok = (passed == total)
-    print("🎉 Todos os testes passaram!" if all_ok else "⚠️  Alguns testes falharam.")
-    return 0 if all_ok else 1
+    if passed == total:
+        print("🎉 Todos os testes passaram!")
+        return 0
+    else:
+        print("⚠️  Alguns testes falharam.")
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())
