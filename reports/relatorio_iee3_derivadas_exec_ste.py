@@ -20,6 +20,9 @@ import os
 import sys
 import pandas as pd
 from typing import Dict, Tuple
+from contextlib import suppress
+import logging
+import argparse
 
 try:
     # Caminhos relativos ao projeto
@@ -33,12 +36,19 @@ from armazenamento.database import get_db_connection, normalize_numero_ssa
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from core.config_manager import load_settings, load_display_mappings_integrity
 
+logger = logging.getLogger(__name__)
+
 
 def _resolve_db_defaults() -> Tuple[str, str]:
     """Resolve db_path e table_name padrão do projeto."""
     db_path = os.path.join(PROJECT_ROOT, 'data', 'ssas.db')
     table_name = 'ssa_table'
     return db_path, table_name
+
+
+def _make_key(series: pd.Series) -> pd.Series:
+    """Retorna uma Series com chaves normalizadas de numero_ssa (9 dígitos)."""
+    return series.apply(normalize_numero_ssa)
 
 
 def _query_filtro_1(
@@ -71,6 +81,7 @@ def _query_filtro_1(
     """
     with get_db_connection(db_path) as conn:
         df = pd.read_sql_query(sql, conn, params=(setor_executor_val, situacao_executada_val))
+    logger.debug("Filtro 1 retornou %d linhas", len(df))
     return df
 
 
@@ -116,6 +127,7 @@ def _query_filtro_2(
     params = [setor_emissor_val] + setores + [situacao_executada_val]
     with get_db_connection(db_path) as conn:
         df = pd.read_sql_query(sql, conn, params=params)
+    logger.debug("Filtro 2 retornou %d linhas", len(df))
     return df
 
 
@@ -140,18 +152,14 @@ def _build_result(
             'derivada_ste_numero', 'derivada_ste_executor'
         ])
 
-    # Normaliza chaves de comparação
-    # - f1: numero_ssa -> chave canônica
-    # - f2: derivada_de -> chave canônica de origem
-    f1 = f1.copy()
-    f1['__key__'] = f1['numero_ssa'].apply(normalize_numero_ssa)
-    f1_key_set = set([k for k in f1['__key__'].tolist() if k])
-
-    f2 = f2.copy()
-    f2['__orig_key__'] = f2['derivada_de'].apply(normalize_numero_ssa)
+    # Normaliza chaves de comparação (sem poluir DataFrames)
+    f1_keys = _make_key(f1['numero_ssa'])
+    f1_key_set = set(f1_keys.dropna().unique().tolist())
+    f2_orig_keys = _make_key(f2['derivada_de'])
 
     # Filtra derivadas que referenciam alguma SSA do Filtro 1
-    matched_derivadas = f2[f2['__orig_key__'].isin(f1_key_set)].copy()
+    mask = f2_orig_keys.isin(f1_key_set)
+    matched_derivadas = f2[mask].copy()
     if matched_derivadas.empty:
         return pd.DataFrame(columns=[
             'numero_ssa', 'situacao', 'descricao_ssa',
@@ -159,13 +167,13 @@ def _build_result(
             'derivada_ste_numero', 'derivada_ste_executor'
         ])
 
-    # Agrega info da(s) derivada(s) por chave de origem
+    # Agrega info da(s) derivada(s) por chave de origem usando groupby por Series
     agg = (
         matched_derivadas
-        .groupby('__orig_key__')
+        .groupby(f2_orig_keys[mask])
         .agg({
             'numero_ssa_derivada': lambda s: ','.join(str(x) for x in s.head(3)),
-            'setor_executor_derivada': lambda s: ','.join(sorted(set(str(x) for x in s))[:3])
+            'setor_executor_derivada': lambda s: ','.join(sorted({str(x) for x in s})[:3])
         })
         .rename(columns={
             'numero_ssa_derivada': 'derivada_ste_numero',
@@ -173,8 +181,19 @@ def _build_result(
         })
     )
 
-    # Junta com f1 mantendo apenas chaves presentes na agregação
-    res = f1.merge(agg, left_on='__key__', right_index=True, how='inner')
+    # Mapeia agregações para as linhas de f1 via sua chave normalizada
+    deriv_nums = f1_keys.map(agg['derivada_ste_numero'])
+    deriv_exec = f1_keys.map(agg['derivada_ste_executor'])
+
+    # Monta resultado com colunas padrão + agregados, filtrando apenas linhas com match
+    base_cols = [c for c in [
+        'numero_ssa', 'situacao', 'descricao_ssa',
+        'setor_emissor', 'setor_executor', 'data_cadastro'
+    ] if c in f1.columns]
+    res = f1[base_cols].copy()
+    res['derivada_ste_numero'] = deriv_nums
+    res['derivada_ste_executor'] = deriv_exec
+    res = res[res['derivada_ste_numero'].notna() | res['derivada_ste_executor'].notna()]
 
     # Seleciona colunas para exibição
     cols = [
@@ -189,10 +208,8 @@ def _build_result(
 
     # Ordenação (opcional) já dentro da função para reuso em outros contextos
     if sort_by and sort_by in res.columns:
-        try:
+        with suppress(Exception):
             res = res.sort_values(by=[sort_by], ascending=ascending, na_position='last', kind='mergesort')
-        except Exception:
-            pass
     return res
 
 
@@ -228,11 +245,13 @@ def generate_derivadas_exec_report(
     )
     resultado = _build_result(f1, f2, sort_by=sort_by, ascending=ascending)
 
-    return {
+    out = {
         'filtro1': f1,
         'filtro2': f2,
         'resultado': resultado
     }
+    logger.info("Relatório gerado: filtro1=%d, filtro2=%d, resultado=%d", len(f1), len(f2), len(resultado))
+    return out
 
 
 def run_relatorio(db_path: str | None = None, table_name: str | None = None) -> Dict[str, pd.DataFrame]:
@@ -266,10 +285,32 @@ def _print_section(title: str):
 
 def main():
     """Entrada de console: executa o relatório e imprime tabelas resumidas."""
+    # CLI leve e opcional
+    parser = argparse.ArgumentParser(description="Relatório IEE3 derivadas executadas (STE)")
+    parser.add_argument('--sample-size', type=int, default=7, help='Linhas por amostra (filtros)')
+    parser.add_argument('--sort-by', type=str, default='numero_ssa', help='Coluna para ordenação do resultado')
+    parser.add_argument('--desc', action='store_true', help='Ordenar em ordem decrescente')
+    parser.add_argument('--log-level', type=str, default='WARNING', choices=['DEBUG','INFO','WARNING','ERROR','CRITICAL'])
+    args = parser.parse_args()
+
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=getattr(logging, args.log_level, logging.WARNING))
+    else:
+        logging.getLogger().setLevel(getattr(logging, args.log_level, logging.WARNING))
+
     db_path, table_name = _resolve_db_defaults()
 
     # Executa relatório
-    data = run_relatorio(db_path, table_name)
+    data = generate_derivadas_exec_report(
+        db_path=db_path,
+        table_name=table_name,
+        setor_executor_base='IEE3',
+        situacao_executada='STE',
+        setor_emissor_base='IEE3',
+        setores_executor_derivadas=['MEL3','MEL4'],
+        sort_by=args.sort_by,
+        ascending=not args.desc,
+    )
     f1 = data['filtro1']
     f2 = data['filtro2']
     res = data['resultado']
@@ -297,7 +338,7 @@ def main():
             sample_f1 = f1.copy()
             # Mantém colunas úteis e limita a amostra para evitar saídas muito grandes
             cols_f1 = [c for c in ['numero_ssa', 'situacao', 'setor_executor', 'descricao_ssa', 'data_cadastro'] if c in sample_f1.columns]
-            sample_f1 = sample_f1[cols_f1].head(7)
+            sample_f1 = sample_f1[cols_f1].head(args.sample_size)
             printer.print_dataframe_enhanced(sample_f1, display_map, settings)
         else:
             print("Nenhum registro no Filtro 1.")
@@ -318,8 +359,9 @@ def main():
                 'data_cadastro_derivada': 'data_cadastro'
             })
             cols_f2 = [c for c in ['numero_ssa', 'situacao', 'setor_emissor', 'setor_executor', 'derivada_de', 'descricao_ssa', 'data_cadastro'] if c in sample_f2.columns]
-            sample_f2 = sample_f2[cols_f2].head(7)
+            sample_f2 = sample_f2[cols_f2].head(args.sample_size)
             printer.print_dataframe_enhanced(sample_f2, display_map, settings)
+
         else:
             print("Nenhum registro no Filtro 2.")
     except Exception as e:
