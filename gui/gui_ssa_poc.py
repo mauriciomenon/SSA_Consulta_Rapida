@@ -413,11 +413,8 @@ class SSAMainWindow(QMainWindow):
     
     def copy_cell_to_clipboard(self, row, column):
         """Copia o conteúdo da célula clicada para o clipboard."""
-        item = self.table_widget.item(row, column)
-        if item:
-            clipboard = QApplication.clipboard()
-            clipboard.setText(item.text())
-            
+        if item := self.table_widget.item(row, column):
+            QApplication.clipboard().setText(item.text())
             # Mostra uma mensagem breve (opcional)
             column_name = self.table_widget.horizontalHeaderItem(column).text()
             self.status_label.setText(f"Status: Copiado '{item.text()[:50]}...' da coluna '{column_name}'")
@@ -428,15 +425,14 @@ class SSAMainWindow(QMainWindow):
 
     def load_data(self):
         """Inicia o processo de carregamento de dados em uma thread separada."""
-        if not os.path.exists(DB_PATH):
+        if not (db_exists := os.path.exists(DB_PATH)):
              QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' não encontrado. Execute o programa principal primeiro.")
              return
 
         # OTIMIZAÇÃO: Verifica se já existe uma thread rodando
-        if hasattr(self, 'data_loader_thread') and self.data_loader_thread is not None:
-            if self.data_loader_thread.isRunning():
-                self.status_label.setText("Status: Carregamento já em andamento...")
-                return
+        if hasattr(self, 'data_loader_thread') and self.data_loader_thread is not None and self.data_loader_thread.isRunning():
+            self.status_label.setText("Status: Carregamento já em andamento...")
+            return
             
         self.status_label.setText("Status: Carregando dados...")
         self.progress_bar.setVisible(True)
@@ -480,6 +476,37 @@ class SSAMainWindow(QMainWindow):
         # Limpa a referencia da thread
         self.data_loader_thread = None
 
+    # --- Helpers internos para manter filter_data mais legível ---
+    def _parse_search_terms(self, text: str) -> list[str]:
+        """Sanitiza e quebra o texto de busca em termos (vírgula ou espaço)."""
+        import re
+        safe_text = re.sub(r'[^\w\s,!.-]', '', (text or ''))
+        raw_terms = re.split(r'[,\s]+', safe_text.strip())
+        return [t.strip() for t in raw_terms if t.strip()]
+
+    def _limit_and_display(self, df: pd.DataFrame, max_rows: int, status_msg_when_limited: str, status_msg_full: str) -> None:
+        """Aplica limite de linhas e atualiza exibição e status conforme o caso."""
+        if len(df) > max_rows:
+            self.df_exibido = df.head(max_rows).copy()
+            self.display_data(self.df_exibido)
+            self.status_label.setText(status_msg_when_limited)
+        else:
+            self.df_exibido = df.copy()
+            self.display_data(self.df_exibido)
+            self.status_label.setText(status_msg_full)
+
+    def _format_cell_text(self, col_name: str, value) -> str:
+        """Formata texto de célula (nulos, inteiros float e data_cadastro curta)."""
+        if pd.isna(value):
+            return ""
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        item_text = str(value)
+        # Para data_cadastro, remove hora/minuto/segundo se presente
+        if col_name == 'data_cadastro' and ' ' in item_text:
+            return item_text.split(' ')[0]
+        return item_text
+
     def filter_data(self):
         """Filtra os dados com base no texto da barra de pesquisa."""
         if self.df_completo.empty:
@@ -497,33 +524,23 @@ class SSAMainWindow(QMainWindow):
         if not search_text:
             # OTIMIZAÇÃO: Se vazio, limita a 300 registros para evitar travamento
             MAX_DISPLAY = 300
-            if len(self.df_completo) > MAX_DISPLAY:
-                self.df_exibido = self.df_completo.head(MAX_DISPLAY).copy()
-                total = len(self.df_completo)
-                self.status_label.setText(f"Status: Exibindo {MAX_DISPLAY} de {total} SSAs (use filtros para refinar).")
-            else:
-                self.df_exibido = self.df_completo.copy()
-                self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs exibidas (sem filtro).")
-            self.display_data(self.df_exibido)
+            total = len(self.df_completo)
+            self._limit_and_display(
+                self.df_completo,
+                MAX_DISPLAY,
+                status_msg_when_limited=f"Status: Exibindo {MAX_DISPLAY} de {total} SSAs (use filtros para refinar).",
+                status_msg_full=f"Status: {total} SSAs exibidas (sem filtro).",
+            )
             return
 
         try:
             # Divide os termos de busca por vírgula ou espaço (mais robusto)
-            import re
-            search_terms = []
-            
-            # Sanitiza entrada para evitar regex problemáticos
-            safe_text = re.sub(r'[^\w\s,!.-]', '', search_text)
-            raw_terms = re.split(r'[,\s]+', safe_text)
-            
-            for term in raw_terms:
-                term = term.strip()
-                if term and len(term) >= 1:  # Evita termos muito curtos que podem causar match excessivo
-                    search_terms.append(term)
+            search_terms = self._parse_search_terms(search_text)
             
             if search_terms:
                 # Mostra progresso para operações longas
-                if len(self.df_completo) > 5000:
+                show_progress = len(self.df_completo) > 5000
+                if show_progress:
                     self.progress_bar.setVisible(True)
                     QApplication.processEvents()  # Atualiza a UI
                 
@@ -541,19 +558,16 @@ class SSAMainWindow(QMainWindow):
                 
                 # OTIMIZAÇÃO: Limita exibição dos resultados filtrados a 300 para performance
                 MAX_FILTERED_DISPLAY = 300
-                if len(df_filtrado_completo) > MAX_FILTERED_DISPLAY:
-                    self.df_exibido = df_filtrado_completo.head(MAX_FILTERED_DISPLAY).copy()
-                    total_filtered = len(df_filtrado_completo)
-                    total_complete = len(self.df_completo)
-                    self.status_label.setText(f"Status: Exibindo {MAX_FILTERED_DISPLAY} de {total_filtered} SSAs encontradas (de {total_complete} total) com '{search_text}'.")
-                else:
-                    self.df_exibido = df_filtrado_completo.copy()
-                    total_complete = len(self.df_completo)
-                    self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas (de {total_complete} total) com '{search_text}'.")
+                total_filtered = len(df_filtrado_completo)
+                total_complete = len(self.df_completo)
+                self._limit_and_display(
+                    df_filtrado_completo,
+                    MAX_FILTERED_DISPLAY,
+                    status_msg_when_limited=f"Status: Exibindo {MAX_FILTERED_DISPLAY} de {total_filtered} SSAs encontradas (de {total_complete} total) com '{search_text}'.",
+                    status_msg_full=f"Status: {total_filtered} SSAs encontradas (de {total_complete} total) com '{search_text}'.",
+                )
                 
-                self.display_data(self.df_exibido)
-                
-                if len(self.df_completo) > 5000:
+                if show_progress:
                     self.progress_bar.setVisible(False)
             else:
                  # Caso todos os termos sejam vazios apos o strip
@@ -568,8 +582,12 @@ class SSAMainWindow(QMainWindow):
                                f"Se o problema persistir, tente termos mais simples.")
             self.status_label.setText("Status: Erro ao aplicar filtro.")
             # Recupera estado seguro
-            self.df_exibido = self.df_completo.head(300).copy()
-            self.display_data(self.df_exibido)
+            self._limit_and_display(
+                self.df_completo,
+                300,
+                status_msg_when_limited=f"Status: Exibindo 300 de {len(self.df_completo)} SSAs (fallback).",
+                status_msg_full=f"Status: {len(self.df_completo)} SSAs (fallback).",
+            )
 
     def display_data(self, df: pd.DataFrame):
         """Exibe o DataFrame em QTableWidget com mapeamento de colunas e ocultação de colunas."""
@@ -613,8 +631,7 @@ class SSAMainWindow(QMainWindow):
         
         try:
             # Configura o numero de linhas e colunas
-            self.table_widget.setRowCount(len(df_display))
-            self.table_widget.setColumnCount(len(df_display.columns))
+            self._set_table_dimensions(len(df_display), len(df_display.columns))
             
             # Define os cabecalhos das colunas usando mapeamento
             header_labels = [self.get_display_name(col) for col in df_display.columns]
@@ -634,26 +651,9 @@ class SSAMainWindow(QMainWindow):
                 
                 for row_idx in range(start_row, end_row):
                     for col_idx, col_name in enumerate(df_display.columns):
-                        # Obtem o valor da celula
+                        # Obtem o valor da celula e formata texto
                         value = df_display.iloc[row_idx, col_idx]
-                        
-                        # Tratamento especial para valores numéricos
-                        if pd.isna(value):
-                            item_text = ""
-                        elif isinstance(value, float) and value.is_integer():
-                            # Remove .0 desnecessário (ex: 202542.0 → 202542)
-                            item_text = str(int(value))
-                        else:
-                            item_text = str(value)
-                            
-                        # CORREÇÃO: Formatação especial para data_cadastro (remove hora/minuto/segundo)
-                        if col_name == 'data_cadastro' and len(item_text) > 10:
-                            if ' ' in item_text:
-                                item_text = item_text.split(' ')[0]  # Pega só a data
-                        
-                        # Texto completo sem limitações para melhor visualização
-                        # (As colunas agora são largas o suficiente para mostrar mais conteúdo)
-                        
+                        item_text = self._format_cell_text(col_name, value)
                         # Cria um item da tabela
                         item = QTableWidgetItem(item_text)
                         # Alinha o texto ao centro verticalmente
@@ -845,12 +845,18 @@ class SSAMainWindow(QMainWindow):
                 data_text += f"{display_name}: {display_value}\n"
         
         clipboard = QApplication.clipboard()
+        clipboard = QApplication.clipboard()
         clipboard.setText(data_text)
         self.status_label.setText("Status: Todos os dados da SSA copiados para área de transferência.")
 
+    def _set_table_dimensions(self, rows: int, cols: int):
+        """Configura o numero de linhas e colunas da tabela."""
+        # Configura o numero de linhas e colunas
+        self.table_widget.setRowCount(rows)
+        self.table_widget.setColumnCount(cols)
+
 # --- Ponto de Entrada da Aplicacao ---
 if __name__ == '__main__':
-    # Cria a aplicacao Qt
     app = QApplication(sys.argv)
     
     # Cria e mostra a janela principal
