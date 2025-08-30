@@ -82,15 +82,15 @@ def main(cli_args=None):
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
 ╔═══════════════════════════════════════════════════════════════╗
-║                    EXEMPLOS DE USO                           ║
+║                    EXEMPLOS DE USO                            ║
 ╠═══════════════════════════════════════════════════════════════╣
-║ Modo padrão:        python main.py                           ║
-║ Modo otimizado:     python main.py --optimized               ║
-║ Interface gráfica:  python main.py --gui                     ║
-║ Reset de banco:     python main.py --reset-db                ║
-║ Limpeza de dados:   python main.py --clean-data              ║
-║ Reimportar tudo:    python main.py --force-rescan            ║
-║ Otimizado + rescan: python main.py --optimized --force-rescan║
+║ Modo padrão:        python main.py                            ║
+║ Modo otimizado:     python main.py --optimized                ║
+║ Interface gráfica:  python main.py --gui                      ║
+║ Reset de banco:     python main.py --reset-db                 ║
+║ Limpeza de dados:   python main.py --clean-data               ║
+║ Reimportar tudo:    python main.py --force-rescan             ║
+║ Otimizado + rescan: python main.py --optimized --force-rescan ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
@@ -105,7 +105,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         help='''Força a reimportação de todos os arquivos Excel, ignorando o cache.
         
         ┌─ DIFERENÇAS ─────────────────────────────────────────────┐
-        │ --force-rescan: Nome atual recomendado (mais explícito)  │
+        │ --force-rescan: Nome atual, recomendado                  │
         │ --rescan:       Alias para compatibilidade (mesmo efeito)│
         └──────────────────────────────────────────────────────────┘
         
