@@ -22,7 +22,7 @@
     "grau_prioridade_emissao"
   ],
   "column_display_names": {
-    "numero_ssa": "Nº SSA",
+    "numero_ssa": "Número SSA",
     "Número da SSA": "Nº SSA",
     "setor_executor": "Exec.",
     "situacao": "Sit.", 
