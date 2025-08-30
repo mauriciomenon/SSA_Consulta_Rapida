@@ -74,11 +74,14 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements.txt
+          # GUI requirements for headless PyQt6
+          python -m pip install PyQt6 || true
           # Optional test tooling if present
           python -m pip install pytest pytest-cov || true
       - name: Run tests (balanced subset by default)
         env:
           PYTHONWARNINGS: ignore
+          QT_QPA_PLATFORM: offscreen
         run: |
           set -e
           # Allow overriding via repo variables
@@ -102,4 +105,11 @@ jobs:
               tests/test_docs_and_priority.py \
               tests/test_database.py \
               tests/test_db_reset_and_upsert.py \
-              tests/test_exporter.py
+              tests/test_exporter.py \
+              # CLI coverage
+              tests/test_cli_column_selection.py \
+              tests/test_cli_formatting.py \
+              # GUI coverage (headless-capable)
+              tests/test_gui_config.py \
+              tests/test_gui_configuration.py \
+              tests/test_gui_main_configuration.py
