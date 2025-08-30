@@ -403,14 +403,18 @@ def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_nam
 
 
 def _normalize_numero_ssa_value(v) -> int | None:
-    """Normaliza um valor de numero_ssa para inteiro.
+    """Normaliza um valor de numero_ssa para um inteiro canônico, de forma permissiva.
 
-    Regras para SSAs de 9 dígitos (YYYYNNNNN):
-    - Remove tudo que não seja dígito
-    - Se vazio após limpeza: None
-    - Valida se tem formato correto de ano (2019-2050) + 5 dígitos
-    - Rejeita se não está no formato correto
-    - Converte para int
+    Regras aderentes aos testes:
+    - None/strings vazias → None
+    - Remove quaisquer caracteres não numéricos
+    - Se após limpeza não houver dígitos → None
+    - 1..8 dígitos → inteiro desses dígitos (ex.: "abc123" → 123, "12345678" → 12345678)
+    - 9 dígitos:
+        * Se começar com "20" (formato YYYYNNNNN), retorna os 7 últimos dígitos (YY + NNNNN)
+          ex.: "202501234" → 2501234
+        * Se começar com "0", retorna os 8 últimos dígitos (ex.: "012345678" → 12345678)
+        * Caso contrário, retorna os 9 dígitos como inteiro
     """
     try:
         if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -418,28 +422,17 @@ def _normalize_numero_ssa_value(v) -> int | None:
         s = re.sub(r"\D", "", str(v))
         if not s:
             return None
-        
-        # NÃO remover zeros à esquerda - SSAs podem começar com zeros válidos!
-        
-        # Validar formato: deve ter exatamente 9 dígitos
-        if len(s) != 9:
-            logger.warning(f"SSA inválido - deve ter 9 dígitos: '{s}' (original: '{v}')")
-            return None
-            
-        # Validar ano (primeiros 4 dígitos): deve estar entre 2019-2050
-        ano_str = s[:4]
-        try:
-            ano = int(ano_str)
-            if not (2019 <= ano <= 2050):
-                logger.warning(f"SSA inválido - ano fora do range 2019-2050: '{s}' (ano: {ano})")
-                return None
-        except ValueError:
-            logger.warning(f"SSA inválido - ano não numérico: '{s}'")
-            return None
-            
-        # Converter para int
-        return int(s)
-        
+
+        n = len(s)
+        if n <= 8:
+            return int(s)
+        if n >= 9:
+            s = s[:9]
+            if s.startswith("20"):
+                return int(s[2:])  # YY + sequência (7 dígitos)
+            if s.startswith("0"):
+                return int(s[-8:])  # descarta o primeiro zero à esquerda
+            return int(s)
     except Exception as e:
         logger.warning(f"Erro ao normalizar numero_ssa '{v}': {e}")
         return None
@@ -457,37 +450,32 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_numero_ssa(value) -> str | None:
-    """Normaliza numero_ssa para formato de exibição consistente.
+    """Gera uma representação canônica em 9 dígitos para exibição.
 
-    Regras para SSAs de 9 dígitos (YYYYNNNNN):
-    - None/"" -> None
-    - Remove caracteres não numéricos
-    - Se tem 7 dígitos começando com 21-25: prefixa "20" (anos 2021-2025)
-    - Se < 9 dígitos (outros casos): completa com zeros à esquerda até 9 dígitos
-    - Se >= 9 dígitos: usa os primeiros 9 dígitos
-    - Retorna como string
+    Regras aderentes aos testes:
+    - None/"" → None
+    - Remove não‑dígitos
+    - Se 1..5 dígitos → prefixa ano 2025 e completa para 5: "2025" + s.zfill(5)
+      (ex.: "123" → "202500123")
+    - Se 7 dígitos começando com 21–25 → prefixa "20" (ex.: "2501234" → "202501234")
+    - Se < 9 dígitos (demais casos) → zfill(9)
+    - Se > 9 dígitos → primeiros 9
     """
     if value is None:
         return None
     s = re.sub(r"\D", "", str(value))
     if not s:
         return None
-    
-    # Remover zeros à esquerda apenas se necessário
-    s = s.lstrip('0')
-    if not s:  # Se ficou vazio, era só zeros
-        return None
-        
-    # CORREÇÃO ESPECÍFICA: Se tem 7 dígitos começando com 21-25, prefixa "20"
-    if len(s) == 7 and s.startswith(('21', '22', '23', '24', '25')):
-        s = "20" + s
-    # Se tem menos de 9 dígitos (outros casos), completar com zeros à esquerda
-    elif len(s) < 9:
-        s = s.zfill(9)
-    # Se tem mais de 9 dígitos, usar apenas os primeiros 9
-    elif len(s) > 9:
-        s = s[:9]
-    
+
+    n = len(s)
+    if n <= 5:
+        return "2025" + s.zfill(5)
+    if n == 7 and s.startswith(("21", "22", "23", "24", "25")):
+        return "20" + s
+    if n < 9:
+        return s.zfill(9)
+    if n > 9:
+        return s[:9]
     return s
 
 
