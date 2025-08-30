@@ -143,6 +143,10 @@ except Exception:
     class QAction: pass
     class QItemSelectionModel: Select=0
     class QTimer: pass
+    class QThread:
+        def __init__(self, *a, **k): pass
+        def start(self): pass
+        def run(self): pass
     class Qt: AlignLeft=0
 
 # --- Constantes ---
