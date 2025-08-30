@@ -66,10 +66,10 @@ def test_insert_dataframe_with_smart_upsert(tmp_path):
     schema = _make_schema(tmp_path)
     initialize_database(db_path, schema)
 
-    # Seed old row for numero_ssa=12345678 with earlier date
+    # Seed old row for a valid numero_ssa (YYYY + 5 dígitos) with earlier date
     old = pd.DataFrame([
         {
-            'numero_ssa': '12345678',
+            'numero_ssa': '202401234',
             'situacao': 'OLD',
             'data_cadastro': '01/01/2025',
             'descricao_ssa': 'older',
@@ -81,7 +81,7 @@ def test_insert_dataframe_with_smart_upsert(tmp_path):
     # New with same key and newer date
     new = pd.DataFrame([
         {
-            'numero_ssa': '012345678',
+            'numero_ssa': '202401234',
             'situacao': 'NEW',
             'data_cadastro': '02/01/2025',
             'descricao_ssa': 'newer',
