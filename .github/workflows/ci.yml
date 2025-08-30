@@ -76,7 +76,7 @@ jobs:
           python -m pip install -r requirements.txt
           # Optional test tooling if present
           python -m pip install pytest pytest-cov || true
-      - name: Run tests (quick subset by default)
+      - name: Run tests (balanced subset by default)
         env:
           PYTHONWARNINGS: ignore
         run: |
@@ -91,7 +91,7 @@ jobs:
             echo "Running pytest with mark expression: $MARK_EXPR"
             pytest -q -m "$MARK_EXPR"
           else
-            # Default quick subset to avoid heavy integration/gui/perf tests
+            # Balanced default subset (no GUI/integration/perf, includes core DB ops with tmp paths)
             pytest -q \
               tests/test_default_filter_mode.py \
               tests/test_filter_modes.py \
@@ -99,4 +99,7 @@ jobs:
               tests/test_table_printer.py \
               tests/test_file_metadata.py \
               tests/test_caching.py \
-              tests/test_docs_and_priority.py
+              tests/test_docs_and_priority.py \
+              tests/test_database.py \
+              tests/test_db_reset_and_upsert.py \
+              tests/test_exporter.py
