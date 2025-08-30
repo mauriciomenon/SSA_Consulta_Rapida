@@ -127,7 +127,13 @@ except Exception:
     class QClipboard: pass
     class QFont: pass
     class QAction: pass
-from PyQt6.QtGui import QClipboard, QFont, QAction
+# Import extras de GUI apenas se PyQt6 estiver disponível
+try:
+    if QT_AVAILABLE:
+        from PyQt6.QtGui import QClipboard, QFont, QAction
+except Exception:
+    # Em ambientes headless, os stubs definidos acima serão usados
+    pass
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
