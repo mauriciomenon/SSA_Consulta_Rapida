@@ -75,14 +75,50 @@ GUI_PREFERENCES = load_gui_preferences()
 from core.app_logic import filter_dataframe
 from armazenamento.database import query_db
 
-# --- Importações do PyQt6 ---
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QProgressBar, QFileDialog, QDialog,
-    QTextEdit, QDialogButtonBox, QMenu, QAbstractItemView
-)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
+# --- Importações do PyQt6 (com fallback headless para CI) ---
+QT_AVAILABLE = True
+try:
+    from PyQt6.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+        QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
+        QHeaderView, QMessageBox, QProgressBar, QFileDialog, QDialog,
+        QTextEdit, QDialogButtonBox, QMenu, QAbstractItemView
+    )
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
+except Exception:
+    QT_AVAILABLE = False
+    class _Sig:
+        def emit(self, *a, **k): pass
+        def connect(self, *a, **k): pass
+    def pyqtSignal(*a, **k): return _Sig()
+    class QWidget: pass
+    class QMainWindow: pass
+    class QApplication:
+        def __init__(self, *a, **k): pass
+        def exec(self): return 0
+    class QVBoxLayout:
+        def __init__(self, *a, **k): pass
+    class QHBoxLayout(QVBoxLayout): pass
+    class QLabel: 
+        def __init__(self, *a, **k): pass
+    class QPushButton: 
+        def __init__(self, *a, **k): pass
+    class QLineEdit:
+        def __init__(self, *a, **k): pass
+        def text(self): return ""
+    class QTableWidget: pass
+    class QTableWidgetItem: 
+        def __init__(self, *a, **k): pass
+    class QHeaderView: Stretch = 1
+    class QMessageBox: pass
+    class QProgressBar: pass
+    class QFileDialog: pass
+    class QDialog: pass
+    class QTextEdit: pass
+    class QDialogButtonBox: Ok=1; Cancel=2
+    class QMenu: pass
+    class QAbstractItemView: NoEditTriggers=0
+    class Qt: AlignLeft=0
 from PyQt6.QtGui import QClipboard, QFont, QAction
 
 # --- Constantes ---
