@@ -40,7 +40,7 @@ def load_gui_main_preferences():
         ],
         "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
         "column_display_names": {
-            "numero_ssa": "Nº SSA", "setor_executor": "Exec.", 
+            "numero_ssa": "Número SSA", "setor_executor": "Exec.",
             "situacao": "Sit.", "descricao_ssa": "Desc.",
             "data_cadastro": "Data Cad.", "semana_cadastro": "Sem.Cad.",
             "localizacao_codigo": "Loc.", "grau_prioridade_emissao": "Prio.Emis."
