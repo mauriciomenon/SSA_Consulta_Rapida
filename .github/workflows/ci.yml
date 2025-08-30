@@ -44,10 +44,10 @@ jobs:
           fi
       - name: Mypy (if config present)
         run: |
-          if [ -f mypy.ini ] || rg -n "\[tool.mypy\]" pyproject.toml >/dev/null 2>&1; then \
-            mypy .; \
-          else \
-            echo "Skipping mypy (no config)"; \
+          if [ -f mypy.ini ] || ( [ -f pyproject.toml ] && grep -q "\[tool.mypy\]" pyproject.toml ); then
+            mypy .
+          else
+            echo "Skipping mypy (no config)"
           fi
       - name: Bandit (security scan)
         run: bandit -q -r . || true
@@ -111,3 +111,4 @@ jobs:
               tests/test_gui_config.py \
               tests/test_gui_configuration.py \
               tests/test_gui_main_configuration.py
+          fi
