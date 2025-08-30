@@ -127,6 +127,8 @@ except Exception:
     class QClipboard: pass
     class QFont: pass
     class QAction: pass
+    class QPoint:
+        def __init__(self, *a, **k): pass
 # Import extras de GUI apenas se PyQt6 estiver disponível
 try:
     if QT_AVAILABLE:
