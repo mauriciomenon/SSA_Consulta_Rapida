@@ -5,11 +5,12 @@ from armazenamento.database import normalize_numero_ssa_dataframe, _normalize_nu
 def test_normalize_numero_ssa_value_various():
     assert _normalize_numero_ssa_value(None) is None
     assert _normalize_numero_ssa_value(" ") is None
-    assert _normalize_numero_ssa_value("ABC123") == 123
-    # 8 digits -> zfill to 9
-    assert _normalize_numero_ssa_value("12345678") == 12345678  # zfill then int still same numeric
-    # 10+ digits -> use last 9
-    assert _normalize_numero_ssa_value("2025123456") == 25123456  # last 9 -> 025123456 -> int 25123456
+    # Apenas SSAs válidos (YYYY + 5) entre 1980-2050 retornam int
+    assert _normalize_numero_ssa_value("ABC123") is None
+    # 8 dígitos é inválido
+    assert _normalize_numero_ssa_value("12345678") is None
+    # 10+ dígitos: usa primeiros 9; se ano válido, aceita
+    assert _normalize_numero_ssa_value("2025123456") == 202512345
 
 
 def test_normalize_numero_ssa_dataframe_apply():
@@ -17,7 +18,7 @@ def test_normalize_numero_ssa_dataframe_apply():
         'numero_ssa': [None, 'abc123', '12345678', '202501234']
     })
     out = normalize_numero_ssa_dataframe(df)
-    assert list(out['numero_ssa']) == [None, 123, 12345678, 2501234]
+    assert list(out['numero_ssa']) == [None, None, None, 202501234]
 # tests/test_ssa_normalization_db.py
 import os
 import sys

@@ -403,18 +403,13 @@ def insert_dataframe_with_smart_upsert(df: pd.DataFrame, db_path: str, table_nam
 
 
 def _normalize_numero_ssa_value(v) -> int | None:
-    """Normaliza um valor de numero_ssa para um inteiro canônico, de forma permissiva.
+    """Normaliza numero_ssa para inteiro seguindo a regra canônica: YYYY + 5 dígitos.
 
-    Regras aderentes aos testes:
-    - None/strings vazias → None
-    - Remove quaisquer caracteres não numéricos
-    - Se após limpeza não houver dígitos → None
-    - 1..8 dígitos → inteiro desses dígitos (ex.: "abc123" → 123, "12345678" → 12345678)
-    - 9 dígitos:
-        * Se começar com "20" (formato YYYYNNNNN), retorna os 7 últimos dígitos (YY + NNNNN)
-          ex.: "202501234" → 2501234
-        * Se começar com "0", retorna os 8 últimos dígitos (ex.: "012345678" → 12345678)
-        * Caso contrário, retorna os 9 dígitos como inteiro
+    - Extrai dígitos; se vazio → None
+    - Se tiver mais que 9 dígitos, usa os primeiros 9
+    - Deve ter exatamente 9 dígitos; caso contrário → None
+    - Ano válido: 1980–2050; caso contrário → None
+    - Retorna inteiro de 9 dígitos (sem remover prefixos)
     """
     try:
         if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -422,17 +417,14 @@ def _normalize_numero_ssa_value(v) -> int | None:
         s = re.sub(r"\D", "", str(v))
         if not s:
             return None
-
-        n = len(s)
-        if n <= 8:
-            return int(s)
-        if n >= 9:
+        if len(s) > 9:
             s = s[:9]
-            if s.startswith("20"):
-                return int(s[2:])  # YY + sequência (7 dígitos)
-            if s.startswith("0"):
-                return int(s[-8:])  # descarta o primeiro zero à esquerda
-            return int(s)
+        if len(s) != 9:
+            return None
+        ano = int(s[:4])
+        if not (1980 <= ano <= 2050):
+            return None
+        return int(s)
     except Exception as e:
         logger.warning(f"Erro ao normalizar numero_ssa '{v}': {e}")
         return None
@@ -450,33 +442,35 @@ def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_numero_ssa(value) -> str | None:
-    """Gera uma representação canônica em 9 dígitos para exibição.
+    """Formata para exibição: sempre 9 dígitos (YYYY + 5).
 
-    Regras aderentes aos testes:
     - None/"" → None
-    - Remove não‑dígitos
-    - Se 1..5 dígitos → prefixa ano 2025 e completa para 5: "2025" + s.zfill(5)
-      (ex.: "123" → "202500123")
-    - Se 7 dígitos começando com 21–25 → prefixa "20" (ex.: "2501234" → "202501234")
-    - Se < 9 dígitos (demais casos) → zfill(9)
-    - Se > 9 dígitos → primeiros 9
+    - Remove não‑dígitos; remove zeros à esquerda para decidir os casos curtos
+    - Se, após remover zeros à esquerda, tiver 1..5 dígitos → "2025" + zfill(5)
+    - Se 7 dígitos e começar com 21–25 → prefixa "20"
+    - Se ainda < 9 → zfill(9)
+    - Se > 9 → usa os primeiros 9
+    - Se 9 → retorna como está
     """
     if value is None:
         return None
-    s = re.sub(r"\D", "", str(value))
-    if not s:
+    raw = re.sub(r"\D", "", str(value))
+    if not raw:
         return None
-
-    n = len(s)
-    if n <= 5:
-        return "2025" + s.zfill(5)
-    if n == 7 and s.startswith(("21", "22", "23", "24", "25")):
-        return "20" + s
-    if n < 9:
-        return s.zfill(9)
-    if n > 9:
-        return s[:9]
-    return s
+    trimmed = raw.lstrip('0')
+    if not trimmed:
+        return None
+    n_trim = len(trimmed)
+    if n_trim <= 5:
+        return "2025" + trimmed.zfill(5)
+    if n_trim == 7 and trimmed.startswith(("21", "22", "23", "24", "25")):
+        return "20" + trimmed
+    # Volta ao valor bruto (com zeros) para completar até 9 quando aplicável
+    if len(raw) < 9:
+        return raw.zfill(9)
+    if len(raw) > 9:
+        return raw[:9]
+    return raw
 
 
 # --- Funções de Verificação e Integridade do Banco ---

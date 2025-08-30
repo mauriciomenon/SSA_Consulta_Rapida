@@ -119,6 +119,14 @@ except Exception:
     class QMenu: pass
     class QAbstractItemView: NoEditTriggers=0
     class Qt: AlignLeft=0
+    # Extras usados mais adiante
+    class QThread:
+        def __init__(self, *a, **k): pass
+        def start(self): pass
+        def run(self): pass
+    class QClipboard: pass
+    class QFont: pass
+    class QAction: pass
 from PyQt6.QtGui import QClipboard, QFont, QAction
 
 # --- Constantes ---
