@@ -94,24 +94,20 @@ jobs:
             echo "Running pytest with mark expression: $MARK_EXPR"
             pytest -q -m "$MARK_EXPR"
           else
-            # Balanced default subset (no GUI/perf/integration-heavy) including CLI+GUI smoke
-            FILES_LIST=$(cat <<'EOF'
-tests/test_default_filter_mode.py
-tests/test_filter_modes.py
-tests/test_ssa_normalization_db.py
-tests/test_table_printer.py
-tests/test_file_metadata.py
-tests/test_caching.py
-tests/test_docs_and_priority.py
-tests/test_database.py
-tests/test_db_reset_and_upsert.py
-tests/test_exporter.py
-tests/test_cli_column_selection.py
-tests/test_cli_formatting.py
-tests/test_gui_config.py
-tests/test_gui_configuration.py
-tests/test_gui_main_configuration.py
-EOF
-)
             echo "Running pytest on balanced subset"
-            pytest -q $FILES_LIST
+            pytest -q \
+              tests/test_default_filter_mode.py \
+              tests/test_filter_modes.py \
+              tests/test_ssa_normalization_db.py \
+              tests/test_table_printer.py \
+              tests/test_file_metadata.py \
+              tests/test_caching.py \
+              tests/test_docs_and_priority.py \
+              tests/test_database.py \
+              tests/test_db_reset_and_upsert.py \
+              tests/test_exporter.py \
+              tests/test_cli_column_selection.py \
+              tests/test_cli_formatting.py \
+              tests/test_gui_config.py \
+              tests/test_gui_configuration.py \
+              tests/test_gui_main_configuration.py
