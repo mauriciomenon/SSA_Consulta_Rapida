@@ -1,4 +1,4 @@
-version: 1
+version: '1'
 
 # Reduce noise: disable non-critical suggestions globally
 rule_config:
@@ -14,4 +14,3 @@ rule_config:
 # ignore:
 #   - tests/**
 #   - docs_saida/**
-

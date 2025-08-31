@@ -33,5 +33,10 @@
     "terminal.integrated.suggest.runOnEnter": "always",
     "terminal.integrated.stickyScroll.enabled": true,
     "terminal.integrated.stickyScroll.maxLineCount": 5,
-    "terminal.integrated.shellIntegration.history": 1000
+    "terminal.integrated.shellIntegration.history": 1000,
+    "python-envs.defaultEnvManager": "ms-python.python:pyenv",
+    "python-envs.pythonProjects": [],
+    "python.languageServer": "Pylance",
+    "python.analysis.typeCheckingMode": "basic",
+    "typescript.tsserver.experimental.enableProjectDiagnostics": true
 }
