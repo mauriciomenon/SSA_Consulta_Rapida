@@ -1,16 +1,10 @@
 version: '1'
 
-# Reduce noise: disable non-critical suggestions globally
-rule_config:
-  # Disable cosmetic/structural refactor suggestions
-  class-extract-method:
-    enabled: false
+# Simple configuration for SSA Consulta Rápida project
+# Suggestions will appear only in Sourcery extension, not in Problems panel
 
-  # Disable broad low-code-quality comments
-  low-code-quality:
-    enabled: false
-
-# You can disable whole directories or files here if needed
-# ignore:
-#   - tests/**
-#   - docs_saida/**
+ignore:
+  - tests/legacy_tests/**
+  - docs_saida/**
+  - versoes_backup/**
+  - __pycache__/**
