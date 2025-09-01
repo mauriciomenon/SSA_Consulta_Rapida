@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SSA Consulta Rápida",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/Users/menon/.pyenv/versions/ssa_consulta_rapida_py313/bin/python",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "VIRTUAL_ENV": "/Users/menon/.pyenv/versions/ssa_consulta_rapida_py313"
+            }
+        }
+    ]
+}
