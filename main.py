@@ -16,6 +16,10 @@ import socket
 import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gui.gui_ssa import SSAMainWindow
 
 logger = logging.getLogger("ssa")
 logger.setLevel(logging.DEBUG)
@@ -289,6 +293,8 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
                 disable_optimized_import()
             except ImportError:
                 pass
+            except Exception as e:
+                logger.warning(f"Falha ao desativar modo otimizado: {e}")
         
         if db_updated:
             logger.info("Banco de dados atualizado com sucesso.")

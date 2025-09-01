@@ -16,6 +16,18 @@
     "github.copilot.chat.languageContext.typescript.enabled": true,
     "github.copilot.chat.newWorkspace.useContext7": true,
     "github.copilot.chat.notebook.followCellExecution.enabled": true,
+    "python.defaultInterpreterPath": "/Users/menon/.pyenv/versions/ssa_consulta_rapida_py313/bin/python",
+    "python.pythonPath": "/Users/menon/.pyenv/versions/ssa_consulta_rapida_py313/bin/python",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests",
+        "-v",
+        "--tb=short"
+    ],
+    "python.testing.pytestPath": "/Users/menon/.pyenv/versions/ssa_consulta_rapida_py313/bin/pytest",
+    "python.testing.autoTestDiscoverOnSaveEnabled": false,
+    "python.testing.cwd": "/Users/menon/git/SSA_Consulta_Rapida",
     "python.terminal.activateEnvInCurrentTerminal": true,
     "python.terminal.executeInFileDir": true,
     "python.terminal.shellIntegration.enabled": true,
@@ -27,6 +39,16 @@
     "terminal.integrated.copyOnSelection": true,
     "terminal.integrated.cursorBlinking": true,
     "terminal.integrated.cursorStyle": "block",
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.profiles.osx": {
+        "zsh": {
+            "path": "/bin/zsh",
+            "args": ["-l"]
+        },
+        "fish": {
+            "path": "/opt/homebrew/bin/fish"
+        }
+    },
     "terminal.integrated.defaultProfile.windows": "PowerShell",
     "terminal.integrated.windowsUseConptyDll": false,
     "terminal.integrated.suggest.selectionMode": "always",
@@ -34,9 +56,23 @@
     "terminal.integrated.stickyScroll.enabled": true,
     "terminal.integrated.stickyScroll.maxLineCount": 5,
     "terminal.integrated.shellIntegration.history": 1000,
-    "python-envs.defaultEnvManager": "ms-python.python:pyenv",
+    "python-envs.defaultEnvManager": "ms-python.python:system",
     "python-envs.pythonProjects": [],
     "python.languageServer": "Pylance",
-    "python.analysis.typeCheckingMode": "basic",
-    "typescript.tsserver.experimental.enableProjectDiagnostics": true
+    "python.analysis.typeCheckingMode": "off",
+    "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+    "sourcery.codeLens": false,
+    "sourcery.diagnostics": false,
+    "sourcery.hover": false,
+    "sourcery.refactoringsInProblemsPanel": false,
+    "sourcery.suggestionsInProblemsPanel": false,
+    "sourcery.enableProblemsPanel": false,
+    "sourcery.enable": false,
+    "sourcery.extensionEnabled": false,
+    "problems.decorations.enabled": true,
+    "Lingma.aI Chat.webToolsInAsk/AgentMode": "Auto-execute",
+    "Lingma.aI Chat.mcpToolsInAgentMode": true,
+    "Lingma.DisplayLanguage": "English",
+    "Lingma.PreferredLanguage for AI Chat": "English",
+    "Lingma.PreferredLanguage forCommitMessage": "English"
 }
