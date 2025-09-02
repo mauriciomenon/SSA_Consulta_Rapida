@@ -302,8 +302,12 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
             logger.info("Nenhum novo ou modificado relatório encontrado.")
 
         # --- 4. Início da Interface ---
-        db_path = os.path.join(project_root, 'data', 'ssas.db')
-        table_name = 'ssa_table'
+        # Respeita variáveis de ambiente para facilitar testes e integração
+        # Exemplos:
+        #   SSA_DB_PATH=C:\\tmp\\test_ssas.db  SSA_TABLE_NAME=ssas  python main.py --log-level INFO
+        db_path = os.environ.get('SSA_DB_PATH') or os.path.join(project_root, 'data', 'ssas.db')
+        table_name = os.environ.get('SSA_TABLE_NAME') or 'ssa_table'
+        logger.info(f"Usando base: {db_path} (tabela: {table_name})")
         
         if args.gui:
             logger.info("Iniciando interface gráfica (GUI)...")
