@@ -315,13 +315,12 @@ class AutomatedSystemTester:
                 result.complete(False, "Falha na preparação de dados para teste GUI")
                 return result
             
-            # Tentar importar módulos da GUI
+            # Tentar importar módulos da GUI (via pacote "gui")
             try:
-                sys.path.append(os.path.join(self.base_dir, "gui"))
-                
-                # Teste de importação dos módulos
-                import gui_ssa
-                import simple_width_manager
+                # O diretório raiz já foi adicionado ao sys.path no topo do arquivo,
+                # portanto podemos importar como pacote para melhor compatibilidade com Pylance
+                from gui import gui_ssa  # noqa: F401
+                from gui import simple_width_manager  # noqa: F401
                 
                 module_tests = {
                     'gui_ssa_import': True,
@@ -335,17 +334,13 @@ class AutomatedSystemTester:
                     'import_error': str(e)
                 }
             
-            # Verificar se PyQt está disponível
+            # Verificar se PyQt6 está disponível (projeto usa apenas PyQt6)
             pyqt_available = False
             try:
-                from PyQt5.QtWidgets import QApplication
+                from PyQt6.QtWidgets import QApplication  # noqa: F401
                 pyqt_available = True
             except ImportError:
-                try:
-                    from PySide2.QtWidgets import QApplication
-                    pyqt_available = True
-                except ImportError:
-                    pass
+                pyqt_available = False
             
             result.complete(
                 module_tests.get('gui_ssa_import', False),
