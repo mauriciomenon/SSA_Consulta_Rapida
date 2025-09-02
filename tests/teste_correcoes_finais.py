@@ -50,8 +50,7 @@ def test_gui_import():
     print("=" * 50)
     
     try:
-        sys.path.append('gui')
-        from gui_ssa import SSAMainWindow, load_gui_main_preferences
+        from gui.gui_ssa import SSAMainWindow, load_gui_main_preferences
         
         # Testa carregamento das preferências
         prefs = load_gui_main_preferences()
@@ -78,17 +77,15 @@ def test_cli_compatibility():
     
     try:
         # Testa importação de módulos CLI principais  
-        sys.path.append('interface')
-        import cli
+        from interface import cli
         print("✅ CLI módulo importado com sucesso")
         
         # Verifica table_printer
-        import table_printer
+        from interface import table_printer
         print("✅ Table printer importado com sucesso")
         
         # Verifica core.config_manager
-        sys.path.append('core')  
-        from config_manager import load_display_mappings_integrity
+        from core.config_manager import load_display_mappings_integrity
         display_map = load_display_mappings_integrity()
         print(f"✅ Display mappings carregado: {len(display_map)} items")
         
@@ -103,7 +100,6 @@ def test_gui_poc_compatibility():
     print("=" * 50)
     
     try:
-        sys.path.append('gui')
         # Verifica se arquivo existe
         poc_file = "gui/gui_ssa_poc.py"
         if not os.path.exists(poc_file):
