@@ -475,7 +475,7 @@ def normalize_numero_ssa(value) -> str | None:
 
 # --- Funções de Verificação e Integridade do Banco ---
 
-def verify_database_integrity(db_path: str, table_name: str = 'ssa_table') -> Dict[str, Any]:
+def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> Dict[str, Any]:
     """
     Verifica a integridade do banco de dados e retorna relatório detalhado.
     
@@ -708,7 +708,7 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
     return validation_report
 
 
-def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql', table_name: str = 'ssa_table') -> bool:
+def repair_database_if_needed(db_path: str, schema_file: str = 'schema.sql', table_name: str = 'ssas') -> bool:
     """
     Tenta reparar o banco de dados se problemas forem detectados.
     
