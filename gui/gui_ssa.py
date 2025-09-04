@@ -18,6 +18,11 @@ import os
 import pandas as pd
 import json
 import subprocess
+try:
+    from utils.version import get_app_version
+except Exception:
+    def get_app_version():
+        return "3.0.7+"
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -413,6 +418,7 @@ class FilterHelpDialog(QDialog):
         layout = QVBoxLayout()
         help_text = QTextEdit()
         help_text.setReadOnly(True)
+        app_version = get_app_version() if callable(get_app_version) else "3.0.7+"
         help_text.setHtml(
             """
             <h3>Como usar os filtros</h3>
@@ -446,7 +452,14 @@ class FilterHelpDialog(QDialog):
               <li>Termos parciais funcionam (ex.: <code>exec</code> encontra <i>executada</i>)</li>
               <li>Deixe vazio para ver todas as SSAs</li>
             </ul>
+            <hr/>
+            <p style='font-size:12px;'>
+              <b>Projeto:</b> SSA_Consulta_Rapida • <b>Versão:</b> %s<br/>
+              <b>Autor:</b> Mauricio Menon • <b>Repositório:</b> 
+              <a href='https://github.com/mauriciomenon/SSA_Consulta_Rapida'>github.com/mauriciomenon/SSA_Consulta_Rapida</a>
+            </p>
             """
+            % app_version
         )
         layout.addWidget(help_text)
         okb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
@@ -509,9 +522,17 @@ class SSAMainWindow(QMainWindow):
         self.persistent_filters = []
 
         self.init_ui()
-        
+
         # Carrega filtros após a GUI estar configurada
         self.load_persistent_filters()
+
+        # Auto-carregar dados na abertura (assíncrono via worker)
+        try:
+            auto = gui_settings.get("auto_load", False)
+        except Exception:
+            auto = False
+        if auto:
+            QTimer.singleShot(0, self.load_data)
 
     def init_ui(self):
         central_widget = QWidget()
