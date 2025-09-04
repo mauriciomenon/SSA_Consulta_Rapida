@@ -1,4 +1,4 @@
-# gui_ssa.py 20250725 173000 (PoC - GUI PyQt6 para SSA_Consulta_Rapida)
+# gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -22,7 +22,7 @@ try:
     from utils.version import get_app_version
 except Exception:
     def get_app_version():
-        return "3.0.7+"
+        return "3.10+"
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -31,6 +31,7 @@ if project_root not in sys.path:
 
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager
+from utils.themes import get_palette, normalize_theme
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
 # --- Função para Carregar Configurações da GUI Principal ---
@@ -539,6 +540,16 @@ class SSAMainWindow(QMainWindow):
 
         # Carrega filtros após a GUI estar configurada
         self.load_persistent_filters()
+        # Pré-aplica tema (padrão: gruvbox) antes do auto-load
+        # Abrir sempre com tema Gruvbox, independente do salvo
+        self.apply_theme('gruvbox')
+        try:
+            # Persiste preferência padrão em gruvbox, sem impedir troca manual depois
+            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = 'gruvbox'
+            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
+                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
         # Pré-habilitar entradas vazias para Situação, Executor e Descrição da SSA no painel
         for key in ("situacao", "setor_executor", "descricao_ssa"):
             if key in self.internal_to_display and key not in self._active_column_filters:
@@ -549,8 +560,7 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
 
-        # Auto-carregar dados na abertura (assíncrono via worker)
-        # Auto-load sempre habilitado (robusto e responsivo)
+        # Auto-carregar dados na abertura (assíncrono, mantém a janela responsiva)
         QTimer.singleShot(150, self.load_data)
 
     def init_ui(self):
@@ -638,7 +648,7 @@ class SSAMainWindow(QMainWindow):
         left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisa Geral:")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Termos por vírgula. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
+        self.search_input.setPlaceholderText("Separe por vírgulas; ! exclui; busca em todas as colunas")
         self.search_input.setToolTip(
             "Modos por termo: \n"
             "- contém (padrão): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
@@ -674,14 +684,18 @@ class SSAMainWindow(QMainWindow):
         # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
         help_line = QHBoxLayout()
         help_line.setContentsMargins(0, 0, 0, 0)
-        self.search_help = QLabel("Termos: ^pre, suf$, =exato, ~regex, !neg — múltiplos por vírgula")
-        self.search_help.setWordWrap(True)
-        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid); margin:0px; padding:0px;")
-        self.search_help.setMaximumWidth(680)
-        self.search_help.setMaximumHeight(10)
+        # Texto direto e visível; etiqueta se expande até o fim da linha
+        self.search_help = QLabel(
+            "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna."
+        )
+        self.search_help.setWordWrap(False)
+        try:
+            from PyQt6.QtWidgets import QSizePolicy
+            self.search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        except Exception:
+            pass
+        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid); margin:0; padding:0;")
         help_line.addWidget(self.search_help)
-        help_line.addStretch()
-        help_line.setSpacing(0)
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
         main_layout.addSpacing(6)
@@ -1121,22 +1135,42 @@ class SSAMainWindow(QMainWindow):
             return
 
         for col, term in self._active_column_filters.items():
-            row = QHBoxLayout()
+            row = QHBoxLayout(); row.setContentsMargins(0,0,0,0); row.setSpacing(4)
             full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
             name_lbl = QLabel(full_name)
-            name_lbl.setMinimumWidth(140)
+            name_lbl.setMinimumWidth(100)
+            try:
+                from PyQt6.QtWidgets import QSizePolicy
+                name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            except Exception:
+                pass
             term_box = QLineEdit(str(term))
-            term_box.setPlaceholderText("Termos: ^pre, suf$, =exato, ~regex, !neg")
-            term_box.setMinimumWidth(300)
+            term_box.setPlaceholderText("Separe por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
+            # Reduzido para garantir visibilidade dos botões em telas estreitas
+            term_box.setMinimumWidth(220)
             term_box.setStyleSheet("font-size: 11px;")
             try:
                 term_box.setMinimumHeight(26)
+            except Exception:
+                pass
+            try:
+                from PyQt6.QtWidgets import QSizePolicy
+                term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
             # Botão Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             try:
                 apply_btn.setMinimumHeight(26)
+            except Exception:
+                pass
+            try:
+                from PyQt6.QtWidgets import QSizePolicy
+                apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            except Exception:
+                pass
+            try:
+                apply_btn.setFixedWidth(72)
             except Exception:
                 pass
             def _mk_apply(c=col, tb=term_box):
@@ -1153,6 +1187,15 @@ class SSAMainWindow(QMainWindow):
             clear_btn = QPushButton("Limpar")
             try:
                 clear_btn.setMinimumHeight(26)
+            except Exception:
+                pass
+            try:
+                from PyQt6.QtWidgets import QSizePolicy
+                clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            except Exception:
+                pass
+            try:
+                clear_btn.setFixedWidth(68)
             except Exception:
                 pass
             def _mk_clear(c=col):
@@ -1183,12 +1226,18 @@ class SSAMainWindow(QMainWindow):
 
     def _clear_single_column_filter(self, col_name: str):
         if col_name in self._active_column_filters:
-            del self._active_column_filters[col_name]
+            # Para filtros padrão, não remover a linha: apenas limpar o termo
+            default_keep = {"situacao", "setor_executor", "descricao_ssa"}
+            if col_name in default_keep:
+                self._active_column_filters[col_name] = ""
+            else:
+                del self._active_column_filters[col_name]
             base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
             self.df_exibido = self._apply_column_filters(base)
             self.paginator.set_dataframe(self.df_exibido)
             self.display_current_page(1)
             self._build_column_filters_panel()
+            self._update_col_filter_indicator()
 
     def _clear_all_column_filters(self):
         if self._active_column_filters is not None:
@@ -1222,6 +1271,35 @@ class SSAMainWindow(QMainWindow):
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+        except Exception:
+            pass
+        # Ajustes de contraste por tema para rótulos informativos
+        try:
+            theme = (name or '').lower()
+            if theme == 'light':
+                # Caixa da semana e status com cinza claro e borda (#eee / #aaa)
+                if hasattr(self, 'week_label') and self.week_label is not None:
+                    self.week_label.setStyleSheet(
+                        "font-weight:600; color:#222; background:#eee; border:1px solid #aaa; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'status_label') and self.status_label is not None:
+                    self.status_label.setStyleSheet(
+                        "color:#222; background:#eee; border:1px solid #aaa; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'search_help') and self.search_help is not None:
+                    self.search_help.setStyleSheet("font-size:10px; color:#555; margin:0; padding:0;")
+            else:
+                # Temas escuros (inclui Gruvbox) com contraste garantido
+                if hasattr(self, 'week_label') and self.week_label is not None:
+                    self.week_label.setStyleSheet(
+                        "font-weight:600; color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'status_label') and self.status_label is not None:
+                    self.status_label.setStyleSheet(
+                        "color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'search_help') and self.search_help is not None:
+                    self.search_help.setStyleSheet("font-size:10px; color:#b8b8b8; margin:0; padding:0;")
         except Exception:
             pass
         # Persistência
@@ -1437,11 +1515,18 @@ class SSAMainWindow(QMainWindow):
                 self.table_widget.setItem(row_idx, col_idx, item)
 
         # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
-        # (não ao mudar apenas o conteúdo/linhas), evitando "pulos" ao limpar/aplicar filtros
+        # ou quando a largura útil do viewport mudar significativamente
         cols_sig = tuple(display_df.columns)
-        if not hasattr(self, '_widths_columns_sig') or self._widths_columns_sig != cols_sig:
+        try:
+            vw = self.table_widget.viewport().width()
+        except Exception:
+            vw = -1
+        need_cols = (not hasattr(self, '_widths_columns_sig')) or (self._widths_columns_sig != cols_sig)
+        need_vw = (not hasattr(self, '_last_viewport_w')) or (abs(vw - self._last_viewport_w) > 12)
+        if need_cols or need_vw:
             self._compute_gui_column_widths(display_df)
             self._widths_columns_sig = cols_sig
+            self._last_viewport_w = vw
             
         # Configura header como Interactive para permitir larguras customizadas
         header = self.table_widget.horizontalHeader()
@@ -1927,7 +2012,7 @@ class SSAMainWindow(QMainWindow):
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and 
             hasattr(self, '_last_window_width')):
             width_change = abs(event.size().width() - self._last_window_width)
-            if width_change > 50:  # Só recalcula se mudança for > 50px
+            if width_change > 12:  # Só recalcula se mudança for > 12px
                 # Delay para evitar recálculos excessivos durante resize
                 QTimer.singleShot(300, self._recompute_column_widths_on_resize)
         

@@ -1,13 +1,15 @@
 # SSA_Consulta_Rapida
 
-Versão: 3.0.7 - SSA Consulta Rápida v3.0.7
+Versão: 3.10 - SSA Consulta Rápida v3.10
 
-Novidades v3.0.7:
+Novidades v3.10:
 - Correção: `IndentationError` no GUI PoC (`gui/gui_ssa_poc.py`) resolvido.
 - Refatoração: `filter_data` simplificado com `_parse_search_terms` e `_show_unfiltered_preview`.
 - Padronização: unificação de helpers de formatação e uso consistente na GUI.
 - Teste: adicionado smoke test da GUI (`tests/gui_poc_smoke_test.py`).
 - Tooling: `.sourcery.yaml` configurado para reduzir alertas não críticos (foco em problemas relevantes).
+ - GUI: painel “Filtros por Coluna” compacto (labels próximos, botões fixos) e estabilidade de larguras (recalcula apenas em mudança de colunas ou viewport > 12 px).
+ - Tema Claro: contraste reforçado (caixas “Semana” e “Status” com fundo #eee e borda #aaa). Ajuda da busca em TL;DR e placeholder/labels mais claros.
 
 Resumo do 3.0:
 - Filtro “5 opções” implementado (CLI/GUI) com negativos e fallback de regex
@@ -95,10 +97,24 @@ Filtro “5 opções” (implementado)
 
 ## GUI – desempenho e previsibilidade
 - Modelo leve (QAbstractTableModel)
-- Filtro com debounce (~250–350ms) e botão “Buscar”; dica (tooltip) no campo explica os 5 modos
+- Filtro com debounce (~250–350 ms) e botão “Aplicar”; ajuda TL;DR sob o campo de busca
+- Filtros por Coluna compactos: labels próximos, botões fixos (Aplicar/Limpar) e largura estável
+- Estabilidade de colunas: larguras só recalculam quando muda o conjunto/ordem de colunas ou o viewport varia > 12 px
+- Indicador [f] no cabeçalho quando uma coluna tem filtro ativo
+- Suporte a `=NULL`/`NULL` e `!` (negativos) também na GUI, igual ao CLI
 - Resguardo de instância única: se já houver uma janela aberta, um novo `--gui` não abre outra
-- Colunas ordenadas por prioridade e limitadas à largura; seletor de colunas com persistência
-- Cabeçalhos usam `short_labels` quando falta espaço; duplo-clique abre detalhes formatados
+- Seletor de colunas com nomes de exibição e ordem preservada
+
+## Temas (GUI)
+- Alternância: Claro, Escuro e Gruvbox
+- Tema Claro com contraste melhorado: caixas informativas (Semana, Status) usam fundo cinza-claro e borda visível
+- Dica de busca (TL;DR) legível em claro/escuro
+- Persistência do tema em `config/gui_main_preferences.json`
+
+## GUI – filtros (TL;DR)
+- Separe termos por vírgulas: `foo, bar`
+- Modos por termo: contém (`foo`), começa (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
+- Por coluna: clique direito no cabeçalho para abrir o painel; campos exibem a mesma dica TL;DR
 
 ## Importação – robustez
 - Ignora arquivos sem colunas obrigatórias (ex.: `numero_ssa`) com log

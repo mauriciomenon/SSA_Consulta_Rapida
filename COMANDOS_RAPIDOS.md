@@ -1,4 +1,4 @@
-# 🚀 Comandos Rápidos - SSA Consulta Rápida v3.0.7
+# 🚀 Comandos Rápidos - SSA Consulta Rápida v3.10
 
 ## INICIALIZAÇÃO RÁPIDA
 ```powershell
@@ -39,6 +39,14 @@ python main.py --force-rescan
 # Reset completo
 python main.py --reset-db
 ```
+
+## GUI – Filtros (TL;DR)
+- Separe termos por vírgula: `foo, bar`
+- Modos: contém (`foo`), começa (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
+- Por coluna: clique direito no cabeçalho e use o painel à direita; botões Aplicar/Limpar não alteram as larguras da tabela
+
+## Temas (GUI)
+- Claro, Escuro e Gruvbox. No Claro, caixas "Semana" e "Status" têm contraste reforçado.
 
 ## RECUPERAÇÃO RÁPIDA (SAFE MODE)
 ```powershell

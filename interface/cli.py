@@ -1,4 +1,4 @@
-# interface/cli.py 20250725 160000 (v5.3 - Refatorado, Command Pattern, Integrado)
+# interface/cli.py (CLI refatorada – Command Pattern, integrada)
 """
 Interface de Linha de Comando (CLI) para interação com o usuário.
 
@@ -183,29 +183,28 @@ def _get_initial_state(
 def _show_initial_help():
     """Exibe help inicial mais detalhado antes do prompt ficar disponível."""
     help_text = f"""
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                    CONSULTA RÁPIDA DE SSAs v{APP_VERSION} - GUIA RÁPIDO                     ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║ PESQUISA                                                                      ║
-║   • Digite termos separados por vírgula: ADM, MEL3, 2025                     ║
-║   • Modos avançados: ^início, fim$, =exato, ~regex, !negativo               ║
-║                                                                               ║
-║ COMANDOS PRINCIPAIS                                                           ║
-║   h ou ?      → Ajuda completa        q         → Sair                       ║
-║   d <#>       → Detalhes da linha     v         → Voltar filtro              ║
-║   r           → Reset completo        rescan    → Reimportar dados           ║
-║   e <nome>    → Exportar resultados   c         → Configurações              ║
-║                                                                               ║
-║ ORGANIZAÇÃO                                                                   ║
-║   ord <#>     → Ordenar crescente     ordi <#>  → Ordenar decrescente        ║
-║   ordn <nome> → Ordenar por nome      cols     → Listar colunas              ║
-║   x [termo]   → Remover filtro        f        → Ver filtros ativos          ║
-║                                                                               ║
-║ DICAS                                                                         ║
-║   • Digite 'h' para help completo com exemplos                               ║
-║   • Use 'd <número>' para ver detalhes de uma linha específica               ║
-║   • Combine filtros para busca mais precisa                                  ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+════════════════════════════ CONSULTA RÁPIDA de SSAs v{APP_VERSION} ═══════════════════════════
+
+PESQUISA
+  • Separe termos por vírgula: ADM, MEL3, 2025
+  • Modos: ^início, fim$, =exato, ~regex, !negativo
+
+COMANDOS PRINCIPAIS
+  h/?   Ajuda completa     q      Sair
+  d <#> Detalhes           v      Voltar filtro
+  r     Reset completo     rescan Reimportar dados
+  e <n> Exportar           c      Configurações
+
+ORGANIZAÇÃO
+  ord/ordi <#>        Ordenar crescente/decrescente
+  ordn/ordni <nome>   Ordenar por nome
+  cols  •  x [termo]  •  f (ver filtros ativos)
+
+DICAS
+  • Digite 'h' para ajuda completa
+  • Use 'd <número>' para ver detalhes de uma linha
+  • Combine filtros para busca mais precisa
+═══════════════════════════════════════════════════════════════════════════════
 """
     print(help_text)
 
@@ -257,7 +256,7 @@ def _handle_help():
 ║ COMANDOS DE CONFIGURAÇÃO                                                      ║
 ║   c             → Abre menu de configurações interativo                      ║
 ║                                                                               ║
-║ MELHORIAS CLI (v3.0.7+)                                                      ║
+║ MELHORIAS CLI                                                                 ║
 ║   status-cli    → Status das melhorias implementadas                         ║
 ║   toggle-debug  → Liga/desliga modo debug do Enhanced Table Printer          ║
 ║   enhanced-on   → Ativa Enhanced Table Printer                               ║
@@ -549,7 +548,6 @@ def start_cli_loop(db_path: str, table_name: str):
     results_stack = [(initial_df, initial_filter_terms)]
 
     # --- Exibição Inicial (com help detalhado) ---
-    print("Pesquisa Rápida de SSAs 3.0.7")
     print("")
     
     # Exibe help inicial detalhado

@@ -74,5 +74,6 @@
     "Lingma.aI Chat.mcpToolsInAgentMode": true,
     "Lingma.DisplayLanguage": "English",
     "Lingma.PreferredLanguage for AI Chat": "English",
-    "Lingma.PreferredLanguage forCommitMessage": "English"
+    "Lingma.PreferredLanguage forCommitMessage": "English",
+    "chatgpt.openOnStartup": true
 }
