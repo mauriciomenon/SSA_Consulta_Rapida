@@ -7,13 +7,13 @@ def get_palette(name: str) -> QPalette:
     pal = QPalette()
 
     if name == "light":
-        # Contraste mais forte p/ legibilidade
-        pal.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
-        pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
-        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#f5f5f5"))
+        # Tema claro mais cinza (menos branco), melhor para olhos
+        pal.setColor(QPalette.ColorRole.Window, QColor("#f4f4f4"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#f9f9f9"))
+        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#efefef"))
         pal.setColor(QPalette.ColorRole.Text, QColor("#111111"))
         pal.setColor(QPalette.ColorRole.WindowText, QColor("#111111"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#f2f2f2"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#eaeaea"))
         pal.setColor(QPalette.ColorRole.ButtonText, QColor("#111111"))
         pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffe1"))
         pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#111111"))

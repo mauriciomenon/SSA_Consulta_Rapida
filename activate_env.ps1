@@ -1,6 +1,6 @@
-# activate_env.ps1 - Script de Ativação do Ambiente SSA Consulta Rápida v3.0.7
+# activate_env.ps1 - Script de Ativação do Ambiente SSA Consulta Rápida v3.10
 
-Write-Host "🚀 SSA Consulta Rápida v3.0.7 - Ativação do Ambiente" -ForegroundColor Cyan
+Write-Host "🚀 SSA Consulta Rápida v3.10 - Ativação do Ambiente" -ForegroundColor Cyan
 
 # Verificar se estamos no diretório correto
 if (-not (Test-Path "main.py")) {
