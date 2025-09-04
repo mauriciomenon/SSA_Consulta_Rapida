@@ -91,7 +91,7 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
-        QMenu, QGroupBox, QTextEdit, QFileDialog, QScrollArea
+        QMenu, QGroupBox, QTextEdit, QFileDialog, QScrollArea, QDialog, QDialogButtonBox
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
     from PyQt6.QtGui import QAction
@@ -402,6 +402,57 @@ class DataPaginator(QWidget):
         end_idx = start_idx + self.page_size
         return self.df.iloc[start_idx:end_idx]
 
+
+# --- Diálogo de Ajuda (GUI PoC revisado) ---
+class FilterHelpDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Ajuda – Filtros (CLI/GUI)")
+        self.setModal(True)
+        self.resize(560, 480)
+        layout = QVBoxLayout()
+        help_text = QTextEdit()
+        help_text.setReadOnly(True)
+        help_text.setHtml(
+            """
+            <h3>Como usar os filtros</h3>
+            <h4>Separação de termos</h4>
+            <ul>
+              <li><b>Vírgula (,)</b> ou <b>espaço</b> separam múltiplos termos</li>
+            </ul>
+            <h4>Modos por termo</h4>
+            <ul>
+              <li><b>contém</b> (padrão): <code>foo</code></li>
+              <li><b>começa com</b>: <code>^foo</code></li>
+              <li><b>termina com</b>: <code>foo$</code></li>
+              <li><b>igual</b>: <code>=foo</code></li>
+              <li><b>regex</b>: <code>~foo.*bar</code></li>
+              <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
+              <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
+            </ul>
+            <h4>Exemplos</h4>
+            <ul>
+              <li><code>mel3</code> – procura por MEL3</li>
+              <li><code>pendente, programar</code> – termos combinados</li>
+              <li><code>executada, !mel4</code> – exclui MEL4</li>
+              <li><code>g076, amp</code> – combina setores</li>
+              <li><code>=NULL</code> – somente campos vazios/nulos</li>
+            </ul>
+            <h4>Filtro por coluna</h4>
+            <p>Abra o menu com <b>clique direito</b> no título da coluna. O painel à direita mostra os filtros por coluna com botões <b>Aplicar</b> e <b>Limpar</b>. Regras idênticas às do filtro geral.</p>
+            <h4>Dicas</h4>
+            <ul>
+              <li>Não diferencia maiúsculas/minúsculas</li>
+              <li>Termos parciais funcionam (ex.: <code>exec</code> encontra <i>executada</i>)</li>
+              <li>Deixe vazio para ver todas as SSAs</li>
+            </ul>
+            """
+        )
+        layout.addWidget(help_text)
+        okb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        okb.accepted.connect(self.accept)
+        layout.addWidget(okb)
+        self.setLayout(layout)
 
 # --- Janela Principal da Aplicacao ---
 class SSAMainWindow(QMainWindow):
@@ -1097,6 +1148,11 @@ class SSAMainWindow(QMainWindow):
         def match_token(s: pd.Series, token: str) -> pd.Series:
             neg = token.startswith('!')
             t = token[1:] if neg else token
+            # VAZIOS/NULL: aceita NULL ou =NULL (case-insensitive)
+            if t.upper() in ('NULL', '=NULL'):
+                # Considera nulos, strings vazias e '-'
+                res = s.isna() | (s.str.strip().eq('', na=False)) | (s == '-')
+                return ~res if neg else res
             # Regex explícito
             if t.startswith('~') and len(t) > 1:
                 try:
