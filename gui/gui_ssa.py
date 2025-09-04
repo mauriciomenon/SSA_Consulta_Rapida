@@ -636,7 +636,7 @@ class SSAMainWindow(QMainWindow):
         search_row.setSpacing(6)
 
         left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
-        self.search_label = QLabel("Pesquisar:")
+        self.search_label = QLabel("Pesquisa Geral:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Termos por vírgula. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
         self.search_input.setToolTip(
@@ -1129,8 +1129,16 @@ class SSAMainWindow(QMainWindow):
             term_box.setPlaceholderText("Termos: ^pre, suf$, =exato, ~regex, !neg")
             term_box.setMinimumWidth(300)
             term_box.setStyleSheet("font-size: 11px;")
+            try:
+                term_box.setMinimumHeight(26)
+            except Exception:
+                pass
             # Botão Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
+            try:
+                apply_btn.setMinimumHeight(26)
+            except Exception:
+                pass
             def _mk_apply(c=col, tb=term_box):
                 def _inner():
                     self._active_column_filters[c] = tb.text().strip()
@@ -1138,10 +1146,15 @@ class SSAMainWindow(QMainWindow):
                     self.df_exibido = self._apply_column_filters(base)
                     self.paginator.set_dataframe(self.df_exibido)
                     self.display_current_page(1)
+                    self._update_col_filter_indicator()
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botão Limpar remove o filtro da coluna
             clear_btn = QPushButton("Limpar")
+            try:
+                clear_btn.setMinimumHeight(26)
+            except Exception:
+                pass
             def _mk_clear(c=col):
                 return lambda: self._clear_single_column_filter(c)
             clear_btn.clicked.connect(_mk_clear())
@@ -1424,12 +1437,12 @@ class SSAMainWindow(QMainWindow):
                     )
                 self.table_widget.setItem(row_idx, col_idx, item)
 
-        # Sempre recalcula larguras best-fit para otimizar espaço
-        # OTIMIZAÇÃO: Só recalcula se necessário (novo dataset ou resize)
-        current_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)))
-        if not hasattr(self, '_widths_computed_for_df_hash') or self._widths_computed_for_df_hash != current_df_hash:
+        # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
+        # (não ao mudar apenas o conteúdo/linhas), evitando "pulos" ao limpar/aplicar filtros
+        cols_sig = tuple(display_df.columns)
+        if not hasattr(self, '_widths_columns_sig') or self._widths_columns_sig != cols_sig:
             self._compute_gui_column_widths(display_df)
-            self._widths_computed_for_df_hash = current_df_hash
+            self._widths_columns_sig = cols_sig
             
         # Configura header como Interactive para permitir larguras customizadas
         header = self.table_widget.horizontalHeader()
