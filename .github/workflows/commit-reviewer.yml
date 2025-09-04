@@ -1,0 +1,69 @@
+name: Commit Quality Review
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Comment on last commit with quality checks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const ws = process.env['GITHUB_WORKSPACE'] || '.';
+
+            const exists = (p) => fs.existsSync(path.join(ws, p));
+
+            const hasTsconfig = exists('tsconfig.json');
+            const hasEslint = [
+              '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.yml', '.eslintrc.yaml'
+            ].some(exists);
+            const hasPrettier = [
+              '.prettierrc', '.prettierrc.json', '.prettierrc.js', '.prettierrc.cjs',
+              '.prettier.config.js', '.prettier.config.cjs', '.prettierrc.yml', '.prettierrc.yaml'
+            ].some(exists);
+            const hasTestsDir = ['tests', '__tests__'].some(exists);
+            const hasCI = exists('.github/workflows/ci.yml') || exists('.github/workflows/ci.yaml');
+
+            let pkg = null; let scripts = {};
+            try { pkg = JSON.parse(fs.readFileSync(path.join(ws, 'package.json'), 'utf8')); scripts = pkg.scripts || {}; } catch {}
+
+            const check = (name, ok, hint) => `- ${ok ? '✓' : '✗'} ${name}${ok ? '' : ` — ${hint}`}`;
+
+            const checks = [
+              check('TypeScript config', hasTsconfig, 'add tsconfig.json'),
+              check('ESLint configured', hasEslint, 'add .eslintrc'),
+              check('Prettier configured', hasPrettier, 'add Prettier config'),
+              check('Tests directory', hasTestsDir, 'add tests/ or __tests__/'),
+              check('CI workflow present', hasCI, 'add .github/workflows/ci.yml')
+            ];
+            if (pkg) {
+              checks.push(check('npm script: test', 'test' in scripts, 'add "test" script'));
+              checks.push(check('npm script: build', 'build' in scripts, 'add "build" script'));
+              checks.push(check('npm script: lint', 'lint' in scripts, 'add "lint" script'));
+            }
+
+            const body = [
+              'Automated code quality review for this commit:',
+              '',
+              ...checks,
+              '',
+              '_Bot: commit-reviewer (GitHub Actions)_'
+            ].join('\n');
+
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body
+            });
