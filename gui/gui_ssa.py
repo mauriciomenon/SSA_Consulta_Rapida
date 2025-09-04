@@ -31,6 +31,7 @@ if project_root not in sys.path:
 
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
 # --- Função para Carregar Configurações da GUI Principal ---
 def load_gui_main_preferences():
@@ -525,12 +526,16 @@ class SSAMainWindow(QMainWindow):
 
         # Carrega filtros após a GUI estar configurada
         self.load_persistent_filters()
+        # Pré-habilitar entradas vazias para Situação e Executor no painel
+        for key in ("situacao", "setor_executor"):
+            if key in self.internal_to_display and key not in self._active_column_filters:
+                self._active_column_filters[key] = ""
 
         # Auto-carregar dados na abertura (assíncrono via worker)
         try:
-            auto = gui_settings.get("auto_load", False)
+            auto = gui_settings.get("auto_load", True)
         except Exception:
-            auto = False
+            auto = True
         if auto:
             QTimer.singleShot(0, self.load_data)
 
@@ -649,8 +654,8 @@ class SSAMainWindow(QMainWindow):
         help_line.addWidget(self.search_help)
         help_line.addStretch()
         main_layout.addLayout(help_line)
-        # Espaço para destacar a faixa de pesquisa
-        main_layout.addSpacing(8)
+        # Espaço para destacar a faixa de pesquisa (simétrico)
+        main_layout.addSpacing(6)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
@@ -719,6 +724,13 @@ class SSAMainWindow(QMainWindow):
             header = self.table_widget.horizontalHeader()
             header.setSectionsClickable(True)
             header.setSortIndicatorShown(True)
+            # Fonte do cabeçalho nunca em negrito (evita ocupar mais espaço)
+            try:
+                f = header.font()
+                f.setBold(False)
+                header.setFont(f)
+            except Exception:
+                pass
             header.sectionClicked.connect(self.on_header_clicked)
             header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             header.customContextMenuRequested.connect(self.show_header_context_menu)
@@ -968,7 +980,8 @@ class SSAMainWindow(QMainWindow):
                 return
 
             menu = QMenu(self)
-            apply_action = QAction(f"Filtrar '{self.internal_to_display.get(col_name, col_name)}'...", self)
+            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col_name, self.internal_to_display.get(col_name, col_name))
+            apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
 
@@ -988,7 +1001,7 @@ class SSAMainWindow(QMainWindow):
                     QInputDialog = None
                 if QInputDialog:
                     ok = False
-                    term, ok = QInputDialog.getText(self, "Filtro por coluna", f"Termo para '{self.internal_to_display.get(col_name, col_name)}':")
+                    term, ok = QInputDialog.getText(self, "Filtro por coluna", f"Termo para '{full_name}':")
                     if not ok:
                         term = None
                 else:
