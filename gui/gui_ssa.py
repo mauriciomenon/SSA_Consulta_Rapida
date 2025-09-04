@@ -656,15 +656,16 @@ class SSAMainWindow(QMainWindow):
         self.search_help.setWordWrap(True)
         self.search_help.setStyleSheet("font-size: 10px; color: palette(mid);")
         self.search_help.setMaximumWidth(680)
-        self.search_help.setMaximumHeight(18)
+        self.search_help.setMaximumHeight(12)
         help_line.addWidget(self.search_help)
         help_line.addStretch()
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
-        main_layout.addSpacing(6)
+        main_layout.addSpacing(0)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
+        pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
         
         # Paginador
         self.paginator = DataPaginator(self.df_para_tabela)
