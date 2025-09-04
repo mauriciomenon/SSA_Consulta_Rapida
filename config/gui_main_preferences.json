@@ -6,7 +6,7 @@
     "semana_programada",
     "derivada_de",
     "localizacao_codigo",
-    "data_cadastro", 
+    "data_cadastro",
     "descricao_ssa",
     "setor_executor",
     "setor_emissor",
@@ -15,7 +15,7 @@
   ],
   "hidden_columns": [
     "descricao_localizacao",
-    "equipamento", 
+    "equipamento",
     "origem",
     "servico_origem",
     "execucao_simples",
@@ -25,7 +25,7 @@
     "numero_ssa": "Número SSA",
     "Número da SSA": "Nº SSA",
     "setor_executor": "Exec.",
-    "situacao": "Sit.", 
+    "situacao": "Sit.",
     "descricao_ssa": "Descrição da SSA",
     "data_cadastro": "Data Cadastro",
     "semana_cadastro": "Sem. Cad.",
@@ -72,7 +72,8 @@
     "show_progress_bar": true,
     "enable_column_sorting": true,
     "show_details_panel": true,
-    "enable_double_click_details": true
+    "enable_double_click_details": true,
+    "theme": "gruvbox"
   },
   "version": "1.0.0",
   "created_for": "GUI Main (main.py --gui)",
