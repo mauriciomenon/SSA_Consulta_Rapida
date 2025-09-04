@@ -654,14 +654,15 @@ class SSAMainWindow(QMainWindow):
         help_line.setContentsMargins(0, 0, 0, 0)
         self.search_help = QLabel("Termos: ^pre, suf$, =exato, ~regex, !neg — múltiplos por vírgula")
         self.search_help.setWordWrap(True)
-        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid);")
+        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid); margin:0px; padding:0px;")
         self.search_help.setMaximumWidth(680)
-        self.search_help.setMaximumHeight(12)
+        self.search_help.setMaximumHeight(10)
         help_line.addWidget(self.search_help)
         help_line.addStretch()
+        help_line.setSpacing(0)
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
-        main_layout.addSpacing(10)
+        main_layout.addSpacing(6)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
