@@ -476,8 +476,20 @@ class SSAMainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Consulta Rápida de SSAs - GUI Principal")
+        self.setWindowTitle("Consulta Rápida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
+        # Ícone da janela (prioriza .ico no Windows)
+        try:
+            from PyQt6.QtGui import QIcon
+            ico_path = os.path.join(project_root, 'resources', 'app_icon.ico')
+            if os.path.exists(ico_path):
+                self.setWindowIcon(QIcon(ico_path))
+            else:
+                svg_path = os.path.join(project_root, 'resources', 'app_icon.svg')
+                if os.path.exists(svg_path):
+                    self.setWindowIcon(QIcon(svg_path))
+        except Exception:
+            pass
 
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
@@ -631,8 +643,12 @@ class SSAMainWindow(QMainWindow):
             "Modos por termo: \n"
             "- contém (padrão): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
-        self.search_input.setMinimumWidth(320)  # +20%
-        self.search_input.setMaximumWidth(720)
+        self.search_input.setMinimumWidth(340)  # +~25% para mais conforto
+        self.search_input.setMaximumWidth(760)
+        try:
+            self.search_input.setMinimumHeight(26)
+        except Exception:
+            pass
         self.search_input.returnPressed.connect(self.initiate_filtering)
         self.search_button = QPushButton("Aplicar")
         self.search_button.clicked.connect(self.initiate_filtering)

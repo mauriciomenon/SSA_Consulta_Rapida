@@ -7,12 +7,17 @@ def get_palette(name: str) -> QPalette:
     pal = QPalette()
 
     if name == "light":
-        pal.setColor(QPalette.ColorRole.Window, QColor("#f0f0f0"))
+        # Contraste mais forte p/ legibilidade
+        pal.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
-        pal.setColor(QPalette.ColorRole.Text, QColor("#000000"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#e6e6e6"))
-        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#000000"))
-        pal.setColor(QPalette.ColorRole.Highlight, QColor("#4a90e2"))
+        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#f5f5f5"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#111111"))
+        pal.setColor(QPalette.ColorRole.WindowText, QColor("#111111"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#f2f2f2"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#111111"))
+        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffe1"))
+        pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#111111"))
+        pal.setColor(QPalette.ColorRole.Highlight, QColor("#0a84ff"))
         pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
         return pal
 
@@ -26,7 +31,7 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#282828"))
         return pal
 
-    # dark padrão
+    # dark padrão (fallback)
     pal.setColor(QPalette.ColorRole.Window, QColor("#121212"))
     pal.setColor(QPalette.ColorRole.Base, QColor("#1e1e1e"))
     pal.setColor(QPalette.ColorRole.Text, QColor("#e0e0e0"))
@@ -42,4 +47,3 @@ def normalize_theme(name: str) -> str:
     if name in ("light", "claro"): return "light"
     if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"): return "gruvbox"
     return "dark"
-
