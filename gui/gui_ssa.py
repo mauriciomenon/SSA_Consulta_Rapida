@@ -1304,8 +1304,10 @@ class SSAMainWindow(QMainWindow):
         display_headers = []
         for col in display_df.columns:
             base = '#' if col == '#' else self.internal_to_display.get(col, col)
-            if col in self._active_column_filters and col != '#':
-                base = f"{base} [f]"
+            term = self._active_column_filters.get(col)
+            has_filter = bool(term) and str(term).strip() != ''
+            if has_filter and col != '#':
+                base = f"[f] {base}"
             display_headers.append(base)
         self.table_widget.setHorizontalHeaderLabels(display_headers)
 
