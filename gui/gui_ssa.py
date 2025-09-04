@@ -97,7 +97,8 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
-        QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QScrollArea, QDialog, QDialogButtonBox
+        QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QScrollArea, QDialog, QDialogButtonBox,
+        QSpacerItem, QSizePolicy
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
     from PyQt6.QtGui import QAction
@@ -537,13 +538,8 @@ class SSAMainWindow(QMainWindow):
             pass
 
         # Auto-carregar dados na abertura (assíncrono via worker)
-        try:
-            auto = gui_settings.get("auto_load", True)
-        except Exception:
-            auto = True
-        if auto:
-            # Chama após a janela estar montada para evitar race de pintura
-            QTimer.singleShot(120, self.load_data)
+        # Auto-load sempre habilitado (robusto e responsivo)
+        QTimer.singleShot(150, self.load_data)
 
     def init_ui(self):
         central_widget = QWidget()
@@ -647,9 +643,10 @@ class SSAMainWindow(QMainWindow):
         self.column_selector.columns_changed.connect(self.on_columns_changed)
         right.addWidget(self.column_selector)
 
-        search_row.addLayout(left, 3)
-        search_row.addStretch()
-        search_row.addLayout(right, 2)
+        search_row.addLayout(left)
+        # Espaçador expansível garante que o grupo da direita encoste no limite direito
+        search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        search_row.addLayout(right)
         main_layout.addLayout(search_row)
 
         # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
@@ -738,7 +735,7 @@ class SSAMainWindow(QMainWindow):
                 f = header.font()
                 f.setBold(False)
                 header.setFont(f)
-                header.setStyleSheet("font-weight: normal;")
+                header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
             except Exception:
                 pass
             header.sectionClicked.connect(self.on_header_clicked)
