@@ -1,0 +1,62 @@
+name: Build Windows EXE and Upload Release Asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to upload assets to (e.g., v3.10)
+        required: true
+        default: v3.10
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies for packaging
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller PyQt6
+
+      - name: Build CLI (PyInstaller onefile)
+        shell: pwsh
+        run: |
+          pyinstaller --clean --noconfirm --onefile --name ssa_cli main.py
+
+      - name: Build GUI (PyInstaller onefile, windowed)
+        shell: pwsh
+        run: |
+          pyinstaller --clean --noconfirm --onefile --windowed --name ssa_gui launchers/gui_launcher.pyw
+
+      - name: Create ZIP artifact
+        shell: pwsh
+        run: |
+          $v = (Get-Content config/version.json | ConvertFrom-Json).version_short
+          if (-not $v) { $v = '0.0.0' }
+          $zip = "dist/SSA_Consulta_Rapida_${v}_windows.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          $cli = (Test-Path 'dist/ssa_cli.exe') ? 'dist/ssa_cli.exe' : 'dist/ssa_cli/ssa_cli.exe'
+          $gui = (Test-Path 'dist/ssa_gui.exe') ? 'dist/ssa_gui.exe' : 'dist/ssa_gui/ssa_gui.exe'
+          Compress-Archive -Path $cli,$gui -DestinationPath $zip
+          echo "ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload asset to existing release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: ${{ env.ZIP }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
