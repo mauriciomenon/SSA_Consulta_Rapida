@@ -78,7 +78,7 @@ class SimpleWidthManager:
                 fixed_widths[col] = saved_widths[col]
                 
             elif col == 'numero_ssa':
-                fixed_widths[col] = 70  # +5 px leve
+                fixed_widths[col] = 85  # leve incremento adicional
                 
             elif col == 'situacao':
                 fixed_widths[col] = 40  # +5 px leve
@@ -111,7 +111,7 @@ class SimpleWidthManager:
                 fixed_widths[col] = 70  # +5 px leve
                 
             elif col == 'solicitante':
-                fixed_widths[col] = 170  # +10 px leve
+                fixed_widths[col] = 220  # mais folga para caber nomes completos
                 
             elif col == 'descricao_ssa':
                 fixed_widths[col] = 470  # +20 px leve
