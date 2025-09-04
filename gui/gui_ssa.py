@@ -97,7 +97,7 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
-        QMenu, QGroupBox, QTextEdit, QFileDialog, QScrollArea, QDialog, QDialogButtonBox
+        QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QScrollArea, QDialog, QDialogButtonBox
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
     from PyQt6.QtGui import QAction
@@ -417,8 +417,8 @@ class FilterHelpDialog(QDialog):
         self.setModal(True)
         self.resize(560, 480)
         layout = QVBoxLayout()
-        help_text = QTextEdit()
-        help_text.setReadOnly(True)
+        help_text = QTextBrowser()
+        help_text.setOpenExternalLinks(True)
         app_version = get_app_version() if callable(get_app_version) else "3.0.7+"
         help_text.setHtml(
             """
@@ -608,7 +608,7 @@ class SSAMainWindow(QMainWindow):
         main_layout.addLayout(toolbar_layout)
 
         # Margem superior da faixa de pesquisa
-        main_layout.addSpacing(6)
+        main_layout.addSpacing(8)
 
         # --- Barra de Pesquisa e Filtros (grupos esquerda/direita) ---
         search_row = QHBoxLayout()
@@ -655,7 +655,7 @@ class SSAMainWindow(QMainWindow):
         help_line.addStretch()
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico)
-        main_layout.addSpacing(6)
+        main_layout.addSpacing(4)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
