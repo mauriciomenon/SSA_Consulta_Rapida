@@ -530,6 +530,11 @@ class SSAMainWindow(QMainWindow):
         for key in ("situacao", "setor_executor"):
             if key in self.internal_to_display and key not in self._active_column_filters:
                 self._active_column_filters[key] = ""
+        # Atualiza painel com filtros pré-exibidos
+        try:
+            self._build_column_filters_panel()
+        except Exception:
+            pass
 
         # Auto-carregar dados na abertura (assíncrono via worker)
         try:
@@ -537,7 +542,8 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             auto = True
         if auto:
-            QTimer.singleShot(0, self.load_data)
+            # Chama após a janela estar montada para evitar race de pintura
+            QTimer.singleShot(120, self.load_data)
 
     def init_ui(self):
         central_widget = QWidget()
@@ -607,12 +613,13 @@ class SSAMainWindow(QMainWindow):
 
         main_layout.addLayout(toolbar_layout)
 
-        # Margem superior da faixa de pesquisa
-        main_layout.addSpacing(8)
+        # Margem superior da faixa de pesquisa (simétrica com base)
+        main_layout.addSpacing(6)
 
         # --- Barra de Pesquisa e Filtros (grupos esquerda/direita) ---
         search_row = QHBoxLayout()
         search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(6)
 
         left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisar:")
@@ -650,13 +657,14 @@ class SSAMainWindow(QMainWindow):
         help_line.setContentsMargins(0, 0, 0, 0)
         self.search_help = QLabel("Termos: ^pre, suf$, =exato, ~regex, !neg — múltiplos por vírgula")
         self.search_help.setWordWrap(True)
-        self.search_help.setStyleSheet("font-size: 11px; color: palette(mid);")
-        self.search_help.setMaximumWidth(700)
+        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid);")
+        self.search_help.setMaximumWidth(680)
+        self.search_help.setMaximumHeight(18)
         help_line.addWidget(self.search_help)
         help_line.addStretch()
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
-        main_layout.addSpacing(8)
+        main_layout.addSpacing(6)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
@@ -730,6 +738,7 @@ class SSAMainWindow(QMainWindow):
                 f = header.font()
                 f.setBold(False)
                 header.setFont(f)
+                header.setStyleSheet("font-weight: normal;")
             except Exception:
                 pass
             header.sectionClicked.connect(self.on_header_clicked)
