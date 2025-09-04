@@ -91,9 +91,9 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
-        QMenu, QGroupBox, QTextEdit, QFileDialog
+        QMenu, QGroupBox, QTextEdit, QFileDialog, QScrollArea
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
     from PyQt6.QtGui import QAction
     from PyQt6.QtWidgets import QApplication
 except Exception:
@@ -286,7 +286,7 @@ class ColumnSelector(QWidget):
         add_button.setMaximumWidth(80)
         add_button.clicked.connect(self.add_column)
         add_column_layout.addWidget(add_button)
-        
+
         # Espaçador para empurrar o status das colunas para a direita
         add_column_layout.addStretch()
 
@@ -437,6 +437,12 @@ class SSAMainWindow(QMainWindow):
         # Inicializa managers unificados (substitui código frankenstein)
         self.width_manager = SimpleWidthManager()
         self.cache_manager = SimpleCacheManager()
+
+        # Estado de ordenação e filtros por coluna
+        self.sort_column = None
+        self.sort_ascending = True
+        self._active_column_filters = {}
+        self._df_last_search_filtered = pd.DataFrame()
         
         # Larguras salvas por coluna (das configurações JSON) - mantido para compatibilidade
         self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
@@ -485,12 +491,30 @@ class SSAMainWindow(QMainWindow):
         self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
         self.explorer_button.clicked.connect(self.open_docs_folder)
         toolbar_layout.addWidget(self.explorer_button)
+        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, não clicável)
+        try:
+            from datetime import date
+            y, w, _ = date.today().isocalendar()
+            week_str = f"{y}{w:02d}"
+        except Exception:
+            week_str = "-"
+        self.week_label = QLabel(f"Semana Atual: {week_str}")
+        # Destaque visual em caixa
+        self.week_label.setStyleSheet(
+            "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+        )
+        self.week_label.setToolTip("Semana ISO atual (não clicável)")
+        toolbar_layout.addSpacing(6)
+        toolbar_layout.addWidget(self.week_label)
 
         # Espaçamento antes do status
         toolbar_layout.addStretch()
         
-        # Status e progresso
+        # Status em caixa e progresso
         self.status_label = QLabel("Status: Aguardando carregamento dos dados...")
+        self.status_label.setStyleSheet(
+            "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
+        )
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
@@ -498,43 +522,63 @@ class SSAMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.status_label)
         toolbar_layout.addWidget(self.progress_bar)
 
+        # Botão de Ajuda (como na PoC)
+        help_button = QPushButton("Ajuda")
+        help_button.setToolTip("Ajuda sobre filtros e uso da interface")
+        help_button.clicked.connect(self.show_filter_help)
+        toolbar_layout.addWidget(help_button)
+
         main_layout.addLayout(toolbar_layout)
 
-        # --- Barra de Pesquisa e Filtros ---
-        search_layout = QHBoxLayout()
+        # Margem superior da faixa de pesquisa
+        main_layout.addSpacing(6)
+
+        # --- Barra de Pesquisa e Filtros (grupos esquerda/direita) ---
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+
+        left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisar:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Termos por vírgula. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
         self.search_input.setToolTip(
             "Modos por termo: \n"
-            "- contém (padrão): foo\n"
-            "- começa com: ^foo\n"
-            "- termina com: foo$\n"
-            "- igual: =foo\n"
-            "- regex: ~foo.*bar\n"
-            "- negativos: prefixe ! (ex.: !^adm, !$2025)"
+            "- contém (padrão): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
+        self.search_input.setMinimumWidth(260)
+        self.search_input.setMaximumWidth(600)
         self.search_input.returnPressed.connect(self.initiate_filtering)
-        # Aplica debounce ao digitar
-        self.search_input.textChanged.connect(self._on_search_text_changed)
-
-        self.search_button = QPushButton("Buscar")
+        self.search_button = QPushButton("Aplicar")
         self.search_button.clicked.connect(self.initiate_filtering)
-
         self.clear_filter_button = QPushButton("Limpar Filtro")
         self.clear_filter_button.clicked.connect(self.clear_filter)
         self.clear_filter_button.setEnabled(False)
+        left.addWidget(self.search_label)
+        left.addWidget(self.search_input)
+        left.addWidget(self.search_button)
+        left.addWidget(self.clear_filter_button)
 
-        search_layout.addWidget(self.search_label)
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_button)
-        search_layout.addWidget(self.clear_filter_button)
-        main_layout.addLayout(search_layout)
-
-        # --- Seletor de Colunas ---
+        right = QHBoxLayout(); right.setContentsMargins(0, 0, 0, 0)
         self.column_selector = ColumnSelector(self.display_map, self.visible_columns)
         self.column_selector.columns_changed.connect(self.on_columns_changed)
-        main_layout.addWidget(self.column_selector)
+        right.addWidget(self.column_selector)
+
+        search_row.addLayout(left, 3)
+        search_row.addStretch()
+        search_row.addLayout(right, 2)
+        main_layout.addLayout(search_row)
+
+        # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
+        help_line = QHBoxLayout()
+        self.search_help = QLabel("Termos: ^pre, suf$, =exato, ~regex, !neg — múltiplos por vírgula")
+        self.search_help.setWordWrap(True)
+        self.search_help.setStyleSheet("font-size: 11px; color: palette(mid);")
+        self.search_help.setMaximumWidth(700)
+        help_line.addWidget(self.search_help)
+        help_line.addStretch()
+        main_layout.addLayout(help_line)
+        # Espaço para destacar a faixa de pesquisa
+        main_layout.addSpacing(8)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
@@ -598,19 +642,58 @@ class SSAMainWindow(QMainWindow):
         # Salva largura quando usuário redimensionar uma coluna
         self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
         
+        # Ordenação por clique no cabeçalho + menu de filtro por coluna
+        try:
+            header = self.table_widget.horizontalHeader()
+            header.setSectionsClickable(True)
+            header.setSortIndicatorShown(True)
+            header.sectionClicked.connect(self.on_header_clicked)
+            header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            header.customContextMenuRequested.connect(self.show_header_context_menu)
+            # Filtro de eventos garante menu mesmo em temas/estilos que suprimem o sinal
+            header.installEventFilter(self)
+        except Exception:
+            pass
+
         # Habilita menu de contexto
         self.table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_widget.customContextMenuRequested.connect(self.show_context_menu)
 
         main_layout.addWidget(self.table_widget)
 
-        # --- Painel de Detalhes ---
+        # --- Painel de Detalhes + Painel de Filtros por Coluna (com rodapé fixo) ---
+        bottom_layout = QHBoxLayout()
+
+        # Detalhes (maior)
         self.details_group = QGroupBox("Detalhes da SSA Selecionada")
         details_layout = QVBoxLayout(self.details_group)
-        self.details_text = QTextEdit()
-        self.details_text.setReadOnly(True)
+        self.details_text = QTextEdit(); self.details_text.setReadOnly(True)
         details_layout.addWidget(self.details_text)
-        main_layout.addWidget(self.details_group)
+        bottom_layout.addWidget(self.details_group, 5)
+
+        # Filtros por Coluna com lista rolável + rodapé fixo
+        self.col_filters_group = QGroupBox("Filtros por Coluna")
+        col_filters_outer = QVBoxLayout(self.col_filters_group)
+        from PyQt6.QtWidgets import QScrollArea
+        self.col_filters_scroll = QScrollArea(); self.col_filters_scroll.setWidgetResizable(True)
+        self.col_filters_container = QWidget()
+        self.col_filters_list_layout = QVBoxLayout(self.col_filters_container)
+        self.col_filters_scroll.setWidget(self.col_filters_container)
+        col_filters_outer.addWidget(self.col_filters_scroll, 1)
+        # Rodapé fixo
+        footer = QHBoxLayout(); footer.addStretch()
+        self.clear_all_btn = QPushButton("Limpar todos filtros de colunas")
+        self.clear_all_btn.setMaximumWidth(260)
+        self.clear_all_btn.clicked.connect(self._clear_all_column_filters)
+        footer.addWidget(self.clear_all_btn); footer.addStretch()
+        col_filters_outer.addLayout(footer)
+
+        self._build_column_filters_panel()
+        bottom_layout.addWidget(self.col_filters_group, 4)
+
+        # Respiro antes do bloco inferior
+        main_layout.addSpacing(12)
+        main_layout.addLayout(bottom_layout)
 
         # --- Conecta Workers ---
         self.data_loader_thread = None
@@ -642,7 +725,25 @@ class SSAMainWindow(QMainWindow):
     def on_data_loaded(self, df: pd.DataFrame):
         self.df_completo = df.copy()
         # Inicialmente, exibimos todos os dados
-        self.df_exibido = df.copy()
+        base = df.copy()
+        # Ordenação padrão: não-STE primeiro; depois número SSA desc
+        try:
+            if 'situacao' in base.columns:
+                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
+            else:
+                is_ste = pd.Series([False]*len(base), index=base.index)
+            if 'numero_ssa' in base.columns:
+                ssa_str = base['numero_ssa'].astype(str).str.replace(r'\D', '', regex=True)
+                ssa_int = ssa_str.apply(lambda s: int(s) if s.isdigit() else -1)
+            else:
+                ssa_int = pd.Series([-1]*len(base), index=base.index)
+            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
+                by=['__is_ste','__ssa'], ascending=[True, False], na_position='last'
+            ).drop(columns=['__is_ste','__ssa'])
+        except Exception:
+            pass
+        self.df_exibido = base
+        self._df_last_search_filtered = df.copy()
         # Atualiza o paginador com o DataFrame completo
         self.paginator.set_dataframe(self.df_exibido)
         # Exibe a primeira página
@@ -692,7 +793,18 @@ class SSAMainWindow(QMainWindow):
         self.filter_thread.start()
 
     def on_filter_finished(self, df_filtrado: pd.DataFrame):
-        self.df_exibido = df_filtrado
+        # Atualiza baseline do resultado da busca global
+        self._df_last_search_filtered = df_filtrado.copy()
+        # Aplica filtros por coluna, se houver
+        df_final = self._df_last_search_filtered
+        if self._active_column_filters:
+            try:
+                for c, term in list(self._active_column_filters.items()):
+                    if c in df_final.columns and term:
+                        df_final = df_final[df_final[c].astype(str).str.contains(str(term), case=False, na=False)]
+            except Exception:
+                pass
+        self.df_exibido = df_final
         # Atualiza o paginador com o DataFrame filtrado
         self.paginator.set_dataframe(self.df_exibido)
         # OTIMIZAÇÃO: Sinaliza que larguras precisam ser recalculadas para novo dataset
@@ -714,10 +826,322 @@ class SSAMainWindow(QMainWindow):
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
         self.search_input.clear()
+        self._active_column_filters.clear()
         self.df_exibido = self.df_completo.copy()
+        self._df_last_search_filtered = self.df_completo.copy()
         self.paginator.set_dataframe(self.df_exibido)
         self.display_current_page(1)
         self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
+        self._build_column_filters_panel()
+
+    # --- Ordenação por clique no cabeçalho ---
+    def on_header_clicked(self, logical_index: int):
+        try:
+            if logical_index < 0 or self.table_widget.columnCount() == 0:
+                return
+            # Usa o mapa de colunas exibidas atualmente, que inclui '#'
+            if not hasattr(self, '_current_display_columns'):
+                return
+            if logical_index >= len(self._current_display_columns):
+                return
+            col_name = self._current_display_columns[logical_index]
+            # Ignora a coluna de índice
+            if col_name == '#':
+                return
+
+            # Alterna direção ao clicar na mesma coluna
+            if getattr(self, 'sort_column', None) == col_name:
+                self.sort_ascending = not getattr(self, 'sort_ascending', True)
+            else:
+                self.sort_column = col_name
+                self.sort_ascending = True
+
+            # Ordena resultado filtrado atual e reinicia paginação
+            try:
+                self.df_exibido = self.df_exibido.sort_values(
+                    by=self.sort_column,
+                    ascending=self.sort_ascending,
+                    na_position='last'
+                )
+            except Exception:
+                pass
+
+            self.paginator.set_dataframe(self.df_exibido)
+            self.display_current_page(1)
+
+            # Indicador visual na UI
+            try:
+                header = self.table_widget.horizontalHeader()
+                order = Qt.SortOrder.AscendingOrder if self.sort_ascending else Qt.SortOrder.DescendingOrder
+                header.setSortIndicatorShown(True)
+                header.setSortIndicator(logical_index, order)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    # --- Filtro por coluna via clique direito no cabeçalho ---
+    def show_header_context_menu(self, pos):
+        try:
+            header = self.table_widget.horizontalHeader()
+            logical_index = header.logicalIndexAt(pos)
+            if logical_index < 0 or self.table_widget.columnCount() == 0:
+                return
+            if not hasattr(self, '_current_display_columns'):
+                return
+            if logical_index >= len(self._current_display_columns):
+                return
+            col_name = self._current_display_columns[logical_index]
+            if col_name == '#':
+                return
+
+            menu = QMenu(self)
+            apply_action = QAction(f"Filtrar '{self.internal_to_display.get(col_name, col_name)}'...", self)
+            clear_action = QAction("Limpar filtro desta coluna", self)
+            clear_all_action = QAction("Limpar todos filtros de colunas", self)
+
+            def _recompute_and_refresh():
+                base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
+                df = self._apply_column_filters(base)
+                self.df_exibido = df
+                self.paginator.set_dataframe(self.df_exibido)
+                self.display_current_page(1)
+                self._build_column_filters_panel()
+
+            def _apply():
+                term = None
+                try:
+                    from PyQt6.QtWidgets import QInputDialog
+                except Exception:
+                    QInputDialog = None
+                if QInputDialog:
+                    ok = False
+                    term, ok = QInputDialog.getText(self, "Filtro por coluna", f"Termo para '{self.internal_to_display.get(col_name, col_name)}':")
+                    if not ok:
+                        term = None
+                else:
+                    term = self.search_input.text().strip()
+                if term is not None:
+                    self._active_column_filters[col_name] = str(term)
+                    _recompute_and_refresh()
+
+            def _clear():
+                if col_name in self._active_column_filters:
+                    del self._active_column_filters[col_name]
+                    _recompute_and_refresh()
+
+            def _clear_all():
+                if self._active_column_filters:
+                    self._active_column_filters.clear()
+                    _recompute_and_refresh()
+
+            apply_action.triggered.connect(_apply)
+            clear_action.triggered.connect(_clear)
+            clear_all_action.triggered.connect(_clear_all)
+
+            menu.addAction(apply_action)
+            if col_name in self._active_column_filters:
+                menu.addAction(clear_action)
+            if self._active_column_filters:
+                menu.addAction(clear_all_action)
+            menu.exec(header.mapToGlobal(pos))
+        except Exception:
+            pass
+
+    # Garante menu de contexto no cabeçalho em qualquer tema/estilo
+    def eventFilter(self, obj, event):
+        try:
+            header = self.table_widget.horizontalHeader()
+            if obj is header:
+                et = event.type()
+                if et == QEvent.Type.ContextMenu:
+                    self.show_header_context_menu(event.pos())
+                    return True
+                # Qt6: MouseButtonPress com botão direito
+                if et == QEvent.Type.MouseButtonPress:
+                    btn = getattr(event, 'button', lambda: None)()
+                    if btn == Qt.MouseButton.RightButton:
+                        # Compatível com position() (Qt6) e pos()
+                        pos = getattr(event, 'position', None)
+                        if callable(pos):
+                            p = pos().toPoint()
+                        else:
+                            p = event.pos()
+                        self.show_header_context_menu(p)
+                        return True
+        except Exception:
+            pass
+        return super().eventFilter(obj, event)
+
+    # --- Helpers: painel e aplicação dos filtros por coluna ---
+    def _build_column_filters_panel(self):
+        # Escolhe layout de lista (compatível com versões antigas e novas)
+        target_layout = None
+        if hasattr(self, 'col_filters_list_layout'):
+            target_layout = self.col_filters_list_layout
+        elif hasattr(self, 'col_filters_layout'):
+            target_layout = self.col_filters_layout
+        else:
+            return
+
+        # Limpa layout
+        while target_layout.count():
+            item = target_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        if not self._active_column_filters:
+            lbl = QLabel("Nenhum filtro por coluna aplicado.")
+            lbl.setWordWrap(True)
+            target_layout.addWidget(lbl)
+            target_layout.addStretch()
+            return
+
+        for col, term in self._active_column_filters.items():
+            row = QHBoxLayout()
+            name_lbl = QLabel(self.internal_to_display.get(col, col))
+            name_lbl.setMinimumWidth(140)
+            term_box = QLineEdit(str(term))
+            term_box.setPlaceholderText("Termos: ^pre, suf$, =exato, ~regex, !neg")
+            # Botão Aplicar atualiza o filtro com o texto da caixa
+            apply_btn = QPushButton("Aplicar")
+            def _mk_apply(c=col, tb=term_box):
+                def _inner():
+                    self._active_column_filters[c] = tb.text().strip()
+                    base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
+                    self.df_exibido = self._apply_column_filters(base)
+                    self.paginator.set_dataframe(self.df_exibido)
+                    self.display_current_page(1)
+                return _inner
+            apply_btn.clicked.connect(_mk_apply())
+            # Botão Limpar remove o filtro da coluna
+            clear_btn = QPushButton("Limpar")
+            def _mk_clear(c=col):
+                return lambda: self._clear_single_column_filter(c)
+            clear_btn.clicked.connect(_mk_clear())
+            row.addWidget(name_lbl)
+            row.addWidget(term_box, 1)
+            row.addWidget(apply_btn)
+            row.addWidget(clear_btn)
+            row_w = QWidget()
+            row_w.setLayout(row)
+            target_layout.addWidget(row_w)
+
+        # Botão limpar todos
+        # Rodapé centralizado (se não houver barra fixa)
+        if not hasattr(self, 'clear_all_btn'):
+            clear_all = QPushButton("Limpar todos filtros de colunas")
+            clear_all.setMaximumWidth(260)
+            clear_all.clicked.connect(self._clear_all_column_filters)
+            footer = QHBoxLayout()
+            footer.addStretch()
+            footer.addWidget(clear_all)
+            footer.addStretch()
+            row_w = QWidget()
+            row_w.setLayout(footer)
+            target_layout.addWidget(row_w)
+        target_layout.addStretch()
+
+    def _clear_single_column_filter(self, col_name: str):
+        if col_name in self._active_column_filters:
+            del self._active_column_filters[col_name]
+            base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
+            self.df_exibido = self._apply_column_filters(base)
+            self.paginator.set_dataframe(self.df_exibido)
+            self.display_current_page(1)
+            self._build_column_filters_panel()
+
+    def _clear_all_column_filters(self):
+        if self._active_column_filters:
+            self._active_column_filters.clear()
+            base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
+            self.df_exibido = base.copy()
+            self.paginator.set_dataframe(self.df_exibido)
+            self.display_current_page(1)
+            self._build_column_filters_panel()
+
+    def show_filter_help(self):
+        try:
+            dlg = FilterHelpDialog(self)
+            dlg.exec()
+        except Exception:
+            # Em ambientes sem GUI completa, ignore
+            pass
+
+    def _apply_column_filters(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Aplica todos os filtros por coluna com as mesmas regras de busca (prefixo ^, sufixo $, =exato, ~regex, !neg)."""
+        if df is None or df.empty or not self._active_column_filters:
+            return df
+        out = df
+        for col, raw in self._active_column_filters.items():
+            if col not in out.columns or not str(raw).strip():
+                continue
+            mask = self._build_column_mask(out[col].astype(str), str(raw).strip())
+            out = out[mask]
+        return out
+
+    def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
+        # Divide por vírgulas ou espaços
+        tokens = [t.strip() for t in raw.replace('\n',' ').split(',')]
+        tokens = [t for tok in tokens for t in tok.split() if t]
+        if not tokens:
+            return pd.Series([True]*len(series), index=series.index)
+
+        # Determina modo padrão a partir das preferências
+        if not hasattr(self, '_cached_default_mode'):
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
+        default_mode = self._cached_default_mode
+
+        def match_token(s: pd.Series, token: str) -> pd.Series:
+            neg = token.startswith('!')
+            t = token[1:] if neg else token
+            # Regex explícito
+            if t.startswith('~') and len(t) > 1:
+                try:
+                    import re
+                    pat = re.compile(t[1:], re.IGNORECASE)
+                    res = s.str.contains(pat, na=False)
+                except Exception:
+                    res = s.str.contains(t[1:], case=False, na=False)
+            elif t.startswith('='):
+                res = s.str.casefold().eq(t[1:].casefold())
+            elif t.startswith('^'):
+                res = s.str.casefold().str.startswith(t[1:].casefold())
+            elif t.endswith('$'):
+                res = s.str.casefold().str.endswith(t[:-1].casefold())
+            else:
+                if default_mode == 'prefix':
+                    res = s.str.casefold().str.startswith(t.casefold())
+                elif default_mode == 'suffix':
+                    res = s.str.casefold().str.endswith(t.casefold())
+                elif default_mode == 'exact':
+                    res = s.str.casefold().eq(t.casefold())
+                elif default_mode == 'regex':
+                    try:
+                        import re
+                        pat = re.compile(t, re.IGNORECASE)
+                        res = s.str.contains(pat, na=False)
+                    except Exception:
+                        res = s.str.contains(t, case=False, na=False)
+                else:  # contains
+                    res = s.str.contains(t, case=False, na=False)
+            return ~res if neg else res
+
+        # OR entre inclusões; exclusões (com !) removem
+        includes = [tok for tok in tokens if not tok.startswith('!')]
+        excludes = [tok for tok in tokens if tok.startswith('!')]
+
+        if includes:
+            m = match_token(series, includes[0])
+            for tok in includes[1:]:
+                m = m | match_token(series, tok)
+        else:
+            m = pd.Series([True]*len(series), index=series.index)
+        for tok in excludes:
+            m = m & match_token(series, tok)
+        return m
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleção de colunas muda."""
@@ -786,11 +1210,13 @@ class SSAMainWindow(QMainWindow):
         self.table_widget.setRowCount(len(display_df))
         self.table_widget.setColumnCount(len(display_df.columns))
 
-        # Define cabeçalhos de exibição usando list comprehension otimizada
-        display_headers = [
-            '#' if col == '#' else self.internal_to_display.get(col, col)
-            for col in display_df.columns
-        ]
+        # Define cabeçalhos de exibição com indicador de filtro [f] por coluna
+        display_headers = []
+        for col in display_df.columns:
+            base = '#' if col == '#' else self.internal_to_display.get(col, col)
+            if col in self._active_column_filters and col != '#':
+                base = f"{base} [f]"
+            display_headers.append(base)
         self.table_widget.setHorizontalHeaderLabels(display_headers)
 
         # Preenche os dados usando batch operations para melhor performance
@@ -1204,14 +1630,8 @@ class SSAMainWindow(QMainWindow):
             QMessageBox.warning(self, "Erro", "Arquivo selecionado não existe.")
 
     def load_persistent_filters(self):
-        """Carrega filtros persistentes salvos."""
-        # TODO: Na versão final, começar com lista vazia: self.persistent_filters = []
-        # Por agora, filtros de exemplo para teste
-        example_filters = [
-            {"name": "IEE3", "terms": "iee3"},
-            {"name": "APL|ADM|SEE", "terms": "=apl, =adm, =see"}
-        ]
-        self.persistent_filters = example_filters
+        """Carrega filtros persistentes salvos (inicia vazio)."""
+        self.persistent_filters = []
         self.update_filter_tags()
 
     def save_current_filter(self):
@@ -1245,44 +1665,45 @@ class SSAMainWindow(QMainWindow):
             if child.widget():
                 child.widget().deleteLater()
         
+        # Estilo adaptativo claro/escuro
+        pal = self.palette()
+        base = pal.window().color()
+        is_dark = base.value() < 128
+        fg = pal.windowText().color().name()
+        border = '#6b6b6b' if is_dark else '#909090'
+        bg_normal = 'transparent'
+        bg_hover = '#2a2a2a' if is_dark else '#f0f7ff'
+        bg_pressed = '#3a3a3a' if is_dark else '#d9ecff'
+
+        tag_css = f"""
+            QPushButton {{
+                color: {fg};
+                background-color: {bg_normal};
+                border: 1px solid {border};
+                border-radius: 3px;
+                padding: 2px 8px;
+                font-size: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {bg_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {bg_pressed};
+            }}
+        """
+
         # Adiciona novas tags
         for filter_data in self.persistent_filters:
             tag_button = QPushButton(filter_data["name"])
             tag_button.setMaximumHeight(25)
-            tag_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #e3f2fd;
-                    border: 1px solid #90caf9;
-                    border-radius: 3px;
-                    padding: 2px 8px;
-                    font-size: 10px;
-                }
-                QPushButton:hover {
-                    background-color: #bbdefb;
-                }
-                QPushButton:pressed {
-                    background-color: #90caf9;
-                }
-            """)
+            tag_button.setStyleSheet(tag_css)
             tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
             tag_button.clicked.connect(lambda checked, terms=filter_data["terms"]: self.apply_persistent_filter(terms))
             
             # Botão X para remover
             remove_button = QPushButton("×")
             remove_button.setMaximumSize(20, 20)
-            remove_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #ffcdd2;
-                    border: 1px solid #f44336;
-                    border-radius: 10px;
-                    font-weight: bold;
-                    font-size: 10px;
-                }
-                QPushButton:hover {
-                    background-color: #f44336;
-                    color: white;
-                }
-            """)
+            remove_button.setStyleSheet(tag_css)
             remove_button.setToolTip("Remover filtro")
             remove_button.clicked.connect(lambda checked, filter_data=filter_data: self.remove_persistent_filter(filter_data))
             

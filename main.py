@@ -85,17 +85,14 @@ def main(cli_args=None):
         description=f"Consulta Rápida de SSAs v{APP_VERSION}",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
-╔═══════════════════════════════════════════════════════════════╗
-║                    EXEMPLOS DE USO                            ║
-╠═══════════════════════════════════════════════════════════════╣
-║ Modo padrão:        python main.py                            ║
-║ Modo otimizado:     python main.py --optimized                ║
-║ Interface gráfica:  python main.py --gui                      ║
-║ Reset de banco:     python main.py --reset-db                 ║
-║ Limpeza de dados:   python main.py --clean-data               ║
-║ Reimportar tudo:    python main.py --force-rescan             ║
-║ Otimizado + rescan: python main.py --optimized --force-rescan ║
-╚═══════════════════════════════════════════════════════════════╝
+EXEMPLOS DE USO
+  Modo padrão:        python main.py
+  Modo otimizado:     python main.py --optimized
+  Interface gráfica:  python main.py --gui
+  Reset de banco:     python main.py --reset-db
+  Limpeza de dados:   python main.py --clean-data
+  Reimportar tudo:    python main.py --force-rescan
+  Otimizado + rescan: python main.py --optimized --force-rescan
 
 Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
 """
