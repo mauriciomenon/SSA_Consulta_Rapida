@@ -661,7 +661,7 @@ class SSAMainWindow(QMainWindow):
         help_line.addStretch()
         main_layout.addLayout(help_line)
         # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
-        main_layout.addSpacing(0)
+        main_layout.addSpacing(10)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
@@ -1377,7 +1377,7 @@ class SSAMainWindow(QMainWindow):
                 if col_key == '#':
                     px = 30
                 elif col_key == 'numero_ssa':
-                    px = 93  # 11 chars * 7 + 16
+                    px = 110  # leve aumento para leitura do nº SSA
                 elif col_key == 'localizacao_codigo':
                     px = 86  # 10 chars * 7 + 16  
                 elif col_key == 'situacao':
