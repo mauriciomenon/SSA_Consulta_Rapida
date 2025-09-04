@@ -539,8 +539,8 @@ class SSAMainWindow(QMainWindow):
 
         # Carrega filtros após a GUI estar configurada
         self.load_persistent_filters()
-        # Pré-habilitar entradas vazias para Situação e Executor no painel
-        for key in ("situacao", "setor_executor"):
+        # Pré-habilitar entradas vazias para Situação, Executor e Descrição da SSA no painel
+        for key in ("situacao", "setor_executor", "descricao_ssa"):
             if key in self.internal_to_display and key not in self._active_column_filters:
                 self._active_column_filters[key] = ""
         # Atualiza painel com filtros pré-exibidos
@@ -1192,10 +1192,9 @@ class SSAMainWindow(QMainWindow):
 
     def _clear_all_column_filters(self):
         if self._active_column_filters is not None:
-            # Preserva entradas de Situação e Executor como vazias
-            preserve = {k: v for k, v in self._active_column_filters.items() if k in ("situacao", "setor_executor")}
+            # Preserva entradas padrão (Situação, Executor, Descrição da SSA) como vazias
             self._active_column_filters.clear()
-            for k in ("situacao", "setor_executor"):
+            for k in ("situacao", "setor_executor", "descricao_ssa"):
                 self._active_column_filters[k] = ""
             base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
             self.df_exibido = base.copy()
