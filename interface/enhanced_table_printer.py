@@ -55,6 +55,12 @@ class EnhancedTablePrinter:
             print("Nenhum resultado para exibir.")
             return
         
+        # Ordenação padrão: não-STE primeiro; depois número SSA desc
+        try:
+            df = self._apply_default_order(df)
+        except Exception:
+            pass
+        
         # Obtém dimensões do terminal
         terminal_height, terminal_width = self.get_terminal_size()
         available_width = max(terminal_width - 5, 80)  # Margem de segurança
@@ -99,6 +105,12 @@ class EnhancedTablePrinter:
         
         # Aplica word wrap e formatação de células
         formatted_df = self._apply_formatting_and_wrap(working_df, widths, display_names)
+        
+        # Garante que nenhuma célula exceda a largura calculada (evita "escapar" para próxima linha)
+        try:
+            formatted_df = self._clamp_widths(formatted_df, widths)
+        except Exception:
+            pass
         
         # Renderiza com paginação
         self._render_paginated(formatted_df, widths, settings, highlight_terms, filter_terms)
@@ -382,6 +394,45 @@ class EnhancedTablePrinter:
                 highlighted = re.sub(pattern, replacement, highlighted, flags=re.IGNORECASE)
         
         return highlighted
+
+    # -- Helpers de ordenação/ajuste --
+    def _apply_default_order(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Aplica ordenação padrão pedida: não-STE primeiro; depois numero_ssa desc."""
+        work = df.copy()
+        # Marca STE (situação) — valores ausentes tratados como não-STE
+        if 'situacao' in work.columns:
+            is_ste = work['situacao'].astype(str).str.upper().eq('STE')
+        else:
+            # Se não há coluna, mantém ordem original
+            return work
+        
+        # Converte número SSA para inteiro para ordenar desc (tolerante)
+        ssa_int = None
+        if 'numero_ssa' in work.columns:
+            ssa_str = work['numero_ssa'].astype(str).str.replace(r'\D', '', regex=True)
+            ssa_int = ssa_str.apply(lambda s: int(s) if s.isdigit() else -1)
+        else:
+            ssa_int = pd.Series([-1]*len(work), index=work.index)
+
+        work = work.assign(__is_ste=is_ste, __ssa=ssa_int)
+        work = work.sort_values(by=['__is_ste', '__ssa'], ascending=[True, False], na_position='last')
+        return work.drop(columns=['__is_ste', '__ssa'])
+
+    def _clamp_widths(self, df: pd.DataFrame, widths: Dict[str, int]) -> pd.DataFrame:
+        """Garante que cada célula tenha no máximo a largura da coluna (ajuste conservador)."""
+        out = df.copy()
+        for col in out.columns:
+            limit = widths.get(col)
+            if not limit or limit <= 0:
+                continue
+            def _clamp(x):
+                s = '' if x is None else str(x)
+                if len(s) <= limit:
+                    return s
+                # Mantém elipse para indicar truncamento, preservando largura
+                return (s[:max(0, limit-1)] + '…') if limit > 1 else s[:limit]
+            out[col] = out[col].map(_clamp)
+        return out
 
 
 # Instância global para uso direto
