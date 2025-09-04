@@ -647,6 +647,7 @@ class SSAMainWindow(QMainWindow):
 
         # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
         help_line = QHBoxLayout()
+        help_line.setContentsMargins(0, 0, 0, 0)
         self.search_help = QLabel("Termos: ^pre, suf$, =exato, ~regex, !neg — múltiplos por vírgula")
         self.search_help.setWordWrap(True)
         self.search_help.setStyleSheet("font-size: 11px; color: palette(mid);")
@@ -654,8 +655,8 @@ class SSAMainWindow(QMainWindow):
         help_line.addWidget(self.search_help)
         help_line.addStretch()
         main_layout.addLayout(help_line)
-        # Espaço para destacar a faixa de pesquisa (simétrico)
-        main_layout.addSpacing(4)
+        # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
+        main_layout.addSpacing(8)
 
         # --- Paginador e Filtros Persistentes ---
         pagination_filters_layout = QHBoxLayout()
