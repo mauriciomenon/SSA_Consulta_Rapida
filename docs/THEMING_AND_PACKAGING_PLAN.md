@@ -37,6 +37,7 @@ Este documento descreve as mudanças propostas (e sua justificativa) antes da cr
 ## Testes manuais sugeridos
 - Alternar temas durante execução; persistir, fechar e reabrir.
 - Conferir contraste de cabeçalhos, seleção, filtros por coluna.
+- Verificar no tema Claro: caixa "Semana Atual" e "Status" com fundo cinza (#f3f3f3) e borda (#bdbdbd) visíveis.
 - Abrir `launchers/gui_launcher.pyw` no Windows (sem console).
 
 ## Próximos passos
@@ -44,4 +45,3 @@ Este documento descreve as mudanças propostas (e sua justificativa) antes da cr
 - Adicionar ícone (commit 2).
 - Adicionar `gui_launcher.pyw` e doc curta (commit 3).
 - Depois: README/RELEASE NOTES + PR de empacotamento.
-

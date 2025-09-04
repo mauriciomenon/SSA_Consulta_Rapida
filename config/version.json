@@ -1,4 +1,4 @@
 {
-  "version_short": "3.0.7",
-  "version_long": "SSA Consulta Rápida v3.0.7 - Correção de IndentationError no GUI PoC, refatoração de filter_data com parsing/preview extraídos, unificação de helpers de formatação, teste rápido de GUI adicionado e configuração do Sourcery para sinalizar apenas problemas relevantes."
+  "version_short": "3.10",
+  "version_long": "SSA Consulta Rápida v3.10 – Painel de filtros por coluna mais compacto (labels próximos, botões fixos), estabilidade de larguras de colunas (somente recalcula em mudanças de colunas/viewport), tema claro com contraste reforçado (caixas Semana/Status #eee/#aaa) e textos de ajuda mais claros."
 }

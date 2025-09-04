@@ -1,4 +1,4 @@
-# 📋 SSA Consulta Rápida - Estrutura do Projeto v3.0.5
+# 📋 SSA Consulta Rápida - Estrutura do Projeto v3.10
 
 ## 🚨 INSTRUÇÕES CRÍTICAS - LEIA ANTES DE QUALQUER COISA
 
