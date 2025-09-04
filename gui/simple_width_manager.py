@@ -78,47 +78,47 @@ class SimpleWidthManager:
                 fixed_widths[col] = saved_widths[col]
                 
             elif col == 'numero_ssa':
-                fixed_widths[col] = 65
+                fixed_widths[col] = 70  # +5 px leve
                 
             elif col == 'situacao':
-                fixed_widths[col] = 35
+                fixed_widths[col] = 40  # +5 px leve
                 
             elif col == 'setor_executor':
-                fixed_widths[col] = 40
+                fixed_widths[col] = 45  # +5 px leve
                 
             elif col == 'setor_emissor':
-                fixed_widths[col] = 40
+                fixed_widths[col] = 45  # +5 px leve
                 
             elif col == 'localizacao_codigo':
-                fixed_widths[col] = 60  # Ajuste v3.0.4: 50px → 60px (+10px)
+                fixed_widths[col] = 65  # +5 px leve
                 
             elif col == 'data_cadastro':
-                fixed_widths[col] = 85
+                fixed_widths[col] = 95  # +10 px leve
                 
             elif col == 'semana_cadastro':
-                fixed_widths[col] = 60  # CORRIGIDO: 55 -> 60px
+                fixed_widths[col] = 65  # +5 px leve
                 
             elif col == 'semana_programada':
-                fixed_widths[col] = 45
+                fixed_widths[col] = 50  # +5 px leve
                 
             elif col == 'derivada_de':
-                fixed_widths[col] = 65  # CORRIGIDO: 60 -> 65px
+                fixed_widths[col] = 70  # +5 px leve
                 
             elif col == 'grau_prioridade_emissao':
-                fixed_widths[col] = 65
+                fixed_widths[col] = 70  # +5 px leve
                 
             elif col == 'grau_prioridade_planejamento':
-                fixed_widths[col] = 65
+                fixed_widths[col] = 70  # +5 px leve
                 
             elif col == 'solicitante':
-                fixed_widths[col] = 160
+                fixed_widths[col] = 170  # +10 px leve
                 
             elif col == 'descricao_ssa':
-                fixed_widths[col] = 450  # VOLTOU ao valor solicitado
+                fixed_widths[col] = 470  # +20 px leve
                 expandable_cols.append(col)
                 
             elif col == 'descricao_execucao':
-                fixed_widths[col] = 350  # VOLTOU ao valor solicitado
+                fixed_widths[col] = 370  # +20 px leve
                 expandable_cols.append(col)
                 
             else:

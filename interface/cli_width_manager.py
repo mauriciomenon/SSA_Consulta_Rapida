@@ -30,38 +30,79 @@ class CLIWidthManager:
             'semana_cadastro': 8,      # GUI: 60px ÷ 8 ≈ 8 chars
             'semana_programada': 6,    # GUI: 45px ÷ 8 ≈ 6 chars
             'derivada_de': 9,          # GUI: 65px ÷ 8 ≈ 9 chars
-            'solicitante': 25,         # GUI: 160px ÷ 8 ≈ 20 chars (aumentado para 25)
+            'solicitante': 28,         # margem extra para evitar quebras indesejadas
             'descricao_ssa': 56,       # GUI: 450px ÷ 8 ≈ 56 chars (base)
             'descricao_execucao': 44,  # GUI: 350px ÷ 8 ≈ 44 chars (base)
             'grau_prioridade_emissao': 9,      # GUI: 65px ÷ 8 ≈ 9 chars
             'grau_prioridade_planejamento': 9, # GUI: 65px ÷ 8 ≈ 9 chars
+            'responsavel_programacao': 12,
+            'responsavel_execucao': 12,
         }
         
         # Colunas que podem crescer proporcionalmente (igual à GUI)
         self.expandable_columns = ['descricao_ssa', 'descricao_execucao']
         
-        # Carrega configuração unificada
+        # Configurações isoladas para CLI (preferencial)
+        self.cli_priority: Dict[str, Any] = self._load_cli_priority()
+        self.display_mappings: Dict[str, str] = self._load_display_mappings()
+
+        # Fallback somente-leitura: preferências da GUI principal (para compatibilidade)
         self.gui_config = self._load_gui_config()
-        
+
+    def _project_root(self) -> str:
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
     def _load_gui_config(self) -> Dict[str, Any]:
-        """Carrega configuração da GUI para unificar sistemas."""
+        """Carrega configuração da GUI principal (fallback compatível)."""
         try:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            config_path = os.path.join(project_root, 'config', 'gui_main_preferences.json')
-            
+            config_path = os.path.join(self._project_root(), 'config', 'gui_main_preferences.json')
             with open(config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
+        except Exception:
+            return {}
+
+    def _load_cli_priority(self) -> Dict[str, Any]:
+        """Carrega prioridades e ordem específicas da CLI (isolado)."""
+        try:
+            config_path = os.path.join(self._project_root(), 'config', 'column_priority.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _load_display_mappings(self) -> Dict[str, str]:
+        """Carrega mapeamento de nomes de exibição da CLI (isolado)."""
+        try:
+            config_path = os.path.join(self._project_root(), 'config', 'display_mappings.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
         except Exception:
             return {}
     
     def get_column_order(self) -> List[str]:
         """Retorna ordem das colunas baseada na configuração da GUI."""
+        # 1) Preferir configuração isolada da CLI (column_priority.json)
+        essentials = self.cli_priority.get('essential', []) or []
+        priority_rest = self.cli_priority.get('priority_order', []) or []
+        if essentials or priority_rest:
+            # Garante presença do indicativo de linha
+            base = ['#']
+            # Mantém ordem e remove duplicatas preservando a primeira ocorrência
+            seen = set()
+            ordered = []
+            for col in essentials + priority_rest:
+                if col not in seen:
+                    seen.add(col)
+                    ordered.append(col)
+            return base + ordered
+
+        # 2) Fallback compatível: usar ordem da GUI principal (somente leitura)
         gui_order = self.gui_config.get('display_columns', [])
         if gui_order:
-            # Adiciona '#' no início se não estiver presente
             return ['#'] + [col for col in gui_order if col != '#']
-        
-        # Fallback para ordem padrão
+
+        # 3) Fallback mínimo e determinístico
         return [
             '#', 'numero_ssa', 'situacao', 'semana_cadastro', 'semana_programada',
             'derivada_de', 'localizacao_codigo', 'data_cadastro', 'descricao_ssa',
@@ -70,6 +111,11 @@ class CLIWidthManager:
     
     def get_display_names(self) -> Dict[str, str]:
         """Retorna mapeamento de nomes de exibição da GUI."""
+        # Preferir mapeamento isolado da CLI (display_mappings.json)
+        if self.display_mappings:
+            return self.display_mappings
+
+        # Fallback compatível com GUI principal
         return self.gui_config.get('column_display_names', {})
     
     def compute_cli_widths(
