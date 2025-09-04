@@ -607,6 +607,12 @@ class SSAMainWindow(QMainWindow):
         help_button.clicked.connect(self.show_filter_help)
         toolbar_layout.addWidget(help_button)
 
+        # Botão de Tema (Claro/Escuro/Gruvbox)
+        theme_button = QPushButton("Tema")
+        theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
+        theme_button.clicked.connect(self.toggle_theme_menu)
+        toolbar_layout.addWidget(theme_button)
+
         main_layout.addLayout(toolbar_layout)
 
         # Margem superior da faixa de pesquisa (simétrica com base)
@@ -1154,6 +1160,31 @@ class SSAMainWindow(QMainWindow):
             self.paginator.set_dataframe(self.df_exibido)
             self.display_current_page(1)
             self._build_column_filters_panel()
+
+    def toggle_theme_menu(self):
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        for label, key in (("Claro", 'light'), ("Escuro", 'dark'), ("Gruvbox", 'gruvbox')):
+            act = menu.addAction(label)
+            act.triggered.connect(lambda _=False, k=key: self.apply_theme(k))
+        btn = self.sender()
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def apply_theme(self, name: str):
+        pal = get_palette(name)
+        self.setPalette(pal)
+        try:
+            header = self.table_widget.horizontalHeader()
+            header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+        except Exception:
+            pass
+        # Persistência
+        try:
+            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalize_theme(name)
+            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
+                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     def show_filter_help(self):
         try:

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="28" fill="#2a2a2a"/>
+  <circle cx="64" cy="128" r="28" fill="#4a90e2"/>
+  <rect x="112" y="92" width="112" height="72" rx="10" fill="#d79921"/>
+  <text x="120" y="138" fill="#1e1e1e" font-size="36" font-family="Segoe UI, Arial" font-weight="700">SSA</text>
+</svg>
