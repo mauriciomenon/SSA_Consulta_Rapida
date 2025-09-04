@@ -1,4 +1,4 @@
-# gui_ssa_poc.py 20250818 - Versão melhorada com funcionalidades adicionais
+# gui_ssa_poc.py (PoC – versão melhorada com funcionalidades adicionais)
 """
 Prova de Conceito de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
