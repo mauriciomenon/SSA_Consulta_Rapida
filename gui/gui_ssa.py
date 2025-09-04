@@ -631,8 +631,8 @@ class SSAMainWindow(QMainWindow):
             "Modos por termo: \n"
             "- contém (padrão): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
-        self.search_input.setMinimumWidth(260)
-        self.search_input.setMaximumWidth(600)
+        self.search_input.setMinimumWidth(320)  # +20%
+        self.search_input.setMaximumWidth(720)
         self.search_input.returnPressed.connect(self.initiate_filtering)
         self.search_button = QPushButton("Aplicar")
         self.search_button.clicked.connect(self.initiate_filtering)
@@ -701,6 +701,10 @@ class SSAMainWindow(QMainWindow):
         
         pagination_filters_layout.addLayout(self.persistent_filters_layout)
         pagination_filters_layout.addStretch()
+        # Indicador de filtros por coluna (ao lado de "Salvar Filtro")
+        self.col_filter_indicator = QLabel("Filtros por coluna: Não-ativo")
+        self.col_filter_indicator.setStyleSheet("font-size: 11px; color: palette(mid);")
+        pagination_filters_layout.addWidget(self.col_filter_indicator)
         
         main_layout.addLayout(pagination_filters_layout)
         
@@ -1007,6 +1011,7 @@ class SSAMainWindow(QMainWindow):
                 self.paginator.set_dataframe(self.df_exibido)
                 self.display_current_page(1)
                 self._build_column_filters_panel()
+                self._update_col_filter_indicator()
 
             def _apply():
                 term = None
@@ -1096,14 +1101,18 @@ class SSAMainWindow(QMainWindow):
             lbl.setWordWrap(True)
             target_layout.addWidget(lbl)
             target_layout.addStretch()
+            self._update_col_filter_indicator()
             return
 
         for col, term in self._active_column_filters.items():
             row = QHBoxLayout()
-            name_lbl = QLabel(self.internal_to_display.get(col, col))
+            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
+            name_lbl = QLabel(full_name)
             name_lbl.setMinimumWidth(140)
             term_box = QLineEdit(str(term))
             term_box.setPlaceholderText("Termos: ^pre, suf$, =exato, ~regex, !neg")
+            term_box.setMinimumWidth(300)
+            term_box.setStyleSheet("font-size: 11px;")
             # Botão Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             def _mk_apply(c=col, tb=term_box):
@@ -1153,13 +1162,18 @@ class SSAMainWindow(QMainWindow):
             self._build_column_filters_panel()
 
     def _clear_all_column_filters(self):
-        if self._active_column_filters:
+        if self._active_column_filters is not None:
+            # Preserva entradas de Situação e Executor como vazias
+            preserve = {k: v for k, v in self._active_column_filters.items() if k in ("situacao", "setor_executor")}
             self._active_column_filters.clear()
+            for k in ("situacao", "setor_executor"):
+                self._active_column_filters[k] = ""
             base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
             self.df_exibido = base.copy()
             self.paginator.set_dataframe(self.df_exibido)
             self.display_current_page(1)
             self._build_column_filters_panel()
+            self._update_col_filter_indicator()
 
     def toggle_theme_menu(self):
         from PyQt6.QtWidgets import QMenu
@@ -1171,6 +1185,10 @@ class SSAMainWindow(QMainWindow):
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def apply_theme(self, name: str):
+        try:
+            from utils.themes import get_palette, normalize_theme  # fallback defensivo
+        except Exception:
+            pass
         pal = get_palette(name)
         self.setPalette(pal)
         try:
@@ -1185,6 +1203,13 @@ class SSAMainWindow(QMainWindow):
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
+
+    def _update_col_filter_indicator(self):
+        # Ativo quando existe ao menos um termo não vazio em filtros por coluna
+        active = any((str(v).strip() != "") for k, v in (self._active_column_filters or {}).items())
+        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Não-ativo"
+        if hasattr(self, 'col_filter_indicator') and self.col_filter_indicator is not None:
+            self.col_filter_indicator.setText(txt)
 
     def show_filter_help(self):
         try:
