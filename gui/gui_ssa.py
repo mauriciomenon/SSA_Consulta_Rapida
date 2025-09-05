@@ -1747,7 +1747,7 @@ class SSAMainWindow(QMainWindow):
             if hasattr(df, 'columns'):
                 existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
                 if not existing_visible_cols:
-                    print("ERRO: Nenhuma coluna visável encontrada no DataFrame")
+                    print("ERRO: Nenhuma coluna visível encontrada no DataFrame")
                     return
                 
                 # IMPORTANTE: Mantêm a ordem exata de self.visible_columns
