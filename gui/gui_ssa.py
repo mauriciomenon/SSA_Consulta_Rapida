@@ -125,7 +125,7 @@ except Exception:
     class QGridLayout(QVBoxLayout): pass
     class QLabel: 
         def __init__(self, *a, **k): pass
-    class QPushButton(LABEL:=object):
+    class QPushButton:
         def __init__(self, *a, **k): pass
         def clicked(self): return _Sig()
     class QLineEdit: 
@@ -1709,7 +1709,7 @@ class SSAMainWindow(QMainWindow):
             # Aplica limites de segurança apenas
             px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
             
-            # print(f"DEBUG: Aplicando largura {px}px para coluna '{col_key}' (ándice {i})")
+            # print(f"DEBUG: Aplicando largura {px}px para coluna '{col_key}' (índice {i})")
             self.table_widget.setColumnWidth(i, px)
             
         # CORRECAO: Desabilitado temporariamente para evitar conflitos com best-fit
