@@ -563,7 +563,7 @@ class AutomatedSystemTester:
     
     def run_all_tests(self) -> Dict:
         """Executa todos os testes do sistema."""
-        print("🚀 Iniciando testes automatizados do sistema SSA...")
+        print("Iniciando testes automatizados do sistema SSA...")
         print("=" * 60)
         
         start_time = datetime.now()
