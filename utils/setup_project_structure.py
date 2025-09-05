@@ -1,13 +1,13 @@
 # utils/setup_project_structure.py
 """
-Utilitário para verificar e criar a estrutura de diretórios do projeto.
-Silencioso por padrão: usa logging em vez de prints para não poluir a CLI.
+Utilitario para verificar e criar a estrutura de diretorios do projeto.
+Silencioso por padrao: usa logging em vez de prints para nao poluir a CLI.
 """
 
 import os
 import logging
 
-# Definindo os diretórios necessários do projeto
+# Definindo os diretorios necessários do projeto
 REQUIRED_DIRS = [
     'docs_entrada',  # Pasta para os arquivos Excel de entrada
     'data',          # Pasta para o banco de dados e cache
@@ -21,11 +21,11 @@ REQUIRED_DIRS = [
 
 def setup_dirs(base_path: str = "."):
     """
-    Verifica se os diretórios necessários existem e os cria se não existirem.
+    Verifica se os diretorios necessários existem e os cria se nao existirem.
 
     Args:
-        base_path (str): O caminho base onde os diretórios serão verificados/criados.
-                         Por padrão, usa o diretório atual ('.').
+        base_path (str): O caminho base onde os diretorios serão verificados/criados.
+                         Por padrao, usa o diretório atual ('.').
     """
     logger = logging.getLogger("ssa")
     logger.debug("Verificando/criando estrutura de pastas...")
@@ -38,8 +38,8 @@ def setup_dirs(base_path: str = "."):
             # Um erro ao criar o diretório é crítico para o funcionamento do programa
             logger.error(f"ERRO CRÍTICO: Não foi possível criar/verificar o diretório '{dir_path}': {e}")
             # Dependendo da política do seu aplicativo, você pode querer encerrar aqui:
-            # raise RuntimeError(f"Falha ao criar estrutura de diretórios: {e}") from e
-    # Info no arquivo de log; não imprimir no console
+            # raise RuntimeError(f"Falha ao criar estrutura de diretorios: {e}") from e
+    # Info no arquivo de log; nao imprimir no console
     logger.info("Estrutura de pastas verificada.")
 
 # Se este script for executado diretamente, chama a função de setup

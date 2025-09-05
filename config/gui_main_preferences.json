@@ -22,23 +22,23 @@
     "grau_prioridade_emissao"
   ],
   "column_display_names": {
-    "numero_ssa": "Número SSA",
-    "Número da SSA": "Nº SSA",
+    "numero_ssa": "Numero SSA",
+    "Número da SSA": "No SSA",
     "setor_executor": "Exec.",
     "situacao": "Sit.",
-    "descricao_ssa": "Descrição da SSA",
+    "descricao_ssa": "Descricao da SSA",
     "data_cadastro": "Data Cadastro",
     "semana_cadastro": "Sem. Cad.",
     "localizacao_codigo": "Loc.",
     "grau_prioridade": "Prio.",
-    "grau_prioridade_emissao": "Prio. Emissão",
+    "grau_prioridade_emissao": "Prio. Emissao",
     "grau_prioridade_planejamento": "Prio. Planej.",
     "setor_emissor": "Emis.",
     "solicitante": "Solicitante",
     "derivada_de": "Derivada de",
     "semana_programada": "Prog.",
-    "descricao_execucao": "Descrição Execução",
-    "descricao_localizacao": "Desc. Localização",
+    "descricao_execucao": "Descricao Execucao",
+    "descricao_localizacao": "Desc. Localizacao",
     "equipamento": "Equipamento",
     "origem": "Origem",
     "servico_origem": "Serv. Origem",
@@ -73,9 +73,9 @@
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
-    "theme": "light"
+    "theme": "gruvbox"
   },
   "version": "1.0.0",
   "created_for": "GUI Main (main.py --gui)",
-  "description": "Configurações específicas para a GUI principal do sistema SSA_Consulta_Rapida, isolada do CLI e da GUI PoC"
+  "description": "Configuracoes especificas para a GUI principal do sistema SSA_Consulta_Rapida, isolada do CLI e da GUI PoC"
 }
