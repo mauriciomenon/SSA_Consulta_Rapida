@@ -415,7 +415,7 @@ class DataPaginator(QWidget):
 class FilterHelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ajuda ÔÇô Filtros (CLI/GUI)")
+        self.setWindowTitle("Ajuda - Filtros (CLI/GUI)")
         self.setModal(True)
         self.resize(560, 480)
         layout = QVBoxLayout()
@@ -477,7 +477,7 @@ class SSAMainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Consulta R├ípida de SSAs")
+        self.setWindowTitle("Consulta Rapida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
         # ├ìcone da janela (prioriza .ico no Windows)
         try:
