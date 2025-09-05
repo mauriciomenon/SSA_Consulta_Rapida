@@ -1,13 +1,13 @@
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
 """
-Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
+Prova de Conceito Refinada de uma Interface Gr├ífica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
-Refinamentos em relação à PoC básica:
-1. Seleção de colunas com base em display_mappings.json e prioridade.
-2. Paginação simples para lidar com grandes conjuntos de dados.
-3. Uso de nomes de exibição para colunas.
-4. Feedback mais detalhado ao usuário.
-5. Estrutura mais preparada para expansão (ordenação, exportação).
+Refinamentos em rela├º├úo ├á PoC b├ísica:
+1. Sele├º├úo de colunas com base em display_mappings.json e prioridade.
+2. Pagina├º├úo simples para lidar com grandes conjuntos de dados.
+3. Uso de nomes de exibi├º├úo para colunas.
+4. Feedback mais detalhado ao usu├írio.
+5. Estrutura mais preparada para expans├úo (ordena├º├úo, exporta├º├úo).
 
 Para executar: python gui_ssa.py
 (Requer que o projeto ja tenha sido executado uma vez para criar o banco de dados ssas.db)
@@ -24,22 +24,22 @@ except Exception:
     def get_app_version():
         return "3.10+"
 
-# --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
+# --- Configura├º├úo do Path do Projeto (precisa vir antes das importa├º├Áes internas) ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Importações dos managers unificados
+# Importa├º├Áes dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager
 from utils.themes import get_palette, normalize_theme
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
-# --- Função para Carregar Configurações da GUI Principal ---
+# --- Fun├º├úo para Carregar Configura├º├Áes da GUI Principal ---
 def load_gui_main_preferences():
-    """Carrega configurações específicas da GUI Principal do arquivo JSON"""
+    """Carrega configura├º├Áes espec├¡ficas da GUI Principal do arquivo JSON"""
     config_path = os.path.join(project_root, 'config', 'gui_main_preferences.json')
     
-    # Configurações padrão caso o arquivo não exista
+    # Configura├º├Áes padr├úo caso o arquivo n├úo exista
     default_config = {
         "display_columns": [
             "numero_ssa", "setor_executor", "situacao", "descricao_ssa",
@@ -47,7 +47,7 @@ def load_gui_main_preferences():
         ],
         "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
         "column_display_names": {
-            "numero_ssa": "Número SSA", "setor_executor": "Exec.",
+            "numero_ssa": "N├║mero SSA", "setor_executor": "Exec.",
             "situacao": "Sit.", "descricao_ssa": "Desc.",
             "data_cadastro": "Data Cad.", "semana_cadastro": "Sem.Cad.",
             "localizacao_codigo": "Loc.", "grau_prioridade_emissao": "Prio.Emis."
@@ -67,31 +67,31 @@ def load_gui_main_preferences():
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 loaded_config = json.load(f)
-                # Valida estrutura mínima
+                # Valida estrutura m├¡nima
                 if isinstance(loaded_config, dict) and 'display_columns' in loaded_config:
                     return loaded_config
                 else:
-                    print(f"Configuração inválida em {config_path}, usando padrões.")
+                    print(f"Configura├º├úo inv├ílida em {config_path}, usando padr├Áes.")
                     return default_config
         else:
-            print(f"Arquivo de configuração não encontrado em {config_path}, usando padrões.")
+            print(f"Arquivo de configura├º├úo n├úo encontrado em {config_path}, usando padr├Áes.")
             return default_config
     except Exception as e:
-        print(f"Erro ao carregar configurações da GUI Principal: {e}, usando padrões.")
+        print(f"Erro ao carregar configura├º├Áes da GUI Principal: {e}, usando padr├Áes.")
         return default_config
 
-# Carrega as configurações globalmente
+# Carrega as configura├º├Áes globalmente
 GUI_MAIN_PREFERENCES = load_gui_main_preferences()
 
 from utils.formatting import format_dataframe_for_display
 
 # (mantido acima)
 
-# --- Importações do Projeto ---
+# --- Importa├º├Áes do Projeto ---
 from core.app_logic import filter_dataframe, parse_search_terms
 from armazenamento.database import query_db
 
-# --- Importações do PyQt6 (com fallback headless para CI) ---
+# --- Importa├º├Áes do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
 try:
     from PyQt6.QtWidgets import (
@@ -99,14 +99,14 @@ try:
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
         QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QScrollArea, QDialog, QDialogButtonBox,
-        QSpacerItem, QSizePolicy
+        QSpacerItem, QSizePolicy, QFrame
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
     from PyQt6.QtGui import QAction
     from PyQt6.QtWidgets import QApplication
 except Exception:
     QT_AVAILABLE = False
-    # Stubs mínimos para permitir import em ambiente CI sem libs gráficas
+    # Stubs m├¡nimos para permitir import em ambiente CI sem libs gr├íficas
     class _Sig:
         def emit(self, *a, **k):
             pass
@@ -163,11 +163,11 @@ TABLE_NAME = 'ssas'
 CONFIG_DIR = os.path.join(project_root, 'config')
 DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
 
-# --- Funções Auxiliares ---
+# --- Fun├º├Áes Auxiliares ---
 
 def load_display_mappings():
-    """Carrega o mapeamento de nomes internos para nomes de exibição independente do CLI."""
-    # Usa configurações da GUI Main em vez de display_mappings.json
+    """Carrega o mapeamento de nomes internos para nomes de exibi├º├úo independente do CLI."""
+    # Usa configura├º├Áes da GUI Main em vez de display_mappings.json
     return GUI_MAIN_PREFERENCES.get("column_display_names", {})
 
 # --- Worker Threads ---
@@ -285,7 +285,7 @@ class ColumnSelector(QWidget):
         add_column_layout.addWidget(QLabel("Adicionar Coluna:"))
         self.add_column_combo = QComboBox()
         self.add_column_combo.setMinimumWidth(150)
-        # Preenche com todas as colunas possíveis (baseadas no display_map)
+        # Preenche com todas as colunas poss├¡veis (baseadas no display_map)
         all_display_names = sorted(self.display_to_internal.keys())
         self.add_column_combo.addItems(all_display_names)
         add_column_layout.addWidget(self.add_column_combo)
@@ -295,7 +295,7 @@ class ColumnSelector(QWidget):
         add_button.clicked.connect(self.add_column)
         add_column_layout.addWidget(add_button)
 
-        # Espaçador para empurrar o status das colunas para a direita
+        # Espa├ºador para empurrar o status das colunas para a direita
         add_column_layout.addStretch()
 
         # Status de colunas atual (opcional, comentado por agora)
@@ -317,8 +317,8 @@ class ColumnSelector(QWidget):
 
 
 class DataPaginator(QWidget):
-    """Widget para paginação de dados."""
-    page_changed = pyqtSignal(int) # Emite o número da nova página (1-based)
+    """Widget para pagina├º├úo de dados."""
+    page_changed = pyqtSignal(int) # Emite o n├║mero da nova p├ígina (1-based)
 
     def __init__(self, df, page_size=50):
         super().__init__()
@@ -333,19 +333,19 @@ class DataPaginator(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.prev_button = QPushButton("Página Anterior")
+        self.prev_button = QPushButton("P├ígina Anterior")
         self.prev_button.clicked.connect(self.prev_page)
         self.prev_button.setEnabled(False)
 
-        self.page_info_label = QLabel("Página 1 de 1")
+        self.page_info_label = QLabel("P├ígina 1 de 1")
 
-        self.next_button = QPushButton("Próxima Página")
+        self.next_button = QPushButton("Pr├│xima P├ígina")
         self.next_button.clicked.connect(self.next_page)
         self.next_button.setEnabled(False)
 
-        # Controle de tamanho da página
+        # Controle de tamanho da p├ígina
         page_size_layout = QHBoxLayout()
-        page_size_layout.addWidget(QLabel("Linhas por Página:"))
+        page_size_layout.addWidget(QLabel("Linhas por P├ígina:"))
         self.page_size_spinbox = QSpinBox()
         self.page_size_spinbox.setRange(10, 500)
         self.page_size_spinbox.setSingleStep(10)
@@ -371,9 +371,9 @@ class DataPaginator(QWidget):
         else:
             self.total_pages = 1
             self.current_page = 1
-        # Pode ser chamado antes do init_ui terminar em alguns cenários; proteja acesso
+        # Pode ser chamado antes do init_ui terminar em alguns cen├írios; proteja acesso
         if hasattr(self, 'page_info_label') and self.page_info_label is not None:
-            self.page_info_label.setText(f"Página {self.current_page} de {self.total_pages}")
+            self.page_info_label.setText(f"P├ígina {self.current_page} de {self.total_pages}")
 
     def update_buttons(self):
         self.prev_button.setEnabled(self.current_page > 1)
@@ -395,15 +395,15 @@ class DataPaginator(QWidget):
 
     def change_page_size(self, new_size):
         self.page_size = new_size
-        # Reset para a página 1 ao mudar o tamanho
+        # Reset para a p├ígina 1 ao mudar o tamanho
         self.current_page = 1
         self.update_pagination_info()
         self.update_buttons()
-        # Notifica que a página 1 (com novo tamanho) deve ser carregada
+        # Notifica que a p├ígina 1 (com novo tamanho) deve ser carregada
         self.page_changed.emit(self.current_page)
 
     def get_current_slice(self):
-        """Retorna o slice do DataFrame para a página atual."""
+        """Retorna o slice do DataFrame para a p├ígina atual."""
         if self.df is None or self.df.empty:
             return pd.DataFrame()
         start_idx = (self.current_page - 1) * self.page_size
@@ -411,11 +411,11 @@ class DataPaginator(QWidget):
         return self.df.iloc[start_idx:end_idx]
 
 
-# --- Diálogo de Ajuda (GUI PoC revisado) ---
+# --- Di├ílogo de Ajuda (GUI PoC revisado) ---
 class FilterHelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ajuda – Filtros (CLI/GUI)")
+        self.setWindowTitle("Ajuda ÔÇô Filtros (CLI/GUI)")
         self.setModal(True)
         self.resize(560, 480)
         layout = QVBoxLayout()
@@ -425,14 +425,14 @@ class FilterHelpDialog(QDialog):
         help_text.setHtml(
             """
             <h3>Como usar os filtros</h3>
-            <h4>Separação de termos</h4>
+            <h4>Separa├º├úo de termos</h4>
             <ul>
-              <li><b>Vírgula (,)</b> ou <b>espaço</b> separam múltiplos termos</li>
+              <li><b>V├¡rgula (,)</b> ou <b>espa├ºo</b> separam m├║ltiplos termos</li>
             </ul>
             <h4>Modos por termo</h4>
             <ul>
-              <li><b>contém</b> (padrão): <code>foo</code></li>
-              <li><b>começa com</b>: <code>^foo</code></li>
+              <li><b>cont├®m</b> (padr├úo): <code>foo</code></li>
+              <li><b>come├ºa com</b>: <code>^foo</code></li>
               <li><b>termina com</b>: <code>foo$</code></li>
               <li><b>igual</b>: <code>=foo</code></li>
               <li><b>regex</b>: <code>~foo.*bar</code></li>
@@ -441,24 +441,24 @@ class FilterHelpDialog(QDialog):
             </ul>
             <h4>Exemplos</h4>
             <ul>
-              <li><code>mel3</code> – procura por MEL3</li>
-              <li><code>pendente, programar</code> – termos combinados</li>
-              <li><code>executada, !mel4</code> – exclui MEL4</li>
-              <li><code>g076, amp</code> – combina setores</li>
-              <li><code>=NULL</code> – somente campos vazios/nulos</li>
+              <li><code>mel3</code> ÔÇô procura por MEL3</li>
+              <li><code>pendente, programar</code> ÔÇô termos combinados</li>
+              <li><code>executada, !mel4</code> ÔÇô exclui MEL4</li>
+              <li><code>g076, amp</code> ÔÇô combina setores</li>
+              <li><code>=NULL</code> ÔÇô somente campos vazios/nulos</li>
             </ul>
             <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no título da coluna. O painel à direita mostra os filtros por coluna com botões <b>Aplicar</b> e <b>Limpar</b>. Regras idênticas às do filtro geral.</p>
+            <p>Abra o menu com <b>clique direito</b> no t├¡tulo da coluna. O painel ├á direita mostra os filtros por coluna com bot├Áes <b>Aplicar</b> e <b>Limpar</b>. Regras id├¬nticas ├ás do filtro geral.</p>
             <h4>Dicas</h4>
             <ul>
-              <li>Não diferencia maiúsculas/minúsculas</li>
+              <li>N├úo diferencia mai├║sculas/min├║sculas</li>
               <li>Termos parciais funcionam (ex.: <code>exec</code> encontra <i>executada</i>)</li>
               <li>Deixe vazio para ver todas as SSAs</li>
             </ul>
             <hr/>
             <p style='font-size:12px;'>
-              <b>Projeto:</b> SSA_Consulta_Rapida • <b>Versão:</b> %s<br/>
-              <b>Autor:</b> Mauricio Menon • <b>Repositório:</b> 
+              <b>Projeto:</b> SSA_Consulta_Rapida ÔÇó <b>Vers├úo:</b> %s<br/>
+              <b>Autor:</b> Mauricio Menon ÔÇó <b>Reposit├│rio:</b> 
               <a href='https://github.com/mauriciomenon/SSA_Consulta_Rapida'>github.com/mauriciomenon/SSA_Consulta_Rapida</a>
             </p>
             """
@@ -477,9 +477,9 @@ class SSAMainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Consulta Rápida de SSAs")
+        self.setWindowTitle("Consulta R├ípida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
-        # Ícone da janela (prioriza .ico no Windows)
+        # ├ìcone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon
             ico_path = os.path.join(project_root, 'resources', 'app_icon.ico')
@@ -494,39 +494,39 @@ class SSAMainWindow(QMainWindow):
 
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
-        self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibição
+        self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibi├º├úo
 
-        # Carrega mapeamentos de exibição das preferências da GUI principal
+        # Carrega mapeamentos de exibi├º├úo das prefer├¬ncias da GUI principal
         self.display_map = GUI_MAIN_PREFERENCES.get("display_mappings", load_display_mappings())
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
 
-        # Colunas padrão para exibição (das configurações JSON)
+        # Colunas padr├úo para exibi├º├úo (das configura├º├Áes JSON)
         self.default_columns = GUI_MAIN_PREFERENCES.get("display_columns", [
             'numero_ssa', 'setor_executor', 'situacao', 'descricao_ssa',
             'data_cadastro', 'semana_cadastro'
         ])
         
-        # Garante que colunas padrão existam no mapeamento
+        # Garante que colunas padr├úo existam no mapeamento
         self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
 
-        # Configurações de GUI (independentes do CLI)
+        # Configura├º├Áes de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
         
-        # Inicializa managers unificados (substitui código frankenstein)
+        # Inicializa managers unificados (substitui c├│digo frankenstein)
         self.width_manager = SimpleWidthManager()
         self.cache_manager = SimpleCacheManager()
 
-        # Estado de ordenação e filtros por coluna
+        # Estado de ordena├º├úo e filtros por coluna
         self.sort_column = None
         self.sort_ascending = True
         self._active_column_filters = {}
         self._df_last_search_filtered = pd.DataFrame()
         
-        # Larguras salvas por coluna (das configurações JSON) - mantido para compatibilidade
+        # Larguras salvas por coluna (das configura├º├Áes JSON) - mantido para compatibilidade
         self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
 
-        # Debounce de filtro (da configuração JSON)
+        # Debounce de filtro (da configura├º├úo JSON)
         debounce_delay = gui_settings.get("debounce_delay", 250)
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
@@ -538,29 +538,29 @@ class SSAMainWindow(QMainWindow):
 
         self.init_ui()
 
-        # Carrega filtros após a GUI estar configurada
+        # Carrega filtros ap├│s a GUI estar configurada
         self.load_persistent_filters()
-        # Pré-aplica tema (padrão: gruvbox) antes do auto-load
+        # Pr├®-aplica tema (padr├úo: gruvbox) antes do auto-load
         # Abrir sempre com tema Gruvbox, independente do salvo
         self.apply_theme('gruvbox')
         try:
-            # Persiste preferência padrão em gruvbox, sem impedir troca manual depois
+            # Persiste prefer├¬ncia padr├úo em gruvbox, sem impedir troca manual depois
             GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = 'gruvbox'
             with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
-        # Pré-habilitar entradas vazias para Situação, Executor e Descrição da SSA no painel
+        # Pr├®-habilitar entradas vazias para Situa├º├úo, Executor e Descri├º├úo da SSA no painel
         for key in ("situacao", "setor_executor", "descricao_ssa"):
             if key in self.internal_to_display and key not in self._active_column_filters:
                 self._active_column_filters[key] = ""
-        # Atualiza painel com filtros pré-exibidos
+        # Atualiza painel com filtros pr├®-exibidos
         try:
             self._build_column_filters_panel()
         except Exception:
             pass
 
-        # Auto-carregar dados na abertura (assíncrono, mantém a janela responsiva)
+        # Auto-carregar dados na abertura (ass├¡ncrono, mant├®m a janela responsiva)
         QTimer.singleShot(150, self.load_data)
 
     def init_ui(self):
@@ -571,7 +571,7 @@ class SSAMainWindow(QMainWindow):
         # --- Barra de Ferramentas Superior ---
         toolbar_layout = QHBoxLayout()
 
-        # Botões principais de dados
+        # Bot├Áes principais de dados
         self.load_button = QPushButton("Carregar Dados")
         self.load_button.setToolTip("Carregar dados do banco de dados existente")
         self.load_button.clicked.connect(self.load_data)
@@ -582,7 +582,7 @@ class SSAMainWindow(QMainWindow):
         self.load_other_db_button.clicked.connect(self.load_other_database)
         toolbar_layout.addWidget(self.load_other_db_button)
 
-        # Botões de ações
+        # Bot├Áes de a├º├Áes
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
         self.rescan_button.clicked.connect(self.rescan_data)
@@ -592,7 +592,7 @@ class SSAMainWindow(QMainWindow):
         self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
         self.explorer_button.clicked.connect(self.open_docs_folder)
         toolbar_layout.addWidget(self.explorer_button)
-        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, não clicável)
+        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, n├úo clic├ível)
         try:
             from datetime import date
             y, w, _ = date.today().isocalendar()
@@ -604,11 +604,11 @@ class SSAMainWindow(QMainWindow):
         self.week_label.setStyleSheet(
             "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
-        self.week_label.setToolTip("Semana ISO atual (não clicável)")
+        self.week_label.setToolTip("Semana ISO atual (n├úo clic├ível)")
         toolbar_layout.addSpacing(6)
         toolbar_layout.addWidget(self.week_label)
 
-        # Espaçamento antes do status
+        # Espa├ºamento antes do status
         toolbar_layout.addStretch()
         
         # Status em caixa e progresso
@@ -623,13 +623,13 @@ class SSAMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.status_label)
         toolbar_layout.addWidget(self.progress_bar)
 
-        # Botão de Ajuda (como na PoC)
+        # Bot├úo de Ajuda (como na PoC)
         help_button = QPushButton("Ajuda")
         help_button.setToolTip("Ajuda sobre filtros e uso da interface")
         help_button.clicked.connect(self.show_filter_help)
         toolbar_layout.addWidget(help_button)
 
-        # Botão de Tema (Claro/Escuro/Gruvbox)
+        # Bot├úo de Tema (Claro/Escuro/Gruvbox)
         theme_button = QPushButton("Tema")
         theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
         theme_button.clicked.connect(self.toggle_theme_menu)
@@ -637,7 +637,7 @@ class SSAMainWindow(QMainWindow):
 
         main_layout.addLayout(toolbar_layout)
 
-        # Margem superior da faixa de pesquisa (simétrica com base)
+        # Margem superior da faixa de pesquisa (sim├®trica com base)
         main_layout.addSpacing(6)
 
         # --- Barra de Pesquisa e Filtros (grupos esquerda/direita) ---
@@ -648,13 +648,13 @@ class SSAMainWindow(QMainWindow):
         left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisa Geral:")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Separe por vírgulas; ! exclui; busca em todas as colunas")
+        self.search_input.setPlaceholderText("Separe por v├¡rgulas; ! exclui; busca em todas as colunas")
         self.search_input.setToolTip(
             "Modos por termo: \n"
-            "- contém (padrão): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
+            "- cont├®m (padr├úo): foo\n- come├ºa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
-        self.search_input.setMinimumWidth(340)  # +~25% para mais conforto
-        self.search_input.setMaximumWidth(760)
+        self.search_input.setMinimumWidth(425)  # +~25% para mais conforto
+        self.search_input.setMaximumWidth(950)
         try:
             self.search_input.setMinimumHeight(26)
         except Exception:
@@ -676,7 +676,7 @@ class SSAMainWindow(QMainWindow):
         right.addWidget(self.column_selector)
 
         search_row.addLayout(left)
-        # Espaçador expansível garante que o grupo da direita encoste no limite direito
+        # Espa├ºador expans├¡vel garante que o grupo da direita encoste no limite direito
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         search_row.addLayout(right)
         main_layout.addLayout(search_row)
@@ -684,20 +684,19 @@ class SSAMainWindow(QMainWindow):
         # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
         help_line = QHBoxLayout()
         help_line.setContentsMargins(0, 0, 0, 0)
-        # Texto direto e visível; etiqueta se expande até o fim da linha
+        # Texto direto e vis├¡vel; etiqueta se expande at├® o fim da linha
         self.search_help = QLabel(
-            "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna."
+            "Separe por v├¡rgulas. Use ! para excluir. A busca vale para qualquer coluna."
         )
         self.search_help.setWordWrap(False)
         try:
-            from PyQt6.QtWidgets import QSizePolicy
             self.search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         except Exception:
             pass
         self.search_help.setStyleSheet("font-size: 10px; color: palette(mid); margin:0; padding:0;")
         help_line.addWidget(self.search_help)
         main_layout.addLayout(help_line)
-        # Espaço para destacar a faixa de pesquisa (simétrico com o topo)
+        # Espa├ºo para destacar a faixa de pesquisa (sim├®trico com o topo)
         main_layout.addSpacing(6)
 
         # --- Paginador e Filtros Persistentes ---
@@ -709,10 +708,10 @@ class SSAMainWindow(QMainWindow):
         self.paginator.page_changed.connect(self.display_current_page)
         pagination_filters_layout.addWidget(self.paginator)
         
-        # Espaçamento entre paginador e filtros
+        # Espa├ºamento entre paginador e filtros
         pagination_filters_layout.addSpacing(20)
         
-        # Área de filtros persistentes
+        # ├ürea de filtros persistentes
         self.persistent_filters_layout = QHBoxLayout()
         self.persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -732,47 +731,68 @@ class SSAMainWindow(QMainWindow):
         pagination_filters_layout.addLayout(self.persistent_filters_layout)
         pagination_filters_layout.addStretch()
         # Indicador de filtros por coluna (ao lado de "Salvar Filtro")
-        self.col_filter_indicator = QLabel("Filtros por coluna: Não-ativo")
+        self.col_filter_indicator = QLabel("Filtros por coluna: N├úo-ativo")
         self.col_filter_indicator.setStyleSheet("font-size: 11px; color: palette(mid);")
         pagination_filters_layout.addWidget(self.col_filter_indicator)
         
         main_layout.addLayout(pagination_filters_layout)
+
+        # Linha de resumo de filtros aplicados (Geral + Colunas)
+        try:
+            self.filters_summary_frame = QFrame()
+            self.filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
+            self.filters_summary_frame.setStyleSheet("QFrame{ border:1px solid palette(mid); padding:4px; }")
+            summary_layout = QHBoxLayout(self.filters_summary_frame)
+            summary_layout.setContentsMargins(6,4,6,4)
+            summary_layout.setSpacing(8)
+            self.filters_summary_label = QLabel("Nenhum filtro ativo")
+            self.filters_summary_label.setStyleSheet("")
+            self.clear_all_filters_btn = QPushButton("Limpar todos os filtros")
+            self.clear_all_filters_btn.setMaximumWidth(200)
+            self.clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
+            summary_layout.addWidget(self.filters_summary_label, 1)
+            summary_layout.addWidget(self.clear_all_filters_btn, 0)
+            main_layout.addWidget(self.filters_summary_frame)
+            # Sempre visível; o texto é atualizado conforme filtros
+            self.filters_summary_frame.setVisible(True)
+        except Exception:
+            pass
         
         # Restaura page size se configurado
         if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
             self.paginator.page_size_spinbox.setValue(self._restored_page_size)
-        # Persiste alterações do page size
+        # Persiste altera├º├Áes do page size
         self.paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
 
         # --- Tabela de Dados ---
         self.table_widget = QTableWidget()
         self.table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        # Começa como Interativo; após preencher a página, aplicamos larguras fixas para estabilidade
+        # Come├ºa como Interativo; ap├│s preencher a p├ígina, aplicamos larguras fixas para estabilidade
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_widget.verticalHeader().setVisible(False)
         
-        # CORREÇÃO v3.0.5: Performance otimizada - removido word wrap global e resize automático
-        # Word wrap causa lentidão extrema em grandes datasets
-        # self.table_widget.setWordWrap(True)  # ← REMOVIDO - causava travamentos
+        # CORRE├ç├âO v3.0.5: Performance otimizada - removido word wrap global e resize autom├ítico
+        # Word wrap causa lentid├úo extrema em grandes datasets
+        # self.table_widget.setWordWrap(True)  # ÔåÉ REMOVIDO - causava travamentos
         
-        # Altura fixa otimizada ao invés de resize automático
+        # Altura fixa otimizada ao inv├®s de resize autom├ítico
         self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.table_widget.verticalHeader().setDefaultSectionSize(24)  # Altura fixa otimizada
 
         # Conecta clique duplo para mostrar detalhes (placeholder)
         self.table_widget.doubleClicked.connect(self.on_table_double_click)
-        # Atualiza painel de detalhes quando a seleção muda
+        # Atualiza painel de detalhes quando a sele├º├úo muda
         self.table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-        # Salva largura quando usuário redimensionar uma coluna
+        # Salva largura quando usu├írio redimensionar uma coluna
         self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
         
-        # Ordenação por clique no cabeçalho + menu de filtro por coluna
+        # Ordena├º├úo por clique no cabe├ºalho + menu de filtro por coluna
         try:
             header = self.table_widget.horizontalHeader()
             header.setSectionsClickable(True)
             header.setSortIndicatorShown(True)
-            # Fonte do cabeçalho nunca em negrito (evita ocupar mais espaço)
+            # Fonte do cabe├ºalho nunca em negrito (evita ocupar mais espa├ºo)
             try:
                 f = header.font()
                 f.setBold(False)
@@ -794,7 +814,7 @@ class SSAMainWindow(QMainWindow):
 
         main_layout.addWidget(self.table_widget)
 
-        # --- Painel de Detalhes + Painel de Filtros por Coluna (com rodapé fixo) ---
+        # --- Painel de Detalhes + Painel de Filtros por Coluna (com rodap├® fixo) ---
         bottom_layout = QHBoxLayout()
 
         # Detalhes (maior)
@@ -804,7 +824,7 @@ class SSAMainWindow(QMainWindow):
         details_layout.addWidget(self.details_text)
         bottom_layout.addWidget(self.details_group, 5)
 
-        # Filtros por Coluna com lista rolável + rodapé fixo
+        # Filtros por Coluna com lista rol├ível + rodap├® fixo
         self.col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(self.col_filters_group)
         from PyQt6.QtWidgets import QScrollArea
@@ -813,7 +833,7 @@ class SSAMainWindow(QMainWindow):
         self.col_filters_list_layout = QVBoxLayout(self.col_filters_container)
         self.col_filters_scroll.setWidget(self.col_filters_container)
         col_filters_outer.addWidget(self.col_filters_scroll, 1)
-        # Rodapé fixo
+        # Rodap├® fixo
         footer = QHBoxLayout(); footer.addStretch()
         self.clear_all_btn = QPushButton("Limpar todos filtros de colunas")
         self.clear_all_btn.setMaximumWidth(260)
@@ -822,7 +842,28 @@ class SSAMainWindow(QMainWindow):
         col_filters_outer.addLayout(footer)
 
         self._build_column_filters_panel()
-        bottom_layout.addWidget(self.col_filters_group, 4)
+        # Coluna da direita: grupo de filtros por coluna + resumo externo
+        right_col_widget = QWidget()
+        right_col = QVBoxLayout(right_col_widget)
+        right_col.setContentsMargins(0,0,0,0)
+        right_col.addWidget(self.col_filters_group)
+        try:
+            self.filters_summary_frame_right = QFrame()
+            self.filters_summary_frame_right.setFrameShape(QFrame.Shape.StyledPanel)
+            self.filters_summary_frame_right.setStyleSheet("")
+            fs_layout = QHBoxLayout(self.filters_summary_frame_right)
+            fs_layout.setContentsMargins(6,4,6,4)
+            fs_layout.setSpacing(8)
+            self.filters_summary_label_right = QLabel("Nenhum filtro ativo")
+            self.clear_all_filters_btn_right = QPushButton("Limpar todos os filtros")
+            self.clear_all_filters_btn_right.setMaximumWidth(200)
+            self.clear_all_filters_btn_right.clicked.connect(self._clear_all_filters_global)
+            fs_layout.addWidget(self.filters_summary_label_right, 1)
+            fs_layout.addWidget(self.clear_all_filters_btn_right, 0)
+            right_col.addWidget(self.filters_summary_frame_right)
+        except Exception:
+            pass
+        bottom_layout.addWidget(right_col_widget, 4)
 
         # Respiro antes do bloco inferior
         main_layout.addSpacing(12)
@@ -841,7 +882,7 @@ class SSAMainWindow(QMainWindow):
 
     def load_data(self):
         if not os.path.exists(DB_PATH):
-            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' não encontrado. Execute o programa principal primeiro.")
+            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' n├úo encontrado. Execute o programa principal primeiro.")
             return
 
         self.status_label.setText("Status: Carregando dados...")
@@ -859,7 +900,7 @@ class SSAMainWindow(QMainWindow):
         self.df_completo = df.copy()
         # Inicialmente, exibimos todos os dados
         base = df.copy()
-        # Ordenação padrão: não-STE primeiro; depois número SSA desc
+        # Ordena├º├úo padr├úo: n├úo-STE primeiro; depois n├║mero SSA desc
         try:
             if 'situacao' in base.columns:
                 is_ste = base['situacao'].astype(str).str.upper().eq('STE')
@@ -879,8 +920,8 @@ class SSAMainWindow(QMainWindow):
         self._df_last_search_filtered = df.copy()
         # Atualiza o paginador com o DataFrame completo
         self.paginator.set_dataframe(self.df_exibido)
-        # Exibe a primeira página
-        self.display_current_page(1)
+        # Exibe a primeira p├ígina
+        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: {len(self.df_completo)} SSAs carregadas. Pronto para filtrar.")
         self.clear_filter_button.setEnabled(True)
 
@@ -912,7 +953,7 @@ class SSAMainWindow(QMainWindow):
         self.load_button.setEnabled(False)
         self.search_button.setEnabled(False)
 
-        # Descobre default_mode nas configurações JSON (OTIMIZAÇÃO: usando cache)
+        # Descobre default_mode nas configura├º├Áes JSON (OTIMIZA├ç├âO: usando cache)
         if not hasattr(self, '_cached_default_mode'):
             gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
@@ -940,10 +981,10 @@ class SSAMainWindow(QMainWindow):
         self.df_exibido = df_final
         # Atualiza o paginador com o DataFrame filtrado
         self.paginator.set_dataframe(self.df_exibido)
-        # OTIMIZAÇÃO: Sinaliza que larguras precisam ser recalculadas para novo dataset
+        # OTIMIZA├ç├âO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
-        # Exibe a primeira página dos resultados filtrados (larguras serão calculadas lá)
-        self.display_current_page(1)
+        # Exibe a primeira p├ígina dos resultados filtrados (larguras ser├úo calculadas l├í)
+        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas.")
 
     def on_filter_error(self, error_msg: str):
@@ -963,11 +1004,11 @@ class SSAMainWindow(QMainWindow):
         self.df_exibido = self.df_completo.copy()
         self._df_last_search_filtered = self.df_completo.copy()
         self.paginator.set_dataframe(self.df_exibido)
-        self.display_current_page(1)
+        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
         self._build_column_filters_panel()
 
-    # --- Ordenação por clique no cabeçalho ---
+    # --- Ordena├º├úo por clique no cabe├ºalho ---
     def on_header_clicked(self, logical_index: int):
         try:
             if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -978,18 +1019,18 @@ class SSAMainWindow(QMainWindow):
             if logical_index >= len(self._current_display_columns):
                 return
             col_name = self._current_display_columns[logical_index]
-            # Ignora a coluna de índice
+            # Ignora a coluna de ├¡ndice
             if col_name == '#':
                 return
 
-            # Alterna direção ao clicar na mesma coluna
+            # Alterna dire├º├úo ao clicar na mesma coluna
             if getattr(self, 'sort_column', None) == col_name:
                 self.sort_ascending = not getattr(self, 'sort_ascending', True)
             else:
                 self.sort_column = col_name
                 self.sort_ascending = True
 
-            # Ordena resultado filtrado atual e reinicia paginação
+            # Ordena resultado filtrado atual e reinicia pagina├º├úo
             try:
                 self.df_exibido = self.df_exibido.sort_values(
                     by=self.sort_column,
@@ -1000,7 +1041,7 @@ class SSAMainWindow(QMainWindow):
                 pass
 
             self.paginator.set_dataframe(self.df_exibido)
-            self.display_current_page(1)
+            (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
 
             # Indicador visual na UI
             try:
@@ -1013,7 +1054,7 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
 
-    # --- Filtro por coluna via clique direito no cabeçalho ---
+    # --- Filtro por coluna via clique direito no cabe├ºalho ---
     def show_header_context_menu(self, pos):
         try:
             header = self.table_widget.horizontalHeader()
@@ -1039,7 +1080,7 @@ class SSAMainWindow(QMainWindow):
                 df = self._apply_column_filters(base)
                 self.df_exibido = df
                 self.paginator.set_dataframe(self.df_exibido)
-                self.display_current_page(1)
+                (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
                 self._build_column_filters_panel()
                 self._update_col_filter_indicator()
 
@@ -1083,7 +1124,7 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
 
-    # Garante menu de contexto no cabeçalho em qualquer tema/estilo
+    # Garante menu de contexto no cabe├ºalho em qualquer tema/estilo
     def eventFilter(self, obj, event):
         try:
             header = self.table_widget.horizontalHeader()
@@ -1092,11 +1133,11 @@ class SSAMainWindow(QMainWindow):
                 if et == QEvent.Type.ContextMenu:
                     self.show_header_context_menu(event.pos())
                     return True
-                # Qt6: MouseButtonPress com botão direito
+                # Qt6: MouseButtonPress com bot├úo direito
                 if et == QEvent.Type.MouseButtonPress:
                     btn = getattr(event, 'button', lambda: None)()
                     if btn == Qt.MouseButton.RightButton:
-                        # Compatível com position() (Qt6) e pos()
+                        # Compat├¡vel com position() (Qt6) e pos()
                         pos = getattr(event, 'position', None)
                         if callable(pos):
                             p = pos().toPoint()
@@ -1108,9 +1149,9 @@ class SSAMainWindow(QMainWindow):
             pass
         return super().eventFilter(obj, event)
 
-    # --- Helpers: painel e aplicação dos filtros por coluna ---
+    # --- Helpers: painel e aplica├º├úo dos filtros por coluna ---
     def _build_column_filters_panel(self):
-        # Escolhe layout de lista (compatível com versões antigas e novas)
+        # Escolhe layout de lista (compat├¡vel com vers├Áes antigas e novas)
         target_layout = None
         if hasattr(self, 'col_filters_list_layout'):
             target_layout = self.col_filters_list_layout
@@ -1140,13 +1181,12 @@ class SSAMainWindow(QMainWindow):
             name_lbl = QLabel(full_name)
             name_lbl.setMinimumWidth(100)
             try:
-                from PyQt6.QtWidgets import QSizePolicy
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
             term_box = QLineEdit(str(term))
-            term_box.setPlaceholderText("Separe por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
-            # Reduzido para garantir visibilidade dos botões em telas estreitas
+            term_box.setPlaceholderText("Separe por v├¡rgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
+            # Reduzido para garantir visibilidade dos bot├Áes em telas estreitas
             term_box.setMinimumWidth(220)
             term_box.setStyleSheet("font-size: 11px;")
             try:
@@ -1154,18 +1194,21 @@ class SSAMainWindow(QMainWindow):
             except Exception:
                 pass
             try:
-                from PyQt6.QtWidgets import QSizePolicy
                 term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
-            # Botão Aplicar atualiza o filtro com o texto da caixa
+            # Enter aplica o filtro desta coluna
+            try:
+                term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
+            except Exception:
+                pass
+            # Bot├úo Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             try:
                 apply_btn.setMinimumHeight(26)
             except Exception:
                 pass
             try:
-                from PyQt6.QtWidgets import QSizePolicy
                 apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
@@ -1179,18 +1222,25 @@ class SSAMainWindow(QMainWindow):
                     base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
                     self.df_exibido = self._apply_column_filters(base)
                     self.paginator.set_dataframe(self.df_exibido)
-                    self.display_current_page(1)
+                    try:
+                        current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
+                        self.display_current_page(current)
+                    except Exception:
+                        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
                     self._update_col_filter_indicator()
+                    try:
+                        self._update_filters_summary()
+                    except Exception:
+                        pass
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
-            # Botão Limpar remove o filtro da coluna
+            # Bot├úo Limpar remove o filtro da coluna
             clear_btn = QPushButton("Limpar")
             try:
                 clear_btn.setMinimumHeight(26)
             except Exception:
                 pass
             try:
-                from PyQt6.QtWidgets import QSizePolicy
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
@@ -1199,7 +1249,7 @@ class SSAMainWindow(QMainWindow):
             except Exception:
                 pass
             def _mk_clear(c=col):
-                return lambda: self._clear_single_column_filter(c)
+                return lambda: self._clear_single_column_filter(c, term_box.text().strip())
             clear_btn.clicked.connect(_mk_clear())
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
@@ -1209,8 +1259,8 @@ class SSAMainWindow(QMainWindow):
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
 
-        # Botão limpar todos
-        # Rodapé centralizado (se não houver barra fixa)
+        # Bot├úo limpar todos
+        # Rodap├® centralizado (se n├úo houver barra fixa)
         if not hasattr(self, 'clear_all_btn'):
             clear_all = QPushButton("Limpar todos filtros de colunas")
             clear_all.setMaximumWidth(260)
@@ -1224,9 +1274,15 @@ class SSAMainWindow(QMainWindow):
             target_layout.addWidget(row_w)
         target_layout.addStretch()
 
-    def _clear_single_column_filter(self, col_name: str):
+    def _clear_single_column_filter(self, col_name: str, current_text: str = None):
         if col_name in self._active_column_filters:
-            # Para filtros padrão, não remover a linha: apenas limpar o termo
+            # Se já está vazio e o campo também está vazio, não faz nada
+            try:
+                if str(self._active_column_filters.get(col_name, '')).strip() == '' and (current_text is None or str(current_text).strip() == ''):
+                    return
+            except Exception:
+                pass
+            # Para filtros padrão, manter a entrada vazia; demais, remover
             default_keep = {"situacao", "setor_executor", "descricao_ssa"}
             if col_name in default_keep:
                 self._active_column_filters[col_name] = ""
@@ -1235,20 +1291,20 @@ class SSAMainWindow(QMainWindow):
             base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
             self.df_exibido = self._apply_column_filters(base)
             self.paginator.set_dataframe(self.df_exibido)
-            self.display_current_page(1)
+            (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
             self._build_column_filters_panel()
             self._update_col_filter_indicator()
 
     def _clear_all_column_filters(self):
         if self._active_column_filters is not None:
-            # Preserva entradas padrão (Situação, Executor, Descrição da SSA) como vazias
+            # Preserva entradas padr├úo (Situa├º├úo, Executor, Descri├º├úo da SSA) como vazias
             self._active_column_filters.clear()
             for k in ("situacao", "setor_executor", "descricao_ssa"):
                 self._active_column_filters[k] = ""
             base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
             self.df_exibido = base.copy()
             self.paginator.set_dataframe(self.df_exibido)
-            self.display_current_page(1)
+            (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
             self._build_column_filters_panel()
             self._update_col_filter_indicator()
 
@@ -1266,28 +1322,33 @@ class SSAMainWindow(QMainWindow):
             from utils.themes import get_palette, normalize_theme  # fallback defensivo
         except Exception:
             pass
-        pal = get_palette(name)
-        self.setPalette(pal)
+        try:
+            from PyQt6.QtWidgets import QApplication, QStyleFactory
+            if (name or '').lower() == 'light':
+                pal = QApplication.style().standardPalette()
+                self.setPalette(pal)
+            else:
+                pal = get_palette(name)
+                self.setPalette(pal)
+        except Exception:
+            pal = get_palette(name)
+            self.setPalette(pal)
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
         except Exception:
             pass
-        # Ajustes de contraste por tema para rótulos informativos
+        # Ajustes de contraste por tema para r├│tulos informativos
         try:
             theme = (name or '').lower()
             if theme == 'light':
-                # Caixa da semana e status com cinza claro e borda (#eee / #aaa)
+                # Usar aparencia padrao do sistema/Fusion; sem CSS pesado
                 if hasattr(self, 'week_label') and self.week_label is not None:
-                    self.week_label.setStyleSheet(
-                        "font-weight:600; color:#222; background:#eee; border:1px solid #aaa; border-radius:4px; padding:2px 6px;"
-                    )
+                    self.week_label.setStyleSheet("")
                 if hasattr(self, 'status_label') and self.status_label is not None:
-                    self.status_label.setStyleSheet(
-                        "color:#222; background:#eee; border:1px solid #aaa; border-radius:4px; padding:2px 6px;"
-                    )
+                    self.status_label.setStyleSheet("")
                 if hasattr(self, 'search_help') and self.search_help is not None:
-                    self.search_help.setStyleSheet("font-size:10px; color:#555; margin:0; padding:0;")
+                    self.search_help.setStyleSheet("")
             else:
                 # Temas escuros (inclui Gruvbox) com contraste garantido
                 if hasattr(self, 'week_label') and self.week_label is not None:
@@ -1302,7 +1363,7 @@ class SSAMainWindow(QMainWindow):
                     self.search_help.setStyleSheet("font-size:10px; color:#b8b8b8; margin:0; padding:0;")
         except Exception:
             pass
-        # Persistência
+        # Persist├¬ncia
         try:
             GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalize_theme(name)
             with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
@@ -1311,9 +1372,9 @@ class SSAMainWindow(QMainWindow):
             pass
 
     def _update_col_filter_indicator(self):
-        # Ativo quando existe ao menos um termo não vazio em filtros por coluna
+        # Ativo quando existe ao menos um termo n├úo vazio em filtros por coluna
         active = any((str(v).strip() != "") for k, v in (self._active_column_filters or {}).items())
-        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Não-ativo"
+        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: N├úo-ativo"
         if hasattr(self, 'col_filter_indicator') and self.col_filter_indicator is not None:
             self.col_filter_indicator.setText(txt)
 
@@ -1338,13 +1399,13 @@ class SSAMainWindow(QMainWindow):
         return out
 
     def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
-        # Divide por vírgulas ou espaços
+        # Divide por v├¡rgulas ou espa├ºos
         tokens = [t.strip() for t in raw.replace('\n',' ').split(',')]
         tokens = [t for tok in tokens for t in tok.split() if t]
         if not tokens:
             return pd.Series([True]*len(series), index=series.index)
 
-        # Determina modo padrão a partir das preferências
+        # Determina modo padr├úo a partir das prefer├¬ncias
         if not hasattr(self, '_cached_default_mode'):
             gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
@@ -1358,7 +1419,7 @@ class SSAMainWindow(QMainWindow):
                 # Considera nulos, strings vazias e '-'
                 res = s.isna() | (s.str.strip().eq('', na=False)) | (s == '-')
                 return ~res if neg else res
-            # Regex explícito
+            # Regex expl├¡cito
             if t.startswith('~') and len(t) > 1:
                 try:
                     import re
@@ -1390,7 +1451,7 @@ class SSAMainWindow(QMainWindow):
                     res = s.str.contains(t, case=False, na=False)
             return ~res if neg else res
 
-        # OR entre inclusões; exclusões (com !) removem
+        # OR entre inclus├Áes; exclus├Áes (com !) removem
         includes = [tok for tok in tokens if not tok.startswith('!')]
         excludes = [tok for tok in tokens if tok.startswith('!')]
 
@@ -1405,16 +1466,16 @@ class SSAMainWindow(QMainWindow):
         return m
 
     def on_columns_changed(self, new_columns):
-        """Chamado quando a seleção de colunas muda."""
+        """Chamado quando a sele├º├úo de colunas muda."""
         self.visible_columns = new_columns
-        # Reexibe a página atual com as novas colunas
+        # Reexibe a p├ígina atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
-        # Nota: Persistência de preferências removida para isolamento do CLI
-        # As configurações ficam no arquivo gui_main_preferences.json
+        # Nota: Persist├¬ncia de prefer├¬ncias removida para isolamento do CLI
+        # As configura├º├Áes ficam no arquivo gui_main_preferences.json
 
     def display_current_page(self, page_number):
-        """Exibe a página especificada do DataFrame filtrado."""
-        # Obtem o slice de dados para a página atual do paginator
+        """Exibe a p├ígina especificada do DataFrame filtrado."""
+        # Obtem o slice de dados para a p├ígina atual do paginator
         self.df_para_tabela = self.paginator.get_current_slice()
 
         if self.df_para_tabela.empty:
@@ -1422,7 +1483,7 @@ class SSAMainWindow(QMainWindow):
             self.table_widget.setColumnCount(0)
             return
 
-        # Seleciona apenas as colunas visíveis
+        # Seleciona apenas as colunas vis├¡veis
         cols_to_show = [col for col in self.visible_columns if col in self.df_para_tabela.columns]
         if not cols_to_show:
             # Se nenhuma coluna selecionada for valida, mostra as padroes
@@ -1431,14 +1492,14 @@ class SSAMainWindow(QMainWindow):
                 # Ultimo recurso: mostra todas
                 cols_to_show = self.df_para_tabela.columns.tolist()
 
-        # Mantém a ordem EXATA definida em gui_main_preferences.json
-        # Sem reordenação para garantir correspondência com as larguras calculadas
+        # Mant├®m a ordem EXATA definida em gui_main_preferences.json
+        # Sem reordena├º├úo para garantir correspond├¬ncia com as larguras calculadas
 
         display_df = self.df_para_tabela[cols_to_show].copy()
-        # Mantém colunas atuais para mapear índice->nome ao salvar larguras
+        # Mant├®m colunas atuais para mapear ├¡ndice->nome ao salvar larguras
         self._current_display_columns = ['#'] + list(display_df.columns)
 
-        # Adiciona a coluna de índice '#'
+        # Adiciona a coluna de ├¡ndice '#'
         if '#' not in display_df.columns:
             display_df.insert(
                 0,
@@ -1449,8 +1510,8 @@ class SSAMainWindow(QMainWindow):
                 ),
             )
 
-        # Aplica formatação compartilhada para exibição (datas, numeros, SSA, nulls)
-        # OTIMIZAÇÃO: Cache formatação para evitar reformatar dados inalterados
+        # Aplica formata├º├úo compartilhada para exibi├º├úo (datas, numeros, SSA, nulls)
+        # OTIMIZA├ç├âO: Cache formata├º├úo para evitar reformatar dados inalterados
         display_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)) + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else ''))
         
         # Usa CacheManager unificado para cache de DataFrame formatado
@@ -1461,17 +1522,17 @@ class SSAMainWindow(QMainWindow):
                 self.cache_manager.cache_formatted_df(display_df_hash, formatted_df)
                 display_df = formatted_df
             except Exception:
-                # falha de formatação não deve quebrar a GUI; segue sem formatar
+                # falha de formata├º├úo n├úo deve quebrar a GUI; segue sem formatar
                 pass
         else:
-            # Usa versão formatada do cache
+            # Usa vers├úo formatada do cache
             display_df = cached_formatted
 
     # Configura a tabela
         self.table_widget.setRowCount(len(display_df))
         self.table_widget.setColumnCount(len(display_df.columns))
 
-        # Define cabeçalhos de exibição com indicador de filtro [f] por coluna
+        # Define cabe├ºalhos de exibi├º├úo com indicador de filtro [f] por coluna
         display_headers = []
         for col in display_df.columns:
             base = '#' if col == '#' else self.internal_to_display.get(col, col)
@@ -1497,16 +1558,16 @@ class SSAMainWindow(QMainWindow):
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
 
-                # CORREÇÃO v3.0.5: Não truncar colunas de descrição e solicitante - deixar word wrap funcionar
+                # CORRE├ç├âO v3.0.5: N├úo truncar colunas de descri├º├úo e solicitante - deixar word wrap funcionar
                 if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
-                    # Trunca apenas colunas que não são de descrição
+                    # Trunca apenas colunas que n├úo s├úo de descri├º├úo
                     max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
                     if len(item_text) > max_chars:
                         item_text = item_text[:max_chars-3] + "..."
 
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                # Armazena o índice da linha original nos dados filtrados para referência
+                # Armazena o ├¡ndice da linha original nos dados filtrados para refer├¬ncia
                 if col_name == '#':
                     item.setData(
                         Qt.ItemDataRole.UserRole,
@@ -1515,7 +1576,7 @@ class SSAMainWindow(QMainWindow):
                 self.table_widget.setItem(row_idx, col_idx, item)
 
         # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
-        # ou quando a largura útil do viewport mudar significativamente
+        # ou quando a largura ├║til do viewport mudar significativamente
         cols_sig = tuple(display_df.columns)
         try:
             vw = self.table_widget.viewport().width()
@@ -1533,21 +1594,21 @@ class SSAMainWindow(QMainWindow):
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
             
         for i, col_name in enumerate(display_df.columns):
-            # Usa a coluna diretamente do DataFrame (que já inclui '#')
+            # Usa a coluna diretamente do DataFrame (que j├í inclui '#')
             col_key = col_name
                 
             px = getattr(self, '_gui_column_pixel_widths', {}).get(col_key)
             
-            # Se não há largura calculada, usa configuração salva manualmente pelo usuário
+            # Se n├úo h├í largura calculada, usa configura├º├úo salva manualmente pelo usu├írio
             if px is None:
                 px = self._saved_gui_column_widths.get(col_key)
             
-            # Fallbacks apenas se nenhuma das anteriores estiver disponível
+            # Fallbacks apenas se nenhuma das anteriores estiver dispon├¡vel
             if px is None:
                 if col_key == '#':
                     px = 30
                 elif col_key == 'numero_ssa':
-                    px = 110  # leve aumento para leitura do nº SSA
+                    px = 110  # leve aumento para leitura do n┬║ SSA
                 elif col_key == 'localizacao_codigo':
                     px = 86  # 10 chars * 7 + 16  
                 elif col_key == 'situacao':
@@ -1563,17 +1624,17 @@ class SSAMainWindow(QMainWindow):
                 elif col_key == 'semana_programada':
                     px = 72  # 8 chars * 7 + 16
                 elif col_key == 'descricao_execucao':
-                    px = 280  # Menor que descrição_ssa
+                    px = 280  # Menor que descri├º├úo_ssa
                 else:
                     px = 80  # Fallback geral
             
-            # Aplica limites de segurança apenas
+            # Aplica limites de seguran├ºa apenas
             px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
             
-            # print(f"DEBUG: Aplicando largura {px}px para coluna '{col_key}' (índice {i})")
+            # print(f"DEBUG: Aplicando largura {px}px para coluna '{col_key}' (├¡ndice {i})")
             self.table_widget.setColumnWidth(i, px)
             
-        # CORREÇÃO: Desabilitado temporariamente para evitar conflitos com best-fit
+        # CORRE├ç├âO: Desabilitado temporariamente para evitar conflitos com best-fit
         # QTimer.singleShot(100, self._force_column_widths)
 
         # Seleciona a primeira linha (se houver) e atualiza detalhes
@@ -1582,12 +1643,12 @@ class SSAMainWindow(QMainWindow):
         self.update_details_from_selection()
 
     def _force_column_widths(self):
-        """Força reaplicação das larguras das colunas para garantir que sejam respeitadas."""
+        """For├ºa reaplica├º├úo das larguras das colunas para garantir que sejam respeitadas."""
         if not hasattr(self, 'visible_columns') or not self.visible_columns:
             return
             
         for i, col_name in enumerate(['#'] + self.visible_columns):
-            # Busca largura salva das configurações
+            # Busca largura salva das configura├º├Áes
             px = self._saved_gui_column_widths.get(col_name)
             if px is not None:
                 current_width = self.table_widget.columnWidth(i)
@@ -1597,39 +1658,39 @@ class SSAMainWindow(QMainWindow):
     def _compute_gui_column_widths(self, df: pd.DataFrame):
         """
         Calcula larguras de colunas usando o WidthManager unificado.
-        Substitui 150+ linhas de código frankenstein por uma chamada limpa.
+        Substitui 150+ linhas de c├│digo frankenstein por uma chamada limpa.
         """
         try:
             # Garante que visible_columns esteja definido
             if not hasattr(self, 'visible_columns') or not self.visible_columns:
                 return
             
-            # CORREÇÃO CRÍTICA: Filtra visible_columns para incluir apenas colunas que EXISTEM no DataFrame
+            # CORRE├ç├âO CR├ìTICA: Filtra visible_columns para incluir apenas colunas que EXISTEM no DataFrame
             if hasattr(df, 'columns'):
                 existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
                 if not existing_visible_cols:
-                    print("ERRO: Nenhuma coluna visível encontrada no DataFrame")
+                    print("ERRO: Nenhuma coluna vis├¡vel encontrada no DataFrame")
                     return
                 
-                # IMPORTANTE: Mantém a ordem exata de self.visible_columns
+                # IMPORTANTE: Mant├®m a ordem exata de self.visible_columns
                 visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
             else:
                 visible_df = df
             
-            # Obtém largura da tabela
+            # Obt├®m largura da tabela
             widget_width = self.table_widget.width()
             viewport_width = self.table_widget.viewport().width()
             
-            if widget_width < 500:  # Tabela ainda não inicializada
+            if widget_width < 500:  # Tabela ainda n├úo inicializada
                 table_width = max(1400, self.width() - 50)
             else:
                 table_width = widget_width - 40  # Margem para scrollbars
             
-            # Garante largura mínima para funcionamento adequado
+            # Garante largura m├¡nima para funcionamento adequado
             table_width = max(table_width, 1400)
             
             # Usa o WidthManager para calcular larguras otimizadas  
-            # IMPORTANTE: Força ordem correta das colunas (adiciona '#' no início)
+            # IMPORTANTE: For├ºa ordem correta das colunas (adiciona '#' no in├¡cio)
             correct_column_order = ['#'] + existing_visible_cols
             column_widths = self.width_manager.compute_optimal_widths(
                 df=visible_df,
@@ -1639,17 +1700,17 @@ class SSAMainWindow(QMainWindow):
                 column_order=correct_column_order
             )
             
-            # Mantém compatibilidade com código existente
+            # Mant├®m compatibilidade com c├│digo existente
             self._gui_column_pixel_widths = column_widths
             
         except Exception as e:
             print(f"ERRO em _compute_gui_column_widths: {e}")
-            # Fallback para larguras mínimas das colunas visíveis apenas
+            # Fallback para larguras m├¡nimas das colunas vis├¡veis apenas
             visible_cols = ['#'] + (self.visible_columns if hasattr(self, 'visible_columns') else [])
             self._gui_column_pixel_widths = {col: 100 for col in visible_cols}
 
     def _calculate_max_chars_for_column(self, col_name: str, col_idx: int) -> int:
-        """Calcula o número máximo de caracteres baseado na largura da coluna."""
+        """Calcula o n├║mero m├íximo de caracteres baseado na largura da coluna."""
         try:
             # Usa largura calculada pelo WidthManager ou largura atual da coluna
             width_px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
@@ -1657,14 +1718,14 @@ class SSAMainWindow(QMainWindow):
                 width_px = self.table_widget.columnWidth(col_idx)
             
             # Converte pixels em caracteres (aproximadamente 7px por caractere)
-            max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores proporções
+            max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores propor├º├Áes
             
-            # Limites específicos por tipo de coluna
+            # Limites espec├¡ficos por tipo de coluna
             if col_name in ['descricao_ssa', 'descricao_execucao']:
-                # Descrições podem usar toda largura disponível
-                max_chars = max(50, max_chars)  # Mínimo mais alto para descrições
+                # Descri├º├Áes podem usar toda largura dispon├¡vel
+                max_chars = max(50, max_chars)  # M├¡nimo mais alto para descri├º├Áes
             elif col_name in ['numero_ssa', 'localizacao_codigo']:
-                # Campos curtos não precisam de muito espaço
+                # Campos curtos n├úo precisam de muito espa├ºo
                 max_chars = min(max_chars, 25)
             elif col_name == 'solicitante':
                 # Solicitante deve caber pelo menos "MAURICIO MENON"
@@ -1679,7 +1740,7 @@ class SSAMainWindow(QMainWindow):
             return 80
 
     def _on_header_section_resized(self, logical_index: int, old_size: int, new_size: int):
-        """Salva a largura ajustada pelo usuário na configuração persistente."""
+        """Salva a largura ajustada pelo usu├írio na configura├º├úo persistente."""
         try:
             cols = getattr(self, '_current_display_columns', None)
             if not cols or logical_index < 0 or logical_index >= len(cols):
@@ -1689,35 +1750,35 @@ class SSAMainWindow(QMainWindow):
             new_px = max(30, min(int(new_size), 1200))
             # Atualiza cache local - TEMPORARIAMENTE DESABILITADO para usar larguras fixas
             # self._saved_gui_column_widths[col_name] = new_px
-            # Nota: Persistência removida para isolamento do CLI
+            # Nota: Persist├¬ncia removida para isolamento do CLI
             # As larguras ficam configuradas no arquivo gui_main_preferences.json
         except Exception:
             # Evita quebrar a GUI por falhas de IO
             pass
 
     def on_table_double_click(self, index):
-        """Placeholder para ação de clique duplo (ex: mostrar detalhes)."""
+        """Placeholder para a├º├úo de clique duplo (ex: mostrar detalhes)."""
         row = index.row()
-        # O item da coluna '#' contém o índice da linha original
-        index_item = self.table_widget.item(row, 0)  # Assume '#' é a primeira coluna
+        # O item da coluna '#' cont├®m o ├¡ndice da linha original
+        index_item = self.table_widget.item(row, 0)  # Assume '#' ├® a primeira coluna
         if index_item:
             original_index = index_item.data(Qt.ItemDataRole.UserRole)
             if original_index is not None and 0 <= original_index < len(self.df_exibido):
-                # Aqui você chamaria uma função para mostrar detalhes
+                # Aqui voc├¬ chamaria uma fun├º├úo para mostrar detalhes
                 # Ex: show_details_window(self.df_exibido.iloc[original_index])
                 QMessageBox.information(
                     self,
                     "Detalhes",
-                    f"Detalhes para SSA na linha {original_index + 1} (página {self.paginator.current_page})\n"
+                    f"Detalhes para SSA na linha {original_index + 1} (p├ígina {self.paginator.current_page})\n"
                     f"Dados: {self.df_exibido.iloc[original_index].to_dict()}",
                 )
             else:
-                QMessageBox.information(self, "Info", "Não foi possível encontrar os dados detalhados para esta linha.")
+                QMessageBox.information(self, "Info", "N├úo foi poss├¡vel encontrar os dados detalhados para esta linha.")
 
     def _save_page_size_pref(self, new_size: int):
-        """Persiste o tamanho da página no settings."""
-        # Nota: Persistência removida para isolamento do CLI
-        # O tamanho da página fica configurado no arquivo gui_main_preferences.json
+        """Persiste o tamanho da p├ígina no settings."""
+        # Nota: Persist├¬ncia removida para isolamento do CLI
+        # O tamanho da p├ígina fica configurado no arquivo gui_main_preferences.json
         pass
 
     def update_details_from_selection(self):
@@ -1739,13 +1800,13 @@ class SSAMainWindow(QMainWindow):
             self.details_text.clear()
             return
 
-        # Usa dados originais (não formatados) para detalhes
+        # Usa dados originais (n├úo formatados) para detalhes
         series = self.df_exibido.iloc[int(original_index)]
-        # Constrói um texto amigável com nomes de exibição
+        # Constr├│i um texto amig├ível com nomes de exibi├º├úo
         lines = []
         for col, value in series.items():
             display_name = self.internal_to_display.get(col, col)
-            # Mostra numero_ssa "natural" (int se possível)
+            # Mostra numero_ssa "natural" (int se poss├¡vel)
             if col == 'numero_ssa':
                 try:
                     if pd.notna(value):
@@ -1762,8 +1823,8 @@ class SSAMainWindow(QMainWindow):
         if self.table_widget.itemAt(position):
             menu = QMenu(self)
             
-            # Ações para células
-            copy_cell_action = QAction("Copiar Valor da Célula", self)
+            # A├º├Áes para c├®lulas
+            copy_cell_action = QAction("Copiar Valor da C├®lula", self)
             copy_cell_action.triggered.connect(self.copy_cell_value)
             menu.addAction(copy_cell_action)
             
@@ -1773,11 +1834,11 @@ class SSAMainWindow(QMainWindow):
             
             menu.addSeparator()
             
-            # Ações para colunas
+            # A├º├Áes para colunas
             current_item = self.table_widget.itemAt(position)
             if current_item:
                 column = current_item.column()
-                if column > 0:  # Não permitir remover a coluna de índice
+                if column > 0:  # N├úo permitir remover a coluna de ├¡ndice
                     column_name = self.table_widget.horizontalHeaderItem(column).text()
                     
                     remove_column_action = QAction(f"Remover Coluna '{column_name}'", self)
@@ -1791,7 +1852,7 @@ class SSAMainWindow(QMainWindow):
             menu.exec(self.table_widget.mapToGlobal(position))
 
     def copy_cell_value(self):
-        """Copia o valor da célula selecionada."""
+        """Copia o valor da c├®lula selecionada."""
         current_item = self.table_widget.currentItem()
         if current_item:
             clipboard = QApplication.clipboard()
@@ -1810,19 +1871,19 @@ class SSAMainWindow(QMainWindow):
             clipboard.setText("\t".join(row_data))
 
     def remove_column_by_index(self, column_index):
-        """Remove uma coluna específica baseada no índice."""
-        if column_index > 0 and column_index < len(self.visible_columns):  # Protege coluna de índice
-            internal_column = self.visible_columns[column_index - 1]  # -1 porque há coluna '#'
+        """Remove uma coluna espec├¡fica baseada no ├¡ndice."""
+        if column_index > 0 and column_index < len(self.visible_columns):  # Protege coluna de ├¡ndice
+            internal_column = self.visible_columns[column_index - 1]  # -1 porque h├í coluna '#'
             if internal_column in self.visible_columns:
                 self.visible_columns.remove(internal_column)
                 self.on_columns_changed(self.visible_columns)
 
     def auto_fit_column(self, column_index):
-        """Ajusta automaticamente a largura da coluna baseada no conteúdo."""
+        """Ajusta automaticamente a largura da coluna baseada no conte├║do."""
         self.table_widget.resizeColumnToContents(column_index)
         # Salva a nova largura
         header_item = self.table_widget.horizontalHeaderItem(column_index)
-        if header_item and column_index > 0:  # Não salvar largura da coluna de índice
+        if header_item and column_index > 0:  # N├úo salvar largura da coluna de ├¡ndice
             internal_column = self.visible_columns[column_index - 1] if column_index <= len(self.visible_columns) else None
             if internal_column:
                 new_width = self.table_widget.columnWidth(column_index)
@@ -1838,19 +1899,19 @@ class SSAMainWindow(QMainWindow):
             # Executa o main.py para reprocessar dados
             main_py_path = os.path.join(project_root, 'main.py')
             if os.path.exists(main_py_path):
-                # Executa de forma assíncrona
+                # Executa de forma ass├¡ncrona
                 result = subprocess.run([
                     sys.executable, main_py_path
                 ], capture_output=True, text=True, cwd=project_root)
                 
                 if result.returncode == 0:
-                    self.status_label.setText("Status: Reescaneamento concluído. Clique em 'Carregar Dados' para atualizar.")
-                    QMessageBox.information(self, "Sucesso", "Reescaneamento concluído com sucesso!")
+                    self.status_label.setText("Status: Reescaneamento conclu├¡do. Clique em 'Carregar Dados' para atualizar.")
+                    QMessageBox.information(self, "Sucesso", "Reescaneamento conclu├¡do com sucesso!")
                 else:
                     self.status_label.setText("Status: Erro no reescaneamento.")
                     QMessageBox.warning(self, "Erro", f"Erro no reescaneamento:\n{result.stderr}")
             else:
-                QMessageBox.warning(self, "Erro", f"Arquivo main.py não encontrado em {main_py_path}")
+                QMessageBox.warning(self, "Erro", f"Arquivo main.py n├úo encontrado em {main_py_path}")
                 
         except Exception as e:
             self.status_label.setText("Status: Erro no reescaneamento.")
@@ -1870,7 +1931,7 @@ class SSAMainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
         else:
-            QMessageBox.warning(self, "Erro", f"Pasta não encontrada: {docs_path}")
+            QMessageBox.warning(self, "Erro", f"Pasta n├úo encontrada: {docs_path}")
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
@@ -1884,7 +1945,7 @@ class SSAMainWindow(QMainWindow):
         
         if db_file and os.path.exists(db_file):
             try:
-                # Testa se o arquivo é um banco válido
+                # Testa se o arquivo ├® um banco v├ílido
                 test_df = query_db(db_file, TABLE_NAME)
                 if test_df is not None and not test_df.empty:
                     # Atualiza o caminho do banco
@@ -1893,11 +1954,11 @@ class SSAMainWindow(QMainWindow):
                     self.status_label.setText(f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}")
                     QMessageBox.information(self, "Sucesso", f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.")
                 else:
-                    QMessageBox.warning(self, "Erro", "O arquivo selecionado não contém dados válidos na tabela 'ssas'.")
+                    QMessageBox.warning(self, "Erro", "O arquivo selecionado n├úo cont├®m dados v├ílidos na tabela 'ssas'.")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
-        elif db_file:  # Arquivo selecionado mas não existe
-            QMessageBox.warning(self, "Erro", "Arquivo selecionado não existe.")
+        elif db_file:  # Arquivo selecionado mas n├úo existe
+            QMessageBox.warning(self, "Erro", "Arquivo selecionado n├úo existe.")
 
     def load_persistent_filters(self):
         """Carrega filtros persistentes salvos (inicia vazio)."""
@@ -1911,13 +1972,13 @@ class SSAMainWindow(QMainWindow):
             QMessageBox.information(self, "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
             return
         
-        # Cria um nome baseado no filtro (limitado para exibição)
+        # Cria um nome baseado no filtro (limitado para exibi├º├úo)
         filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
         
-        # Verifica se já existe
+        # Verifica se j├í existe
         for f in self.persistent_filters:
             if f["terms"] == current_text:
-                QMessageBox.information(self, "Aviso", "Este filtro já está salvo.")
+                QMessageBox.information(self, "Aviso", "Este filtro j├í est├í salvo.")
                 return
         
         # Adiciona novo filtro
@@ -1970,14 +2031,14 @@ class SSAMainWindow(QMainWindow):
             tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
             tag_button.clicked.connect(lambda checked, terms=filter_data["terms"]: self.apply_persistent_filter(terms))
             
-            # Botão X para remover
-            remove_button = QPushButton("×")
+            # Bot├úo X para remover
+            remove_button = QPushButton("├ù")
             remove_button.setMaximumSize(20, 20)
             remove_button.setStyleSheet(tag_css)
             remove_button.setToolTip("Remover filtro")
             remove_button.clicked.connect(lambda checked, filter_data=filter_data: self.remove_persistent_filter(filter_data))
             
-            # Layout horizontal para tag + botão remover
+            # Layout horizontal para tag + bot├úo remover
             tag_layout = QHBoxLayout()
             tag_layout.setContentsMargins(0, 0, 0, 0)
             tag_layout.setSpacing(2)
@@ -2005,44 +2066,44 @@ class SSAMainWindow(QMainWindow):
                 self.initiate_filtering()
 
     def resizeEvent(self, event):
-        """Reotimiza larguras das colunas quando a janela é redimensionada."""
+        """Reotimiza larguras das colunas quando a janela ├® redimensionada."""
         super().resizeEvent(event)
         
-        # Só recalcula se há dados carregados e uma mudança significativa na largura
+        # S├│ recalcula se h├í dados carregados e uma mudan├ºa significativa na largura
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and 
             hasattr(self, '_last_window_width')):
             width_change = abs(event.size().width() - self._last_window_width)
-            if width_change > 12:  # Só recalcula se mudança for > 12px
-                # Delay para evitar recálculos excessivos durante resize
+            if width_change > 12:  # S├│ recalcula se mudan├ºa for > 12px
+                # Delay para evitar rec├ílculos excessivos durante resize
                 QTimer.singleShot(300, self._recompute_column_widths_on_resize)
         
         # Salva largura atual
         self._last_window_width = event.size().width()
 
     def _recompute_column_widths_on_resize(self):
-        """Recalcula e aplica larguras das colunas após resize da janela."""
+        """Recalcula e aplica larguras das colunas ap├│s resize da janela."""
         try:
-            # Verifica se widgets estão em estado válido
+            # Verifica se widgets est├úo em estado v├ílido
             if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
                 not self.table_widget or not self.table_widget.isVisible()):
                 return
                 
-            # Recalcula larguras com nova dimensão da janela usando WidthManager
+            # Recalcula larguras com nova dimens├úo da janela usando WidthManager
             self._compute_gui_column_widths(self.df_para_tabela)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
         except Exception as e:
-            print(f"AVISO: Erro durante recálculo de larguras no resize: {e}")
+            print(f"AVISO: Erro durante rec├ílculo de larguras no resize: {e}")
 
     def _apply_computed_widths_only(self):
-        """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
+        """Aplica apenas as larguras calculadas pelo WidthManager (ignora configura├º├Áes salvas)."""
         try:
             if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
                 not hasattr(self, '_gui_column_pixel_widths') or 
                 not self.table_widget or not self.table_widget.isVisible()):
                 return
             
-            # CORREÇÃO CRÍTICA: Usar _current_display_columns que contém apenas as colunas visíveis filtradas
+            # CORRE├ç├âO CR├ìTICA: Usar _current_display_columns que cont├®m apenas as colunas vis├¡veis filtradas
             # Em vez de ['#'] + todas as colunas do df_para_tabela
             if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
                 return
@@ -2055,27 +2116,27 @@ class SSAMainWindow(QMainWindow):
                     col_index = table_columns.index(col_name)
                     if col_index < self.table_widget.columnCount():
                         current_width = self.table_widget.columnWidth(col_index)
-                        if current_width != px:  # Só aplica se diferente
+                        if current_width != px:  # S├│ aplica se diferente
                             self.table_widget.setColumnWidth(col_index, px)
                     
         except Exception as e:
-            print(f"AVISO: Erro durante aplicação de larguras: {e}")
+            print(f"AVISO: Erro durante aplica├º├úo de larguras: {e}")
 
     def closeEvent(self, event):
         """
-        Método chamado quando a janela é fechada.
+        M├®todo chamado quando a janela ├® fechada.
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
-        # Aguarda finalização do data loader thread se estiver rodando
+        # Aguarda finaliza├º├úo do data loader thread se estiver rodando
         if hasattr(self, 'data_loader_thread') and self.data_loader_thread and self.data_loader_thread.isRunning():
             self.data_loader_thread.quit()
-            self.data_loader_thread.wait(3000)  # Aguarda até 3 segundos
+            self.data_loader_thread.wait(3000)  # Aguarda at├® 3 segundos
             
-        # Aguarda finalização do filter thread se estiver rodando  
+        # Aguarda finaliza├º├úo do filter thread se estiver rodando  
         if hasattr(self, 'filter_thread') and self.filter_thread and self.filter_thread.isRunning():
             self.filter_thread.quit()
-            self.filter_thread.wait(3000)  # Aguarda até 3 segundos
+            self.filter_thread.wait(3000)  # Aguarda at├® 3 segundos
             
         # Aceita o evento de fechamento
         event.accept()
@@ -2086,3 +2147,8 @@ if __name__ == '__main__':
     window = SSAMainWindow()
     window.show()
     sys.exit(app.exec())
+
+
+
+
+

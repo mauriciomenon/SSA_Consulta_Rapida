@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-# main.py (v3.10 – Help melhorado, documentação clara)
+# main.py
 """
-Ponto de entrada da aplicação de Consulta Rápida de SSAs.
+Ponto de entrada da aplicacao de Consulta Rapida de SSAs.
 
-Versão com help melhorado conforme solicitação do usuário:
-- Diferença clara entre --force-rescan e --rescan
-- Sub-chaves organizadas do --optimized
-- Help exibido na inicialização antes do prompt
+Inicializa logging, processa argumentos de linha de comando
+e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 """
 
 import os
@@ -64,7 +62,7 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 def get_app_version():
-    """Obtém versão da aplicação"""
+    """Obtém versão da aplicacao"""
     try:
         from utils.version import get_app_version as _get_version
         return _get_version()
@@ -73,37 +71,37 @@ def get_app_version():
 
 def main(cli_args=None):
     """
-    Função principal da aplicação com help melhorado.
+    Função principal da aplicacao com help melhorado.
 
     Args:
         cli_args (list, optional): Argumentos da linha de comando para testes.
-                                   Se None, sys.argv é usado.
+                                   Se None, sys.argv e é usado.
     """
     APP_VERSION = get_app_version()
     
     parser = argparse.ArgumentParser(
-        description=f"Consulta Rápida de SSAs v{APP_VERSION}",
+        description=f"Consulta Rapida de SSAs v{APP_VERSION}",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
 EXEMPLOS DE USO
-  Modo padrão:        python main.py
+  Modo padrao:        python main.py
   Modo otimizado:     python main.py --optimized
-  Interface gráfica:  python main.py --gui
+  Interface grafica:  python main.py --gui
   Reset de banco:     python main.py --reset-db
   Limpeza de dados:   python main.py --clean-data
   Reimportar tudo:    python main.py --force-rescan
   Otimizado + rescan: python main.py --optimized --force-rescan
 
-Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
+Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 """
     )
     
-    # Suporta --rescan como alias histórico de --force-rescan
+    # Suporta --rescan como alias historico de --force-rescan
     parser.add_argument(
         '--force-rescan', '--rescan',
         dest='force_rescan',
         action='store_true',
-        help='''Força a reimportação de todos os arquivos Excel, ignorando o cache.
+        help='''Reimporta todos os arquivos Excel ignorando o cache.
         
         ┌─ DIFERENÇAS ─────────────────────────────────────────────┐
         │ --force-rescan: Nome atual, recomendado                  │
@@ -122,9 +120,9 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         '--optimized',
         action='store_true',
-        help='''Ativa modo de importação OTIMIZADA (até 90%% mais rápido).
+        help='''Ativa modo de importacao OTIMIZADA (ate 90%% mais rapido).
 
-        ┌─ OTIMIZAÇÕES APLICADAS ──────────────────────────────────┐
+        ┌─ OTIMIZAÇÕES aplicacao ──────────────────────────────────┐
         │ PERFORMANCE                                              │
         │   • Operações em lote (batch operations)                │
         │   • Buffer de memória aumentado                         │
@@ -155,13 +153,13 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         python main.py --optimized
         python main.py --optimized --force-rescan
         
-        Para detalhes técnicos, consulte: GUIA_MODO_OPTIMIZED.md'''
+        Mais detalhes: GUIA_MODO_OPTIMIZED.md'''
     )
     
     parser.add_argument(
         '--gui',
         action='store_true',
-        help='''Inicia a interface gráfica (GUI) em vez da CLI.
+        help='''Inicia a interface grafica (GUI) em vez da CLI.
         
         RECURSOS DA GUI:
         • Interface visual amigável com PyQt6
@@ -170,7 +168,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         • Proteção contra múltiplas instâncias
         • Tooltips explicativos nos controles
         
-        EXEMPLO: python main.py --gui'''
+        Exemplo: python main.py --gui'''
     )
     
     parser.add_argument(
@@ -178,13 +176,13 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''Zera o banco de dados e cria apenas a estrutura (sem importar dados).
         
-        OPERAÇÃO DESTRUTIVA:
+        Operacao destrutiva:
         • Backup automático é criado antes da operação
         • Remove todos os dados existentes
         • Recria estrutura limpa das tabelas
         • Não importa novos dados automaticamente
         
-        EXEMPLO: python main.py --reset-db'''
+        Exemplo: python main.py --reset-db'''
     )
     
     parser.add_argument(
@@ -198,14 +196,14 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         • Verifica integridade dos arquivos restantes
         • Exibe relatório de espaço liberado
         
-        EXEMPLO: python main.py --clean-data'''
+        Exemplo: python main.py --clean-data'''
     )
     
     parser.add_argument(
         '--log-level',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         default='INFO',
-        help='Define o nível de detalhe dos logs (padrão: INFO)'
+        help='Define o nivel de detalhe dos logs (padrao: INFO)'
     )
     
     # Parse dos argumentos - argparse automaticamente lida com --help
@@ -219,7 +217,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         logger.setLevel(logging.INFO)
 
     # Banner inicial
-    print(f"Pesquisa Rápida de SSAs {APP_VERSION}")
+    print(f"Pesquisa Rapida de SSAs {APP_VERSION}")
 
     try:
         # Imports dinâmicos para evitar problemas
@@ -241,7 +239,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
                 reset_database()
                 print("Banco de dados resetado com sucesso!")
             except ImportError:
-                print("Módulo de gerenciamento de banco não disponível")
+                print("Modulo de gerenciamento de banco nao disponivel")
             return
         
         if args.clean_data:
@@ -250,9 +248,9 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
                 from scripts_manutencao.gerenciar_banco import clean_old_backups, sanitize_data_folder
                 clean_old_backups()
                 sanitize_data_folder()
-                print("Limpeza concluída!")
+                print("Limpeza concluida!")
             except ImportError:
-                print("Módulo de gerenciamento de banco não disponível")
+                print("Modulo de gerenciamento de banco nao disponivel")
             return
 
         # --- 1. Preparação do Ambiente ---
@@ -261,9 +259,9 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         logger.info("Estrutura de pastas verificada.")
 
         # --- 2. Configuração ---
-        logger.debug("Garantindo configurações padrão...")
+        logger.debug("Garantindo configuracoes padrao...")
         ensure_default_settings()
-        logger.debug("Configurações padrão verificadas.")
+        logger.debug("Configuracoes padrao verificadas.")
 
         # --- 3. Importação de Dados ---
         # Determina se a reimportação é forçada e se deve usar versão otimizada
@@ -272,15 +270,15 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         
         # Ativar importação otimizada se solicitado
         if use_optimized:
-            logger.info("Ativando modo de importação OTIMIZADA...")
+            logger.info("Ativando modo de importacao OTIMIZADA...")
             try:
                 from armazenamento.database_optimized import enable_optimized_import
                 enable_optimized_import()
             except ImportError:
-                print("Modo otimizado não disponível, usando modo padrão")
+                print("Modo otimizado nao disponivel, usando modo padrao")
                 use_optimized = False
         
-        logger.info(f"Iniciando processo de importação (force_rescan={force_import}, optimized={use_optimized})...")
+        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
         db_updated = run_importer_logic(force_import=force_import)
         
         # Desativar importação otimizada após uso
@@ -296,7 +294,7 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         if db_updated:
             logger.info("Banco de dados atualizado com sucesso.")
         else:
-            logger.info("Nenhum novo ou modificado relatório encontrado.")
+            logger.info("Nenhum novo ou modificado relatorio encontrado.")
 
         # --- 4. Início da Interface ---
         # Respeita variáveis de ambiente para facilitar testes e integração
@@ -307,9 +305,9 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
         logger.info(f"Usando base: {db_path} (tabela: {table_name})")
         
         if args.gui:
-            logger.info("Iniciando interface gráfica (GUI)...")
+            logger.info("Iniciando interface grafica (GUI)...")
             try:
-                # Import tardio para evitar dependência obrigatória em ambientes sem PyQt6
+                # Import tardio para evitar dependencia obrigatoria em ambientes sem PyQt6
                 from gui.gui_ssa import SSAMainWindow
                 from PyQt6.QtWidgets import QApplication
             except Exception as e:
@@ -319,16 +317,16 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
                 return
 
             try:
-                # Guarda de instância única da GUI via socket local
-                # Se a porta estiver ocupada, assume GUI já em execução
+                # Guarda de instancia unica da GUI via socket local
+                # Se a porta estiver ocupada, assume GUI ja em execucao
                 SINGLE_INSTANCE_PORT = 51234
                 single_instance_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 try:
                     single_instance_sock.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
                     single_instance_sock.listen(1)
                 except OSError:
-                    logger.warning("Outra instância da GUI já está em execução. Encerrando esta execução.")
-                    print("Já existe uma janela da GUI aberta. Use-a ou feche-a antes de abrir outra.")
+                    logger.warning("Outra instancia da GUI ja esta em execucao. Encerrando esta execucao.")
+                    print("Ja existe uma janela da GUI aberta. Use-a ou feche-a antes de abrir outra.")
                     return
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
@@ -349,14 +347,15 @@ Para mais informações, consulte: README.md e GUIA_MODO_OPTIMIZED.md
             start_cli_loop(db_path, table_name)
 
     except KeyboardInterrupt:
-        logger.info("\nOperação interrompida pelo usuário. Saindo...")
+        logger.info("\nOperacao interrompida pelo usuario. Saindo...")
         sys.exit(0)
     except Exception as e:
-        logger.critical(f"Erro crítico na inicialização: {e}", exc_info=True)
+        logger.critical(f"Erro critico na inicializacao: {e}", exc_info=True)
         sys.exit(1)
 
-    logger.info("Aplicação encerrada normalmente.")
+    logger.info("aplicacao encerrada normalmente.")
 
 if __name__ == "__main__":
     # Permite que o script seja executado diretamente
     main()
+
