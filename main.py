@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from gui.gui_ssa import SSAMainWindow
 
 logger = logging.getLogger("ssa")
-logger.setLevel(logging.DEBUG)
+# Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
 
 def _configure_logging(project_root: str, level_console: int = logging.WARNING, level_file: int = logging.INFO):
@@ -213,7 +213,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     _configure_logging(project_root)
     try:
         logger.setLevel(getattr(logging, args.log_level))
-    except:
+    except AttributeError:
         logger.setLevel(logging.INFO)
 
     # Banner inicial
