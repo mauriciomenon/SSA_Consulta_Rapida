@@ -1,6 +1,6 @@
 """
-Enhanced Table Printer - Versão melhorada com CLI Width Manager
-Integra as soluções da GUI para fornecer renderização consistente na CLI.
+Enhanced Table Printer - Versao melhorada com CLI Width Manager
+Integra as solucoes da GUI para fornecer renderizacao consistente na CLI.
 """
 
 import pandas as pd
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class EnhancedTablePrinter:
     """
     Renderizador de tabelas melhorado para CLI.
-    Usa CLIWidthManager para larguras determinísticas e word wrap.
+    Usa CLIWidthManager para larguras deterministicas e word wrap.
     """
     
     def __init__(self):
@@ -27,12 +27,12 @@ class EnhancedTablePrinter:
         self.width_manager = CLIWidthManager()
         
     def get_terminal_size(self):
-        """Obtém dimensões do terminal."""
+        """Obtem dimensoes do terminal."""
         try:
             size = os.get_terminal_size()
             return size.lines, size.columns
         except OSError:
-            return 24, 120  # Valores padrão mais generosos
+            return 24, 120  # Valores padrao mais generosos
     
     def print_dataframe_enhanced(
         self, 
@@ -48,24 +48,24 @@ class EnhancedTablePrinter:
         Args:
             df: DataFrame a ser exibido
             display_map: Mapeamento de nomes de colunas
-            settings: Configurações do sistema
+            settings: Configuracoes do sistema
             highlight_terms: Termos para destacar (opcional)
         """
         if df.empty:
             print("Nenhum resultado para exibir.")
             return
         
-        # Ordenação padrão: não-STE primeiro; depois número SSA desc
+        # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
         try:
             df = self._apply_default_order(df)
         except Exception:
             pass
         
-        # Obtém dimensões do terminal
+        # Obtem dimensoes do terminal
         terminal_height, terminal_width = self.get_terminal_size()
-        available_width = max(terminal_width - 5, 80)  # Margem de segurança
+        available_width = max(terminal_width - 5, 80)  # Margem de seguranca
         
-        # Obtém ordem das colunas da configuração unificada
+        # Obtem ordem das colunas da configuracao unificada
         column_order = self.width_manager.get_column_order()
         display_names = self.width_manager.get_display_names()
         

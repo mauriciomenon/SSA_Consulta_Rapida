@@ -4,9 +4,9 @@ from typing import Optional
 
 
 def get_app_version(project_root: Optional[str] = None) -> str:
-    """Lê a versão do arquivo config/version.json.
+    """Le a versao do arquivo config/version.json.
 
-    Fallback: retorna '0.0.0' se indisponível.
+    Fallback: retorna '0.0.0' se indisponivel.
     """
     try:
         root = project_root or os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -19,9 +19,9 @@ def get_app_version(project_root: Optional[str] = None) -> str:
 
 
 def get_app_version_long(project_root: Optional[str] = None) -> str:
-    """Lê a versão longa (texto) do arquivo config/version.json.
+    """Le a versao longa (texto) do arquivo config/version.json.
 
-    Fallback: retorna string vazia se indisponível.
+    Fallback: retorna string vazia se indisponivel.
     """
     try:
         root = project_root or os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
