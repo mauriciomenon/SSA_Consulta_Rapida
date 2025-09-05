@@ -57,12 +57,12 @@ def _configure_logging(project_root: str, level_console: int = logging.WARNING, 
     logger.propagate = True
     _logging_configured = True
 
-# Adiciona o diretório raiz do projeto ao sys.path
+# Adiciona o diretorio raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 def get_app_version():
-    """Obtém versão da aplicacao"""
+    """Obtem versao da aplicacao"""
     try:
         from utils.version import get_app_version as _get_version
         return _get_version()
@@ -71,11 +71,11 @@ def get_app_version():
 
 def main(cli_args=None):
     """
-    Função principal da aplicacao com help melhorado.
+    Funcao principal da aplicacao com help melhorado.
 
     Args:
         cli_args (list, optional): Argumentos da linha de comando para testes.
-                                   Se None, sys.argv e é usado.
+                                   Se None, sys.argv e usado.
     """
     APP_VERSION = get_app_version()
     
@@ -103,16 +103,16 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''Reimporta todos os arquivos Excel ignorando o cache.
         
-        ┌─ DIFERENÇAS ─────────────────────────────────────────────┐
+        ┌─ DIFERENCAS ─────────────────────────────────────────────┐
         │ --force-rescan: Nome atual, recomendado                  │
         │ --rescan:       Alias para compatibilidade (mesmo efeito)│
         └──────────────────────────────────────────────────────────┘
         
         COMPORTAMENTO:
-        • Ignora arquivo de controle de importação (.last_import)
+        • Ignora arquivo de controle de importacao (.last_import)
         • Processa todos os arquivos Excel novamente
-        • Detecta e importa mudanças, adições e remoções
-        • Útil quando arquivos foram modificados manualmente
+        • Detecta e importa mudancas, adicoes e remocoes
+        • Util quando arquivos foram modificados manualmente
         
         EXEMPLO: python main.py --force-rescan'''
     )
@@ -122,21 +122,21 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''Ativa modo de importacao OTIMIZADA (ate 90%% mais rapido).
 
-        ┌─ OTIMIZAÇÕES aplicacao ──────────────────────────────────┐
+        ┌─ OTIMIZACOES aplicacao ──────────────────────────────────┐
         │ PERFORMANCE                                              │
-        │   • Operações em lote (batch operations)                │
-        │   • Buffer de memória aumentado                         │
-        │   • Paralelização de operações                          │
+        │   • Operacoes em lote (batch operations)                │
+        │   • Buffer de memoria aumentado                         │
+        │   • Paralelizacao de operacoes                          │
         │                                                          │
         │ BANCO DE DADOS                                           │
-        │   • Configurações otimizadas do SQLite                  │
-        │   • Transações em lote                                  │
-        │   • Índices temporários para importação                 │
+        │   • Configuracoes otimizadas do SQLite                  │
+        │   • Transacoes em lote                                  │
+        │   • Indices temporarios para importacao                 │
         │                                                          │
         │ PROCESSAMENTO                                            │
         │   • Cache inteligente de arquivos                       │
         │   • Processamento sequencial otimizado                  │
-        │   • Menos verificações redundantes                      │
+        │   • Menos verificacoes redundantes                      │
         └──────────────────────────────────────────────────────────┘
         
         RESULTADOS ESPERADOS:
