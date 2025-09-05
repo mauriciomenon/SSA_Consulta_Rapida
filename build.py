@@ -1,111 +1,97 @@
-# build.py (v1.2)
+#!/usr/bin/env python3
 import os
 import sys
 import shutil
 import subprocess
 
-# --- Configurações do Build ---
+# Build configurado para Windows; gera executaveis CLI e GUI (onefile)
+
 APP_NAME = "SSA_Consulta_Rapida"
-ENTRY_POINT = "main.py"
-DIST_DIR = "dist"
-BUILD_DIR = "build"
-FINAL_ZIP_NAME = f"{APP_NAME}_v1.2"
+APP_VERSION = "3.10"
+ROOT = os.path.abspath(os.path.dirname(__file__))
+DIST_DIR = os.path.join(ROOT, "dist")
+BUILD_DIR = os.path.join(ROOT, "build")
+ICON_PATH = os.path.join(ROOT, "resources", "app_icon.ico")
 
-# Estrutura de pastas e arquivos a serem incluídos
-DIST_STRUCTURE = {
-    "dirs": ['docs_entrada', 'docs_saida'],
-    "files": {
-        'config': ['config/column_mappings.json', 'config/display_mappings.json', 'config/column_priority.json'],
-        '.': ['README.md', 'CHANGELOG_IMPLEMENTACOES.md'],
-        'docs_saida': ['docs_saida/CHANGELOG_IMPLEMENTACOES.md']
-    }
-}
 
-def run_pyinstaller():
-    """Executa o PyInstaller para criar o executável."""
-    print("--- Iniciando o PyInstaller para criar o .exe ---")
-    
-    # Removida a flag '--noconsole'.
-    command = [
-        sys.executable,
-        '-m', 'PyInstaller',
-        '--onefile',
-        '--clean',
-        f'--name={APP_NAME}',
-        ENTRY_POINT
+def run(cmd: list[str]):
+    print("$", " ".join(cmd))
+    subprocess.run(cmd, check=True)
+
+
+def ensure_dirs():
+    os.makedirs(DIST_DIR, exist_ok=True)
+    os.makedirs(BUILD_DIR, exist_ok=True)
+
+
+def build_target(entry: str, name: str, windowed: bool, onefile: bool):
+    ensure_dirs()
+    pyinstaller = [sys.executable, "-m", "PyInstaller", "--clean"]
+    if onefile:
+        pyinstaller += ["--onefile"]
+    else:
+        pyinstaller += ["--onedir"]
+    if windowed:
+        pyinstaller += ["--windowed"]
+    pyinstaller += [
+        f"--name={name}",
+        f"--icon={ICON_PATH}" if os.path.exists(ICON_PATH) else "",
+        "--add-data", f"config{os.pathsep}config",
+        "--add-data", f"resources{os.pathsep}resources",
+        entry,
     ]
-    
-    try:
-        subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8')
-        print(">>> Sucesso: O executável foi criado.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print("--- ERRO DURANTE A EXECUÇÃO DO PYINSTALLER ---")
-        print(f"Comando: {' '.join(command)}")
-        print(f"Código de Saída: {e.returncode}")
-        print("\n--- Saída de Erro (stderr) ---")
-        print(e.stderr)
-        print(">>> Falha: Não foi possível criar o executável.")
-        return False
+    pyinstaller = [p for p in pyinstaller if p]
+    run(pyinstaller)
 
-def create_distribution_package():
-    """Cria a pasta de distribuição final e o arquivo .zip."""
-    print("\n--- Criando o pacote de distribuição final ---")
-    
-    exe_path = os.path.join(DIST_DIR, f"{APP_NAME}.exe")
-    if not os.path.exists(exe_path):
-        print(f"ERRO: O executável '{exe_path}' não foi encontrado. Abortando.")
-        return
 
-    package_root_dir = os.path.join(DIST_DIR, FINAL_ZIP_NAME)
+def write_temp_gui_entry(tmp_path: str):
+    code = (
+        "import sys\n"
+        "import os\n"
+        "sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))\n"
+        "from main import main as _main\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(_main(['--gui']))\n"
+    )
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(code)
 
-    if os.path.exists(package_root_dir):
-        shutil.rmtree(package_root_dir)
-    os.makedirs(package_root_dir)
-    print(f"Criada a pasta de pacote: '{package_root_dir}'")
 
-    shutil.copy(exe_path, os.path.join(package_root_dir, f"{APP_NAME}.exe"))
-    print(f"Copiado '{APP_NAME}.exe' para o pacote.")
+def package_zip():
+    pkg_name = f"{APP_NAME}_v{APP_VERSION}"
+    pkg_root = os.path.join(DIST_DIR, pkg_name)
+    if os.path.exists(pkg_root):
+        shutil.rmtree(pkg_root)
+    os.makedirs(pkg_root, exist_ok=True)
+    for exe in [
+        f"{APP_NAME}_CLI.exe",
+        f"{APP_NAME}_GUI.exe",
+    ]:
+        src = os.path.join(DIST_DIR, exe)
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(pkg_root, exe))
+    # Documentacao basica
+    for path in ("README.md", "INSTRUCOES_LEITURA.md"):
+        p = os.path.join(ROOT, path)
+        if os.path.exists(p):
+            shutil.copy(p, os.path.join(pkg_root, os.path.basename(p)))
+    shutil.make_archive(os.path.join(DIST_DIR, pkg_name), "zip", DIST_DIR, pkg_name)
 
-    # CORREÇÃO: Criando a estrutura completa de pastas e arquivos.
-    print("Criando estrutura de pastas e arquivos de configuração...")
-    for dir_name in DIST_STRUCTURE['dirs']:
-        os.makedirs(os.path.join(package_root_dir, dir_name), exist_ok=True)
-    
-    for dir_name, files in DIST_STRUCTURE['files'].items():
-        dest_dir = os.path.join(package_root_dir, dir_name)
-        os.makedirs(dest_dir, exist_ok=True)
-        for file_path in files:
-            if os.path.exists(file_path):
-                shutil.copy(file_path, dest_dir)
-            else:
-                print(f"AVISO: Arquivo não encontrado: '{file_path}'. Não será incluído no pacote.")
 
-    print("Estrutura de pastas do pacote criada.")
+def main():
+    cli_name = f"{APP_NAME}_CLI"
+    gui_name = f"{APP_NAME}_GUI"
 
-    print(f"\nCompactando o pacote em '{FINAL_ZIP_NAME}.zip'...")
-    shutil.make_archive(base_name=os.path.join(DIST_DIR, FINAL_ZIP_NAME),
-                        format='zip',
-                        root_dir=DIST_DIR,
-                        base_dir=FINAL_ZIP_NAME)
-    print(f">>> Sucesso: Pacote '{FINAL_ZIP_NAME}.zip' criado na pasta '{DIST_DIR}'.")
+    # CLI (onefile)
+    build_target(entry=os.path.join(ROOT, "main.py"), name=cli_name, windowed=False, onefile=True)
 
-def cleanup():
-    """Limpa as pastas e arquivos temporários do build."""
-    print("\n--- Limpando arquivos temporários ---")
-    
-    if os.path.exists(BUILD_DIR):
-        shutil.rmtree(BUILD_DIR)
-    spec_file = f"{APP_NAME}.spec"
-    if os.path.exists(spec_file):
-        os.remove(spec_file)
-    package_root_dir = os.path.join(DIST_DIR, FINAL_ZIP_NAME)
-    if os.path.exists(package_root_dir):
-        shutil.rmtree(package_root_dir)
-    print("Limpeza concluída.")
+    # GUI (onefile) via entry temporario
+    gui_entry = os.path.join(BUILD_DIR, "_entry_gui.py")
+    write_temp_gui_entry(gui_entry)
+    build_target(entry=gui_entry, name=gui_name, windowed=True, onefile=True)
+
+    package_zip()
+
 
 if __name__ == "__main__":
-    if run_pyinstaller():
-        create_distribution_package()
-    cleanup()
-
+    main()

@@ -221,3 +221,26 @@ data/historico_backups/**
 WIP_*.patch
 docs_saida/SESSION_RECOVERY_*/
 
+# Local development sandboxes and legacy
+legacy/
+.venv/
+.venv_build/
+.DS_Store
+.continue/
+__pycache__/
+*.log
+logs/
+
+# Build and distribution
+build/
+dist/
+*.spec
+
+# Local databases and outputs
+*.db
+*.db-journal
+reports/
+
+# VS Code workspace (optional)
+*.code-workspace
+nul

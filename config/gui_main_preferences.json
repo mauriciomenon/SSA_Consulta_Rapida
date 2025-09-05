@@ -73,7 +73,7 @@
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
-    "theme": "gruvbox"
+    "theme": "light"
   },
   "version": "1.0.0",
   "created_for": "GUI Main (main.py --gui)",
