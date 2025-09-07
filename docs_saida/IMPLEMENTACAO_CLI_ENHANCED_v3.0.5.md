@@ -6,7 +6,7 @@
 
 ---
 
-## 🎯 OBJETIVO CUMPRIDO
+##  OBJETIVO CUMPRIDO
 
 Conforme solicitado pelo usuário: **"verifique profundamente a questao da cli e copie para la solucoes daqui"**
 
@@ -14,7 +14,7 @@ Implementamos com sucesso um sistema completo de melhorias na CLI que aplica as 
 
 ---
 
-## 🔧 MELHORIAS IMPLEMENTADAS
+##  MELHORIAS IMPLEMENTADAS
 
 ### 1. **CLI Width Manager** (`interface/cli_width_manager.py`)
 - ✅ Sistema de larguras fixas idêntico ao GUI
@@ -45,7 +45,7 @@ Implementamos com sucesso um sistema completo de melhorias na CLI que aplica as 
 
 ---
 
-## 📋 COMANDOS DISPONÍVEIS
+##  COMANDOS DISPONÍVEIS
 
 ### Comandos de Gestão das Melhorias:
 - **`status-cli`** / **`cli-status`**: Exibe status das melhorias
@@ -60,7 +60,7 @@ Implementamos com sucesso um sistema completo de melhorias na CLI que aplica as 
 
 ---
 
-## ⚡ MELHORIAS TÉCNICAS
+##  MELHORIAS TÉCNICAS
 
 ### **Determinismo e Consistência**
 - Larguras de coluna idênticas ao GUI
@@ -117,7 +117,7 @@ Implementamos com sucesso um sistema completo de melhorias na CLI que aplica as 
 
 ---
 
-## 🎯 RESULTADO FINAL
+##  RESULTADO FINAL
 
 ### **Status: ✅ IMPLEMENTAÇÃO COMPLETA**
 

@@ -2,7 +2,7 @@
 
 ## 📅 Data: 19 de Agosto de 2025
 
-## 🔍 **PROBLEMA IDENTIFICADO**
+##  **PROBLEMA IDENTIFICADO**
 
 ### Sintomas:
 - **GUI**: Dados carregando mas campos essenciais vazios (numero_ssa, semana_cadastro, descricao_execucao)
@@ -54,17 +54,17 @@ FROM ssas
 - Adicionada função `_force_column_widths()` com timer para garantir aplicação
 - Fallback para `numero_ssa`: 80px → 100px
 
-## 📊 **RESULTADO**
+##  **RESULTADO**
 - ✅ **GUI**: 12.750 SSAs com dados completos
 - ✅ **CLI**: Campos agora exibem valores reais 
 - ✅ **Larguras**: Colunas de descrição com espaço adequado
 
-## ⚠️ **ARQUIVOS AFETADOS**
+##  **ARQUIVOS AFETADOS**
 - `config/column_mappings.json` - Mapeamento corrigido
 - `gui/gui_ssa.py` - Query customizada + otimizações de largura
 - **CLI e GUI** - Ambos beneficiados pela correção
 
-## 🎯 **LIÇÕES APRENDIDAS**
+##  **LIÇÕES APRENDIDAS**
 1. Sempre verificar **nomes reais das colunas** no banco
 2. **Testar CLI e GUI** para problemas similares  
 3. **Dados vazios** nem sempre significa problema de conexão - pode ser mapeamento

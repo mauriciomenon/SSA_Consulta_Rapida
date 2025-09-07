@@ -83,7 +83,7 @@ def _normalize_numero_ssa_value(v) -> int | None:
 - Processado: `202513402` ← **PRESERVADO!**
 - GUI mostrará: `202513402` ← **CORRETO!**
 
-## ⚠️ **CONSEQUÊNCIA IMPORTANTE**
+##  **CONSEQUÊNCIA IMPORTANTE**
 
 **DADOS ATUAIS NO BANCO ESTÃO CORROMPIDOS!**
 
@@ -99,4 +99,4 @@ Os 5.672 registros no banco têm apenas 7 dígitos em vez de 9. Para corrigir co
 
 ---
 
-**🎯 STATUS**: ✅ **CORREÇÃO APLICADA** - Próxima etapa é reimportar dados ou corrigir banco existente
+** STATUS**: ✅ **CORREÇÃO APLICADA** - Próxima etapa é reimportar dados ou corrigir banco existente

@@ -1,6 +1,6 @@
 # Melhorias Implementadas na PoC GUI (gui_ssa_poc.py)
 
-## 📋 Resumo das Melhorias
+##  Resumo das Melhorias
 
 ### ✅ Funcionalidades Principais Implementadas
 
@@ -41,7 +41,7 @@
      - `data_cadastro` → "Data Cadastro"
      - `descricao_ssa` → "Descrição da SSA"
 
-### 🚀 Otimizações de Performance
+###  Otimizações de Performance
 
 1. **Carregamento em Lotes**
    - Processamento de dados em batches de 300-500 registros
@@ -63,7 +63,7 @@
    - Regex otimizado para múltiplos termos de busca
    - Tratamento de erros robusto
 
-### 🔧 Melhorias Técnicas
+###  Melhorias Técnicas
 
 1. **Arquitetura Robusta**
    - Separação clara de responsabilidades
@@ -80,13 +80,13 @@
    - Mantém compatibilidade com módulos existentes
    - Preserva configurações do projeto
 
-### 📊 Estatísticas de Performance
+###  Estatísticas de Performance
 
 - **Datasets pequenos** (< 1000 registros): Carregamento instantâneo
 - **Datasets médios** (1000-5000 registros): Carregamento com progresso visual
 - **Datasets grandes** (> 5000 registros): Processamento em lotes com barra de progresso
 
-### 🎯 Funcionalidades Testadas
+###  Funcionalidades Testadas
 
 ✅ Importação do módulo sem erros  
 ✅ Inicialização da interface gráfica  

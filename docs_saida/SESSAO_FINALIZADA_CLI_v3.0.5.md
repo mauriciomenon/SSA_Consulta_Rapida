@@ -32,7 +32,7 @@
 
 ---
 
-## 🎯 IMPLEMENTAÇÃO COMPLETADA
+##  IMPLEMENTAÇÃO COMPLETADA
 
 ### **Sistema CLI Enhanced v3.0.5:**
 1. ✅ **CLI Width Manager** - Larguras determinísticas
@@ -80,7 +80,7 @@ toggle-debug  # Ativar debug para diagnóstico
 
 ---
 
-## 📋 SISTEMA ATUAL
+##  SISTEMA ATUAL
 
 **Estado:** Sistema implementado e commitado ✅  
 **Estabilidade:** Fallback garantindo funcionamento ✅  

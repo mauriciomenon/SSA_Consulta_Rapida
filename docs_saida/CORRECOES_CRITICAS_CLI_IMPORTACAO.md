@@ -1,6 +1,6 @@
-# 🎯 CORREÇÕES CRÍTICAS APLICADAS - CLI E IMPORTAÇÃO
+#  CORREÇÕES CRÍTICAS APLICADAS - CLI E IMPORTAÇÃO
 
-## 📊 RESUMO EXECUTIVO
+##  RESUMO EXECUTIVO
 
 **Status**: ✅ **PROBLEMAS PRINCIPAIS RESOLVIDOS**
 - **Data**: 25 de agosto de 2025
@@ -10,7 +10,7 @@
 
 ---
 
-## 🔧 PROBLEMAS IDENTIFICADOS E SOLUÇÕES
+##  PROBLEMAS IDENTIFICADOS E SOLUÇÕES
 
 ### 1. ❌ **PROBLEMA**: CLI mostrava "-" no lugar dos números SSA
 
@@ -72,7 +72,7 @@ if work.index.duplicated().any():
 
 ---
 
-## 🎯 RESULTADOS ESPERADOS
+##  RESULTADOS ESPERADOS
 
 ### ✅ **CLI**:
 - Agora deve mostrar números SSA reais (ex: 2513402, 2513597)
@@ -91,7 +91,7 @@ if work.index.duplicated().any():
 
 ---
 
-## 📊 VALIDAÇÃO DAS CORREÇÕES
+##  VALIDAÇÃO DAS CORREÇÕES
 
 **Teste executado**:
 ```sql
@@ -125,7 +125,7 @@ SSA: 2513506, Situacao: SPG
 
 ---
 
-## 🎯 PRÓXIMOS PASSOS RECOMENDADOS
+##  PRÓXIMOS PASSOS RECOMENDADOS
 
 1. **Testar CLI**: Executar `python main.py` e verificar números SSA
 2. **Testar GUI**: Verificar interface gráfica
@@ -144,4 +144,4 @@ SSA: 2513506, Situacao: SPG
 
 ---
 
-**🎯 STATUS FINAL**: ✅ **CORREÇÕES APLICADAS COM SUCESSO**
+** STATUS FINAL**: ✅ **CORREÇÕES APLICADAS COM SUCESSO**
