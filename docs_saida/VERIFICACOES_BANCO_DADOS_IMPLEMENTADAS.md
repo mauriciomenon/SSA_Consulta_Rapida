@@ -1,10 +1,10 @@
 # VERIFICAÇÕES DE BANCO DE DADOS NO PROCESSO DE IMPORTAÇÃO
 
-## 📋 Resumo das Implementações
+##  Resumo das Implementações
 
 Este documento descreve as novas funcionalidades de verificação e integridade do banco de dados implementadas no sistema SSA Consulta Rápida.
 
-## 🎯 Funcionalidades Implementadas
+##  Funcionalidades Implementadas
 
 ### 1. **Verificação de Integridade do Banco de Dados**
 **Função:** `verify_database_integrity(db_path, table_name)`
@@ -36,10 +36,10 @@ Este documento descreve as novas funcionalidades de verificação e integridade 
 **Função:** `repair_database_if_needed(db_path, schema_file)`
 
 **Ações de reparo:**
-- 🔧 Criação de novo banco se não existir
-- 🔧 Recriação de schema se tabela estiver ausente
-- 🔧 Backup e restauração em caso de corrupção
-- 🔧 Extração de dados válidos de banco corrompido
+-  Criação de novo banco se não existir
+-  Recriação de schema se tabela estiver ausente
+-  Backup e restauração em caso de corrupção
+-  Extração de dados válidos de banco corrompido
 
 ### 4. **Tratamento de Erros Específicos**
 
@@ -79,7 +79,7 @@ Este documento descreve as novas funcionalidades de verificação e integridade 
 **Validação:** Pula arquivo com dados inválidos
 **Extração:** Pula arquivo com problemas de leitura
 
-## 📊 Relatórios de Verificação
+##  Relatórios de Verificação
 
 ### Relatório de Integridade:
 ```python
@@ -123,7 +123,7 @@ Este documento descreve as novas funcionalidades de verificação e integridade 
 - ✅ Datas inválidas
 - ✅ Reparo de banco
 
-## 🚀 Como Usar
+##  Como Usar
 
 ### Verificação Manual:
 ```python
@@ -167,7 +167,7 @@ WARNING: Aviso do banco: Pouco espaço em disco: 0.05GB disponível
 ERROR: Banco de dados inacessível: [sqlite3.DatabaseError: database disk image is malformed]
 ```
 
-## 🔧 Configurações
+##  Configurações
 
 ### Limites Configuráveis:
 - **Espaço mínimo:** 100MB (configurável em `verify_database_integrity`)
@@ -179,7 +179,7 @@ ERROR: Banco de dados inacessível: [sqlite3.DatabaseError: database disk image 
 required_columns = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
 ```
 
-## 🎯 Benefícios
+##  Benefícios
 
 1. **Detecção Precoce:** Problemas identificados antes da importação
 2. **Recuperação Automática:** Reparos automáticos quando possível

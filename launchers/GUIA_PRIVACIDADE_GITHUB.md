@@ -1,17 +1,17 @@
 # 🔒 GUIA DE PRIVACIDADE E GESTÃO DE ARQUIVOS PESSOAIS
 
-## 🎯 **SUA SITUAÇÃO ATUAL**
+##  **SUA SITUAÇÃO ATUAL**
 
 ### **Arquivos que PRECISAM ser privados:**
-- 📊 **docs_entrada/*.xlsx** - Dados sensíveis da empresa
+-  **docs_entrada/*.xlsx** - Dados sensíveis da empresa
 - 📝 **Alguns .md pessoais** - Lembretes, "não mexer", conversas
 - 📈 **docs_saida/relatórios** - Podem conter dados sensíveis
-- 🔧 **Configurações locais** - Específicas da sua máquina
+-  **Configurações locais** - Específicas da sua máquina
 
 ### **Arquivos que PODEM ser públicos:**
 - 💻 **Código fonte** - Valor técnico para comunidade
 - 📚 **Documentação técnica** - ESTRUTURA, REGRAS, CHANGELOG
-- 🔧 **Scripts de build** - Úteis para outros desenvolvedores
+-  **Scripts de build** - Úteis para outros desenvolvedores
 
 ## 🛡️ **OPÇÕES DE PRIVACIDADE**
 
@@ -54,7 +54,7 @@
 # Branch personal: Arquivos pessoais (não fazer push)
 ```
 
-## 📋 **CLASSIFICAÇÃO DOS SEUS ARQUIVOS .md**
+##  **CLASSIFICAÇÃO DOS SEUS ARQUIVOS .md**
 
 ### **🔒 PESSOAIS (devem ser privados):**
 ```
@@ -76,7 +76,7 @@ BUILD_*.md
 GUIA_*.md
 ```
 
-## 🔧 **CONFIGURAÇÃO RECOMENDADA**
+##  **CONFIGURAÇÃO RECOMENDADA**
 
 ### **1. Tornar Repositório Privado (AGORA)**
 1. Vá para https://github.com/mauriciomenon/SSA_Consulta_Rapida
@@ -113,7 +113,7 @@ logs/
 python launchers/cleanup_repository.py
 ```
 
-## 🚀 **FUTURO: REPOSITÓRIO PÚBLICO**
+##  **FUTURO: REPOSITÓRIO PÚBLICO**
 
 Se quiser disponibilizar o código publicamente:
 
