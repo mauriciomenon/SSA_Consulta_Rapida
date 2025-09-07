@@ -24,7 +24,7 @@
 
 ### 🔧 **4. UTILITÁRIOS (utils/)**
 **Arquivos verificados:**
-- `emergency_import.py` - Apenas `sqlite3`, `json` (built-in)
+- `utils/fallback/emergency_import.py` - Apenas `sqlite3`, `json` (built-in)
 - `themes.py` - Provavelmente apenas `PyQt6`
 - `version.py` - Apenas `json` (built-in)
 **Status:** ✅ **OK** - Sem deps extras
