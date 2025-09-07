@@ -61,7 +61,7 @@ git stash pop
 pwsh -File scripts_manutencao/quick_recovery.ps1 -Action apply-patch -PatchPath docs_saida/SESSION_RECOVERY_YYYYMMDD_HHMMSS/uncommitted.patch
 
 # 4) Banco mínimo sem pandas (modo emergência)
-python emergency_import.py       # cria data\ssas.db mínimo (SQLite puro)
+python utils/fallback/emergency_import.py       # cria data\ssas.db mínimo (SQLite puro)
 python main_simple.py            # CLI simplificada operando sobre ssa_table
 ```
 
