@@ -32,6 +32,26 @@ MANIFEST
 *.manifest
 *.spec
 
+# Build System Multi-Plataforma
+launchers/platforms/*/venv/
+launchers/platforms/*/temp/
+launchers/dist/
+launchers/logs/
+build_env/
+
+# Executaveis gerados
+*.exe
+*.app
+*.deb
+*.rpm
+*.dmg
+*.msi
+
+# Icones gerados
+resources/app_icon.ico
+resources/app_icon.icns
+resources/app_icon.png
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -244,3 +264,37 @@ reports/
 # VS Code workspace (optional)
 *.code-workspace
 nul
+
+# === BUILD SYSTEM ARTIFACTS ===
+# Executaveis compilados
+launchers/dist/
+launchers/dist_simple/
+launchers/platforms/*/venv/
+launchers/platforms/*/temp/
+
+# Logs de build
+launchers/logs/
+launchers/*.log
+
+# Cache de arquivos
+data/file_cache.json
+
+# Arquivos temporarios de build
+*.spec
+build/
+dist/
+
+# Backups automaticos de banco
+data/*.backup_*
+data/historico_backups/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Imports e exports temporarios
+docs_entrada/~$*
+docs_saida/temp_*
+exportacao/temp_*
