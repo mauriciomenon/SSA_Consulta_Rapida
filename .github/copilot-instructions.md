@@ -62,7 +62,7 @@
 - **User Scenarios**: Test both CLI and GUI workflows
 
 ## Documentation Style
-- **Clear Headers**: Use emoji markers (🎯, ✅, 📋, etc.)
+- **Clear Headers**: Use standard Markdown headers with clear hierarchy
 - **Step-by-Step**: Provide exact commands and file paths
 - **Status Tracking**: Mark completed/pending items clearly
 - **Cross-References**: Link related files and documentation

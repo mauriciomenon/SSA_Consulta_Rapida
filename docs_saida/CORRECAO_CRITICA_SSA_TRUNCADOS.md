@@ -1,11 +1,11 @@
-# 🔧 CORREÇÃO CRÍTICA: Números SSA Truncados
+# CORREÇÃO CRÍTICA: Números SSA Truncados
 
-## 🚨 PROBLEMA IDENTIFICADO
+## PROBLEMA IDENTIFICADO
 
 **Sintoma**: GUI mostrava `002513402` em vez de `202513402`
 **Causa Raiz**: Função `_normalize_numero_ssa_value()` em `armazenamento/database.py` linha 359
 
-### ❌ **CÓDIGO PROBLEMÁTICO** (ANTES):
+### **CÓDIGO PROBLEMÁTICO** (ANTES):
 ```python
 # Remover zeros à esquerda apenas se necessário
 s = s.lstrip('0')
@@ -17,7 +17,7 @@ s = s.lstrip('0')
 3. Armazenado no banco: `2513402` (7 dígitos)
 4. GUI tentava completar: `002513402` (errado)
 
-## ✅ **CORREÇÃO APLICADA**
+## CORREÇÃO APLICADA
 
 ### **NOVO CÓDIGO** (DEPOIS):
 ```python
@@ -64,14 +64,14 @@ def _normalize_numero_ssa_value(v) -> int | None:
         return None
 ```
 
-## 🎯 **MUDANÇAS PRINCIPAIS**
+## MUDANÇAS PRINCIPAIS
 
-1. **❌ REMOVIDO**: `s = s.lstrip('0')` - linha que causava truncamento
-2. **✅ ADICIONADO**: Validação rigorosa de 9 dígitos obrigatórios
-3. **✅ ADICIONADO**: Validação de ano (2019-2050) nos primeiros 4 dígitos
-4. **✅ ADICIONADO**: Logs detalhados para casos inválidos
+1. **REMOVIDO**: `s = s.lstrip('0')` - linha que causava truncamento
+2. **ADICIONADO**: Validação rigorosa de 9 dígitos obrigatórios
+3. **ADICIONADO**: Validação de ano (2019-2050) nos primeiros 4 dígitos
+4. **ADICIONADO**: Logs detalhados para casos inválidos
 
-## 📊 **IMPACTO ESPERADO**
+## IMPACTO ESPERADO
 
 ### **ANTES** (Incorreto):
 - Entrada: `202513402`
