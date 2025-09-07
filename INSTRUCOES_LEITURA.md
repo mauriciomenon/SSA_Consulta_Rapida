@@ -1,7 +1,7 @@
 Instrucoes de Leitura da Documentacao
 
 - Todos os arquivos Markdown (.md) do projeto foram organizados na pasta `docs/`.
-- Leia primeiro `docs/README.md` (ou `docs/RELATORIO_FINAL_COMPLETO.md` conforme a necessidade).
+- Leia primeiro `docs/README.md` (ou `docs/RELATORIO_COMPLETO.md` conforme a necessidade).
 - Itens uteis:
   - `docs/GUIA_MODO_OPTIMIZED.md`: detalhes do modo otimizado
   - `docs/COMANDOS_RAPIDOS.md`: comandos mais usados
