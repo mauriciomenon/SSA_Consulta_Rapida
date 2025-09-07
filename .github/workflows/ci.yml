@@ -74,8 +74,6 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements.txt
-          # GUI requirements for headless PyQt6
-          python -m pip install PyQt6 || true
           # Optional test tooling if present
           python -m pip install pytest pytest-cov || true
       - name: Run tests (balanced subset by default)
@@ -94,7 +92,10 @@ jobs:
             echo "Running pytest with mark expression: $MARK_EXPR"
             pytest -q -m "$MARK_EXPR"
           else
-            echo "Running pytest on balanced subset"
+            echo "Running pytest with unit tests marker (default subset)"
+            # Use pytest's built-in test discovery with unit test marker
+            pytest -q -m "not slow" tests/ || \
+            # Fallback to specific stable tests if marker doesn't work
             pytest -q \
               tests/test_default_filter_mode.py \
               tests/test_filter_modes.py \

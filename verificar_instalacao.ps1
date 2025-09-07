@@ -35,15 +35,15 @@ function Test-Component {
 Write-Host "`n VERIFICANDO PRÉ-REQUISITOS..." -ForegroundColor Yellow
 
 # 1. Verificar Python
-$pythonOk = Test-Component -Name "Python 3.8+" -Test {
+$pythonOk = Test-Component -Name "Python 3.13+" -Test {
     $version = python --version 2>$null
     if ($version -match "Python (\d+)\.(\d+)") {
         $major = [int]$Matches[1]
         $minor = [int]$Matches[2]
-        return ($major -eq 3 -and $minor -ge 8) -or ($major -gt 3)
+        return ($major -eq 3 -and $minor -ge 13) -or ($major -gt 3)
     }
     return $false
-} -SuccessMessage "$(python --version)" -FailureMessage "Python 3.8+ necessário"
+} -SuccessMessage "$(python --version)" -FailureMessage "Python 3.13+ necessário"
 
 # 2. Verificar Git
 $gitOk = Test-Component -Name "Git" -Test {
@@ -155,7 +155,7 @@ $totalTests = 12
 $passedTests = 0
 
 $results = @(
-    @{Name="Python 3.8+"; Status=$pythonOk},
+    @{Name="Python 3.13+"; Status=$pythonOk},
     @{Name="Git"; Status=$gitOk},
     @{Name="Estrutura do Projeto"; Status=$structureOk},
     @{Name="Ambiente Virtual"; Status=$venvOk},

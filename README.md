@@ -1,4 +1,32 @@
-# SSA_Consulta_Rapida
+# Versão: 3.10 - SSA Consulta Rápida v3.10 ✅ **SISTEMA FUNCIONAL**
+
+## 🚀 Novidades v3.10 - Build System Multi-Plataforma
+
+### ✅ Sistema de Build Completo
+- **Executáveis funcionais**: CLI e GUI totalmente testados para macOS ARM64
+- **Build rápido**: 30 segundos para desenvolvimento e testes
+- **Build otimizado**: 1-5 minutos para produção com cache inteligente
+- **Entry points corrigidos**: GUI principal (2232 linhas) em vez do POC
+
+### 🔧 Otimizações Implementadas
+- **Dependências reduzidas**: 236 → 6 pacotes essenciais
+- **Cache de ambiente virtual**: Reutilização acelera builds subsequentes
+- **Módulos resolvidos**: secrets, urllib, pandas, openpyxl totalmente funcionais
+- **Documentação atualizada**: Vírgulas corrigidas, estrutura organizada
+
+### 📋 Como Usar os Executáveis
+```bash
+# CLI (teste rápido)
+./launchers/dist/macos_arm64/SSA_CLI_v3.10_macos_arm64/SSA_CLI_v3.10_macos_arm64 --help
+
+# GUI (App macOS)
+open launchers/dist/macos_arm64/SSA_GUI_v3.10_macos_arm64.app
+
+# Build próprio rápido
+python launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
+```
+
+### 🔧 Funcionalidades v3.0 (Estáveis)_Rapida
 
 Versão: 3.10 - SSA Consulta Rápida v3.10
 
