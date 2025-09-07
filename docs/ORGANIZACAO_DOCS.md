@@ -2,12 +2,12 @@
 
 ## Profissionalizacao da Documentacao Concluida
 
-### Arquivos Renomeados e Profissionalizados
+### Arquivos Renomeados e Organizados
 
 **Antes → Depois:**
-- `LEMBRETE_NAO_MEXER_LARGURAS.md` → `ALGORITMO_LARGURAS_GUI_CRITICO.md`
-- `RELATORIO_CAGADAS_IA_ANTERIOR.md` → `ANALISE_PROBLEMAS_DESENVOLVIMENTO_ANTERIOR.md`
-- `TEMPLATE_NOVA_CONVERSA.md` → `TEMPLATE_ONBOARDING_DESENVOLVEDORES.md`
+- `LEMBRETE_NAO_MEXER_LARGURAS.md` → `LARGURAS_GUI.md`
+- `RELATORIO_PROBLEMAS_ANTERIORES.md` → `PROBLEMAS_CONHECIDOS.md`
+- `TEMPLATE_NOVA_CONVERSA.md` → `ONBOARDING.md`
 
 ### Melhorias Implementadas
 
