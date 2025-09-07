@@ -12,11 +12,11 @@
 
 ## Processo de Recriação Testado
 
-1. **Backup do Banco Original** 📋
+1. **Backup do Banco Original** 
 2. **Criação de Banco Limpo** 🆕
 3. **Reimportação de Dados** 📥
-4. **Verificação de Integridade** 🔍
-5. **Comparação de Performance** ⚡
+4. **Verificação de Integridade** 
+5. **Comparação de Performance** 
 
 ## Resultados Detalhados
 

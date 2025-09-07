@@ -99,15 +99,15 @@ O sistema é considerado **APROVADO** quando:
 ### Recomendações
 
 
-**⚠️ SISTEMA REQUER ATENÇÃO**
+** SISTEMA REQUER ATENÇÃO**
 
 Alguns testes falharam. O sistema pode ter problemas que impedem o uso seguro em produção.
 
 **Ações Imediatas Necessárias:**
-1. 🔍 Investigar falhas nos testes
-2. 🛠️ Corrigir problemas identificados
+1.  Investigar falhas nos testes
+2.  Corrigir problemas identificados
 3. 🧪 Re-executar testes após correções
-4. 📋 Validar funcionalidades críticas manualmente
+4.  Validar funcionalidades críticas manualmente
 
 **Não recomendado para produção até que todos os problemas sejam resolvidos.**
 

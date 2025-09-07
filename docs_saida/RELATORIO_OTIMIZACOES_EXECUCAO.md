@@ -1,14 +1,14 @@
-# 🚀 RELATÓRIO DE OTIMIZAÇÕES DE EXECUÇÃO
+#  RELATÓRIO DE OTIMIZAÇÕES DE EXECUÇÃO
 
 **Data:** 18 de Janeiro de 2025  
 **Versão:** v3.1.0 - Refinamentos de Performance  
 **Status:** ✅ TODAS AS OTIMIZAÇÕES IMPLEMENTADAS COM SUCESSO
 
-## 📋 Resumo Executivo
+##  Resumo Executivo
 
 Após análise detalhada da ordem de execução na GUI principal, **4 otimizações críticas** foram identificadas e implementadas com sucesso, resultando em melhoria significativa da performance e responsividade da interface.
 
-## 🔍 Análise da Ordem de Execução
+##  Análise da Ordem de Execução
 
 ### **Fluxo Principal Identificado:**
 1. **`__init__()`** → Carrega configurações, configura UI
@@ -95,7 +95,7 @@ def resizeEvent(self, event):
 
 **📈 Resultado:** Máximo 1 recálculo por 300ms durante resize
 
-## 📊 Métricas de Performance Esperadas
+##  Métricas de Performance Esperadas
 
 | **Otimização** | **Redução Esperada** | **Benefício** |
 |---|---|---|
@@ -108,9 +108,9 @@ def resizeEvent(self, event):
 
 ### **Script de Validação:** `validar_otimizacoes_execucao.py`
 ```bash
-🚀 VALIDADOR DE OTIMIZAÇÕES - ORDEM DE EXECUÇÃO
+ VALIDADOR DE OTIMIZAÇÕES - ORDEM DE EXECUÇÃO
 ============================================================
-🔍 VALIDAÇÃO DAS OTIMIZAÇÕES DE EXECUÇÃO:
+ VALIDAÇÃO DAS OTIMIZAÇÕES DE EXECUÇÃO:
 ============================================================
   ✅ Cálculo duplo de larguras eliminado - hash tracking implementado
   ✅ Chamada redundante removida de on_filter_finished()
@@ -118,23 +118,23 @@ def resizeEvent(self, event):
   ✅ Cache de formatação implementado com hash tracking
   ✅ ResizeEvent já otimizado com timer e threshold
 
-🎉 TODAS AS OTIMIZAÇÕES FORAM IMPLEMENTADAS COM SUCESSO!
+ TODAS AS OTIMIZAÇÕES FORAM IMPLEMENTADAS COM SUCESSO!
 📈 Performance da GUI deve estar significativamente melhorada.
 ```
 
-## 🎯 Impacto Esperado
+##  Impacto Esperado
 
 ### **Performance:**
-- ⚡ **Filtros:** ~30% mais rápidos devido à eliminação de cálculos duplos
-- ⚡ **Paginação:** ~40% mais fluida com cache de formatação
-- ⚡ **Resize:** Responsividade significativamente melhorada
-- ⚡ **Inicialização:** Cache de configurações reduz latência
+-  **Filtros:** ~30% mais rápidos devido à eliminação de cálculos duplos
+-  **Paginação:** ~40% mais fluida com cache de formatação
+-  **Resize:** Responsividade significativamente melhorada
+-  **Inicialização:** Cache de configurações reduz latência
 
 ### **Experiência do Usuário:**
-- 🎯 **Interface mais responsiva** durante operações
-- 🎯 **Menos travamentos** em redimensionamento
-- 🎯 **Filtros mais ágeis** para datasets grandes
-- 🎯 **Navegação mais fluida** entre páginas
+-  **Interface mais responsiva** durante operações
+-  **Menos travamentos** em redimensionamento
+-  **Filtros mais ágeis** para datasets grandes
+-  **Navegação mais fluida** entre páginas
 
 ### **Código:**
 - 🧹 **Menos redundância** na execução
