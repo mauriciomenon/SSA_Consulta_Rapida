@@ -38,7 +38,7 @@ pip --version             # Incluído com Python
 
 ---
 
-## 📦 **CLONAGEM E CONFIGURAÇÃO**
+## CLONAGEM E CONFIGURAÇÃO
 
 ### **Passo 1: Clonar o Repositório**
 ```powershell
@@ -151,7 +151,7 @@ Get-ExecutionPolicy -List
 ### **Passo 3: Verificar Configuração**
 ```powershell
 # Verificar se o ambiente está ativo
-python -c "import sys; print('✅ Ambiente ativo:' if 'venv' in sys.path[0] else '❌ Ambiente NÃO ativo')"
+python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NÃO ativo')"
 
 # Listar pacotes instalados
 pip list | findstr -i "pandas pyqt6 openpyxl"
@@ -159,7 +159,7 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 
 ---
 
-## ✅ **VERIFICAÇÃO DA INSTALAÇÃO**
+## VERIFICAÇÃO DA INSTALAÇÃO
 
 ### **Teste 1: Help do Sistema**
 ```powershell
@@ -179,9 +179,9 @@ try:
     from core import app_logic
     from armazenamento import database
     from interface import cli
-    print('✅ Todos os módulos carregados com sucesso')
+    print('Todos os módulos carregados com sucesso')
 except ImportError as e:
-    print(f'❌ Erro ao importar: {e}')
+    print(f'Erro ao importar: {e}')
 "
 ```
 
@@ -208,10 +208,10 @@ ls docs_entrada
 ```
 
 **Formatos de arquivo suportados:**
-- ✅ `.xlsx` (Excel 2007+)
-- ✅ `.xls` (Excel 97-2003)
-- ✅ Múltiplos arquivos
-- ✅ Diferentes estruturas de coluna
+- `.xlsx` (Excel 2007+)
+- `.xls` (Excel 97-2003)
+- Múltiplos arquivos
+- Diferentes estruturas de coluna
 
 ### **Passo 2: Importação Inicial**
 ```powershell
@@ -236,7 +236,7 @@ type data\file_cache.json
 
 ---
 
-## 🧪 **TESTES DO SISTEMA**
+## TESTES DO SISTEMA
 
 ### **Teste 1: Interface CLI**
 ```powershell
@@ -317,7 +317,7 @@ python main.py --force-rescan
 pip install --upgrade PyQt6
 
 # Testar importação
-python -c "from PyQt6.QtWidgets import QApplication; print('✅ PyQt6 OK')"
+python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 ```
 
 ---
@@ -427,11 +427,11 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 2. **📊 Performance**: Use `--optimized` para arquivos grandes (>5MB)
 3. **🖥️ GUI**: A interface gráfica requer PyQt6 funcionando
 4. **📁 Estrutura**: Não altere a estrutura de pastas sem necessidade
-5. **🔄 Cache**: O cache acelera reimportações, mas pode ser limpo se necessário
+5. **Cache**: O cache acelera reimportações, mas pode ser limpo se necessário
 
 ---
 
-## ✅ **CHECKLIST FINAL**
+## CHECKLIST FINAL
 
 - [ ] Repositório clonado com sucesso
 - [ ] Ambiente virtual criado e ativado

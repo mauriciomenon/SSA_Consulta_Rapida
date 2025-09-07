@@ -4,12 +4,12 @@
 
 ## 📊 COMPARATIVO
 
-### ❌ ANTES (requirements.txt)
+### ANTES (requirements.txt)
 - **Total:** 236 dependências
 - **Tamanho estimado:** ~500MB+ instalação
 - **Inclui:** Jupyter, Poetry, AI libs, desenvolvimento
 
-### ✅ DEPOIS (requirements_clean.txt)  
+### DEPOIS (requirements_clean.txt)  
 - **Total:** 6 dependências essenciais
 - **Tamanho estimado:** ~50MB instalação
 - **Inclui:** Apenas o necessário para produção
@@ -24,7 +24,7 @@ python-dateutil>=2.8.0,<3.0.0  # Util - parsing datas
 tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 ```
 
-## ❌ DEPENDÊNCIAS REMOVIDAS (desnecessárias)
+## DEPENDÊNCIAS REMOVIDAS (desnecessárias)
 
 ### 🤖 IA/ML (não usadas no projeto)
 - langchain, openai, google-ai, mistralai
@@ -43,7 +43,7 @@ tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 ### 🌐 Web/HTTP (não usado)
 - aiohttp, httpx, requests
 
-## ✅ TESTES DE FUNCIONAMENTO
+## TESTES DE FUNCIONAMENTO
 
 ```bash
 # Testado - funciona perfeitamente:
@@ -68,11 +68,11 @@ python main.py --help
 
 ## 📈 BENEFÍCIOS DA OTIMIZAÇÃO
 
-✅ **Instalação 90% menor**  
-✅ **Deploy mais rápido**  
-✅ **Menos conflitos de versão**  
-✅ **Ambiente mais limpo**  
-✅ **Builds mais rápidos**
+**Instalação 90% menor**  
+**Deploy mais rápido**  
+**Menos conflitos de versão**  
+**Ambiente mais limpo**  
+**Builds mais rápidos**
 
 ---
 
