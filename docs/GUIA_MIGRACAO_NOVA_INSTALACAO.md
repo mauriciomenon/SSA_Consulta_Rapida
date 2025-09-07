@@ -1,4 +1,4 @@
-# 🚀 Guia Completo de Migração - SSA Consulta Rápida v3.0.6
+# Guia Completo de Migração - SSA Consulta Rápida v3.0.6
 
 **Data de Criação:** 27 de Agosto de 2025  
 **Versão do Sistema:** v3.0.6 (Estável)  
@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 **ÍNDICE**
+## ÍNDICE
 
 1. [Pré-requisitos](#pré-requisitos)
 2. [Clonagem e Configuração](#clonagem-e-configuração)
@@ -20,13 +20,13 @@
 
 ---
 
-## 🔧 **PRÉ-REQUISITOS**
+## PRÉ-REQUISITOS
 
 ### **Sistema Operacional**
-- ✅ Windows 10/11 (testado)
-- ✅ Python 3.13+ (recomendado 3.13+)
-- ✅ Git for Windows
-- ✅ PowerShell 5.1+ ou PowerShell Core
+- Windows 10/11 (testado)
+- Python 3.13+ (recomendado 3.13+)
+- Git for Windows
+- PowerShell 5.1+ ou PowerShell Core
 
 ### **Ferramentas Necessárias**
 ```powershell
@@ -96,34 +96,34 @@ pip list
 
 ---
 
-## 📁 **ESTRUTURA DO PROJETO**
+## ESTRUTURA DO PROJETO
 
 ### **Arquivos de Configuração Essenciais**
 ```
-📁 SSA_Consulta_Rapida/
-├── 📄 main.py                    # ← PONTO DE ENTRADA PRINCIPAL
-├── 📄 main_dev.py               # ← Versão de desenvolvimento
-├── 📄 requirements.txt          # ← Dependências Python
-├── 📄 README.md                 # ← Documentação principal
-├── 📄 GUIA_MODO_OPTIMIZED.md   # ← Guia de otimização
-├── 📁 config/
-│   ├── 📄 schema.sql            # ← Estrutura do banco
-│   └── 📄 gui_*.json           # ← Configurações da GUI
-├── 📁 core/                     # ← Lógica principal
-├── 📁 armazenamento/           # ← Gestão do banco de dados
-├── 📁 interface/               # ← CLI e interfaces
-├── 📁 gui/                     # ← Interface gráfica
-├── 📁 tests/                   # ← Todos os testes
-├── 📁 docs_entrada/            # ← Arquivos Excel (criar se não existir)
-└── 📁 data/                    # ← Banco de dados (criado automaticamente)
+SSA_Consulta_Rapida/
+├── main.py                    # ← PONTO DE ENTRADA PRINCIPAL
+├── main_dev.py               # ← Versão de desenvolvimento
+├── requirements.txt          # ← Dependências Python
+├── README.md                 # ← Documentação principal
+├── GUIA_MODO_OPTIMIZED.md   # ← Guia de otimização
+├── config/
+│   ├── schema.sql            # ← Estrutura do banco
+│   └── gui_*.json           # ← Configurações da GUI
+├── core/                     # ← Lógica principal
+├── armazenamento/           # ← Gestão do banco de dados
+├── interface/               # ← CLI e interfaces
+├── gui/                     # ← Interface gráfica
+├── tests/                   # ← Todos os testes
+├── docs_entrada/            # ← Arquivos Excel (criar se não existir)
+└── data/                    # ← Banco de dados (criado automaticamente)
 ```
 
 ### **Pastas Criadas Automaticamente**
 ```
-📁 data/                        # ← Criada na primeira execução
-├── 📄 ssas.db                  # ← Banco principal
-├── 📄 file_cache.json         # ← Cache de arquivos
-└── 📁 historico_backups/      # ← Backups automáticos
+data/                        # ← Criada na primeira execução
+├── ssas.db                  # ← Banco principal
+├── file_cache.json         # ← Cache de arquivos
+└── historico_backups/      # ← Backups automáticos
 ```
 
 ---
@@ -274,7 +274,7 @@ python tests\teste_sistema_completo.py
 
 ---
 
-## 🔧 **SOLUÇÃO DE PROBLEMAS**
+## SOLUÇÃO DE PROBLEMAS
 
 ### **Problema: Erro de Dependências**
 ```powershell

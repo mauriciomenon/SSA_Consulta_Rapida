@@ -73,7 +73,7 @@ Agora que a v3.10 está publicada, o foco deve ser:
 - [ ] **Regressão**: Confirmar que funcionalidades antigas ainda funcionam
 - [ ] **Performance**: Verificar se não há degradação de performance
 
-### **🚨 PROBLEMAS CONHECIDOS A INVESTIGAR**
+### **PROBLEMAS CONHECIDOS A INVESTIGAR**
 - [ ] Verificar se executável Windows funciona em diferentes versões do Windows
 - [ ] Testar compatibilidade com diferentes resoluções de tela
 - [ ] Verificar comportamento com datasets muito grandes
