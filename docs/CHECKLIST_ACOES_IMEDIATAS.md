@@ -48,9 +48,9 @@ python main.py status
 ## 📋 **ESTA SEMANA (6-13 Set)**
 
 ### **Segunda (HOJE)**
-- [ ] ✅ Executar audit técnico
-- [ ] ⏳ Criar GitHub Project para v3.11
-- [ ] ⏳ Definir specs da feature de exportação avançada
+- [ ] Executar audit técnico
+- [ ] Criar GitHub Project para v3.11
+- [ ] Definir specs da feature de exportação avançada
 
 ### **Terça-Feira**
 - [ ] 🎯 Pesquisar bibliotecas: `reportlab`, `python-docx`
