@@ -31,7 +31,7 @@
 - [ ] **Performance**: Relatórios de lentidão ou travamentos
 - [ ] **Compatibilidade**: Problemas em diferentes ambientes
 
-### **🐛 PROBLEMAS POTENCIAIS A MONITORAR**
+### **PROBLEMAS POTENCIAIS A MONITORAR**
 - [ ] **Executável Windows**: Funcionamento em diferentes versões do Windows
 - [ ] **Temas**: Problemas visuais com o tema Claro em monitores específicos
 - [ ] **Filtros**: Comportamento inesperado dos filtros por coluna
