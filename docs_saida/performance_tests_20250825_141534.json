@@ -1,0 +1,320 @@
+{
+  "total_tests": 5,
+  "successful_tests": 5,
+  "total_duration_seconds": 5.89180588722229,
+  "test_results": [
+    {
+      "test_name": "database_query_performance",
+      "query_results": [
+        {
+          "duration_seconds": 0.004998445510864258,
+          "memory_used_mb": 0.10546875,
+          "peak_memory_mb": 69.9765625,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "query_name": "count_all",
+          "result_count": 1,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.028794050216674805,
+          "memory_used_mb": 0.0234375,
+          "peak_memory_mb": 70.9765625,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "query_name": "select_1000",
+          "result_count": 1000,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.005240440368652344,
+          "memory_used_mb": 0.0625,
+          "peak_memory_mb": 73.19921875,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "query_name": "distinct_situacao",
+          "result_count": 23,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.006120920181274414,
+          "memory_used_mb": 0.0234375,
+          "peak_memory_mb": 73.32421875,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "query_name": "filter_em_execucao",
+          "result_count": 0,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.006086826324462891,
+          "memory_used_mb": 0.05078125,
+          "peak_memory_mb": 73.47265625,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "query_name": "ordered_select",
+          "result_count": 500,
+          "success": true
+        }
+      ],
+      "avg_duration": 0.010248136520385743,
+      "total_duration": 0.05124068260192871
+    },
+    {
+      "test_name": "concurrent_access",
+      "num_threads": 5,
+      "successful_threads": 5,
+      "total_time": 0.12904644012451172,
+      "avg_thread_time": 0.1007608413696289,
+      "thread_results": [
+        {
+          "duration_seconds": 0.08248615264892578,
+          "memory_used_mb": 0.03515625,
+          "peak_memory_mb": 73.953125,
+          "avg_cpu_percent": 0.0,
+          "max_cpu_percent": 0.0,
+          "thread_id": 0,
+          "queries_executed": 10,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.10340189933776855,
+          "memory_used_mb": 1.01171875,
+          "peak_memory_mb": 75.19921875,
+          "avg_cpu_percent": 21.75,
+          "max_cpu_percent": 43.5,
+          "thread_id": 4,
+          "queries_executed": 10,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.10418701171875,
+          "memory_used_mb": 1.15234375,
+          "peak_memory_mb": 75.19921875,
+          "avg_cpu_percent": 21.75,
+          "max_cpu_percent": 43.5,
+          "thread_id": 3,
+          "queries_executed": 10,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.10710597038269043,
+          "memory_used_mb": 1.2421875,
+          "peak_memory_mb": 75.19921875,
+          "avg_cpu_percent": 21.75,
+          "max_cpu_percent": 43.5,
+          "thread_id": 1,
+          "queries_executed": 10,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.10662317276000977,
+          "memory_used_mb": 1.1953125,
+          "peak_memory_mb": 75.19921875,
+          "avg_cpu_percent": 21.75,
+          "max_cpu_percent": 43.5,
+          "thread_id": 2,
+          "queries_executed": 10,
+          "success": true
+        }
+      ]
+    },
+    {
+      "test_name": "large_filter_performance",
+      "filter_results": [
+        {
+          "duration_seconds": 0.21512341499328613,
+          "memory_used_mb": 28.20703125,
+          "peak_memory_mb": 103.2578125,
+          "avg_cpu_percent": 35.3,
+          "max_cpu_percent": 72.6,
+          "test_name": "filter_by_situacao",
+          "result_count": 0,
+          "filters_applied": 1,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.2835681438446045,
+          "memory_used_mb": 7.27734375,
+          "peak_memory_mb": 105.7421875,
+          "avg_cpu_percent": 55.6,
+          "max_cpu_percent": 91.8,
+          "test_name": "filter_by_setor",
+          "result_count": 0,
+          "filters_applied": 1,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.2002105712890625,
+          "memory_used_mb": 0.02734375,
+          "peak_memory_mb": 98.515625,
+          "avg_cpu_percent": 37.5,
+          "max_cpu_percent": 75.0,
+          "test_name": "no_filter_all_data",
+          "result_count": 14426,
+          "filters_applied": 0,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.22458171844482422,
+          "memory_used_mb": 10.89453125,
+          "peak_memory_mb": 114.13671875,
+          "avg_cpu_percent": 32.4,
+          "max_cpu_percent": 63.9,
+          "test_name": "multiple_filters",
+          "result_count": 0,
+          "filters_applied": 2,
+          "success": true
+        }
+      ],
+      "avg_duration": 0.23087096214294434
+    },
+    {
+      "test_name": "file_extraction_performance",
+      "extraction_results": [
+        {
+          "duration_seconds": 0.5858759880065918,
+          "memory_used_mb": 0.05859375,
+          "peak_memory_mb": 114.1953125,
+          "avg_cpu_percent": 44.51666666666667,
+          "max_cpu_percent": 76.6,
+          "file_name": "Consulta SSA - 14-07-2025_0343PM.xlsx",
+          "rows_extracted": 55,
+          "file_size_mb": 0.08540534973144531,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.16158032417297363,
+          "memory_used_mb": 0.140625,
+          "peak_memory_mb": 92.30859375,
+          "avg_cpu_percent": 15.75,
+          "max_cpu_percent": 31.5,
+          "file_name": "Consulta SSA - 25-08-2025_0143PM.xlsx",
+          "rows_extracted": 4,
+          "file_size_mb": 0.07766342163085938,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.1708226203918457,
+          "memory_used_mb": 0.02734375,
+          "peak_memory_mb": 92.35546875,
+          "avg_cpu_percent": 27.1,
+          "max_cpu_percent": 54.2,
+          "file_name": "Consulta SSA - 25-08-2025_0150PM.xlsx",
+          "rows_extracted": 4,
+          "file_size_mb": 0.07701587677001953,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.22975802421569824,
+          "memory_used_mb": 0.16796875,
+          "peak_memory_mb": 92.5234375,
+          "avg_cpu_percent": 30.266666666666666,
+          "max_cpu_percent": 50.0,
+          "file_name": "Em Execução_15-08-2025_0416PM.xlsx",
+          "rows_extracted": 73,
+          "file_size_mb": 0.09196186065673828,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.19101881980895996,
+          "memory_used_mb": 0.01953125,
+          "peak_memory_mb": 92.54296875,
+          "avg_cpu_percent": 34.05,
+          "max_cpu_percent": 68.1,
+          "file_name": "Em Execução_15-08-2025_0417PM.xlsx",
+          "rows_extracted": 7,
+          "file_size_mb": 0.07891082763671875,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.18897032737731934,
+          "memory_used_mb": 0.01953125,
+          "peak_memory_mb": 92.55078125,
+          "avg_cpu_percent": 14.9,
+          "max_cpu_percent": 29.8,
+          "file_name": "Não Planejadas em Espera_15-08-2025_0410PM.xlsx",
+          "rows_extracted": 5,
+          "file_size_mb": 0.08172035217285156,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.24095487594604492,
+          "memory_used_mb": 0.01953125,
+          "peak_memory_mb": 92.59375,
+          "avg_cpu_percent": 49.6,
+          "max_cpu_percent": 80.6,
+          "file_name": "Pendentes de Execução_15-07-2025_0224PM.xlsx",
+          "rows_extracted": 6,
+          "file_size_mb": 0.0783834457397461,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.33059191703796387,
+          "memory_used_mb": 0.046875,
+          "peak_memory_mb": 92.62109375,
+          "avg_cpu_percent": 56.875,
+          "max_cpu_percent": 82.1,
+          "file_name": "Pendentes de Execução_15-08-2025_0416PM.xlsx",
+          "rows_extracted": 27,
+          "file_size_mb": 0.08371829986572266,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.2117466926574707,
+          "memory_used_mb": 0.01953125,
+          "peak_memory_mb": 92.640625,
+          "avg_cpu_percent": 35.166666666666664,
+          "max_cpu_percent": 58.3,
+          "file_name": "Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
+          "rows_extracted": 1,
+          "file_size_mb": 0.07676982879638672,
+          "success": true
+        },
+        {
+          "duration_seconds": 0.19850826263427734,
+          "memory_used_mb": 0.01953125,
+          "peak_memory_mb": 92.6484375,
+          "avg_cpu_percent": 32.75,
+          "max_cpu_percent": 65.5,
+          "file_name": "Pendentes de Programar_15-08-2025_0412PM.xlsx",
+          "rows_extracted": 121,
+          "file_size_mb": 0.09023666381835938,
+          "success": true
+        }
+      ],
+      "total_files_processed": 10,
+      "total_rows_extracted": 303,
+      "avg_duration_per_file": 0.2509827852249146,
+      "total_duration": 2.5098278522491455
+    },
+    {
+      "test_name": "memory_usage_patterns",
+      "memory_tests": [
+        {
+          "duration_seconds": 0.20068120956420898,
+          "memory_used_mb": 13.328125,
+          "peak_memory_mb": 106.02734375,
+          "avg_cpu_percent": 22.6,
+          "max_cpu_percent": 45.2,
+          "test_name": "large_data_loading",
+          "records_processed": 14426,
+          "success": true
+        },
+        {
+          "duration_seconds": 2.0459582805633545,
+          "memory_used_mb": 50.98828125,
+          "peak_memory_mb": 163.33203125,
+          "avg_cpu_percent": 40.81,
+          "max_cpu_percent": 75.0,
+          "test_name": "multiple_operations",
+          "operations_count": 10,
+          "success": true
+        }
+      ],
+      "peak_memory_mb": 163.33203125,
+      "avg_memory_usage_mb": 32.158203125
+    }
+  ],
+  "timestamp": "2025-08-25T14:15:34.788247"
+}
