@@ -1,9 +1,9 @@
-# Sistema de Build
+# 📚 Documentação Consolidada - Sistema de Build
 
-## Visão Geral
+## 🎯 Visão Geral
 Sistema automatizado de build multiplataforma para SSA Consulta Rápida v3.10+
 
-### Início Rápido
+### 🚀 Início Rápido
 ```bash
 # Build completo multiplataforma
 python launchers/build_multiplatform.py
@@ -12,7 +12,7 @@ python launchers/build_multiplatform.py
 python launchers/test_complete.py
 ```
 
-## Arquitetura do Sistema
+## 🏗️ Arquitetura do Sistema
 
 ### **Core Components**
 - `build_multiplatform.py` - Sistema principal automatizado
@@ -35,27 +35,27 @@ Cada plataforma possui `build_config.json` com:
 - Paths de assets e recursos
 - Opções de otimização
 
-## Funcionalidades
+## 📋 Funcionalidades
 
-### **Build Automatizado**
+### ✅ **Build Automatizado**
 - **Multi-plataforma**: Windows (x64/x86), macOS (Intel/ARM), Linux (x64)
 - **Limpeza automática**: Remove builds anteriores
 - **Validação**: Testa executáveis automaticamente
 - **Git integration**: Commit/push automático opcional
 
-### **Gestão de Artefatos**
+### ✅ **Gestão de Artefatos**
 - **Organização**: Estrutura padronizada de diretórios
 - **Logs**: Sistema completo de logging
 - **Backup**: Preservação de builds estáveis
 - **Limpeza**: Remoção inteligente de temporários
 
-### **Qualidade**
+### ✅ **Qualidade**
 - **Testes automáticos**: Validação de imports e funcionalidades
 - **Verificação**: Checksums e integridade
 - **Relatórios**: Status detalhado por plataforma
 - **Debugging**: Logs estruturados para troubleshooting
 
-## Scripts Disponíveis
+## 🛠️ Scripts Disponíveis
 
 ### **Build Scripts**
 - `build_multiplatform.py` - **Principal**: Build automatizado completo
@@ -68,24 +68,24 @@ Cada plataforma possui `build_config.json` com:
 - `test_quick.py` - Teste rápido de funcionalidades
 
 ### **Utility Scripts**
-- `cleanup.py` - Limpeza completa
+- `cleanup_forcado.py` - **Principal**: Limpeza completa forçada
 - `convert_icon.py` - Conversão de ícones para Windows
 
-## Status Final v3.10
+## 📊 Status Final v3.10
 
-### **Completamente Funcional**
-- **Builds**: Todos os 5 targets funcionais
-- **Testes**: Suite completa de validação
-- **Automação**: Git integration e cleanup
-- **Módulos**: Todos os imports resolvidos (secrets, urllib, pandas, etc.)
+### ✅ **Completamente Funcional**
+- ✅ **Builds**: Todos os 5 targets funcionais
+- ✅ **Testes**: Suite completa de validação
+- ✅ **Automação**: Git integration e cleanup
+- ✅ **Módulos**: Todos os imports resolvidos (secrets, urllib, pandas, etc.)
 
-### **Qualidade de Produção**
-- **Estabilidade**: Zero crashes nos testes
-- **Performance**: Builds otimizados
-- **Usabilidade**: Interface limpa e responsiva
-- **Portabilidade**: Executáveis standalone
+### 🎯 **Qualidade de Produção**
+- ✅ **Estabilidade**: Zero crashes nos testes
+- ✅ **Performance**: Builds otimizados
+- ✅ **Usabilidade**: Interface limpa e responsiva
+- ✅ **Portabilidade**: Executáveis standalone
 
-## Configuração e Uso
+## 🔧 Configuração e Uso
 
 ### **Pré-requisitos**
 ```bash
@@ -119,11 +119,11 @@ python launchers/test_quick.py
 
 ### **Limpeza**
 ```bash
-# Limpeza completa
-python launchers/cleanup.py
+# Limpeza forçada completa
+python launchers/cleanup_forcado.py
 ```
 
-## Próximos Passos
+## 🚀 Próximos Passos
 
 ### **v3.11 Roadmap**
 1. **Assinatura de código**: macOS (certificado) + Windows (Authenticode)
@@ -139,7 +139,7 @@ python launchers/cleanup.py
 
 ---
 
-## Histórico de Mudanças
+## 📝 Histórico de Mudanças
 
 ### **v3.10.0** - Build System Completo
 - Sistema de build multiplataforma funcional
