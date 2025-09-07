@@ -1,23 +1,18 @@
-aiohappyeyeballs==2.6.1
-aiohttp==3.12.15
-aiosignal==1.4.0
-annotated-types==0.7.0
-anyio==4.9.0
-argcomplete==3.6.2
-argon2-cffi==25.1.0
-argon2-cffi-bindings==21.2.0
-arrow==1.3.0
-astroid==3.3.10
-asttokens==3.0.0
-async-lru==2.0.5
-attrs==25.3.0
-autopep8==2.3.2
-babel==2.17.0
-bandit==1.8.6
-beautifulsoup4==4.13.4
-binaryornot==0.4.4
-black==25.1.0
-bleach==6.2.0
+# SSA Consulta Rápida - Dependências Otimizadas v3.0.7
+# Sistema multi-plataforma com dependências mínimas
+
+# === CORE ESSENCIAL ===
+PyQt6==6.8.0                    # Interface gráfica
+pandas==2.2.3                   # Manipulação de dados Excel  
+openpyxl==3.1.5                 # Leitura/escrita Excel (.xlsx)
+
+# === UTILITÁRIOS ===
+Pillow==10.4.0                  # Processamento de imagens
+packaging==24.2                 # Utilitários de versionamento
+
+# === BUILD (instalação separada) ===
+# pyinstaller==6.0.0            # Para criação de executáveis
+# cairosvg==2.7.1                # Para conversão de ícones SVG
 build==1.2.2.post1
 CacheControl==0.14.3
 cachetools==5.5.2
@@ -166,6 +161,7 @@ Pygments==2.19.2
 pyinstaller==6.14.2
 pylint==3.3.7
 pyparsing==3.2.3
+PyQt6==6.8.0
 pyproject_hooks==1.2.0
 pyrefly==0.23.1
 pytest==8.4.1

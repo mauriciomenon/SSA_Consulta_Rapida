@@ -24,14 +24,14 @@
 
 ### **Sistema Operacional**
 - ✅ Windows 10/11 (testado)
-- ✅ Python 3.8+ (recomendado 3.9+)
+- ✅ Python 3.13+ (recomendado 3.13+)
 - ✅ Git for Windows
 - ✅ PowerShell 5.1+ ou PowerShell Core
 
 ### **Ferramentas Necessárias**
 ```powershell
 # Verificar versões instaladas
-python --version          # Deve ser 3.8+
+python --version          # Deve ser 3.13+
 git --version             # Qualquer versão recente
 pip --version             # Incluído com Python
 ```

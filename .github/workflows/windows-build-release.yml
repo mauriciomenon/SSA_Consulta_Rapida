@@ -21,14 +21,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install dependencies for packaging
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller PyQt6
+          pip install pyinstaller
 
       - name: Build CLI (PyInstaller onefile)
         shell: pwsh
