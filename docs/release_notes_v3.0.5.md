@@ -84,7 +84,7 @@ This version represents the culmination of v3.0.x development, focusing on stabi
 - **Maintenance** of existing API interfaces
 
 ### System Requirements
-- Python 3.8+
+- Python 3.13+
 - PyQt5/PySide2 for GUI
 - SQLite for data storage
 - Pandas for data processing
