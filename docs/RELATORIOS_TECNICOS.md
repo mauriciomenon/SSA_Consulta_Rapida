@@ -846,3 +846,689 @@ class TestPerformanceBenchmarks(unittest.TestCase):
 O projeto evoluiu de uma aplicação simples para um sistema robusto e escalável através de implementações incrementais e focadas em problemas reais identificados através de uso e testes.
 
 **Status**: Sistema técnico maduro com práticas de desenvolvimento estabelecidas e documentadas.
+
+---
+
+## **ISOLAMENTO DE CONFIGURAÇÕES - IMPLEMENTAÇÃO CRÍTICA**
+
+### **Contexto da Implementação**
+**Data**: Agosto 2025  
+**Problema**: Conflitos entre configurações da GUI e CLI causando instabilidade  
+**Solução**: Isolamento completo de configurações por componente
+
+#### **Arquitetura Final Implementada**
+
+##### **Estrutura de Configurações**
+```
+config/
+├── gui_poc_preferences.json     # GUI PoC (isolado)
+├── gui_main_preferences.json    # GUI main.py (NOVO - isolado)
+├── default_settings.json        # CLI (mantém atual, inalterado)
+├── column_mappings.json         # Compartilhado (base)
+└── display_mappings.json        # CLI específico (inalterado)
+```
+
+##### **Fluxo de Configurações**
+```
+CLI → default_settings.json + display_mappings.json (inalterado)
+GUI PoC → gui_poc_preferences.json (já funcionando)
+GUI Main → gui_main_preferences.json (NOVO sistema isolado)
+```
+
+#### **Implementação Técnica**
+
+##### **Sistema de Carregamento Dinâmico**
+```python
+def load_gui_main_preferences():
+    """Carrega configurações específicas da GUI Principal."""
+    config_path = os.path.join(get_config_dir(), 'gui_main_preferences.json')
+    
+    # Configuração padrão caso arquivo não exista
+    default_config = {
+        'display_columns': [
+            'numero_ssa', 'descricao', 'status_atual',
+            'data_abertura', 'setor_executor', 'setor_emissor'
+        ],
+        'column_display_names': {
+            'numero_ssa': 'Número SSA',
+            'descricao': 'Descrição da SSA',
+            'status_atual': 'Status Atual'
+        },
+        'column_widths': {
+            'numero_ssa': 100,
+            'descricao': 300,
+            'status_atual': 120
+        },
+        'gui_settings': {
+            'page_size': 20,
+            'debounce_delay': 250,
+            'auto_refresh': True,
+            'remember_filters': True
+        }
+    }
+    
+    if not os.path.exists(config_path):
+        # Cria arquivo de configuração padrão
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(default_config, f, indent=2, ensure_ascii=False)
+        return default_config
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Merge com configuração padrão para garantir todas as chaves
+        merged_config = deep_merge_config(default_config, config)
+        return merged_config
+        
+    except Exception as e:
+        logging.warning(f"Erro ao carregar configurações GUI: {e}")
+        return default_config
+```
+
+##### **Validação e Merge de Configurações**
+```python
+def deep_merge_config(default, user_config):
+    """Merge profundo garantindo todas as chaves necessárias."""
+    result = default.copy()
+    
+    for key, value in user_config.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_config(result[key], value)
+        else:
+            result[key] = value
+    
+    return result
+
+def validate_gui_config(config):
+    """Valida estrutura de configuração da GUI."""
+    required_keys = ['display_columns', 'column_display_names', 'column_widths', 'gui_settings']
+    
+    for key in required_keys:
+        if key not in config:
+            raise ValueError(f"Configuração inválida: chave '{key}' ausente")
+    
+    # Validações específicas
+    if not isinstance(config['display_columns'], list):
+        raise ValueError("display_columns deve ser uma lista")
+    
+    if not isinstance(config['column_widths'], dict):
+        raise ValueError("column_widths deve ser um dicionário")
+    
+    return True
+```
+
+#### **Benefícios da Implementação**
+
+1. **Isolamento Completo**: GUI e CLI não interferem entre si
+2. **Configuração Flexível**: Cada componente tem suas próprias configurações
+3. **Robustez**: Sistema de fallback e validação automática
+4. **Manutenibilidade**: Configurações organizadas e documentadas
+5. **Retrocompatibilidade**: Sistemas existentes continuam funcionando
+
+#### **Debugging e Troubleshooting**
+
+##### **Verificação de Configurações**
+```bash
+# Verificar configurações da GUI Main
+cat config/gui_main_preferences.json
+
+# Verificar configurações do CLI  
+cat config/default_settings.json
+
+# Verificar logs de configuração
+tail -f logs/config_debug.log
+```
+
+##### **Problemas Comuns**
+
+**Problema**: GUI não carrega configurações
+```python
+# Solução: Remover arquivo corrompido
+rm config/gui_main_preferences.json
+# Sistema recriará com configurações padrão
+```
+
+**Problema**: Conflitos entre GUI e CLI
+```python
+# Verificar se cada sistema usa seu próprio arquivo
+# GUI deve usar: gui_main_preferences.json
+# CLI deve usar: default_settings.json
+```
+
+---
+
+## **VERIFICAÇÕES DE BANCO DE DADOS - SISTEMA ROBUSTO**
+
+### **Contexto da Implementação**
+**Data**: Agosto 2025  
+**Objetivo**: Garantir integridade e robustez do banco de dados durante importações  
+**Escopo**: Sistema completo de verificação, validação e reparo automático
+
+#### **Funcionalidades Implementadas**
+
+##### **1. Verificação de Integridade Completa**
+```python
+def verify_database_integrity(db_path, table_name):
+    """Verificação abrangente do banco de dados."""
+    checks = {
+        'database_exists': os.path.exists(db_path),
+        'database_accessible': can_access_database(db_path),
+        'table_exists': table_exists_in_db(db_path, table_name),
+        'schema_valid': validate_table_schema(db_path, table_name),
+        'data_consistent': pragma_integrity_check(db_path),
+        'disk_space_sufficient': check_disk_space(db_path, min_mb=100),
+        'file_permissions_ok': check_file_permissions(db_path)
+    }
+    return generate_integrity_report(checks)
+```
+
+**Verificações Realizadas**:
+- ✅ Existência do arquivo de banco de dados
+- ✅ Permissões de leitura/escrita no arquivo
+- ✅ Espaço em disco disponível (mínimo 100MB)
+- ✅ Acessibilidade do banco SQLite
+- ✅ Existência da tabela principal
+- ✅ Validação do schema (colunas obrigatórias)
+- ✅ Integridade dos dados SQLite (`PRAGMA integrity_check`)
+
+##### **2. Validação de Dados Pré-Inserção**
+```python
+def validate_dataframe_before_insert(df, table_name):
+    """Validação rigorosa antes da inserção."""
+    validations = {
+        'critical_columns': verify_required_columns(df),
+        'ssa_format': validate_ssa_numbers(df['numero_ssa']),
+        'date_format': validate_date_columns(df),
+        'duplicates': detect_duplicate_ssas(df),
+        'string_lengths': check_string_field_lengths(df),
+        'data_types': validate_column_types(df)
+    }
+    return generate_validation_report(validations)
+```
+
+**Validações Críticas**:
+- ✅ Verificação de colunas obrigatórias (numero_ssa, situacao)
+- ✅ Validação de números SSA (formato YYYYNNNNN)
+- ✅ Validação de formatos de data
+- ✅ Detecção de duplicatas por numero_ssa
+- ✅ Verificação de tamanhos de string (evitar truncamento)
+- ✅ Validação de tipos de dados
+
+##### **3. Sistema de Reparo Automático**
+```python
+def repair_database_if_needed(db_path, schema_file):
+    """Reparo automático inteligente."""
+    repair_actions = []
+    
+    if not os.path.exists(db_path):
+        repair_actions.append(create_new_database(db_path, schema_file))
+    
+    if database_corrupted(db_path):
+        backup_path = create_backup(db_path)
+        repair_actions.append(extract_valid_data(db_path))
+        repair_actions.append(recreate_database(db_path, schema_file))
+        repair_actions.append(restore_valid_data(db_path))
+    
+    if schema_invalid(db_path):
+        repair_actions.append(recreate_schema(db_path, schema_file))
+    
+    return repair_actions
+```
+
+**Ações de Reparo**:
+- 🔧 Criação de novo banco se não existir
+- 🔧 Recriação de schema se tabela estiver ausente
+- 🔧 Backup e restauração em caso de corrupção
+- 🔧 Extração de dados válidos de banco corrompido
+
+#### **Classes de Exceção Específicas**
+
+```python
+# Hierarquia de exceções para banco de dados
+class DatabaseConnectionError(Exception):
+    """Problemas de conexão com banco de dados."""
+    pass
+
+class DatabaseCorruptionError(Exception):
+    """Corrupção detectada no banco de dados."""
+    pass
+
+class DatabaseSchemaError(Exception):
+    """Problemas relacionados ao schema."""
+    pass
+
+class DatabaseSpaceError(Exception):
+    """Espaço em disco insuficiente."""
+    pass
+
+class DataValidationError(Exception):
+    """Dados inválidos detectados."""
+    pass
+```
+
+#### **Integração no Fluxo de Importação**
+
+##### **Fluxo Robusto Atualizado**
+```
+1. ┌─ Verificação de Integridade (NOVO)
+   ├─ Reparo automático se necessário
+   └─ Falha crítica se banco permanece inválido
+
+2. ┌─ Determinação de Arquivos
+   └─ Processo original mantido
+
+3. ┌─ Processamento por Arquivo (MELHORADO)
+   ├─ Validação de dados extraídos
+   ├─ Tratamento específico por tipo de erro
+   └─ Recuperação automática quando possível
+
+4. ┌─ Atualização de Cache
+   └─ Processo original mantido
+```
+
+##### **Estratégias de Recuperação por Tipo de Erro**
+```python
+error_recovery_strategies = {
+    'DatabaseConnectionError': 'STOP_ALL_PROCESSING',
+    'DatabaseCorruptionError': 'AUTO_REPAIR_AND_CONTINUE',
+    'DatabaseSchemaError': 'RECREATE_SCHEMA_AND_CONTINUE',
+    'DatabaseSpaceError': 'STOP_ALL_PROCESSING',
+    'DataValidationError': 'SKIP_FILE_WITH_INVALID_DATA',
+    'ExtractionError': 'SKIP_FILE_WITH_READ_PROBLEMS'
+}
+```
+
+#### **Relatórios de Diagnóstico**
+
+##### **Relatório de Integridade**
+```json
+{
+    "is_valid": true,
+    "issues": [],
+    "warnings": ["Large database file detected"],
+    "checks": {
+        "database_exists": true,
+        "database_accessible": true,
+        "table_exists": true,
+        "schema_valid": true,
+        "data_consistent": true,
+        "disk_space_sufficient": true,
+        "file_permissions_ok": true
+    },
+    "metadata": {
+        "file_size_mb": 125.7,
+        "record_count": 15432,
+        "last_modified": "2025-08-27T10:30:00Z"
+    }
+}
+```
+
+##### **Relatório de Validação**
+```json
+{
+    "is_valid": false,
+    "critical_issues": [
+        "3 SSAs with invalid number format",
+        "12 records with null required fields"
+    ],
+    "warnings": [
+        "5 potential duplicate SSAs found",
+        "Date format inconsistencies in 2 records"
+    ],
+    "file_status": "REJECTED_FOR_PROCESSING",
+    "suggested_actions": [
+        "Fix SSA number formats",
+        "Fill required fields",
+        "Review duplicates"
+    ]
+}
+```
+
+---
+
+## **CLI ENHANCED SYSTEM v3.0.5 - IMPLEMENTAÇÃO COMPLETA**
+
+### **Contexto da Implementação**
+**Data**: 22 de Agosto de 2025  
+**Versão**: 3.0.5 Enhanced CLI  
+**Objetivo**: Aplicar soluções determinísticas da GUI na CLI  
+**Status**: ✅ Implementação Completa
+
+#### **Arquitetura do Sistema Enhanced**
+
+##### **1. CLI Width Manager**
+```python
+# interface/cli_width_manager.py
+class CLIWidthManager:
+    """Sistema de larguras fixas idêntico ao GUI."""
+    
+    def __init__(self):
+        self.pixel_to_char_ratio = 8  # 1 char ≈ 8px
+        self.growth_algorithm = "proportional_50_50"
+        
+    def calculate_terminal_widths(self, terminal_width, columns):
+        """Converte larguras GUI para terminal."""
+        gui_widths = self.load_gui_base_widths()
+        terminal_widths = {}
+        
+        for col in columns:
+            gui_pixels = gui_widths.get(col, 100)
+            terminal_chars = gui_pixels // self.pixel_to_char_ratio
+            terminal_widths[col] = max(terminal_chars, 8)  # mínimo 8 chars
+            
+        return self.adjust_for_terminal_width(terminal_widths, terminal_width)
+```
+
+##### **2. Enhanced Table Printer**
+```python
+# interface/enhanced_table_printer.py
+class EnhancedTablePrinter:
+    """Renderização ASCII otimizada com controles avançados."""
+    
+    def render_table(self, data, columns, terminal_width):
+        """Renderiza tabela com larguras determinísticas."""
+        widths = self.width_manager.calculate_terminal_widths(terminal_width, columns)
+        
+        # Seleção inteligente de colunas
+        selected_columns = self.select_columns_for_width(columns, widths, terminal_width)
+        
+        # Renderização com word wrap
+        table_lines = []
+        for row in data:
+            rendered_row = self.render_row_with_wrap(row, selected_columns, widths)
+            table_lines.extend(rendered_row)
+            
+        return table_lines
+        
+    def render_row_with_wrap(self, row, columns, widths):
+        """Word wrap inteligente para descrições longas."""
+        wrapped_cells = {}
+        max_lines = 1
+        
+        for col in columns:
+            cell_content = str(row.get(col, ''))
+            if col == 'descricao':
+                wrapped_cells[col] = self.wrap_text(cell_content, widths[col])
+                max_lines = max(max_lines, len(wrapped_cells[col]))
+            else:
+                wrapped_cells[col] = [cell_content[:widths[col]]]
+                
+        return self.combine_wrapped_cells(wrapped_cells, max_lines, widths)
+```
+
+##### **3. CLI Enhancement Manager**
+```python
+# interface/cli_enhancement_manager.py
+class CLIEnhancementManager:
+    """Gerenciamento centralizado das melhorias CLI."""
+    
+    def __init__(self):
+        self.config_file = "config/cli_enhancements.json"
+        self.enhancements = {
+            'enhanced_printer': True,
+            'debug_mode': False,
+            'auto_column_selection': True,
+            'word_wrap_descriptions': True,
+            'deterministic_widths': True
+        }
+    
+    def toggle_enhancement(self, enhancement_name):
+        """Liga/desliga funcionalidade específica."""
+        if enhancement_name in self.enhancements:
+            self.enhancements[enhancement_name] = not self.enhancements[enhancement_name]
+            self.save_config()
+            return f"Enhancement '{enhancement_name}': {'ON' if self.enhancements[enhancement_name] else 'OFF'}"
+        
+    def generate_status_report(self):
+        """Relatório detalhado do status das melhorias."""
+        return {
+            'enhanced_system_active': True,
+            'enhancements': self.enhancements,
+            'version': '3.0.5',
+            'compatibility': '100% backward compatible'
+        }
+```
+
+#### **Comandos Implementados**
+
+##### **Comandos de Gestão**
+```bash
+# Status das melhorias
+python main.py status-cli
+python main.py cli-status
+
+# Controle de debug
+python main.py toggle-debug
+python main.py debug
+
+# Controle do Enhanced Printer
+python main.py enhanced-on      # Ativa
+python main.py enhanced-off     # Desativa
+```
+
+##### **Integração com CLI Existente**
+```python
+# Todos os comandos originais mantidos
+python main.py -d              # Busca com palavra-chave
+python main.py -v              # Busca avançada
+python main.py -e              # Busca por setor emissor
+python main.py -r              # Busca por setor responsável
+python main.py -rescan         # Reescanear arquivos
+python main.py -c              # Limpar cache
+```
+
+#### **Melhorias Técnicas Implementadas**
+
+##### **Determinismo e Consistência**
+- ✅ Larguras de coluna idênticas ao GUI (conversão pixel→char)
+- ✅ Comportamento previsível em diferentes terminais
+- ✅ Cálculos de largura determinísticos e reproduzíveis
+
+##### **Performance Otimizada**
+- ✅ Cache inteligente para renderização de tabelas
+- ✅ Seleção automática de colunas baseada na largura terminal
+- ✅ Processamento eficiente de datasets grandes
+
+##### **Usabilidade Aprimorada**
+- ✅ Comandos intuitivos e bem documentados
+- ✅ Fallback automático para sistema original em caso de erro
+- ✅ Mensagens de status claras e informativas
+- ✅ Word wrap inteligente para descrições longas
+
+##### **Configuração Unificada**
+```json
+{
+    "enhanced_printer": true,
+    "debug_mode": false,
+    "auto_column_selection": true,
+    "word_wrap_descriptions": true,
+    "deterministic_widths": true,
+    "terminal_width_detection": "auto",
+    "fallback_to_original": true
+}
+```
+
+#### **Resultados da Implementação**
+
+**Compatibilidade**: 100% retrocompatível com sistema existente  
+**Performance**: Melhorias na renderização de tabelas grandes  
+**Usabilidade**: Interface mais limpa e consistente  
+**Manutenibilidade**: Código modular e bem estruturado  
+
+**Feedback do Usuário**: ✅ "Objetivo cumprido - CLI com melhorias determinísticas aplicadas"
+
+---
+
+## **RELEASES E VERSÕES - HISTÓRICO COMPLETO**
+
+### **Release v3.10 (2025-09-04) - Consolidação de Melhorias Visuais**
+
+#### **Melhorias GUI Implementadas**
+- 🎨 **Painel "Filtros por Coluna" Compacto**: Labels próximos, botões fixos (Aplicar/Limpar), altura estável
+- 🔧 **Estabilidade das Colunas**: Larguras não mudam ao limpar/aplicar filtros ou paginar
+- 🎯 **Recálculo Inteligente**: Apenas quando muda conjunto/ordem de colunas ou largura útil do viewport > 12px
+- 🌈 **Sistema de Temas**: Inicia em Gruvbox, Tema Claro mais cinza (fundo #eee, borda #aaa)
+- 💡 **Dica de Busca Visível**: "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna."
+
+#### **Melhorias CLI Implementadas**
+- 🖥️ **Banner Inicial Único**: Sem duplicação de versão
+- 📋 **Guia Rápido Otimizado**: Sem bordas laterais para evitar quebra à direita
+
+#### **Correções Técnicas**
+- ✅ "Limpar" nas três caixas fixas mantém as linhas e apenas zera os termos
+- ✅ Dica de busca visível com contraste em todos os temas
+- ✅ Placeholders dos filtros por coluna alinhados com os modos
+
+#### **Arquivos Relacionados**
+- `docs_saida/RELEASE_v3.10.md`
+- `docs_saida/CHANGELOG_v3.10.md`
+
+#### **Notas de Migração**
+- ✅ Nenhuma ação requerida
+- ✅ Preferência de tema persistida
+- ✅ Aplicação inicializa em Gruvbox por padrão
+
+#### **Checklist de Validação**
+- [x] Contraste do tema Claro nas caixas Semana/Status
+- [x] "Limpar" individual e "Limpar todos" no painel de filtros
+- [x] Larguras de coluna estáveis em limpar/aplicar/paginar
+- [x] Help inicial da CLI sem quebra na lateral direita
+- [x] Tag e GitHub Release atualizados
+
+---
+
+## **MAPA DE RASTREABILIDADE - PEDIDOS → IMPLEMENTAÇÕES**
+
+### **Contexto do Documento**
+**Data**: 2025-08-15  
+**Status**: 67 testes passando  
+**Objetivo**: Rastreamento completo de pedidos → implementações → validações
+
+#### **Estrutura do Rastreamento**
+Cada funcionalidade mapeada em formato:
+- **Pedido**: O que foi solicitado
+- **Implementação**: Arquivos e algoritmos criados
+- **Testes**: Como validar funcionamento
+- **Exemplos**: Casos práticos de uso
+
+#### **Funcionalidades Principais Implementadas**
+
+##### **A. Formatação Unificada**
+```
+PEDIDO: Formatação sem ".0", sem NaN/NaT/None, datas dd/mm/yyyy
+IMPLEMENTAÇÃO: utils/formatting.py (format_cell, format_dataframe_for_display)
+SUPERFÍCIES: CLI e GUI usam a mesma função
+TESTES: tests/test_formatting.py, tests/test_cli_formatting.py
+VALIDAÇÃO: Rodar CLI/GUI e conferir datas, números inteiros e nulos ocultos
+```
+
+##### **B. Sistema de Cabeçalhos Adaptativos**
+```
+PEDIDO: Cabeçalhos largos x curtos; short_labels atualizados
+IMPLEMENTAÇÃO: interface/table_printer.py (labels completos vs short_labels)
+CONFIG: config/column_priority.json (short_labels), settings.display_settings.prefer_short_labels
+TESTES: tests/test_table_printer.py
+VALIDAÇÃO: Redimensionar terminal; ver headers mudarem
+LABELS CURTOS: Exe., St., Prog., Emi.
+```
+
+##### **C. Seleção Adaptativa de Colunas**
+```
+PEDIDO: Sempre visíveis + prioridade, com ordem inicial "pinned"
+IMPLEMENTAÇÃO: table_printer._select_columns_for_width
+ORDEM FIXA: # | Nº SSA | Loc. | Exe. | St. | Desc. | … (com "Nº SSA" sempre visível)
+ALGORITMO: always_visible → essential → priority_order; garante '#'
+TESTES: tests/test_cli_column_selection.py (inclui largura extrema)
+VALIDAÇÃO: Usar -cols e variar largura do terminal
+```
+
+##### **D. Larguras Fixas e Estabilidade**
+```
+PEDIDO: Larguras fixas de colunas e largura estável entre páginas
+IMPLEMENTAÇÃO: fixed_widths em column_priority.json
+OVERRIDE: settings.display_settings.column_widths por rótulo
+ALGORITMO: table_printer correlaciona rótulo→coluna; 1ª página = demais páginas
+TESTES: tests/test_docs_and_priority.py, tests/test_cli_column_selection.py
+VALIDAÇÃO: Definir largura para "Executor"/"Emissor" e observar efeito
+```
+
+##### **E. Truncação Inteligente**
+```
+PEDIDO: Truncação inteligente de descrições
+IMPLEMENTAÇÃO: table_printer limita e adiciona "..." quando necessário
+ALGORITMO: "Descrição da SSA" ocupa espaço remanescente após outras colunas
+VALIDAÇÃO: Reduzir terminal e observar descrições
+```
+
+##### **F. CLI Completo**
+```
+PEDIDO: Ordenação, colunas, filtros, listar/remover/limpar, banner limpo
+IMPLEMENTAÇÃO: interface/cli.py (+ display.py, table_printer.py)
+TESTES: tests/test_cli_commands.py, tests/test_cli_formatting.py
+COMPORTAMENTO: Não listar DB completo ao iniciar; mostrar contagem + dica + comandos
+AJUDA: Via comando `?`
+```
+
+##### **G. Filtro "5 Opções" - Sistema Avançado**
+```
+PEDIDO: 5 modos por termo (contém, começa, termina, igual, regex) e negativos
+IMPLEMENTAÇÃO: core/app_logic.parse_search_terms
+APLICAÇÃO: core/app_logic.filter_dataframe com fallback para literal
+MARCADORES:
+  ^ (prefixo), $ (sufixo), = (igual), ~ (regex), ! ou - (negativos)
+ALGORITMO: Quando modo padrão é regex, ^/$ funcionam como âncoras
+TESTES: tests/test_filter_modes.py, tests/test_default_filter_mode.py
+UX: GUI tooltip com 5 modos; CLI ajuda inclui sintaxe
+COMPORTAMENTO: Termos separados por espaço são acumulativos
+```
+
+##### **H. GUI Responsiva**
+```
+PEDIDO: Debounce, seletor de colunas, detalhes
+IMPLEMENTAÇÃO: gui/gui_ssa.py (QTimer ~250ms; paginação; duplo clique)
+VALIDAÇÃO: Digitar no campo de busca, observar debounce e paginação
+```
+
+##### **I. Extração com Integridade**
+```
+PEDIDO: Extração com integridade de mapeamentos
+IMPLEMENTAÇÃO: 
+  - core/config_manager.load_display_mappings_integrity
+  - core/config_manager.load_column_mappings_integrity
+  - extracao/extractor usa mapeamentos íntegros
+PROTEÇÃO: utils/file_metadata.py exclui configs/docs protegidos
+TESTES: tests/test_extracao.py, tests/test_column_mappings_integrity.py
+```
+
+##### **J. Banco de Dados Robusto**
+```
+PEDIDO: Reset, upsert determinístico, índices idempotentes
+IMPLEMENTAÇÃO: armazenamento/database.py; config/schema.sql
+TESTES: tests/test_database.py, tests/test_db_reset_and_upsert.py
+```
+
+##### **K. Exportação Consistente**
+```
+PEDIDO: Exportação CSV/XLSX/JSON consistente
+IMPLEMENTAÇÃO: exportacao/exporter.py (usa display_mappings)
+TESTES: tests/test_exporter.py
+```
+
+#### **Metodologia de Validação**
+
+##### **Testes Automatizados**
+- **67 testes passando** - cobertura completa de funcionalidades
+- **Testes por categoria**: formatação, CLI, GUI, banco, exportação
+- **Testes de edge cases**: larguras extremas, dados malformados
+
+##### **Validação Manual**
+- **CLI**: Comandos específicos para cada funcionalidade
+- **GUI**: Workflows completos de usuário
+- **Integração**: Testes end-to-end multi-componente
+
+##### **Rastreabilidade Completa**
+- **Git Log**: Granularidade de commits (não fixamos IDs para flexibilidade)
+- **Arquivos**: Mapeamento direto pedido → arquivo → teste
+- **Configuração**: Tracking de mudanças em config/
