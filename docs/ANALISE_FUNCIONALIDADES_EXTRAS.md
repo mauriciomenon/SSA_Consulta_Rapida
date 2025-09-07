@@ -5,39 +5,39 @@
 ### 🤖 **1. SCRIPTS DE IA (.github/scripts/)**
 **Arquivo:** `.github/scripts/ai_review.py`
 **Dependências:** `requests`, `openai`, `anthropic`, etc.
-**Status:** ❌ **EXTRA** - Apenas para CI/CD
+**Status:** **EXTRA** - Apenas para CI/CD
 **Ação:** Manter separado do requirements principal
 
 ### 🛠️ **2. SCRIPTS DE MANUTENÇÃO (scripts_manutencao/)**
 **Dependências encontradas:**
-- `pandas` ✅ (já está no core)
-- `sqlite3` ✅ (built-in Python)
-- `os`, `sys`, `datetime` ✅ (built-in)
-**Status:** ✅ **OK** - Usam apenas deps essenciais
+- `pandas` (já está no core)
+- `sqlite3` (built-in Python)
+- `os`, `sys`, `datetime` (built-in)
+**Status:** **OK** - Usam apenas deps essenciais
 
 ### 📊 **3. EXPORTAÇÃO (exportacao/)**
 **Arquivo:** `exportacao/exporter.py`
 **Dependências:** 
-- `pandas` ✅ (já está no core)
-- `os`, `logging` ✅ (built-in)
-**Status:** ✅ **OK** - Funcionalidade core
+- `pandas` (já está no core)
+- `os`, `logging` (built-in)
+**Status:** **OK** - Funcionalidade core
 
 ### 🔧 **4. UTILITÁRIOS (utils/)**
 **Arquivos verificados:**
 - `utils/fallback/emergency_import.py` - Apenas `sqlite3`, `json` (built-in)
 - `themes.py` - Provavelmente apenas `PyQt6`
 - `version.py` - Apenas `json` (built-in)
-**Status:** ✅ **OK** - Sem deps extras
+**Status:** **OK** - Sem deps extras
 
 ### 🎨 **5. GUI (gui/)**
 **Dependências encontradas:**
-- `PyQt6` ✅ (já está no core)
-- `pandas` ✅ (já está no core)
-**Status:** ✅ **OK** - Funcionalidade core
+- `PyQt6` (já está no core)
+- `pandas` (já está no core)
+**Status:** **OK** - Funcionalidade core
 
 ## 🎯 **DEPENDÊNCIAS EXTRAS REMOVÍVEIS**
 
-### ❌ **DESENVOLVIMENTO APENAS**
+### **DESENVOLVIMENTO APENAS**
 Estas deps estão no requirements.txt mas NÃO são usadas no código principal:
 
 #### **CI/CD e GitHub Actions:**
@@ -85,7 +85,7 @@ scipy>=1.10.0  # (não usado)
 # + ~30 deps relacionadas
 ```
 
-## ✅ **REQUIREMENTS FINAL OTIMIZADO**
+## REQUIREMENTS FINAL OTIMIZADO
 
 ### **requirements.txt (PRODUÇÃO)**
 ```txt
@@ -129,9 +129,9 @@ requests>=2.31.0,<3.0.0
 
 ## 🚀 **PRÓXIMAS AÇÕES**
 
-1. ✅ **requirements_clean.txt criado**
-2. ⏳ **Substituir requirements.txt**
-3. ⏳ **Criar requirements_dev.txt**
+1. **requirements_clean.txt criado**
+2. **Substituir requirements.txt**
+3. **Criar requirements_dev.txt**
 4. ⏳ **Testar build limpo**
 5. ⏳ **Atualizar documentação**
 
