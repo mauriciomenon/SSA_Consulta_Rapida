@@ -22,7 +22,7 @@
 5. `GUIA_MIGRACAO_NOVA_INSTALACAO.md` - Estado atual e configuracao
 6. `GUIA_MODO_OPTIMIZED.md` - Funcionalidades otimizadas implementadas
 7. `BUILD_SYSTEM.md` - Sistema de build multi-plataforma
-8. `PROBLEMAS_CONHECIDOS.md` - Licoes aprendidas
+8. `ANALISE_PROBLEMAS_DESENVOLVIMENTO_ANTERIOR.md` - Licoes aprendidas
 
 ### Configuracao do Ambiente de Desenvolvimento
 
