@@ -14,7 +14,7 @@ def reorganize_project():
     # Definindo categorização dos arquivos
     manutencao_patterns = [
         "backup_", "limpar_", "verificar_", "check_", "analyze_", "debug_", 
-        "diagnosticar_", "emergency_", "final_verification", "investigar_",
+        "diagnosticar_", "emergency_", "verificacao_completa", "investigar_",
         "parar_importacao", "gerenciar_banco", "quick_diagnosis"
     ]
     
