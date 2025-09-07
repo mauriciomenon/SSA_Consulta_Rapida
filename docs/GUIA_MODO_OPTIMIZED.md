@@ -1,10 +1,10 @@
-# 📋 Guia de Uso - Parâmetro --optimized
+#  Guia de Uso - Parâmetro --optimized
 
-## 🚀 O que é o modo `--optimized`?
+##  O que é o modo `--optimized`?
 
 O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% mais rápido** que o método padrão. Foi criado especificamente para resolver problemas de lentidão na importação de arquivos Excel grandes.
 
-## ⚡ Como funciona?
+##  Como funciona?
 
 ### **Modo Padrão (sem --optimized):**
 - Insere registros **um por vez** no banco de dados
@@ -18,7 +18,7 @@ O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% 
 - Processa dados de forma vetorizada usando pandas
 - **Até 90% mais rápido** que o modo padrão
 
-## 📊 Comparação de Performance:
+##  Comparação de Performance:
 
 | Cenário | Modo Padrão | Modo Otimizado | Diferença |
 |---------|-------------|----------------|-----------|
@@ -26,7 +26,7 @@ O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% 
 | 10.000 registros | ~5 minutos | ~30 segundos | **90% mais rápido** |
 | 50.000+ registros | Pode travar | ~2-3 minutos | **Viável** |
 
-## 🎯 Quando usar cada modo?
+##  Quando usar cada modo?
 
 ### **Use `--optimized` quando:**
 - ✅ Importando grandes volumes de dados (1000+ registros)
@@ -40,7 +40,7 @@ O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% 
 - ✅ Testando mudanças no código
 - ✅ Primeira execução (para validar dados)
 
-## 🔧 Exemplos de Uso:
+##  Exemplos de Uso:
 
 ```bash
 # Importação otimizada - RECOMENDADO para uso normal
@@ -87,7 +87,7 @@ python main.py --optimized --gui
 
 ---
 
-## 🎯 Resumo Executivo:
+##  Resumo Executivo:
 
 **Para uso diário**: `python main.py --optimized --force-rescan`
 **Para depuração**: `python main.py --force-rescan`

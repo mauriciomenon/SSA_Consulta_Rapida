@@ -1,14 +1,14 @@
-# 🚀 RELATÓRIO DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO
+#  RELATÓRIO DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO
 
 **Data:** 19 de Agosto de 2025  
 **Versão:** v3.2.0 - Refinamentos de Performance CLI  
 **Status:** ✅ TODAS AS OTIMIZAÇÕES CLI IMPLEMENTADAS COM SUCESSO
 
-## 📋 Resumo Executivo
+##  Resumo Executivo
 
 Após análise detalhada da ordem de execução no CLI, **4 otimizações críticas** foram identificadas e implementadas com sucesso, resultando em melhoria significativa da performance e responsividade da interface de linha de comando.
 
-## 🔍 Análise da Ordem de Execução CLI
+##  Análise da Ordem de Execução CLI
 
 ### **Fluxo Principal Identificado:**
 1. **`start_cli_loop()`** → Carrega configurações, inicializa estado
@@ -121,7 +121,7 @@ def _apply_default_filters(df, settings):
 
 **📈 Resultado:** Redução de ~80% no processamento inicial
 
-## 📊 Métricas de Performance CLI
+##  Métricas de Performance CLI
 
 | **Otimização** | **Redução Esperada** | **Benefício** |
 |---|---|---|
@@ -134,9 +134,9 @@ def _apply_default_filters(df, settings):
 
 ### **Script de Validação:** `validar_otimizacoes_cli.py`
 ```bash
-🚀 VALIDADOR DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO
+ VALIDADOR DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO
 =================================================================
-🔍 VALIDAÇÃO DAS OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO:
+ VALIDAÇÃO DAS OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO:
 =================================================================
   ✅ Cache de configurações CLI implementado com flag _config_changed
   ✅ Cache de parsing de termos implementado
@@ -145,7 +145,7 @@ def _apply_default_filters(df, settings):
   ✅ Cache de formatação amplamente utilizado (10 chamadas)
   ✅ Recarregamentos desnecessários de configurações eliminados
 
-🎉 TODAS AS OTIMIZAÇÕES CLI FORAM IMPLEMENTADAS COM SUCESSO!
+ TODAS AS OTIMIZAÇÕES CLI FORAM IMPLEMENTADAS COM SUCESSO!
 📈 Performance do CLI deve estar significativamente melhorada.
 ```
 
@@ -163,19 +163,19 @@ def _apply_default_filters(df, settings):
 - **Formatação:** Hash tracking inteligente (~10 processamentos únicos/sessão)
 - **Filtros Padrão:** Processados uma vez por sessão
 
-## 🎯 Impacto Esperado CLI
+##  Impacto Esperado CLI
 
 ### **Performance:**
-- ⚡ **Comandos:** ~50% mais rápidos devido ao cache de configurações
-- ⚡ **Busca:** ~70% mais ágil com cache de parsing
-- ⚡ **Navegação:** ~60% mais fluida com cache de formatação
-- ⚡ **Inicialização:** ~80% mais rápida com cache de filtros padrão
+-  **Comandos:** ~50% mais rápidos devido ao cache de configurações
+-  **Busca:** ~70% mais ágil com cache de parsing
+-  **Navegação:** ~60% mais fluida com cache de formatação
+-  **Inicialização:** ~80% mais rápida com cache de filtros padrão
 
 ### **Experiência do Usuário:**
-- 🎯 **Responsividade melhorada** em todos os comandos
-- 🎯 **Busca instantânea** para termos repetidos
-- 🎯 **Navegação fluida** entre resultados
-- 🎯 **Início mais rápido** do CLI
+-  **Responsividade melhorada** em todos os comandos
+-  **Busca instantânea** para termos repetidos
+-  **Navegação fluida** entre resultados
+-  **Início mais rápido** do CLI
 
 ### **Recursos:**
 - 🧹 **Menos I/O** com cache de configurações

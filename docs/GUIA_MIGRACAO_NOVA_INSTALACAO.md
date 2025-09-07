@@ -128,7 +128,7 @@ data/                        # ← Criada na primeira execução
 
 ---
 
-## ⚙️ **CONFIGURAÇÃO DO AMBIENTE**
+## **CONFIGURAÇÃO DO AMBIENTE**
 
 ### **Passo 1: Ativação Automática do Ambiente**
 ```powershell
@@ -196,9 +196,11 @@ ls data\ssas.db
 
 ---
 
-## 📊 **IMPORTAÇÃO DE DADOS**
+---
 
-### **Passo 1: Preparar Arquivos Excel**
+## **IMPORTAÇÃO DE DADOS**
+
+### **Comando Básico de Importação**
 ```powershell
 # Criar pasta se não existir
 mkdir docs_entrada -ErrorAction SilentlyContinue
@@ -359,7 +361,7 @@ ls utils\                               # ← Utilitários diversos
 
 ---
 
-## 🚀 **COMANDOS RÁPIDOS DE REFERÊNCIA**
+## **COMANDOS RÁPIDOS DE REFERÊNCIA**
 
 ### **Inicialização Diária**
 ```powershell
@@ -421,13 +423,13 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-## ⚠️ **NOTAS IMPORTANTES**
+---
 
-1. **🔒 Backup**: O sistema cria backups automáticos antes de operações destrutivas
-2. **📊 Performance**: Use `--optimized` para arquivos grandes (>5MB)
-3. **🖥️ GUI**: A interface gráfica requer PyQt6 funcionando
-4. **📁 Estrutura**: Não altere a estrutura de pastas sem necessidade
-5. **Cache**: O cache acelera reimportações, mas pode ser limpo se necessário
+## **NOTAS IMPORTANTES**
+
+1. **Backup**: Sempre faça backup antes de usar em produção
+2. **Performance**: Use `--optimized` para arquivos grandes (>5MB)
+3. **GUI**: A interface gráfica requer PyQt6 funcionando
 
 ---
 
@@ -443,7 +445,7 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 - [ ] GUI funcionando (se necessário)
 - [ ] Testes básicos executados
 
-**Se todos os itens estão marcados, a migração foi bem-sucedida! 🎉**
+**Se todos os itens estão marcados, a migração foi bem-sucedida!**
 
 ---
 

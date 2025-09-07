@@ -1,6 +1,6 @@
-# 🔍 AUDIT DE ORDEM DE EXECUÇÃO - ANÁLISE COMPLETA
+#  AUDIT DE ORDEM DE EXECUÇÃO - ANÁLISE COMPLETA
 
-## 📋 PROBLEMAS IDENTIFICADOS
+##  PROBLEMAS IDENTIFICADOS
 
 ### 1. 🔄 **CONFLITO: Recarga de Configurações**
 
@@ -25,7 +25,7 @@ display_map = load_display_mappings_integrity()
 
 ---
 
-### 2. ⚡ **INTERFERÊNCIA: Best-Fit vs Configurações Salvas**
+### 2.  **INTERFERÊNCIA: Best-Fit vs Configurações Salvas**
 
 **Problema**: Algoritmos de largura de coluna conflitam entre si
 
@@ -47,7 +47,7 @@ if px is None:
 
 ---
 
-### 3. 🔧 **CONFLITO: Thread Safety**
+### 3.  **CONFLITO: Thread Safety**
 
 **Problema**: Múltiplas threads modificando estado sem sincronização
 
@@ -65,7 +65,7 @@ if px is None:
 
 ---
 
-### 4. 📊 **ORDEM CONFLITANTE: Inicialização da GUI**
+### 4.  **ORDEM CONFLITANTE: Inicialização da GUI**
 
 **Problema**: Dependências circulares na ordem de inicialização
 
@@ -125,7 +125,7 @@ while True:
 
 ---
 
-## 🔧 SOLUÇÕES PROPOSTAS
+##  SOLUÇÕES PROPOSTAS
 
 ### 1. **CONFIGURAÇÕES: Carregamento Único**
 ```python
@@ -194,7 +194,7 @@ def start_cli_loop():
 
 ---
 
-## 🎯 PRIORIDADE DE CORREÇÕES
+##  PRIORIDADE DE CORREÇÕES
 
 ### **CRÍTICO** 🔴
 1. ✅ **GUI Main Isolamento**: Implementar `gui_main_preferences.json`
@@ -202,8 +202,8 @@ def start_cli_loop():
 3. ✅ **Best-Fit Conflitos**: Ordem determinística de aplicação
 
 ### **IMPORTANTE** 🟡  
-4. ⚠️ **Recarregamento CLI**: Cache inteligente de configurações
-5. ⚠️ **Inicialização GUI**: Verificar dependências
+4.  **Recarregamento CLI**: Cache inteligente de configurações
+5.  **Inicialização GUI**: Verificar dependências
 
 ### **MELHORIA** 🟢
 6. 📈 **Performance**: Otimizar carregamento desnecessário
@@ -236,11 +236,11 @@ def test_best_fit_priority():
 
 ---
 
-## 📊 RESUMO EXECUTIVO
+##  RESUMO EXECUTIVO
 
 **Problemas Encontrados**: 6 conflitos principais
 **Impacto**: Médio a Alto (interferências funcionais)
 **Soluções**: Implementáveis com refatoração moderada
 **Prioridade**: Implementar isolamento GUI Main primeiro
 
-**Status Geral**: ⚠️ **ATENÇÃO NECESSÁRIA** - Conflitos identificados mas gerenciáveis
+**Status Geral**:  **ATENÇÃO NECESSÁRIA** - Conflitos identificados mas gerenciáveis

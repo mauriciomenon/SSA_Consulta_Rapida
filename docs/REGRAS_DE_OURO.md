@@ -14,7 +14,7 @@
 - Use scripts_manutencao/ para correções
 - Documente mudanças importantes
 
-## 🎯 PRIORIDADE ATUAL
+##  PRIORIDADE ATUAL
 1. Corrigir erros de importação (11 arquivos falhando)
 2. Estabilizar banco de dados
 3. Limpar arquivos desnecessários
@@ -25,7 +25,7 @@
 - armazenamento/database.py (banco)
 - config/column_mappings.json (mapeamentos)
 
-## 🔧 COMANDOS SEGUROS
+##  COMANDOS SEGUROS
 ```bash
 # Diagnóstico
 python scripts_desenvolvimento/simple_test.py
