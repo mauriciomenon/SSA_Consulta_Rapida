@@ -17,16 +17,36 @@ import glob
 from datetime import datetime
 from pathlib import Path
 
-# Configuracao de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('launchers/logs/build.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+import logging
+import glob
+from datetime import datetime
+from pathlib import Path
+
+# Configuracao de logging robusto
+def setup_logging():
+    """Configura logging com criacao automatica de diretorios"""
+    log_dir = Path(__file__).parent / 'logs'
+    log_dir.mkdir(exist_ok=True)
+    
+    log_file = log_dir / 'build.log'
+    
+    handlers = [logging.StreamHandler()]
+    
+    try:
+        handlers.append(logging.FileHandler(str(log_file)))
+    except Exception as e:
+        print(f"Aviso: Nao foi possivel criar log file: {e}")
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=handlers,
+        force=True  # Força reconfiguração se já existe
+    )
+    
+    return logging.getLogger(__name__)
+
+logger = setup_logging()
 
 class MultiPlatformBuilder:
     """Construtor de executaveis multi-plataforma"""
