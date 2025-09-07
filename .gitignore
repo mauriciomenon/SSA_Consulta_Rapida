@@ -299,32 +299,23 @@ docs_entrada/~$*
 docs_saida/temp_*
 exportacao/temp_*
 
-# === DADOS SENSÍVEIS E PESSOAIS ===
-# Arquivos de entrada (dados da empresa)
-docs_entrada/
+# === BUILDS E DISTRIBUICAO ===
+# Builds automaticos
+launchers/dist/
+launchers/dist_simple/
+launchers/platforms/*/venv/
+launchers/platforms/*/temp/
 
-# Relatórios com dados sensíveis (manter apenas templates)
-docs_saida/*.xlsx
-docs_saida/*.csv
+# Logs de build
+launchers/logs/
+launchers/*.log
+
+# === DADOS SENSIVEIS ===
+# Arquivos de entrada com dados reais da empresa
+docs_entrada/*.xlsx
+docs_entrada/*.csv
+docs_entrada/*.json
+
+# Exports com dados completos
 docs_saida/all.*
-docs_saida/*_report_*.json
-docs_saida/*_report_*.md
-docs_saida/*_test_*.json
-docs_saida/*_test_*.md
-docs_saida/automated_*.md
-docs_saida/comprehensive_*.json
-docs_saida/excel_import_*.json
-docs_saida/performance_*.json
-docs_saida/migration_*.md
-docs_saida/database_recreation_*.json
-
-# Arquivos markdown pessoais
-*LEMBRETE*.md
-*NAO_MEXER*.md
-*CAGADAS*.md
-*CONVERSA*.md
-*TRANSICAO*.md
-*TEMPLATE_NOVA_CONVERSA*.md
-
-# Exports temporários completos
 exportacao/
