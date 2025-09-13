@@ -964,6 +964,10 @@ class SSAMainWindow(QMainWindow):
         self.filter_thread.filter_finished.connect(self.on_filter_finished)
         self.filter_thread.error_occurred.connect(self.on_filter_error)
         self.filter_thread.finished.connect(self.on_filter_finished_cleanup)
+        try:
+            print("[GUI_STAB] filter_thread starting")
+        except Exception:
+            pass
         self.filter_thread.start()
 
     def on_filter_finished(self, df_filtrado: pd.DataFrame):
@@ -997,10 +1001,44 @@ class SSAMainWindow(QMainWindow):
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
     def on_filter_finished_cleanup(self):
-        self.progress_bar.setVisible(False)
-        self.load_button.setEnabled(True)
-        self.search_button.setEnabled(True)
-        self.filter_thread = None
+        """Limpa estado pós-thread de filtragem com checagens defensivas.
+
+        Em execuções headless/CI alguns widgets podem já ter sido destruídos
+        (ex.: fechamento da janela durante teardown de teste), o que pode causar
+        abort em chamadas Qt nativas. Garantimos que os atributos existem e que
+        o thread já não está em execução antes de manipular.
+        """
+        # Debug trace para investigação de estabilidade em testes headless
+        try:
+            print("[GUI_STAB] on_filter_finished_cleanup invoked")
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "progress_bar") and self.progress_bar:  # type: ignore[attr-defined]
+                try:
+                    self.progress_bar.setVisible(False)
+                except Exception:
+                    pass
+            for btn_attr in ("load_button", "search_button"):
+                btn = getattr(self, btn_attr, None)
+                if btn is not None:
+                    try:
+                        btn.setEnabled(True)
+                    except Exception:
+                        pass
+            # Garantir limpeza segura da referência ao worker
+            worker = getattr(self, "filter_thread", None)
+            if worker is not None:
+                try:
+                    # Se ainda ativo, não forçar join aqui (evita travas em GUI), apenas limpar referência depois
+                    if not worker.isFinished():  # type: ignore[attr-defined]
+                        pass
+                except Exception:
+                    pass
+            self.filter_thread = None
+        except Exception:
+            # Nunca propagar exceção daqui; log mínimo opcional futuro
+            self.filter_thread = None
 
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
@@ -1720,6 +1758,24 @@ class SSAMainWindow(QMainWindow):
             self.table_widget.selectRow(0)
         self.update_details_from_selection()
 
+    # --- Wrappers de compatibilidade com testes antigos (PoC) ---
+    def display_data(self, df):  # usado em testes legados
+        try:
+            if df is None or getattr(df, 'empty', True):
+                return
+            self.df_completo = df.copy()
+            self.df_exibido = df.copy()
+            self.paginator.set_dataframe(self.df_exibido)
+            self.display_current_page(getattr(self.paginator, 'current_page', 1))
+        except Exception:
+            pass
+
+    def filter_data(self):  # chama o fluxo novo de filtragem
+        try:
+            self.initiate_filtering()
+        except Exception:
+            pass
+
     def _force_column_widths(self):
         """Força reaplicaçção das larguras das colunas para garantir que sejam respeitadas."""
         if not hasattr(self, 'visible_columns') or not self.visible_columns:
@@ -2206,6 +2262,10 @@ class SSAMainWindow(QMainWindow):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
+        try:
+            print("[GUI_STAB] closeEvent invoked")
+        except Exception:
+            pass
         # Aguarda finalizacao do data loader thread se estiver rodando
         if hasattr(self, 'data_loader_thread') and self.data_loader_thread and self.data_loader_thread.isRunning():
             self.data_loader_thread.quit()
@@ -2213,6 +2273,19 @@ class SSAMainWindow(QMainWindow):
             
         # Aguarda finalizacao do filter thread se estiver rodando  
         if hasattr(self, 'filter_thread') and self.filter_thread and self.filter_thread.isRunning():
+            # Desconecta sinais para evitar callbacks tardios durante teardown
+            try:
+                self.filter_thread.finished.disconnect(self.on_filter_finished_cleanup)
+            except Exception:
+                pass
+            try:
+                self.filter_thread.filter_finished.disconnect(self.on_filter_finished)
+            except Exception:
+                pass
+            try:
+                self.filter_thread.error_occurred.disconnect(self.on_filter_error)
+            except Exception:
+                pass
             self.filter_thread.quit()
             self.filter_thread.wait(3000)  # Aguarda ate 3 segundos
             
