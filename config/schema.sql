@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS ssa_table (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
     -- Identificadores e Status (CONSOLIDADO)
-    numero_ssa INTEGER,
+    numero_ssa TEXT,
     situacao TEXT,
     derivada_de TEXT,
 
@@ -105,3 +105,5 @@ CREATE INDEX IF NOT EXISTS idx_situacao_semana ON ssa_table (situacao, semana_ca
 -- Algumas rotinas de teste/legado ainda consultam a tabela 'ssas'.
 -- Criamos uma VIEW para manter compatibilidade sem duplicar dados.
 CREATE VIEW IF NOT EXISTS ssas AS SELECT * FROM ssa_table;
+-- View legada adicional para testes antigos que referenciam 'ssa_chamados'
+CREATE VIEW IF NOT EXISTS ssa_chamados AS SELECT * FROM ssa_table;

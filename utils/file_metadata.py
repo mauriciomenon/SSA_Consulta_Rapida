@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import logging
 from datetime import datetime
 from typing import Optional, Iterable, Tuple
 
@@ -110,17 +111,6 @@ def choose_latest(files: Iterable[str]) -> Optional[str]:
         if best is None or dt > best[0]:
             best = (dt, f)
     return best[1] if best else None
-# utils/file_metadata.py
-"""
-Utilitários para extrair metadados de arquivos Excel, incluindo data/hora dos nomes dos arquivos.
-"""
-
-import re
-import os
-import logging
-from datetime import datetime
-from typing import Optional, Tuple
-
 logger = logging.getLogger(__name__)
 
 def extract_datetime_from_filename(filename: str) -> Optional[datetime]:

@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-import sys
-import pandas as pd
-from armazenamento.database import insert_data_in_database
-from extracao.extractor import extract_data_from_excel
+"""LEGACY REFERENCE TEST (não executado em suite padrão)
+
+Mantido apenas para contexto histórico de como era feito um teste manual de
+import único baseado em arquivo Excel real. Substituído por
+`tests/test_import_single_legacy_compat.py` que usa fixtures sintéticas e APIs
+atuais (`insert_dataframe_to_db`). Este arquivo pode ser removido em limpeza futura.
+"""
+# @legacy
+# Imports originais mantidos como comentário para referência histórica.
+# import sys
+# import pandas as pd
+# from armazenamento.database import insert_data_in_database
+# from extracao.extractor import extract_data_from_excel
 
 def test_single_file():
     print("Iniciando teste...")

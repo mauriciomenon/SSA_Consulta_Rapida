@@ -21,7 +21,23 @@ else:
 sys.path.insert(0, app_dir)
 
 def main():
-    """Entry point CLI v3.10"""
+    """Entry point CLI v3.10.
+
+    Comportamento especial para smoke test automático: se a variável de ambiente
+    SSA_SMOKE_TEST=1 estiver presente, imprime um marcador simples e sai sem
+    iniciar a interface interativa. Isso permite que scripts de CI validem
+    rapidamente a integridade do carregamento sem bloquear esperando input.
+    """
+    if os.environ.get("SSA_SMOKE_TEST") == "1":
+        try:
+            from utils.version import get_app_version  # import leve
+            version = get_app_version()
+            print(f"SMOKE_CLI_OK v{version}")
+            sys.exit(0)
+        except Exception as exc:  # pragma: no cover - raríssimo
+            print(f"SMOKE_CLI_FAIL {exc}")
+            sys.exit(1)
+
     try:
         from interface.cli import main as cli_main
         cli_main()

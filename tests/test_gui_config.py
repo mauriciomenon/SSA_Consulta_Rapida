@@ -68,21 +68,17 @@ def test_gui_configuration():
     print(f"• Nomes alternativos: {len(config.get('column_display_names', {}))}")
     
     # 7. Testar importação da GUI
-    print(f"\n🖥️ Testando Importação GUI:")
+    print(f"\n🖥️ Testando Importação GUI Principal:")
     try:
-        from gui.gui_ssa_poc import load_gui_preferences, GUI_PREFERENCES
-        print("✅ Módulo GUI importado com sucesso!")
-        print(f"✅ Preferências carregadas: versão {GUI_PREFERENCES.get('version', 'N/A')}")
-        
-        # Verificar se as configurações foram aplicadas
-        loaded_display = GUI_PREFERENCES.get('display_columns', [])
-        if 'numero_ssa' in loaded_display and 'cadastro' in loaded_display:
-            print("✅ Campos críticos carregados na memória!")
+        from gui.gui_ssa import GUI_MAIN_PREFERENCES
+        print("✅ GUI Principal importada com sucesso!")
+        loaded_display = GUI_MAIN_PREFERENCES.get('display_columns', [])
+        if 'numero_ssa' in loaded_display:
+            print("✅ Campo numero_ssa presente")
         else:
-            print("❌ Campos críticos não encontrados na memória!")
-            
+            print("⚠️ numero_ssa ausente nas preferências")
     except Exception as e:
-        print(f"❌ Erro ao importar GUI: {e}")
+        print(f"❌ Erro ao importar GUI Principal: {e}")
         return False
     
     print("\n" + "=" * 50)

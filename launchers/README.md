@@ -71,6 +71,20 @@ Cada plataforma possui `build_config.json` com:
 - `cleanup.py` - Limpeza completa
 - `convert_icon.py` - Conversão de ícones para Windows
 
+## Build Opcional Compactado (Windows)
+
+Para reduzir o tamanho dos executáveis Windows você pode habilitar compressão via UPX:
+
+1. Instale dependência opcional:
+```bash
+pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
+```
+2. Execute o build normal (`build_multiplatform.py` ou `build_complete.py`).
+
+Se `upx4py` não estiver instalado o sistema agora apenas exibirá um aviso e continuará sem compressão. A ausência não quebra o build – é otimização opcional.
+
+Recomenda-se comparar tamanhos antes/depois para decidir se compensa no pipeline.
+
 ## Status Final v3.10
 
 ### **Completamente Funcional**

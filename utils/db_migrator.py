@@ -241,7 +241,7 @@ class SafeDatabaseMigrator:
             
             # Substituir arquivo original
             os.replace(self.target_db, self.source_db)
-            logger.info(f"Banco original substituído por versão migrada")
+            logger.info("Banco original substituído por versão migrada")
             return True
             
         except Exception as e:
@@ -351,7 +351,7 @@ def main():
         report_file = migrator.generate_migration_report(migration_log)
         
         if migration_log["success"]:
-            print(f"\n✅ Migração concluída com sucesso!")
+            print("\n✅ Migração concluída com sucesso!")
             print(f"📁 Banco migrado: {migration_log['target_db']}")
             print(f"📄 Relatório: {report_file}")
             print(f"💾 Backup: {migration_log['backup_created']}")
@@ -366,7 +366,7 @@ def main():
                 print("\n❌ Verificação de integridade: FALHOU")
                 print("   Verifique o relatório antes de prosseguir")
         else:
-            print(f"\n❌ Migração falhou!")
+            print("\n❌ Migração falhou!")
             print(f"📄 Relatório com erros: {report_file}")
             
     except Exception as e:

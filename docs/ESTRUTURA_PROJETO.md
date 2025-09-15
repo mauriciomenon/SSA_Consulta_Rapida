@@ -61,6 +61,22 @@ SSA_Consulta_Rapida/
     └── fixtures/               # Dados para testes
 ```
 
+### **Provisionamento Automático de Diretórios**
+O módulo `utils.setup_project_structure` garante, no início da execução, que diretórios fundamentais existam (ex.: `data/`, `data/historico_backups/`, `logs/`, `reports/`, `extracao/`, `exportacao/`).
+
+Características:
+- Idempotente: múltiplas chamadas não recriam nem alteram existentes.
+- Log de nível INFO apenas quando algo novo é criado (silencioso em execuções subsequentes).
+- Extensível por variáveis de ambiente:
+    - `SSA_EXTRA_DIRS="dir1,dir2"` para acrescentar diretórios adicionais.
+    - `SSA_LEGACY_SETUP_MODULE=/caminho/legacy_setup.py` para mesclar diretórios definidos por `legacy_required_dirs()` (se disponível).
+- Teste de guarda: `tests/test_setup_project_structure.py` evita remoção acidental.
+
+Uso isolado (diagnóstico):
+```bash
+python -c "from utils import setup_project_structure as s; print(s.setup_dirs())"
+```
+
 ### **PRINCÍPIOS ARQUITETURAIS**
 
 #### **1. Separação de Responsabilidades**

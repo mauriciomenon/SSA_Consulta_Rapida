@@ -4,9 +4,6 @@ Script de importação de emergência - sem dependências pesadas
 """
 import os
 import sqlite3
-import json
-import glob
-from datetime import datetime
 
 def create_basic_table(cursor):
     """Cria tabela básica sem usar pandas"""
