@@ -4,24 +4,22 @@
 Testes para as novas funcionalidades de verificação e integridade do banco de dados.
 """
 
-import pytest
-import tempfile
 import os
-import shutil
-import sqlite3
-import pandas as pd
-from unittest.mock import patch
 
-# Importar funções que queremos testar
+import pandas as pd
+import pytest
+
 from armazenamento.database import (
-    verify_database_integrity,
-    validate_dataframe_before_insert,
+    initialize_database,
     repair_database_if_needed,
-    get_db_connection,
-    initialize_database
+    validate_dataframe_before_insert,
+    verify_database_integrity,
 )
 
-class TestDatabaseVerification:
+TOTAL_VALID_ROWS = 2  # Constante para evitar magic numbers
+
+
+class TestDatabaseVerification:  # noqa: D101
     """Testes para verificação de integridade do banco."""
     
     def test_verify_nonexistent_database(self):
@@ -77,6 +75,19 @@ class TestDatabaseVerification:
         assert report['database_exists']
         assert not report['database_accessible']
 
+    def test_verify_empty_file_database(self, tmp_path):
+        """Um arquivo vazio (0 bytes) não deve ser considerado acessível ou consistente."""
+        db_path = os.path.join(tmp_path, 'empty.db')
+        # criar arquivo vazio
+        open(db_path, 'w').close()
+        assert os.path.exists(db_path)
+        assert os.path.getsize(db_path) == 0
+        report = verify_database_integrity(db_path)
+        assert report['database_exists'] is True
+        assert report['database_accessible'] is False
+        assert report['data_consistent'] is False
+        assert not report['is_valid']
+
 
 class TestDataValidation:
     """Testes para validação de dados."""
@@ -103,7 +114,7 @@ class TestDataValidation:
         report = validate_dataframe_before_insert(df)
         
         assert report['is_valid']
-        assert report['row_count'] == 2
+        assert report['row_count'] == TOTAL_VALID_ROWS
         assert len(report['issues']) == 0
     
     def test_validate_invalid_ssa_numbers(self):
@@ -165,7 +176,8 @@ class TestDatabaseRepair:
         
         # Confirma estado de "needs_creation"
         report = verify_database_integrity(db_path, table_name='ssas')
-        assert report['is_valid'] and report.get('needs_creation') is True
+        assert report['is_valid']
+        assert report.get('needs_creation') is True
     
     def test_repair_valid_database(self, tmp_path):
         """Testa reparo de banco já válido."""

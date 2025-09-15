@@ -48,7 +48,7 @@ interface/
 
 gui/
 ├── gui_ssa_main.py       # Interface principal
-├── gui_ssa_poc.py        # Interface alternativa
+├── (removido) gui_ssa_poc.py        # Interface alternativa obsoleta
 ├── simple_width_manager.py  # Gestão de larguras
 └── gui_utils.py          # Utilitários GUI
 ```

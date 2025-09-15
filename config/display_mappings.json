@@ -1,5 +1,6 @@
 {
-  "numero_ssa": "Nº SSA",
+  "numero_ssa": "Número SSA",
+  "numero_ssa_sem_acento": "Numero SSA",
   "situacao": "Sit.",
   "derivada_de": "Der.",
   "localizacao_codigo": "Loc.",
@@ -18,7 +19,7 @@
   "responsavel_programacao": "Resp. Prog.",
   "semana_programada": "Sem. Prog.",
   "responsavel_execucao": "Resp. Exec.",
-  "descricao_execucao": "Descricao Execucao",
+  "descricao_execucao": "Descrição Execução",
   "anomalia": "Anomalia",
   "sistema_origem": "Sis. Origem",
   "prazo_limite": "Prazo Limite",

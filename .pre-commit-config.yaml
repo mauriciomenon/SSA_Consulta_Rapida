@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: ["--maxkb=10240"]  # 10 MB alerta precoce
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        language_version: python3
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: banned-tokens-scan
+        name: Banned tokens scan (governance)
+        entry: python scripts_manutencao/check_banned_tokens.py
+        language: system
+        pass_filenames: false
+        stages: [commit]
+        types: [text]
+        additional_dependencies: []
+
+ci:
+  autofix_prs: false
+  autofix_commit_msg: "style: auto-fixes via pre-commit"
+  skip: [ruff]  # Ajustar conforme necessidade

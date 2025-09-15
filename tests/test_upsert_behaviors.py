@@ -1,0 +1,197 @@
+import os
+
+import pandas as pd
+
+from armazenamento.database import (
+    get_db_connection,
+    initialize_database,
+    insert_dataframe_to_db,
+    insert_dataframe_with_smart_upsert,
+)
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS ssas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_ssa INTEGER,
+    situacao TEXT,
+    data_cadastro TEXT,
+    descricao_ssa TEXT,
+    setor_executor TEXT
+);
+"""
+
+
+def _init_db(tmp_path):
+    db_path = os.path.join(tmp_path, 'upsert.sqlite')
+    schema_path = os.path.join(tmp_path, 'schema.sql')
+    with open(schema_path, 'w', encoding='utf-8') as f:
+        f.write(SCHEMA_SQL)
+    initialize_database(db_path, schema_path)
+    return db_path
+
+
+def _fetch_all(db_path):
+    with get_db_connection(db_path) as conn:
+        return pd.read_sql_query('SELECT * FROM ssas ORDER BY numero_ssa', conn)
+
+
+def test_upsert_insert_new(tmp_path):
+    db_path = _init_db(tmp_path)
+    df = pd.DataFrame([
+        {
+            'numero_ssa': '202501111',  # valid 9 digits
+            'situacao': 'NOVA',
+            'data_cadastro': '01/01/2025',
+            'descricao_ssa': 'primeira',
+            'setor_executor': 'SET1',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(df, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]['situacao'] == 'NOVA'
+
+
+def test_upsert_update_with_newer_date(tmp_path):
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame([
+        {
+            'numero_ssa': '202501222',
+            'situacao': 'OLD',
+            'data_cadastro': '01/01/2025',
+            'descricao_ssa': 'old desc',
+            'setor_executor': 'A',
+        }
+    ])
+    insert_dataframe_to_db(first, db_path, 'ssas')
+    second = pd.DataFrame([
+        {
+            'numero_ssa': '202501222',
+            'situacao': 'UPDATED',
+            'data_cadastro': '05/01/2025',  # newer
+            'descricao_ssa': 'new desc',
+            'setor_executor': 'B',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(second, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]['situacao'] == 'UPDATED'
+    assert rows.iloc[0]['setor_executor'] == 'B'
+
+
+def test_upsert_ignore_older_date(tmp_path):
+    db_path = _init_db(tmp_path)
+    base = pd.DataFrame([
+        {
+            'numero_ssa': '202501333',
+            'situacao': 'BASE',
+            'data_cadastro': '10/01/2025',
+            'descricao_ssa': 'base',
+            'setor_executor': 'X',
+        }
+    ])
+    insert_dataframe_to_db(base, db_path, 'ssas')
+    older_attempt = pd.DataFrame([
+        {
+            'numero_ssa': '202501333',
+            'situacao': 'OLDER',
+            'data_cadastro': '05/01/2025',  # older than existing
+            'descricao_ssa': 'older attempt',
+            'setor_executor': 'Y',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(older_attempt, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    # Must preserve original BASE row since incoming date is older
+    assert rows.iloc[0]['situacao'] == 'BASE'
+    assert rows.iloc[0]['setor_executor'] == 'X'
+
+
+def test_upsert_existing_missing_date_new_has_date(tmp_path):
+    """Se a linha existente não tem data e a nova tem, deve atualizar."""
+    db_path = _init_db(tmp_path)
+    existing = pd.DataFrame([
+        {
+            'numero_ssa': '202501444',
+            'situacao': 'NO_DATE',
+            'data_cadastro': '',  # missing
+            'descricao_ssa': 'sem data',
+            'setor_executor': 'OLD',
+        }
+    ])
+    insert_dataframe_to_db(existing, db_path, 'ssas')
+    incoming = pd.DataFrame([
+        {
+            'numero_ssa': '202501444',
+            'situacao': 'WITH_DATE',
+            'data_cadastro': '15/01/2025',  # valid date
+            'descricao_ssa': 'com data',
+            'setor_executor': 'NEW',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]['situacao'] == 'WITH_DATE'
+    assert rows.iloc[0]['setor_executor'] == 'NEW'
+
+
+def test_upsert_both_missing_dates(tmp_path):
+    """Se ambas as linhas não tem data, a nova substitui (empate -> atualiza)."""
+    db_path = _init_db(tmp_path)
+    first = pd.DataFrame([
+        {
+            'numero_ssa': '202501555',
+            'situacao': 'FIRST',
+            'data_cadastro': '',  # missing
+            'descricao_ssa': 'primeira',
+            'setor_executor': 'A',
+        }
+    ])
+    insert_dataframe_to_db(first, db_path, 'ssas')
+    second = pd.DataFrame([
+        {
+            'numero_ssa': '202501555',
+            'situacao': 'SECOND',
+            'data_cadastro': '',  # also missing
+            'descricao_ssa': 'segunda',
+            'setor_executor': 'B',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(second, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    assert rows.iloc[0]['situacao'] == 'SECOND'
+    assert rows.iloc[0]['setor_executor'] == 'B'
+
+
+def test_upsert_existing_has_date_new_missing_does_not_update(tmp_path):
+    """Se existente tem data e nova linha não tem, NÃO deve atualizar."""
+    db_path = _init_db(tmp_path)
+    base = pd.DataFrame([
+        {
+            'numero_ssa': '202501666',
+            'situacao': 'WITH_DATE',
+            'data_cadastro': '20/01/2025',
+            'descricao_ssa': 'original',
+            'setor_executor': 'ORIG',
+        }
+    ])
+    insert_dataframe_to_db(base, db_path, 'ssas')
+    incoming = pd.DataFrame([
+        {
+            'numero_ssa': '202501666',
+            'situacao': 'MISSING_NEW',
+            'data_cadastro': '',  # missing date => should NOT replace dated row
+            'descricao_ssa': 'tentativa',
+            'setor_executor': 'NEWX',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+    rows = _fetch_all(db_path)
+    assert len(rows) == 1
+    # Must preserve original row
+    assert rows.iloc[0]['situacao'] == 'WITH_DATE'
+    assert rows.iloc[0]['setor_executor'] == 'ORIG'

@@ -30,9 +30,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Importações dos managers unificados
-from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager
-from utils.themes import get_palette, normalize_theme
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
+from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
+from utils.themes import get_palette  # noqa: E402
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
 # --- Função para Carregar Configurações da GUI Principal ---
 def load_gui_main_preferences():
@@ -83,27 +83,26 @@ def load_gui_main_preferences():
 # Carrega as configurações globalmente
 GUI_MAIN_PREFERENCES = load_gui_main_preferences()
 
-from utils.formatting import format_dataframe_for_display
+from utils.formatting import format_dataframe_for_display  # noqa: E402
 
 # (mantido acima)
 
 # --- Importações do Projeto ---
-from core.app_logic import filter_dataframe, parse_search_terms
-from armazenamento.database import query_db
+from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
+from armazenamento.database import query_db  # noqa: E402
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
 try:
     from PyQt6.QtWidgets import (
-        QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
-        QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QScrollArea, QDialog, QDialogButtonBox,
+    QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QDialog, QDialogButtonBox,
         QSpacerItem, QSizePolicy, QFrame
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QItemSelectionModel, QTimer, QEvent
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
     from PyQt6.QtGui import QAction
-    from PyQt6.QtWidgets import QApplication
 except Exception:
     QT_AVAILABLE = False
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
@@ -114,48 +113,87 @@ except Exception:
             pass
     def pyqtSignal(*a, **k):
         return _Sig()
-    class QWidget: pass
-    class QMainWindow: pass
+    class QWidget:
+        pass
+
+    class QMainWindow:
+        pass
     class QApplication:
         def __init__(self, *a, **k): pass
         def exec(self): return 0
-    class QVBoxLayout: 
-        def __init__(self, *a, **k): pass
-    class QHBoxLayout(QVBoxLayout): pass
-    class QGridLayout(QVBoxLayout): pass
-    class QLabel: 
-        def __init__(self, *a, **k): pass
+    class QVBoxLayout:
+        def __init__(self, *a, **k):
+            pass
+
+    class QHBoxLayout(QVBoxLayout):
+        pass
+
+    class QGridLayout(QVBoxLayout):
+        pass
+    class QLabel:
+        def __init__(self, *a, **k):
+            pass
     class QPushButton:
-        def __init__(self, *a, **k): pass
-        def clicked(self): return _Sig()
-    class QLineEdit: 
-        def __init__(self, *a, **k): pass
-        def text(self): return ""
-    class QTableWidget: pass
-    class QTableWidgetItem: 
-        def __init__(self, *a, **k): pass
-    class QHeaderView: Stretch = 1
-    class QMessageBox: pass
-    class QProgressBar: pass
+        def __init__(self, *a, **k):
+            pass
+        def clicked(self):
+            return _Sig()
+    class QLineEdit:
+        def __init__(self, *a, **k):
+            pass
+        def text(self):
+            return ""
+    class QTableWidget:
+        pass
+
+    class QTableWidgetItem:
+        def __init__(self, *a, **k):
+            pass
+
+    class QHeaderView:
+        Stretch = 1
+    class QMessageBox:
+        pass
+
+    class QProgressBar:
+        pass
     class QComboBox:
         def __init__(self): self._items=[]
         def addItems(self, items): self._items.extend(items)
         def addWidget(self, *a, **k): pass
         def setMinimumWidth(self, *a, **k): pass
-    class QSpinBox: pass
-    class QAbstractItemView: NoEditTriggers=0
-    class QMenu: pass
-    class QGroupBox: pass
-    class QTextEdit: pass
-    class QFileDialog: pass
-    class QAction: pass
-    class QItemSelectionModel: Select=0
-    class QTimer: pass
+    class QSpinBox:
+        pass
+
+    class QAbstractItemView:
+        NoEditTriggers = 0
+
+    class QMenu:
+        pass
+
+    class QGroupBox:
+        pass
+
+    class QTextEdit:
+        pass
+
+    class QFileDialog:
+        pass
+
+    class QAction:
+        pass
+
+    class QItemSelectionModel:
+        Select = 0
+
+    class QTimer:
+        pass
     class QThread:
         def __init__(self, *a, **k): pass
         def start(self): pass
         def run(self): pass
-    class Qt: AlignLeft=0
+    class Qt:
+        AlignLeft = 0
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
@@ -228,7 +266,7 @@ class DataLoaderWorker(QThread):
             '''
             
             df = query_db(self.db_path, '', query)
-            if df is not None and not df.empty:
+            if not df.empty:
                 self.data_loaded.emit(df)
             else:
                 self.error_occurred.emit("Falha ao carregar dados do banco.")
@@ -366,13 +404,14 @@ class DataPaginator(QWidget):
         self.update_buttons()
 
     def update_pagination_info(self):
-        if self.df is not None and not self.df.empty:
+        # Calcula total de paginas com guard rails (df pode estar vazio ou ainda nao definido)
+        if getattr(self, 'df', None) is not None and not self.df.empty:
             self.total_pages = (len(self.df) + self.page_size - 1) // self.page_size
         else:
             self.total_pages = 1
             self.current_page = 1
         # Pode ser chamado antes do init_ui terminar em alguns cenarios; proteja acesso
-        if hasattr(self, 'page_info_label') and self.page_info_label is not None:
+        if hasattr(self, 'page_info_label'):
             self.page_info_label.setText(f"Pagina {self.current_page} de {self.total_pages}")
 
     def update_buttons(self):
@@ -645,7 +684,8 @@ class SSAMainWindow(QMainWindow):
         search_row.setContentsMargins(0, 0, 0, 0)
         search_row.setSpacing(6)
 
-        left = QHBoxLayout(); left.setContentsMargins(0, 0, 0, 0)
+        left = QHBoxLayout()
+        left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisa Geral:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Separe por vírgulas; ! exclui; busca em todas as colunas")
@@ -670,7 +710,8 @@ class SSAMainWindow(QMainWindow):
         left.addWidget(self.search_button)
         left.addWidget(self.clear_filter_button)
 
-        right = QHBoxLayout(); right.setContentsMargins(0, 0, 0, 0)
+        right = QHBoxLayout()
+        right.setContentsMargins(0, 0, 0, 0)
         self.column_selector = ColumnSelector(self.display_map, self.visible_columns)
         self.column_selector.columns_changed.connect(self.on_columns_changed)
         right.addWidget(self.column_selector)
@@ -731,7 +772,7 @@ class SSAMainWindow(QMainWindow):
         pagination_filters_layout.addLayout(self.persistent_filters_layout)
         pagination_filters_layout.addStretch()
         # Indicador de filtros por coluna (ao lado de "Salvar Filtro")
-        self.col_filter_indicator = QLabel("Filtros por coluna: Nção-ativo")
+        self.col_filter_indicator = QLabel("Filtros por coluna: Nao ativo")
         self.col_filter_indicator.setStyleSheet("font-size: 11px; color: palette(mid);")
         pagination_filters_layout.addWidget(self.col_filter_indicator)
         
@@ -820,7 +861,8 @@ class SSAMainWindow(QMainWindow):
         # Detalhes (maior)
         self.details_group = QGroupBox("Detalhes da SSA Selecionada")
         details_layout = QVBoxLayout(self.details_group)
-        self.details_text = QTextEdit(); self.details_text.setReadOnly(True)
+        self.details_text = QTextEdit()
+        self.details_text.setReadOnly(True)
         details_layout.addWidget(self.details_text)
         bottom_layout.addWidget(self.details_group, 5)
 
@@ -828,50 +870,45 @@ class SSAMainWindow(QMainWindow):
         self.col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(self.col_filters_group)
         from PyQt6.QtWidgets import QScrollArea
-        self.col_filters_scroll = QScrollArea(); self.col_filters_scroll.setWidgetResizable(True)
+        self.col_filters_scroll = QScrollArea()
+        self.col_filters_scroll.setWidgetResizable(True)
         self.col_filters_container = QWidget()
         self.col_filters_list_layout = QVBoxLayout(self.col_filters_container)
         self.col_filters_scroll.setWidget(self.col_filters_container)
         col_filters_outer.addWidget(self.col_filters_scroll, 1)
         # Rodape fixo
-        footer = QHBoxLayout(); footer.addStretch()
+        footer = QHBoxLayout()
+        footer.addStretch()
         self.clear_all_btn = QPushButton("Limpar todos filtros de colunas")
         self.clear_all_btn.setMaximumWidth(260)
         self.clear_all_btn.clicked.connect(self._clear_all_column_filters)
-        footer.addWidget(self.clear_all_btn); footer.addStretch()
+        footer.addWidget(self.clear_all_btn)
+        footer.addStretch()
         col_filters_outer.addLayout(footer)
 
-        self._build_column_filters_panel()
-        # Coluna da direita: grupo de filtros por coluna + resumo externo
+        # Constrói painel inicial de filtros por coluna
+        try:
+            self._build_column_filters_panel()
+        except Exception:
+            pass
+
+        # Coluna da direita: apenas grupo de filtros por coluna (resumo duplicado removido)
         right_col_widget = QWidget()
         right_col = QVBoxLayout(right_col_widget)
         right_col.setContentsMargins(0,0,0,0)
         right_col.addWidget(self.col_filters_group)
-        try:
-            self.filters_summary_frame_right = QFrame()
-            self.filters_summary_frame_right.setFrameShape(QFrame.Shape.StyledPanel)
-            self.filters_summary_frame_right.setStyleSheet("")
-            fs_layout = QHBoxLayout(self.filters_summary_frame_right)
-            fs_layout.setContentsMargins(6,4,6,4)
-            fs_layout.setSpacing(8)
-            self.filters_summary_label_right = QLabel("Nenhum filtro ativo")
-            self.clear_all_filters_btn_right = QPushButton("Limpar todos os filtros")
-            self.clear_all_filters_btn_right.setMaximumWidth(200)
-            self.clear_all_filters_btn_right.clicked.connect(self._clear_all_filters_global)
-            fs_layout.addWidget(self.filters_summary_label_right, 1)
-            fs_layout.addWidget(self.clear_all_filters_btn_right, 0)
-            right_col.addWidget(self.filters_summary_frame_right)
-        except Exception:
-            pass
         bottom_layout.addWidget(right_col_widget, 4)
 
         # Respiro antes do bloco inferior
         main_layout.addSpacing(12)
         main_layout.addLayout(bottom_layout)
 
-        # --- Conecta Workers ---
+        # --- Conecta Workers / Flags ---
+        # Threads iniciadas sob demanda
         self.data_loader_thread = None
         self.filter_thread = None
+        # Flag de fallback síncrono (para estabilizar testes headless / CI)
+        self._sync_filtering = os.environ.get("SSA_SYNC_FILTER", "").lower() in ("1", "true", "yes", "on")
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
@@ -959,15 +996,26 @@ class SSAMainWindow(QMainWindow):
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
         
-        # Inicia a thread de filtragem
+        # Modo síncrono (sem QThread) opcional para testes
+        if getattr(self, '_sync_filtering', False):
+            try:
+                if search_terms:
+                    parsed = parse_search_terms(search_terms, default_mode=default_mode)
+                    df_filtrado = filter_dataframe(self.df_completo, parsed)
+                else:
+                    df_filtrado = self.df_completo.copy()
+                self.on_filter_finished(df_filtrado)
+            except Exception as e:  # noqa: BLE001
+                self.on_filter_error(f"Erro ao filtrar dados: {e}")
+            finally:
+                self.on_filter_finished_cleanup()
+            return
+
+        # Inicia a thread de filtragem (modo padrão assíncrono)
         self.filter_thread = FilterWorker(self.df_completo, search_terms, default_mode=default_mode)
         self.filter_thread.filter_finished.connect(self.on_filter_finished)
         self.filter_thread.error_occurred.connect(self.on_filter_error)
         self.filter_thread.finished.connect(self.on_filter_finished_cleanup)
-        try:
-            print("[GUI_STAB] filter_thread starting")
-        except Exception:
-            pass
         self.filter_thread.start()
 
     def on_filter_finished(self, df_filtrado: pd.DataFrame):
@@ -1009,10 +1057,6 @@ class SSAMainWindow(QMainWindow):
         o thread já não está em execução antes de manipular.
         """
         # Debug trace para investigação de estabilidade em testes headless
-        try:
-            print("[GUI_STAB] on_filter_finished_cleanup invoked")
-        except Exception:
-            pass
         try:
             if hasattr(self, "progress_bar") and self.progress_bar:  # type: ignore[attr-defined]
                 try:
@@ -1224,7 +1268,9 @@ class SSAMainWindow(QMainWindow):
             return
 
         for col, term in self._active_column_filters.items():
-            row = QHBoxLayout(); row.setContentsMargins(0,0,0,0); row.setSpacing(4)
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
             full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
             name_lbl = QLabel(full_name)
             name_lbl.setMinimumWidth(100)
@@ -1344,7 +1390,7 @@ class SSAMainWindow(QMainWindow):
             self._update_col_filter_indicator()
 
     def _clear_all_column_filters(self):
-        if self._active_column_filters is not None:
+        if self._active_column_filters:
             # Preserva entradas padrão (Situacao, Executor, Descricao da SSA) como vazias
             self._active_column_filters.clear()
             for k in ("situacao", "setor_executor", "descricao_ssa"):
@@ -1368,7 +1414,7 @@ class SSAMainWindow(QMainWindow):
         self._df_last_search_filtered = pd.DataFrame()
         
         # Limpar todos os filtros de coluna
-        if self._active_column_filters is not None:
+        if self._active_column_filters:
             self._active_column_filters.clear()
             for k in ("situacao", "setor_executor", "descricao_ssa"):
                 self._active_column_filters[k] = ""
@@ -1417,36 +1463,48 @@ class SSAMainWindow(QMainWindow):
         else:
             summary_text = "Nenhum filtro ativo"
         
-        # Atualiza os labels de resumo (ambos os lados se existirem)
+        # Atualiza label de resumo principal
         if hasattr(self, 'filters_summary_label'):
             self.filters_summary_label.setText(summary_text)
-        
-        if hasattr(self, 'filters_summary_label_right'):
-            self.filters_summary_label_right.setText(summary_text)
 
     def toggle_theme_menu(self):
         from PyQt6.QtWidgets import QMenu
+        from functools import partial
         menu = QMenu(self)
         for label, key in (("Claro", 'light'), ("Escuro", 'dark'), ("Gruvbox", 'gruvbox')):
             act = menu.addAction(label)
-            act.triggered.connect(lambda _=False, k=key: self.apply_theme(k))
+            if act is not None:  # defesa para analise estatica
+                try:
+                    act.triggered.connect(partial(self.apply_theme, key))  # type: ignore[attr-defined]
+                except Exception:
+                    pass
         btn = self.sender()
-        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-
-    def apply_theme(self, name: str):
         try:
-            from utils.themes import get_palette, normalize_theme  # fallback defensivo
+            if btn is not None:
+                menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
         except Exception:
             pass
+
+    def apply_theme(self, name: str):
+        # get_palette ja importado no topo; fallback silencioso se falhar
         try:
-            from PyQt6.QtWidgets import QApplication, QStyleFactory
+            from PyQt6.QtWidgets import QApplication
             if (name or '').lower() == 'light':
-                pal = QApplication.style().standardPalette()
+                # Usa a paleta padrão sem depender de QStyleFactory
+                app = QApplication.instance()
+                if app is not None and hasattr(app, 'style'):
+                    style_obj = app.style()
+                    try:
+                        pal = style_obj.standardPalette()  # type: ignore[attr-defined]
+                    except Exception:  # noqa: BLE001
+                        pal = get_palette('light')
+                else:
+                    pal = get_palette('light')
                 self.setPalette(pal)
             else:
                 pal = get_palette(name)
                 self.setPalette(pal)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pal = get_palette(name)
             self.setPalette(pal)
         try:
@@ -1459,39 +1517,40 @@ class SSAMainWindow(QMainWindow):
             theme = (name or '').lower()
             if theme == 'light':
                 # Usar aparencia padrao do sistema/Fusion; sem CSS pesado
-                if hasattr(self, 'week_label') and self.week_label is not None:
+                if hasattr(self, 'week_label'):
                     self.week_label.setStyleSheet("")
-                if hasattr(self, 'status_label') and self.status_label is not None:
+                if hasattr(self, 'status_label'):
                     self.status_label.setStyleSheet("")
-                if hasattr(self, 'search_help') and self.search_help is not None:
+                if hasattr(self, 'search_help'):
                     self.search_help.setStyleSheet("")
             else:
                 # Temas escuros (inclui Gruvbox) com contraste garantido
-                if hasattr(self, 'week_label') and self.week_label is not None:
+                if hasattr(self, 'week_label'):
                     self.week_label.setStyleSheet(
                         "font-weight:600; color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
                     )
-                if hasattr(self, 'status_label') and self.status_label is not None:
+                if hasattr(self, 'status_label'):
                     self.status_label.setStyleSheet(
                         "color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
                     )
-                if hasattr(self, 'search_help') and self.search_help is not None:
+                if hasattr(self, 'search_help'):
                     self.search_help.setStyleSheet("font-size:10px; color:#b8b8b8; margin:0; padding:0;")
         except Exception:
             pass
         # Persistencia
         try:
-            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalize_theme(name)
+            # Persistencia simples do tema sem normalizacao adicional
+            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = (name or '').lower()
             with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
 
     def _update_col_filter_indicator(self):
-        # Ativo quando existe ao menos um termo nção vazio em filtros por coluna
-        active = any((str(v).strip() != "") for k, v in (self._active_column_filters or {}).items())
-        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nção-ativo"
-        if hasattr(self, 'col_filter_indicator') and self.col_filter_indicator is not None:
+        # Ativo quando existe ao menos um termo não vazio em filtros por coluna
+        active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
+        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
+        if hasattr(self, 'col_filter_indicator'):
             self.col_filter_indicator.setText(txt)
 
     def show_filter_help(self):
@@ -1667,13 +1726,6 @@ class SSAMainWindow(QMainWindow):
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
 
-        columns_list = list(display_df.columns)
-        for row_idx in range(len(display_df)):
-            row_data = display_df.iloc[row_idx]
-            for col_idx, col_name in enumerate(columns_list):
-                value = row_data.iloc[col_idx]
-                item_text = "" if pd.isna(value) else str(value)
-
                 # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
                 if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
                     # Trunca apenas colunas que nção sção de descriçção
@@ -1813,7 +1865,6 @@ class SSAMainWindow(QMainWindow):
             
             # Obtêm largura da tabela
             widget_width = self.table_widget.width()
-            viewport_width = self.table_widget.viewport().width()
             
             if widget_width < 500:  # Tabela ainda nção inicializada
                 table_width = max(1400, self.width() - 50)
@@ -1869,7 +1920,7 @@ class SSAMainWindow(QMainWindow):
                 max_chars = min(max_chars, 80)  # Limite mais alto
                 
             return max_chars
-        except:
+        except Exception:  # noqa: BLE001
             # Fallback mais generoso
             return 80
 
@@ -1879,14 +1930,14 @@ class SSAMainWindow(QMainWindow):
             cols = getattr(self, '_current_display_columns', None)
             if not cols or logical_index < 0 or logical_index >= len(cols):
                 return
-            col_name = cols[logical_index]
-            # Persist only reasonable sizes
-            new_px = max(30, min(int(new_size), 1200))
+            # Persist only reasonable sizes (desabilitado - placeholder para evitar lint de variavel nao usada)
+            _ = cols[logical_index]
+            _ = max(30, min(int(new_size), 1200))
             # Atualiza cache local - TEMPORARIAMENTE DESABILITADO para usar larguras fixas
             # self._saved_gui_column_widths[col_name] = new_px
             # Nota: Persistencia removida para isolamento do CLI
             # As larguras ficam configuradas no arquivo gui_main_preferences.json
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Evita quebrar a GUI por falhas de IO
             pass
 
@@ -1985,14 +2036,14 @@ class SSAMainWindow(QMainWindow):
             
             menu.exec(self.table_widget.mapToGlobal(position))
 
-    def copy_cell_value(self):
+    def copy_cell_value(self, *_):  # QAction triggered pode enviar 'checked'
         """Copia o valor da celula selecionada."""
         current_item = self.table_widget.currentItem()
         if current_item:
             clipboard = QApplication.clipboard()
             clipboard.setText(current_item.text())
 
-    def copy_row_data(self):
+    def copy_row_data(self, *_):  # aceita args opcionais de QAction
         """Copia todos os dados da linha selecionada."""
         current_row = self.table_widget.currentRow()
         if current_row >= 0:
@@ -2262,10 +2313,6 @@ class SSAMainWindow(QMainWindow):
         Garante cleanup adequado dos QThreads para evitar o erro:
         'QThread: Destroyed while thread is still running'
         """
-        try:
-            print("[GUI_STAB] closeEvent invoked")
-        except Exception:
-            pass
         # Aguarda finalizacao do data loader thread se estiver rodando
         if hasattr(self, 'data_loader_thread') and self.data_loader_thread and self.data_loader_thread.isRunning():
             self.data_loader_thread.quit()

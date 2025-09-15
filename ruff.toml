@@ -1,0 +1,26 @@
+# Ruff configuração baseline.
+# Objetivo histórico: silêncio total (ignore=ALL) para evitar ruído durante refatorações.
+# Plano incremental sugerido:
+#   1. Remover IGNORE TOTAL e habilitar 'E','F' (erros/falhas) em uma branch dedicada.
+#   2. Adicionar grupos: 'UP' (modernização), 'SIM' (simplificações), 'I' (imports) conforme removemos falsos positivos.
+#   3. Promover warnings críticos a falhas em CI após estabilização.
+#   4. Desligar regras específicas via per-file-ignores em vez de ignorar ALL.
+#
+# Enquanto isso, mantemos ignorado para não introduzir ruído inesperado.
+
+[tool.ruff]
+line-length = 100
+# Exclui grandes diretórios de dados e caches
+exclude = [
+  "docs","reports","launchers/dist_simple","tests/legacy_tests","data","exportacao",
+  "docs_saida","legacy",".venv","__pycache__","extracao","logs"
+]
+
+[tool.ruff.lint]
+select = ["E","F"]
+ignore = []
+
+# Evita qualquer alteração de formatação automática se alguém rodar 'ruff format'
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"

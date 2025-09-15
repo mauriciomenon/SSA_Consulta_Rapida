@@ -14,25 +14,33 @@ Data: 2025-08-18
 import sys
 import os
 import time
-import threading
 import signal
 from datetime import datetime
 
-# Adiciona o projeto ao path
+# Ajuste do sys.path deve ocorrer antes dos imports locais do projeto; permitido aqui.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, project_root)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer
-from gui.gui_ssa_poc import SSAMainWindow
+from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtCore import QTimer  # noqa: E402
+from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
+try:
+    from gui.gui_ssa import SSAMainWindow  # type: ignore
+except Exception:
+    # Se não conseguir importar a GUI principal, marcamos como indisponível
+    SSAMainWindow = None  # type: ignore
+    QT_AVAILABLE = False  # type: ignore
 
 
 class PerformanceMonitor:
     """Monitor de performance para detectar travamentos."""
     
     def __init__(self):
+        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+            raise RuntimeError("Qt/GUI principal não disponível para monitor")
         self.app = QApplication([])
-        self.window = SSAMainWindow()
+        self.window = SSAMainWindow()  # type: ignore
         self.running = True
         self.stats = {
             'filtros_testados': 0,
@@ -158,7 +166,7 @@ class PerformanceMonitor:
         tempo_decorrido = (datetime.now() - self.stats['inicio']).total_seconds()
         
         print("\n" + "-" * 50)
-        print(f"📊 ESTATÍSTICAS ATUAIS")
+        print("📊 ESTATÍSTICAS ATUAIS")
         print(f"   Filtros testados: {self.stats['filtros_testados']}")
         print(f"   Tempo médio: {tempo_medio:.3f}s")
         print(f"   Tempo mínimo: {self.stats['tempo_min']:.3f}s")
@@ -180,7 +188,7 @@ class PerformanceMonitor:
         tempo_medio = self.stats['tempo_total'] / self.stats['filtros_testados']
         tempo_decorrido = (datetime.now() - self.stats['inicio']).total_seconds()
         
-        print(f"📊 Resumo dos Testes:")
+        print("📊 Resumo dos Testes:")
         print(f"   • Total de filtros testados: {self.stats['filtros_testados']}")
         print(f"   • Tempo médio de resposta: {tempo_medio:.3f}s")
         print(f"   • Tempo mínimo: {self.stats['tempo_min']:.3f}s")
@@ -188,8 +196,8 @@ class PerformanceMonitor:
         print(f"   • Travamentos detectados: {self.stats['travamentos_detectados']}")
         print(f"   • Taxa de travamento: {(self.stats['travamentos_detectados']/self.stats['filtros_testados']*100):.1f}%")
         print(f"   • Tempo total de monitoramento: {tempo_decorrido/60:.1f} min")
-        
-        print(f"\n🎯 Avaliação de Performance:")
+
+        print("\n🎯 Avaliação de Performance:")
         if tempo_medio < 0.5:
             print("   ✅ EXCELENTE - Resposta muito rápida")
         elif tempo_medio < 1.0:

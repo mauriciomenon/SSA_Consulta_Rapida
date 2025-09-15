@@ -1,5 +1,4 @@
 # clean_pycache.py
-import os
 import shutil
 from pathlib import Path
 

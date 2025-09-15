@@ -15,7 +15,7 @@ import sqlite3
 import pandas as pd
 import logging
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -190,7 +190,7 @@ class DatabaseAnalyzer:
                             pd.to_datetime(df[col], errors='coerce', dayfirst=True)
                             invalid_dates = df[pd.to_datetime(df[col], errors='coerce').isna() & df[col].notna()]
                             issues["invalid_dates"] = invalid_dates.index.tolist()
-                        except:
+                        except Exception:
                             pass
                 
                 # Registros completamente vazios
