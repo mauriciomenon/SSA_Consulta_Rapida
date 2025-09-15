@@ -102,6 +102,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--only", action="append", dest="only_gates", choices=["validate_configs", "smoke_cli", "check_docs", "lint"], help="Executa apenas os gates listados")
     p.add_argument("--no-fail-on-doc-issues", action="store_true", help="Não força falha se check_docs encontrar issues")
     p.add_argument("--timeout", type=int, default=120, help="Timeout (s) para cada gate individual")
+    p.add_argument("--lint-stream", action="store_true", help="Mostra saída em tempo real do lint (sem captura)")
     return p
 
 
@@ -124,7 +125,8 @@ def compose_gates(args: argparse.Namespace) -> List[tuple[str, List[str]]]:
         docs_cmd.extend(["--paths", *args.extra_docs])
     gates.append(("check_docs", docs_cmd))
     # Lint: usa runner unificado (flake8 + mypy). Saída não é JSON; tratamos fora.
-    gates.append(("lint", [PYTHON, "scripts/run_lint.py", "--strict", "--quiet"]))
+    # Removido --quiet para permitir stdout; modo stream controlado por --lint-stream
+    gates.append(("lint", [PYTHON, "scripts/run_lint.py", "--strict"]))
     # Filtragem por --only / --skip
     if args.only_gates:
         only_set = set(args.only_gates)
@@ -144,7 +146,37 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     results: Dict[str, GateResult] = {}
     for name, cmd in gates_cmds:
-        # Somente alguns gates retornam JSON estruturado; lint apenas sinaliza exit code.
+        # Gate lint pode exibir saída em tempo real (--lint-stream) para facilitar debug.
+        if name == "lint" and args.lint_stream:
+            start = time.time()
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(REPO_ROOT),
+                    check=False,
+                )
+                duration = time.time() - start
+                status = "ok"
+                if proc.returncode != 0:
+                    status = "fail" if proc.returncode == 1 else "error"
+                results[name] = GateResult(
+                    name=name,
+                    status=status,
+                    exit_code=proc.returncode,
+                    duration_s=round(duration, 3),
+                    details=None,
+                )
+            except Exception as e:  # noqa: BLE001
+                duration = time.time() - start
+                results[name] = GateResult(
+                    name=name,
+                    status="error",
+                    exit_code=2,
+                    duration_s=round(duration, 3),
+                    details={"exception": str(e)},
+                )
+            continue
+        # Demais gates ou lint sem stream utilizam execução com captura
         parse_json = name not in {"lint"}
         results[name] = run_gate(cmd, name=name, parse_json=parse_json)
 
