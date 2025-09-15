@@ -5,7 +5,7 @@
 ### TODOS OS PROBLEMAS RESOLVIDOS
 
 #### ❌ → STATUS RESOLVIDO GUI POC sendo usada (CORRIGIDO)
-- **Problema**: `gui_entry.py` importava `gui_ssa_poc` (956 linhas)
+- (Histórico) Removido: antigo `gui_ssa_poc` (PoC de 956 linhas) eliminado para reduzir complexidade.
 - **Solução**: Alterado para `gui_ssa` (2232 linhas) - GUI principal
 - **Validação**: GUI principal abre corretamente
 
@@ -85,7 +85,7 @@ python -c "from gui.gui_ssa import SSAMainWindow; print('GUI Principal OK')"
 
 # Verificar tamanho correto dos arquivos
 wc -l gui/gui_ssa*.py
-# 956 gui/gui_ssa_poc.py  (POC - não usar)
+# (Removido) 956 linhas: gui/gui_ssa_poc.py (PoC)
 # 2232 gui/gui_ssa.py     (Principal - correto!)
 ```
 

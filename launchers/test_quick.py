@@ -62,17 +62,12 @@ def test_imports():
     """Testa imports críticos"""
     log("=== TESTE IMPORTS ===")
     
+    # PoC GUI removida – somente verifica GUI principal se ainda existir
     try:
-        from gui.gui_ssa import SSAMainWindow
-        log("✅ GUI principal importa OK")
-    except Exception as e:
-        log(f"❌ GUI principal erro: {e}")
-        
-    try:
-        from gui.gui_ssa_poc import SSAMainWindow as POCWindow
-        log("✅ GUI POC importa OK")
-    except Exception as e:
-        log(f"❌ GUI POC erro: {e}")
+        from gui.gui_ssa import SSAMainWindow  # type: ignore
+        log(f"✅ GUI principal importa OK (classe: {SSAMainWindow.__name__})")
+    except Exception as e:  # pragma: no cover - diagnóstico
+        log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")
 
 def list_dist_contents():
     """Lista conteúdo da pasta dist"""

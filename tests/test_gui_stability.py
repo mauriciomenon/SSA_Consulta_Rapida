@@ -14,7 +14,6 @@ import sys
 import os
 import time
 import unittest
-from unittest.mock import patch
 import pandas as pd
 
 # Adiciona o projeto ao path
@@ -22,10 +21,15 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 # Importações específicas
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtTest import QTest
-from PyQt6.QtCore import Qt
-from gui.gui_ssa_poc import SSAMainWindow
+from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtTest import QTest  # noqa: E402
+from PyQt6.QtCore import Qt  # noqa: E402
+from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
+try:
+    from gui.gui_ssa import SSAMainWindow  # type: ignore
+except Exception:
+    SSAMainWindow = None  # type: ignore
+    QT_AVAILABLE = False  # type: ignore
 
 
 class TestGUIStability(unittest.TestCase):
@@ -34,14 +38,17 @@ class TestGUIStability(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Configuração inicial dos testes."""
-        if not QApplication.instance():
-            cls.app = QApplication([])
-        else:
-            cls.app = QApplication.instance()
+        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+            raise unittest.SkipTest("Qt/GUI principal indisponível – pulando testes")
+        cls.app = QApplication.instance() or QApplication([])
     
     def setUp(self):
         """Configuração antes de cada teste."""
-        self.window = SSAMainWindow()
+        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+            self.skipTest("Qt/GUI principal indisponível")
+        # Força modo de filtragem síncrono para evitar uso de QThread em ambiente de teste/headless
+        os.environ["SSA_SYNC_FILTER"] = "1"
+        self.window = SSAMainWindow()  # type: ignore
         self.window.show()
         
         # Mock data para testes

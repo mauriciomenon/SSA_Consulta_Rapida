@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime
 import re
-from typing import Optional, Iterable
+from typing import Optional
 
 import pandas as pd
 

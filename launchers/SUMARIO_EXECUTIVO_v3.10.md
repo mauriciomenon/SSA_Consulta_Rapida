@@ -58,7 +58,7 @@ python -c "from gui.gui_ssa import SSAMainWindow; print('✅ GUI Principal')"
 
 # Verificar tamanhos corretos
 wc -l gui/gui_ssa*.py
-# 956 gui/gui_ssa_poc.py  (POC - não usar)
+# (Removido) gui/gui_ssa_poc.py (PoC 956 linhas) – eliminado para reduzir ruído.
 # 2232 gui/gui_ssa.py     (Principal ✅)
 ```
 
