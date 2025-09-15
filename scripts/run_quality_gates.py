@@ -98,8 +98,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Executa e agrega quality gates (configs, smoke CLI, docs).")
     p.add_argument("--extra-doc", action="append", dest="extra_docs", help="Arquivo markdown adicional para validar (pode repetir)")
     p.add_argument("--extra-config-dir", action="append", dest="extra_cfg_dirs", help="Diretório extra de configs JSON (pode repetir)")
-    p.add_argument("--skip", action="append", dest="skip_gates", choices=["validate_configs", "smoke_cli", "check_docs"], help="Gate a pular (pode repetir)")
-    p.add_argument("--only", action="append", dest="only_gates", choices=["validate_configs", "smoke_cli", "check_docs"], help="Executa apenas os gates listados")
+    p.add_argument("--skip", action="append", dest="skip_gates", choices=["validate_configs", "smoke_cli", "check_docs", "lint"], help="Gate a pular (pode repetir)")
+    p.add_argument("--only", action="append", dest="only_gates", choices=["validate_configs", "smoke_cli", "check_docs", "lint"], help="Executa apenas os gates listados")
     p.add_argument("--no-fail-on-doc-issues", action="store_true", help="Não força falha se check_docs encontrar issues")
     p.add_argument("--timeout", type=int, default=120, help="Timeout (s) para cada gate individual")
     return p
@@ -123,6 +123,8 @@ def compose_gates(args: argparse.Namespace) -> List[tuple[str, List[str]]]:
     if args.extra_docs:
         docs_cmd.extend(["--paths", *args.extra_docs])
     gates.append(("check_docs", docs_cmd))
+    # Lint: usa runner unificado (flake8 + mypy). Saída não é JSON; tratamos fora.
+    gates.append(("lint", [PYTHON, "scripts/run_lint.py", "--strict", "--quiet"]))
     # Filtragem por --only / --skip
     if args.only_gates:
         only_set = set(args.only_gates)
@@ -142,7 +144,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     results: Dict[str, GateResult] = {}
     for name, cmd in gates_cmds:
-        results[name] = run_gate(cmd, name=name, parse_json=True)
+        # Somente alguns gates retornam JSON estruturado; lint apenas sinaliza exit code.
+        parse_json = name not in {"lint"}
+        results[name] = run_gate(cmd, name=name, parse_json=parse_json)
 
     # Determinação de severidade: fail > error > ok
     overall = "ok"
