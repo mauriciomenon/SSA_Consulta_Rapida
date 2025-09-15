@@ -2,15 +2,15 @@
 """Importador "à prova de bala" para planilhas SSA.
 
 Objetivos:
-  - Tolerar diferenças de cabeçalho (acentos, maiúsculas, quebras de linha, espaços extras)
-  - Colapsar sinônimos conforme `config/column_mappings.json`
-  - Evitar colunas semânticas duplicadas (coalescência linha-a-linha)
-  - Normalizar ``numero_ssa`` usando lógica existente do módulo `armazenamento.database`
-  - Fazer parsing resiliente de datas em múltiplos formatos e valores numéricos (serial Excel)
-  - Não lançar exceções para linhas/colunas inválidas: registra estatísticas e segue
-  - Deduplicar por ``numero_ssa`` mantendo o registro com data_cadastro mais recente (ou primeiro válido)
+    - Tolerar diferenças de cabeçalho (acentos, maiúsculas, quebras de linha, espaços extras)
+    - Colapsar sinônimos conforme `config/column_mappings.json`
+    - Evitar colunas semânticas duplicadas (coalescência linha-a-linha)
+    - Normalizar ``numero_ssa`` usando lógica existente do módulo `armazenamento.database`
+    - Parsing resiliente de datas (textual + serial Excel)
+    - Não lançar exceções em linhas/colunas inválidas: registra estatísticas e segue
+    - Deduplicar por ``numero_ssa`` mantendo registro com data_cadastro mais recente ou primeiro válido
 
-Retorna (DataFrame normalizado, stats_dict).
+Retorna: (DataFrame normalizado, stats_dict).
 """
 from __future__ import annotations
 
@@ -36,7 +36,8 @@ DATE_COLUMNS_CANDIDATES = [
     "desde_1",
 ]
 
-SERIAL_DATE_MIN = 10_000  # serial excel abaixo disso costuma ser lixo para nosso contexto
+# Nota: threshold de serial Excel removido; lógica atual delega ao parse_any_date que
+# já trata serials realistas e ignora ruídos sem depender de limite arbitrário.
 
 
 def _clean_numero_ssa_series(series: pd.Series) -> tuple[pd.Series, pd.Series]:
@@ -103,7 +104,7 @@ def _build_alias_mapping(mapping_json_path: str) -> Tuple[Dict[str, str], Dict[s
             alias_norm = _canonicalize_header(name)
             if alias_norm not in alias_to_canonical:  # first wins
                 alias_to_canonical[alias_norm] = canonical
-        canonical_to_aliases[canonical] = [ _canonicalize_header(a) for a in aliases ]
+        canonical_to_aliases[canonical] = [_canonicalize_header(a) for a in aliases]
     return alias_to_canonical, canonical_to_aliases
 
 
@@ -137,7 +138,12 @@ def import_excel_robust(
 
     Nunca levanta exceção (salvo erros catastróficos de IO) – registra problemas no log e prossegue.
     """
-    stats = ImportStats(file_path=file_path, dropped_columns=[], merged_columns={}, date_parse_failures={})
+    stats = ImportStats(
+        file_path=file_path,
+        dropped_columns=[],
+        merged_columns={},
+        date_parse_failures={},
+    )
 
     if not os.path.exists(file_path):  # Falha primária
         logger.error("Arquivo não encontrado: %s", file_path)
@@ -155,7 +161,11 @@ def import_excel_robust(
         return pd.DataFrame(), stats.to_dict()
 
     if debug_enabled:
-        logger.debug("[import_excel_robust] Linhas lidas=%d colunas=%d", len(raw_df), len(raw_df.columns))
+        logger.debug(
+            "[import_excel_robust] Linhas lidas=%d colunas=%d",
+            len(raw_df),
+            len(raw_df.columns),
+        )
 
     stats.total_rows_in = len(raw_df)
     stats.original_columns_count = len(raw_df.columns)
@@ -171,9 +181,9 @@ def import_excel_robust(
         original_to_canonical[col] = canonical
         canonical_groups.setdefault(canonical, []).append(col)
 
-        # Promoção explícita: garantir que tenhamos uma coluna 'numero_ssa' se algum alias conhecido apareceu
+    # Promoção explícita: garantir que exista coluna 'numero_ssa' se algum alias conhecido apareceu
         if 'numero_ssa' not in canonical_groups:
-            # Procurar qualquer coluna original cujo header normalizado corresponda a um alias de numero_ssa
+            # Procurar header normalizado que corresponda a alias de numero_ssa
             numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
             candidate_cols = []
             for col in raw_df.columns:
@@ -186,7 +196,10 @@ def import_excel_robust(
                 canonical_groups['numero_ssa'] = [sel]
                 original_to_canonical[sel] = 'numero_ssa'
                 if debug_enabled:
-                    logger.debug("[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)", sel)
+                    logger.debug(
+                        "[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)",
+                        sel,
+                    )
 
     if debug_enabled:
         logger.debug("[import_excel_robust] Mapeamento colunas => %s", original_to_canonical)
@@ -231,23 +244,33 @@ def import_excel_robust(
         cleaned_series, valid_mask = _clean_numero_ssa_series(original)
         if debug_enabled:
             logger.debug("[import_excel_robust] original numero_ssa=%s", original.tolist())
-            logger.debug("[import_excel_robust] cleaned numero_ssa=%s valid_mask=%s", cleaned_series.tolist(), valid_mask.tolist())
+            logger.debug(
+                "[import_excel_robust] cleaned numero_ssa=%s valid_mask=%s",
+                cleaned_series.tolist(),
+                valid_mask.tolist(),
+            )
         # Política estrita: se todos None não há recuperação.
         work_df["_numero_ssa_clean"] = cleaned_series
         # Contar inválidos (inclui vazios / None)
         stats.invalid_numero_ssa_rows = int((~valid_mask).sum())
         # Preservar somente linhas onde numero_ssa limpo não é None se solicitado
-        # (Mas primeiro promovemos coluna para manter consistência de schema mesmo que filtragem seja desativada)
+    # (Primeiro promovemos coluna para manter consistência de schema mesmo sem filtragem)
         work_df.drop(columns=["numero_ssa"], inplace=True)
         work_df.rename(columns={"_numero_ssa_clean": "numero_ssa"}, inplace=True)
         if drop_empty_numero_ssa:
             before = len(work_df)
             work_df = work_df[work_df["numero_ssa"].notna()].reset_index(drop=True)
             if debug_enabled:
-                logger.debug("[import_excel_robust] removidas %d linhas com numero_ssa vazio/invalido", before - len(work_df))
+                logger.debug(
+                    "[import_excel_robust] removidas %d linhas com numero_ssa vazio/invalido",
+                    before - len(work_df),
+                )
         work_df['numero_ssa'] = work_df['numero_ssa'].astype('string')
         if debug_enabled:
-            logger.debug("[import_excel_robust] numero_ssa apos limpeza: %s", work_df['numero_ssa'].head().tolist())
+            logger.debug(
+                "[import_excel_robust] numero_ssa apos limpeza: %s",
+                work_df['numero_ssa'].head().tolist(),
+            )
 
     # Datas
     for dcol in DATE_COLUMNS_CANDIDATES:
@@ -283,7 +306,11 @@ def import_excel_robust(
                 temp.drop(columns=["_dt"], inplace=True)
                 work_df = temp.reset_index(drop=True)
                 if debug_enabled:
-                    logger.debug("[import_excel_robust] Deduplicacao: removidos=%d linhas_finais=%d", stats.duplicate_rows_dropped, len(work_df))
+                    logger.debug(
+                        "[import_excel_robust] Deduplicacao: removidos=%d linhas_finais=%d",
+                        stats.duplicate_rows_dropped,
+                        len(work_df),
+                    )
             except Exception as e:  # pragma: no cover
                 logger.warning("Falha deduplicacao numero_ssa: %s", e)
 
@@ -294,7 +321,11 @@ def import_excel_robust(
         work_df['numero_ssa'] = work_df['numero_ssa'].astype('string')
 
     # Remover colunas "Unnamed:" (pandas cria ao exportar índices) para evitar falha no insert SQL.
-    unnamed_cols = [c for c in work_df.columns if c.startswith('unnamed:') or c.startswith('Unnamed:')]
+    unnamed_cols = [
+        c
+        for c in work_df.columns
+        if c.startswith('unnamed:') or c.startswith('Unnamed:')
+    ]
     if unnamed_cols:
         work_df.drop(columns=unnamed_cols, inplace=True)
         if stats.dropped_columns is not None:
@@ -313,7 +344,11 @@ def import_excel_robust(
     stats.dropped_columns = dropped
 
     if debug_enabled:
-        logger.debug("[import_excel_robust] Final rows=%d cols=%d", len(work_df), len(work_df.columns))
+        logger.debug(
+            "[import_excel_robust] Final rows=%d cols=%d",
+            len(work_df),
+            len(work_df.columns),
+        )
     stats_dict = stats.to_dict()
     # Persist consolidated stats JSON (dashboard consumption) if reports/ exists or can be created.
     try:
