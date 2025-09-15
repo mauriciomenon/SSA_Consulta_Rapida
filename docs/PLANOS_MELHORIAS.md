@@ -16,14 +16,14 @@ Este documento consolida planos de melhorias propostos para o sistema, organizad
 
 #### **Problema Identificado**
 ```python
-# CÓDIGO PROBLEMÁTICO em gui/gui_ssa_poc.py (linhas 650-651):
+# (Histórico) Código problemático em gui/gui_ssa_poc.py (arquivo agora removido):
 if col_name == 'data_cadastro' and len(item_text) > 10:
     if ' ' in item_text:
         item_text = item_text.split(' ')[0]  # Hardcoded - assume espaço sempre presente
 ```
 
 #### **Impacto**
-- **Arquivos Afetados**: `gui/gui_ssa_poc.py` (linhas 650-651)
+- **Arquivos Afetados (removido)**: `gui/gui_ssa_poc.py` (linhas históricas 650-651)
 - **Classes Envolvidas**: `MainWindow.populate_table()` 
 - **Severidade**: Baixa (funcionalidade atual funciona, mas não é robusta)
 
@@ -88,7 +88,7 @@ grep -r "print.*DEBUG\|console.log\|pdb.set_trace" ./ --include="*.py"
 Sistema de renderização da tabela na GUI pode ser otimizado para datasets grandes.
 
 #### **Arquivos Envolvidos**
-- `gui/gui_ssa_poc.py`
+- (Removido) `gui/gui_ssa_poc.py`
 - `gui/simple_width_manager.py`
 - `utils/caching.py`
 

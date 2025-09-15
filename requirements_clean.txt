@@ -1,0 +1,5 @@
+# Baseline mínimo do projeto
+# Este arquivo referencia apenas o runtime essencial.
+# Use requirements_build.txt e requirements_dev.txt conforme necessário.
+
+-r requirements.txt

@@ -21,8 +21,9 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
     """
     # --- Tratamento de Erros ---
     if not isinstance(display_map, dict):
-        logger.error("Erro em pretty_print_details: display_map deve ser um dicionário.")
+        # Print first (tests capture stdout) then log.
         print("Erro: Configuração de exibição inválida.")
+        logger.error("Erro em pretty_print_details: display_map deve ser um dicionário.")
         return
 
     # Tenta converter para Series se for um dicionário
@@ -34,8 +35,8 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
             print("Erro: Dados da SSA inválidos.")
             return
     elif not isinstance(series, pd.Series):
-        logger.error(f"Erro em pretty_print_details: 'series' deve ser pd.Series ou dict, recebido {type(series)}.")
         print("Erro: Formato de dados da SSA inválido.")
+        logger.error(f"Erro em pretty_print_details: 'series' deve ser pd.Series ou dict, recebido {type(series)}.")
         return
 
     # --- Impressão ---
@@ -46,7 +47,8 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
         print("="*50)
         
         # Itera sobre os itens da Series
-        for key, value in series.items():
+        for k, value in series.items():
+            key: str = str(k)
             header = display_map.get(key, key)
             # Usa format_cell para padronizar datas, numeros, SSA e ocultar nulls
             formatted = format_cell(value, key)

@@ -50,23 +50,17 @@ def test_gui_import():
     print("=" * 50)
     
     try:
-        from gui.gui_ssa import SSAMainWindow, load_gui_main_preferences
-        
-        # Testa carregamento das preferências
+        from gui.gui_ssa import load_gui_main_preferences
         prefs = load_gui_main_preferences()
         display_mappings = prefs.get("display_mappings", prefs.get("column_display_names", {}))
-        
-        print(f"✅ GUI importada com sucesso")
+        print("✅ GUI importada com sucesso")
         print(f"✅ Preferências carregadas: {len(display_mappings)} labels")
-        
-        # Verifica labels específicos
         key_labels = ["setor_executor", "situacao", "semana_programada"]
         for key in key_labels:
             label = display_mappings.get(key, "NÃO ENCONTRADO")
             print(f"   {key}: '{label}'")
-        
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Erro ao importar GUI: {e}")
         return False
 
@@ -76,50 +70,35 @@ def test_cli_compatibility():
     print("=" * 50)
     
     try:
-        # Testa importação de módulos CLI principais  
-        from interface import cli
+        # Testa importação de módulos CLI principais
+        from interface import cli  # noqa: F401
         print("✅ CLI módulo importado com sucesso")
-        
+
         # Verifica table_printer
-        from interface import table_printer
+        from interface import table_printer  # noqa: F401
         print("✅ Table printer importado com sucesso")
-        
+
         # Verifica core.config_manager
         from core.config_manager import load_display_mappings_integrity
         display_map = load_display_mappings_integrity()
         print(f"✅ Display mappings carregado: {len(display_map)} items")
-        
+
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"❌ Erro no CLI: {e}")
         return False
 
-def test_gui_poc_compatibility():
-    """Verifica se GUI PoC ainda funciona."""
-    print("\n🧪 TESTANDO COMPATIBILIDADE GUI POC")
+def test_gui_principal_disponivel():
+    """Verifica se GUI principal continua importável (substitui PoC)."""
+    print("\n🧪 TESTANDO DISPONIBILIDADE GUI PRINCIPAL")
     print("=" * 50)
-    
     try:
-        # Verifica se arquivo existe
-        poc_file = "gui/gui_ssa_poc.py"
-        if not os.path.exists(poc_file):
-            print(f"❌ Arquivo {poc_file} não encontrado")
-            return False
-        
-        print("✅ GUI PoC arquivo encontrado")
-        
-        # Tenta importar (sem executar)
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("gui_poc", poc_file)
-        if spec is None:
-            print("❌ Não foi possível carregar spec do GUI PoC")
-            return False
-        
-        print("✅ GUI PoC pode ser carregado")
+        from gui.gui_ssa import SSAMainWindow  # type: ignore
+        _ = SSAMainWindow  # acesso simbólico
+        print("✅ GUI Principal disponível")
         return True
-        
     except Exception as e:
-        print(f"❌ Erro no GUI PoC: {e}")
+        print(f"❌ GUI Principal indisponível: {e}")
         return False
 
 def main():
@@ -132,7 +111,7 @@ def main():
         ("Configurações GUI Principal", test_gui_main_preferences),
         ("Importação GUI", test_gui_import),
         ("Compatibilidade CLI", test_cli_compatibility),
-        ("Compatibilidade GUI PoC", test_gui_poc_compatibility),
+    ("Disponibilidade GUI Principal", test_gui_principal_disponivel),
     ]
     
     results = []

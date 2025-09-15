@@ -39,12 +39,12 @@ def make_sample_df():
 
 
 def main():
-    app = QApplication.instance() or QApplication(sys.argv)
+    _app = QApplication.instance() or QApplication(sys.argv)  # noqa: F841
     # Garante que o diretório raiz do projeto está no sys.path
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-    from gui.gui_ssa_poc import SSAMainWindow
+    from gui.gui_ssa import SSAMainWindow  # type: ignore
 
     win = SSAMainWindow()
 

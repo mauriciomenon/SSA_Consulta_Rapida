@@ -1,4 +1,3 @@
-import os
 from PyQt6.QtGui import QPalette, QColor
 
 
@@ -44,6 +43,8 @@ def get_palette(name: str) -> QPalette:
 
 def normalize_theme(name: str) -> str:
     name = (name or "dark").lower()
-    if name in ("light", "claro"): return "light"
-    if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"): return "gruvbox"
+    if name in ("light", "claro"):
+        return "light"
+    if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"):
+        return "gruvbox"
     return "dark"

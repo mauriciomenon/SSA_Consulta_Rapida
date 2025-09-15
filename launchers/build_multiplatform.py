@@ -5,7 +5,6 @@ Compila executaveis para Windows, macOS e Linux com otimizacoes de tamanho.
 Inclui limpeza automatica, commit e push apos build bem-sucedido.
 """
 
-import os
 import sys
 import json
 import platform
@@ -13,12 +12,6 @@ import subprocess
 import shutil
 import argparse
 import logging
-import glob
-from datetime import datetime
-from pathlib import Path
-
-import logging
-import glob
 from datetime import datetime
 from pathlib import Path
 
@@ -237,6 +230,18 @@ class MultiPlatformBuilder:
             pyinstaller_exe = platform_dir / 'venv' / 'Scripts' / 'pyinstaller.exe'
         else:
             pyinstaller_exe = platform_dir / 'venv' / 'bin' / 'pyinstaller'
+
+        # Aviso amigável sobre compressão UPX opcional (não bloqueante)
+        if platform_name.startswith('windows'):
+            # Heurística: se config pyinstaller_args contiver algo indicando compressão futura
+            # (ex.: flag custom que adicionaremos no futuro) ou simplesmente sempre avisar se upx ausente
+            try:
+                __import__('upx4py')  # noqa: F401
+            except Exception:
+                logger.warning(
+                    "UPX não detectado (pacote 'upx4py' ausente). Build seguirá sem compressão. "
+                    "Para habilitar instale: pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt"
+                )
         
         # Comando base
         cmd = [str(pyinstaller_exe), '-y']  # -y força sobrescrita
@@ -803,8 +808,8 @@ def main():
     
     # Executar builds
     success = True
-    for platform in platforms_to_build:
-        if not builder.build_platform(platform, args.apps):
+    for plat in platforms_to_build:
+        if not builder.build_platform(plat, args.apps):
             success = False
     
     if success:

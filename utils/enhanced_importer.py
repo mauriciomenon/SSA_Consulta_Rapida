@@ -6,8 +6,7 @@ e adiciona campos apenas se não existirem.
 
 import pandas as pd
 import logging
-from typing import Dict, List, Optional
-from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

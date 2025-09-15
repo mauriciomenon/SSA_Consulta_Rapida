@@ -1,0 +1,72 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies (runtime + tests)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -e . || true
+          pip install pytest
+
+      - name: Run quality gates aggregator
+        id: gates
+        run: |
+          echo "::group::Quality Gates"
+          out=$(python scripts/run_quality_gates.py || echo "__GATES_FAILED__:$?")
+          echo "$out" > quality_gates_output.jsonl
+          echo "$out"
+          echo "::endgroup::"
+          overall=$(python -c "import json,sys;from pathlib import Path; p=Path('quality_gates_output.jsonl'); lines=[l for l in p.read_text().splitlines() if l.strip()] if p.exists() else []; raw=lines[-1] if lines else '{}';\ntry: data=json.loads(raw); print(data.get('overall_status','error'));\nexcept Exception: print('error')" || echo error)
+          echo "Overall status: $overall"
+          echo "overall_status=$overall" >> "$GITHUB_OUTPUT"
+
+      - name: Run smoke tests (-m smoke)
+        id: smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest -m "smoke" -q || echo "SMOKE_FAILED" > smoke_failed.flag
+
+      - name: Evaluate gate + smoke results
+        run: |
+          overall="${{ steps.gates.outputs.overall_status }}"
+          if [ -f smoke_failed.flag ]; then smoke=fail; else smoke=ok; fi
+          echo "Overall gates: $overall | Smoke: $smoke"
+          if [ "$overall" != "ok" ]; then echo "::error::Quality gates falharam ($overall)"; fi
+          if [ "$smoke" != "ok" ]; then echo "::error::Smoke tests falharam"; fi
+          if [ "$overall" != "ok" ] || [ "$smoke" != "ok" ]; then exit 1; fi
+          # Alternativa: usar script unificado
+          # ./scripts/ci_quality_gates.sh || exit 1
+
+      # Comentado para ativação futura
+      # - name: Ruff (planejado)
+      #   run: ruff check . || true
+      # - name: mypy (planejado)
+      #   run: mypy core armazenamento || true
+
+      - name: Upload gates raw output (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gates-output
+          path: quality_gates_output.jsonl
+          retention-days: 7

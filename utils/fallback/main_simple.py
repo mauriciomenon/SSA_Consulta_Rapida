@@ -3,7 +3,6 @@
 Versão simplificada temporária do main.py - sem pandas
 """
 import os
-import sys
 import sqlite3
 
 def simple_cli():
@@ -20,7 +19,7 @@ def simple_cli():
     try:
         # Conta total de registros
         total = cursor.execute('SELECT COUNT(*) FROM ssa_table').fetchone()[0]
-        print(f"Pesquisa Rápida de SSAs 3.0.7")
+        print("Pesquisa Rápida de SSAs 3.0.7")
         print(f"Base de dados: {total} registros")
         print()
         

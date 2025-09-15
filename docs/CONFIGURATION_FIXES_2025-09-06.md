@@ -12,7 +12,7 @@ Fixed multiple configuration inconsistencies across the project to ensure consis
 **Files Changed**:
 - `.python-version`: Fixed from env name `ssa_consulta_rapida_py313` to actual version `3.13.0`
 - `.github/workflows/windows-build-release.yml`: Updated from Python 3.11 to 3.13
-- `.github/workflows/ai-review.yml`: Updated from Python 3.11 to 3.13  
+- `.github/workflows/ai-review.yml`: Updated from Python 3.11 to 3.13 (NOTE: workflow subsequently removed; reference retained here only for historical traceability)
 - `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`: Updated requirements from 3.8+ to 3.13+
 - `verificar_instalacao.ps1`: Updated Python version checks from 3.8+ to 3.13+
 - `docs/release_notes_v3.0.5.md`: Updated requirements from 3.8+ to 3.13+

@@ -10,7 +10,7 @@ Este documento consolida o planejamento estratégico, melhorias futuras e roadma
 
 ##### **1. Formatação de Datas na GUI**
 **Problema**: Formatação hardcoded de datas na interface gráfica  
-**Arquivos Afetados**: `gui/gui_ssa_poc.py`  
+**Arquivos Afetados**: (PoC `gui/gui_ssa_poc.py` removida)  
 **Solução**: Utilizar função padronizada de `utils/formatting.py`
 
 ```python
@@ -33,7 +33,7 @@ if col_name == 'data_cadastro':
 
 ##### **2. Gerenciamento de Configurações**
 **Problema**: Valores de configuração espalhados pelo código  
-**Arquivos Afetados**: `gui/gui_ssa_poc.py`, `interface/cli.py`  
+**Arquivos Afetados**: (PoC removida), `interface/cli.py`  
 **Solução**: Centralizar em arquivos JSON externos
 
 ```python

@@ -9,7 +9,7 @@ import os
 import json
 import hashlib
 import logging
-from typing import List, Dict, Set, Union
+from typing import List, Dict, Union
 
 logger = logging.getLogger(__name__)
 
