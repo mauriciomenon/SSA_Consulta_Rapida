@@ -25,23 +25,23 @@ def main():
         description=f"Consulta Rápida de SSAs v{APP_VERSION}",
         formatter_class=argparse.RawTextHelpFormatter
     )
-    
+
     parser.add_argument(
         '--force-rescan', '--rescan',
         dest='force_rescan',
         action='store_true',
         help='Força a reimportação de todos os arquivos Excel, ignorando o cache.'
     )
-    
+
     args = parser.parse_args()
-    
+
     print(f"Pesquisa Rápida de SSAs {APP_VERSION}")
-    
+
     if args.force_rescan:
         print("RESCAN SOLICITADO - implementação pendente")
     else:
         print("Executando sem rescan (correto!)")
-    
+
     # Simula CLI básica
     print("Digite 'q' para sair:")
     while True:
@@ -52,7 +52,7 @@ def main():
             print(f"Você digitou: {user_input}")
         except KeyboardInterrupt:
             break
-    
+
     print("Programa encerrado.")
 
 if __name__ == "__main__":

@@ -92,13 +92,13 @@ def _handle_column_visibility(settings: dict):
 
     while True:
         print("\n" + "="*50 + "\nVISIBILIDADE DE COLUNAS\n" + "="*50)
-        
+
         column_names = list(display_map.keys())
         for i, col_internal in enumerate(column_names):
             display_name = display_map.get(col_internal, col_internal)
             status = "VISÍVEL" if column_visibility.get(col_internal, True) else "OCULTA"
             print(f"{i+1}. {display_name:<25} [{status}]")
-        
+
         print("0. Voltar")
         print("="*50)
 
@@ -106,7 +106,7 @@ def _handle_column_visibility(settings: dict):
 
         if col_choice == '0':
             break
-        
+
         if col_choice.isdigit():
             idx = int(col_choice) - 1
             if 0 <= idx < len(column_names):
@@ -127,13 +127,13 @@ def _handle_column_widths(settings: dict):
 
     while True:
         print("\n" + "="*50 + "\nLARGURA DE COLUNAS\n" + "="*50)
-        
+
         display_names = [display_map.get(col_internal, col_internal) for col_internal in display_map.keys()]
-        
+
         for i, display_name in enumerate(display_names):
-            current_width = column_widths.get(display_name, 'Auto') 
+            current_width = column_widths.get(display_name, 'Auto')
             print(f"{i+1}. {display_name:<25} [Largura: {current_width}]")
-        
+
         print("0. Voltar")
         print("="*50)
 
@@ -141,13 +141,13 @@ def _handle_column_widths(settings: dict):
 
         if col_choice == '0':
             break
-        
+
         if col_choice.isdigit():
             idx = int(col_choice) - 1
             if 0 <= idx < len(display_names):
                 selected_display_name = display_names[idx]
                 new_width_input = input(f"Digite a nova largura para '{selected_display_name}' (numero ou 'Auto' para automatico): ").strip()
-                
+
                 if new_width_input.lower() == 'auto':
                     if selected_display_name in column_widths:
                         del column_widths[selected_display_name]
@@ -161,7 +161,7 @@ def _handle_column_widths(settings: dict):
                         print("Largura deve ser um numero positivo.")
                 else:
                     print("Entrada invalida. Por favor, digite um numero ou 'Auto'.")
-                
+
                 _save_settings_handler(settings) # Usar a propria funcao de save
             else:
                 print("Numero de coluna invalido.")
@@ -173,7 +173,7 @@ def _handle_user_preferences(settings: dict):
     """Gerencia as preferencias do usuario, incluindo filtros padrao."""
     user_preferences = settings.get('user_preferences', {})
     default_filters = settings.get('default_filters', [])
-    
+
     while True:
         print("\n" + "="*50 + "\nPREFERÊNCIAS DO USUÁRIO\n" + "="*50)
         auto_scroll_status = "ATIVADO" if user_preferences.get('auto_scroll_to_end', False) else "DESATIVADO"
@@ -199,7 +199,7 @@ def _handle_user_preferences(settings: dict):
 def _handle_default_filters(settings: dict):
     """Permite ao usuario adicionar/remover filtros padrao."""
     default_filters = settings.get('default_filters', [])
-    
+
     while True:
         print("\n" + "="*50 + "\nGERENCIAR FILTROS PADRÃO\n" + "="*50)
         print(f"Filtros Atuais: [{', '.join(default_filters) if default_filters else 'Nenhum'}]")
@@ -207,9 +207,9 @@ def _handle_default_filters(settings: dict):
         print("2. Remover filtro")
         print("0. Voltar")
         print("="*50)
-        
+
         choice = input("Escolha uma opcao: ").strip()
-        
+
         if choice == '1':
             new_filter = input("Digite o novo termo de filtro para adicionar: ").strip()
             if new_filter and new_filter not in default_filters:
@@ -222,10 +222,10 @@ def _handle_default_filters(settings: dict):
             if not default_filters:
                 print("Nao ha filtros padrao para remover.")
                 continue
-            
+
             for i, f in enumerate(default_filters):
                 print(f"{i+1}. {f}")
-            
+
             try:
                 filter_index = int(input("Digite o numero do filtro para remover: ").strip()) - 1
                 if 0 <= filter_index < len(default_filters):

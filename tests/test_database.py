@@ -77,14 +77,14 @@ def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypat
         "armazenamento.database.os.path.join",
         lambda *args: sample_schema_file if 'schema.sql' in args else _orig_join(*args)
     )
-    
+
     # Mocka o nome do arquivo schema
     monkeypatch.setattr("armazenamento.database.schema_file", os.path.basename(sample_schema_file))
-    
+
     # Como o patching do caminho pode ser tricky, vamos testar a lógica principal
     # simulando a criação da tabela diretamente e verificando se funciona.
     # Um teste mais robusto exigiria refatorar initialize_database para injetar o caminho do schema.
-    
+
     # Alternativa: Testar query_db e insert_dataframe_to_db que dependem de um DB válido.
     pass # Placeholder para este teste complexo de setup
 
@@ -92,7 +92,7 @@ def test_initialize_database_success(temp_db_path, sample_schema_file, monkeypat
 def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
     """Testa a inserção bem-sucedida de um DataFrame."""
     table_name = 'teste_usuarios'
-    
+
     # 1. Cria a tabela manualmente para o teste
     with get_db_connection(temp_db_path) as conn:
         conn.execute("""
@@ -106,21 +106,21 @@ def test_insert_dataframe_to_db_success(temp_db_path, sample_dataframe):
 
     # 2. Insere o DataFrame
     success = insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name)
-    
+
     assert success is True
-    
+
     # 3. Verifica se os dados foram inseridos
     df_from_db = query_db(temp_db_path, table_name)
     assert len(df_from_db) == len(sample_dataframe)
     # Verifica se os dados são iguais (reset_index para comparar corretamente)
-    pd.testing.assert_frame_equal(df_from_db.sort_values('id').reset_index(drop=True), 
+    pd.testing.assert_frame_equal(df_from_db.sort_values('id').reset_index(drop=True),
                                   sample_dataframe.sort_values('id').reset_index(drop=True))
 
 
 def test_query_db_success(temp_db_path, sample_dataframe):
     """Testa uma consulta bem-sucedida."""
     table_name = 'teste_consulta'
-    
+
     # 1. Cria a tabela e insere dados
     with get_db_connection(temp_db_path) as conn:
         conn.execute("""
@@ -131,21 +131,21 @@ def test_query_db_success(temp_db_path, sample_dataframe):
             );
         """)
         conn.commit()
-    
+
     insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name)
-    
+
     # 2. Faz uma consulta
     df_result = query_db(temp_db_path, table_name, "SELECT * FROM teste_consulta WHERE idade > ?", (27,))
-    
+
     # 3. Verifica o resultado
     expected_result = sample_dataframe[sample_dataframe['idade'] > 27]
-    pd.testing.assert_frame_equal(df_result.sort_values('id').reset_index(drop=True), 
+    pd.testing.assert_frame_equal(df_result.sort_values('id').reset_index(drop=True),
                                   expected_result.sort_values('id').reset_index(drop=True))
 
 def test_query_db_empty_result(temp_db_path, sample_dataframe):
     """Testa uma consulta que retorna resultado vazio."""
     table_name = 'teste_consulta_vazia'
-    
+
     with get_db_connection(temp_db_path) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS teste_consulta_vazia (
@@ -155,11 +155,11 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
             );
         """)
         conn.commit()
-    
+
     insert_dataframe_to_db(sample_dataframe, temp_db_path, table_name)
-    
+
     df_result = query_db(temp_db_path, table_name, "SELECT * FROM teste_consulta_vazia WHERE idade > ?", (100,))
-    
+
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ['id', 'nome', 'idade']
@@ -168,16 +168,16 @@ def test_insert_dataframe_to_db_empty_df(temp_db_path):
     """Testa a inserção de um DataFrame vazio."""
     empty_df = pd.DataFrame()
     table_name = 'tabela_vazia'
-    
+
     # Cria a tabela
     with get_db_connection(temp_db_path) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS tabela_vazia (id INTEGER);")
         conn.commit()
-        
+
     success = insert_dataframe_to_db(empty_df, temp_db_path, table_name)
-    
+
     assert success is True # Deve retornar True mesmo para DF vazio
-    
+
     # Verifica que a tabela ainda existe e está vazia
     df_result = query_db(temp_db_path, table_name)
     assert df_result.empty

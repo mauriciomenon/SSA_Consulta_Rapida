@@ -67,7 +67,7 @@ def test_pretty_print_details_with_series(sample_series, display_map):
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_details(sample_series, display_map)
         output = mock_stdout.getvalue()
-    
+
     assert "DETALHES DA SSA: 2025001" in output
     assert "Nº SSA:" in output
     assert "IEE3" in output
@@ -82,7 +82,7 @@ def test_pretty_print_details_with_dict(sample_dict, display_map):
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_details(sample_dict, display_map)
         output = mock_stdout.getvalue()
-    
+
     assert "DETALHES DA SSA: 2025002" in output
     assert "Nº SSA:" in output
     assert "MEL3" in output
@@ -93,7 +93,7 @@ def test_pretty_print_details_invalid_series_type(display_map):
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_details("invalid_string", display_map)
         output = mock_stdout.getvalue()
-    
+
     assert "Erro: Formato de dados da SSA inválido." in output
 
 def test_pretty_print_details_invalid_display_map(sample_series):
@@ -101,7 +101,7 @@ def test_pretty_print_details_invalid_display_map(sample_series):
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_details(sample_series, "invalid_dict")
         output = mock_stdout.getvalue()
-    
+
     assert "Erro: Configuração de exibição inválida." in output
 
 def test_pretty_print_details_empty_series(display_map):
@@ -110,5 +110,5 @@ def test_pretty_print_details_empty_series(display_map):
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_details(empty_series, display_map)
         output = mock_stdout.getvalue()
-    
+
     assert "DETALHES DA SSA: N/A" in output

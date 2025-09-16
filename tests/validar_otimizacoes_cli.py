@@ -10,18 +10,18 @@ import sys
 
 def verificar_otimizacoes_cli():
     """Verifica se todas as otimizações CLI foram aplicadas corretamente."""
-    
+
     cli_path = os.path.join('interface', 'cli.py')
-    
+
     if not os.path.exists(cli_path):
         print("❌ Arquivo interface/cli.py não encontrado!")
         return False
-    
+
     with open(cli_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     verificacoes = []
-    
+
     # 1. Verificar cache de configurações
     if '_config_changed = False' in content:
         if 'if _config_changed:' in content:
@@ -30,7 +30,7 @@ def verificar_otimizacoes_cli():
             verificacoes.append("❌ Flag _config_changed definida mas não utilizada corretamente")
     else:
         verificacoes.append("❌ Cache de configurações CLI não implementado")
-    
+
     # 2. Verificar cache de parsing de termos
     if '_parse_cache = {}' in content:
         if 'cache_key = f"{' in content and 'parse_search_terms' in content:
@@ -39,7 +39,7 @@ def verificar_otimizacoes_cli():
             verificacoes.append("❌ Cache de parsing declarado mas não utilizado")
     else:
         verificacoes.append("❌ Cache de parsing de termos não implementado")
-    
+
     # 3. Verificar cache em _apply_default_filters
     apply_filter_pattern = r'def _apply_default_filters.*?return filter_dataframe'
     apply_filter_match = re.search(apply_filter_pattern, content, re.DOTALL)
@@ -51,7 +51,7 @@ def verificar_otimizacoes_cli():
             verificacoes.append("❌ Cache não implementado em _apply_default_filters")
     else:
         verificacoes.append("❌ Função _apply_default_filters não encontrada")
-    
+
     # 4. Verificar cache de formatação
     if '_cached_pretty_print_df' in content:
         if '_print_cache = {}' in content:
@@ -60,7 +60,7 @@ def verificar_otimizacoes_cli():
             verificacoes.append("❌ Função _cached_pretty_print_df criada mas cache não inicializado")
     else:
         verificacoes.append("❌ Cache de formatação CLI não implementado")
-    
+
     # 5. Verificar uso do cache em handlers principais
     cached_calls = content.count('_cached_pretty_print_df')
     if cached_calls >= 5:  # Deve ter várias chamadas substituídas
@@ -69,27 +69,27 @@ def verificar_otimizacoes_cli():
         verificacoes.append(f"⚠️  Cache de formatação parcialmente utilizado ({cached_calls} chamadas)")
     else:
         verificacoes.append("❌ Cache de formatação não utilizado")
-    
+
     # 6. Verificar remoção de recarregamentos desnecessários
     if content.count('load_settings()') <= 3:  # Deve ter reduzido significativamente
         verificacoes.append("✅ Recarregamentos desnecessários de configurações eliminados")
     else:
         load_count = content.count('load_settings()')
         verificacoes.append(f"⚠️  Ainda há muitos recarregamentos de configurações ({load_count})")
-    
+
     # Exibir resultados
     print("🔍 VALIDAÇÃO DAS OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO:")
     print("=" * 65)
-    
+
     for verificacao in verificacoes:
         print(f"  {verificacao}")
-    
+
     print()
-    
+
     # Contar sucessos
     sucessos = sum(1 for v in verificacoes if v.startswith("✅"))
     total = len(verificacoes)
-    
+
     if sucessos == total:
         print("🎉 TODAS AS OTIMIZAÇÕES CLI FORAM IMPLEMENTADAS COM SUCESSO!")
         print("📈 Performance do CLI deve estar significativamente melhorada.")
@@ -133,7 +133,7 @@ def main():
     """Função principal do validador CLI."""
     print("🚀 VALIDADOR DE OTIMIZAÇÕES CLI - ORDEM DE EXECUÇÃO")
     print("=" * 65)
-    
+
     # Mudar para o diretório do projeto
     if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
         possible_paths = [
@@ -141,23 +141,23 @@ def main():
             '../SSA_Consulta_Rapida',
             './SSA_Consulta_Rapida'
         ]
-        
+
         found = False
         for path in possible_paths:
             if os.path.exists(os.path.join(path, 'interface', 'cli.py')):
                 os.chdir(path)
                 found = True
                 break
-        
+
         if not found:
             print("❌ Não foi possível encontrar o diretório do projeto SSA_Consulta_Rapida")
             return False
-    
+
     # Executar verificações
     resultado = verificar_otimizacoes_cli()
     exibir_metricas_cli()
     exibir_comparacao_cli()
-    
+
     return resultado
 
 if __name__ == "__main__":

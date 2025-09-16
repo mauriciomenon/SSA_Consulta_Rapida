@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 # Importa a funcao de impressao de tabela do novo modulo
 # (Assumindo que table_printer.py esteja em interface/table_printer.py)
-# from interface.table_printer import pretty_print_df 
+# from interface.table_printer import pretty_print_df
 
 def pretty_print_details(series: Any, display_map: Dict[str, str]):
     """
     Imprime os detalhes de uma unica linha (SSA) de forma legivel.
-    
+
     Args:
         series (Any): Uma linha do DataFrame (pd.Series) ou um dicionário.
         display_map (Dict[str, str]): Mapeamento de nomes internos para nomes de exibição.
@@ -45,7 +45,7 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
         ssa_number = series.get('numero_ssa', 'N/A')
         print(f" DETALHES DA SSA: {ssa_number}")
         print("="*50)
-        
+
         # Itera sobre os itens da Series
         for k, value in series.items():
             key: str = str(k)
@@ -54,7 +54,7 @@ def pretty_print_details(series: Any, display_map: Dict[str, str]):
             formatted = format_cell(value, key)
             display_value = formatted if (formatted is not None and formatted != "") else "-"
             print(f"{header+':':<25} {display_value}")
-            
+
         print("="*50)
     except Exception as e:
         logger.error(f"Erro inesperado em pretty_print_details: {e}")
