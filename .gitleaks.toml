@@ -1,0 +1,39 @@
+title = "SSA Consulta Rapida Secret Scan"
+
+[[rules]]
+id = "generic-sk-token"
+regex = "sk-[A-Za-z0-9]{8,}"
+secretGroup = 0
+entropy = 0.0
+allowlist = {  paths = ["replacements.txt"],  regexes = ["sk-REDACTED"] }
+
+[[rules]]
+id = "huggingface-token"
+regex = "hf_[A-Za-z0-9]{8,}"
+secretGroup = 0
+allowlist = { paths = ["replacements.txt"], regexes=["hf_REDACTED","HF_REDACTED"] }
+
+[[rules]]
+id = "named-api-key"
+regex = "(ANTHROPIC_API_KEY|GEMINI_API_KEY|GROQ_API_KEY|COHERE_API_KEY|MISTRAL_API_KEY|TOGETHER_API_KEY|DEEPSEEK_API_KEY|OPENROUTER_API_KEY|FIRECRAWL_API_KEY)=[A-Za-z0-9_\-]{6,}"
+secretGroup = 0
+
+[[rules]]
+id = "generic-api-key-assignment"
+regex = "[A-Z0-9_]*API_KEY=.{8,}"
+secretGroup = 0
+
+[allowlist]
+# Diretórios de binários / builds e caches ignorados
+paths = [
+  "launchers/",
+  "dist/",
+  "build/",
+  "logs/",
+  "scripts/git_hooks/pre-commit.secret-scan.sh" # contém padrões de regex deliberadamente
+]
+regexes = [
+  "REDACTED_VALUE",
+  "SK_REDACTED",
+  "HF_REDACTED"
+]
