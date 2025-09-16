@@ -78,7 +78,7 @@ def main(cli_args=None):
                                    Se None, sys.argv e usado.
     """
     APP_VERSION = get_app_version()
-    
+
     parser = argparse.ArgumentParser(
         description=f"Consulta Rapida de SSAs v{APP_VERSION}",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -95,28 +95,28 @@ EXEMPLOS DE USO
 Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 """
     )
-    
+
     # Suporta --rescan como alias historico de --force-rescan
     parser.add_argument(
         '--force-rescan', '--rescan',
         dest='force_rescan',
         action='store_true',
         help='''Reimporta todos os arquivos Excel ignorando o cache.
-        
+
         ┌─ DIFERENCAS ─────────────────────────────────────────────┐
         │ --force-rescan: Nome atual, recomendado                  │
         │ --rescan:       Alias para compatibilidade (mesmo efeito)│
         └──────────────────────────────────────────────────────────┘
-        
+
         COMPORTAMENTO:
         • Ignora arquivo de controle de importacao (.last_import)
         • Processa todos os arquivos Excel novamente
         • Detecta e importa mudancas, adicoes e remocoes
         • Util quando arquivos foram modificados manualmente
-        
+
         EXEMPLO: python main.py --force-rescan'''
     )
-    
+
     parser.add_argument(
         '--optimized',
         action='store_true',
@@ -138,77 +138,97 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         │   • Processamento sequencial otimizado                  │
         │   • Menos verificacoes redundantes                      │
         └──────────────────────────────────────────────────────────┘
-        
+
         RESULTADOS ESPERADOS:
         • Arquivos pequenos (<5MB): 30-50%% mais rápido
-        • Arquivos médios (5-20MB): 60-80%% mais rápido  
+        • Arquivos médios (5-20MB): 60-80%% mais rápido
         • Arquivos grandes (>20MB): 80-90%% mais rápido
-        
+
         RECOMENDADO PARA:
         • Importação de grandes volumes de dados
         • Execução em lote ou automatizada
         • Quando a importação padrão está lenta
-        
+
         EXEMPLOS:
         python main.py --optimized
         python main.py --optimized --force-rescan
-        
+
         Mais detalhes: GUIA_MODO_OPTIMIZED.md'''
     )
-    
+
     parser.add_argument(
         '--gui',
         action='store_true',
         help='''Inicia a interface grafica (GUI) em vez da CLI.
-        
+
         RECURSOS DA GUI:
         • Interface visual amigável com PyQt6
         • Filtros em tempo real com debounce
         • Exibição em tabela com ordenação por colunas
         • Proteção contra múltiplas instâncias
         • Tooltips explicativos nos controles
-        
+
         Exemplo: python main.py --gui'''
     )
-    
+
     parser.add_argument(
         '--reset-db',
         action='store_true',
         help='''Zera o banco de dados e cria apenas a estrutura (sem importar dados).
-        
+
         Operacao destrutiva:
         • Backup automático é criado antes da operação
         • Remove todos os dados existentes
         • Recria estrutura limpa das tabelas
         • Não importa novos dados automaticamente
-        
+
         Exemplo: python main.py --reset-db'''
     )
-    
+
     parser.add_argument(
         '--clean-data',
         action='store_true',
         help='''Limpa e sanitiza a pasta data (remove backups antigos).
-        
+
         LIMPEZA REALIZADA:
         • Remove backups mais antigos que 30 dias
         • Organiza arquivos de log antigos
         • Verifica integridade dos arquivos restantes
         • Exibe relatório de espaço liberado
-        
+
         Exemplo: python main.py --clean-data'''
     )
-    
+
     parser.add_argument(
         '--log-level',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         default='INFO',
         help='Define o nivel de detalhe dos logs (padrao: INFO)'
     )
-    
-    # Parse dos argumentos - argparse automaticamente lida com --help
-    args = parser.parse_args(cli_args) if cli_args is not None else parser.parse_args()
-    
+
+    # Acao principal (processar = comportamento atual, backfill = reprocessar historico via script dedicado)
+    parser.add_argument(
+        '--acao',
+        choices=['processar', 'backfill'],
+        default='processar',
+        help='Define acao principal: processar (import normal) ou backfill (reprocessar diretorio historico).\n'
+             'Uso para backfill com argumentos extras apos -- :\n'
+             '  python main.py --acao backfill -- --dir docs_entrada --dry-run --smart-upsert\n'
+    )
+
+    # Suporte a passagem de argumentos apos '--' exclusivamente ao backfill
+    raw_args = cli_args if cli_args is not None else sys.argv[1:]
+    backfill_args: list[str] = []
+    if '--' in raw_args:
+        split_idx = raw_args.index('--')
+        main_args = raw_args[:split_idx]
+        backfill_args = raw_args[split_idx + 1:]
+    else:
+        main_args = raw_args
+
+    # Parse dos argumentos principais
+    args = parser.parse_args(main_args)
+
     # Configura logging
     _configure_logging(project_root)
     try:
@@ -241,7 +261,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             except ImportError:
                 print("Modulo de gerenciamento de banco nao disponivel")
             return
-        
+
         if args.clean_data:
             print("Limpando pasta data...")
             try:
@@ -263,11 +283,26 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         ensure_default_settings()
         logger.debug("Configuracoes padrao verificadas.")
 
-        # --- 3. Importação de Dados ---
+        # Se a acao for backfill, executar diretamente o script de backfill e encerrar
+        if getattr(args, 'acao', 'processar') == 'backfill':
+            logger.info("Acao=backfill selecionada. Encaminhando argumentos ao backfill: %s", backfill_args)
+            try:
+                from scripts.migracao.backfill_reprocessar import main as backfill_main
+            except ModuleNotFoundError:
+                # garantir path root
+                if project_root not in sys.path:
+                    sys.path.insert(0, project_root)
+                from scripts.migracao.backfill_reprocessar import main as backfill_main  # type: ignore
+            # Executa backfill (retorna exit code int)
+            exit_code = backfill_main(backfill_args)
+            logger.info("Backfill finalizado (exit_code=%s)", exit_code)
+            return
+
+        # --- 3. Importação de Dados (fluxo normal) ---
         # Determina se a reimportação é forçada e se deve usar versão otimizada
         force_import = args.force_rescan
         use_optimized = args.optimized
-        
+
         # Ativar importação otimizada se solicitado
         if use_optimized:
             logger.info("Ativando modo de importacao OTIMIZADA...")
@@ -277,10 +312,10 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             except ImportError:
                 print("Modo otimizado nao disponivel, usando modo padrao")
                 use_optimized = False
-        
+
         logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
         db_updated = run_importer_logic(force_import=force_import)
-        
+
         # Desativar importação otimizada após uso
         if use_optimized:
             try:
@@ -290,7 +325,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 pass
             except Exception as e:
                 logger.warning(f"Falha ao desativar modo otimizado: {e}")
-        
+
         if db_updated:
             logger.info("Banco de dados atualizado com sucesso.")
         else:
@@ -303,7 +338,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         db_path = os.environ.get('SSA_DB_PATH') or os.path.join(project_root, 'data', 'ssas.db')
         table_name = os.environ.get('SSA_TABLE_NAME') or 'ssa_table'
         logger.info(f"Usando base: {db_path} (tabela: {table_name})")
-        
+
         if args.gui:
             logger.info("Iniciando interface grafica (GUI)...")
             try:
@@ -330,7 +365,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                     return
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
-                window.show()
+                window.show()  # type: ignore[attr-defined]
                 # Executa o loop de eventos
                 app.exec()
                 # Fecha o socket da guarda ao sair

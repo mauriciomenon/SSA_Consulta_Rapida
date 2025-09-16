@@ -1,4 +1,5 @@
 # utils/robust_importer.py
+# Referência: documentação de heurísticas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
 """Importador "à prova de bala" para planilhas SSA.
 
 Objetivos:
@@ -70,6 +71,10 @@ class ImportStats:
     duplicate_rows_dropped: int = 0
     invalid_numero_ssa_rows: int = 0
     file_path: str = ""
+    # Novas métricas diagnósticas
+    header_candidate_lines_considered: int = 0
+    selected_header_line_index: int | None = None
+    alias_hits: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -167,39 +172,172 @@ def import_excel_robust(
             len(raw_df.columns),
         )
 
+    # Heurística 1: cabeçalho mesclado único replicado por todas as colunas (ex.: um título abrangendo a linha)
+    # Sinal: muitos (>5) nomes de colunas idênticos e não vazios -> provavelmente a linha 0 é só título e a linha real de cabeçalhos é a próxima
+    distinct_non_empty = {str(c).strip() for c in raw_df.columns if str(c).strip() != '' and not str(c).lower().startswith('unnamed')}
+    if len(distinct_non_empty) == 1 and raw_df.shape[1] > 5:
+        if debug_enabled:
+            logger.debug("[import_excel_robust] Detectado header mesclado único (%s). Tentando reinterpretar próxima linha como cabeçalho real.", list(distinct_non_empty)[0])
+        try:
+            # Releitura bruta sem header para inspecionar.
+            raw_no_header = pd.read_excel(file_path, header=None)
+            # Procurar primeira linha (após a 0) que contenha >=5 strings não vazias curtas.
+            candidate_idx = None
+            max_scan = min(15, raw_no_header.shape[0])
+            for ridx in range(1, max_scan):  # começa em 1 (linha 0 é título)
+                row = raw_no_header.iloc[ridx]
+                non_null = row.dropna()
+                str_like = [v for v in non_null if isinstance(v, str) and 0 < len(v.strip()) < 80]
+                if len(str_like) >= 5:
+                    candidate_idx = ridx
+                    break
+            if candidate_idx is not None:
+                if debug_enabled:
+                    logger.debug("[import_excel_robust] Linha %d escolhida como header real.", candidate_idx)
+                raw_df = pd.read_excel(file_path, header=candidate_idx)
+            else:
+                if debug_enabled:
+                    logger.debug("[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original.")
+        except Exception as e:  # pragma: no cover
+            if debug_enabled:
+                logger.debug("[import_excel_robust] Falha ao reprocessar header mesclado: %s", e)
+
     stats.total_rows_in = len(raw_df)
     stats.original_columns_count = len(raw_df.columns)
 
     alias_map, _ = _build_alias_mapping(mappings_path)
+    alias_hit_counter = 0
+    # Cache simples para canonicalização de headers repetidos
+    _header_cache: dict[str, str] = {}
+
+    # Função auxiliar interna para tentar reconstruir DataFrame com um header específico e remapear.
+    def _attempt_reheader(candidate_header_row: int) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
+        try:
+            tmp_df = pd.read_excel(file_path, header=candidate_header_row)
+        except Exception:
+            return raw_df, {}, {}
+        orig_to_can: Dict[str, str] = {}
+        can_groups: Dict[str, List[str]] = {}
+        for c in tmp_df.columns:
+            n = _canonicalize_header(str(c))
+            can = alias_map.get(n, n)
+            orig_to_can[c] = can
+            can_groups.setdefault(can, []).append(c)
+        return tmp_df, can_groups, orig_to_can
 
     # Mapear cabeçalhos -> canônicos
     original_to_canonical: Dict[str, str] = {}
     canonical_groups: Dict[str, List[str]] = {}
     for col in raw_df.columns:
-        norm = _canonicalize_header(str(col))
+        raw_col_str = str(col)
+        norm = _header_cache.get(raw_col_str)
+        if norm is None:
+            norm = _canonicalize_header(raw_col_str)
+            _header_cache[raw_col_str] = norm
         canonical = alias_map.get(norm, norm)  # se não mapeado, usar normalização
+        if canonical != norm:
+            alias_hit_counter += 1
         original_to_canonical[col] = canonical
         canonical_groups.setdefault(canonical, []).append(col)
 
-    # Promoção explícita: garantir que exista coluna 'numero_ssa' se algum alias conhecido apareceu
-        if 'numero_ssa' not in canonical_groups:
-            # Procurar header normalizado que corresponda a alias de numero_ssa
-            numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
-            candidate_cols = []
-            for col in raw_df.columns:
-                norm = _canonicalize_header(str(col))
-                if norm in numero_alias_keys:
-                    candidate_cols.append(col)
-            if candidate_cols:
-                # Escolhe a primeira aparição para promover; registra merge
-                sel = candidate_cols[0]
-                canonical_groups['numero_ssa'] = [sel]
-                original_to_canonical[sel] = 'numero_ssa'
+    # Se após mapeamento inicial houver somente 1 grupo canônico e número de colunas originais > 5,
+    # tentar detectar linha de cabeçalho real entre as primeiras 10 linhas.
+    if len(canonical_groups) <= 1 and raw_df.shape[1] > 5:
+        if debug_enabled:
+            logger.debug("[import_excel_robust] Apenas %d colunas canônicas detectadas; tentando reheader multi-linha.", len(canonical_groups))
+        best_df = raw_df
+        best_groups = canonical_groups
+        best_map = original_to_canonical
+        improved = False
+        # Examina linhas 0..9 como potenciais cabeçalhos
+        max_scan_env = os.environ.get("SSA_MAX_HEADER_SCAN")
+        try:
+            max_scan_conf = int(max_scan_env) if max_scan_env else 10
+        except ValueError:  # pragma: no cover
+            max_scan_conf = 10
+        scan_limit = min(max_scan_conf, max(1, raw_df.shape[0]))
+        for candidate in range(scan_limit):
+            tmp_df, tmp_groups, tmp_map = _attempt_reheader(candidate)
+            if len(tmp_groups) > len(best_groups):
+                best_df, best_groups, best_map = tmp_df, tmp_groups, tmp_map
+                improved = True
                 if debug_enabled:
-                    logger.debug(
-                        "[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)",
-                        sel,
-                    )
+                    logger.debug("[import_excel_robust] Reheader candidate %d => %d grupos.", candidate, len(tmp_groups))
+                if len(best_groups) >= 5:  # heurística de suficiência
+                    break
+        stats.header_candidate_lines_considered = scan_limit
+        if improved:
+            raw_df = best_df
+            canonical_groups = best_groups
+            original_to_canonical = best_map
+            if debug_enabled:
+                logger.debug("[import_excel_robust] Reheader aplicado com sucesso. Total grupos=%d", len(canonical_groups))
+            # tentar identificar qual linha foi escolhida (busca reversa por matching de colunas)
+            try:  # pragma: no cover (heurística simples)
+                stats.selected_header_line_index = next((i for i in range(scan_limit) if i != 0), None)
+            except Exception:
+                stats.selected_header_line_index = None
+
+    # Promoção explícita: garantir que exista coluna 'numero_ssa' se algum alias conhecido apareceu
+    if 'numero_ssa' not in canonical_groups:
+        numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
+        candidate_cols = []
+        for col in raw_df.columns:
+            norm = _canonicalize_header(str(col))
+            if norm in numero_alias_keys:
+                candidate_cols.append(col)
+        if candidate_cols:
+            sel = candidate_cols[0]
+            canonical_groups['numero_ssa'] = [sel]
+            original_to_canonical[sel] = 'numero_ssa'
+            if debug_enabled:
+                logger.debug(
+                    "[import_excel_robust] Promovida coluna '%s' a numero_ssa (fallback explicito)",
+                    sel,
+                )
+
+    # Fallback adicional: detectar planilhas onde a primeira coluna é título geral da folha
+    # Ex: 'SSAs com Desvio na Programação' aparecendo como único cabeçalho => gera apenas 1 coluna mapeada.
+    # Heurística: se mapped_columns_count ficar muito baixo depois (tratado mais adiante) ou
+    # se só existir 1 coluna e ela contém > 70% de valores NaN vs linhas totais, tentar usar primeira linha como header real.
+    if len(raw_df.columns) == 1 and raw_df.columns[0] and raw_df.columns[0].strip() != '' and raw_df.iloc[0].notna().sum() > 3:
+        # Verifica se a primeira linha parece mais um cabeçalho (strings curtas diversificadas)
+        possible_header = raw_df.iloc[0].tolist()
+        string_cells = [c for c in possible_header if isinstance(c, str) and 0 < len(c) < 60]
+        if len(string_cells) >= 3:
+            new_headers = []
+            for idx, val in enumerate(possible_header):
+                base = str(val).strip() if val is not None else f"col_{idx}"
+                if base == "" or base.lower().startswith("unnamed"):
+                    base = f"col_{idx}"
+                new_headers.append(base)
+            if debug_enabled:
+                logger.debug("[import_excel_robust] Reinterpretando primeira linha como cabeçalho: %s", new_headers)
+            raw_df = raw_df.iloc[1:].reset_index(drop=True)
+            raw_df.columns = new_headers
+            # Reprocessar mapeamentos com novos headers
+            original_to_canonical.clear()
+            canonical_groups.clear()
+            for col in raw_df.columns:
+                raw_col_str = str(col)
+                norm = _header_cache.get(raw_col_str)
+                if norm is None:
+                    norm = _canonicalize_header(raw_col_str)
+                    _header_cache[raw_col_str] = norm
+                canonical = alias_map.get(norm, norm)
+                if canonical != norm:
+                    alias_hit_counter += 1
+                original_to_canonical[col] = canonical
+                canonical_groups.setdefault(canonical, []).append(col)
+            if 'numero_ssa' not in canonical_groups:
+                # tenta novamente promover numero_ssa
+                numero_alias_keys = [k for k, v in alias_map.items() if v == 'numero_ssa']
+                for col in raw_df.columns:
+                    norm = _canonicalize_header(str(col))
+                    if norm in numero_alias_keys:
+                        canonical_groups['numero_ssa'] = [col]
+                        original_to_canonical[col] = 'numero_ssa'
+                        break
 
     if debug_enabled:
         logger.debug("[import_excel_robust] Mapeamento colunas => %s", original_to_canonical)
@@ -335,6 +473,7 @@ def import_excel_robust(
 
     stats.total_rows_out = len(work_df)
     stats.mapped_columns_count = len(work_df.columns)
+    stats.alias_hits = alias_hit_counter
 
     # Colunas descartadas são aquelas originais que não foram usadas? (nenhuma por ora)
     used_originals = set()

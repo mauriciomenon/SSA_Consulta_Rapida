@@ -25,7 +25,7 @@ def main():
     try:
         from PyQt6.QtWidgets import QApplication
         from gui.gui_ssa import SSAMainWindow
-        
+
         app = QApplication(sys.argv)
         window = SSAMainWindow()
         window.show()
@@ -36,7 +36,7 @@ def main():
         print(f"App dir: {app_dir}")
         print(f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}")
         sys.exit(1)
-        
+
     except ImportError as e:
         print(f"ERRO: PyQt6 nao encontrado: {e}")
         sys.exit(1)

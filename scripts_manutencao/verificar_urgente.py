@@ -7,15 +7,15 @@ import sqlite3
 def verificar_urgente():
     print("🚨 VERIFICAÇÃO URGENTE DO BANCO")
     print("=" * 50)
-    
+
     conn = sqlite3.connect('data/ssas.db')
-    
+
     # 1. Estrutura da tabela
     print("\n📋 ESTRUTURA DA TABELA:")
     colunas = conn.execute("PRAGMA table_info(ssas)").fetchall()
     for col in colunas:
         print(f"  {col[1]} ({col[2]})")
-    
+
     # 2. Amostra dos dados
     print(f"\n📊 AMOSTRA DOS DADOS:")
     try:
@@ -25,7 +25,7 @@ def verificar_urgente():
             print(f"  SSA: {r[0]}, Sit: {r[1]}, Sem: {r[2]}, Desc: {desc}")
     except Exception as e:
         print(f"  ERRO: {e}")
-    
+
     # 3. Verificar se numero_ssa está NULL
     print(f"\n🔍 VERIFICAÇÃO DE NULOS:")
     try:
@@ -36,7 +36,7 @@ def verificar_urgente():
         print(f"  Registros com numero_ssa válido: {total - nulls}")
     except Exception as e:
         print(f"  ERRO: {e}")
-    
+
     # 4. Verificar campos específicos que estão faltando
     print(f"\n🔍 CAMPOS ESPECÍFICOS:")
     campos_importantes = ['numero_ssa', 'semana_cadastro', 'semana_programada', 'data_cadastro']
@@ -51,7 +51,7 @@ def verificar_urgente():
                 print(f"  {campo}: ❌ NÃO EXISTE NA TABELA")
         except Exception as e:
             print(f"  {campo}: ❌ ERRO - {e}")
-    
+
     conn.close()
 
 if __name__ == "__main__":

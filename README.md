@@ -4,6 +4,16 @@ Foram aplicadas melhorias recentes de qualidade de código:
 
 - Redução de números mágicos: constantes adicionadas em `armazenamento/database.py` (`NUMERO_SSA_LEN`, limites de ano, `MAX_TEXT_LEN`, etc.).
 - Normalização de `numero_ssa`: funções consolidadas e uso consistente das regras (YYYY + 5 dígitos) com validação defensiva.
+ - Normalização de `numero_ssa`: funções consolidadas e uso consistente das regras (YYYY + 5 dígitos) com validação defensiva.
+	 - Regra estrita atual (camada core):
+		 * Somente 9 dígitos após remoção de hífens/espaços (`YYYYXXXXX`).
+		 * Ano inicial entre 1980 e 2050.
+		 * Valores com letras ou símbolos fora de `[0-9 -]` são rejeitados.
+		 * Hífen opcional é aceito apenas em formato `YYYY-XXXXX` quando os 5 dígitos finais NÃO são todos idênticos.
+			 - Exemplo aceito: `2025-12345` → `202512345`.
+			 - Exemplo rejeitado: `2025-22222` (marcado como inválido e filtrado no importador).
+		 * Strings maiores que 9 dígitos não são truncadas; são rejeitadas para evitar colisões silenciosas.
+	 - Testes que cobrem as regras: `tests/test_numero_ssa_normalization_cross.py` e `tests/test_numero_ssa_hyphen_repetition.py`.
 - Linhas longas (>100 colunas) quebradas para melhorar leitura e conformidade com lint.
 - Remoção de `bare except` e adoção de verificações explícitas (`except Exception`).
 - Marcação seletiva de `# noqa: S608` apenas onde interpolação de nome de tabela é segura (nome controlado internamente) para suprimir falso positivo de SQL injection.
@@ -18,6 +28,33 @@ Se novos avisos aparecerem:
 Para auditoria de termos sensíveis existe um scanner interno (script em `scripts_manutencao/`) configurado para varrer apenas diretórios relevantes e ignorar arquivos grandes de dados.
 
 Esta seção serve como referência rápida para manter a consistência daqui em diante.
+# Modularização do Módulo de Banco de Dados (2025-09)
+
+Para reduzir complexidade ciclomática e facilitar testes focados, o monolito `armazenamento/database.py` foi dividido em módulos especializados mantendo a API pública retrocompatível (tests continuam importando de `armazenamento.database`).
+
+Componentes extraídos (estado atual):
+- `database_upsert_logic.py`: preparação e lógica de upsert (merge condicional, modos complementar vs. simples, normalização de datas) – expõe `prepare_dataframe_for_upsert`, `apply_column_whitelist` e `insert_dataframe_with_smart_upsert_impl`.
+- `database_integrity.py`: verificação e reparo (`verify_database_integrity`, `repair_database_if_needed`).
+- `database_validation.py`: validação pré-inserção (`validate_dataframe_before_insert`).
+- `numero_ssa_utils.py`: fonte única para normalização de `numero_ssa` (strict, legado inteiro, formato display, batch dataframe).
+
+No arquivo `database.py` permanecem apenas:
+- Conexão (`get_db_connection`) e inicialização (`initialize_database`).
+- Facades públicas: `insert_dataframe_to_db`, `insert_dataframe_with_smart_upsert`.
+- Reexports simples de normalização (`normalize_numero_ssa`, `normalize_numero_ssa_dataframe`).
+- Delegações finas de integridade/validação (sem wrappers intermediários de upsert internos removidos na etapa de redução de complexidade).
+
+Melhorias adicionais nesta etapa:
+- Remoção de wrappers `_prepare_dataframe_for_upsert`, `_perform_upsert`, `_insert_dataframe_with_smart_upsert_impl` redundantes.
+- Unificação do filtro de colunas (`SSA_ALLOWED_COLUMNS`) em helper reutilizável (`apply_column_whitelist`).
+- Redução líquida de linhas mantendo cobertura comportamental (testes passam / legado preservado).
+
+Próximos passos sugeridos (não bloqueantes):
+1. Adicionar testes unitários específicos para `apply_column_whitelist` e datas limítrofes de normalização.
+2. Considerar moving parsing de datas para util dedicado se expandir.
+3. Avaliar medição de performance (perfil leve) em lotes grandes (>50k linhas) para ajustar `chunksize` dinamicamente.
+
+Essa seção reflete o estado pós-limpeza para orientar futuros mantenedores.
 # SSA_Consulta_Rapida
 
 Versão atual: 3.10 (Sistema funcional)
@@ -193,6 +230,91 @@ Filtro “5 opções” (implementado)
 ## Importação – robustez
 - Ignora arquivos sem colunas obrigatórias (ex.: `numero_ssa`) com log
 - `KeyboardInterrupt` (Ctrl+C) cancela com rollback seguro
+
+### Schema Unificado & Migração (2025-09)
+
+Foi introduzido o `config/schema_unified.sql` como fonte de verdade única. Ele consolida:
+1. Colunas de `schema.sql` (tabela `ssa_table`).
+2. Colunas de `schema_optimized.sql` (tabela `ssas`).
+3. Novas colunas recentes relacionadas a desvios e reprogramações.
+
+Views de compatibilidade:
+- `ssas` → aponta para `ssa_table`.
+- `ssa_chamados` → aponta para `ssa_table`.
+
+Script de migração incremental:
+```
+python scripts/migracao/migrar_para_unificado.py --db data/ssas.db
+```
+O script:
+- Faz backup automático (`data/ssas.db.backup_before_unified_YYYYMMDD_HHMMSS`).
+- Detecta colunas ausentes via `PRAGMA table_info`.
+- Executa apenas `ALTER TABLE ADD COLUMN` (sem remoção ou rename destrutivo).
+
+Recomendado rodar antes de novas importações se o banco for anterior à unificação.
+
+### Novas Colunas / Mapeamentos (Importação)
+
+Aliases adicionados suportados (exemplos de cabeçalho de planilha → coluna canônica):
+- `Desvio` → `numero_desvios`
+- `Justificativa sem APR` → `justificativa`
+- `Reprogramações` → `num_reprogramacoes`
+- `Total Tempo TPE Executada` → `total_tempo_tpe_executada`
+
+Esses aliases estão em `config/column_mappings.json` e reforçados no fallback de `core/config_manager.py`.
+
+### Heurísticas Novas de Cabeçalho (robust_importer)
+
+Problema resolvido: planilhas cujo título (ex.: “SSAs com Desvio na Programação”) era interpretado como único header, gerando apenas 1 coluna mapeada.
+
+Heurísticas introduzidas:
+1. Detecção de header “mesclado” único: se todas as colunas têm o mesmo nome ⇒ tenta reprocessar buscando linha real de cabeçalho abaixo.
+2. Revarredura multi‑linha (linhas 0..9) escolhendo a que produz mais grupos canônicos de mapeamento.
+3. Reinterpretação da primeira linha como header quando só há 1 coluna original e a linha 0 tem diversidade textual suficiente.
+
+Resultados:
+- `mapped_columns_count` passou de 1 para 35 na planilha problemática.
+- Inserções deixam de falhar por "column not found" gerada a partir de título da planilha.
+
+Métricas adicionais (para diagnóstico) agora expostas em `reports/last_import_stats.json` e via retorno da função:
+- `header_candidate_lines_considered`: quantas linhas foram avaliadas como possíveis cabeçalhos (limitado por `SSA_MAX_HEADER_SCAN`, default 10)
+- `selected_header_line_index`: índice da linha escolhida quando reheader aplicado (ou null)
+- `alias_hits`: número de vezes que um alias foi convertido para nome canônico
+
+Variáveis de ambiente de tuning:
+- `SSA_MAX_HEADER_SCAN`: ajusta o máximo de linhas iniciais avaliadas (ex.: `SSA_MAX_HEADER_SCAN=5 python main.py`)
+
+Teste sintético: `tests/test_import_novas_colunas.py` garante presença e persistência das novas colunas.
+
+Documento técnico detalhado: `docs/SCHEMA_UNIFICADO_IMPORTACAO.md` (inclui heurísticas do importador, checklist e fluxo de migração).
+
+### Fluxo recomendado de atualização
+1. Atualizar repositório (`git pull`).
+2. Executar migração: `python scripts/migracao/migrar_para_unificado.py --db data/ssas.db`.
+3. (Opcional) Rodar teste sintético: `pytest -q tests/test_import_novas_colunas.py`.
+4. Importar novas planilhas normalmente.
+
+### Backfill (futuro)
+Script disponível: `scripts/migracao/backfill_reprocessar.py`
+
+Uso básico:
+```bash
+python scripts/migracao/backfill_reprocessar.py --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run
+```
+Ou via `main.py` integrado:
+```bash
+python main.py --acao backfill -- --dir docs_entrada --db data/ssas.db --smart-upsert --dry-run \
+	--report-path reports/backfill_manual.json
+```
+Opções principais:
+- `--since YYYY-MM-DD` filtra arquivos mais antigos
+- `--limit N` limita quantidade processada
+- `--reset-db` recria usando `schema_unified.sql`
+- `--pattern "*.xlsx"` glob customizado
+
+Resultado: relatório agregador + JSON detalhado em `reports/backfill_report_*.json`.
+Se `--report-path` for usado (disponível no script e via integração), o relatório será salvo exatamente no caminho indicado. Caso nenhum arquivo elegível seja encontrado, um relatório vazio é gerado (quando `--report-path` é fornecido) e a saída retorna código 0 com log informativo.
+
 
 ## Configuração e integridade
 - Prioridades/labels: `config/column_priority.json` (estrutura: essential, always_visible, priority_order, short_labels, fixed_widths, hidden_by_default)

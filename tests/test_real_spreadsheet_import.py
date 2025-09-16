@@ -60,7 +60,8 @@ def test_fresh_import(sample_excel_file: Path, temp_db_path: Path):
     assert numeros == ['202512345', '202545678']
     # numero_ssa 123 should retain newer row (Valor 11)
     # numero_ssa 202512345 deve ser a linha mais recente (valor 11)
-    valor_latest = df.loc[df['numero_ssa'] == '202512345', 'Valor'].iloc[0]
+    # Coluna 'Valor' é normalizada para 'valor' pelo importador (minúsculas canônicas)
+    valor_latest = df.loc[df['numero_ssa'] == '202512345', 'valor'].iloc[0]
     assert int(valor_latest) == 11
     # stats validations
     assert stats.get('total_rows_in', 0) >= 3

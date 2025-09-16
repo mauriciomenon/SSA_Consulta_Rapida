@@ -42,49 +42,49 @@ def _cached_pretty_print_df(df: pd.DataFrame, display_map: dict, settings: dict,
     df_hash = hash(str(df.shape) + str(list(df.columns)) + str(df.iloc[0].values.tobytes() if len(df) > 0 else ''))
     settings_hash = hash(str(sorted(settings.items())) if settings else '')
     display_hash = hash(str(sorted(display_map.items())))
-    
+
     cache_key = f"{df_hash}:{settings_hash}:{display_hash}"
-    
+
     # Se está em cache, apenas imprime (reutiliza saída capturada)
     if cache_key in cache:
         print(cache[cache_key])
         return
-    
+
     # Usa enhanced table printer se habilitado
     if enhancement_manager.is_enhanced_printer_enabled():
         try:
             # Usa o Enhanced Table Printer
             printer = EnhancedTablePrinter()
             printer.print_dataframe_enhanced(df, display_map, settings, filter_terms=filter_terms)
-            
+
             # Para manter compatibilidade com cache, salva uma entrada simples
             if len(cache) > 20:  # Limita a 20 entradas
                 cache.clear()
             cache[cache_key] = "rendered_enhanced"  # Placeholder para cache
             return
-            
+
         except Exception as e:
             logger.warning(f"Enhanced printer falhou, usando fallback: {e}")
-    
+
     # Fallback para versão original
     import io
     import sys
     old_stdout = sys.stdout
     sys.stdout = captured_output = io.StringIO()
-    
+
     try:
         pretty_print_df(df, display_map, settings)
         output = captured_output.getvalue()
-        
+
         # Salva no cache (limita tamanho do cache para evitar memory leak)
         if len(cache) > 20:  # Limita a 20 entradas
             cache.clear()
         cache[cache_key] = output
-        
+
         # Restaura stdout e imprime
         sys.stdout = old_stdout
         print(output, end='')
-            
+
     finally:
         sys.stdout = old_stdout
 
@@ -95,15 +95,15 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     if default_filters:
         logger.debug(f"Aplicando filtros padrão: {default_filters}")
     default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
-    
+
     # OTIMIZAÇÃO: Cache para parsing de termos padrão
     cache_key = f"{','.join(default_filters)}:{default_mode}"
     if not hasattr(_apply_default_filters, '_cache'):
         _apply_default_filters._cache = {}
-    
+
     if cache_key not in _apply_default_filters._cache:
         _apply_default_filters._cache[cache_key] = parse_search_terms(default_filters, default_mode=default_mode)
-    
+
     parsed = _apply_default_filters._cache[cache_key]
     return filter_dataframe(df, parsed)
 
@@ -113,7 +113,7 @@ def get_ssa_query(table_name: str = 'ssa_table') -> str:
     Usa os nomes de coluna normalizados da tabela atual.
     """
     return f'''
-    SELECT 
+    SELECT
         numero_ssa,
         situacao,
         derivada_de,
@@ -155,8 +155,8 @@ def get_ssa_query(table_name: str = 'ssa_table') -> str:
     '''
 
 def _get_initial_state(
-    db_path: str, 
-    table_name: str, 
+    db_path: str,
+    table_name: str,
     settings: dict
 ) -> Tuple['pd.DataFrame', List[str]]:
     """
@@ -285,7 +285,7 @@ def _handle_help():
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 Digite qualquer tecla para continuar..."""
-    
+
     print(help_text)
     input()  # Pausa para o usuário ler
 
@@ -377,7 +377,7 @@ def _handle_sort(parts: List[str], results_stack: list, display_map: dict, setti
             print("Erro: use -ord <Nº> ou -ordi <Nº>. Exemplo: -ord 3")
             return
         col_index = int(parts[1])
-        
+
         # Obter colunas visíveis na ordem em que aparecem na tabela
         # Isso requer sincronização com table_printer, o que é complexo.
         # Uma abordagem mais simples é ordenar pelo índice da coluna no DataFrame original.
@@ -532,27 +532,27 @@ COMMAND_HANDLERS = {
 def start_cli_loop(db_path: str, table_name: str):
     """Inicia o loop principal da interface de linha de comando."""
     logger.debug("Iniciando loop da CLI...")
-    
+
     # OTIMIZAÇÃO: Cache inicial de configurações
     settings = load_settings()
     display_map = load_display_mappings_integrity()
     output_dir = os.path.join(project_root, 'docs_saida')
-    
+
     # Flags para controle de cache
     _config_changed = False
     _parse_cache = {}  # Cache para parse_search_terms
     _print_cache = {}  # Cache para pretty_print_df
-    
+
     # --- Estado Inicial ---
     initial_df, initial_filter_terms = _get_initial_state(db_path, table_name, settings)
     results_stack = [(initial_df, initial_filter_terms)]
 
     # --- Exibição Inicial (com help detalhado) ---
     print("")
-    
+
     # Exibe help inicial detalhado
     _show_initial_help()
-    
+
     if not initial_df.empty:
         total_ssas = len(initial_df)
         print(f"\nDADOS CARREGADOS: {total_ssas:,} SSAs disponíveis para consulta")
@@ -564,7 +564,7 @@ def start_cli_loop(db_path: str, table_name: str):
         print("" + "─" * 80)
         print("[0 SSAs] Digite comando:")
         # Mesmo com dados vazios, entra no loop para permitir rescan, etc.
-        
+
 
     # --- Loop Principal ---
     # Comandos que requerem lógica inline ou handlers não mapeados diretamente
@@ -574,22 +574,22 @@ def start_cli_loop(db_path: str, table_name: str):
         try:
             # OTIMIZAÇÃO: Só recarrega configurações quando necessário
             if _config_changed:
-                settings = load_settings() 
+                settings = load_settings()
                 display_map = load_display_mappings_integrity()
                 _config_changed = False
-            
+
             current_df, current_filter_terms = results_stack[-1]
-            
+
             print("") # Linha em branco para separação visual
             filter_status_runtime_text = ""
             if current_filter_terms:
                 filter_status_runtime_text = f" - Filtro(s) Aplicado(s): {', '.join(current_filter_terms)}"
-            
+
             prompt_text = (
                 f"[{len(current_df)} SSAs{filter_status_runtime_text}] Buscar termos separados por vírgula ou comando: "
             )
             user_input = input(prompt_text).strip()
-            
+
             if not user_input:
                 continue
 
@@ -659,7 +659,7 @@ def start_cli_loop(db_path: str, table_name: str):
                     _handle_show_filters(results_stack)
                 elif command in ['clearall']:
                     _handle_clear_all_filters(db_path, table_name, results_stack, display_map, settings, _print_cache)
-            
+
             # --- 3. Tratamento como Pesquisa/Busca ou Detalhe direto ---
             else:
                 # Se input tem mais de 1 caractere, primeiro verifica se é número SSA direto para detalhes
@@ -676,20 +676,20 @@ def start_cli_loop(db_path: str, table_name: str):
                         else:
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
                             continue
-                    
+
                     # Se não é SSA, aplica filtro acumulativo (mais de 1 caractere = filtro)
                     # Aceita separação por vírgulas OU espaços (um ou mais)
                     parts_terms = re.split(r"[\s,]+", user_input)
                     processed_search_terms = [term.strip() for term in parts_terms if term.strip()]
                     if processed_search_terms: # Só filtra se houver termos
                         default_mode = (settings.get('user_preferences') or {}).get('filter_mode_default', 'contains')
-                        
+
                         # OTIMIZAÇÃO: Cache para parse_search_terms
                         cache_key = f"{','.join(processed_search_terms)}:{default_mode}"
                         if cache_key not in _parse_cache:
                             _parse_cache[cache_key] = parse_search_terms(processed_search_terms, default_mode=default_mode)
                         parsed_terms = _parse_cache[cache_key]
-                        
+
                         # Aplica filtro acumulativo sobre os dados atuais
                         new_filtered_df = filter_dataframe(current_df, parsed_terms)
                         if new_filtered_df.empty:

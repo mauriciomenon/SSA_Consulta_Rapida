@@ -16,9 +16,9 @@ try:
     cursor.execute('SELECT COUNT(*) FROM ssas')
     record_count = cursor.fetchone()[0]
     conn.close()
-    
+
     print(f"   ✅ Banco acessível com {len(columns)} colunas e {record_count} registros")
-    
+
     # Verificar colunas específicas
     critical_columns = ['registros_espera', 'numero_desvios', 'total_tempo_tex_executada', 'parciais', 'num_reprobaciones']
     missing = [col for col in critical_columns if col not in columns]
@@ -26,7 +26,7 @@ try:
         print(f"   ⚠️  Colunas faltando: {missing}")
     else:
         print(f"   ✅ Todas as colunas críticas presentes")
-        
+
 except Exception as e:
     print(f"   ❌ Erro no banco: {e}")
 
@@ -36,9 +36,9 @@ try:
     import json
     with open('config/column_mappings.json', 'r', encoding='utf-8') as f:
         mappings = json.load(f)
-    
+
     print(f"   ✅ JSON válido com {len(mappings)} mapeamentos")
-    
+
     # Verificar se tem os mapeamentos críticos
     critical_mappings = ['registros_espera', 'numero_desvios', 'total_tempo_tex_executada', 'parciais']
     missing_mappings = [col for col in critical_mappings if col not in mappings]
@@ -46,7 +46,7 @@ try:
         print(f"   ⚠️  Mapeamentos faltando: {missing_mappings}")
     else:
         print(f"   ✅ Todos os mapeamentos críticos presentes")
-        
+
 except Exception as e:
     print(f"   ❌ Erro no JSON: {e}")
 
@@ -55,9 +55,9 @@ print("\n3️⃣ Testando importação de arquivo problemático...")
 try:
     import os
     from extracao.extractor import extract_data_from_excel
-    
+
     test_file = "docs_entrada/SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx"
-    
+
     if os.path.exists(test_file):
         df = extract_data_from_excel(test_file)
         if df is not None and len(df) > 0:
@@ -66,7 +66,7 @@ try:
             print(f"   ⚠️  Arquivo processado mas sem dados")
     else:
         print(f"   ⚠️  Arquivo de teste não encontrado")
-        
+
 except Exception as e:
     print(f"   ❌ Erro na importação: {e}")
 
@@ -85,7 +85,7 @@ except Exception as e:
 print("\n" + "=" * 60)
 print("🎯 RESUMO:")
 print("- Banco de dados: Atualizado com novas colunas")
-print("- Mapeamentos JSON: Corrigidos e válidos") 
+print("- Mapeamentos JSON: Corrigidos e válidos")
 print("- Estrutura de arquivos: Organizada")
 print("- Sistema: Pronto para uso com --rescan")
 

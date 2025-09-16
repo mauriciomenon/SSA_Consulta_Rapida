@@ -28,12 +28,12 @@ print(f'SSAs sem semana de cadastro: {empty_week:,}')
 
 # Verificar amostra de duplicatas
 cursor.execute("""
-SELECT numero_ssa, COUNT(*) as count 
-FROM ssas 
+SELECT numero_ssa, COUNT(*) as count
+FROM ssas
 WHERE numero_ssa IS NOT NULL AND numero_ssa != ''
-GROUP BY numero_ssa 
-HAVING COUNT(*) > 1 
-ORDER BY count DESC 
+GROUP BY numero_ssa
+HAVING COUNT(*) > 1
+ORDER BY count DESC
 LIMIT 5
 """)
 

@@ -175,7 +175,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # --- Preparação Final para Exibição ---
     # Adiciona coluna de índice
     working_df.insert(0, '#', range(1, len(working_df) + 1))
-    
+
     # Renomeia colunas para exibição
     renamed_columns = {'#': '#'}
     for internal_col in cols_to_display:
@@ -184,7 +184,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
 
     # Prepara cabeçalhos e larguras para `tabulate`
     final_headers = [renamed_columns.get(col, col) for col in selected_cols]
-    
+
     # Calcula larguras máximas para `tabulate`
     # Tenta distribuir o espaço igualmente, mas respeita limites
     num_cols = len(final_headers)
@@ -204,11 +204,11 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     # --- Paginação ---
     page_size_data_lines = max(1, terminal_height - 5) # Linhas para dados
     auto_scroll = settings.get('user_preferences', {}).get('auto_scroll_to_end', False)
-    
+
     # Controle de auto-scroll para muitas páginas
     total_pages = math.ceil(len(working_df) / page_size_data_lines) if page_size_data_lines > 0 else 1
     max_auto_scroll_pages = settings.get('display_settings', {}).get('max_auto_scroll_pages', 3)
-    
+
     if auto_scroll and total_pages > max_auto_scroll_pages:
         # print(f"Aviso: Muitas páginas ({total_pages}). Scroll automático desativado temporariamente.")
         # print("Use o comando 'f' após a primeira página se desejar rolar até o final.")
@@ -227,7 +227,7 @@ def pretty_print_df(df: pd.DataFrame, display_map: Dict[str, str], settings: dic
     while current_page_index < len(pages):
         try:
             current_page_df = pages[current_page_index]
-            
+
             # Gera e imprime a tabela para a página atual
             page_table_str = tabulate(
                 current_page_df,

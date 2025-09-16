@@ -47,6 +47,22 @@ def test_upsert_insert_new(tmp_path):
         }
     ])
     assert insert_dataframe_with_smart_upsert(df, db_path, 'ssas') is True
+
+
+# Alias para compatibilidade com comando previamente utilizado pelo usuário
+def test_upsert_inserts_new_records(tmp_path):  # noqa: D401
+    """Alias equivalente a test_upsert_insert_new para compatibilidade histórica."""
+    db_path = _init_db(tmp_path)
+    df = pd.DataFrame([
+        {
+            'numero_ssa': '202501111',  # valid 9 digits
+            'situacao': 'NOVA',
+            'data_cadastro': '01/01/2025',
+            'descricao_ssa': 'primeira',
+            'setor_executor': 'SET1',
+        }
+    ])
+    assert insert_dataframe_with_smart_upsert(df, db_path, 'ssas') is True
     rows = _fetch_all(db_path)
     assert len(rows) == 1
     assert rows.iloc[0]['situacao'] == 'NOVA'

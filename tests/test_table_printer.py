@@ -126,7 +126,7 @@ def test_select_columns_for_width(sample_dataframe, display_map):
     """Testa a função _select_columns_for_width."""
     essential_cols = ['numero_ssa', 'setor_executor', 'situacao']
     priority_order = ['descricao_ssa', 'data_cadastro']
-    
+
     # Teste com largura suficiente para todas
     selected = _select_columns_for_width(
         sample_dataframe, display_map, 200, essential_cols, priority_order
@@ -163,25 +163,25 @@ def test_pretty_print_df_empty_dataframe(mock_get_terminal_size, display_map, sa
     """Testa pretty_print_df com DataFrame vazio."""
     mock_get_terminal_size.return_value = (25, 80)
     empty_df = pd.DataFrame()
-    
+
     # Captura a saída padrão
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_df(empty_df, display_map, sample_settings)
         output = mock_stdout.getvalue()
-    
+
     assert "Nenhum resultado para exibir." in output
 
 @patch('interface.table_printer.get_terminal_size')
 def test_pretty_print_df_normal_flow(mock_get_terminal_size, sample_dataframe, display_map, sample_settings):
     """Testa o fluxo normal de pretty_print_df."""
     mock_get_terminal_size.return_value = (10, 120)  # Terminal pequeno para forçar paginação
-    
+
     # Configura input simulado para navegar pelas páginas
     with patch('builtins.input', side_effect=['', 'q']):  # Enter, depois 'q'
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
             pretty_print_df(sample_dataframe, display_map, sample_settings)
             output = mock_stdout.getvalue()
-    
+
     # Verifica se a saída contém elementos esperados
     assert "Nº SSA" in output
     assert "IEE3" in output
@@ -193,17 +193,17 @@ def test_pretty_print_df_normal_flow(mock_get_terminal_size, sample_dataframe, d
 def test_pretty_print_df_auto_scroll(mock_get_terminal_size, sample_dataframe, display_map, sample_settings):
     """Testa pretty_print_df com auto_scroll habilitado."""
     mock_get_terminal_size.return_value = (10, 120)
-    
+
     # Configurações com auto_scroll ativado
     settings_auto_scroll = sample_settings.copy()
     settings_auto_scroll["user_preferences"]["auto_scroll_to_end"] = True
-    
+
     # Como o número de páginas será baixo (3 linhas / 5 linhas por página = 1 página),
     # o auto_scroll deve funcionar
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
         pretty_print_df(sample_dataframe, display_map, settings_auto_scroll)
         output = mock_stdout.getvalue()
-    
+
     # Com auto_scroll e poucas páginas, não deve pedir input
     assert "Nº SSA" in output
     assert "Descricao curta" in output

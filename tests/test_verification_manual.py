@@ -14,12 +14,12 @@ import pandas as pd
 def test_existing_database():
     """Testa o banco de dados existente."""
     print("=== Testando Verificação de Integridade ===")
-    
+
     db_path = 'data/ssas.db'
     if os.path.exists(db_path):
         print(f"Verificando banco: {db_path}")
         report = verify_database_integrity(db_path)
-        
+
         print(f"\nResultado da verificação:")
         print(f"  Válido: {report['is_valid']}")
         print(f"  Banco existe: {report['database_exists']}")
@@ -29,12 +29,12 @@ def test_existing_database():
         print(f"  Dados consistentes: {report['data_consistent']}")
         print(f"  Espaço suficiente: {report['disk_space_sufficient']}")
         print(f"  Permissões OK: {report['file_permissions_ok']}")
-        
+
         if report['issues']:
             print(f"\nProblemas encontrados:")
             for issue in report['issues']:
                 print(f"  - {issue}")
-        
+
         if report['warnings']:
             print(f"\nAvisos:")
             for warning in report['warnings']:
@@ -45,7 +45,7 @@ def test_existing_database():
 def test_data_validation():
     """Testa validação de dados."""
     print("\n=== Testando Validação de Dados ===")
-    
+
     # Teste com dados válidos
     df_valid = pd.DataFrame({
         'numero_ssa': [202312345, 202398765],
@@ -53,28 +53,28 @@ def test_data_validation():
         'data_cadastro': ['2023-12-01 10:00:00', '2023-12-02 15:30:00'],
         'descricao_ssa': ['Teste 1', 'Teste 2']
     })
-    
+
     print("Testando dados válidos:")
     report = validate_dataframe_before_insert(df_valid)
     print(f"  Válido: {report['is_valid']}")
     print(f"  Linhas: {report['row_count']}")
     print(f"  Problemas: {len(report['issues'])}")
     print(f"  Avisos: {len(report['warnings'])}")
-    
+
     # Teste com dados inválidos
     df_invalid = pd.DataFrame({
         'numero_ssa': [123, 'invalid', None],
         'situacao': ['Pendente', '', None],
         'data_cadastro': ['invalid-date', '2023-99-99', '2023-12-01']
     })
-    
+
     print("\nTestando dados inválidos:")
     report = validate_dataframe_before_insert(df_invalid)
     print(f"  Válido: {report['is_valid']}")
     print(f"  Linhas: {report['row_count']}")
     print(f"  Problemas: {len(report['issues'])}")
     print(f"  Avisos: {len(report['warnings'])}")
-    
+
     if report['warnings']:
         print("  Avisos encontrados:")
         for warning in report['warnings']:
