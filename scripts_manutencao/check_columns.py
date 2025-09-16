@@ -12,7 +12,7 @@ try:
     cursor.execute('PRAGMA table_info(ssas)')
     columns_info = cursor.fetchall()
     existing_columns = [col[1] for col in columns_info]
-    
+
     print(f"Total de colunas encontradas: {len(existing_columns)}")
 
     print('\nVerificação das colunas problemáticas:')
@@ -27,7 +27,7 @@ try:
 
     conn.close()
     print("\nVerificação concluída!")
-    
+
 except Exception as e:
     print(f"Erro: {e}")
     print(f"Tipo do erro: {type(e)}")

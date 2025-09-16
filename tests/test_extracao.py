@@ -28,13 +28,13 @@ def temp_excel_file(tmp_path):
         'Coluna Inutil': [None, None] # Coluna que deve ser ignorada
     }
     df = pd.DataFrame(data)
-    
+
     # O cabeçalho está na segunda linha, então inserimos uma linha em branco no topo
     file_path = tmp_path / "relatorio_teste.xlsx"
     writer = pd.ExcelWriter(file_path, engine='openpyxl')
-    df.to_excel(writer, index=False, startrow=1) 
+    df.to_excel(writer, index=False, startrow=1)
     writer.close()
-    
+
     return str(file_path)
 
 @pytest.fixture
@@ -75,17 +75,17 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     # 2. Verificação
     assert df is not None
     assert not df.empty
-    
+
     # Verifica se as colunas foram renomeadas para os nomes canônicos
     expected_columns = ['numero_ssa', 'localizacao', 'descricao_ssa', 'data_cadastro']
     assert all(col in df.columns for col in expected_columns)
-    
+
     # Verifica se a coluna inútil (totalmente vazia) foi removida
     assert 'Coluna Inutil' not in df.columns
-    
+
     # Verifica se o tipo de dado da data foi convertido corretamente
     assert pd.api.types.is_datetime64_any_dtype(df['data_cadastro'])
-    
+
     # Verifica se os dados foram lidos corretamente
     assert df['numero_ssa'].iloc[0] == 101
     assert df['localizacao'].iloc[1] == 'Sala B'

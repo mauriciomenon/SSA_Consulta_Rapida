@@ -52,19 +52,19 @@ def display_map():
 def test_export_dataframe_success(temp_output_dir, sample_dataframe, display_map):
     """Testa a exportação bem-sucedida para os três formatos."""
     base_filename = "teste_exportacao"
-    
+
     export_dataframe(sample_dataframe, base_filename, temp_output_dir, display_map)
-    
+
     # Verifica se os arquivos foram criados
     expected_files = [
         os.path.join(temp_output_dir, f"{base_filename}.csv"),
         os.path.join(temp_output_dir, f"{base_filename}.xlsx"),
         os.path.join(temp_output_dir, f"{base_filename}.json")
     ]
-    
+
     for file_path in expected_files:
         assert os.path.exists(file_path), f"Arquivo esperado não foi criado: {file_path}"
-        
+
     # Verifica brevemente o conteúdo de um dos arquivos (CSV)
     csv_path = expected_files[0]
     df_from_csv = pd.read_csv(csv_path)
@@ -75,12 +75,12 @@ def test_export_dataframe_empty_df(temp_output_dir, display_map, capsys):
     """Testa a exportação com um DataFrame vazio."""
     empty_df = pd.DataFrame()
     base_filename = "teste_vazio"
-    
+
     export_dataframe(empty_df, base_filename, temp_output_dir, display_map)
-    
+
     captured = capsys.readouterr()
     assert "Aviso: Nenhum dado para exportar." in captured.out
-    
+
     # Nenhum arquivo deve ser criado
     assert not os.listdir(temp_output_dir)
 
@@ -88,13 +88,13 @@ def test_export_dataframe_empty_df(temp_output_dir, display_map, capsys):
 def test_export_dataframe_output_dir_error(mock_makedirs, temp_output_dir, sample_dataframe, display_map, capsys):
     """Testa erro na criação do diretório de saída."""
     mock_makedirs.side_effect = PermissionError("Permissão negada")
-    
+
     base_filename = "teste_erro_dir"
     # Usa um subdiretório que falhará ao ser criado
     problematic_dir = os.path.join(temp_output_dir, "subdir_nao_autorizado")
-    
+
     export_dataframe(sample_dataframe, base_filename, problematic_dir, display_map)
-    
+
     captured = capsys.readouterr()
     assert "Erro: Não foi possível criar o diretório de saída" in captured.out
 

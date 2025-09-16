@@ -129,26 +129,26 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
             # NOVA: Validar dados antes da inserção
             logger.info(f"Validando dados extraídos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(df, table_name)
-            
+
             # Log de avisos de validação
             if validation_report['warnings']:
                 for warning in validation_report['warnings']:
                     logger.warning(f"Validação - {warning}")
-            
+
             # Se há problemas críticos, pode escolher entre falhar ou continuar
             if not validation_report['is_valid']:
                 critical_issues = validation_report['issues']
                 logger.error(f"Dados com problemas críticos em '{file_path}': {critical_issues}")
-                
+
                 # Para problemas críticos de validação, pode escolher:
                 # Opção 1: Falhar imediatamente
                 # raise DataValidationError(f"Dados inválidos: {critical_issues}")
-                
+
                 # Opção 2: Tentar inserir mesmo assim (atual)
                 logger.warning("Tentando inserção apesar dos problemas críticos...")
             else:
                 logger.info(f"✓ Dados validados: {validation_report['row_count']} linhas prontas para inserção")
-            
+
             # CORREÇÃO CRÍTICA: Usar smart_upsert para evitar duplicatas
             success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name)
             if success:
@@ -168,8 +168,8 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
         raise ExtractionError(f"Erro ao importar {file_path}") from e
 
 def _update_cache_after_import(
-    processed_files: List[str], 
-    cache_file: str, 
+    processed_files: List[str],
+    cache_file: str,
     docs_dir: str
 ) -> None:
     """
@@ -215,7 +215,7 @@ def run_importer_logic(
         bool: True se o banco de dados foi atualizado, False caso contrário.
     """
     logger.info("=== Iniciando processo de importação ===")
-    
+
     # --- Configuração de Caminhos ---
     docs_dir = os.path.join(project_root, docs_dir)
     data_dir = os.path.join(project_root, data_dir)
@@ -225,21 +225,21 @@ def run_importer_logic(
     try:
         # --- 0. Verificar e reparar integridade do banco de dados ---
         logger.info("Verificando integridade do banco de dados...")
-        
+
         # Criar diretório de dados se não existir
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # Verificar e reparar banco se necessário
         if not database.repair_database_if_needed(db_path, table_name=table_name):
             logger.error("Falha crítica: não foi possível garantir integridade do banco de dados")
             raise DatabaseCorruptionError("Banco de dados inacessível ou corrompido")
-        
+
         # Verificação adicional de integridade
         integrity_report = database.verify_database_integrity(db_path, table_name)
         if not integrity_report['is_valid']:
             # Classificar tipo de erro baseado no relatório
             issues = integrity_report['issues']
-            
+
             if not integrity_report['database_accessible']:
                 raise DatabaseConnectionError(f"Banco de dados inacessível: {issues}")
             elif not integrity_report['table_exists'] or not integrity_report['schema_valid']:
@@ -250,12 +250,12 @@ def run_importer_logic(
                 raise DatabaseSpaceError(f"Espaço em disco insuficiente: {issues}")
             else:
                 raise DatabaseError(f"Problemas gerais no banco: {issues}")
-        
+
         # Log de avisos se houver
         if integrity_report['warnings']:
             for warning in integrity_report['warnings']:
                 logger.warning(f"Aviso do banco: {warning}")
-        
+
         logger.info("✓ Integridade do banco de dados verificada")
 
         # --- 1. Determinar arquivos a serem processados ---
@@ -270,7 +270,7 @@ def run_importer_logic(
         # --- 2. Processar cada arquivo ---
         successfully_processed_files = []
         critical_errors = []
-        
+
         for file_path in files_to_process:
             try:
                 if _import_single_file(file_path, db_path, table_name):
@@ -330,7 +330,7 @@ def run_importer_logic(
                 logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
                 critical_errors.append(('unexpected', file_path, str(e)))
                 continue
-        
+
         # Log de resumo de erros
         if critical_errors:
             logger.warning(f"Processamento concluído com {len(critical_errors)} erro(s):")
@@ -482,12 +482,12 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
 def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force_import: bool = False) -> bool:
     """
     Importa arquivos de um diretório para o banco de dados.
-    
+
     Args:
         docs_dir: Diretório contendo arquivos Excel
         db_path: Caminho para o banco de dados
         force_import: Se True, força reimportação de todos os arquivos
-    
+
     Returns:
         bool: True se importação foi bem-sucedida
     """
@@ -495,10 +495,10 @@ def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force
         # Extrair diretório e nome do banco
         data_dir = os.path.dirname(db_path)
         db_name = os.path.basename(db_path)
-        
+
         # Criar diretório de dados se não existir
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # Executar lógica de importação
         success = run_importer_logic(
             docs_dir=docs_dir,
@@ -507,9 +507,9 @@ def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force
             table_name="ssas",
             force_import=force_import
         )
-        
+
         return success
-        
+
     except Exception as e:
         logger.error(f"Erro na importação de arquivos: {e}")
         return False
@@ -518,11 +518,11 @@ def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force
 def get_filtered_data(db_path: str = "data/ssas.db", filters: Dict[str, Any] = None) -> pd.DataFrame:
     """
     Obtém dados filtrados do banco de dados.
-    
+
     Args:
         db_path: Caminho para o banco de dados
         filters: Dicionário com filtros a aplicar
-    
+
     Returns:
         DataFrame com dados filtrados
     """
@@ -531,16 +531,16 @@ def get_filtered_data(db_path: str = "data/ssas.db", filters: Dict[str, Any] = N
         with database.get_db_connection(db_path) as conn:
             query = "SELECT * FROM ssas"
             df = pd.read_sql_query(query, conn)
-        
+
         # Aplicar filtros se fornecidos
         if filters:
             for column, value in filters.items():
                 if column in df.columns and value is not None:
                     # Aplicar filtro case-insensitive
                     df = df[df[column].astype(str).str.contains(str(value), case=False, na=False)]
-        
+
         return df
-        
+
     except Exception as e:
         logger.error(f"Erro ao obter dados filtrados: {e}")
         return pd.DataFrame()  # Retorna DataFrame vazio em caso de erro

@@ -54,7 +54,7 @@ def test_basic_import_dataframe(temp_db, sample_import_dataframe):
         if col in df.columns:  # DataFrame original
             expected = DTYPES_BY_NAME.get(col)
             if expected:
-                assert str(df[col].dtype) == expected["expected_dtype"], f"dtype inesperado {col}: {df[col].dtype}" 
+                assert str(df[col].dtype) == expected["expected_dtype"], f"dtype inesperado {col}: {df[col].dtype}"
 
 
 def test_import_idempotent_insert(temp_db, sample_import_dataframe):
