@@ -12,17 +12,17 @@ def test_gui_main_preferences():
     """Testa se gui_main_preferences.json tem as configurações corretas."""
     print("🔧 TESTANDO CONFIGURAÇÕES GUI PRINCIPAL")
     print("=" * 50)
-    
+
     config_file = "config/gui_main_preferences.json"
     if not os.path.exists(config_file):
         print(f"❌ Arquivo {config_file} não encontrado")
         return False
-    
+
     with open(config_file, 'r', encoding='utf-8') as f:
         config = json.load(f)
-    
+
     display_mappings = config.get("display_mappings", config.get("column_display_names", {}))
-    
+
     tests = [
         ("semana_programada", "Prog.", "Label deve ser 'Prog.' (não 'Sem. Prog.')"),
         ("setor_executor", "Exec.", "Label deve ser 'Exec.'"),
@@ -31,7 +31,7 @@ def test_gui_main_preferences():
         ("localizacao_codigo", "Loc.", "Label deve ser 'Loc.'"),
         ("semana_cadastro", "Sem. Cad.", "Label deve ser 'Sem. Cad.'"),
     ]
-    
+
     print("📋 VERIFICAÇÃO DE LABELS:")
     all_passed = True
     for key, expected, description in tests:
@@ -41,14 +41,14 @@ def test_gui_main_preferences():
         else:
             print(f"  ❌ {key}: '{actual}' (esperado: '{expected}')")
             all_passed = False
-    
+
     return all_passed
 
 def test_gui_import():
     """Testa se a GUI principal pode ser importada sem erros."""
     print("\n🖥️ TESTANDO IMPORTAÇÃO GUI")
     print("=" * 50)
-    
+
     try:
         from gui.gui_ssa import load_gui_main_preferences
         prefs = load_gui_main_preferences()
@@ -68,7 +68,7 @@ def test_cli_compatibility():
     """Verifica se CLI ainda funciona após mudanças."""
     print("\n⌨️ TESTANDO COMPATIBILIDADE CLI")
     print("=" * 50)
-    
+
     try:
         # Testa importação de módulos CLI principais
         from interface import cli  # noqa: F401
@@ -106,14 +106,14 @@ def main():
     print("🧪 TESTE DAS CORREÇÕES FINAIS")
     print("🎯 Validando truncamento, resize, labels e compatibilidade")
     print("=" * 60)
-    
+
     tests = [
         ("Configurações GUI Principal", test_gui_main_preferences),
         ("Importação GUI", test_gui_import),
         ("Compatibilidade CLI", test_cli_compatibility),
     ("Disponibilidade GUI Principal", test_gui_principal_disponivel),
     ]
-    
+
     results = []
     for test_name, test_func in tests:
         print(f"\n📝 EXECUTANDO: {test_name}")
@@ -123,7 +123,7 @@ def main():
         except Exception as e:
             print(f"❌ ERRO em {test_name}: {e}")
             results.append((test_name, False))
-    
+
     # Resumo final
     print("\n🏁 RESUMO DOS TESTES")
     print("=" * 60)
@@ -133,7 +133,7 @@ def main():
         print(f"{status}: {test_name}")
         if not passed:
             all_passed = False
-    
+
     print("\n" + "=" * 60)
     if all_passed:
         print("🎉 TODOS OS TESTES PASSARAM!")
@@ -148,7 +148,7 @@ def main():
     else:
         print("❌ ALGUNS TESTES FALHARAM")
         print("Revise as configurações e implementações")
-    
+
     return all_passed
 
 if __name__ == "__main__":

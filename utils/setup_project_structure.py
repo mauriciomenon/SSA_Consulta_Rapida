@@ -148,7 +148,7 @@ def setup_dirs(base_path: str | None = None, ensure_permissions: bool = False) -
             result.errors[rel] = str(e)
 
     logger.debug(
-        "setup_dirs concluído: created=%s existing=%s errors=%s", 
+        "setup_dirs concluído: created=%s existing=%s errors=%s",
         len(result.created), len(result.existing), len(result.errors)
     )
     return result

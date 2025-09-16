@@ -83,7 +83,7 @@ def test_invalid_numero_ssa_filtered(tmp_path):
         }
     )
     out_df, stats = _roundtrip_import(df, tmp_path)
-    # Apenas uma linha válida (202511111)
+    # Apenas a linha com 202511111 é válida; 'abc' inválido e '2025-22222' rejeitado por regra de hífen repetido
     assert len(out_df) == 1
     assert out_df.loc[0, 'numero_ssa'] == '202511111'
     assert stats['invalid_numero_ssa_rows'] == 2

@@ -1,0 +1,31 @@
+# replacements.txt - usado por: git filter-repo --replace-text replacements.txt
+# Formato: cada bloco começa com 'regex:' ou 'literal:' seguido pela sequência a substituir,
+# depois na linha seguinte o conteúdo de substituição (pode ficar vazio para apagar),
+# linha em branco separa blocos.
+# Referência: https://github.com/newren/git-filter-repo/blob/main/Documentation/git-filter-repo.txt
+
+# EXEMPLO (chave OpenAI-like sk-...):
+regex:sk-[A-Za-z0-9]{10,}
+SK_REDACTED
+
+# HuggingFace tokens (hf_...)
+regex:hf_[A-Za-z0-9]{10,}
+HF_REDACTED
+
+# Padrões comuns de API_KEY=...
+regex:(ANTHROPIC_API_KEY|GEMINI_API_KEY|GROQ_API_KEY|COHERE_API_KEY|MISTRAL_API_KEY|TOGETHER_API_KEY|DEEPSEEK_API_KEY|OPENROUTER_API_KEY|FIRECRAWL_API_KEY)=[A-Za-z0-9\-_]{8,}
+$1=REDACTED_VALUE
+
+# Placeholders genéricos KEY=xxxx
+regex:([A-Z0-9_]*API_KEY)="?[A-Za-z0-9\-_]{8,}"?
+$1=REDACTED
+
+# Remover possíveis segredos em JSON (.vscode/settings.json), substituindo valor dentro de aspas após FIRECRAWL_API_KEY
+regex:("FIRECRAWL_API_KEY"\s*:\s*")([^"]+)(")
+$1REDACTED$3
+
+# Adicione tokens específicos individuais (literal) após rotacionar:
+# literal:sk-ESCREVA_A_ANTIGA_AQUI
+# SK_REDACTED
+
+# Dica: Após rodar filter-repo, revise git log novamente.

@@ -146,6 +146,9 @@
     "Total Horas Programadas",
     "Total de Horas Programadas"
   ],
+  "total_tempo_tpe_executada": [
+    "Total Tempo TPE Executada"
+  ],
   "semana_executada": [
     "Sem. Exec.",
     "Semana Executada"
@@ -153,7 +156,8 @@
   "num_reprogramacoes": [
     "Nº Reprog.",
     "Número de Reprogramações",
-    "N° de Reprogramações"
+    "N° de Reprogramações",
+    "Reprogramações"
   ],
   "execucao_parcial": [
     "Exec. Parcial",
@@ -178,12 +182,14 @@
   ],
   "numero_desvios": [
     "Número de Desvios",
-    "Nº de Desvios"
+    "Nº de Desvios",
+    "Desvio"
   ],
   "ate": [
     "Até"
   ],
   "justificativa": [
-    "Justificativa"
+    "Justificativa",
+    "Justificativa sem APR"
   ]
 }

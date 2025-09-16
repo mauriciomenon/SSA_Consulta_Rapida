@@ -19,11 +19,11 @@ def temp_docs_dir(tmp_path):
     """
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
-    
+
     # Cria dois arquivos de teste com conteúdo
     (docs_dir / "relatorio_a.xlsx").write_text("dados do relatorio a")
     (docs_dir / "relatorio_b.xlsx").write_text("dados do relatorio b")
-    
+
     return str(docs_dir)
 
 # --- Testes ---
@@ -52,7 +52,7 @@ def test_get_files_to_process_one_modified(temp_docs_dir):
     # 1. Preparação: Criamos um cache inicial
     file_a_path = os.path.join(temp_docs_dir, "relatorio_a.xlsx")
     file_b_path = os.path.join(temp_docs_dir, "relatorio_b.xlsx")
-    
+
     initial_cache = {
         "relatorio_a.xlsx": _calculate_hash(file_a_path),
         "relatorio_b.xlsx": _calculate_hash(file_b_path)
@@ -76,7 +76,7 @@ def test_get_files_to_process_no_changes(temp_docs_dir):
     # 1. Preparação: Criamos um cache que corresponde exatamente aos arquivos existentes.
     file_a_path = os.path.join(temp_docs_dir, "relatorio_a.xlsx")
     file_b_path = os.path.join(temp_docs_dir, "relatorio_b.xlsx")
-    
+
     current_cache = {
         "relatorio_a.xlsx": _calculate_hash(file_a_path),
         "relatorio_b.xlsx": _calculate_hash(file_b_path)

@@ -69,6 +69,7 @@ def normalize_strict(value) -> str | None:
     # Se houver caracteres não numéricos exceto espaço ou hífen, rejeita
     if re.search(r"[^0-9\-\s]", text):
         return None
+    had_dash = '-' in text
     compact = re.sub(r"[\s-]+", "", text)
     digits = _digits(compact)
     if len(digits) != LENGTH:
@@ -78,7 +79,11 @@ def normalize_strict(value) -> str | None:
         ano = int(digits[:4])
         if not (YEAR_MIN <= ano <= YEAR_MAX):  # noqa: PLR2004
             return None
-    # Nenhum tratamento especial para hífen agora – já rejeitado acima.
+    # Rejeitar padrão com hífen quando últimos 5 dígitos todos iguais (ex.: 2025-22222)
+    if had_dash and len(digits) == LENGTH:
+        tail = digits[4:]
+        if len(set(tail)) == 1:  # todos caracteres idênticos
+            return None
     return digits
 
 # fallback for Python <3.11 typing of suppress (local import to keep footprint tiny)

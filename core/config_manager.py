@@ -192,13 +192,17 @@ DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
         "Horas Prog.",
         "Total Horas Programadas"
     ],
+    "total_tempo_tpe_executada": [
+        "Total Tempo TPE Executada"
+    ],
     "semana_executada": [
         "Sem. Exec.",
         "Semana Executada"
     ],
     "num_reprogramacoes": [
         "Nº Reprog.",
-        "Número de Reprogramações"
+        "Número de Reprogramações",
+        "Reprogramações"
     ],
     "execucao_parcial": [
         "Exec. Parcial",
@@ -210,6 +214,15 @@ DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
     "sistema_origem": [
         "Sis. Origem",
         "Sistema de Origem"
+    ],
+    "numero_desvios": [
+        "Número de Desvios",
+        "Nº de Desvios",
+        "Desvio"
+    ],
+    "justificativa": [
+        "Justificativa",
+        "Justificativa sem APR"
     ]
 }
 
@@ -274,7 +287,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
 def load_settings() -> Dict[str, Any]:
     """
     Carrega as configurações do usuário. Se não existir, carrega as padrões.
-    
+
     Returns:
         Dict[str, Any]: Um dicionário com as configurações.
     """
@@ -300,7 +313,7 @@ def load_settings() -> Dict[str, Any]:
 def save_settings(settings: Dict[str, Any]):
     """
     Salva as configurações do usuário.
-    
+
     Args:
         settings (Dict[str, Any]): O dicionário de configurações a ser salvo.
     """

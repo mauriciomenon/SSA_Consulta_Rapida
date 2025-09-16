@@ -21,12 +21,12 @@ def run_git_rm(file_path, project_root):
 
 def main():
     project_root = Path(__file__).parent.parent
-    
+
     # Lista de arquivos para remover
     files_to_remove = [
         "data/file_cache.json",
         "docs_saida/all.csv",
-        "docs_saida/all.json", 
+        "docs_saida/all.json",
         "docs_saida/all.xlsx",
         "docs_saida/automated_tests_report_20250825_141625.md",
         "docs_saida/comprehensive_test_report_20250825_132739.json",
@@ -58,9 +58,9 @@ def main():
         "docs_saida/migration_report_20250825_122848.md",
         "docs_saida/performance_tests_20250825_141534.json"
     ]
-    
+
     print(f"Removendo {len(files_to_remove)} arquivos do git...")
-    
+
     removed = 0
     for file_path in files_to_remove:
         if run_git_rm(file_path, project_root):
@@ -68,7 +68,7 @@ def main():
             removed += 1
         else:
             print(f"SKIP: {file_path}")
-    
+
     print(f"\nRemovidos: {removed} arquivos")
     print("Execute: git status")
 

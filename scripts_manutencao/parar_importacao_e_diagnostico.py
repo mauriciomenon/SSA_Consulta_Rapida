@@ -13,23 +13,23 @@ import time
 def find_and_kill_python_processes():
     """Encontra e para processos Python relacionados à importação."""
     print("🔍 Procurando processos Python em execução...")
-    
+
     current_pid = os.getpid()
     killed_processes = []
-    
+
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             if proc.info['name'] and 'python' in proc.info['name'].lower():
                 if proc.info['pid'] != current_pid:  # Não matar a si mesmo
                     cmdline = ' '.join(proc.info['cmdline'] or [])
-                    
+
                     # Verificar se é processo relacionado ao SSA
                     if any(keyword in cmdline.lower() for keyword in [
                         'main.py', 'import', 'test_import', 'ssa', 'excel'
                     ]):
                         print(f"  🎯 Encontrado processo relacionado: PID {proc.info['pid']}")
                         print(f"     Comando: {cmdline[:100]}...")
-                        
+
                         try:
                             proc.terminate()  # Terminar gentilmente
                             proc.wait(timeout=5)  # Esperar 5 segundos
@@ -44,53 +44,53 @@ def find_and_kill_python_processes():
                                 print(f"  ⚠️  Processo {proc.info['pid']} já finalizou")
                         except psutil.AccessDenied:
                             print(f"  ❌ Sem permissão para parar processo {proc.info['pid']}")
-                            
+
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
-    
+
     if not killed_processes:
         print("  ℹ️  Nenhum processo Python relacionado ao SSA encontrado")
     else:
         print(f"  🎉 Parados {len(killed_processes)} processos")
-    
+
     return killed_processes
 
 def check_database_status():
     """Verifica o status atual do banco de dados."""
     print("\n📊 VERIFICANDO STATUS DO BANCO DE DADOS")
     print("-" * 40)
-    
+
     db_path = "data/ssas.db"
-    
+
     if not os.path.exists(db_path):
         print("❌ Banco de dados não encontrado!")
         return False
-    
+
     try:
         # Verificar se o banco está acessível
         with sqlite3.connect(db_path, timeout=1) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM ssas")
             total_records = cursor.fetchone()[0]
             print(f"✅ Banco acessível: {total_records} registros")
-            
+
             # Verificar últimas modificações
             cursor = conn.execute("""
-                SELECT data_cadastro, COUNT(*) 
-                FROM ssas 
-                WHERE data_cadastro IS NOT NULL 
-                GROUP BY data_cadastro 
-                ORDER BY data_cadastro DESC 
+                SELECT data_cadastro, COUNT(*)
+                FROM ssas
+                WHERE data_cadastro IS NOT NULL
+                GROUP BY data_cadastro
+                ORDER BY data_cadastro DESC
                 LIMIT 3
             """)
             recent_dates = cursor.fetchall()
-            
+
             if recent_dates:
                 print("📅 Dados mais recentes:")
                 for date, count in recent_dates:
                     print(f"   {date}: {count} registros")
-            
+
             return True
-            
+
     except sqlite3.OperationalError as e:
         if "database is locked" in str(e):
             print("🔒 Banco de dados TRAVADO - processo de importação ainda ativo")
@@ -106,19 +106,19 @@ def check_system_resources():
     """Verifica recursos do sistema."""
     print("\n🖥️  RECURSOS DO SISTEMA")
     print("-" * 25)
-    
+
     # CPU
     cpu_percent = psutil.cpu_percent(interval=1)
     print(f"🔥 CPU: {cpu_percent}%")
-    
+
     # Memória
     memory = psutil.virtual_memory()
     print(f"🧠 RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)")
-    
+
     # Disco
     disk = psutil.disk_usage('.')
     print(f"💾 Disco: {disk.percent}% usado ({disk.free // (1024**3):.1f}GB livres)")
-    
+
     # Processos Python
     python_procs = []
     for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
@@ -131,7 +131,7 @@ def check_system_resources():
                 })
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    
+
     if python_procs:
         print(f"🐍 Processos Python ativos: {len(python_procs)}")
         for proc in python_procs[:3]:  # Top 3
@@ -141,33 +141,33 @@ def main():
     print("🚨 PARAR IMPORTAÇÃO LENTA E DIAGNÓSTICO RÁPIDO")
     print("=" * 50)
     print()
-    
+
     # 1. Verificar recursos do sistema
     check_system_resources()
-    
+
     # 2. Verificar status do banco
     db_accessible = check_database_status()
-    
+
     # 3. Se banco travado, parar processos
     if not db_accessible:
         print("\n🛑 PARANDO PROCESSOS DE IMPORTAÇÃO")
         print("-" * 35)
         killed = find_and_kill_python_processes()
-        
+
         if killed:
             print("\n⏳ Aguardando 3 segundos...")
             time.sleep(3)
-            
+
             # Verificar novamente
             print("\n🔄 VERIFICANDO NOVAMENTE O BANCO")
             print("-" * 32)
             db_accessible = check_database_status()
-    
+
     # 4. Relatório final
     print("\n" + "=" * 50)
     print("📋 RESUMO DO DIAGNÓSTICO")
     print("-" * 24)
-    
+
     if db_accessible:
         print("✅ Banco de dados acessível")
         print("✅ Importação não está mais bloqueando")
@@ -182,7 +182,7 @@ def main():
         print("   1. Feche todos os terminais Python")
         print("   2. Reinicie o VS Code")
         print("   3. Em último caso: reinicie o computador")
-    
+
     print("\n✨ Para importação rápida no futuro:")
     print("   Use sempre: python otimizacao_importacao_rapida.py")
 

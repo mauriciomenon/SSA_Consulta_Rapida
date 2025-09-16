@@ -75,7 +75,7 @@ def save_cache(cache: Dict[str, str], cache_file: str):
 def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, str]]) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
-    
+
     Returns:
         List[str]: Lista de caminhos completos para arquivos que precisam ser processados.
     """
@@ -86,12 +86,12 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, str]
     else:
         current_cache = load_cache(cache_or_path)
     all_xlsx_files = get_all_xlsx_files(docs_dir)
-    
+
     files_to_process = []
     for file_path in all_xlsx_files:
         filename = os.path.basename(file_path)
         current_hash = _calculate_hash(file_path)
-        
+
         if not current_hash:
             logger.warning(f"Hash não pôde ser calculado para {file_path}. Arquivo será pulado.")
             continue
@@ -99,21 +99,21 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, str]
         # Se o arquivo não está no cache ou o hash mudou, precisa ser processado
         if filename not in current_cache or current_cache[filename] != current_hash:
             files_to_process.append(file_path)
-            
+
     logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para processamento (novos ou modificados).")
     return files_to_process
 
 def update_cache_for_files(file_paths: List[str], cache_file: str):
     """
     Atualiza o cache com os hashes dos arquivos processados com sucesso.
-    
+
     Args:
         file_paths (List[str]): Lista de caminhos completos dos arquivos processados.
         cache_file (str): Caminho para o arquivo de cache.
     """
     logger.debug("Atualizando cache para arquivos processados...")
     current_cache = load_cache(cache_file)
-    
+
     updated = False
     for file_path in file_paths:
         filename = os.path.basename(file_path)
@@ -123,6 +123,6 @@ def update_cache_for_files(file_paths: List[str], cache_file: str):
             updated = True
         else:
             logger.warning(f"Não foi possível atualizar o cache para {file_path} (hash falhou).")
-    
+
     if updated:
         save_cache(current_cache, cache_file)

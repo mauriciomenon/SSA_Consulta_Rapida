@@ -43,7 +43,7 @@ def test_quality_gates_smoke_ok():
             break
         except Exception:
             continue
-    assert parsed is not None, f"Saída não contém JSON parseável. STDOUT:\n{proc.stdout}" 
+    assert parsed is not None, f"Saída não contém JSON parseável. STDOUT:\n{proc.stdout}"
     summary = parsed.get("summary", {})
     assert summary.get("overall_status") == "ok", f"overall_status != ok :: {summary}"
     gates = parsed.get("gates", {})

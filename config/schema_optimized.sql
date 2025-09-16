@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     total_tempo_tex_planejado TEXT,
     total_tempo_tpo_planejado TEXT,
     total_horas_programadas TEXT,
+    total_tempo_tpe_executada TEXT,
 
     -- Execução
     semana_executada INTEGER,
