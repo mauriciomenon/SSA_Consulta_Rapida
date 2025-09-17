@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS ssas (
 
     -- Prazos e Tempo
     prazo_limite TEXT,
+    status_execucao_prazo TEXT,
     tempo_disponivel TEXT,
     data_limite TEXT,
     tempo_excedido TEXT,
