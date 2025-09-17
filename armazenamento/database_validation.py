@@ -38,11 +38,38 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
                 report['warnings'].append(f"{invalid_count} números SSA inválidos encontrados")
                 report['invalid_rows'].extend(df[invalid_ssa_mask].index.tolist())
         # Datas básicas
-        date_cols = [c for c in ['data_cadastro', 'prazo_limite', 'data_limite'] if c in df.columns]
+        date_cols = [
+            c
+            for c in [
+                'data_cadastro',
+                'prazo_limite',
+                'data_limite',
+                'ate',
+                'ate_1',
+                'ate_2',
+                'desde',
+                'desde_1',
+                'desde_2',
+                'data_inicio_programada',
+                'data_programacao',
+                'data_inicio_reprogramada',
+                'data_reprogramacao',
+                'instalacao_estimada',
+                'executado',
+                'concluido',
+            ]
+            if c in df.columns
+        ]
         for col in date_cols:
             try:
-                parsed = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
-                invalid_mask = parsed.isna() & df[col].notna() & (df[col] != '')
+                series = df[col]
+                iso_mask = series.astype(str).str.match(r'^\d{4}-\d{2}-\d{2}')
+                parsed = pd.Series(pd.NaT, index=series.index, dtype='datetime64[ns]')
+                if iso_mask.any():
+                    parsed.loc[iso_mask] = pd.to_datetime(series.loc[iso_mask], errors='coerce', dayfirst=False)
+                if (~iso_mask).any():
+                    parsed.loc[~iso_mask] = pd.to_datetime(series.loc[~iso_mask], errors='coerce', dayfirst=True)
+                invalid_mask = parsed.isna() & series.notna() & (series != '')
                 invalid_dates = invalid_mask.sum()
                 if invalid_dates:
                     report['warnings'].append(f"Coluna '{col}' tem {invalid_dates} datas inválidas")

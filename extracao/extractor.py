@@ -7,15 +7,13 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 """
 
 import pandas as pd
-import json
 import os
+import re
 from typing import Optional, Dict, Any
 import logging
 from core.config_manager import load_column_mappings_integrity
 
 logger = logging.getLogger(__name__)
-
-CONFIG_PATH = os.path.join('config', 'column_mappings.json')
 
 class ExtractionError(Exception):
     """Erro durante a extração de dados de um arquivo."""
@@ -37,6 +35,95 @@ def _load_column_mappings() -> dict:
     except Exception as e:
         logger.error(f"Falha ao carregar mapeamentos de coluna com integridade: {e}")
         return {}
+
+def _deduplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure column names are unique while keeping semantic aliases when possible."""
+
+    if df.empty:
+        return df
+
+    counts: dict[str, int] = {}
+    used: set[str] = set()
+    resolved: list[str] = []
+
+    # Canonical resolution map - subsequent duplicates get deterministic names.
+    duplicate_resolution: dict[str, list[str]] = {
+        'desde': ['desde', 'desde_1', 'desde_2'],
+        'ate': ['ate', 'ate_1', 'ate_2'],
+        'sn': ['sn_retirado', 'sn_instalado', 'sn_extra'],
+        'numero_ssa': ['numero_ssa', 'numero_ssa_relacionada_1', 'numero_ssa_relacionada_2', 'numero_ssa_relacionada_3'],
+        'setor_emissor': ['setor_emissor', 'setor_emissor_relacionado_1', 'setor_emissor_relacionado_2'],
+        'setor_executor': ['setor_executor', 'setor_executor_relacionado_1', 'setor_executor_relacionado_2'],
+        'situacao': ['situacao', 'situacao_relacionada_1', 'situacao_relacionada_2'],
+    }
+
+    for original_name in df.columns:
+        base_name = str(original_name)
+        count = counts.get(base_name, 0)
+        normalized = base_name.lower()
+        options = duplicate_resolution.get(normalized)
+        if options and count < len(options):
+            candidate = options[count]
+        elif count == 0:
+            candidate = base_name
+        else:
+            candidate = f"{base_name}_{count}"
+        # Guarantee uniqueness even after resolution.
+        while candidate in used:
+            count += 1
+            counts[base_name] = count
+            options = duplicate_resolution.get(normalized)
+            if options and count < len(options):
+                candidate = options[count]
+            else:
+                candidate = f"{base_name}_{count}"
+        counts[base_name] = count + 1
+        used.add(candidate)
+        resolved.append(candidate)
+
+    df = df.copy()
+    df.columns = resolved
+    return df
+
+
+def _normalize_tempo_excedido_value(value) -> str | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    matches = re.findall(r"(\d+)\s*(mi|m|d|h)", text.lower())
+    if not matches:
+        return text
+    units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
+    for number, unit in matches:
+        try:
+            qty = int(number)
+        except ValueError:
+            return text
+        if unit == 'mi':
+            units['minutes'] += qty
+        elif unit == 'm':
+            units['months'] += qty
+        elif unit == 'd':
+            units['days'] += qty
+        elif unit == 'h':
+            units['hours'] += qty
+    parts = ['P']
+    if units['months']:
+        parts.append(f"{units['months']}M")
+    if units['days']:
+        parts.append(f"{units['days']}D")
+    time_parts: list[str] = []
+    if units['hours']:
+        time_parts.append(f"{units['hours']}H")
+    if units['minutes']:
+        time_parts.append(f"{units['minutes']}M")
+    if time_parts:
+        parts.append('T' + ''.join(time_parts))
+    normalized = ''.join(parts)
+    return normalized if normalized != 'P' else text
+
 
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -66,19 +153,19 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     # --- Conversao de colunas de semana para Int64 nullable ---
-    # Identifica colunas que representam semanas
     semana_columns = [col for col in df_normalized.columns if 'semana' in col.lower()]
     for col in semana_columns:
         logger.debug(f"Convertendo coluna de semana '{col}' para Int64...")
         df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
 
     # --- Conversao de outras colunas numericas conhecidas ---
-    # Pode ser expandido ou movido para um config file
-    # numeric_columns = ['num_reprogramacoes', 'total_horas_programadas']
-    # for col in numeric_columns:
-    #     if col in df_normalized.columns:
-    #         logger.debug(f"Convertendo '{col}' para Int64...")
-    #         df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
+    numeric_columns = [
+        'total_de_reprogramacoes',
+    ]
+    for col in numeric_columns:
+        if col in df_normalized.columns:
+            logger.debug(f"Convertendo '{col}' para Int64...")
+            df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
 
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
@@ -150,8 +237,29 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         # Carrega o mapeamento de colunas
         column_mappings = _load_column_mappings()
 
-        # Normaliza os nomes das colunas
+        # Normaliza os nomes das colunas e resolve duplicadas
         combined_df.rename(columns=column_mappings, inplace=True)
+        combined_df = _deduplicate_columns(combined_df)
+
+        if 'prazo_limite' in combined_df.columns:
+            status_col = 'status_execucao_prazo'
+            status_map = {
+                'fora de prazo': 'Fora de Prazo',
+                'dentro do prazo': 'Dentro do Prazo',
+                'não aplica': 'Não Se Aplica',
+                'nao aplica': 'Não Se Aplica',
+            }
+            prazo_series = combined_df['prazo_limite'].astype(str).str.strip()
+            status_series = pd.Series(pd.NA, index=combined_df.index, dtype="object")
+            status_mask = prazo_series.str.lower().isin(status_map.keys())
+            if status_mask.any():
+                combined_df.loc[status_mask, 'prazo_limite'] = pd.NA
+                status_series.loc[status_mask] = prazo_series.loc[status_mask].str.lower().map(status_map)
+            combined_df[status_col] = status_series
+
+        if 'tempo_excedido' in combined_df.columns:
+            combined_df['tempo_excedido'] = combined_df['tempo_excedido'].apply(_normalize_tempo_excedido_value)
+
         logger.debug(f"Colunas renomeadas. Novas colunas: {list(combined_df.columns)}")
 
         # Normaliza os tipos de dados
@@ -187,9 +295,11 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         before_validation = len(combined_df)
 
         # Remover registros completamente inválidos (sem SSA e sem descrição)
+        numero_series = combined_df['numero_ssa'] if 'numero_ssa' in combined_df.columns else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
+        descricao_series = combined_df['descricao_ssa'] if 'descricao_ssa' in combined_df.columns else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
         valid_mask = (
-            (combined_df.get('numero_ssa').notna() & (combined_df.get('numero_ssa') != '')) |
-            (combined_df.get('descricao_ssa').notna() & (combined_df.get('descricao_ssa') != ''))
+            (numero_series.notna() & (numero_series != '')) |
+            (descricao_series.notna() & (descricao_series != ''))
         )
 
         combined_df = combined_df[valid_mask].copy().reset_index(drop=True)

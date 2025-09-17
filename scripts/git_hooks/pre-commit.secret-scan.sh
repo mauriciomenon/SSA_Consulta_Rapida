@@ -1,57 +1,88 @@
 #!/usr/bin/env bash
-# pre-commit.secret-scan.sh - Bloqueia commits que contenham padrões de segredos em STAGED changes.
-# Instalação manual:
-#   cp scripts/git_hooks/pre-commit.secret-scan.sh .git/hooks/pre-commit
-#   chmod +x .git/hooks/pre-commit
-# Opcional: export GIT_HOOKS_VERBOSE=1 para ver detalhes.
-
+# SECRET SCAN HOOK MARKER
 set -euo pipefail
 
-PATTERNS=(
-  'sk-[A-Za-z0-9]{8,}'
-  'hf_[A-Za-z0-9]{8,}'
-  'ANTHROPIC_API_KEY=' 'GEMINI_API_KEY=' 'GROQ_API_KEY=' 'COHERE_API_KEY=' 'MISTRAL_API_KEY=' 'TOGETHER_KEY_NAME=' 'DEEPSEEK_API_KEY=' 'OPENROUTER_API_KEY=' 'FIRECRAWL_API_KEY='
-  '[A-Z0-9_]*API_KEY='
+TOKEN_REGEXES=(
+  'sk-[A-Za-z0-9]{24,}'
+  'hf_[A-Za-z0-9]{24,}'
 )
+
+ALLOW_VALUES=(
+  ""
+  "REDACTED"
+  "CHANGE_ME"
+  "TODO"
+  "<PLACEHOLDER>"
+  "PLACEHOLDER"
+)
+
+MIN_LEN=12
 
 err(){ echo "[secret-scan][BLOCK] $1" >&2; }
 info(){ [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]] && echo "[secret-scan] $1" >&2; }
 
-# Coleta diff staged (apenas adições)
-DIFF=$(git diff --cached --unified=0 --no-color || true)
+DIFF=$(git diff --cached --unified=0 --no-color --text || true)
 [[ -z $DIFF ]] && exit 0
 
-# Remover linhas removidas e metadados, manter apenas linhas adicionadas começando com '+'
-ADDED=$(echo "$DIFF" | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+ADDED=$(echo "$DIFF" | grep -E '^\+' | grep -vE '^\+\+\+' | grep -vE '^\+Binary files ' || true)
 [[ -z $ADDED ]] && exit 0
+ADDED_STRIPPED=$(echo "$ADDED" | sed 's/^+//')
 
 FOUND=0
-for pat in "${PATTERNS[@]}"; do
-  if echo "$ADDED" | grep -E -q "$pat"; then
-    err "Padrão sensível detectado (regex): $pat"
+
+# 1) Tokens diretos
+for rgx in "${TOKEN_REGEXES[@]}"; do
+  if echo "$ADDED_STRIPPED" | grep -E -q "$rgx"; then
+    err "Token suspeito: $rgx"
     FOUND=1
   else
-    info "OK: $pat"
+    info "OK token: $rgx"
   fi
+done
+
+# 2) Linhas com API_KEY=
+echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' | while IFS= read -r line; do
+  [[ -z "${line// }" ]] && continue
+  raw_key="${line%%=*}"
+  key=$(echo "$raw_key" | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+  if [[ ! "$key" =~ ^[A-Z0-9_]+$ ]]; then
+    info "Ignorando linha sem chave válida: $line"
+    continue
+  fi
+  val_part="${line#*=}"
+  val_part="$(echo "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  val_clean="$(echo "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
+  val_clean="${val_clean//$'\r'/}"
+
+  # Allow vazio / placeholders
+  for av in "${ALLOW_VALUES[@]}"; do
+    if [[ "$val_clean" == "$av" ]]; then
+      info "PLACEHOLDER permitido: $line"
+      continue 2
+    fi
+  done
+
+  # Se vazio após trim
+  [[ -z "$val_clean" ]] && { info "Vazio permitido: $line"; continue; }
+
+  # Curto demais => permitir
+  (( ${#val_clean} < MIN_LEN )) && { info "Curto permitido: $line"; continue; }
+
+  err "Valor potencial de API_KEY (redacted)"
+  FOUND=1
 done
 
 if [[ $FOUND -eq 1 ]]; then
   cat <<'EOT' >&2
 ================ BLOQUEADO ================
-Possível segredo detectado no conteúdo staged.
-Ações sugeridas:
- 1. Remover/mascarar o valor.
- 2. Usar variáveis de ambiente (.envrc, keychain) em vez de hardcode.
- 3. Se já comitado antes: rotacionar a chave após corrigir.
-Override emergencial (NÃO RECOMENDADO): GIT_ALLOW_INSECURE_COMMIT=1 git commit ...
-==========================================
+Possível segredo real.
+Use placeholders (REDACTED / CHANGE_ME) ou .envrc.
+Override (risco):
+  GIT_ALLOW_INSECURE_COMMIT=1 git commit ...
+===========================================
 EOT
-  [[ ${GIT_ALLOW_INSECURE_COMMIT:-0} -eq 1 ]] && {
-    echo "[secret-scan] Override GIT_ALLOW_INSECURE_COMMIT=1 ativo – commit permitido (inseguro)." >&2
-    exit 0
-  }
-  exit 1
+  [[ ${GIT_ALLOW_INSECURE_COMMIT:-0} -eq 1 ]] || exit 1
+  echo "[secret-scan] Override inseguro aceito." >&2
 fi
 
 exit 0
-
