@@ -326,7 +326,7 @@ class EnhancedTablePrinter:
                         if filter_terms:
                             filter_info = f" - Filtros: {', '.join(filter_terms)}"
 
-                        prompt = f"\n-- Mais ({remaining} pág. restante(s)){filter_info} | Enter: continuar, 'f': até o final, 'd <#>': detalhe, '+filtro': adicionar, 'q': sair --"
+                        prompt = f"\n-- Mais ({remaining} pág. restante(s)){filter_info} | Enter: continuar, 'z': até o final, 'l': listar filtros, 'd <#>': detalhe, 'q': sair --"
                         try:
                             user_input = input(prompt).strip().lower()
                         except KeyboardInterrupt:
@@ -336,12 +336,14 @@ class EnhancedTablePrinter:
                         if user_input == 'q':
                             print("\n...exibição interrompida.")
                             break
-                        elif user_input == 'f':
+                        elif user_input == 'z':
                             auto_scroll = True
-                        elif user_input.startswith('+'):
-                            # Implementação simplificada para adicionar filtro
-                            # (retorna comando para processamento externo)
-                            print(f"\nPara adicionar filtro '{user_input[1:]}', use o comando principal.")
+                        elif user_input == 'l':
+                            if filter_terms:
+                                print(f"\nFiltros ativos: {', '.join(filter_terms)}")
+                            else:
+                                print("\nNenhum filtro aplicado.")
+                            current_page -= 1
                             continue
                         elif user_input.startswith('d '):
                             # Implementação simplificada para detalhe

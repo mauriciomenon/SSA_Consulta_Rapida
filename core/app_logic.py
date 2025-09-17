@@ -272,6 +272,10 @@ def run_importer_logic(
         critical_errors = []
 
         for file_path in files_to_process:
+            base_name = os.path.basename(file_path)
+            if base_name.startswith('~$'):
+                logger.info("Ignorando arquivo temporário '%s'", base_name)
+                continue
             try:
                 if _import_single_file(file_path, db_path, table_name):
                     successfully_processed_files.append(file_path)
