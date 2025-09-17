@@ -186,24 +186,33 @@ def _show_initial_help():
 ════════════════════════════ CONSULTA RÁPIDA de SSAs v{APP_VERSION} ═══════════════════════════
 
 PESQUISA
-  • Separe termos por vírgula: ADM, MEL3, 2025
-  • Modos: ^início, fim$, =exato, ~regex, !negativo
+  • Separe termos por vírgula (ex.: ADM, MEL3, 2025)
+  • Termos simples procuram em qualquer parte; use =valor para coincidência exata
+  • Prefixos: ^início, fim$, =exato, ~regex, !negativo (podem ser combinados)
+  • Exemplos: svp, !ste, mel4 → contém “svp”, exclui “STE”, contém “mel4”
+  • Também aceita comparações/regex (ex.: mmu2, prazo<=30, ^2025)
 
 COMANDOS PRINCIPAIS
-  h/?   Ajuda completa     q      Sair
-  d <#> Detalhes           v      Voltar filtro
-  r     Reset completo     rescan Reimportar dados
-  e <n> Exportar           c      Configurações
+  h ou ?    Ajuda completa
+  q         Sair da aplicação
+  d #       Mostrar detalhe da linha (use o número exibido na primeira coluna)
+  v         Desfazer o último filtro aplicado
+  r         Limpar filtros ativos (mantém dados carregados)
+  rescan    Reimportar todos os arquivos Excel
+  e nome    Exportar resultado (ex.: e relatorio → relatorio.csv/.xlsx)
+  c         Abrir menu de configurações
 
 ORGANIZAÇÃO
-  ord/ordi <#>        Ordenar crescente/decrescente
-  ordn/ordni <nome>   Ordenar por nome
-  cols  •  x [termo]  •  f (ver filtros ativos)
+  ord / ordi  #        Ordenar coluna pelo índice mostrado em cols (crescente / decrescente)
+  ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
+  cols                 Listar colunas exibidas e respectivos índices
+  x termo              Remover termo do filtro atual (ex.: x mel4)
+  l                    Listar filtros ativos
 
 DICAS
-  • Digite 'h' para ajuda completa
-  • Use 'd <número>' para ver detalhes de uma linha
-  • Combine filtros para busca mais precisa
+  • Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  • Comandos rápidos: l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  • Na paginação: Enter (próxima página), z (ir até o fim), l (listar filtros), d # (detalhe), q (sair)
 ═══════════════════════════════════════════════════════════════════════════════
 """
     print(help_text)
@@ -220,11 +229,13 @@ def _handle_help():
 ║                      CONSULTA RÁPIDA DE SSAs v{APP_VERSION} - AJUDA COMPLETA                  ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║ COMANDOS DE PESQUISA E NAVEGAÇÃO                                              ║
+║   termos (ex: svp, !ste, mel4) → Aplicam filtros cumulativos                ║
 ║   d <Nº>        → Mostra detalhes da SSA na linha <Nº> da tabela atual       ║
 ║   v             → Volta para o filtro anterior (desfaz último filtro)        ║
 ║   r             → Reseta todos os filtros e recarrega a base completa        ║
 ║   h, ?          → Mostra esta ajuda completa                                 ║
 ║   q, sair, exit → Sai do programa                                            ║
+║   paginação     → Durante "-- Mais" use Enter, e, l, d <#> ou q              ║
 ║                                                                               ║
 ║ COMANDOS DE ORGANIZAÇÃO                                                       ║
 ║   ord <Nº>      → Ordena pela coluna de índice <Nº> (crescente)              ║
@@ -235,7 +246,7 @@ def _handle_help():
 ║                                                                               ║
 ║ COMANDOS DE FILTROS                                                           ║
 ║   x [termo]     → Remove termo específico; sem termo equivale a 'v'          ║
-║   f, filtros    → Mostra os filtros atualmente aplicados                     ║
+║   l, filtros    → Mostra os filtros atualmente aplicados                     ║
 ║   clear         → Limpa filtros do usuário (mantém filtros padrão)           ║
 ║   clearall      → Limpa TODOS os filtros (usuário + padrão) desta sessão     ║
 ║                                                                               ║
@@ -568,7 +579,10 @@ def start_cli_loop(db_path: str, table_name: str):
 
     # --- Loop Principal ---
     # Comandos que requerem lógica inline ou handlers não mapeados diretamente
-    INLINE_COMMAND_PREFIXES = ['d', 'detalhe', 'e', 'exportar', 'ord', 'ordi', 'ordn', 'ordni', 'cols', 'x', 'f', 'filtros', 'clear', 'clearall']
+    INLINE_COMMAND_PREFIXES = [
+        'd', 'detalhe', 'e', 'exportar', 'ord', 'ordi', 'ordn', 'ordni',
+        'cols', 'x', 'l', 'listar', 'filtros', 'clear', 'clearall'
+    ]
 
     while True:
         try:
@@ -580,14 +594,18 @@ def start_cli_loop(db_path: str, table_name: str):
 
             current_df, current_filter_terms = results_stack[-1]
 
-            print("") # Linha em branco para separação visual
-            filter_status_runtime_text = ""
-            if current_filter_terms:
-                filter_status_runtime_text = f" - Filtro(s) Aplicado(s): {', '.join(current_filter_terms)}"
+            print("")  # Linha em branco para separação visual
 
-            prompt_text = (
-                f"[{len(current_df)} SSAs{filter_status_runtime_text}] Buscar termos separados por vírgula ou comando: "
+            if current_filter_terms:
+                print(f"Filtros ativos: {', '.join(current_filter_terms)}")
+            else:
+                print("Filtros ativos: (nenhum)")
+
+            print(
+                "Comandos: digite termos separados por vírgula (ex: svp, !ste, mel4) ou use l (listar filtros), v (voltar), x <termo> (ex: x mel4), h (ajuda)."
             )
+
+            prompt_text = f"[{len(current_df)} SSAs] Buscar termos separados por vírgula ou comando: "
             user_input = input(prompt_text).strip()
 
             if not user_input:
@@ -655,7 +673,7 @@ def start_cli_loop(db_path: str, table_name: str):
                     _handle_remove_filter(parts, results_stack, display_map, settings, _print_cache)
                 elif command in ['clear']:
                     _handle_clear_filters(results_stack, display_map, settings, _print_cache)
-                elif command in ['f', 'filtros']:
+                elif command in ['l', 'listar', 'filtros']:
                     _handle_show_filters(results_stack)
                 elif command in ['clearall']:
                     _handle_clear_all_filters(db_path, table_name, results_stack, display_map, settings, _print_cache)

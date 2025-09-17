@@ -21,6 +21,26 @@ logger = logging.getLogger(__name__)
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
 
+def _infer_sql_type(series: pd.Series | None) -> str:
+    """Infer a SQLite column type from a pandas Series."""
+    if series is None:
+        return "TEXT"
+    try:
+        non_null = series.dropna()
+    except Exception:  # pragma: no cover
+        return "TEXT"
+    if non_null.empty:
+        return "TEXT"
+    try:
+        if pd.api.types.is_integer_dtype(non_null):
+            return "INTEGER"
+        if pd.api.types.is_float_dtype(non_null):
+            return "REAL"
+    except Exception:  # pragma: no cover
+        return "TEXT"
+    return "TEXT"
+
+
 def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool:
     existing_date = existing_row.get('data_cadastro')
     new_date = new_row.get('data_cadastro')
@@ -77,7 +97,24 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
     description_columns = [c.strip() for c in desc_cols_env.split(',') if c.strip()] if desc_cols_env else [
         "descricao_ssa", "descricao", "detalhes", "comentarios"
     ]
-    date_columns = ["data_cadastro", "prazo_limite", "data_limite", "desde", "desde_1"]  # removida duplicação
+    date_columns = [
+        "data_cadastro",
+        "prazo_limite",
+        "data_limite",
+        "desde",
+        "desde_1",
+        "desde_2",
+        "ate",
+        "ate_1",
+        "ate_2",
+        "data_inicio_programada",
+        "data_programacao",
+        "data_inicio_reprogramada",
+        "data_reprogramacao",
+        "instalacao_estimada",
+        "executado",
+        "concluido",
+    ]
 
     def _is_empty(val) -> bool:
         if val is None:
@@ -191,7 +228,24 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     work_local = pd.DataFrame(frame.values, columns=frame.columns).reset_index(drop=True)
     if 'numero_ssa' in work_local.columns:
         work_local['numero_ssa'] = work_local['numero_ssa'].apply(_normalize_numero_ssa_value)
-    date_columns = ['data_cadastro', 'prazo_limite', 'data_limite', 'desde', 'desde_1']
+    date_columns = [
+        'data_cadastro',
+        'prazo_limite',
+        'data_limite',
+        'desde',
+        'desde_1',
+        'desde_2',
+        'ate',
+        'ate_1',
+        'ate_2',
+        'data_inicio_programada',
+        'data_programacao',
+        'data_inicio_reprogramada',
+        'data_reprogramacao',
+        'instalacao_estimada',
+        'executado',
+        'concluido',
+    ]
     def _to_string_date(val) -> str | None:
         try:
             if pd.isna(val) or val in (None, ''):
@@ -265,6 +319,14 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name = alias  # type: ignore[assignment]
                     break
         table_exists = table_name in existing_tables
+        if table_exists:
+            cursor.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            missing_columns = [col for col in work.columns if col not in existing_columns]
+            for col in missing_columns:
+                sql_type = _infer_sql_type(work[col] if col in work.columns else None)
+                logger.info("Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type)
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
         if not no_ssa.empty:
             mode = 'append' if table_exists else 'replace'
             no_ssa.to_sql(table_name, conn, if_exists=mode, index=False, chunksize=500)

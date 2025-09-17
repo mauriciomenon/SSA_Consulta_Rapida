@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS ssa_table (
 
     -- Métricas de tempo / prazos
     prazo_limite TEXT,
+    status_execucao_prazo TEXT,
     tempo_disponivel TEXT,
     data_limite TEXT,
     tempo_excedido TEXT,
@@ -78,7 +79,39 @@ CREATE TABLE IF NOT EXISTS ssa_table (
     registros_espera TEXT,
     situacao_espera TEXT,
     num_reprobaciones INTEGER,
-    parciais TEXT
+    parciais TEXT,
+    ate_1 TEXT,
+    ate_2 TEXT,
+    desde_2 TEXT,
+    total_tempo_tpo_executada TEXT,
+    atividade_especial TEXT,
+    equipamento_retirado TEXT,
+    sn_retirado TEXT,
+    destino TEXT,
+    equipamento_instalado TEXT,
+    sn_instalado TEXT,
+    sn_extra TEXT,
+    origem TEXT,
+    desativacao_da_localizacao TEXT,
+    instalacao_estimada TEXT,
+    executado TEXT,
+    concluido TEXT,
+    data_inicio_programada TEXT,
+    data_programacao TEXT,
+    data_inicio_reprogramada TEXT,
+    data_reprogramacao TEXT,
+    situacao_reprogramacao TEXT,
+    total_de_reprogramacoes INTEGER,
+    numero_ssa_relacionada_1 TEXT,
+    numero_ssa_relacionada_2 TEXT,
+    numero_ssa_relacionada_3 TEXT,
+    setor_emissor_relacionado_1 TEXT,
+    setor_emissor_relacionado_2 TEXT,
+    setor_executor_relacionado_1 TEXT,
+    setor_executor_relacionado_2 TEXT,
+    situacao_relacionada_1 TEXT,
+    situacao_relacionada_2 TEXT,
+    relacao TEXT
 );
 
 -- Índices essenciais

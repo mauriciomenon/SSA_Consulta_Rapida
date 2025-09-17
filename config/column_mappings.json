@@ -110,6 +110,10 @@
   "prazo_limite": [
     "Prazo Limite"
   ],
+  "status_execucao_prazo": [
+    "Situação do Prazo",
+    "Status Prazo"
+  ],
   "tempo_disponivel": [
     "Tempo Disp.",
     "Tempo Disponível"
@@ -191,5 +195,95 @@
   "justificativa": [
     "Justificativa",
     "Justificativa sem APR"
+  ],
+  "atividade_especial": [
+    "Actividad Especial"
+  ],
+  "equipamento_retirado": [
+    "Equipamento Retirado"
+  ],
+  "destino": [
+    "Destino"
+  ],
+  "equipamento_instalado": [
+    "Equipamento Instalado"
+  ],
+  "origem": [
+    "Origem"
+  ],
+  "desativacao_da_localizacao": [
+    "Desativação da localização"
+  ],
+  "instalacao_estimada": [
+    "Instalação Estimada"
+  ],
+  "executado": [
+    "Executado"
+  ],
+  "concluido": [
+    "Concluído"
+  ],
+  "total_tempo_tpo_executada": [
+    "Total Tempo TPO Executada"
+  ],
+  "data_inicio_programada": [
+    "Data início Programada"
+  ],
+  "data_programacao": [
+    "Data de programação"
+  ],
+  "data_inicio_reprogramada": [
+    "Data início Reprogramada"
+  ],
+  "data_reprogramacao": [
+    "Data de reprogramação"
+  ],
+  "situacao_reprogramacao": [
+    "Situação de Reprogramação"
+  ],
+  "total_de_reprogramacoes": [
+    "Total de Reprogramações"
+  ],
+  "situacao_de_desvio": [
+    "Situação de Desvio"
+  ],
+  "relacao": [
+    "Relação"
+  ],
+  "sn": [
+    "SN"
+  ],
+  "ate_1": [
+    "Até (1)"
+  ],
+  "ate_2": [
+    "Até (2)"
+  ],
+  "desde_2": [
+    "Desde (2)"
+  ],
+  "numero_ssa_relacionada_1": [
+    "Número da SSA Relacionada"
+  ],
+  "numero_ssa_relacionada_2": [
+    "Número da SSA Relacionada (2)"
+  ],
+  "setor_emissor_relacionado_1": [
+    "Setor Emissor Relacionado"
+  ],
+  "setor_emissor_relacionado_2": [
+    "Setor Emissor Relacionado (2)"
+  ],
+  "setor_executor_relacionado_1": [
+    "Setor Executor Relacionado"
+  ],
+  "setor_executor_relacionado_2": [
+    "Setor Executor Relacionado (2)"
+  ],
+  "situacao_relacionada_1": [
+    "Situação Relacionada"
+  ],
+  "situacao_relacionada_2": [
+    "Situação Relacionada (2)"
   ]
 }
