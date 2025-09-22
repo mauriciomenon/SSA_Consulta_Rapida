@@ -57,9 +57,31 @@ Próximos passos sugeridos (não bloqueantes):
 Essa seção reflete o estado pós-limpeza para orientar futuros mantenedores.
 # SSA_Consulta_Rapida
 
-Versão atual: 3.10 (Sistema funcional)
+Versão atual: 3.11 (Sistema funcional)
 
-##  Novidades v3.10 - Build System Multi-Plataforma
+##  Novidades v3.11 - Filtros Unificados e Interface Web
+
+### ✅ CLI mais rapida para iterar filtros
+- Exibe apenas a primeira pagina por padrao e usa o comando `m`/`mais` para avancar
+- `m z` carrega todas as paginas restantes rapidamente, sem travar a entrada
+- Prompt de paginacao mostra reforcos de OU/OR e resumo de filtros ativos
+
+### 🔄 Sintaxe OU/OR consistente em todas as interfaces
+- Parser de filtros agora entende `OU`/`OR` (alem de `!`, `^`, `$`, `=` e `~`) de forma unificada
+- Ajuda do CLI/GUI/Streamlit atualizada para remover a notacao `v` e deixar exemplos diretos
+- Remocao de ambiguidades: conectores `E/AND` e `OU/OR` funcionam combinados com negativos
+
+### 🎨 Novos temas com foco em contraste
+- Tema "Escala de cinza" substitui o antigo "Claro" com ajuste fino para telas brilhantes
+- Perfis extras inspirados em Windows 7, KDE Plasma e GNOME (Adwaita)
+- Ajustes de contraste automaticos no macOS para manter legibilidade
+
+### 🌐 Dashboard Streamlit revisado
+- `python main.py --streamlit` (ou `--web`) inicia o painel em background sem bloquear o terminal
+- Barra lateral com ajuda rapida, resumo de filtros ativos e seletor de colunas organizado
+- Download de CSV e consulta opcional da API permanecem acessiveis no layout
+
+##  Historico v3.10 - Build System Multi-Plataforma
 
 ### ✅ Sistema de Build Completo
 - **Executáveis funcionais**: CLI e GUI totalmente testados para macOS ARM64
@@ -85,18 +107,16 @@ open launchers/dist/macos_arm64/SSA_GUI_v3.10_macos_arm64.app
 python launchers/build_simple.py gui && cd launchers/dist_simple && ./gui_entry
 ```
 
-###  Funcionalidades v3.0 (Estáveis)_Rapida
+###  Funcionalidades principais v3.11
 
-Versão: 3.10 - SSA Consulta Rápida v3.10
+Versão: 3.11 - SSA Consulta Rapida v3.11
 
-Novidades v3.10:
-- Remoção: GUI PoC (`gui/gui_ssa_poc.py`) retirada do repositório para reduzir ruído e simplificar manutenção.
-- Refatoração: `filter_data` simplificado com `_parse_search_terms` e `_show_unfiltered_preview`.
-- Padronização: unificação de helpers de formatação e uso consistente na GUI.
-- Teste: adicionado smoke test da GUI (`tests/gui_poc_smoke_test.py`).
-- Tooling: `.sourcery.yaml` configurado para reduzir alertas não críticos (foco em problemas relevantes).
- - GUI: painel “Filtros por Coluna” compacto (labels próximos, botões fixos) e estabilidade de larguras (recalcula apenas em mudança de colunas ou viewport > 12 px).
- - Tema Claro: contraste reforçado (caixas “Semana” e “Status” com fundo #eee e borda #aaa). Ajuda da busca em TL;DR e placeholder/labels mais claros.
+Novidades v3.11:
+- CLI: paginacao interativa com comando `m`/`m z`, prompt enxuto e resumo dos filtros ativos
+- GUI: parse OU/OR alinhado ao CLI, chips de filtros exibidos com notacao clara e temas extras disponiveis
+- Streamlit: atalho `main.py --streamlit` inicia painel em background, sidebar com ajuda e resumo de filtros
+- Core: `parse_search_terms` suporta grupos OR reais (sem depender de simbolo `v`), mantendo negativos e regex
+- Temas: Escala de cinza, Windows 7, KDE e GNOME adicionados sem impactar alteracoes ja feitas para Windows
 
 Resumo do 3.0:
 - Filtro “5 opções” implementado (CLI/GUI) com negativos e fallback de regex

@@ -12,9 +12,11 @@ import sys
 import argparse
 import socket
 import logging
+import shutil
+import subprocess
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from gui.gui_ssa import SSAMainWindow
@@ -67,7 +69,37 @@ def get_app_version():
         from utils.version import get_app_version as _get_version
         return _get_version()
     except ImportError:
-        return "3.10+"
+        return "3.11+"
+
+
+def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
+    """Inicia o aplicativo Streamlit em segundo plano."""
+    script_path = os.path.join(project_root, 'streamlit_app.py')
+    if not os.path.exists(script_path):
+        print("Streamlit app nao encontrado em streamlit_app.py")
+        return False
+    if not shutil.which('streamlit'):
+        print("Streamlit nao encontrado. Instale com: pip install streamlit")
+        return False
+
+    cmd = ['streamlit', 'run', script_path, '--server.headless=true']
+    if port:
+        cmd.append(f'--server.port={port}')
+
+    logs_dir = os.path.join(project_root, 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+    log_path = os.path.join(logs_dir, 'streamlit.log')
+
+    try:
+        with open(log_path, 'ab') as log_file:
+            process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, cwd=project_root)
+        display_port = port or 8501
+        print(f"Streamlit iniciado em background (PID {process.pid}). Acesse http://localhost:{display_port}/")
+        print(f"Logs: {log_path}")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"Falha ao iniciar Streamlit: {exc}")
+        return False
 
 def main(cli_args=None):
     """
@@ -169,6 +201,27 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         • Tooltips explicativos nos controles
 
         Exemplo: python main.py --gui'''
+    )
+
+    parser.add_argument(
+        '--streamlit', '--web',
+        dest='launch_streamlit',
+        action='store_true',
+        help='''Inicia a interface web (Streamlit) em segundo plano.
+
+        CARACTERISTICAS:
+        • Interface moderna acessivel via navegador
+        • Filtros rapidos com sintaxe equivalente a CLI
+        • Indicadores resumidos e opcao de consulta a API
+
+        Exemplo: python main.py --streamlit'''
+    )
+
+    parser.add_argument(
+        '--streamlit-port',
+        type=int,
+        default=8501,
+        help='Porta para a interface web (usar em conjunto com --streamlit)'
     )
 
     parser.add_argument(
@@ -339,6 +392,15 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         table_name = os.environ.get('SSA_TABLE_NAME') or 'ssa_table'
         logger.info(f"Usando base: {db_path} (tabela: {table_name})")
 
+        if args.launch_streamlit:
+            if args.gui:
+                print("Nao combine --gui com --streamlit ao mesmo tempo.")
+                return
+            launched = launch_streamlit(project_root, port=args.streamlit_port)
+            if launched:
+                print("Interface web ativa. Pressione CTRL+C quando desejar encerrar este processo.")
+            return
+
         if args.gui:
             logger.info("Iniciando interface grafica (GUI)...")
             try:
@@ -393,4 +455,3 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 if __name__ == "__main__":
     # Permite que o script seja executado diretamente
     main()
-

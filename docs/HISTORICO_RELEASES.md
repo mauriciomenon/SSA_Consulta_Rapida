@@ -2,10 +2,38 @@
 
 Este documento consolida todas as notas de lançamento e atualizações do projeto SSA Consulta Rápida.
 
-## **RELEASE v3.10 - CURRENT RELEASE**
+## **RELEASE v3.11 - CURRENT RELEASE**
+
+**Data de Lançamento**: Outubro 2025  
+**Tipo**: Major Update focado em usabilidade  
+**Status**: Estável
+
+### **Principais Funcionalidades**
+
+#### **🚀 Experiência CLI mais ágil**
+- Mostra apenas a primeira página por padrão; comando `m`/`mais` avança sem perder o prompt
+- `m z` percorre todo o resultado sem bloquear a entrada
+- Prompt atualizado com atalhos claros e resumo de filtros ativos
+
+#### **🔁 Sintaxe OU/OR unificada**
+- CLI, GUI e Streamlit compartilham o mesmo parser (`OU`/`OR`, negativos, regex)
+- Ajuda revisada elimina a notação `v` e destaca exemplos práticos
+- Perfil "Executor ou Emissor" mantém chips sincronizados em tempo real
+
+#### **🎨 Temas adicionais e contraste aprimorado**
+- Tema "Escala de cinza" substitui o antigo claro com ajustes finos
+- Novos perfis Windows 7, KDE e GNOME (Adwaita) disponíveis na GUI
+- Ajustes automáticos de contraste para macOS quando necessário
+
+#### **🌐 Dashboard Streamlit atualizado**
+- `python main.py --streamlit` (ou `--web`) inicia o painel em background
+- Barra lateral com ajuda rápida e resumo dos filtros aplicados
+- Download de CSV preservado e consulta opcional da API Itaipu
+
+## **RELEASE v3.10**
 
 **Data de Lançamento**: Agosto 2025  
-**Tipo**: Major Update  
+**Tipo**: Major Update focado em build/distribuição  
 **Status**: Estável
 
 ### **Principais Funcionalidades**
