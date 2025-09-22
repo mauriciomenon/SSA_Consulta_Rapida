@@ -141,6 +141,25 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## Activation helpers (cross-platform)
+To make local environment activation reliable across macOS, WSL and Windows (PowerShell), this repository includes two helpers:
+
+- `activate_repo.sh` — Bash/Zsh helper (use `source ./activate_repo.sh`). Recommended for macOS and WSL.
+- `activate_repo.ps1` — PowerShell helper (dot-source with `. .\activate_repo.ps1`). Recommended for Windows PowerShell and PowerShell 7 (pwsh).
+
+Usage after cloning:
+
+1. Clone the repo and open a shell for your OS.
+2. On macOS / WSL:
+	- `python -m venv .venv` (if you don't use pyenv)
+	- `source ./activate_repo.sh`
+3. On Windows PowerShell (pwsh recommended):
+	- `python -m venv .venv` (if you don't use pyenv-win)
+	- `. .\activate_repo.ps1`
+
+Tip: The repository contains a `.gitattributes` entry that enforces LF for `.envrc` and shell scripts so `direnv` will not fail due to CRLF. If you prefer `direnv`, WSL is the recommended environment for evaluating `.envrc`.
+
+
 Para build Windows com compressão UPX (redução de tamanho), instale também:
 ```pwsh
 pip install -r launchers/platforms/windows_amd64/requirements_windows_build.txt
