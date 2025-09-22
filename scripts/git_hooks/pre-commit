@@ -21,7 +21,12 @@ ALLOW_VALUES=(
 MIN_LEN=12
 
 err(){ echo "[secret-scan][BLOCK] $1" >&2; }
-info(){ [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]] && echo "[secret-scan] $1" >&2; }
+info(){
+  if [[ ${GIT_HOOKS_VERBOSE:-0} -eq 1 ]]; then
+    echo "[secret-scan] $1" >&2
+  fi
+  return 0
+}
 
 DIFF=$(git diff --cached --unified=0 --no-color --text || true)
 [[ -z $DIFF ]] && exit 0
@@ -43,7 +48,8 @@ for rgx in "${TOKEN_REGEXES[@]}"; do
 done
 
 # Linhas com API_KEY=
-echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' | while IFS= read -r line; do
+api_key_candidates=$(echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
+while IFS= read -r line; do
   [[ -z "${line// }" ]] && continue
   val_part="${line#*=}"
   val_part="$(echo "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
@@ -62,7 +68,7 @@ echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' | while IFS=
 
   err "Valor potencial de API_KEY (redacted)"
   FOUND=1
-done
+done <<< "$api_key_candidates"
 
 if [[ $FOUND -eq 1 ]]; then
   cat <<'EOT' >&2

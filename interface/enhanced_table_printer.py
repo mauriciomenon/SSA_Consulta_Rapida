@@ -4,17 +4,85 @@ Integra as solucoes da GUI para fornecer renderizacao consistente na CLI.
 """
 
 import pandas as pd
-from tabulate import tabulate
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import os
 import sys
 import math
 import logging
+import builtins
+
+try:
+    from tabulate import tabulate  # type: ignore
+    _TABULATE_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
+    _TABULATE_AVAILABLE = False
+
+    def tabulate(data, headers=(), tablefmt='plain', showindex=False, **kwargs):
+        """Fallback simples para ambientes sem `tabulate`."""
+        if hasattr(data, 'to_string'):
+            try:
+                return data.to_string(index=showindex)
+            except Exception:  # pragma: no cover
+                pass
+
+        try:
+            rows = list(data)
+        except TypeError:
+            rows = [data]
+
+        header_list: list[str] = []
+        if isinstance(headers, (list, tuple)):
+            header_list = [str(h) for h in headers]
+        elif headers:
+            header_list = [str(headers)]
+
+        column_count = len(header_list) if header_list else max(
+            (
+                len(r)
+                if isinstance(r, (list, tuple))
+                else 1
+                for r in rows
+            ),
+            default=0,
+        )
+
+        def _fmt(row) -> str:
+            if isinstance(row, (list, tuple)):
+                cells = list(row)
+            elif hasattr(row, 'tolist'):
+                cells = list(row.tolist())  # type: ignore[arg-type]
+            else:
+                cells = [row]
+            if column_count:
+                if len(cells) < column_count:
+                    cells.extend([''] * (column_count - len(cells)))
+                elif len(cells) > column_count:
+                    cells = cells[:column_count]
+            return ' | '.join(str(c) for c in cells)
+
+        lines: list[str] = []
+        if header_list:
+            lines.append(' | '.join(header_list))
+
+        if showindex:
+            for idx, row in enumerate(rows):
+                lines.append(f"{idx} | {_fmt(row)}")
+        else:
+            for row in rows:
+                lines.append(_fmt(row))
+
+        return '\n'.join(lines)
 
 from interface.cli_width_manager import CLIWidthManager
 from utils.formatting import format_dataframe_for_display
 
 logger = logging.getLogger(__name__)
+if not _TABULATE_AVAILABLE:
+    logger.warning("tabulate não encontrado; EnhancedTablePrinter usando fallback simples")
+
+
+_ORIGINAL_INPUT = builtins.input
+
 
 class EnhancedTablePrinter:
     """
@@ -40,16 +108,23 @@ class EnhancedTablePrinter:
         display_map: Dict[str, str],
         settings: dict,
         highlight_terms: Optional[List[str]] = None,
-        filter_terms: Optional[List[str]] = None
-    ):
-        """
-        Renderiza DataFrame com sistema melhorado.
+        filter_terms: Optional[List[str]] = None,
+        start_page: int = 0,
+        max_pages: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Renderiza DataFrame com sistema melhorado e retorna estado de paginação.
 
         Args:
             df: DataFrame a ser exibido
             display_map: Mapeamento de nomes de colunas
             settings: Configuracoes do sistema
             highlight_terms: Termos para destacar (opcional)
+            filter_terms: termos aplicados (para mensagens auxiliares)
+            start_page: pagina inicial (0-based)
+            max_pages: limite superior de paginas a renderizar (None = todas)
+
+        Returns:
+            Informacoes sobre paginas renderizadas (ex.: proxima pagina disponivel).
         """
         if df.empty:
             print("Nenhum resultado para exibir.")
@@ -113,7 +188,15 @@ class EnhancedTablePrinter:
             pass
 
         # Renderiza com paginação
-        self._render_paginated(formatted_df, widths, settings, highlight_terms, filter_terms)
+        return self._render_paginated(
+            formatted_df,
+            widths,
+            settings,
+            highlight_terms,
+            filter_terms,
+            start_page=start_page,
+            max_pages=max_pages,
+        )
 
     def _select_columns_smart(
         self,
@@ -255,121 +338,207 @@ class EnhancedTablePrinter:
         widths: Dict[str, int],
         settings: dict,
         highlight_terms: Optional[List[str]] = None,
-        filter_terms: Optional[List[str]] = None
-    ):
-        """
-        Renderiza DataFrame com paginação.
-
-        Args:
-            df: DataFrame formatado
-            widths: Larguras das colunas
-            settings: Configurações do sistema
-            highlight_terms: Termos para destacar
-        """
+        filter_terms: Optional[List[str]] = None,
+        *,
+        start_page: int = 0,
+        max_pages: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Renderiza DataFrame com paginação de forma mais enxuta."""
         terminal_height, _ = self.get_terminal_size()
         page_size = max(1, terminal_height - 8)
 
-        # Auto-scroll settings
         auto_scroll = settings.get('user_preferences', {}).get('auto_scroll_to_end', False)
         total_pages = math.ceil(len(df) / page_size) if page_size > 0 else 1
         max_auto_scroll_pages = settings.get('display_settings', {}).get('max_auto_scroll_pages', 3)
-
         if auto_scroll and total_pages > max_auto_scroll_pages:
             auto_scroll = False
 
-        # Gera páginas
-        pages = []
-        for i in range(0, len(df), page_size):
-            pages.append(df.iloc[i:i+page_size])
-
+        pages = [df.iloc[i:i + page_size] for i in range(0, len(df), page_size)]
         if not pages:
             print("Nenhum dado para exibir após processamento.")
-            return
+            return {
+                'next_page': None,
+                'total_pages': 0,
+                'rendered_pages': 0,
+                'page_size': page_size,
+            }
 
-        # Loop de exibição
-        current_page = 0
-        while current_page < len(pages):
+        total_pages = len(pages)
+        last_index = total_pages - 1
+        effective_start = max(0, start_page)
+        if effective_start >= total_pages:
+            print("Nenhuma nova página para exibir.")
+            return {
+                'next_page': None,
+                'total_pages': total_pages,
+                'rendered_pages': 0,
+                'page_size': page_size,
+            }
+
+        filters_text = ''
+        if filter_terms:
+            if isinstance(filter_terms, (list, tuple)):
+                filters_text = ', '.join(filter_terms)
+            else:
+                filters_text = str(filter_terms)
+
+        def render(page_df: pd.DataFrame, include_header: bool = True):
+            table_str = tabulate(
+                page_df.values.tolist(),
+                headers=page_df.columns,
+                tablefmt='presto',
+                showindex=False,
+                stralign='left',
+                disable_numparse=True,
+            )
+            lines = table_str.splitlines()
+            if not include_header and lines:
+                if len(lines) >= 2 and set(lines[1].strip()) <= {'-', '+', ' '}:
+                    lines = lines[2:]
+                else:
+                    lines = lines[1:]
+            output = "\n".join(lines)
+            if lines:
+                output += "\n"
+            if highlight_terms and highlight_terms[0]:
+                output = self._apply_highlighting(output, highlight_terms)
+            print(output, end='')
+
+        env_flag = os.environ.get('SSA_NON_INTERACTIVE', '').strip().lower()
+        input_is_patched = builtins.input is not _ORIGINAL_INPUT
+        non_interactive = (
+            env_flag in {'1', 'true', 'yes', 'on'}
+            and not input_is_patched
+        )
+        current_page = effective_start
+        rendered_pages = 0
+        while current_page < total_pages:
             try:
                 page_df = pages[current_page]
+                print(f"Página {current_page + 1} de {total_pages}")
+                render(page_df, include_header=True)
+                rendered_pages += 1
+                last = current_page == last_index
 
-                # Cabeçalho da página (só na primeira página)
-                if current_page == 0:
-                    print(f"Página {current_page + 1} de {len(pages)}")
-
-                # Renderiza tabela
-                table_str = tabulate(
-                    page_df,
-                    headers=page_df.columns,
-                    tablefmt='presto',
-                    showindex=False,
-                    stralign='left',
-                    disable_numparse=True
-                )
-
-                # Aplica destaque se necessário
-                if highlight_terms and highlight_terms[0]:  # Só se houver termos
-                    table_str = self._apply_highlighting(table_str, highlight_terms)
-
-                print(table_str)
-
-                current_page += 1
-
-                # Controle de paginação
-                if current_page < len(pages):
-                    if auto_scroll:
-                        continue
+                if max_pages is not None and rendered_pages >= max_pages:
+                    next_page = current_page + 1 if current_page < last_index else None
+                    return {
+                        'next_page': next_page,
+                        'total_pages': total_pages,
+                        'rendered_pages': rendered_pages,
+                        'page_size': page_size,
+                    }
+                if auto_scroll or non_interactive:
+                    if last:
+                        if non_interactive:
+                            print("...exibição interrompida.")
+                        return {
+                            'next_page': None,
+                            'total_pages': total_pages,
+                            'rendered_pages': rendered_pages,
+                            'page_size': page_size,
+                        }
+                    current_page += 1
+                    continue
+                if last:
+                    try:
+                        cmd = 'q' if non_interactive else input("\n-- Fim | Enter sair, q=sair -- ").strip().lower()
+                    except KeyboardInterrupt:
+                        print("\n...exibição interrompida.")
+                        return {
+                            'next_page': None,
+                            'total_pages': total_pages,
+                            'rendered_pages': rendered_pages,
+                            'page_size': page_size,
+                        }
+                    if cmd == 'q':
+                        print("...exibição interrompida.")
                     else:
-                        remaining = len(pages) - current_page
+                        print("Fim da exibição.")
+                    return {
+                        'next_page': None,
+                        'total_pages': total_pages,
+                        'rendered_pages': rendered_pages,
+                        'page_size': page_size,
+                    }
 
-                        # Monta informação sobre filtros aplicados
-                        filter_info = ""
-                        if filter_terms:
-                            filter_info = f" - Filtros: {', '.join(filter_terms)}"
+                remaining = len(pages) - current_page - 1
+                prefix = f" {remaining} pág. restantes"
+                if filters_text:
+                    prefix += f" - Filtros: {filters_text}"
+                prompt = f"{prefix} | 'z': até o final, 'l': listar filtros, 'd <#>': detalhe, 'q': sair: "
+                try:
+                    sys.stdout.flush()
+                    user_input = input(prompt).strip().lower()
+                except KeyboardInterrupt:
+                    print("\n...exibição interrompida.")
+                    return
 
-                        prompt = f"\n-- Mais ({remaining} pág. restante(s)){filter_info} | Enter: continuar, 'z': até o final, 'l': listar filtros, 'd <#>': detalhe, 'q': sair --"
-                        try:
-                            user_input = input(prompt).strip().lower()
-                        except KeyboardInterrupt:
-                            print("\n...exibição interrompida.")
-                            break
-
-                        if user_input == 'q':
-                            print("\n...exibição interrompida.")
-                            break
-                        elif user_input == 'z':
-                            auto_scroll = True
-                        elif user_input == 'l':
-                            if filter_terms:
-                                print(f"\nFiltros ativos: {', '.join(filter_terms)}")
-                            else:
-                                print("\nNenhum filtro aplicado.")
-                            current_page -= 1
-                            continue
-                        elif user_input.startswith('d '):
-                            # Implementação simplificada para detalhe
-                            print(f"\nPara ver detalhe da linha {user_input[2:]}, use o comando principal.")
-                            continue
-                        elif user_input == '':
-                            continue
-                        else:
-                            print("Comando inválido.")
-                            current_page -= 1
-                else:
-                    # Última página
-                    if not auto_scroll:
-                        try:
-                            input("\n-- Fim | 'q': sair --")
-                        except KeyboardInterrupt:
-                            print("\n...exibição interrompida.")
-                    break
-
+                if not user_input:
+                    current_page += 1
+                    continue
+                if user_input == 'q':
+                    print("...exibição interrompida.")
+                    return {
+                        'next_page': None,
+                        'total_pages': total_pages,
+                        'rendered_pages': rendered_pages,
+                        'page_size': page_size,
+                    }
+                if user_input == 'z':
+                    if current_page < last_index:
+                        print()
+                        for rest_page in pages[current_page + 1:]:
+                            render(rest_page, include_header=False)
+                            rendered_pages += 1
+                        print("...exibição interrompida.")
+                    return {
+                        'next_page': None,
+                        'total_pages': total_pages,
+                        'rendered_pages': total_pages,
+                        'page_size': page_size,
+                    }
+                if user_input == 'l':
+                    if filters_text:
+                        print(f"\nFiltros ativos: {filters_text}")
+                    else:
+                        print("\nNenhum filtro aplicado.")
+                    continue
+                if user_input.startswith('d '):
+                    print(
+                        "\nPara ver detalhe da linha "
+                        f"{user_input[2:]}, use o comando principal."
+                    )
+                    continue
+                if user_input == 'f':
+                    auto_scroll = True
+                    continue
+                print("Comando inválido.")
             except KeyboardInterrupt:
-                print("\\n...exibição interrompida.")
-                break
+                print("\n...exibição interrompida.")
+                return {
+                    'next_page': None,
+                    'total_pages': total_pages,
+                    'rendered_pages': rendered_pages,
+                    'page_size': page_size,
+                }
             except Exception as e:
                 logger.error(f"Erro na renderização: {e}")
                 print(f"Erro na exibição: {e}")
-                break
+                return {
+                    'next_page': None,
+                    'total_pages': total_pages,
+                    'rendered_pages': rendered_pages,
+                    'page_size': page_size,
+                }
+            current_page += 1
+
+        return {
+            'next_page': None,
+            'total_pages': total_pages,
+            'rendered_pages': rendered_pages,
+            'page_size': page_size,
+        }
 
     def _apply_highlighting(self, table_str: str, highlight_terms: List[str]) -> str:
         """
@@ -417,7 +586,11 @@ class EnhancedTablePrinter:
             ssa_int = pd.Series([-1]*len(work), index=work.index)
 
         work = work.assign(__is_ste=is_ste, __ssa=ssa_int)
-        work = work.sort_values(by=['__is_ste', '__ssa'], ascending=[True, False], na_position='last')
+        work = work.sort_values(
+            by=['__is_ste', '__ssa'],
+            ascending=[True, False],
+            na_position='last',
+        )
         return work.drop(columns=['__is_ste', '__ssa'])
 
     def _clamp_widths(self, df: pd.DataFrame, widths: Dict[str, int]) -> pd.DataFrame:
@@ -427,6 +600,7 @@ class EnhancedTablePrinter:
             limit = widths.get(col)
             if not limit or limit <= 0:
                 continue
+
             def _clamp(x):
                 s = '' if x is None else str(x)
                 if len(s) <= limit:
@@ -440,7 +614,17 @@ class EnhancedTablePrinter:
 # Instância global para uso direto
 enhanced_printer = EnhancedTablePrinter()
 
-def pretty_print_df_enhanced(df: pd.DataFrame, display_map: Dict[str, str], settings: dict, highlight_terms: Optional[List[str]] = None, filter_terms: Optional[List[str]] = None):
+
+def pretty_print_df_enhanced(
+    df: pd.DataFrame,
+    display_map: Dict[str, str],
+    settings: dict,
+    highlight_terms: Optional[List[str]] = None,
+    filter_terms: Optional[List[str]] = None,
+    *,
+    start_page: int = 0,
+    max_pages: Optional[int] = None,
+) -> Dict[str, Any]:
     """
     Função de conveniência para usar o renderizador melhorado.
 
@@ -450,8 +634,21 @@ def pretty_print_df_enhanced(df: pd.DataFrame, display_map: Dict[str, str], sett
         settings: Configurações do sistema
         highlight_terms: Termos para destacar (opcional)
         filter_terms: Termos de filtro aplicados (opcional)
+        start_page: página inicial (0-based)
+        max_pages: limite máximo de páginas a renderizar
+
+    Returns:
+        Informações de paginação retornadas pelo EnhancedTablePrinter.
     """
-    enhanced_printer.print_dataframe_enhanced(df, display_map, settings, highlight_terms, filter_terms)
+    return enhanced_printer.print_dataframe_enhanced(
+        df,
+        display_map,
+        settings,
+        highlight_terms,
+        filter_terms,
+        start_page=start_page,
+        max_pages=max_pages,
+    )
 
 
 # Função simplificada para formato CLI rápido
