@@ -11,7 +11,7 @@ import sys
 import logging
 import pandas as pd
 import re
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any
 
 # Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -210,8 +210,7 @@ def run_importer_logic(
     data_dir: str = 'data',
     db_name: str = 'ssas.db',
     table_name: str = 'ssa_table',
-    force_import: bool = False,
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+    force_import: bool = False
 ) -> bool:
     """
     Executa a lógica principal de importação de dados.
@@ -222,7 +221,6 @@ def run_importer_logic(
         db_name (str): Nome do arquivo do banco de dados SQLite.
         table_name (str): Nome da tabela no banco de dados.
         force_import (bool): Se True, força a reimportação de todos os arquivos.
-        progress_callback (Optional[Callable]): Callback para reportar progresso da importação.
 
     Returns:
         bool: True se o banco de dados foi atualizado, False caso contrário.
@@ -273,20 +271,9 @@ def run_importer_logic(
 
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
-        total_files = len(files_to_process)
-        if progress_callback:
-            try:
-                progress_callback('start', {'total': total_files})
-            except Exception:
-                pass
 
         if not files_to_process:
             logger.info("Nenhum arquivo novo ou modificado encontrado para processamento.")
-            if progress_callback:
-                try:
-                    progress_callback('finish', {'total': 0, 'processed': 0, 'errors': []})
-                except Exception:
-                    pass
             return False
 
         logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importação.")
@@ -295,82 +282,69 @@ def run_importer_logic(
         successfully_processed_files = []
         critical_errors = []
 
-        try:
-            for index, file_path in enumerate(files_to_process):
-                base_name = os.path.basename(file_path)
-                if progress_callback:
-                    try:
-                        progress_callback('file', {
-                            'index': index,
-                            'total': total_files,
-                            'filename': base_name
-                        })
-                    except Exception:
-                        pass
-
-                if base_name.startswith('~$'):
-                    logger.info("Ignorando arquivo temporário '%s'", base_name)
-                    continue
-                try:
-                    if _import_single_file(file_path, db_path, table_name):
-                        successfully_processed_files.append(file_path)
-                except DatabaseConnectionError as e:
-                    logger.error(f"Erro de conexão com banco ao processar '{file_path}': {e}")
-                    logger.error("Interrompendo processamento devido a falha de conexão")
-                    critical_errors.append(('connection', file_path, str(e)))
+        for file_path in files_to_process:
+            base_name = os.path.basename(file_path)
+            if base_name.startswith('~$'):
+                logger.info("Ignorando arquivo temporário '%s'", base_name)
+                continue
+            try:
+                if _import_single_file(file_path, db_path, table_name):
+                    successfully_processed_files.append(file_path)
+            except DatabaseConnectionError as e:
+                # Erro de conexão - provavelmente fatal para todos os arquivos
+                logger.error(f"Erro de conexão com banco ao processar '{file_path}': {e}")
+                logger.error("Interrompendo processamento devido a falha de conexão")
+                critical_errors.append(('connection', file_path, str(e)))
+                break  # Para todo o processamento
+            except DatabaseCorruptionError as e:
+                # Corrupção - tentar reparo e continuar
+                logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
+                logger.info("Tentando reparo automático do banco...")
+                if database.repair_database_if_needed(db_path, table_name=table_name):
+                    logger.info("Reparo bem-sucedido, continuando processamento...")
+                    critical_errors.append(('corruption_repaired', file_path, str(e)))
+                    continue  # Tenta processar novamente após reparo
+                else:
+                    logger.error("Falha no reparo automático")
+                    critical_errors.append(('corruption_failed', file_path, str(e)))
+                    break  # Para todo o processamento
+            except DatabaseSpaceError as e:
+                # Espaço insuficiente - provavelmente fatal
+                logger.error(f"Espaço em disco insuficiente ao processar '{file_path}': {e}")
+                critical_errors.append(('space', file_path, str(e)))
+                break  # Para todo o processamento
+            except DatabaseSchemaError as e:
+                # Problema de schema - tentar recriar
+                logger.error(f"Erro de schema ao processar '{file_path}': {e}")
+                logger.info("Tentando recriação do schema...")
+                if database.initialize_database(db_path):
+                    logger.info("Schema recriado, continuando processamento...")
+                    critical_errors.append(('schema_repaired', file_path, str(e)))
+                    continue  # Tenta processar novamente
+                else:
+                    logger.error("Falha na recriação do schema")
+                    critical_errors.append(('schema_failed', file_path, str(e)))
                     break
-                except DatabaseCorruptionError as e:
-                    logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
-                    logger.info("Tentando reparo automático do banco...")
-                    if database.repair_database_if_needed(db_path, table_name=table_name):
-                        logger.info("Reparo bem-sucedido, continuando processamento...")
-                        critical_errors.append(('corruption_repaired', file_path, str(e)))
-                        continue
-                    else:
-                        logger.error("Falha no reparo automático")
-                        critical_errors.append(('corruption_failed', file_path, str(e)))
-                        break
-                except DatabaseSpaceError as e:
-                    logger.error(f"Espaço em disco insuficiente ao processar '{file_path}': {e}")
-                    critical_errors.append(('space', file_path, str(e)))
-                    break
-                except DatabaseSchemaError as e:
-                    logger.error(f"Erro de schema ao processar '{file_path}': {e}")
-                    logger.info("Tentando recriação do schema...")
-                    if database.initialize_database(db_path):
-                        logger.info("Schema recriado, continuando processamento...")
-                        critical_errors.append(('schema_repaired', file_path, str(e)))
-                        continue
-                    else:
-                        logger.error("Falha na recriação do schema")
-                        critical_errors.append(('schema_failed', file_path, str(e)))
-                        break
-                except DataValidationError as e:
-                    logger.warning(f"Dados inválidos em '{file_path}': {e}. Pulando arquivo...")
-                    critical_errors.append(('validation', file_path, str(e)))
-                    continue
-                except ExtractionError as e:
-                    logger.warning(f"Erro de extração em '{file_path}': {e}. Pulando arquivo...")
-                    critical_errors.append(('extraction', file_path, str(e)))
-                    continue
-                except DatabaseError as e:
-                    logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
-                    critical_errors.append(('database_generic', file_path, str(e)))
-                    continue
-                except Exception as e:
-                    logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
-                    critical_errors.append(('unexpected', file_path, str(e)))
-                    continue
-        finally:
-            if progress_callback:
-                try:
-                    progress_callback('finish', {
-                        'total': total_files,
-                        'processed': len(successfully_processed_files),
-                        'errors': critical_errors
-                    })
-                except Exception:
-                    pass
+            except DataValidationError as e:
+                # Dados inválidos - continua com próximo arquivo
+                logger.warning(f"Dados inválidos em '{file_path}': {e}. Pulando arquivo...")
+                critical_errors.append(('validation', file_path, str(e)))
+                continue
+            except ExtractionError as e:
+                # Erro de extração - continua com próximo arquivo
+                logger.warning(f"Erro de extração em '{file_path}': {e}. Pulando arquivo...")
+                critical_errors.append(('extraction', file_path, str(e)))
+                continue
+            except DatabaseError as e:
+                # Erro genérico de banco - log e continua
+                logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
+                critical_errors.append(('database_generic', file_path, str(e)))
+                continue
+            except Exception as e:
+                # Erro inesperado - log e continua
+                logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
+                critical_errors.append(('unexpected', file_path, str(e)))
+                continue
 
         # Log de resumo de erros
         if critical_errors:
@@ -525,7 +499,6 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     else:
         terms = parse_search_terms(search_terms)
 
-    # Agrupa termos por disjunção (OR). Cada grupo é uma conjunção interna (AND).
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:
         group_idx = term.get('group')

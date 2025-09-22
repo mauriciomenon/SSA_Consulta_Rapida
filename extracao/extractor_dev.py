@@ -1,0 +1,446 @@
+# extracao/extractor.py 20250725 101500 (v6.4 - Melhorias de Tipo, Sanitizacao, Logging)
+"""
+Módulo responsável pela extração e normalização inicial de dados de arquivos Excel.
+
+Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
+`config/column_mappings.json` e converte tipos de dados fundamentais.
+"""
+
+import logging
+import re
+from typing import Dict, Optional, Tuple
+
+import pandas as pd
+
+from core.config_manager import load_column_mappings_integrity
+
+logger = logging.getLogger(__name__)
+
+
+class ExtractionError(Exception):
+    """Erro durante a extração de dados de um arquivo."""
+    pass
+
+
+def _load_column_mappings() -> dict:
+    """
+    Carrega o mapeamento de nomes de colunas a partir do arquivo JSON.
+
+    Returns:
+        dict: Um dicionário {alias: nome_canonico}.
+              Retorna um dicionário vazio se o arquivo não for encontrado.
+    """
+    try:
+        mappings = load_column_mappings_integrity()
+        inverted_map = {
+            alias: canonical
+            for canonical, aliases in mappings.items()
+            for alias in aliases
+        }
+        logger.debug(
+            "Mapeamento de colunas carregado com %s entradas (via integridade).",
+            len(inverted_map),
+        )
+        return inverted_map
+    except Exception as e:
+        logger.error(
+            "Falha ao carregar mapeamentos de coluna com integridade: %s",
+            e,
+        )
+        return {}
+
+
+def _deduplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure column names are unique while keeping semantic aliases when possible."""
+
+    if df.empty:
+        return df
+
+    counts: dict[str, int] = {}
+    used: set[str] = set()
+    resolved: list[str] = []
+
+    # Canonical resolution map - subsequent duplicates get deterministic names.
+    duplicate_resolution: dict[str, list[str]] = {
+        'desde': ['desde', 'desde_1', 'desde_2'],
+        'ate': ['ate', 'ate_1', 'ate_2'],
+        'sn': ['sn_retirado', 'sn_instalado', 'sn_extra'],
+        'numero_ssa': [
+            'numero_ssa',
+            'numero_ssa_relacionada_1',
+            'numero_ssa_relacionada_2',
+            'numero_ssa_relacionada_3',
+        ],
+        'setor_emissor': [
+            'setor_emissor',
+            'setor_emissor_relacionado_1',
+            'setor_emissor_relacionado_2',
+        ],
+        'setor_executor': [
+            'setor_executor',
+            'setor_executor_relacionado_1',
+            'setor_executor_relacionado_2',
+        ],
+        'situacao': ['situacao', 'situacao_relacionada_1', 'situacao_relacionada_2'],
+    }
+
+    for original_name in df.columns:
+        base_name = str(original_name)
+        count = counts.get(base_name, 0)
+        normalized = base_name.lower()
+        options = duplicate_resolution.get(normalized)
+        if options and count < len(options):
+            candidate = options[count]
+        elif count == 0:
+            candidate = base_name
+        else:
+            candidate = f"{base_name}_{count}"
+        # Guarantee uniqueness even after resolution.
+        while candidate in used:
+            count += 1
+            counts[base_name] = count
+            options = duplicate_resolution.get(normalized)
+            if options and count < len(options):
+                candidate = options[count]
+            else:
+                candidate = f"{base_name}_{count}"
+        counts[base_name] = count + 1
+        used.add(candidate)
+        resolved.append(candidate)
+
+    df = df.copy()
+    df.columns = resolved
+    return df
+
+
+def _normalize_tempo_excedido_value(value) -> str | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    matches = re.findall(r"(\d+)\s*(mi|m|d|h)", text.lower())
+    if not matches:
+        return text
+    units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
+    for number, unit in matches:
+        try:
+            qty = int(number)
+        except ValueError:
+            return text
+        if unit == 'mi':
+            units['minutes'] += qty
+        elif unit == 'm':
+            units['months'] += qty
+        elif unit == 'd':
+            units['days'] += qty
+        elif unit == 'h':
+            units['hours'] += qty
+    parts = ['P']
+    if units['months']:
+        parts.append(f"{units['months']}M")
+    if units['days']:
+        parts.append(f"{units['days']}D")
+    time_parts: list[str] = []
+    if units['hours']:
+        time_parts.append(f"{units['hours']}H")
+    if units['minutes']:
+        time_parts.append(f"{units['minutes']}M")
+    if time_parts:
+        parts.append('T' + ''.join(time_parts))
+    normalized = ''.join(parts)
+    return normalized if normalized != 'P' else text
+
+
+def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converte colunas-chave para tipos de dados padronizados.
+
+    Args:
+        df (pd.DataFrame): O DataFrame bruto após combinar planilhas.
+
+    Returns:
+        pd.DataFrame: O DataFrame com tipos de dados normalizados.
+    """
+    logger.debug("Iniciando normalização de tipos de dados...")
+    df_normalized = df.copy()  # Trabalha em uma cópia
+
+    # --- Conversao de numero_ssa para Int64 nullable ---
+    if 'numero_ssa' in df_normalized.columns:
+        logger.debug("Convertendo 'numero_ssa' para Int64...")
+        df_normalized['numero_ssa'] = pd.to_numeric(
+            df_normalized['numero_ssa'],
+            errors='coerce',
+        ).astype('Int64')
+
+    # --- Conversao de data_cadastro para datetime ---
+    if 'data_cadastro' in df_normalized.columns:
+        logger.debug("Convertendo 'data_cadastro' para datetime...")
+        df_normalized['data_cadastro'] = pd.to_datetime(
+            df_normalized['data_cadastro'],
+            errors='coerce',
+            dayfirst=True,  # Assume DD/MM/YYYY
+        )
+
+    # --- Conversao de colunas de semana para Int64 nullable ---
+    semana_columns = [col for col in df_normalized.columns if 'semana' in col.lower()]
+    for col in semana_columns:
+        logger.debug("Convertendo coluna de semana '%s' para Int64...", col)
+        df_normalized[col] = pd.to_numeric(
+            df_normalized[col],
+            errors='coerce',
+        ).astype('Int64')
+
+    # --- Conversao de outras colunas numericas conhecidas ---
+    numeric_columns = [
+        'total_de_reprogramacoes',
+    ]
+    for col in numeric_columns:
+        if col in df_normalized.columns:
+            logger.debug("Convertendo '%s' para Int64...", col)
+            df_normalized[col] = pd.to_numeric(
+                df_normalized[col],
+                errors='coerce',
+            ).astype('Int64')
+
+    logger.debug("Normalização de tipos concluída.")
+    return df_normalized
+
+
+def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
+    """
+    Extrai dados de um único arquivo Excel (.xlsx).
+
+    Args:
+        file_path (str): Caminho completo para o arquivo Excel.
+
+    Returns:
+        Optional[pd.DataFrame]: Um DataFrame com os dados extraídos e normalizados,
+                                ou None em caso de erro.
+    """
+    logger.info("Iniciando extração de dados de '%s'...", file_path)
+    try:
+        all_sheets_data = []
+        xl_file = pd.ExcelFile(file_path, engine='openpyxl')
+
+        for sheet_name in xl_file.sheet_names:
+            logger.debug(f"Processando planilha '{sheet_name}'...")
+            # Le a planilha inteira
+            sheet_df = xl_file.parse(sheet_name, header=None)
+
+            # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
+            header_row_idx = None
+            for idx, value in enumerate(sheet_df.iloc[:, 0]):
+                if pd.notna(value) and str(value).strip() != '':
+                    header_row_idx = idx
+                    break
+
+            if header_row_idx is not None:
+                # Define os cabecalhos
+                sheet_df.columns = sheet_df.iloc[header_row_idx]
+                # Remove linhas anteriores ao cabecalho e o proprio cabecalho
+                sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
+                # Reseta o indice
+                sheet_df = sheet_df.reset_index(drop=True)
+
+                # Remove colunas completamente vazias
+                sheet_df = sheet_df.dropna(axis=1, how='all')
+
+                if not sheet_df.empty:
+                    all_sheets_data.append(sheet_df)
+                else:
+                    logger.debug(
+                        "Planilha '%s' está vazia após processamento.",
+                        sheet_name,
+                    )
+            else:
+                logger.warning(
+                    "Planilha '%s' em '%s' não possui cabeçalho identificável.",
+                    sheet_name,
+                    file_path,
+                )
+
+        if not all_sheets_data:
+            logger.warning("Nenhum dado válido encontrado em '%s'.", file_path)
+            return None
+
+        # Combina dados de todas as planilhas
+        combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False)
+
+        # Remove linhas completamente vazias
+        initial_len = len(combined_df)
+        combined_df.dropna(how='all', inplace=True)
+        final_len = len(combined_df)
+        if initial_len != final_len:
+            logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
+
+        if combined_df.empty:
+            logger.warning(
+                "Nenhum dado válido encontrado em '%s' após combinação.",
+                file_path,
+            )
+            return None
+
+        # Carrega o mapeamento de colunas
+        column_mappings = _load_column_mappings()
+
+        # Normaliza os nomes das colunas e resolve duplicadas
+        combined_df.rename(columns=column_mappings, inplace=True)
+        combined_df = _deduplicate_columns(combined_df)
+
+        if 'prazo_limite' in combined_df.columns:
+            status_col = 'status_execucao_prazo'
+            status_map = {
+                'fora de prazo': 'Fora de Prazo',
+                'dentro do prazo': 'Dentro do Prazo',
+                'não aplica': 'Não Se Aplica',
+                'nao aplica': 'Não Se Aplica',
+            }
+            prazo_series = combined_df['prazo_limite'].astype(str).str.strip()
+            status_series = pd.Series(pd.NA, index=combined_df.index, dtype="object")
+            status_mask = prazo_series.str.lower().isin(status_map.keys())
+            if status_mask.any():
+                combined_df.loc[status_mask, 'prazo_limite'] = pd.NA
+                status_series.loc[status_mask] = (
+                    prazo_series.loc[status_mask]
+                    .str.lower()
+                    .map(status_map)
+                )
+            combined_df[status_col] = status_series
+
+        if 'tempo_excedido' in combined_df.columns:
+            combined_df['tempo_excedido'] = combined_df['tempo_excedido'].apply(
+                _normalize_tempo_excedido_value
+            )
+
+        logger.debug(
+            "Colunas renomeadas. Novas colunas: %s",
+            list(combined_df.columns),
+        )
+
+        # Normaliza os tipos de dados
+        combined_df = _normalize_datatypes(combined_df)
+
+        # --- Sanitizacao Basica e Robusta de Strings ---
+        logger.debug("Iniciando sanitização de strings...")
+        for col in combined_df.columns:
+            # Verifica se a coluna é de tipo 'object' (pandas usa para strings e mixed types)
+            if pd.api.types.is_object_dtype(combined_df[col]):
+                # 1. Converte para string, tratando valores NA
+                combined_df[col] = combined_df[col].astype(str)
+
+                # 2. Substitui strings que representam valores nulos por pd.NA
+                # Isso é importante para consistência após a conversão para string
+                combined_df[col] = combined_df[col].replace(['nan', 'None', 'NaN', '<NA>'], pd.NA)
+
+                # 3. Remove espaços extras no início e no fim
+                combined_df[col] = combined_df[col].str.strip()
+
+                # 4. Substitui strings vazias resultantes por pd.NA
+                combined_df[col] = combined_df[col].replace({'': pd.NA})
+
+                # Nota: A normalização Unicode e remoção de caracteres de controle
+                # podem ser feitas aqui se necessário, mas o table_printer.py
+                # já faz uma sanitização agressiva para exibição.
+                # Manter a original no DB pode ser útil.
+
+        # --- VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS ---
+        logger.debug("Validando campos obrigatórios...")
+
+        # Filtrar registros com campos essenciais vazios
+        before_validation = len(combined_df)
+
+        # Remover registros completamente inválidos (sem SSA e sem descrição)
+        numero_series = (
+            combined_df['numero_ssa']
+            if 'numero_ssa' in combined_df.columns
+            else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
+        )
+        descricao_series = (
+            combined_df['descricao_ssa']
+            if 'descricao_ssa' in combined_df.columns
+            else pd.Series([pd.NA] * len(combined_df), index=combined_df.index, dtype="object")
+        )
+        valid_mask = (
+            (numero_series.notna() & (numero_series != '')) |
+            (descricao_series.notna() & (descricao_series != ''))
+        )
+
+        combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
+        after_validation = len(combined_df)
+
+        if before_validation > after_validation:
+            invalid_count = before_validation - after_validation
+            logger.warning(
+                "Removidos %s registros inválidos (sem número SSA nem descrição)",
+                invalid_count,
+            )
+
+        # Validar campos críticos e avisar sobre problemas
+        if 'numero_ssa' in combined_df.columns:
+            empty_ssa = combined_df['numero_ssa'].isna() | (combined_df['numero_ssa'] == '')
+            empty_ssa_count = int(empty_ssa.sum())
+            if empty_ssa_count > 0:
+                logger.warning(
+                    "%s registros sem número de SSA (mantidos com descrição válida)",
+                    empty_ssa_count,
+                )
+
+        if 'semana_cadastro' in combined_df.columns:
+            empty_week = (
+                combined_df['semana_cadastro'].isna()
+                | (combined_df['semana_cadastro'] == '')
+                | (combined_df['semana_cadastro'] == '-')
+            )
+            empty_week_count = int(empty_week.sum())
+            if empty_week_count > 0:
+                logger.warning(
+                    "%s registros sem semana de cadastro",
+                    empty_week_count,
+                )
+
+        logger.info(
+            "Extração concluída com sucesso. %s linhas válidas extraídas.",
+            len(combined_df),
+        )
+        return combined_df
+
+    except FileNotFoundError:
+        logger.error("Arquivo '%s' não encontrado.", file_path)
+        return None
+    except pd.errors.ParserError as e:
+        logger.error(
+            "Erro ao ler '%s': Problema ao analisar o arquivo Excel. Detalhes: %s",
+            file_path,
+            e,
+        )
+        return None
+    except Exception as e:
+        logger.error(
+            "Erro inesperado ao processar '%s': %s",
+            file_path,
+            e,
+            exc_info=True,
+        )
+        return None
+
+
+def read_report(file_path: str) -> Tuple[Optional[pd.DataFrame], Dict[str, str]]:
+    """
+    Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
+
+    Esta função é um invólucro (wrapper) em torno de `extract_data_from_excel`,
+    mantendo compatibilidade com chamadas existentes que esperam uma tupla
+    (df, meta).
+
+    Args:
+        file_path: Caminho do arquivo .xlsx a ser lido.
+
+    Returns:
+        Tuple[Optional[pd.DataFrame], Dict[str, str]]: O DataFrame resultante (ou None em
+        caso de erro) e metadados mínimos contendo ao menos o caminho de origem.
+    """
+    df = extract_data_from_excel(file_path)
+    metadata: Dict[str, str] = {"source_path": file_path}
+    # Futuro: adicionar nº de planilhas, tempo de execução, etc.
+    return df, metadata
