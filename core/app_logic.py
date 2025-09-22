@@ -2,13 +2,7 @@
 """
 Lógica central da aplicação para importação e atualização do banco de dados.
 
-Coordena a verificação de arqdef run_importer_logic(
-    docs_dir: str = 'docs_entrada',
-    data_dir: str = 'data',
-    db_name: str = 'ssas.db',
-    table_name: str = 'ssa_table',
-    force_import: bool = False
-) -> bool:odificados, a extração de dados,
+Coordena a verificação de arquivos modificados, a extração de dados,
 a atualização do banco de dados SQLite e o gerenciamento do cache.
 """
 
@@ -17,56 +11,66 @@ import sys
 import logging
 import pandas as pd
 import re
-from typing import List, Set, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 
 # Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from utils import caching
-from extracao import extractor
-from armazenamento import database
+from utils import caching  # noqa: E402
+from extracao import extractor  # noqa: E402
+from armazenamento import database  # noqa: E402
 
 # Configura logger específico para este módulo
 logger = logging.getLogger(__name__)
 
 # --- Exceções Personalizadas ---
 
+
 class ImporterError(Exception):
     """Exceção base para erros no processo de importação."""
     pass
+
 
 class CacheError(ImporterError):
     """Erro relacionado ao sistema de cache."""
     pass
 
+
 class ExtractionError(ImporterError):
     """Erro durante a extração de dados de um arquivo."""
     pass
+
 
 class DatabaseError(ImporterError):
     """Erro durante operações no banco de dados."""
     pass
 
+
 class DatabaseConnectionError(DatabaseError):
     """Erro de conexão com o banco de dados."""
     pass
+
 
 class DatabaseCorruptionError(DatabaseError):
     """Erro indicando corrupção no banco de dados."""
     pass
 
+
 class DatabaseSchemaError(DatabaseError):
     """Erro relacionado ao schema do banco de dados."""
     pass
+
 
 class DatabaseSpaceError(DatabaseError):
     """Erro de espaço insuficiente em disco."""
     pass
 
+
 class DataValidationError(ImporterError):
     """Erro de validação de dados antes da inserção."""
     pass
+
 
 # --- Funções Auxiliares Refatoradas ---
 
@@ -105,6 +109,7 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
     except Exception as e:
         logger.error(f"Erro ao determinar arquivos para processamento: {e}")
         raise CacheError(f"Falha na verificação de arquivos: {e}") from e
+
 
 def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
     """
@@ -147,7 +152,10 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
                 # Opção 2: Tentar inserir mesmo assim (atual)
                 logger.warning("Tentando inserção apesar dos problemas críticos...")
             else:
-                logger.info(f"✓ Dados validados: {validation_report['row_count']} linhas prontas para inserção")
+                logger.info(
+                    "✓ Dados validados: %s linhas prontas para inserção",
+                    validation_report['row_count'],
+                )
 
             # CORREÇÃO CRÍTICA: Usar smart_upsert para evitar duplicatas
             success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name)
@@ -159,13 +167,14 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
             logger.warning(f"Nenhum dado válido extraído de '{file_path}'. Pulando.")
-            return True # Não é um erro crítico, apenas não há dados
+            return True  # Não é um erro crítico, apenas não há dados
     except extractor.ExtractionError:
         # Re-levanta erros específicos de extração
         raise
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
         raise ExtractionError(f"Erro ao importar {file_path}") from e
+
 
 def _update_cache_after_import(
     processed_files: List[str],
@@ -192,14 +201,17 @@ def _update_cache_after_import(
         logger.error(f"Erro ao atualizar o cache: {e}")
         raise CacheError("Falha ao atualizar o cache após importação.") from e
 
+
 # --- Função Principal Refatorada ---
+
 
 def run_importer_logic(
     docs_dir: str = 'docs_entrada',
     data_dir: str = 'data',
     db_name: str = 'ssas.db',
     table_name: str = 'ssa_table',
-    force_import: bool = False
+    force_import: bool = False,
+    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
 ) -> bool:
     """
     Executa a lógica principal de importação de dados.
@@ -210,6 +222,7 @@ def run_importer_logic(
         db_name (str): Nome do arquivo do banco de dados SQLite.
         table_name (str): Nome da tabela no banco de dados.
         force_import (bool): Se True, força a reimportação de todos os arquivos.
+        progress_callback (Optional[Callable]): Callback para reportar progresso da importação.
 
     Returns:
         bool: True se o banco de dados foi atualizado, False caso contrário.
@@ -260,9 +273,20 @@ def run_importer_logic(
 
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
+        total_files = len(files_to_process)
+        if progress_callback:
+            try:
+                progress_callback('start', {'total': total_files})
+            except Exception:
+                pass
 
         if not files_to_process:
             logger.info("Nenhum arquivo novo ou modificado encontrado para processamento.")
+            if progress_callback:
+                try:
+                    progress_callback('finish', {'total': 0, 'processed': 0, 'errors': []})
+                except Exception:
+                    pass
             return False
 
         logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importação.")
@@ -271,69 +295,82 @@ def run_importer_logic(
         successfully_processed_files = []
         critical_errors = []
 
-        for file_path in files_to_process:
-            base_name = os.path.basename(file_path)
-            if base_name.startswith('~$'):
-                logger.info("Ignorando arquivo temporário '%s'", base_name)
-                continue
-            try:
-                if _import_single_file(file_path, db_path, table_name):
-                    successfully_processed_files.append(file_path)
-            except DatabaseConnectionError as e:
-                # Erro de conexão - provavelmente fatal para todos os arquivos
-                logger.error(f"Erro de conexão com banco ao processar '{file_path}': {e}")
-                logger.error("Interrompendo processamento devido a falha de conexão")
-                critical_errors.append(('connection', file_path, str(e)))
-                break  # Para todo o processamento
-            except DatabaseCorruptionError as e:
-                # Corrupção - tentar reparo e continuar
-                logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
-                logger.info("Tentando reparo automático do banco...")
-                if database.repair_database_if_needed(db_path, table_name=table_name):
-                    logger.info("Reparo bem-sucedido, continuando processamento...")
-                    critical_errors.append(('corruption_repaired', file_path, str(e)))
-                    continue  # Tenta processar novamente após reparo
-                else:
-                    logger.error("Falha no reparo automático")
-                    critical_errors.append(('corruption_failed', file_path, str(e)))
-                    break  # Para todo o processamento
-            except DatabaseSpaceError as e:
-                # Espaço insuficiente - provavelmente fatal
-                logger.error(f"Espaço em disco insuficiente ao processar '{file_path}': {e}")
-                critical_errors.append(('space', file_path, str(e)))
-                break  # Para todo o processamento
-            except DatabaseSchemaError as e:
-                # Problema de schema - tentar recriar
-                logger.error(f"Erro de schema ao processar '{file_path}': {e}")
-                logger.info("Tentando recriação do schema...")
-                if database.initialize_database(db_path):
-                    logger.info("Schema recriado, continuando processamento...")
-                    critical_errors.append(('schema_repaired', file_path, str(e)))
-                    continue  # Tenta processar novamente
-                else:
-                    logger.error("Falha na recriação do schema")
-                    critical_errors.append(('schema_failed', file_path, str(e)))
+        try:
+            for index, file_path in enumerate(files_to_process):
+                base_name = os.path.basename(file_path)
+                if progress_callback:
+                    try:
+                        progress_callback('file', {
+                            'index': index,
+                            'total': total_files,
+                            'filename': base_name
+                        })
+                    except Exception:
+                        pass
+
+                if base_name.startswith('~$'):
+                    logger.info("Ignorando arquivo temporário '%s'", base_name)
+                    continue
+                try:
+                    if _import_single_file(file_path, db_path, table_name):
+                        successfully_processed_files.append(file_path)
+                except DatabaseConnectionError as e:
+                    logger.error(f"Erro de conexão com banco ao processar '{file_path}': {e}")
+                    logger.error("Interrompendo processamento devido a falha de conexão")
+                    critical_errors.append(('connection', file_path, str(e)))
                     break
-            except DataValidationError as e:
-                # Dados inválidos - continua com próximo arquivo
-                logger.warning(f"Dados inválidos em '{file_path}': {e}. Pulando arquivo...")
-                critical_errors.append(('validation', file_path, str(e)))
-                continue
-            except ExtractionError as e:
-                # Erro de extração - continua com próximo arquivo
-                logger.warning(f"Erro de extração em '{file_path}': {e}. Pulando arquivo...")
-                critical_errors.append(('extraction', file_path, str(e)))
-                continue
-            except DatabaseError as e:
-                # Erro genérico de banco - log e continua
-                logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
-                critical_errors.append(('database_generic', file_path, str(e)))
-                continue
-            except Exception as e:
-                # Erro inesperado - log e continua
-                logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
-                critical_errors.append(('unexpected', file_path, str(e)))
-                continue
+                except DatabaseCorruptionError as e:
+                    logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
+                    logger.info("Tentando reparo automático do banco...")
+                    if database.repair_database_if_needed(db_path, table_name=table_name):
+                        logger.info("Reparo bem-sucedido, continuando processamento...")
+                        critical_errors.append(('corruption_repaired', file_path, str(e)))
+                        continue
+                    else:
+                        logger.error("Falha no reparo automático")
+                        critical_errors.append(('corruption_failed', file_path, str(e)))
+                        break
+                except DatabaseSpaceError as e:
+                    logger.error(f"Espaço em disco insuficiente ao processar '{file_path}': {e}")
+                    critical_errors.append(('space', file_path, str(e)))
+                    break
+                except DatabaseSchemaError as e:
+                    logger.error(f"Erro de schema ao processar '{file_path}': {e}")
+                    logger.info("Tentando recriação do schema...")
+                    if database.initialize_database(db_path):
+                        logger.info("Schema recriado, continuando processamento...")
+                        critical_errors.append(('schema_repaired', file_path, str(e)))
+                        continue
+                    else:
+                        logger.error("Falha na recriação do schema")
+                        critical_errors.append(('schema_failed', file_path, str(e)))
+                        break
+                except DataValidationError as e:
+                    logger.warning(f"Dados inválidos em '{file_path}': {e}. Pulando arquivo...")
+                    critical_errors.append(('validation', file_path, str(e)))
+                    continue
+                except ExtractionError as e:
+                    logger.warning(f"Erro de extração em '{file_path}': {e}. Pulando arquivo...")
+                    critical_errors.append(('extraction', file_path, str(e)))
+                    continue
+                except DatabaseError as e:
+                    logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
+                    critical_errors.append(('database_generic', file_path, str(e)))
+                    continue
+                except Exception as e:
+                    logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
+                    critical_errors.append(('unexpected', file_path, str(e)))
+                    continue
+        finally:
+            if progress_callback:
+                try:
+                    progress_callback('finish', {
+                        'total': total_files,
+                        'processed': len(successfully_processed_files),
+                        'errors': critical_errors
+                    })
+                except Exception:
+                    pass
 
         # Log de resumo de erros
         if critical_errors:
@@ -358,7 +395,10 @@ def run_importer_logic(
         raise ImporterError("Erro crítico no processo de importação.") from e
 
 
-def parse_search_terms(search_terms: List[str], default_mode: str = 'contains') -> List[Dict[str, Any]]:
+def parse_search_terms(
+    search_terms: List[str],
+    default_mode: str = 'contains',
+) -> List[Dict[str, Any]]:
     """
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
 
@@ -369,46 +409,96 @@ def parse_search_terms(search_terms: List[str], default_mode: str = 'contains') 
     - igual: =foo
     - regex: ~foo.*bar
     Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
+
+    Conectivos aceitos (case-insensitive):
+    - OU / OR / || (agrupa condições como disjunção)
+    - E / AND / && (tratado como conjunção implícita)
     """
     parsed: List[Dict[str, Any]] = []
     if not search_terms:
         return parsed
-    for raw in search_terms:
-        if not isinstance(raw, str):
+    if not isinstance(search_terms, list):
+        return parsed
+
+    def _tokenize_inputs(raw_terms: List[str]) -> List[str]:
+        tokens: List[str] = []
+        pattern = re.compile(r'(?i)(\|\||&&|\bOU\b|\bOR\b|\bAND\b|\bE\b|(?<=\S)[vV](?=\S))')
+        for raw in raw_terms:
+            if not isinstance(raw, str):
+                continue
+            normalized = raw.replace(',', ' AND ')
+            normalized = normalized.replace('∨', ' OR ').replace('∧', ' AND ')
+            parts = pattern.split(normalized)
+            for part in parts:
+                if not part:
+                    continue
+                piece = part.strip()
+                if piece:
+                    tokens.append(piece)
+        return tokens
+
+    def _split_segments(tokens: List[str]) -> List[List[str]]:
+        segments: List[List[str]] = []
+        current: List[str] = []
+        for token in tokens:
+            lower = token.lower()
+            if lower in {'or', 'ou', '||', '∨', 'v'}:
+                if current:
+                    segments.append(current)
+                    current = []
+                continue
+            if lower in {'and', 'e', '&&', '∧', '^'}:
+                continue
+            current.append(token)
+        if current:
+            segments.append(current)
+        if not segments:
+            segments.append([])
+        return segments
+
+    tokens = _tokenize_inputs(search_terms)
+    segments = _split_segments(tokens)
+
+    allowed_modes = {'contains', 'prefix', 'suffix', 'exact', 'regex'}
+    fallback_mode = default_mode if default_mode in allowed_modes else 'contains'
+
+    for group_index, segment in enumerate(segments):
+        if not segment:
             continue
-        t = raw.strip()
-        if not t:
-            continue
-        negative = False
-        if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
-            negative = True
-            t = t[1:]
-        # modo padrão configurável (contains/prefix/suffix/exact/regex)
-        mode = default_mode if default_mode in {'contains','prefix','suffix','exact','regex'} else 'contains'
-        value = t
-        # Marcadores explícitos têm precedência (exceto âncoras ^/$ quando default é regex)
-        if t.startswith('~') and len(t) > 1:
-            mode = 'regex'
-            value = t[1:]
-        elif t.startswith('=') and len(t) > 1:
-            mode = 'exact'
-            value = t[1:]
-        elif t.startswith('$') and len(t) > 1:
-            # Suporte ao atalho '!$foo' / '$foo' para sufixo
-            mode = 'suffix'
-            value = t[1:]
-        elif default_mode != 'regex' and t.startswith('^') and len(t) > 1:
-            mode = 'prefix'
-            value = t[1:]
-        elif default_mode != 'regex' and t.endswith('$') and len(t) > 1:
-            mode = 'suffix'
-            value = t[:-1]
-        parsed.append({
-            'raw': raw,
-            'mode': mode,
-            'value': value,
-            'negative': negative,
-        })
+        for raw in segment:
+            if not isinstance(raw, str):
+                continue
+            t = raw.strip()
+            if not t:
+                continue
+            negative = False
+            if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
+                negative = True
+                t = t[1:]
+            mode = fallback_mode
+            value = t
+            if t.startswith('~') and len(t) > 1:
+                mode = 'regex'
+                value = t[1:]
+            elif t.startswith('=') and len(t) > 1:
+                mode = 'exact'
+                value = t[1:]
+            elif t.startswith('$') and len(t) > 1:
+                mode = 'suffix'
+                value = t[1:]
+            elif fallback_mode != 'regex' and t.startswith('^') and len(t) > 1:
+                mode = 'prefix'
+                value = t[1:]
+            elif fallback_mode != 'regex' and t.endswith('$') and len(t) > 1:
+                mode = 'suffix'
+                value = t[:-1]
+            parsed.append({
+                'raw': raw,
+                'mode': mode,
+                'value': value,
+                'negative': negative,
+                'group': group_index,
+            })
     return parsed
 
 
@@ -435,55 +525,71 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     else:
         terms = parse_search_terms(search_terms)
 
-    # Separa positivos e negativos
-    positives = [t for t in terms if not t.get('negative')]
-    negatives = [t for t in terms if t.get('negative')]
+    # Agrupa termos por disjunção (OR). Cada grupo é uma conjunção interna (AND).
+    grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
+    for term in terms:
+        group_idx = term.get('group')
+        if group_idx is None:
+            group_idx = 0
+        grouped_terms.setdefault(int(group_idx), []).append(term)
 
-    # Máscara acumulada (AND entre termos)
-    mask = pd.Series(True, index=df.index)
+    if not grouped_terms:
+        return df
 
     def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
         mode = term.get('mode', 'contains')
         value = term.get('value', '') or ''
+
+        def _contains(pattern: str, *, regex: bool) -> pd.Series:
+            return base_str_df.apply(
+                lambda col: col.str.contains(pattern, case=False, na=False, regex=regex)
+            ).any(axis=1)
+
         if mode == 'contains':
-            return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
-        elif mode == 'prefix':
-            escaped = re.escape(value)
-            pattern = f'^{escaped}'
-            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
-        elif mode == 'suffix':
-            escaped = re.escape(value)
-            pattern = f'{escaped}$'
-            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
-        elif mode == 'exact':
-            escaped = re.escape(value)
-            pattern = f'^{escaped}$'
-            return base_str_df.apply(lambda col: col.str.contains(pattern, case=False, na=False, regex=True)).any(axis=1)
-        elif mode == 'regex':
+            return _contains(value, regex=False)
+        if mode == 'prefix':
+            pattern = f"^{re.escape(value)}"
+            return _contains(pattern, regex=True)
+        if mode == 'suffix':
+            pattern = f"{re.escape(value)}$"
+            return _contains(pattern, regex=True)
+        if mode == 'exact':
+            pattern = f"^{re.escape(value)}$"
+            return _contains(pattern, regex=True)
+        if mode == 'regex':
             try:
-                # Tenta aplicar como regex (case-insensitive)
-                return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=True)).any(axis=1)
+                return _contains(value, regex=True)
             except re.error:
-                # Regex inválida: faz fallback para 'contains' literal
-                return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
-        else:
-            # fallback defensivo para contains
-            return base_str_df.apply(lambda col: col.str.contains(value, case=False, na=False, regex=False)).any(axis=1)
+                return _contains(value, regex=False)
+        return _contains(value, regex=False)
 
-    # Aplica positivos (linha deve satisfazer TODOS)
-    for term in positives:
-        term_mask = _mask_for_term(term)
-        mask = mask & term_mask
+    final_mask = pd.Series(False, index=df.index)
 
-    # Aplica negativos (linha deve NÃO satisfazer nenhum)
-    for term in negatives:
-        term_mask = _mask_for_term(term)
-        mask = mask & (~term_mask)
+    for group_terms in grouped_terms.values():
+        if not group_terms:
+            continue
+        group_mask = pd.Series(True, index=df.index)
+        positives = [t for t in group_terms if not t.get('negative')]
+        negatives = [t for t in group_terms if t.get('negative')]
 
-    return df[mask]
+        for term in positives:
+            group_mask = group_mask & _mask_for_term(term)
+
+        for term in negatives:
+            group_mask = group_mask & (~_mask_for_term(term))
+
+        final_mask = final_mask | group_mask
+
+    if final_mask.any():
+        return df[final_mask]
+    return df.iloc[0:0] if grouped_terms else df
 
 
-def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force_import: bool = False) -> bool:
+def import_files_to_database(
+    docs_dir: str,
+    db_path: str = "data/ssas.db",
+    force_import: bool = False,
+) -> bool:
     """
     Importa arquivos de um diretório para o banco de dados.
 
@@ -519,7 +625,10 @@ def import_files_to_database(docs_dir: str, db_path: str = "data/ssas.db", force
         return False
 
 
-def get_filtered_data(db_path: str = "data/ssas.db", filters: Dict[str, Any] = None) -> pd.DataFrame:
+def get_filtered_data(
+    db_path: str = "data/ssas.db",
+    filters: Dict[str, Any] | None = None,
+) -> pd.DataFrame:
     """
     Obtém dados filtrados do banco de dados.
 
