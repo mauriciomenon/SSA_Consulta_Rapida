@@ -1,4 +1,4 @@
 {
-  "version_short": "3.10",
-  "version_long": "SSA Consulta Rapida v3.10 – Painel de filtros por coluna mais compacto (labels proximos, botoes fixos), estabilidade de larguras de colunas (somente recalcula em mudancas de colunas/viewport), tema claro com contraste reforcado (caixas Semana/Status #eee/#aaa) e textos de ajuda mais claros."
+  "version_short": "3.11",
+  "version_long": "SSA Consulta Rapida v3.11 – CLI com paginacao interativa (m/mais), filtros OU/OR unificados em CLI/GUI/Streamlit, nova paleta de temas (Escala de cinza, Windows 7, KDE e GNOME) e dashboard Streamlit com resumo de filtros ativo."
 }
