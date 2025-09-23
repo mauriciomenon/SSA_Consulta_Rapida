@@ -156,7 +156,7 @@ celerybeat.pid
 
 # Environments
 .env
-.envrc  # (contém chaves locais via direnv; ver .envrc.example)
+.envrc  # (cont?m chaves locais via direnv; ver .envrc.example)
 .venv
 env/
 venv/
@@ -229,7 +229,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Ignorar arquivos temporários do Excel na pasta docs
+# Ignorar arquivos tempor?rios do Excel na pasta docs
 docs/~$*.xlsx
 /*.webui_secret_key
 
@@ -240,7 +240,7 @@ data/ssas.db-journal
 data/ssas.db.*
 data/historico_backups/
 data/historico_backups/**
-# Artefatos de recuperação
+# Artefatos de recupera??o
 WIP_*.patch
 docs_saida/SESSION_RECOVERY_*/
 
@@ -248,6 +248,8 @@ docs_saida/SESSION_RECOVERY_*/
 legacy/
 .venv/
 .venv_build/
+.venv_ft/
+.direnv/
 .DS_Store
 .continue/
 __pycache__/
