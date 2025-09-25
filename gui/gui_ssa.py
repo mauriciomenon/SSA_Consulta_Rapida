@@ -21,10 +21,11 @@ import pandas as pd
 import json
 import subprocess
 import re
+import logging
 from collections import OrderedDict
 try:
     from utils.version import get_app_version
-except Exception:
+except ImportError:
     def get_app_version():
         return "3.11+"
 
@@ -38,12 +39,14 @@ from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # n
 from utils.themes import get_palette, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 # --- Função para Carregar Configurações da GUI Principal ---
 def load_gui_main_preferences():
-    """Carrega configurações específicas da GUI Principal do arquivo JSON"""
+    """Carrega configuracoes especificas da GUI Principal do arquivo JSON."""
     config_path = os.path.join(project_root, 'config', 'gui_main_preferences.json')
 
-    # Configurações padrão caso o arquivo não exista
     default_config = {
         "display_columns": [
             "numero_ssa", "setor_executor", "situacao", "descricao_ssa",
@@ -67,23 +70,25 @@ def load_gui_main_preferences():
         "version": "1.0.0"
     }
 
-    try:
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                loaded_config = json.load(f)
-                # Valida estrutura mínima
-                if isinstance(loaded_config, dict) and 'display_columns' in loaded_config:
-                    return loaded_config
-                else:
-                    print(f"Configuração inválida em {config_path}, usando padrões.")
-                    return default_config
-        else:
-            print(f"Arquivo de configuração não encontrado em {config_path}, usando padrões.")
-            return default_config
-    except Exception as e:
-        print(f"Erro ao carregar configurações da GUI Principal: {e}, usando padrões.")
+    if not os.path.exists(config_path):
+        logger.warning("Gui main preferences not found at %s, using defaults.", config_path)
         return default_config
 
+    try:
+        with open(config_path, 'r', encoding='utf-8') as handle:
+            loaded_config = json.load(handle)
+    except json.JSONDecodeError as exc:
+        logger.error("Unable to parse gui main preferences at %s: %s", config_path, exc)
+        return default_config
+    except OSError as exc:
+        logger.error("Unable to read gui main preferences at %s: %s", config_path, exc)
+        return default_config
+
+    if not isinstance(loaded_config, dict) or 'display_columns' not in loaded_config:
+        logger.warning("Invalid gui main preferences structure at %s, using defaults.", config_path)
+        return default_config
+
+    return loaded_config
 # Carrega as configurações globalmente
 GUI_MAIN_PREFERENCES = load_gui_main_preferences()
 
@@ -107,8 +112,9 @@ try:
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
     from PyQt6.QtGui import QAction, QFont
-except Exception:
+except ImportError as exc:
     QT_AVAILABLE = False
+    logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
     class _Sig:
         def emit(self, *a, **k):
@@ -677,14 +683,12 @@ class ColumnSelector(QWidget):
         translated = [self.display_map.get(col, col) for col in self.selected_internal_columns]
         if not translated:
             text = "Nenhuma coluna selecionada"
+            tooltip = text
         else:
-            if len(translated) <= 3:
-                detail = ", ".join(translated)
-            else:
-                detail = ", ".join(translated[:3]) + f" +{len(translated) - 3}"
-            text = f"{len(translated)} colunas ativas: {detail}"
+            text = f"{len(translated)} colunas ativas"
+            tooltip = ", ".join(translated)
         self.summary_label.setText(text)
-        self.summary_label.setToolTip(", ".join(translated) if translated else text)
+        self.summary_label.setToolTip(tooltip)
 
     def get_selected_columns(self):
         return self.selected_internal_columns
@@ -939,6 +943,10 @@ class SSAMainWindow(QMainWindow):
         self.sort_column = None
         self.sort_ascending = True
         self._active_column_filters = OrderedDict()
+        self._column_filter_inputs = {}
+        self._column_filter_labels = {}
+        self._pending_filter_focus = None
+        self._current_theme = None
         self._df_last_search_filtered = pd.DataFrame()
 
         self._initialize_profile_filter_placeholders()
@@ -1106,14 +1114,14 @@ class SSAMainWindow(QMainWindow):
         help_line.setContentsMargins(0, 0, 0, 0)
         # Texto direto e visivel; etiqueta se expande ate o fim da linha
         self.search_help = QLabel(
-            "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna. Também aceita OU/OR e mantém o E/AND implícito entre termos."
+            "Separe por virgulas. Use ! para excluir. A busca vale para qualquer coluna. Tambem aceita OU/OR e mantem o E/AND implicito entre termos. Entre colunas o filtro usa E implicito."
         )
         self.search_help.setWordWrap(False)
         try:
             self.search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         except Exception:
             pass
-        self.search_help.setStyleSheet("font-size: 10px; color: palette(mid); margin:0; padding:0;")
+        self.search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
         help_line.addWidget(self.search_help)
         main_layout.addLayout(help_line)
         # Espaco para destacar a faixa de pesquisa (simetrico com o topo)
@@ -1212,7 +1220,7 @@ class SSAMainWindow(QMainWindow):
                     self.filters_summary_label.setFont(QFont(self._info_font))
                 except Exception:
                     pass
-            self.filters_summary_label.setStyleSheet("")
+            self.filters_summary_label.setStyleSheet("color: palette(windowText);")
             self.clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             self.clear_all_filters_btn.setMaximumWidth(200)
             self.clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
@@ -1295,7 +1303,7 @@ class SSAMainWindow(QMainWindow):
         self.col_filters_group = QGroupBox("Filtros por Coluna (acumulam com Pesquisa Geral)")
         col_filters_outer = QVBoxLayout(self.col_filters_group)
         from PyQt6.QtWidgets import QScrollArea
-        self.col_filters_hint = QLabel("Use vírgulas para combinar (E). Para alternativas use OU ou OR.")
+        self.col_filters_hint = QLabel("Use virgulas para combinar (E). Para alternativas use OU ou OR. Entre colunas mantemos E implicito.")
         try:
             self.col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
         except Exception:
@@ -1310,6 +1318,12 @@ class SSAMainWindow(QMainWindow):
         # Rodape fixo
         footer = QHBoxLayout()
         footer.addStretch()
+        self.add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
+        self.add_column_filter_btn.setMaximumWidth(260)
+        self.add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
+        self.add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
+        footer.addWidget(self.add_column_filter_btn)
+        footer.addSpacing(8)
         self.clear_all_btn = QPushButton("Limpar todos filtros de colunas")
         self.clear_all_btn.setMaximumWidth(260)
         self.clear_all_btn.clicked.connect(self._clear_all_column_filters)
@@ -1665,6 +1679,79 @@ class SSAMainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
+    def _open_add_column_filter_menu(self):
+        """Exibe menu com colunas visiveis para ativar filtros dedicados."""
+        try:
+            from PyQt6.QtWidgets import QMenu
+        except Exception:
+            return
+        if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
+            return
+        menu = QMenu(self)
+        columns = []
+        for col in self._current_display_columns:
+            if col == '#':
+                continue
+            display = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
+            action = menu.addAction(display)
+            action.setCheckable(True)
+            action.setChecked(col in self._active_column_filters)
+            action.setData(col)
+            columns.append(action)
+        if not columns:
+            menu.deleteLater()
+            return
+        chosen = menu.exec(self.add_column_filter_btn.mapToGlobal(self.add_column_filter_btn.rect().bottomLeft()))
+        if chosen is None:
+            return
+        col_name = chosen.data()
+        if not col_name:
+            return
+        if col_name in self._active_column_filters:
+            self._deactivate_column_filter(col_name)
+        else:
+            self._activate_column_filter(col_name)
+
+    def _activate_column_filter(self, col_name: str):
+        """Garante entrada para a coluna solicitada e prepara foco na interface."""
+        if not col_name:
+            return
+        if col_name not in self._active_column_filters:
+            self._active_column_filters[col_name] = ""
+            try:
+                self._mark_profile_as_custom()
+            except Exception:
+                pass
+        self._pending_filter_focus = col_name
+        self._build_column_filters_panel()
+
+
+    def _deactivate_column_filter(self, col_name: str):
+        """Remove coluna do conjunto de filtros ativos e atualiza a interface."""
+        if not col_name:
+            return
+        removed = False
+        if col_name in self._column_to_or_group:
+            group = self._column_to_or_group.get(col_name)
+            if group:
+                for member in group.get('columns', []):
+                    if member in self._active_column_filters:
+                        self._active_column_filters.pop(member, None)
+                        removed = True
+                group['values'] = []
+        elif col_name in self._active_column_filters:
+            self._active_column_filters.pop(col_name, None)
+            removed = True
+        if not removed:
+            return
+        try:
+            self._mark_profile_as_custom()
+        except Exception:
+            pass
+        self._pending_filter_focus = None
+        self._build_column_filters_panel()
+        self._refresh_after_filter_change()
+
     def _build_column_filters_panel(self):
         # Escolhe layout de lista (compatável com versões antigas e novas)
         target_layout = None
@@ -1681,12 +1768,17 @@ class SSAMainWindow(QMainWindow):
             w = item.widget()
             if w:
                 w.deleteLater()
+        self._column_filter_inputs = {}
+        self._column_filter_labels = {}
 
         if not self._active_column_filters:
             lbl = QLabel("Nenhum filtro por coluna aplicado.")
             lbl.setWordWrap(True)
             target_layout.addWidget(lbl)
             target_layout.addStretch()
+            self._column_filter_inputs = {}
+            self._column_filter_labels = {}
+            self._pending_filter_focus = None
             self._update_col_filter_indicator()
             return
 
@@ -1696,19 +1788,20 @@ class SSAMainWindow(QMainWindow):
             row.setSpacing(4)
             full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
             name_lbl = QLabel(full_name)
+            self._column_filter_labels[col] = name_lbl
             name_lbl.setMinimumWidth(100)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
             term_box = QLineEdit(str(term))
+            self._column_filter_inputs[col] = term_box
             if col in self._column_to_or_group:
                 term_box.setPlaceholderText("Use vírgulas para E. OU/OR para alternativas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
             else:
                 term_box.setPlaceholderText("Separe por vírgulas (E). Use OU/OR para alternativas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
             # Reduzido para garantir visibilidade dos botões em telas estreitas
             term_box.setMinimumWidth(220)
-            term_box.setStyleSheet("font-size: 11px;")
             try:
                 term_box.setMinimumHeight(26)
             except Exception:
@@ -1717,6 +1810,7 @@ class SSAMainWindow(QMainWindow):
                 term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             except Exception:
                 pass
+            self._apply_filter_widget_theme(name_lbl, term_box)
             # Enter aplica o filtro desta coluna
             try:
                 term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
@@ -1771,6 +1865,17 @@ class SSAMainWindow(QMainWindow):
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
 
+        self._update_col_filter_indicator()
+        focus_col = self._pending_filter_focus
+        if focus_col and focus_col in self._column_filter_inputs:
+            try:
+                widget = self._column_filter_inputs[focus_col]
+                widget.setFocus()
+                widget.selectAll()
+            except Exception:
+                pass
+        self._pending_filter_focus = None
+        self._refresh_column_filter_widgets()
         # Botção limpar todos
         # Rodape centralizado (se nao houver barra fixa)
         if not hasattr(self, 'clear_all_btn'):
@@ -1786,6 +1891,46 @@ class SSAMainWindow(QMainWindow):
             target_layout.addWidget(row_w)
         target_layout.addStretch()
 
+
+    def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
+        theme = getattr(self, '_current_theme', '')
+        if theme == 'gruvbox':
+            accent = '#fabd2f'
+            input_style = (
+                "QLineEdit { font-size:11px; color:#fabd2f; background:#3c3836; border:1px solid #fabd2f; border-radius:4px; padding:3px 6px; }"
+                "QLineEdit::placeholder { color:#d79921; }"
+                "QLineEdit:focus { border:1px solid #fe8019; }"
+            )
+            if label_widget is not None:
+                label_widget.setStyleSheet(f'color:{accent};')
+            if input_widget is not None:
+                input_widget.setStyleSheet(' '.join(input_style))
+        elif theme in {'dark', 'kde'}:
+            input_style = (
+                "QLineEdit { font-size:11px; color:#e0e0e0; background:#2b2b2b; border:1px solid #555555; border-radius:4px; padding:3px 6px; }"
+                "QLineEdit::placeholder { color:#aaaaaa; }"
+                "QLineEdit:focus { border:1px solid #888888; }"
+            )
+            if label_widget is not None:
+                label_widget.setStyleSheet('color:#e0e0e0;')
+            if input_widget is not None:
+                input_widget.setStyleSheet(' '.join(input_style))
+        else:
+            if label_widget is not None:
+                label_widget.setStyleSheet('color: palette(windowText);')
+            if input_widget is not None:
+                input_widget.setStyleSheet('font-size: 11px;')
+
+    def _refresh_column_filter_widgets(self):
+        labels = getattr(self, '_column_filter_labels', {}) or {}
+        inputs = getattr(self, '_column_filter_inputs', {}) or {}
+        for col, label in labels.items():
+            self._apply_filter_widget_theme(label, inputs.get(col))
+    def _refresh_column_filter_widgets(self):
+        labels = getattr(self, '_column_filter_labels', {}) or {}
+        inputs = getattr(self, '_column_filter_inputs', {}) or {}
+        for col, label in labels.items():
+            self._apply_filter_widget_theme(label, inputs.get(col))
     def _clear_single_column_filter(self, col_name: str, current_text: str = None):
         if col_name in self._active_column_filters:
             # Se já está vazio e o campo também está vazio, não faz nada
@@ -1963,19 +2108,62 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
         # Ajustes de contraste por tema para rotulos informativos
+        self._current_theme = normalized
         try:
             theme = normalized
             light_themes = {'grayscale', 'windows7', 'gnome'}
+            selector = getattr(self, 'column_selector', None)
             if theme in light_themes:
                 # Usar aparencia padrao do sistema/Fusion; sem CSS pesado
                 if hasattr(self, 'week_label'):
-                    self.week_label.setStyleSheet("")
+                    self.week_label.setStyleSheet('')
                 if hasattr(self, 'status_label'):
-                    self.status_label.setStyleSheet("")
+                    self.status_label.setStyleSheet('')
                 if hasattr(self, 'search_help'):
-                    self.search_help.setStyleSheet("")
+                    if hasattr(self, 'status_label'):
+                        try:
+                            self.search_help.setFont(self.status_label.font())
+                        except Exception:
+                            pass
+                    self.search_help.setStyleSheet('color: palette(windowText); margin:0; padding:0;')
+                if hasattr(self, 'col_filter_indicator'):
+                    self.col_filter_indicator.setStyleSheet('color: palette(windowText);')
+                if hasattr(self, 'filters_summary_label'):
+                    self.filters_summary_label.setStyleSheet('color: palette(windowText);')
+                if hasattr(self, 'col_filters_group'):
+                    self.col_filters_group.setStyleSheet('')
+                if selector is not None and hasattr(selector, 'summary_label'):
+                    selector.summary_label.setStyleSheet('color: palette(windowText);')
+                if hasattr(self, 'col_filters_hint'):
+                    self.col_filters_hint.setStyleSheet('color: palette(windowText); font-size: 11px;')
+            elif theme == 'gruvbox':
+                accent = '#fabd2f'
+                base_bg = '#3c3836'
+                if hasattr(self, 'week_label'):
+                    self.week_label.setStyleSheet(
+                        f"font-weight:600; color:{accent}; background:{base_bg}; border:1px solid {accent}; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'status_label'):
+                    self.status_label.setStyleSheet(
+                        f"color:{accent}; background:{base_bg}; border:1px solid {accent}; border-radius:4px; padding:2px 6px;"
+                    )
+                if hasattr(self, 'search_help'):
+                    self.search_help.setStyleSheet(f"font-size:10px; color:{accent}; margin:0; padding:0;")
+                if hasattr(self, 'col_filter_indicator'):
+                    self.col_filter_indicator.setStyleSheet(f"color:{accent};")
+                if hasattr(self, 'filters_summary_label'):
+                    self.filters_summary_label.setStyleSheet(f"color:{accent};")
+                if selector is not None and hasattr(selector, 'summary_label'):
+                    selector.summary_label.setStyleSheet(f"color:{accent};")
+                if hasattr(self, 'col_filters_hint'):
+                    self.col_filters_hint.setStyleSheet(f"color:{accent}; font-size: 11px;")
+                if hasattr(self, 'col_filters_group'):
+                    self.col_filters_group.setStyleSheet(
+                        "QGroupBox { color:#fabd2f; border:1px solid #fabd2f; border-radius:4px; margin-top: 6px; } "
+                        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
+                    )
             else:
-                # Temas escuros (inclui Gruvbox) com contraste garantido
+                # Temas escuros (Escuro/KDE) com contraste garantido
                 if hasattr(self, 'week_label'):
                     self.week_label.setStyleSheet(
                         "font-weight:600; color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
@@ -1985,9 +2173,20 @@ class SSAMainWindow(QMainWindow):
                         "color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
                     )
                 if hasattr(self, 'search_help'):
-                    self.search_help.setStyleSheet("font-size:10px; color:#b8b8b8; margin:0; padding:0;")
+                    self.search_help.setStyleSheet("font-size:10px; color:#e0e0e0; margin:0; padding:0;")
+                if hasattr(self, 'col_filter_indicator'):
+                    self.col_filter_indicator.setStyleSheet('color:#e0e0e0;')
+                if hasattr(self, 'filters_summary_label'):
+                    self.filters_summary_label.setStyleSheet('color:#e0e0e0;')
+                if selector is not None and hasattr(selector, 'summary_label'):
+                    selector.summary_label.setStyleSheet('color:#e0e0e0;')
+                if hasattr(self, 'col_filters_hint'):
+                    self.col_filters_hint.setStyleSheet('color:#e0e0e0; font-size: 11px;')
+                if hasattr(self, 'col_filters_group'):
+                    self.col_filters_group.setStyleSheet('')
         except Exception:
             pass
+        self._refresh_column_filter_widgets()
         # Persistencia
         try:
             # Persistencia simples do tema sem normalizacao adicional
@@ -3143,8 +3342,8 @@ class SSAMainWindow(QMainWindow):
             self._compute_gui_column_widths(self.df_para_tabela)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
-        except Exception as e:
-            print(f"AVISO: Erro durante recãlculo de larguras no resize: {e}")
+        except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
+            logger.exception("Column width recompute failed during resize")
 
     def _apply_computed_widths_only(self):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
@@ -3170,8 +3369,8 @@ class SSAMainWindow(QMainWindow):
                         if current_width != px:  # So aplica se diferente
                             self.table_widget.setColumnWidth(col_index, px)
 
-        except Exception as e:
-            print(f"AVISO: Erro durante aplicaçção de larguras: {e}")
+        except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
+            logger.exception("Column width apply failed during resize handling")
 
     def closeEvent(self, event):
         """
@@ -3189,16 +3388,16 @@ class SSAMainWindow(QMainWindow):
             # Desconecta sinais para evitar callbacks tardios durante teardown
             try:
                 self.filter_thread.finished.disconnect(self.on_filter_finished_cleanup)
-            except Exception:
-                pass
+            except (TypeError, RuntimeError, AttributeError) as exc:
+                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
             try:
                 self.filter_thread.filter_finished.disconnect(self.on_filter_finished)
-            except Exception:
-                pass
+            except (TypeError, RuntimeError, AttributeError) as exc:
+                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
             try:
                 self.filter_thread.error_occurred.disconnect(self.on_filter_error)
-            except Exception:
-                pass
+            except (TypeError, RuntimeError, AttributeError) as exc:
+                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
             self.filter_thread.quit()
             self.filter_thread.wait(3000)  # Aguarda ate 3 segundos
 
