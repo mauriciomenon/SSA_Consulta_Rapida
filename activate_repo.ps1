@@ -143,11 +143,13 @@ $env:PYTHONDONTWRITEBYTECODE = '1'
 $env:SSA_ENV_ACTIVE = '1'
 $env:SSA_ENV_VARIANT = $variant
 $env:SSA_ENV_PYTHON_VERSION = $targetVersion
+$env:SSA_ENV_SOURCE = $envSource
+$env:SSA_ENV_ROOT = $repoRoot
 
 $scriptPath = Join-Path $repoRoot 'scripts'
 $maintPath = Join-Path $repoRoot 'scripts_manutencao'
 $existingPaths = $env:PATH -split ';'
-foreach ($path in @($maintPath, $scriptPath)) {
+foreach ($path in @($scriptPath, $maintPath)) {
     if ((Test-Path $path) -and (-not ($existingPaths -contains $path))) {
         $env:PATH = "$path;$env:PATH"
     }
