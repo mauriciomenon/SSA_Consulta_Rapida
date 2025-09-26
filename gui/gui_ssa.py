@@ -23,6 +23,18 @@ import subprocess
 import re
 import logging
 from collections import OrderedDict
+
+# Inicializar logging robusto
+try:
+    from utils.robust_logging import setup_logging
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
+except Exception as e:
+    # Fallback para logging padrão
+    logger = logging.getLogger(__name__)
+    logger.error(f"Falha ao inicializar logging robusto: {e}")
+
 try:
     from utils.version import get_app_version
 except ImportError:
