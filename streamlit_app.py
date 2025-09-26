@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import time
 from datetime import datetime
@@ -10,6 +11,18 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
+
+# Inicializar logging robusto
+try:
+    from utils.robust_logging import setup_logging
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("Sistema de logging robusto inicializado no Streamlit", extra={'component': 'streamlit'})
+except Exception as e:
+    # Fallback para logging padrão
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.error(f"Falha ao inicializar logging robusto: {e}")
 
 from core.app_logic import (
     filter_dataframe,
