@@ -34,14 +34,13 @@ def _configure_logging(project_root: str, level_console: int = logging.WARNING, 
     if use_robust_system:
         # Usa o sistema de logging robusto
         try:
-            from utils.robust_logging import get_robust_logger
-            config_path = os.path.join(project_root, 'config', 'logging.json')
-            robust_logger = get_robust_logger(config_path)
+            from utils.robust_logging import setup_logging
+            setup_logging()
             logger.info("Sistema de logging robusto inicializado", extra={'component': 'main'})
             _logging_configured = True
             return
-        except ImportError as e:
-            logger.warning(f"Sistema robusto indisponível, usando legado: {e}")
+        except Exception as e:
+            print(f"Sistema robusto indisponível, usando legado: {e}")  # Use print antes do logger estar configurado
     
     # Sistema legado (fallback)
     logs_dir = os.path.join(project_root, 'logs')
