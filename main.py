@@ -152,38 +152,41 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         '--optimized',
         action='store_true',
-        help='''Ativa modo de importacao OTIMIZADA (ate 90%% mais rapido).
+        help='''DEPRECATED: Modo otimizado agora é PADRÃO. Use --standard para modo legado.
 
-        ┌─ OTIMIZACOES aplicacao ──────────────────────────────────┐
-        │ PERFORMANCE                                              │
-        │   • Operacoes em lote (batch operations)                │
-        │   • Buffer de memoria aumentado                         │
-        │   • Paralelizacao de operacoes                          │
+        ┌─ AVISO: MODO OTIMIZADO JÁ É PADRÃO ─────────────────────┐
+        │ Esta flag não é mais necessária - modo otimizado        │
+        │ é ativado automaticamente para melhor performance.      │
         │                                                          │
-        │ BANCO DE DADOS                                           │
-        │   • Configuracoes otimizadas do SQLite                  │
-        │   • Transacoes em lote                                  │
-        │   • Indices temporarios para importacao                 │
+        │ Use --standard se precisar do modo legado por           │
+        │ compatibilidade ou debugging específico.                │
+        └──────────────────────────────────────────────────────────┘'''
+    )
+
+    parser.add_argument(
+        '--standard',
+        action='store_true',
+        help='''Ativa modo LEGADO/PADRÃO (mais lento, melhor para debugging).
+
+        ┌─ MODO LEGADO/DEBUG ──────────────────────────────────────┐
+        │ CARACTERÍSTICAS                                          │
+        │   • Operações linha por linha (mais lento)              │
+        │   • Logs mais detalhados para debugging                 │
+        │   • Verificações adicionais de integridade              │
+        │   • Melhor para análise de problemas                    │
         │                                                          │
-        │ PROCESSAMENTO                                            │
-        │   • Cache inteligente de arquivos                       │
-        │   • Processamento sequencial otimizado                  │
-        │   • Menos verificacoes redundantes                      │
+        │ QUANDO USAR                                              │
+        │   • Debugging de problemas de importação                │
+        │   • Análise detalhada de erros                          │
+        │   • Compatibilidade com sistemas antigos               │
+        │   • Desenvolvimento e testes                            │
         └──────────────────────────────────────────────────────────┘
 
-        RESULTADOS ESPERADOS:
-        • Arquivos pequenos (<5MB): 30-50%% mais rápido
-        • Arquivos médios (5-20MB): 60-80%% mais rápido
-        • Arquivos grandes (>20MB): 80-90%% mais rápido
-
-        RECOMENDADO PARA:
-        • Importação de grandes volumes de dados
-        • Execução em lote ou automatizada
-        • Quando a importação padrão está lenta
+        AVISO: Até 90% mais lento que o modo padrão otimizado.
 
         EXEMPLOS:
-        python main.py --optimized
-        python main.py --optimized --force-rescan
+        python main.py --standard
+        python main.py --standard --force-rescan
 
         Mais detalhes: GUIA_MODO_OPTIMIZED.md'''
     )
@@ -354,17 +357,25 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         # --- 3. Importação de Dados (fluxo normal) ---
         # Determina se a reimportação é forçada e se deve usar versão otimizada
         force_import = args.force_rescan
-        use_optimized = args.optimized
+        
+        # MUDANÇA: Modo otimizado agora é PADRÃO (exceto se --standard for usado)
+        use_optimized = not args.standard
+        
+        # Aviso de depreciação se --optimized for usado
+        if args.optimized:
+            logger.warning("⚠️  Flag --optimized é deprecated: modo otimizado já é padrão. Use --standard para modo legado.")
 
-        # Ativar importação otimizada se solicitado
+        # Ativar importação otimizada (agora padrão)
         if use_optimized:
-            logger.info("Ativando modo de importacao OTIMIZADA...")
+            logger.info("✓ Modo de importacao OTIMIZADA ativo (padrão)")
             try:
                 from armazenamento.database_optimized import enable_optimized_import
                 enable_optimized_import()
             except ImportError:
-                print("Modo otimizado nao disponivel, usando modo padrao")
+                logger.warning("Modo otimizado não disponível, recorrendo ao modo legado")
                 use_optimized = False
+        else:
+            logger.info("⚠️  Usando modo LEGADO/DEBUG (--standard ativo)")
 
         logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
         db_updated = run_importer_logic(force_import=force_import)
