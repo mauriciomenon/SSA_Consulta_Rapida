@@ -502,10 +502,19 @@ def parse_search_terms(
     return parsed
 
 
-def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
+def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optional[list] = None) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
-    termos já parseados por parse_search_terms(). Busca em todas as colunas de texto.
+    termos já parseados por parse_search_terms(). 
+
+    🚀 OTIMIZAÇÃO: Agora permite especificar colunas de busca para melhor performance.
+
+    Args:
+        df: DataFrame para filtrar
+        search_terms: Lista de termos de busca ou termos parseados
+        search_columns: Lista de colunas específicas para buscar. Se None, busca em 
+                       colunas prioritárias: ['numero_ssa', 'situacao', 'setor_executor', 
+                       'setor_emissor', 'descricao_servico']
 
     Modos por termo: contém (padrão), começa (^), termina ($), igual (=), regex (~),
     com suporte a negativos (! ou -).
@@ -513,11 +522,32 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     if df is None or df.empty or not search_terms:
         return df
 
-    # Extrai colunas de texto base para buscas (sem lower; usaremos case=False nos métodos)
-    base_str_df = df.select_dtypes(include=['object']).astype(str)
+    # 🚀 OTIMIZAÇÃO: Usar apenas colunas prioritárias se não especificado
+    if search_columns is None:
+        # Colunas mais frequentemente pesquisadas (ordem por relevância)
+        priority_columns = [
+            'numero_ssa', 'situacao', 'setor_executor', 'setor_emissor', 
+            'descricao_servico', 'observacao', 'prazo_limite_str', 'data_cadastro_str'
+        ]
+        # Filtrar apenas colunas que existem no DataFrame
+        search_columns = [col for col in priority_columns if col in df.columns]
+        
+        # Se nenhuma coluna prioritária existe, usar todas as de texto como fallback
+        if not search_columns:
+            search_columns = df.select_dtypes(include=['object']).columns.tolist()
+
+    # Criar DataFrame base apenas com colunas de busca
+    available_search_cols = [col for col in search_columns if col in df.columns]
+    if not available_search_cols:
+        logger.warning("Nenhuma coluna de busca válida encontrada")
+        return df
+        
+    base_str_df = df[available_search_cols].select_dtypes(include=['object']).astype(str)
     if base_str_df.shape[1] == 0:
         # Sem colunas de texto, não há onde buscar: retorna o próprio df
         return df
+        
+    logger.debug(f"🔍 Buscando em {len(base_str_df.columns)} colunas: {list(base_str_df.columns)}")
 
     # Permite tanto termos brutos (str) quanto parseados (dict)
     if search_terms and isinstance(search_terms[0], dict):

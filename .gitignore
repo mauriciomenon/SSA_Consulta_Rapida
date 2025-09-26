@@ -156,7 +156,7 @@ celerybeat.pid
 
 # Environments
 .env
-.envrc  # (cont?m chaves locais via direnv; ver .envrc.example)
+.envrc  # (contem chaves locais via direnv; ver .envrc.example)
 .venv
 env/
 venv/
@@ -237,12 +237,12 @@ docs/~$*.xlsx
 
 # -- SSA local ignores --
 # SQLite + backups locais
-data/ssas.db
+# data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
 data/historico_backups/
 data/historico_backups/**
-# Artefatos de recupera??o
+# Artefatos de recuperacao
 WIP_*.patch
 docs_saida/SESSION_RECOVERY_*/
 
@@ -319,7 +319,7 @@ launchers/*.log
 
 # === DADOS SENSIVEIS ===
 # Arquivos de entrada com dados reais da empresa
-docs_entrada/*.xlsx
+# docs_entrada/*.xlsx
 docs_entrada/*.csv
 docs_entrada/*.json
 

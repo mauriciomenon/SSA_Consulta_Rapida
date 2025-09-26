@@ -160,12 +160,18 @@ def insert_dataframe_optimized(
                 if to_update:
                     update_df = pd.DataFrame(to_update)
 
-                    # Estratégia: DELETE em lote + INSERT em lote
-                    ssa_placeholders = ','.join(['?'] * len(update_df['numero_ssa']))
-                    delete_query = (
-                        f"DELETE FROM {table_name} WHERE numero_ssa IN ({ssa_placeholders})"
-                    )
-                    conn.execute(delete_query, list(update_df['numero_ssa']))
+                    # 🔧 FIX: Processar em chunks para evitar "too many SQL variables"
+                    # SQLite tem limite padrão de 999 variáveis por query
+                    CHUNK_SIZE = 500  # Margem de segurança
+                    ssa_list = list(update_df['numero_ssa'])
+                    
+                    for i in range(0, len(ssa_list), CHUNK_SIZE):
+                        chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
+                        ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
+                        delete_query = (
+                            f"DELETE FROM {table_name} WHERE numero_ssa IN ({ssa_placeholders})"
+                        )
+                        conn.execute(delete_query, chunk_ssas)
 
                     # Inserir versões atualizadas
                     update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
