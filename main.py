@@ -25,10 +25,25 @@ logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
 
-def _configure_logging(project_root: str, level_console: int = logging.WARNING, level_file: int = logging.INFO):
+def _configure_logging(project_root: str, level_console: int = logging.WARNING, level_file: int = logging.INFO, use_robust_system: bool = True):
+    """Configura sistema de logging (robusto ou legado)."""
     global _logging_configured
     if _logging_configured:
         return
+    
+    if use_robust_system:
+        # Usa o sistema de logging robusto
+        try:
+            from utils.robust_logging import get_robust_logger
+            config_path = os.path.join(project_root, 'config', 'logging.json')
+            robust_logger = get_robust_logger(config_path)
+            logger.info("Sistema de logging robusto inicializado", extra={'component': 'main'})
+            _logging_configured = True
+            return
+        except ImportError as e:
+            logger.warning(f"Sistema robusto indisponível, usando legado: {e}")
+    
+    # Sistema legado (fallback)
     logs_dir = os.path.join(project_root, 'logs')
     os.makedirs(logs_dir, exist_ok=True)
     # File handler (INFO+), rotating 1MB, keep 1 backup (total 2 files)
