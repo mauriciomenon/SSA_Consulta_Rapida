@@ -98,6 +98,7 @@ from utils.formatting import format_dataframe_for_display  # noqa: E402
 
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
+import hashlib
 from armazenamento.database import query_db  # noqa: E402
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
@@ -447,19 +448,106 @@ class DataLoaderWorker(QThread):
         except Exception as e:
             self.error_occurred.emit(f"Erro ao carregar dados: {e}")
 
+class FilterCache:
+    """Cache inteligente LRU para resultados de filtros da GUI."""
+    
+    def __init__(self, max_size: int = 50):
+        self.max_size = max_size
+        self._cache = OrderedDict()  # LRU cache
+        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+    
+    def _generate_key(self, df_hash: str, search_chunks: list, default_mode: str) -> str:
+        """Gera chave única para cache baseada nos parâmetros de filtro."""
+        # Converte search_chunks em string determinística
+        chunks_str = str(sorted([str(sorted(chunk)) if isinstance(chunk, list) else str(chunk) for chunk in search_chunks]))
+        
+        # Cria hash combinado
+        combined = f"{df_hash}|{chunks_str}|{default_mode}"
+        return hashlib.md5(combined.encode('utf-8')).hexdigest()
+    
+    def get(self, df_hash: str, search_chunks: list, default_mode: str) -> pd.DataFrame:
+        """Recupera resultado do cache se disponível."""
+        key = self._generate_key(df_hash, search_chunks, default_mode)
+        
+        if key in self._cache:
+            # Move para o final (marca como recentemente usado)
+            result = self._cache.pop(key)
+            self._cache[key] = result
+            self._stats['hits'] += 1
+            logger.debug(f"Cache hit for filter key: {key[:8]}...")
+            return result.copy()  # Retorna cópia para evitar modificações
+        
+        self._stats['misses'] += 1
+        logger.debug(f"Cache miss for filter key: {key[:8]}...")
+        return None
+    
+    def put(self, df_hash: str, search_chunks: list, default_mode: str, result: pd.DataFrame):
+        """Armazena resultado no cache."""
+        key = self._generate_key(df_hash, search_chunks, default_mode)
+        
+        # Remove entrada existente se houver
+        if key in self._cache:
+            del self._cache[key]
+        
+        # Adiciona nova entrada
+        self._cache[key] = result.copy()
+        
+        # Implementa política LRU
+        while len(self._cache) > self.max_size:
+            # Remove item mais antigo (primeiro na OrderedDict)
+            oldest_key = next(iter(self._cache))
+            del self._cache[oldest_key]
+            self._stats['evictions'] += 1
+        
+        logger.debug(f"Cache put for filter key: {key[:8]}... (size: {len(self._cache)})")
+    
+    def clear(self):
+        """Limpa todo o cache."""
+        self._cache.clear()
+        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+        logger.debug("Filter cache cleared")
+    
+    def get_stats(self) -> dict:
+        """Retorna estatísticas do cache."""
+        total = self._stats['hits'] + self._stats['misses']
+        hit_rate = (self._stats['hits'] / total * 100) if total > 0 else 0
+        
+        return {
+            'size': len(self._cache),
+            'max_size': self.max_size,
+            'hits': self._stats['hits'],
+            'misses': self._stats['misses'],
+            'evictions': self._stats['evictions'],
+            'hit_rate': hit_rate
+        }
+
+
 class FilterWorker(QThread):
-    """Thread para filtrar dados."""
+    """Thread para filtrar dados com cache inteligente."""
     filter_finished = pyqtSignal(pd.DataFrame) # Emite o DataFrame filtrado
     error_occurred = pyqtSignal(str)
+    
+    # Cache de classe compartilhado entre instâncias
+    _cache = FilterCache(max_size=50)
 
     def __init__(self, df_completo, search_chunks, default_mode: str = 'contains'):
         super().__init__()
         self.df_completo = df_completo
         self.search_chunks = search_chunks or []
         self.default_mode = default_mode
+        
+        # Gera hash do DataFrame para cache
+        self.df_hash = hashlib.md5(str(df_completo.shape).encode()).hexdigest()[:16]
 
     def run(self):
         try:
+            # Verifica cache primeiro
+            cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
+            if cached_result is not None:
+                self.filter_finished.emit(cached_result)
+                return
+            
+            # Cache miss - executa filtro
             if self.search_chunks:
                 frames = []
                 for terms in self.search_chunks:
@@ -474,6 +562,10 @@ class FilterWorker(QThread):
                     df_filtrado = self.df_completo.copy()
             else:
                 df_filtrado = self.df_completo.copy()
+            
+            # Armazena no cache
+            self._cache.put(self.df_hash, self.search_chunks, self.default_mode, df_filtrado)
+            
             self.filter_finished.emit(df_filtrado)
         except Exception as e:
             self.error_occurred.emit(f"Erro ao filtrar dados: {e}")
@@ -1354,11 +1446,28 @@ class SSAMainWindow(QMainWindow):
         self.filter_thread = None
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
         self._sync_filtering = os.environ.get("SSA_SYNC_FILTER", "").lower() in ("1", "true", "yes", "on")
+        
+        # Conecta debounce automático ao digitar
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        
+        # Configura cache size da configuração
+        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+        cache_size = gui_settings.get("filter_cache_size", 50)
+        FilterWorker._cache = FilterCache(max_size=cache_size)
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
         # Chamar start() novamente reinicia o QTimer automaticamente
         self._debounce_timer.start()
+    
+    def clear_filter_cache(self):
+        """Limpa o cache de filtros."""
+        FilterWorker._cache.clear()
+        logger.info("Cache de filtros limpo")
+    
+    def get_filter_cache_stats(self) -> dict:
+        """Retorna estatísticas do cache de filtros."""
+        return FilterWorker._cache.get_stats()
 
     # --- Slots e Handlers ---
 
@@ -1536,6 +1645,10 @@ class SSAMainWindow(QMainWindow):
             self.search_input.blockSignals(False)
         self._pending_search_display = None
         self._active_column_filters.clear()
+        
+        # Limpa o cache de filtros ao limpar filtros
+        self.clear_filter_cache()
+        
         self.df_exibido = self.df_completo.copy()
         self._df_last_search_filtered = self.df_completo.copy()
         self.paginator.set_dataframe(self.df_exibido)
