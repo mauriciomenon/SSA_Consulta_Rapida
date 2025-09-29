@@ -39,7 +39,7 @@ python -m flake8 --select=E9,F63,F7,F82 .
 
 ### ** INVENTÁRIO DE PENDÊNCIAS CONHECIDAS**
 
-#### **🔴 CRÍTICAS (HOTFIX CANDIDATES)**
+#### ** CRÍTICAS (HOTFIX CANDIDATES)**
 1. **GUI Stability**: Verificar se há memory leaks em uso prolongado
 2. **Large Datasets**: Performance com >20k registros pode degradar
 3. **Windows Compatibility**: Executável pode ter issues em Windows 11
@@ -91,7 +91,7 @@ class AdvancedExporter:
 - [ ] **GUI Integration**: Novos botões de export
 - [ ] **CLI Support**: Comandos para export avançado
 
-#### **💾 Feature 2: Filtros Salvos (Prioridade 2)**
+#### ** Feature 2: Filtros Salvos (Prioridade 2)**
 **Timeline:** 2-3 dias  
 **Benefício:** Alto - melhora produtividade  
 
@@ -119,7 +119,7 @@ class FilterManager:
 - [ ] **Import/Export**: Compartilhar filtros entre usuários
 - [ ] **CLI Commands**: Aplicar filtros via linha de comando
 
-#### **⚙️ Feature 3: User Preferences (Prioridade 3)**
+#### **️ Feature 3: User Preferences (Prioridade 3)**
 **Timeline:** 2 dias  
 **Benefício:** Médio - melhora experiência  
 
@@ -137,7 +137,7 @@ class FilterManager:
 - [ ] **Caching Layer**: Cache inteligente para queries repetidas
 - [ ] **Lazy Loading**: Carregamento sob demanda
 
-#### **🛡️ Stability Improvements**
+#### **️ Stability Improvements**
 - [ ] **Exception Handling**: Substituir `except Exception:` genéricos
 - [ ] **Thread Safety**: Melhorar sync entre threads
 - [ ] **Resource Cleanup**: Garantir liberação de recursos

@@ -10,22 +10,22 @@ Este documento consolida todas as notas de lançamento e atualizações do proje
 
 ### **Principais Funcionalidades**
 
-#### **🚀 Experiência CLI mais ágil**
+#### ** Experiência CLI mais ágil**
 - Mostra apenas a primeira página por padrão; comando `m`/`mais` avança sem perder o prompt
 - `m z` percorre todo o resultado sem bloquear a entrada
 - Prompt atualizado com atalhos claros e resumo de filtros ativos
 
-#### **🔁 Sintaxe OU/OR unificada**
+#### ** Sintaxe OU/OR unificada**
 - CLI, GUI e Streamlit compartilham o mesmo parser (`OU`/`OR`, negativos, regex)
 - Ajuda revisada elimina a notação `v` e destaca exemplos práticos
 - Perfil "Executor ou Emissor" mantém chips sincronizados em tempo real
 
-#### **🎨 Temas adicionais e contraste aprimorado**
+#### ** Temas adicionais e contraste aprimorado**
 - Tema "Escala de cinza" substitui o antigo claro com ajustes finos
 - Novos perfis Windows 7, KDE e GNOME (Adwaita) disponíveis na GUI
 - Ajustes automáticos de contraste para macOS quando necessário
 
-#### **🌐 Dashboard Streamlit atualizado**
+#### ** Dashboard Streamlit atualizado**
 - `python main.py --streamlit` (ou `--web`) inicia o painel em background
 - Barra lateral com ajuda rápida e resumo dos filtros aplicados
 - Download de CSV preservado e consulta opcional da API Itaipu
@@ -38,19 +38,19 @@ Este documento consolida todas as notas de lançamento e atualizações do proje
 
 ### **Principais Funcionalidades**
 
-#### **🔥 Novidades Críticas**
+#### ** Novidades Críticas**
 - **Sistema de Build Multi-Plataforma**: Construção automática para Windows, macOS e Linux
 - **Modo Optimized**: Performance 3-5x melhor para arquivos grandes
 - **CLI Enhanced**: Interface de linha de comando completa e intuitiva
 - **Cache Inteligente**: Gestão automática de cache para consultas frequentes
 
-#### **🛠️ Melhorias Técnicas**
+#### **️ Melhorias Técnicas**
 - **Arquitetura Modular**: Separação clara entre core, GUI e CLI
 - **Configuração Externa**: 100% das configurações externalizadas em JSON
 - **Lazy Loading**: Carregamento sob demanda na interface gráfica
 - **Memory Management**: Gestão otimizada de memória
 
-#### **🐛 Correções Críticas**
+#### ** Correções Críticas**
 - **SSA Truncation Bug**: Corrigido problema que truncava números SSA válidos
 - **Column Mapping**: Sistema robusto de detecção automática de colunas
 - **GUI Width Management**: Persistência de larguras de colunas entre sessões
@@ -183,19 +183,19 @@ python main.py --import arquivo.xlsx --optimized
 
 ### **Principais Conquistas**
 
-#### **🏗️ Arquitetura Sólida**
+#### **️ Arquitetura Sólida**
 - **Database Layer**: SQLite com operações UPSERT otimizadas
 - **Configuration System**: JSON-based com validação automática
 - **Error Handling**: Sistema robusto de tratamento de erros
 - **Logging System**: Logging estruturado com níveis configuráveis
 
-#### **📊 Sistema de Dados**
+#### ** Sistema de Dados**
 - **Excel Processing**: Suporte completo para formatos .xlsx e .xls
 - **Column Mapping**: Detecção automática de esquemas de colunas
 - **Data Validation**: Validação de integridade de dados
 - **Backup System**: Backup automático antes de operações críticas
 
-#### **🖥️ Interface Unificada**
+#### **️ Interface Unificada**
 - **CLI Foundation**: Interface de linha de comando básica mas funcional
 - **GUI Core**: Interface gráfica PyQt6 com recursos essenciais
 - **Configuration UI**: Interface para gestão de configurações

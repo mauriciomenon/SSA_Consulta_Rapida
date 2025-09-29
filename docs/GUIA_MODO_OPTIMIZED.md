@@ -29,16 +29,16 @@ O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% 
 ##  Quando usar cada modo?
 
 ### **Use `--optimized` quando:**
-- ✅ Importando grandes volumes de dados (1000+ registros)
-- ✅ A importação padrão está lenta ou travando
-- ✅ Fazendo `--force-rescan` completo
-- ✅ Em ambiente de produção
+-  Importando grandes volumes de dados (1000+ registros)
+-  A importação padrão está lenta ou travando
+-  Fazendo `--force-rescan` completo
+-  Em ambiente de produção
 
 ### **Use o modo padrão quando:**
-- ✅ Depurando problemas de importação
-- ✅ Importando poucos arquivos novos
-- ✅ Testando mudanças no código
-- ✅ Primeira execução (para validar dados)
+-  Depurando problemas de importação
+-  Importando poucos arquivos novos
+-  Testando mudanças no código
+-  Primeira execução (para validar dados)
 
 ##  Exemplos de Uso:
 
@@ -56,7 +56,7 @@ python main.py --force-rescan
 python main.py --optimized --gui
 ```
 
-## ⚙️ Detalhes Técnicos:
+## ️ Detalhes Técnicos:
 
 ### **Otimizações Implementadas:**
 1. **Batch Operations**: Insere múltiplos registros por transação
@@ -70,15 +70,15 @@ python main.py --optimized --gui
 - **Função**: `insert_dataframe_optimized()`
 - **Ativação**: `enable_optimized_import()` / `disable_optimized_import()`
 
-## 🛡️ Segurança e Integridade:
+## ️ Segurança e Integridade:
 
-- ✅ **Backups automáticos** antes de importações
-- ✅ **Validação de dados** mantida
-- ✅ **Rollback automático** em caso de erro
-- ✅ **Logs detalhados** de todo o processo
-- ✅ **Verificação de integridade** após importação
+-  **Backups automáticos** antes de importações
+-  **Validação de dados** mantida
+-  **Rollback automático** em caso de erro
+-  **Logs detalhados** de todo o processo
+-  **Verificação de integridade** após importação
 
-## 📝 Notas Importantes:
+##  Notas Importantes:
 
 1. **Compatibilidade**: Funciona com todos os argumentos existentes (`--force-rescan`, `--gui`, etc.)
 2. **Transparência**: O usuário não precisa mudar nada no fluxo de trabalho

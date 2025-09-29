@@ -4,7 +4,7 @@
 Este documento centraliza referências rápidas aos principais materiais de documentação do projeto.
 Objetivo: reduzir tempo de navegação entre múltiplos arquivos `.md` e servir de porta de entrada.
 
-## 🔍 Índice Rápido
+##  Índice Rápido
 - [Visão Geral do Projeto](#visão-geral-do-projeto)
 - [Arquitetura e Estrutura](#arquitetura-e-estrutura)
 - [Mapeamentos e Configuração](#mapeamentos-e-configuração)

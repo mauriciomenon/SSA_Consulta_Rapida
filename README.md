@@ -1,39 +1,39 @@
-# 🚀 SSA Consulta Rápida v4.0.0 - OTIMIZAÇÕES MASSIVAS DE PERFORMANCE
+#  SSA Consulta Rápida v4.0.0 - OTIMIZAÇÕES MASSIVAS DE PERFORMANCE
 
-## 🎯 **RESULTADOS FINAIS - Release v4.0.0 (2025-09)**
+##  **RESULTADOS FINAIS - Release v4.0.0 (2025-09)**
 
-### 🏆 **GANHOS DE PERFORMANCE MENSURADOS:**
+###  **GANHOS DE PERFORMANCE MENSURADOS:**
 - **Imports:** 80-90% mais rápidos com modo otimizado padrão
 - **GUI Filters:** 2.88x a 102,900x speedup com cache LRU multi-threaded
 - **Streamlit:** 3,977x speedup médio com cache TTL
 - **Database Queries:** 5-20x mais rápidas com 6 índices estratégicos
 - **Sistema de Logging:** Robusto com métricas automáticas de performance
 
-### ⚡ **OTIMIZAÇÕES IMPLEMENTADAS:**
+###  **OTIMIZAÇÕES IMPLEMENTADAS:**
 
 #### **Phase 1: Fundamentos**
-- ✅ Main.py com modo `--optimized` por padrão
-- ✅ `core/app_logic.py` - `filter_dataframe` otimizado (1.96x speedup)
-- ✅ 6 índices estratégicos no SQLite para queries 5-20x mais rápidas
+- - Main.py com modo `--optimized` por padrão
+- - `core/app_logic.py` - `filter_dataframe` otimizado (1.96x speedup)
+- - 6 índices estratégicos no SQLite para queries 5-20x mais rápidas
 
 #### **Phase 2: GUI Inteligente**
-- ✅ Sistema de cache LRU com `FilterWorker` multi-threaded
-- ✅ Debounce 250ms para evitar consultas excessivas
-- ✅ Cache hit rate 75%+ em uso normal
-- ✅ Performance: 2.88x a 102,900x speedup dependendo do cenário
+- - Sistema de cache LRU com `FilterWorker` multi-threaded
+- - Debounce 250ms para evitar consultas excessivas
+- - Cache hit rate 75%+ em uso normal
+- - Performance: 2.88x a 102,900x speedup dependendo do cenário
 
 #### **Phase 3: Streamlit Aprimorado**
-- ✅ `StreamlitFilterCache` com TTL e métricas detalhadas
-- ✅ Interface sidebar reorganizada com progress bars
-- ✅ Cache configurável (100 entradas, 300s TTL por padrão)
-- ✅ Performance: 3,977x speedup médio
+- - `StreamlitFilterCache` com TTL e métricas detalhadas
+- - Interface sidebar reorganizada com progress bars
+- - Cache configurável (100 entradas, 300s TTL por padrão)
+- - Performance: 3,977x speedup médio
 
 #### **Phase 4: Sistema de Logging Robusto**
-- ✅ `utils/robust_logging.py` - Sistema completo com `PerformanceMetrics`
-- ✅ `config/logging.json` - Configuração centralizada multi-handler
-- ✅ Integração completa em main.py, GUI e Streamlit
-- ✅ Logging estruturado JSON + rotação automática
-- ✅ Métricas de performance em tempo real
+- - `utils/robust_logging.py` - Sistema completo com `PerformanceMetrics`
+- - `config/logging.json` - Configuração centralizada multi-handler
+- - Integração completa em main.py, GUI e Streamlit
+- - Logging estruturado JSON + rotação automática
+- - Métricas de performance em tempo real
 
 ## Notas de Padronização e Governança (2025-09)
 
@@ -86,51 +86,51 @@ Essa seção reflete o estado pós-limpeza para orientar futuros mantenedores.
 
 Versão atual: 3.11 (Sistema funcional)
 
-## 🚀 **NOVIDADES v4.0.0 - PERFORMANCE MASSIVAMENTE OTIMIZADA**
+##  **NOVIDADES v4.0.0 - PERFORMANCE MASSIVAMENTE OTIMIZADA**
 
-### ⚡ **OTIMIZAÇÕES DE PERFORMANCE IMPLEMENTADAS:**
+###  **OTIMIZAÇÕES DE PERFORMANCE IMPLEMENTADAS:**
 
-#### **🔥 Phase 1: Fundamentos (90% mais rápido)**
+#### ** Phase 1: Fundamentos (90% mais rápido)**
 - Main.py com modo `--optimized` **por padrão**
 - `filter_dataframe` otimizado com **1.96x speedup**
 - **6 índices estratégicos** no banco para queries **5-20x mais rápidas**
 
-#### **🧠 Phase 2: GUI Inteligente (2.88x-102,900x speedup)**
+#### ** Phase 2: GUI Inteligente (2.88x-102,900x speedup)**
 - Sistema de **cache LRU multi-threaded** com `FilterWorker`
 - **Debounce 250ms** para evitar consultas excessivas
 - Cache hit rate **75%+** em uso normal
 - Performance: **2.88x a 102,900x speedup** dependendo do cenário
 
-#### **🌐 Phase 3: Streamlit Aprimorado (3,977x speedup)**
+#### ** Phase 3: Streamlit Aprimorado (3,977x speedup)**
 - `StreamlitFilterCache` com **TTL e métricas detalhadas**
 - Interface sidebar reorganizada com **progress bars**
 - Cache configurável (100 entradas, 300s TTL)
 - Performance: **3,977x speedup médio**
 
-#### **📊 Phase 4: Sistema de Logging Robusto**
+#### ** Phase 4: Sistema de Logging Robusto**
 - `utils/robust_logging.py` com `PerformanceMetrics` automático
 - Configuração centralizada em `config/logging.json`
 - **Logging estruturado JSON** + rotação automática
 - **Métricas de performance em tempo real**
 
-### 🎯 **RESULTADOS MENSURADOS:**
+###  **RESULTADOS MENSURADOS:**
 - **Imports:** 80-90% mais rápidos
 - **GUI Filters:** 2.88x a 102,900x speedup
 - **Streamlit:** 3,977x speedup médio
 - **Database:** 5-20x queries mais rápidas
 - **Logging:** Sistema robusto com métricas automáticas
 
-### 🔄 Sintaxe OU/OR consistente em todas as interfaces
+###  Sintaxe OU/OR consistente em todas as interfaces
 - Parser de filtros agora entende `OU`/`OR` (além de `!`, `^`, `$`, `=` e `~`) de forma unificada
 - Cache inteligente acelera drasticamente todas as consultas
 - Performance otimizada automaticamente em todos os componentes
 
-### 🎨 Novos temas com foco em contraste
+###  Novos temas com foco em contraste
 - Tema "Escala de cinza" substitui o antigo "Claro" com ajuste fino para telas brilhantes
 - Perfis extras inspirados em Windows 7, KDE Plasma e GNOME (Adwaita)
 - Ajustes de contraste automáticos no macOS para manter legibilidade
 
-### 🌐 Dashboard Streamlit com CACHE MASSIVO
+###  Dashboard Streamlit com CACHE MASSIVO
 - `python main.py --streamlit` inicia painel **3,977x mais rápido**
 - Cache TTL inteligente com métricas automáticas
 - Progress bars e interface otimizada
@@ -138,7 +138,7 @@ Versão atual: 3.11 (Sistema funcional)
 
 ##  Historico v3.10 - Build System Multi-Plataforma
 
-### ✅ Sistema de Build Completo
+###  Sistema de Build Completo
 - **Executáveis funcionais**: CLI e GUI totalmente testados para macOS ARM64
 - **Build rápido**: 30 segundos para desenvolvimento e testes
 - **Build otimizado**: 1-5 minutos para produção com cache inteligente

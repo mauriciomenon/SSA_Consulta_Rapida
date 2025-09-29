@@ -123,7 +123,7 @@ python launchers/build_multiplatform.py --verbose
 **Build GUI (2025-09-06 20:21:51)**:
 - Em progresso: SSA_GUI_v3.10_macos_arm64
 - configuração: onedir, windowed, optimize=2, strip
-- 🔄 Icone: app_icon.icns aplicado
+-  Icone: app_icon.icns aplicado
 
 ### Documentacao Completa
 
