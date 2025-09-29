@@ -324,7 +324,7 @@ python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 
 ---
 
-## 📚 **ARQUIVOS IMPORTANTES PARA LER**
+##  **ARQUIVOS IMPORTANTES PARA LER**
 
 ### **1. Documentação Principal**
 ```powershell
@@ -392,7 +392,7 @@ python main.py --optimized --force-rescan
 
 ---
 
-## 📞 **SUPORTE E DOCUMENTAÇÃO**
+##  **SUPORTE E DOCUMENTAÇÃO**
 
 ### **Logs do Sistema**
 ```powershell

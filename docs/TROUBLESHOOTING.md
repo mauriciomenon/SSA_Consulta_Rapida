@@ -548,32 +548,32 @@ CRÍTICO: Empty Records           → 6 registros
 PROBLEMA: Sistema possui colunas duplicadas com formatos diferentes:
 
 1. Numero Ssa:
-   ✅ "Número da SSA" (TEXT) → 12,750 registros (PRIMÁRIA)
-   ❌ "numero_ssa" (INTEGER) → 1,670 registros (LEGADO)
+    "Número da SSA" (TEXT) → 12,750 registros (PRIMÁRIA)
+    "numero_ssa" (INTEGER) → 1,670 registros (LEGADO)
 
 2. Semana Cadastro:
-   ✅ "Semana de Cadastro" (INTEGER) → 12,750 registros (PRIMÁRIA)
-   ❌ "semana_cadastro" (INTEGER) → 1,670 registros (LEGADO)
+    "Semana de Cadastro" (INTEGER) → 12,750 registros (PRIMÁRIA)
+    "semana_cadastro" (INTEGER) → 1,670 registros (LEGADO)
 
 3. Descricao Execucao:
-   ✅ "Descrição Execução" (TEXT) → 10,845 registros (PRIMÁRIA)
-   ❌ "descricao_execucao" (TEXT) → 1,195 registros (LEGADO)
+    "Descrição Execução" (TEXT) → 10,845 registros (PRIMÁRIA)
+    "descricao_execucao" (TEXT) → 1,195 registros (LEGADO)
 
 4. Responsavel Programacao:
-   ✅ "Responsável na Programação" (TEXT) → 11,376 registros (PRIMÁRIA)
-   ❌ "responsavel_programacao" (TEXT) → 1,327 registros (LEGADO)
+    "Responsável na Programação" (TEXT) → 11,376 registros (PRIMÁRIA)
+    "responsavel_programacao" (TEXT) → 1,327 registros (LEGADO)
 
 5. Responsavel Execucao:
-   ✅ "Responsável na Execução" (TEXT) → 11,188 registros (PRIMÁRIA)
-   ❌ "responsavel_execucao" (TEXT) → 1,259 registros (LEGADO)
+    "Responsável na Execução" (TEXT) → 11,188 registros (PRIMÁRIA)
+    "responsavel_execucao" (TEXT) → 1,259 registros (LEGADO)
 
 6. Grau Prioridade Emissao:
-   ✅ "Grau de Prioridade Emissão" (TEXT) → 12,750 registros (PRIMÁRIA)
-   ❌ "grau_prioridade_emissao" (TEXT) → 1,670 registros (LEGADO)
+    "Grau de Prioridade Emissão" (TEXT) → 12,750 registros (PRIMÁRIA)
+    "grau_prioridade_emissao" (TEXT) → 1,670 registros (LEGADO)
 
 7. Grau Prioridade Planejamento:
-   ✅ "Grau de Prioridade Planejamento" (TEXT) → 11,058 registros (PRIMÁRIA)
-   ❌ "grau_prioridade_planejamento" (TEXT) → 1,494 registros (LEGADO)
+    "Grau de Prioridade Planejamento" (TEXT) → 11,058 registros (PRIMÁRIA)
+    "grau_prioridade_planejamento" (TEXT) → 1,494 registros (LEGADO)
 ```
 
 #### **Distribuição de Dados por Qualidade**
@@ -660,7 +660,7 @@ python main.py -rescan --verify-integrity
 ```
 ERROR: UnicodeEncodeError em Testes Automatizados
 Codec: 'charmap' (cp1252)
-Caractere: '\U0001f680' (emoji de foguete 🚀)
+Caractere: '\U0001f680' (emoji de foguete )
 Posição: 0
 Status: character maps to <undefined>
 ```
@@ -680,9 +680,9 @@ print("\U0001f680 Iniciando testes automatizados do sistema SSA...")
 ```
 
 #### **Impacto no Sistema**
-- ✅ **Smoke Tests**: Funcionando (33.3% dos testes)
-- ❌ **Testes Funcionais Automatizados**: Falha total por encoding
-- ❌ **Taxa de Sucesso Geral**: 33.3% (crítico)
+-  **Smoke Tests**: Funcionando (33.3% dos testes)
+-  **Testes Funcionais Automatizados**: Falha total por encoding
+-  **Taxa de Sucesso Geral**: 33.3% (crítico)
 
 #### **Solução Implementada**
 
@@ -692,7 +692,7 @@ print("\U0001f680 Iniciando testes automatizados do sistema SSA...")
 print("\U0001f680 Iniciando testes automatizados do sistema SSA...")
 
 # DEPOIS (compatível):
-print("🔧 Iniciando testes automatizados do sistema SSA...")
+print(" Iniciando testes automatizados do sistema SSA...")
 # OU melhor ainda:
 print("* Iniciando testes automatizados do sistema SSA...")
 ```
@@ -724,18 +724,18 @@ def safe_print(message):
 
 ##### **PROIBIDO em Outputs de Console**
 ```python
-❌ print("🚀 Texto com emoji")
-❌ print("✅ Checkmark emoji") 
-❌ print("❌ X emoji")
-❌ print("📊 Gráfico emoji")
+ print(" Texto com emoji")
+ print(" Checkmark emoji") 
+ print(" X emoji")
+ print(" Gráfico emoji")
 ```
 
 ##### **PERMITIDO e Recomendado**
 ```python
-✅ print("* Iniciando sistema...")
-✅ print("[OK] Operação concluída")
-✅ print("[ERRO] Falha detectada")
-✅ print(">>> Status do sistema")
+ print("* Iniciando sistema...")
+ print("[OK] Operação concluída")
+ print("[ERRO] Falha detectada")
+ print(">>> Status do sistema")
 ```
 
 #### **Script de Correção para Arquivos Existentes**
@@ -744,9 +744,9 @@ def safe_print(message):
 grep -r "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF]" tests/ scripts_*/ interface/
 
 # Substituir emojis comuns por caracteres seguros
-sed -i 's/🚀/*/g' tests/*.py
-sed -i 's/✅/[OK]/g' tests/*.py  
-sed -i 's/❌/[ERRO]/g' tests/*.py
+sed -i 's//*/g' tests/*.py
+sed -i 's//[OK]/g' tests/*.py  
+sed -i 's//[ERRO]/g' tests/*.py
 ```
 
 #### **Configuração de Ambiente Recomendada**
