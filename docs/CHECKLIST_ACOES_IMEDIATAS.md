@@ -165,7 +165,7 @@ cp data/ssas.db data/backup_pre_v3.11.db
 
 ---
 
-## 💡 **OPORTUNIDADES IDENTIFICADAS**
+##  **OPORTUNIDADES IDENTIFICADAS**
 
 ### **Quick Wins (1-2 dias)**
 - Limpar debug prints

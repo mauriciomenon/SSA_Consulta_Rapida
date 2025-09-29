@@ -2,7 +2,7 @@
 
 ##  ARQUIVOS COM FUNCIONALIDADES EXTRAS IDENTIFICADOS
 
-### 🤖 **1. SCRIPTS DE IA (.github/scripts/)**
+###  **1. SCRIPTS DE IA (.github/scripts/)**
 **Arquivo:** `.github/scripts/ai_review.py`
 **Dependências:** `requests`, `openai`, `anthropic`, etc.
 **Status:** **EXTRA** - Apenas para CI/CD
@@ -29,7 +29,7 @@
 - `version.py` - Apenas `json` (built-in)
 **Status:** **OK** - Sem deps extras
 
-### 🎨 **5. GUI (gui/)**
+###  **5. GUI (gui/)**
 **Dependências encontradas:**
 - `PyQt6` (já está no core)
 - `pandas` (já está no core)
@@ -114,16 +114,16 @@ requests>=2.31.0,<3.0.0
 ##  **IMPACTO DA OTIMIZAÇÃO**
 
 ### **ANTES:**
-- 📦 236 dependências
-- 💾 ~500MB instalação
+-  236 dependências
+-  ~500MB instalação
 - ⏱️ ~5min install
-- 🔄 Conflitos frequentes
+-  Conflitos frequentes
 
 ### **DEPOIS:**
-- 📦 5 dependências core
-- 💾 ~50MB instalação  
+-  5 dependências core
+-  ~50MB instalação  
 - ⏱️ ~30s install
-- 🔄 Zero conflitos
+-  Zero conflitos
 
 ### **REDUÇÃO: 95% menos dependências!**
 

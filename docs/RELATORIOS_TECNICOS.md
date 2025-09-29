@@ -309,9 +309,9 @@ class MultiPlatformBuilder:
             results[platform_name] = self.build_for_platform(platform_name)
             
             if results[platform_name]['success']:
-                print(f"✅ Build para {platform_name} concluído")
+                print(f" Build para {platform_name} concluído")
             else:
-                print(f"❌ Build para {platform_name} falhou")
+                print(f" Build para {platform_name} falhou")
         
         return results
     
@@ -1025,13 +1025,13 @@ def verify_database_integrity(db_path, table_name):
 ```
 
 **Verificações Realizadas**:
-- ✅ Existência do arquivo de banco de dados
-- ✅ Permissões de leitura/escrita no arquivo
-- ✅ Espaço em disco disponível (mínimo 100MB)
-- ✅ Acessibilidade do banco SQLite
-- ✅ Existência da tabela principal
-- ✅ Validação do schema (colunas obrigatórias)
-- ✅ Integridade dos dados SQLite (`PRAGMA integrity_check`)
+-  Existência do arquivo de banco de dados
+-  Permissões de leitura/escrita no arquivo
+-  Espaço em disco disponível (mínimo 100MB)
+-  Acessibilidade do banco SQLite
+-  Existência da tabela principal
+-  Validação do schema (colunas obrigatórias)
+-  Integridade dos dados SQLite (`PRAGMA integrity_check`)
 
 ##### **2. Validação de Dados Pré-Inserção**
 ```python
@@ -1049,12 +1049,12 @@ def validate_dataframe_before_insert(df, table_name):
 ```
 
 **Validações Críticas**:
-- ✅ Verificação de colunas obrigatórias (numero_ssa, situacao)
-- ✅ Validação de números SSA (formato YYYYNNNNN)
-- ✅ Validação de formatos de data
-- ✅ Detecção de duplicatas por numero_ssa
-- ✅ Verificação de tamanhos de string (evitar truncamento)
-- ✅ Validação de tipos de dados
+-  Verificação de colunas obrigatórias (numero_ssa, situacao)
+-  Validação de números SSA (formato YYYYNNNNN)
+-  Validação de formatos de data
+-  Detecção de duplicatas por numero_ssa
+-  Verificação de tamanhos de string (evitar truncamento)
+-  Validação de tipos de dados
 
 ##### **3. Sistema de Reparo Automático**
 ```python
@@ -1078,10 +1078,10 @@ def repair_database_if_needed(db_path, schema_file):
 ```
 
 **Ações de Reparo**:
-- 🔧 Criação de novo banco se não existir
-- 🔧 Recriação de schema se tabela estiver ausente
-- 🔧 Backup e restauração em caso de corrupção
-- 🔧 Extração de dados válidos de banco corrompido
+-  Criação de novo banco se não existir
+-  Recriação de schema se tabela estiver ausente
+-  Backup e restauração em caso de corrupção
+-  Extração de dados válidos de banco corrompido
 
 #### **Classes de Exceção Específicas**
 
@@ -1194,7 +1194,7 @@ error_recovery_strategies = {
 **Data**: 22 de Agosto de 2025  
 **Versão**: 3.0.5 Enhanced CLI  
 **Objetivo**: Aplicar soluções determinísticas da GUI na CLI  
-**Status**: ✅ Implementação Completa
+**Status**:  Implementação Completa
 
 #### **Arquitetura do Sistema Enhanced**
 
@@ -1322,20 +1322,20 @@ python main.py -c              # Limpar cache
 #### **Melhorias Técnicas Implementadas**
 
 ##### **Determinismo e Consistência**
-- ✅ Larguras de coluna idênticas ao GUI (conversão pixel→char)
-- ✅ Comportamento previsível em diferentes terminais
-- ✅ Cálculos de largura determinísticos e reproduzíveis
+-  Larguras de coluna idênticas ao GUI (conversão pixel→char)
+-  Comportamento previsível em diferentes terminais
+-  Cálculos de largura determinísticos e reproduzíveis
 
 ##### **Performance Otimizada**
-- ✅ Cache inteligente para renderização de tabelas
-- ✅ Seleção automática de colunas baseada na largura terminal
-- ✅ Processamento eficiente de datasets grandes
+-  Cache inteligente para renderização de tabelas
+-  Seleção automática de colunas baseada na largura terminal
+-  Processamento eficiente de datasets grandes
 
 ##### **Usabilidade Aprimorada**
-- ✅ Comandos intuitivos e bem documentados
-- ✅ Fallback automático para sistema original em caso de erro
-- ✅ Mensagens de status claras e informativas
-- ✅ Word wrap inteligente para descrições longas
+-  Comandos intuitivos e bem documentados
+-  Fallback automático para sistema original em caso de erro
+-  Mensagens de status claras e informativas
+-  Word wrap inteligente para descrições longas
 
 ##### **Configuração Unificada**
 ```json
@@ -1357,7 +1357,7 @@ python main.py -c              # Limpar cache
 **Usabilidade**: Interface mais limpa e consistente  
 **Manutenibilidade**: Código modular e bem estruturado  
 
-**Feedback do Usuário**: ✅ "Objetivo cumprido - CLI com melhorias determinísticas aplicadas"
+**Feedback do Usuário**:  "Objetivo cumprido - CLI com melhorias determinísticas aplicadas"
 
 ---
 
@@ -1366,29 +1366,29 @@ python main.py -c              # Limpar cache
 ### **Release v3.10 (2025-09-04) - Consolidação de Melhorias Visuais**
 
 #### **Melhorias GUI Implementadas**
-- 🎨 **Painel "Filtros por Coluna" Compacto**: Labels próximos, botões fixos (Aplicar/Limpar), altura estável
-- 🔧 **Estabilidade das Colunas**: Larguras não mudam ao limpar/aplicar filtros ou paginar
-- 🎯 **Recálculo Inteligente**: Apenas quando muda conjunto/ordem de colunas ou largura útil do viewport > 12px
-- 🌈 **Sistema de Temas**: Inicia em Gruvbox, Tema Claro mais cinza (fundo #eee, borda #aaa)
-- 💡 **Dica de Busca Visível**: "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna."
+-  **Painel "Filtros por Coluna" Compacto**: Labels próximos, botões fixos (Aplicar/Limpar), altura estável
+-  **Estabilidade das Colunas**: Larguras não mudam ao limpar/aplicar filtros ou paginar
+-  **Recálculo Inteligente**: Apenas quando muda conjunto/ordem de colunas ou largura útil do viewport > 12px
+-  **Sistema de Temas**: Inicia em Gruvbox, Tema Claro mais cinza (fundo #eee, borda #aaa)
+-  **Dica de Busca Visível**: "Separe por vírgulas. Use ! para excluir. A busca vale para qualquer coluna."
 
 #### **Melhorias CLI Implementadas**
-- 🖥️ **Banner Inicial Único**: Sem duplicação de versão
-- 📋 **Guia Rápido Otimizado**: Sem bordas laterais para evitar quebra à direita
+- ️ **Banner Inicial Único**: Sem duplicação de versão
+-  **Guia Rápido Otimizado**: Sem bordas laterais para evitar quebra à direita
 
 #### **Correções Técnicas**
-- ✅ "Limpar" nas três caixas fixas mantém as linhas e apenas zera os termos
-- ✅ Dica de busca visível com contraste em todos os temas
-- ✅ Placeholders dos filtros por coluna alinhados com os modos
+-  "Limpar" nas três caixas fixas mantém as linhas e apenas zera os termos
+-  Dica de busca visível com contraste em todos os temas
+-  Placeholders dos filtros por coluna alinhados com os modos
 
 #### **Arquivos Relacionados**
 - `docs_saida/RELEASE_v3.10.md`
 - `docs_saida/CHANGELOG_v3.10.md`
 
 #### **Notas de Migração**
-- ✅ Nenhuma ação requerida
-- ✅ Preferência de tema persistida
-- ✅ Aplicação inicializa em Gruvbox por padrão
+-  Nenhuma ação requerida
+-  Preferência de tema persistida
+-  Aplicação inicializa em Gruvbox por padrão
 
 #### **Checklist de Validação**
 - [x] Contraste do tema Claro nas caixas Semana/Status

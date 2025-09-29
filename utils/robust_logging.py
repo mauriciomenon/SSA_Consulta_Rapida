@@ -398,6 +398,28 @@ def get_robust_logger(config_path: Optional[str] = None) -> RobustLogger:
         _robust_logger = RobustLogger(config_path)
     return _robust_logger
 
+
+# Backwards-compatible alias esperado por imports legados
+def setup_logging(config_path: Optional[str] = None) -> RobustLogger:
+    """Alias compatível com implementações anteriores.
+
+    Uso:
+        from utils.robust_logging import setup_logging
+        rl = setup_logging()
+    """
+    return get_robust_logger(config_path=config_path)
+
+
+# Exports públicos do módulo
+__all__ = [
+    "get_robust_logger",
+    "setup_logging",
+    "RobustLogger",
+    "PerformanceMetrics",
+    "JSONFormatter",
+    "ContextFilter"
+]
+
 def get_component_logger(name: str, component: str) -> logging.Logger:
     """Shortcut para obter logger de componente."""
     return get_robust_logger().get_logger(name, component)
