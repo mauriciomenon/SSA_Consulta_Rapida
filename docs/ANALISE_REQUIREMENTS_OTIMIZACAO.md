@@ -26,11 +26,11 @@ tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 
 ## DEPENDÊNCIAS REMOVIDAS (desnecessárias)
 
-### 🤖 IA/ML (não usadas no projeto)
+###  IA/ML (não usadas no projeto)
 - langchain, openai, google-ai, mistralai
 - numpy, scipy (pandas já inclui numpy)
 
-### 📔 Jupyter (desenvolvimento)
+###  Jupyter (desenvolvimento)
 - jupyter, ipython, nbconvert, etc.
 
 ###  Ferramentas desenvolvimento  
@@ -40,7 +40,7 @@ tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 ###  Build/Deploy
 - pyinstaller, build, setuptools
 
-### 🌐 Web/HTTP (não usado)
+###  Web/HTTP (não usado)
 - aiohttp, httpx, requests
 
 ## TESTES DE FUNCIONAMENTO
@@ -66,7 +66,7 @@ pip install -r requirements.txt
 python main.py --help
 ```
 
-## 📈 BENEFÍCIOS DA OTIMIZAÇÃO
+##  BENEFÍCIOS DA OTIMIZAÇÃO
 
 **Instalação 90% menor**  
 **Deploy mais rápido**  

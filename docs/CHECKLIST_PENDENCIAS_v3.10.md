@@ -19,19 +19,19 @@
 
 ---
 
-## ✅ **SITUAÇÃO ATUAL - v3.10 COMPLETA**
+##  **SITUAÇÃO ATUAL - v3.10 COMPLETA**
 
 ### **RELEASE JÁ PUBLICADO**
-- ✅ **Tag criada**: v3.10 (4 de Setembro de 2025)
-- ✅ **GitHub Release**: Publicado com assets
-- ✅ **Executável Windows**: `SSA_Consulta_Rapida_3.10_windows.zip` (228MB)
-- ✅ **Documentação**: Release notes completas
+-  **Tag criada**: v3.10 (4 de Setembro de 2025)
+-  **GitHub Release**: Publicado com assets
+-  **Executável Windows**: `SSA_Consulta_Rapida_3.10_windows.zip` (228MB)
+-  **Documentação**: Release notes completas
 
-### **📦 ARTEFATOS DISPONÍVEIS**
-- ✅ **Release Notes**: Disponível no GitHub
-- ✅ **Changelog**: `docs_saida/CHANGELOG_v3.10.md`
-- ✅ **Asset binário**: Executável para Windows empacotado
-- ✅ **Código fonte**: Tarball e zipball automáticos
+### ** ARTEFATOS DISPONÍVEIS**
+-  **Release Notes**: Disponível no GitHub
+-  **Changelog**: `docs_saida/CHANGELOG_v3.10.md`
+-  **Asset binário**: Executável para Windows empacotado
+-  **Código fonte**: Tarball e zipball automáticos
 
 ---
 
@@ -69,7 +69,7 @@ Agora que a v3.10 está publicada, o foco deve ser:
 **Documentação**: Release notes detalhadas  
 **Distribuição**: Executável Windows para facilitar adoção  
 
-### **📈 MÉTRICAS DO RELEASE**
+### ** MÉTRICAS DO RELEASE**
 - **Data de Release**: 4 de Setembro de 2025  
 - **Asset Principal**: 228MB (executável Windows)  
 - **Compatibilidade**: Mantida com versões anteriores  
@@ -101,13 +101,13 @@ Agora que a v3.10 está publicada, o foco deve ser:
 3. **Exportação Avançada**: Novos formatos (PDF, Word, etc.)
 4. **API REST**: Interface programática para integrações
 
-### **🥈 MÉDIA PRIORIDADE**
+### ** MÉDIA PRIORIDADE**
 1. **Filtros Salvos**: Permitir salvar combinações de filtros
 2. **Configurações de Usuário**: Sistema de preferências personalizáveis
 3. **Atalhos de Teclado**: Shortcuts para ações comuns
 4. **Internacionalização**: Suporte a múltiplos idiomas
 
-### **🥉 BAIXA PRIORIDADE**
+### ** BAIXA PRIORIDADE**
 1. **Plugins**: Sistema de extensões
 2. **Integração Cloud**: Suporte a armazenamento em nuvem
 3. **Mobile**: Versão para dispositivos móveis
@@ -147,7 +147,7 @@ python main.py --help
 
 ## � **HISTÓRICO DE RELEASES**
 
-### **📈 EVOLUÇÃO DAS VERSÕES**
+### ** EVOLUÇÃO DAS VERSÕES**
 - **v3.10** (4 Set 2025): GUI compacta, estabilidade de larguras, temas aprimorados
 - **v3.0.5** (25 Ago 2025): Estabilidade e polish profissional
 - **v3.0.3** (15 Ago 2025): Refino CLI, logs rotativos, robustez

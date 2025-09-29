@@ -1,19 +1,19 @@
-# 🔒 GUIA DE PRIVACIDADE E GESTÃO DE ARQUIVOS PESSOAIS
+#  GUIA DE PRIVACIDADE E GESTÃO DE ARQUIVOS PESSOAIS
 
 ##  **SUA SITUAÇÃO ATUAL**
 
 ### **Arquivos que PRECISAM ser privados:**
 -  **docs_entrada/*.xlsx** - Dados sensíveis da empresa
-- 📝 **Alguns .md pessoais** - Lembretes, "não mexer", conversas
-- 📈 **docs_saida/relatórios** - Podem conter dados sensíveis
+-  **Alguns .md pessoais** - Lembretes, "não mexer", conversas
+-  **docs_saida/relatórios** - Podem conter dados sensíveis
 -  **Configurações locais** - Específicas da sua máquina
 
 ### **Arquivos que PODEM ser públicos:**
-- 💻 **Código fonte** - Valor técnico para comunidade
-- 📚 **Documentação técnica** - ESTRUTURA, REGRAS, CHANGELOG
+-  **Código fonte** - Valor técnico para comunidade
+-  **Documentação técnica** - ESTRUTURA, REGRAS, CHANGELOG
 -  **Scripts de build** - Úteis para outros desenvolvedores
 
-## 🛡️ **OPÇÕES DE PRIVACIDADE**
+## ️ **OPÇÕES DE PRIVACIDADE**
 
 ### **Opção 1: Repositório Privado (RECOMENDADA)**
 ```bash
@@ -24,14 +24,14 @@
 ```
 
 **Vantagens:**
-- ✅ Acesso apenas com sua conta GitHub
-- ✅ Sincronização entre suas máquinas
-- ✅ Histórico completo preservado
-- ✅ Colaboração controlada (você escolhe quem pode ver)
+-  Acesso apenas com sua conta GitHub
+-  Sincronização entre suas máquinas
+-  Histórico completo preservado
+-  Colaboração controlada (você escolhe quem pode ver)
 
 **Desvantagens:**
-- ❌ Código técnico não fica disponível para comunidade
-- ❌ Limite de repositórios privados (dependendo do plano)
+-  Código técnico não fica disponível para comunidade
+-  Limite de repositórios privados (dependendo do plano)
 
 ### **Opção 2: Dois Repositórios**
 ```bash
@@ -56,7 +56,7 @@
 
 ##  **CLASSIFICAÇÃO DOS SEUS ARQUIVOS .md**
 
-### **🔒 PESSOAIS (devem ser privados):**
+### ** PESSOAIS (devem ser privados):**
 ```
 *LEMBRETE*.md
 *NAO_MEXER*.md
@@ -65,7 +65,7 @@
 TEMPLATE_NOVA_CONVERSA.md
 ```
 
-### **🌍 PROFISSIONAIS (podem ser públicos):**
+### ** PROFISSIONAIS (podem ser públicos):**
 ```
 README.md
 ESTRUTURA_PROJETO.md
@@ -141,38 +141,38 @@ Sistema profissional para consulta rápida de SSAs com:
 3. Execute `python main.py`
 ```
 
-## 🔐 **SEGURANÇA DE DADOS**
+##  **SEGURANÇA DE DADOS**
 
 ### **Dados de Entrada (.xlsx)**
-- ✅ **NUNCA** committar arquivos da empresa
-- ✅ Manter apenas localmente
-- ✅ Usar .gitignore para proteger
-- ✅ Fazer backup separado (OneDrive, etc.)
+-  **NUNCA** committar arquivos da empresa
+-  Manter apenas localmente
+-  Usar .gitignore para proteger
+-  Fazer backup separado (OneDrive, etc.)
 
 ### **Banco de Dados**
-- ✅ `data/ssas.db` já está no .gitignore
-- ✅ Fazer backup regular fora do git
-- ✅ Não sincronizar via GitHub
+-  `data/ssas.db` já está no .gitignore
+-  Fazer backup regular fora do git
+-  Não sincronizar via GitHub
 
 ### **Configurações Sensíveis**
-- ✅ Separar configs públicas das privadas
-- ✅ Usar variáveis de ambiente para senhas
-- ✅ Templates para configurações
+-  Separar configs públicas das privadas
+-  Usar variáveis de ambiente para senhas
+-  Templates para configurações
 
-## 💡 **RECOMENDAÇÃO FINAL**
+##  **RECOMENDAÇÃO FINAL**
 
 ### **PARA AGORA:**
-1. ✅ **Tornar repositório privado** (5 minutos)
-2. ✅ **Executar limpeza inteligente** (10 minutos)
-3. ✅ **Atualizar .gitignore** (5 minutos)
+1.  **Tornar repositório privado** (5 minutos)
+2.  **Executar limpeza inteligente** (10 minutos)
+3.  **Atualizar .gitignore** (5 minutos)
 
 ### **PARA O FUTURO:**
-1. 🔄 **Considerar repositório público** apenas com código
-2. 📚 **Melhorar documentação** técnica
-3. 🌍 **Contribuir para comunidade** com código limpo
+1.  **Considerar repositório público** apenas com código
+2.  **Melhorar documentação** técnica
+3.  **Contribuir para comunidade** com código limpo
 
 **Isso resolve sua necessidade de:**
-- 🔒 Privacidade dos dados sensíveis
-- 🔄 Sincronização entre máquinas
-- 👤 Acesso apenas com sua conta
-- 🛡️ Proteção automática contra commits acidentais
+-  Privacidade dos dados sensíveis
+-  Sincronização entre máquinas
+-  Acesso apenas com sua conta
+- ️ Proteção automática contra commits acidentais

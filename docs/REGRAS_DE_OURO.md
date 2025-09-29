@@ -1,13 +1,13 @@
-# 🚨 REGRAS DE OURO - SSA Consulta Rápida
+#  REGRAS DE OURO - SSA Consulta Rápida
 
-## ⛔ NUNCA FAÇA
+##  NUNCA FAÇA
 - Execute scripts na raiz sem ler ESTRUTURA_PROJETO.md
 - Modifique core/, armazenamento/, extracao/ sem backup
 - Delete data/ssas.db
 - Execute múltiplos scripts de correção juntos
 - Modifique main.py sem testar
 
-## ✅ SEMPRE FAÇA
+##  SEMPRE FAÇA
 - Leia ESTRUTURA_PROJETO.md primeiro
 - Faça backup antes de mudanças críticas
 - Use scripts_desenvolvimento/ para testes
@@ -19,7 +19,7 @@
 2. Estabilizar banco de dados
 3. Limpar arquivos desnecessários
 
-## 📞 ARQUIVOS IMPORTANTES
+##  ARQUIVOS IMPORTANTES
 - ESTRUTURA_PROJETO.md (este documento completo)
 - main.py (entrada principal)
 - armazenamento/database.py (banco)

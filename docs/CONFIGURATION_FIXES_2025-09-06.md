@@ -59,7 +59,7 @@ grep "PyQt6" requirements.txt
 ls tests/test_*.py | wc -l
 
 # Check workflows syntax
-cd .github/workflows && for f in *.yml; do echo "Checking $f"; yamllint "$f" 2>/dev/null || echo "✓ Valid YAML"; done
+cd .github/workflows && for f in *.yml; do echo "Checking $f"; yamllint "$f" 2>/dev/null || echo " Valid YAML"; done
 ```
 
 ## Benefits

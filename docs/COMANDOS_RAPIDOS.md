@@ -84,7 +84,7 @@ type logs\ssa.log
 ## TESTES
 ```powershell
 # Teste rápido
-python -c "from core import app_logic; print('✅ OK')"
+python -c "from core import app_logic; print(' OK')"
 
 # Testes automatizados
 python -m pytest tests\ -v

@@ -13,7 +13,7 @@ Este documento consolida informações de todas as versões e releases do SSA Co
 ## **LINHA DO TEMPO DE RELEASES**
 
 ### **v3.10 (04/09/2025) - Consolidação Visual**
-**Status**: ✅ Release Final
+**Status**:  Release Final
 - **Foco**: Melhorias visuais e estabilidade da GUI
 - **Principais Features**:
   - Painel "Filtros por Coluna" compacto
@@ -23,7 +23,7 @@ Este documento consolida informações de todas as versões e releases do SSA Co
   - CLI com banner único
 
 ### **v3.0.7 (Meta) - Melhorias Incrementais**
-**Status**: 🔧 Em Desenvolvimento
+**Status**:  Em Desenvolvimento
 - **Foco**: Correções e otimizações
 - **Principais Objetivos**:
   - Isolamento completo de configurações
@@ -31,7 +31,7 @@ Este documento consolida informações de todas as versões e releases do SSA Co
   - Otimizações de performance
 
 ### **v3.0.5 (25/08/2025) - Estabilidade e Polimento**
-**Status**: ✅ Release Estável
+**Status**:  Release Estável
 - **Foco**: Sistema CLI Enhanced e robustez
 - **Principais Features**:
   - CLI Enhanced System completo
@@ -41,22 +41,22 @@ Este documento consolida informações de todas as versões e releases do SSA Co
   - 67 testes automatizados passando
 
 ### **v3.0.3 (Meta) - Funcionalidades Core**
-**Status**: ✅ Release Histórico
+**Status**:  Release Histórico
 - **Foco**: Implementação de funcionalidades essenciais
 - **Base**: Sistema de importação e consulta robusto
 
 ### **v3.0.2 (Meta) - Correções Críticas**
-**Status**: ✅ Release Histórico
+**Status**:  Release Histórico
 - **Foco**: Correções de bugs críticos
 - **Base**: Sistema estável de banco de dados
 
 ### **v3.0.1 (Meta) - Primeiro Release Estável**
-**Status**: ✅ Release Histórico
+**Status**:  Release Histórico
 - **Foco**: Funcionalidade básica estável
 - **Base**: Sistema funcional de consulta de SSAs
 
 ### **v3.0.0 (Meta) - Release Inicial**
-**Status**: ✅ Release Histórico
+**Status**:  Release Histórico
 - **Foco**: Implementação inicial
 - **Base**: Sistema básico funcionando
 
@@ -148,21 +148,21 @@ config/
 ```
 PROBLEMA: UnicodeEncodeError com emojis em Windows (cp1252)
 SOLUÇÃO: Substituição de emojis por caracteres ASCII seguros
-STATUS: ✅ Resolvido
+STATUS:  Resolvido
 ```
 
 #### **Conflitos de Configuração (v3.0.x)**
 ```
 PROBLEMA: GUI e CLI compartilhando configurações
 SOLUÇÃO: Isolamento completo com arquivos específicos
-STATUS: ✅ Resolvido na v3.0.5+
+STATUS:  Resolvido na v3.0.5+
 ```
 
 #### **Duplicação de Colunas no Banco (Detectado)**
 ```
 PROBLEMA: 7 grupos de colunas duplicadas no schema
 ANÁLISE: 4,196 registros duplicados (29.1%)
-STATUS: 🔍 Identificado, aguardando correção
+STATUS:  Identificado, aguardando correção
 ```
 
 ---
