@@ -55,6 +55,8 @@ Foram aplicadas melhorias recentes de qualidade de código:
 - Cache systems inteligentes para GUI e Streamlit com ganhos massivos de performance.
 
 Para auditoria de termos sensíveis existe um scanner interno (script em `scripts_manutencao/`) configurado para varrer apenas diretórios relevantes e ignorar arquivos grandes de dados.
+
+Nota de manutenção: durante a limpeza recente de emojis em documentação e arquivos de texto, os arquivos originais foram preservados em `.emoji_backups/` na raiz do repositório. Use essa pasta para restaurar qualquer arquivo caso necessário.
 # Modularização do Módulo de Banco de Dados (2025-09)
 
 Para reduzir complexidade ciclomática e facilitar testes focados, o monolito `armazenamento/database.py` foi dividido em módulos especializados mantendo a API pública retrocompatível (tests continuam importando de `armazenamento.database`).

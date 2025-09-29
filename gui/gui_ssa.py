@@ -2227,6 +2227,18 @@ class SSAMainWindow(QMainWindow):
         except Exception:  # noqa: BLE001
             pal = get_palette(normalized)
             self.setPalette(pal)
+        # Ensure central widget background matches the palette to avoid white boxes
+        try:
+            central = self.centralWidget()
+            if central is not None:
+                # Use the palette window color for a consistent background
+                bg = pal.window().color().name()
+                existing = central.styleSheet() or ""
+                # Only enforce for dark/gruvbox themes to avoid overriding light themes
+                if normalize_theme(normalized) in {'gruvbox', 'dark', 'kde'}:
+                    central.setStyleSheet(existing + f"\nQWidget{{ background-color: {bg}; }}\n")
+        except Exception:
+            pass
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
