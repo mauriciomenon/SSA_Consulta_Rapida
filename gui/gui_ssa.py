@@ -2029,8 +2029,9 @@ class SSAMainWindow(QMainWindow):
             if label_widget is not None:
                 label_widget.setStyleSheet(f'color:{accent};')
             if input_widget is not None:
-                input_widget.setStyleSheet(' '.join(input_style))
-        elif theme in {'dark', 'kde'}:
+                # input_style já é uma string concatenada; aplicar diretamente
+                input_widget.setStyleSheet(input_style)
+        elif theme in {'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
             input_style = (
                 "QLineEdit { font-size:11px; color:#e0e0e0; background:#2b2b2b; border:1px solid #555555; border-radius:4px; padding:3px 6px; }"
                 "QLineEdit::placeholder { color:#aaaaaa; }"
@@ -2039,7 +2040,7 @@ class SSAMainWindow(QMainWindow):
             if label_widget is not None:
                 label_widget.setStyleSheet('color:#e0e0e0;')
             if input_widget is not None:
-                input_widget.setStyleSheet(' '.join(input_style))
+                input_widget.setStyleSheet(input_style)
         else:
             if label_widget is not None:
                 label_widget.setStyleSheet('color: palette(windowText);')
@@ -2179,10 +2180,41 @@ class SSAMainWindow(QMainWindow):
         from PyQt6.QtWidgets import QMenu
         from functools import partial
         menu = QMenu(self)
+        # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
+        try:
+            from PyQt6.QtWidgets import QApplication
+            from PyQt6.QtCore import Qt as _Qt
+            from PyQt6.QtGui import QPalette as _QPal
+            app = QApplication.instance()
+            pal = app.palette() if app is not None else self.palette()
+            if app is not None:
+                menu.setPalette(pal)
+            try:
+                menu.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
+            except Exception:
+                pass
+            win = pal.color(_QPal.ColorRole.Window).name()
+            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
+            mid = pal.color(_QPal.ColorRole.Mid).name()
+            hi = pal.color(_QPal.ColorRole.Highlight).name()
+            hitxt = pal.color(_QPal.ColorRole.HighlightedText).name()
+            menu.setStyleSheet(
+                f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}"
+                f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}"
+                f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}"
+            )
+        except Exception:
+            pass
         theme_options = [
             ("Escala de cinza", 'grayscale'),
             ("Escuro", 'dark'),
             ("Gruvbox", 'gruvbox'),
+            ("One Dark Pro", 'one-dark'),
+            ("Dracula", 'dracula'),
+            ("Solarized Dark", 'solarized-dark'),
+            ("Solarized Light", 'solarized-light'),
+            ("Tokyo Night", 'tokyo-night'),
+            ("Catppuccin (Mocha)", 'catppuccin'),
             ("Windows 7", 'windows7'),
             ("KDE", 'kde'),
             ("GNOME", 'gnome'),
@@ -2207,10 +2239,10 @@ class SSAMainWindow(QMainWindow):
         # get_palette ja importado no topo; fallback silencioso se falhar
         normalized = normalize_theme(name)
         try:
-            from PyQt6.QtWidgets import QApplication
+            from PyQt6.QtWidgets import QApplication, QStyleFactory
+            app = QApplication.instance()
             if normalized == 'grayscale':
                 # Usa a paleta padrão sem depender de QStyleFactory
-                app = QApplication.instance()
                 if app is not None and hasattr(app, 'style'):
                     style_obj = app.style()
                     palette_factory = getattr(style_obj, 'standardPalette', None)
@@ -2220,10 +2252,55 @@ class SSAMainWindow(QMainWindow):
                         pal = get_palette(normalized)
                 else:
                     pal = get_palette(normalized)
-                self.setPalette(pal)
             else:
                 pal = get_palette(normalized)
-                self.setPalette(pal)
+            # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
+            # Ao usar temas personalizados (não-sistema), force "Fusion" para melhor consistência.
+            try:
+                if app is not None:
+                    if normalized not in {'grayscale', 'windows7', 'gnome'}:
+                        styles = QStyleFactory.keys()
+                        if styles and 'Fusion' in styles:
+                            app.setStyle('Fusion')
+            except Exception:
+                pass
+            # Aplica paleta no aplicativo inteiro para garantir consistência
+            if app is not None:
+                app.setPalette(pal)
+                # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
+                try:
+                    from PyQt6.QtGui import QPalette as _QPal
+                    win = pal.color(_QPal.ColorRole.Window).name()
+                    wtxt = pal.color(_QPal.ColorRole.WindowText).name()
+                    base = pal.color(_QPal.ColorRole.Base).name()
+                    text = pal.color(_QPal.ColorRole.Text).name()
+                    mid = pal.color(_QPal.ColorRole.Mid).name()
+                    hi = pal.color(_QPal.ColorRole.Highlight).name()
+                    hitxt = pal.color(_QPal.ColorRole.HighlightedText).name()
+                    ttbase = pal.color(_QPal.ColorRole.ToolTipBase).name()
+                    tttext = pal.color(_QPal.ColorRole.ToolTipText).name()
+                    block = (
+                        "/* SSA_THEME_QSS_START */\n"
+                        f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}\n"
+                        f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}\n"
+                        f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}\n"
+                        f"QToolTip {{ background-color: {ttbase}; color: {tttext}; border:1px solid {mid}; }}\n"
+                        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; }}\n"
+                        "/* SSA_THEME_QSS_END */"
+                    )
+                    existing_qss = app.styleSheet() or ""
+                    start = existing_qss.find("/* SSA_THEME_QSS_START */")
+                    end = existing_qss.find("/* SSA_THEME_QSS_END */")
+                    if start != -1 and end != -1 and end > start:
+                        end += len("/* SSA_THEME_QSS_END */")
+                        new_qss = existing_qss[:start] + block + existing_qss[end:]
+                    else:
+                        new_qss = existing_qss + ("\n" if existing_qss else "") + block
+                    app.setStyleSheet(new_qss)
+                except Exception:
+                    pass
+            # Garante também na janela atual
+            self.setPalette(pal)
         except Exception:  # noqa: BLE001
             pal = get_palette(normalized)
             self.setPalette(pal)
@@ -2235,7 +2312,7 @@ class SSAMainWindow(QMainWindow):
                 bg = pal.window().color().name()
                 existing = central.styleSheet() or ""
                 # Only enforce for dark/gruvbox themes to avoid overriding light themes
-                if normalize_theme(normalized) in {'gruvbox', 'dark', 'kde'}:
+                if normalize_theme(normalized) in {'gruvbox', 'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
                     central.setStyleSheet(existing + f"\nQWidget{{ background-color: {bg}; }}\n")
         except Exception:
             pass
@@ -2248,8 +2325,35 @@ class SSAMainWindow(QMainWindow):
         self._current_theme = normalized
         try:
             theme = normalized
-            light_themes = {'grayscale', 'windows7', 'gnome'}
+            light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
             selector = getattr(self, 'column_selector', None)
+            # Aplique estilos para Pesquisa Geral com base na paleta ativa (sem cores fixas)
+            try:
+                pal_active = self.palette()
+                from PyQt6.QtGui import QPalette as _QPal
+                txt = pal_active.color(_QPal.ColorRole.WindowText).name()
+                link = pal_active.color(_QPal.ColorRole.Link).name()
+                linkv = pal_active.color(_QPal.ColorRole.LinkVisited).name()
+                base = pal_active.color(_QPal.ColorRole.Base).name()
+                high = pal_active.color(_QPal.ColorRole.Highlight).name()
+                # Label usa cor de link para destacar "Pesquisa Geral" em todos os temas
+                if hasattr(self, 'search_label'):
+                    self.search_label.setStyleSheet(f"color: {link}; font-weight: 600;")
+                # Input usa texto normal, placeholder com visited-link e foco com highlight para dar ênfase
+                if hasattr(self, 'search_input') and self.search_input is not None:
+                    self.search_input.setStyleSheet(
+                        "QLineEdit {"
+                        f" color: {txt}; background: {base}; border:1px solid {link}; border-radius:4px; padding:3px 6px;"
+                        " }"
+                        "QLineEdit::placeholder {"
+                        f" color: {linkv};"
+                        " }"
+                        "QLineEdit:focus {"
+                        f" border:1px solid {high};"
+                        " }"
+                    )
+            except Exception:
+                pass
             if theme in light_themes:
                 # Usar aparencia padrao do sistema/Fusion; sem CSS pesado
                 if hasattr(self, 'week_label'):

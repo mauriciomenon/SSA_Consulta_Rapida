@@ -158,24 +158,64 @@ class JSONFormatter(logging.Formatter):
 
 
 class ContextFilter(logging.Filter):
-    """Filtro que adiciona contexto automático aos logs."""
-    
+    """Filtro que adiciona contexto automático aos logs e garante campos esperados.
+
+    Importante: Sempre define o atributo 'component' no record para evitar
+    KeyError em format strings que incluam %(component)s.
+    """
+
     def __init__(self, component_name: Optional[str] = None):
         super().__init__()
         self.component_name = component_name
         self.session_id = f"session_{int(time.time())}"
-    
+
     def filter(self, record):
-        """Adiciona contexto automático ao record."""
-        if self.component_name:
-            record.component = self.component_name
-        
+        """Adiciona contexto automático ao record e garante campos padrão."""
+        # Garante 'component' mesmo quando não especificado
+        try:
+            if self.component_name:
+                record.component = self.component_name
+            else:
+                # Usa existente, ou o nome do logger, ou '-'
+                if not hasattr(record, 'component') or getattr(record, 'component', None) in (None, ''):
+                    record.component = getattr(record, 'name', '-') or '-'
+        except Exception:
+            # Último recurso
+            record.component = '-'
+
+        # IDs auxiliares
         record.session_id = self.session_id
-        
+
         # Adiciona thread info
-        record.thread_name = threading.current_thread().name
-        
+        try:
+            record.thread_name = threading.current_thread().name
+        except Exception:
+            record.thread_name = 'main'
+
         return True
+
+
+class SafeFormatter(logging.Formatter):
+    """Formatter tolerante a campos faltando em record.__dict__.
+
+    Evita ValueError/KeyError quando algum campo opcional (ex.: component)
+    não estiver presente por qualquer motivo.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        # Garante chaves usadas no formato
+        if not hasattr(record, 'component'):
+            setattr(record, 'component', getattr(record, 'name', '-') or '-')
+        if not hasattr(record, 'session_id'):
+            setattr(record, 'session_id', '-')
+        if not hasattr(record, 'thread_name'):
+            setattr(record, 'thread_name', threading.current_thread().name)
+        try:
+            return super().format(record)
+        except Exception:
+            # Fallback mínimo em caso de erro de formatação
+            basic = f"{record.levelname} {record.name}: {record.getMessage()}"
+            return basic
 
 
 class RobustLogger:
@@ -244,7 +284,7 @@ class RobustLogger:
         if self.config['enable_console']:
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setLevel(getattr(logging, self.config['console_level']))
-            console_formatter = logging.Formatter(
+            console_formatter = SafeFormatter(
                 self.config['format'], 
                 datefmt=self.config['date_format']
             )
@@ -261,7 +301,7 @@ class RobustLogger:
                 encoding='utf-8'
             )
             file_handler.setLevel(getattr(logging, self.config['file_level']))
-            file_formatter = logging.Formatter(
+            file_formatter = SafeFormatter(
                 self.config['format'],
                 datefmt=self.config['date_format']
             )
@@ -423,7 +463,3 @@ __all__ = [
 def get_component_logger(name: str, component: str) -> logging.Logger:
     """Shortcut para obter logger de componente."""
     return get_robust_logger().get_logger(name, component)
-
-def setup_logging(config_path: Optional[str] = None) -> RobustLogger:
-    """Alias para get_robust_logger para compatibilidade."""
-    return get_robust_logger(config_path)
