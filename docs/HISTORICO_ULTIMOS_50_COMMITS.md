@@ -1,5 +1,19 @@
 # Histórico detalhado — últimos 50 commits (até 2025-10-03)
 
+## Índice
+
+- [Visão geral rápida](#visão-geral-rápida)
+- [Topologia de branches (resumo)](#topologia-de-branches-resumo)
+- [Branches, tags e remotes](#branches-tags-e-remotes)
+- [Commits detalhados (últimos 50)](#commits-detalhados-últimos-50)
+- [Mapeamento do código de temas (theming)](#mapeamento-do-código-de-temas-theming)
+  - [utils/themes.py — paletas e normalização](#utilsthemespy--paletas-e-normalização)
+  - [gui/gui_ssa.py — apply_theme(name: str)](#guigui_ssapy--apply_themename-str)
+- [Decisões equivocadas e correções (aprendizados)](#decisões-equivocadas-e-correções-aprendizados)
+- [TODOs e pendências objetivas](#todos-e-pendências-objetivas)
+- [Conversa desta sessão — resumo didático](#conversa-desta-sessão--resumo-didático)
+- [Apêndice: Comandos Git usados](#apêndice-comandos-git-usados)
+
 Este documento consolida as mudanças realizadas nos últimos 50 commits, a topologia de branches, um mapeamento do código de temas (theming) na GUI, decisões equivocadas corrigidas, pendências (TODOs) e um resumo direto da nossa conversa para dar continuidade fora do ambiente.
 
 ## Visão geral rápida
@@ -217,3 +231,16 @@ Arquivos-chave:
 ---
 
 Se algo aqui divergir do que você quer ver neste relatório, me diga exatamente o que ajustar (ex.: granularidade por arquivo/commit, mais métricas, incluir diffs selecionados, etc.).
+
+## Apêndice: Comandos Git usados
+
+Comandos executados para gerar este relatório:
+
+```bash
+git --no-pager log -n 50 --date=iso --pretty=format:"%H|%ad|%an|%s" --stat
+git --no-pager log -n 50 --date=iso --pretty=format:"---%n%H%n%ad%n%an%n%s" --shortstat
+git --no-pager log --graph --decorate --oneline --all -n 120
+git --no-pager branch -a --verbose --no-abbrev
+git --no-pager tag --list --sort=-creatordate
+git remote -v
+```
