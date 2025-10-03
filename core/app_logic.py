@@ -525,9 +525,11 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
     # 🚀 OTIMIZAÇÃO: Usar apenas colunas prioritárias se não especificado
     if search_columns is None:
         # Colunas mais frequentemente pesquisadas (ordem por relevância)
+        # Inclui campos de descrição utilizados na GUI: descricao_ssa e descricao_execucao
         priority_columns = [
-            'numero_ssa', 'situacao', 'setor_executor', 'setor_emissor', 
-            'descricao_servico', 'observacao', 'prazo_limite_str', 'data_cadastro_str'
+            'numero_ssa', 'situacao', 'setor_executor', 'setor_emissor',
+            'descricao_ssa', 'descricao_execucao', 'descricao_servico', 'observacao',
+            'prazo_limite_str', 'data_cadastro_str'
         ]
         # Filtrar apenas colunas que existem no DataFrame
         search_columns = [col for col in priority_columns if col in df.columns]

@@ -74,7 +74,7 @@
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
-    "theme": "tokyo-night",
+    "theme": "gruvbox",
     "filter_cache_size": 50,
     "cache_enabled": true,
     "cache_auto_clear": false
