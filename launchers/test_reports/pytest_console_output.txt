@@ -1,0 +1,13 @@
+Pytest run on 2025-10-06
+
+Summary:
+- Attempted to run the test suite; run aborted due to an INTERNALERROR caused by reading `streamlit_app.py` with the default Windows cp1252 encoding.
+- Error: UnicodeDecodeError: 'charmap' codec can't decode byte 0x8f in position 9722
+- File implicated: scripts/test_streamlit_cache.py which executes streamlit_app.py during collection.
+
+Next steps to get a clean test run:
+1. Open `streamlit_app.py` and save it with UTF-8 encoding, or adjust the test to open it with encoding='utf-8'.
+2. Re-run pytest. Example command:
+   pytest -q --maxfail=1 --disable-warnings --junitxml=launchers/test_reports/test_results.xml
+
+The XML report file `launchers/test_reports/test_results.xml` was generated but may be incomplete.
