@@ -24,16 +24,6 @@ import re
 import logging
 from collections import OrderedDict
 
-# Inicializar logging robusto
-try:
-    from utils.robust_logging import setup_logging
-    setup_logging()
-    logger = logging.getLogger(__name__)
-    logger.info("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
-except Exception as e:
-    # Fallback para logging padrão
-    logger = logging.getLogger(__name__)
-    logger.error(f"Falha ao inicializar logging robusto: {e}")
 
 try:
     from utils.version import get_app_version
@@ -51,6 +41,16 @@ from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # n
 from utils.themes import get_palette, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
+# Inicializar logging robusto
+try:
+    from utils.robust_logging import setup_logging
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
+except Exception as e:
+    # Fallback para logging padrão
+    logger = logging.getLogger(__name__)
+    logger.error(f"Falha ao inicializar logging robusto: {e}")
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -1091,6 +1091,7 @@ class SSAMainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        
 
         # --- Barra de Ferramentas Superior ---
         toolbar_layout = QHBoxLayout()
@@ -1404,13 +1405,16 @@ class SSAMainWindow(QMainWindow):
         # Detalhes (maior)
         self.details_group = QGroupBox("Detalhes da SSA Selecionada")
         details_layout = QVBoxLayout(self.details_group)
+        details_layout.setContentsMargins(2, 2, 2, 2)  # Reduzido de 5 para 2
+        details_layout.setSpacing(2)  # Reduzido de 3 para 2
         self.details_text = QTextEdit()
         self.details_text.setReadOnly(True)
         details_layout.addWidget(self.details_text)
         bottom_layout.addWidget(self.details_group, 5)
+        
 
         # Filtros por Coluna com lista rolavel + rodape fixo
-        self.col_filters_group = QGroupBox("Filtros por Coluna (acumulam com Pesquisa Geral)")
+        self.col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(self.col_filters_group)
         from PyQt6.QtWidgets import QScrollArea
         self.col_filters_hint = QLabel("Use virgulas para combinar (E). Para alternativas use OU ou OR. Entre colunas mantemos E implicito.")
@@ -1452,7 +1456,7 @@ class SSAMainWindow(QMainWindow):
         right_col = QVBoxLayout(right_col_widget)
         right_col.setContentsMargins(0,0,0,0)
         right_col.addWidget(self.col_filters_group)
-        bottom_layout.addWidget(right_col_widget, 4)
+        bottom_layout.addWidget(right_col_widget, 5)
 
         # Respiro antes do bloco inferior
         main_layout.addSpacing(12)
@@ -1742,11 +1746,9 @@ class SSAMainWindow(QMainWindow):
         finally:
             self.search_input.blockSignals(False)
         self._pending_search_display = None
-        self._active_column_filters.clear()
-        
+        # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
         # Limpa o cache de filtros ao limpar filtros
         self.clear_filter_cache()
-        
         self.df_exibido = self.df_completo.copy()
         self._df_last_search_filtered = self.df_completo.copy()
         self.paginator.set_dataframe(self.df_exibido)
@@ -1996,59 +1998,6 @@ class SSAMainWindow(QMainWindow):
             self._update_col_filter_indicator()
             return
 
-        # Linha dedicada para Filtro OU (aplica cumulativamente)
-        try:
-            or_row = QHBoxLayout()
-            or_row.setContentsMargins(0, 0, 0, 0)
-            or_row.setSpacing(4)
-            or_label = QLabel("Filtro OU")
-            or_label.setMinimumWidth(100)
-            try:
-                or_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            or_input = QLineEdit(str(getattr(self, '_dedicated_or_text', '') or ''))
-            or_input.setPlaceholderText("Alternativas separadas (OU). Aplica junto aos filtros por coluna.")
-            try:
-                or_input.setMinimumHeight(26)
-            except Exception:
-                pass
-            try:
-                or_input.setMinimumWidth(220)
-                or_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            self._apply_filter_widget_theme(or_label, or_input)
-            def _apply_or():
-                self._dedicated_or_text = or_input.text().strip()
-                # Por enquanto apenas atualiza o resumo; lógica será ajustada depois
-                try:
-                    self._update_filters_summary()
-                except Exception:
-                    pass
-            try:
-                or_input.returnPressed.connect(_apply_or)
-            except Exception:
-                pass
-            or_apply_btn = QPushButton("Aplicar")
-            try:
-                or_apply_btn.setMinimumHeight(26)
-                or_apply_btn.setFixedWidth(72)
-                or_apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            try:
-                or_apply_btn.clicked.connect(_apply_or)
-            except Exception:
-                pass
-            or_row.addWidget(or_label)
-            or_row.addWidget(or_input, 1)
-            or_row.addWidget(or_apply_btn)
-            or_row_w = QWidget()
-            or_row_w.setLayout(or_row)
-            target_layout.addWidget(or_row_w)
-        except Exception:
-            pass
 
         for col, term in self._active_column_filters.items():
             # Pula linhas ocultas (removidas da exibição)
@@ -2091,7 +2040,7 @@ class SSAMainWindow(QMainWindow):
             except Exception:
                 pass
             # Botão [+ OU] insere o separador visual " OU " no ponto do cursor (apenas nesta coluna)
-            ou_btn = QPushButton("+ OU")
+            ou_btn = QPushButton("OU")
             try:
                 ou_btn.setMinimumHeight(26)
                 ou_btn.setFixedWidth(56)
@@ -2153,7 +2102,7 @@ class SSAMainWindow(QMainWindow):
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botão para remover a linha da exibição (não altera o valor do filtro)
-            clear_btn = QPushButton("Remover linha")
+            clear_btn = QPushButton("Remover")  # Corrigido capitalização
             try:
                 clear_btn.setMinimumHeight(26)
             except Exception:
@@ -2163,9 +2112,10 @@ class SSAMainWindow(QMainWindow):
             except Exception:
                 pass
             try:
-                clear_btn.setFixedWidth(68)
+                clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
             except Exception:
                 pass
+            
             def _mk_remove_line(c=col):
                 def _inner():
                     try:
@@ -3489,7 +3439,6 @@ class SSAMainWindow(QMainWindow):
             # Aplica limites de segurança apenas
             px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
 
-            # print(f"DEBUG: Aplicando largura {px}px para coluna '{col_key}' (índice {i})")
             self.table_widget.setColumnWidth(i, px)
 
         # Reforça larguras após preencher dados para evitar zeragem em ambientes headless/CI
