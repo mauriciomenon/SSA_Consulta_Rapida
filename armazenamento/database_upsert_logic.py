@@ -329,7 +329,10 @@ def insert_dataframe_with_smart_upsert_impl(
                 cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
         if not no_ssa.empty:
             mode = 'append' if table_exists else 'replace'
-            no_ssa.to_sql(table_name, conn, if_exists=mode, index=False, chunksize=500)
+            # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
+            chunk_size = min(500, max(1, 999 // len(no_ssa.columns))) if len(no_ssa.columns) > 0 else 500
+            logger.debug(f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas")
+            no_ssa.to_sql(table_name, conn, if_exists=mode, index=False, chunksize=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
             table_exists = True
         if not has_ssa.empty:
