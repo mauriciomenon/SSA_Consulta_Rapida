@@ -8,7 +8,6 @@
 #
 # Enquanto isso, mantemos ignorado para não introduzir ruído inesperado.
 
-[tool.ruff]
 line-length = 100
 # Exclui grandes diretórios de dados e caches
 exclude = [
@@ -16,11 +15,11 @@ exclude = [
   "docs_saida","legacy",".venv","__pycache__","extracao","logs"
 ]
 
-[tool.ruff.lint]
+[lint]
 select = ["E","F"]
 ignore = []
 
 # Evita qualquer alteração de formatação automática se alguém rodar 'ruff format'
-[tool.ruff.format]
+[format]
 quote-style = "preserve"
 indent-style = "space"

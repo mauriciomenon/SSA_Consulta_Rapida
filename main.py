@@ -7,19 +7,15 @@ Inicializa logging, processa argumentos de linha de comando
 e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 """
 
-import os
-import sys
 import argparse
-import socket
 import logging
+import os
 import shutil
+import socket
 import subprocess
+import sys
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
-from typing import TYPE_CHECKING, Optional
-
-if TYPE_CHECKING:
-    from gui.gui_ssa import SSAMainWindow
+from typing import Optional
 
 logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
@@ -312,10 +308,10 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     try:
         # Imports dinâmicos para evitar problemas
         try:
-            from utils import setup_project_structure
             from core.app_logic import run_importer_logic
-            from interface.cli import start_cli_loop
             from core.config_manager import ensure_default_settings
+            from interface.cli import start_cli_loop
+            from utils import setup_project_structure
         except ImportError as e:
             print(f"⚠️ Aviso: Alguns módulos não puderam ser carregados: {e}")
             print("Sistema funcionando em modo limitado.")
@@ -458,8 +454,8 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Fecha o socket da guarda ao sair
                 try:
                     single_instance_sock.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Falha ao fechar socket de instância única: {e}")
             except Exception as e:
                 logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
                 logger.info("Recuando para CLI.")

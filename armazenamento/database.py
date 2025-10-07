@@ -244,7 +244,13 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             # Caminho novo: abrir conexão via caminho
             with get_db_connection(db_path) as conn:  # type: ignore[arg-type]
                 final_table = _resolve_target_table(conn, table_name)
+                # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
+                # SQLite tem limite padrão de 999 variáveis por query
+                # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
+                # SQLite tem limite padrão de 999 variáveis por query
                 batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
+                logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
+                logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
                 work_df.reset_index(drop=True, inplace=True)
                 work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
                 conn.commit()

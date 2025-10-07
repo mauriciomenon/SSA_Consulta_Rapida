@@ -162,7 +162,9 @@ def insert_dataframe_optimized(
 
                     # 🔧 FIX: Processar em chunks para evitar "too many SQL variables"
                     # SQLite tem limite padrão de 999 variáveis por query
-                    CHUNK_SIZE = 500  # Margem de segurança
+                    # Cálculo dinâmico: 999 variáveis ÷ 35 colunas ≈ 28 linhas por chunk
+                    CHUNK_SIZE = min(500, max(1, 999 // len(update_df.columns)))  # Chunk size adaptável
+                    logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
                     ssa_list = list(update_df['numero_ssa'])
                     
                     for i in range(0, len(ssa_list), CHUNK_SIZE):
@@ -173,8 +175,8 @@ def insert_dataframe_optimized(
                         )
                         conn.execute(delete_query, chunk_ssas)
 
-                    # Inserir versões atualizadas
-                    update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
+                    # Inserir versões atualizadas com chunk size dinâmico
+                    update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
                     logger.info(f"✅ Atualizados {len(update_df)} registros existentes")
 
