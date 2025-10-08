@@ -151,6 +151,43 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             errors='coerce',
             dayfirst=True # Assume DD/MM/YYYY
         )
+        missing_mask = df_normalized['data_cadastro'].isna()
+        if missing_mask.any():
+            logger.debug(
+                "Detectados %s registros sem 'data_cadastro' apos conversao inicial; aplicando fallbacks.",
+                int(missing_mask.sum())
+            )
+            fallback_candidates = [
+                'desde',
+                'desde_1',
+                'data_inicio_programada',
+                'data_programacao',
+            ]
+            for col in fallback_candidates:
+                if col not in df_normalized.columns:
+                    continue
+                candidate_series = pd.to_datetime(
+                    df_normalized[col],
+                    errors='coerce',
+                    dayfirst=True
+                )
+                fill_mask = missing_mask & candidate_series.notna()
+                if fill_mask.any():
+                    df_normalized.loc[fill_mask, 'data_cadastro'] = candidate_series.loc[fill_mask]
+                    missing_mask = df_normalized['data_cadastro'].isna()
+                    logger.debug(
+                        "Preenchidos %s registros de 'data_cadastro' usando coluna '%s'. Restantes sem data: %s",
+                        int(fill_mask.sum()),
+                        col,
+                        int(missing_mask.sum())
+                    )
+                    if not missing_mask.any():
+                        break
+            if missing_mask.any():
+                logger.debug(
+                    "Ainda restam %s registros sem 'data_cadastro' apos fallbacks.",
+                    int(missing_mask.sum())
+                )
 
     # --- Conversao de colunas de semana para Int64 nullable ---
     semana_columns = [col for col in df_normalized.columns if 'semana' in col.lower()]
