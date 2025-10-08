@@ -88,11 +88,11 @@ class CLIEnhancementManager:
         unified = "✅ ATIVO" if self.is_unified_config_enabled() else "❌ INATIVO"
         status.append(f"Configuração Unificada: {unified}")
 
-        debug = "✅ ATIVO" if self.is_debug_enabled() else "❌ INATIVO"
+        debug = "[OK] ATIVO" if self.is_debug_enabled() else "[X] INATIVO"
         status.append(f"Debug Output: {debug}")
 
         status.append("")
-        status.append("🔧 MELHORIAS IMPLEMENTADAS:")
+        status.append("[MELHORIAS] MELHORIAS IMPLEMENTADAS:")
         status.append("• Larguras fixas determinísticas (como GUI)")
         status.append("• Sistema de crescimento proporcional 50/50")
         status.append("• Normalização correta de números SSA")

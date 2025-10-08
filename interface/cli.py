@@ -306,43 +306,88 @@ def _get_initial_state(
 # --- Handlers de Comandos ---
 
 def _show_initial_help():
-    """Exibe help inicial mais detalhado antes do prompt ficar disponível."""
+    """Exibe help inicial mais detalhado antes do prompt ficar disponivel."""
     help_text = f"""
-════════════════════════════ CONSULTA RÁPIDA de SSAs v{APP_VERSION} ═══════════════════════════
+===============================================================================
+CONSULTA RAPIDA de SSAs v{APP_VERSION}
 
 PESQUISA
-  • Separe termos por vírgula (ex.: ADM, MEL3, 2025)
-  • Termos simples procuram em qualquer parte; use =valor para coincidência exata
-  • Prefixos: ^início, fim$, =exato, ~regex, !negativo (podem ser combinados)
-  • Exemplos: svp, !ste, mel4 → contém “svp”, exclui “STE”, contém “mel4”
-  • Também aceita comparações/regex (ex.: mmu2, prazo<=30, ^2025)
+  - Separe termos por virgula (ex.: ADM, MEL3, 2025)
+  - Termos simples procuram em qualquer parte; use =valor para coincidencia exata
+  - Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
+  - Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
+  - Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
 
 COMANDOS PRINCIPAIS
   h ou ?    Ajuda completa
-  q         Sair da aplicação
-  d #       Mostrar detalhe da linha (use o número exibido na primeira coluna)
-  v         Desfazer o último filtro aplicado
-  m         Mostrar a próxima página de resultados
-  m z       Mostrar todas as páginas restantes
-  r         Limpar filtros ativos (mantém dados carregados)
+  q         Sair da aplicacao
+  d #       Mostrar detalhe da linha (use o numero exibido na primeira coluna)
+  v         Desfazer o ultimo filtro aplicado
+  m         Mostrar a proxima pagina de resultados
+  m z       Mostrar todas as paginas restantes
+  r         Limpar filtros ativos (mantem dados carregados)
   rescan    Reimportar todos os arquivos Excel
-  e nome    Exportar resultado (ex.: e relatorio → relatorio.csv/.xlsx)
-  c         Abrir menu de configurações
+  e nome    Exportar resultado (ex.: e relatorio -> relatorio.csv/.xlsx)
+  c         Abrir menu de configuracoes
 
-ORGANIZAÇÃO
-  ord / ordi  #        Ordenar coluna pelo índice mostrado em cols (crescente / decrescente)
+ORGANIZACAO
+  ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
   ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
-  cols                 Listar colunas exibidas e respectivos índices
+  cols                 Listar colunas exibidas e respectivos indices
   x termo              Remover termo do filtro atual (ex.: x mel4)
   l                    Listar filtros ativos
 
 DICAS
-  • Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
-  • Comandos rápidos: m (mais página), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
-  • Para continuar navegando após a primeira página use m; para exibir tudo, use m z
-═══════════════════════════════════════════════════════════════════════════════
+  - Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  - Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  - Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
+===============================================================================
 """
-    print(help_text)
+
+    try:
+        print(help_text)
+    except UnicodeEncodeError as exc:
+        logger.error("Erro de codificacao ao exibir texto de ajuda: %s", exc)
+        fallback_text = f"""
+===============================================================================
+CONSULTA RAPIDA de SSAs v{APP_VERSION}
+
+PESQUISA
+  - Separe termos por virgula (ex.: ADM, MEL3, 2025)
+  - Termos simples procuram em qualquer parte; use =valor para coincidencia exata
+  - Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
+  - Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
+  - Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
+
+COMANDOS PRINCIPAIS
+  h ou ?    Ajuda completa
+  q         Sair da aplicacao
+  d #       Mostrar detalhe da linha (use o numero exibido na primeira coluna)
+  v         Desfazer o ultimo filtro aplicado
+  m         Mostrar a proxima pagina de resultados
+  m z       Mostrar todas as paginas restantes
+  r         Limpar filtros ativos (mantem dados carregados)
+  rescan    Reimportar todos os arquivos Excel
+  e nome    Exportar resultado (ex.: e relatorio -> relatorio.csv/.xlsx)
+  c         Abrir menu de configuracoes
+
+ORGANIZACAO
+  ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
+  ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
+  cols                 Listar colunas exibidas e respectivos indices
+  x termo              Remover termo do filtro atual (ex.: x mel4)
+  l                    Listar filtros ativos
+
+DICAS
+  - Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  - Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  - Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
+===============================================================================
+"""
+        print(fallback_text)
+        logger.debug("Texto de ajuda fallback exibido com sucesso")
+    else:
+        logger.debug("Texto de ajuda exibido com sucesso")
 
 def _handle_quit():
     """Handler para o comando de sair."""
@@ -426,7 +471,49 @@ def _handle_help():
 
 Digite qualquer tecla para continuar..."""
 
-    print(help_text)
+    try:
+        print(help_text)
+        logger.debug("Texto de ajuda exibido com sucesso")
+    except UnicodeEncodeError as e:
+        logger.error(f"Erro de codificação ao exibir texto de ajuda: {e}")
+        # Fallback sem caracteres especiais
+        fallback_text = f"""
+================================ CONSULTA RÁPIDA de SSAs v{APP_VERSION} ================================
+
+PESQUISA
+  • Separe termos por virgula (ex.: ADM, MEL3, 2025)
+  • Termos simples procuram em qualquer parte; use =valor para coincidencia exata
+  • Prefixos: ^inicio, fim$, =exato, ~regex, !negativo (podem ser combinados)
+  • Exemplos: svp, !ste, mel4 -> contem "svp", exclui "STE", contem "mel4"
+  • Tambem aceita comparacoes/regex (ex.: mmu2, prazo<=30, ^2025)
+
+COMANDOS PRINCIPAIS
+  h ou ?    Ajuda completa
+  q         Sair da aplicacao
+  d #       Mostrar detalhe da linha (use o numero exibido na primeira coluna)
+  v         Desfazer o ultimo filtro aplicado
+  m         Mostrar a proxima pagina de resultados
+  m z       Mostrar todas as paginas restantes
+  r         Limpar filtros ativos (mantem dados carregados)
+  rescan    Reimportar todos os arquivos Excel
+  e nome    Exportar resultado (ex.: e relatorio -> relatorio.csv/.xlsx)
+  c         Abrir menu de configuracoes
+
+ORGANIZACAO
+  ord / ordi  #        Ordenar coluna pelo indice mostrado em cols (crescente / decrescente)
+  ordn / ordni nome    Ordenar coluna pelo nome exato (crescente / decrescente)
+  cols                 Listar colunas exibidas e respectivos indices
+  x termo              Remover termo do filtro atual (ex.: x mel4)
+  l                    Listar filtros ativos
+
+DICAS
+  • Filtros ativos aparecem acima do prompt; digite termos como: svp, !ste, mel4
+  • Comandos rapidos: m (mais pagina), l (listar filtros), v (voltar), x termo (ex.: x mel4), h (ajuda)
+  • Para continuar navegando apos a primeira pagina use m; para exibir tudo, use m z
+===============================================================================================
+"""
+        print(fallback_text)
+        logger.debug("Texto de ajuda fallback exibido com sucesso")
     input()  # Pausa para o usuário ler
 
 def _handle_details(parts: List[str], current_df: 'pd.DataFrame', display_map: dict):
@@ -865,8 +952,8 @@ COMMAND_HANDLERS = {
     # Comandos das melhorias CLI
     'status-cli': lambda: print(enhancement_manager.get_status_report()),
     'cli-status': lambda: print(enhancement_manager.get_status_report()),
-    'toggle-debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
-    'debug': lambda: print(f"🔧 Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
+    'toggle-debug': lambda: print(f"[Debug] Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
+    'debug': lambda: print(f"[Debug] Debug CLI {'ATIVADO' if enhancement_manager.toggle_debug() else 'DESATIVADO'}"),
     'enhanced-on': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
     'enable-enhanced': lambda: (enhancement_manager.enable_enhanced_printer(), print("Enhanced Table Printer ATIVADO")),
     'enhanced-off': lambda: (enhancement_manager.disable_enhanced_printer(), print("Enhanced Table Printer DESATIVADO")),
