@@ -38,7 +38,7 @@ if project_root not in sys.path:
 
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
-from utils.themes import get_palette, normalize_theme  # noqa: E402
+from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
 # Inicializar logging robusto
@@ -384,6 +384,31 @@ except ImportError as exc:
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
+DETAIL_DISPLAY_OVERRIDES = {
+    'situacao': 'Situação',
+    'semana_cadastro': 'Semana de Cadastro',
+    'data_cadastro': 'Data de Cadastro',
+    'descricao_ssa': 'Descrição da SSA',
+    'setor_executor': 'Setor Executor',
+    'setor_emissor': 'Setor Emissor',
+    'solicitante': 'Solicitante',
+    'servico_origem': 'Serviço de Origem',
+    'grau_prioridade_emissao': 'Grau de Prioridade (Emissão)',
+    'grau_prioridade_planejamento': 'Grau de Prioridade (Planejamento)',
+    'execucao_simples': 'Execução Simples',
+    'responsavel_programacao': 'Responsável pela Programação',
+    'responsavel_execucao': 'Responsável pela Execução',
+    'semana_programada': 'Semana Programada',
+    'prazo_limite': 'Prazo Limite',
+    'tempo_disponivel': 'Tempo Disponível',
+    'data_limite': 'Data Limite',
+    'tempo_excedido': 'Tempo Excedido',
+    'numero_ssa': 'Número da SSA',
+    'descricao_execucao': 'Descrição da Execução',
+    'status_execucao_prazo': 'Situação do Prazo',
+    'execucao_parcial': 'Execução Parcial',
+}
+
 TABLE_NAME = 'ssas'
 CONFIG_DIR = os.path.join(project_root, 'config')
 DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
@@ -1408,6 +1433,14 @@ class SSAMainWindow(QMainWindow):
         details_layout.setContentsMargins(2, 2, 2, 2)  # Reduzido de 5 para 2
         details_layout.setSpacing(2)  # Reduzido de 3 para 2
         self.details_text = QTextEdit()
+        try:
+            self.details_text.setFrameShape(QFrame.Shape.NoFrame)
+        except Exception:
+            pass
+        try:
+            self.details_text.viewport().setAutoFillBackground(False)
+        except Exception:
+            pass
         self.details_text.setReadOnly(True)
         details_layout.addWidget(self.details_text)
         bottom_layout.addWidget(self.details_group, 5)
@@ -1587,8 +1620,7 @@ class SSAMainWindow(QMainWindow):
             has_terms = bool(chunk_terms_lists or search_text or any(str(v).strip() for v in self._active_column_filters.values()))
             self.clear_filter_button.setEnabled(has_terms)
 
-        formatted_display = self._format_search_display(chunk_terms_lists)
-        self._pending_search_display = formatted_display if formatted_display else (search_text if search_text else '')
+        self._pending_search_display = search_text if search_text else ''
 
         self.status_label.setText("Status: Filtrando dados...")
         self.progress_bar.setVisible(True)
@@ -2175,40 +2207,34 @@ class SSAMainWindow(QMainWindow):
 
 
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
-        theme = getattr(self, '_current_theme', '')
-        if theme == 'gruvbox':
-            accent = '#fabd2f'
-            input_style = (
-                "QLineEdit { font-size:11px; color:#fabd2f; background:#3c3836; border:1px solid #fabd2f; border-radius:4px; padding:3px 6px; }"
-                "QLineEdit::placeholder { color:#d79921; }"
-                "QLineEdit:focus { border:1px solid #fe8019; }"
-            )
-            if label_widget is not None:
-                label_widget.setStyleSheet(f'color:{accent};')
-            if input_widget is not None:
-                # input_style já é uma string concatenada; aplicar diretamente
-                input_widget.setStyleSheet(input_style)
-        elif theme in {'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
-            input_style = (
-                "QLineEdit { font-size:11px; color:#e0e0e0; background:#2b2b2b; border:1px solid #555555; border-radius:4px; padding:3px 6px; }"
-                "QLineEdit::placeholder { color:#aaaaaa; }"
-                "QLineEdit:focus { border:1px solid #888888; }"
-            )
-            if label_widget is not None:
-                label_widget.setStyleSheet('color:#e0e0e0;')
-            if input_widget is not None:
-                input_widget.setStyleSheet(input_style)
-        else:
+        theme = getattr(self, '_current_theme', '') or ''
+        light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
+        if theme in light_themes or not theme:
             if label_widget is not None:
                 label_widget.setStyleSheet('color: palette(windowText);')
             if input_widget is not None:
                 input_widget.setStyleSheet('font-size: 11px;')
+            return
+        roles = get_theme_roles(theme)
+        label_color = roles.get('support_text_color', roles.get('label_color', ''))
+        if label_widget is not None:
+            if label_color:
+                label_widget.setStyleSheet(f'color:{label_color};')
+            else:
+                label_widget.setStyleSheet('color: palette(windowText);')
+        if input_widget is not None:
+            input_text = roles.get('input_text', '#e0e0e0')
+            input_bg = roles.get('input_bg', '#2b2b2b')
+            input_border = roles.get('input_border', '#555555')
+            input_focus = roles.get('input_border_focus', roles.get('accent', input_border))
+            input_placeholder = roles.get('input_placeholder', '#aaaaaa')
+            style = (
+                f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
+                f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
+                f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
+            )
+            input_widget.setStyleSheet(style)
 
-    def _refresh_column_filter_widgets(self):
-        labels = getattr(self, '_column_filter_labels', {}) or {}
-        inputs = getattr(self, '_column_filter_inputs', {}) or {}
-        for col, label in labels.items():
-            self._apply_filter_widget_theme(label, inputs.get(col))
     def _refresh_column_filter_widgets(self):
         labels = getattr(self, '_column_filter_labels', {}) or {}
         inputs = getattr(self, '_column_filter_inputs', {}) or {}
@@ -2574,107 +2600,129 @@ class SSAMainWindow(QMainWindow):
         # Ajustes de contraste por tema para rotulos informativos
         self._current_theme = normalized
         try:
-            theme = normalized
             light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
             selector = getattr(self, 'column_selector', None)
-            # Aplique estilos para Pesquisa Geral com base na paleta ativa (sem cores fixas)
-            try:
-                pal_active = self.palette()
-                from PyQt6.QtGui import QPalette as _QPal
-                txt = pal_active.color(_QPal.ColorRole.WindowText).name()
-                link = pal_active.color(_QPal.ColorRole.Link).name()
-                linkv = pal_active.color(_QPal.ColorRole.LinkVisited).name()
-                base = pal_active.color(_QPal.ColorRole.Base).name()
-                high = pal_active.color(_QPal.ColorRole.Highlight).name()
-                # Label usa cor de link para destacar "Pesquisa Geral" em todos os temas
-                if hasattr(self, 'search_label'):
-                    self.search_label.setStyleSheet(f"color: {link}; font-weight: 600;")
-                # Input usa texto normal, placeholder com visited-link e foco com highlight para dar ênfase
-                if hasattr(self, 'search_input') and self.search_input is not None:
-                    self.search_input.setStyleSheet(
-                        "QLineEdit {"
-                        f" color: {txt}; background: {base}; border:1px solid {link}; border-radius:4px; padding:3px 6px;"
-                        " }"
-                        "QLineEdit::placeholder {"
-                        f" color: {linkv};"
-                        " }"
-                        "QLineEdit:focus {"
-                        f" border:1px solid {high};"
+            pal_active = self.palette()
+            from PyQt6.QtGui import QPalette as _QPal
+            roles = get_theme_roles(normalized)
+            txt = pal_active.color(_QPal.ColorRole.WindowText).name()
+            base = pal_active.color(_QPal.ColorRole.Base).name()
+            mid = pal_active.color(_QPal.ColorRole.Mid).name()
+            high = pal_active.color(_QPal.ColorRole.Highlight).name()
+            placeholder_fallback = (
+                pal_active.color(_QPal.ColorRole.PlaceholderText).name()
+                if hasattr(_QPal.ColorRole, 'PlaceholderText')
+                else txt
+            )
+            label_color = roles.get('label_color', txt)
+            support_color = roles.get('support_text_color', txt)
+            accent = roles.get('accent', high)
+            accent_soft = roles.get('accent_soft', support_color)
+            input_bg = roles.get('input_bg', base)
+            input_text = roles.get('input_text', txt)
+            input_border = roles.get('input_border', mid)
+            input_focus = roles.get('input_border_focus', high)
+            input_placeholder = roles.get('input_placeholder', placeholder_fallback)
+            panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
+            panel_text = roles.get('panel_text', txt)
+            panel_border = roles.get('panel_border', input_border)
+
+            if hasattr(self, 'search_label'):
+                self.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
+
+            if hasattr(self, 'search_input') and self.search_input is not None:
+                self.search_input.setStyleSheet(
+                    "QLineEdit {"
+                    f" color: {input_text}; background: {input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px;"
+                    " }"
+                    "QLineEdit::placeholder {"
+                    f" color: {input_placeholder};"
+                    " }"
+                    "QLineEdit:focus {"
+                    f" border:2px solid {input_focus};"
+                    " }"
+                )
+
+            if hasattr(self, 'details_text'):
+                if normalized in light_themes:
+                    self.details_text.setStyleSheet('')
+                else:
+                    self.details_text.setStyleSheet(
+                        "QTextEdit {"
+                        f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
                         " }"
                     )
-            except Exception:
-                pass
-            if theme in light_themes:
-                # Usar aparencia padrao do sistema/Fusion; sem CSS pesado
-                if hasattr(self, 'week_label'):
+
+            group_css = (
+                "QGroupBox {"
+                f" color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 6px;"
+                " }"
+                "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
+            )
+
+            if hasattr(self, 'details_group'):
+                if normalized in light_themes:
+                    self.details_group.setStyleSheet('')
+                else:
+                    self.details_group.setStyleSheet(group_css)
+
+            if hasattr(self, 'col_filters_group'):
+                if normalized in light_themes:
+                    self.col_filters_group.setStyleSheet('')
+                else:
+                    self.col_filters_group.setStyleSheet(group_css)
+
+            if hasattr(self, 'week_label'):
+                if normalized in light_themes:
                     self.week_label.setStyleSheet('')
-                if hasattr(self, 'status_label'):
+                else:
+                    self.week_label.setStyleSheet(
+                        f"font-weight:600; color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
+                    )
+
+            if hasattr(self, 'status_label'):
+                if normalized in light_themes:
                     self.status_label.setStyleSheet('')
-                if hasattr(self, 'search_help'):
-                    if hasattr(self, 'status_label'):
-                        try:
-                            self.search_help.setFont(self.status_label.font())
-                        except Exception:
-                            pass
-                    self.search_help.setStyleSheet('color: palette(windowText); margin:0; padding:0;')
-                if hasattr(self, 'col_filter_indicator'):
+                else:
+                    self.status_label.setStyleSheet(
+                        f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
+                    )
+
+            if hasattr(self, 'search_help'):
+                if normalized in light_themes:
+                    css = 'color: palette(windowText); margin:0; padding:0;'
+                else:
+                    css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
+                if hasattr(self, 'status_label'):
+                    try:
+                        self.search_help.setFont(self.status_label.font())
+                    except Exception:
+                        pass
+                self.search_help.setStyleSheet(css)
+
+            if hasattr(self, 'col_filter_indicator'):
+                if normalized in light_themes:
                     self.col_filter_indicator.setStyleSheet('color: palette(windowText);')
-                if hasattr(self, 'filters_summary_label'):
+                else:
+                    self.col_filter_indicator.setStyleSheet(f"color:{accent_soft};")
+
+            if hasattr(self, 'filters_summary_label'):
+                if normalized in light_themes:
                     self.filters_summary_label.setStyleSheet('color: palette(windowText);')
-                if hasattr(self, 'col_filters_group'):
-                    self.col_filters_group.setStyleSheet('')
-                if selector is not None and hasattr(selector, 'summary_label'):
+                else:
+                    self.filters_summary_label.setStyleSheet(f"color:{accent_soft};")
+
+            if selector is not None and hasattr(selector, 'summary_label'):
+                if normalized in light_themes:
                     selector.summary_label.setStyleSheet('color: palette(windowText);')
-                if hasattr(self, 'col_filters_hint'):
+                else:
+                    selector.summary_label.setStyleSheet(f"color:{accent_soft};")
+
+            if hasattr(self, 'col_filters_hint'):
+                if normalized in light_themes:
                     self.col_filters_hint.setStyleSheet('color: palette(windowText); font-size: 11px;')
-            elif theme == 'gruvbox':
-                accent = '#fabd2f'
-                base_bg = '#3c3836'
-                if hasattr(self, 'week_label'):
-                    self.week_label.setStyleSheet(
-                        f"font-weight:600; color:{accent}; background:{base_bg}; border:1px solid {accent}; border-radius:4px; padding:2px 6px;"
-                    )
-                if hasattr(self, 'status_label'):
-                    self.status_label.setStyleSheet(
-                        f"color:{accent}; background:{base_bg}; border:1px solid {accent}; border-radius:4px; padding:2px 6px;"
-                    )
-                if hasattr(self, 'search_help'):
-                    self.search_help.setStyleSheet(f"font-size:10px; color:{accent}; margin:0; padding:0;")
-                if hasattr(self, 'col_filter_indicator'):
-                    self.col_filter_indicator.setStyleSheet(f"color:{accent};")
-                if hasattr(self, 'filters_summary_label'):
-                    self.filters_summary_label.setStyleSheet(f"color:{accent};")
-                if selector is not None and hasattr(selector, 'summary_label'):
-                    selector.summary_label.setStyleSheet(f"color:{accent};")
-                if hasattr(self, 'col_filters_hint'):
-                    self.col_filters_hint.setStyleSheet(f"color:{accent}; font-size: 11px;")
-                if hasattr(self, 'col_filters_group'):
-                    self.col_filters_group.setStyleSheet(
-                        "QGroupBox { color:#fabd2f; border:1px solid #fabd2f; border-radius:4px; margin-top: 6px; } "
-                        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
-                    )
-            else:
-                # Temas escuros (Escuro/KDE) com contraste garantido
-                if hasattr(self, 'week_label'):
-                    self.week_label.setStyleSheet(
-                        "font-weight:600; color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
-                    )
-                if hasattr(self, 'status_label'):
-                    self.status_label.setStyleSheet(
-                        "color:#ddd; background:#2a2a2a; border:1px solid #555; border-radius:4px; padding:2px 6px;"
-                    )
-                if hasattr(self, 'search_help'):
-                    self.search_help.setStyleSheet("font-size:10px; color:#e0e0e0; margin:0; padding:0;")
-                if hasattr(self, 'col_filter_indicator'):
-                    self.col_filter_indicator.setStyleSheet('color:#e0e0e0;')
-                if hasattr(self, 'filters_summary_label'):
-                    self.filters_summary_label.setStyleSheet('color:#e0e0e0;')
-                if selector is not None and hasattr(selector, 'summary_label'):
-                    selector.summary_label.setStyleSheet('color:#e0e0e0;')
-                if hasattr(self, 'col_filters_hint'):
-                    self.col_filters_hint.setStyleSheet('color:#e0e0e0; font-size: 11px;')
-                if hasattr(self, 'col_filters_group'):
-                    self.col_filters_group.setStyleSheet('')
+                else:
+                    self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
         except Exception:
             pass
         self._refresh_column_filter_widgets()
@@ -3690,7 +3738,7 @@ class SSAMainWindow(QMainWindow):
         # Constroi um texto amigavel com nomes de exibicao
         lines = []
         for col, value in series.items():
-            display_name = self.internal_to_display.get(col, col)
+            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
             # Mostra numero_ssa "natural" (int se possável)
             if col == 'numero_ssa':
                 try:
@@ -4046,3 +4094,4 @@ if __name__ == '__main__':
     window = SSAMainWindow()
     window.show()
     sys.exit(app.exec())
+

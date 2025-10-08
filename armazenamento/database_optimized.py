@@ -77,11 +77,20 @@ def insert_dataframe_optimized(
 
         with get_db_connection(db_path) as conn:
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
+            logger.info("🔧 APLICANDO OTIMIZAÇÕES SQLITE")
             conn.execute("PRAGMA journal_mode=WAL")        # Permite leituras concorrentes
             conn.execute("PRAGMA synchronous=NORMAL")      # Balanço entre segurança e velocidade
             conn.execute("PRAGMA cache_size=10000")        # Cache maior = menos I/O
             conn.execute("PRAGMA temp_store=MEMORY")       # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")     # Memory-mapped I/O (256MB)
+            
+            # LOG: Verificar configurações aplicadas
+            cur = conn.cursor()
+            cur.execute("PRAGMA journal_mode")
+            journal_mode = cur.fetchone()[0]
+            cur.execute("PRAGMA cache_size")
+            cache_size = cur.fetchone()[0]
+            logger.info(f"✅ Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}")
 
             # Criar índice temporário se não existir
             try:
@@ -111,6 +120,7 @@ def insert_dataframe_optimized(
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
                 # 🚀 OTIMIZAÇÃO CHAVE: Uma consulta para TODAS as SSAs existentes
+                lookup_start = time.time()
                 existing_ssas_df = pd.read_sql_query(
                     (
                         f"SELECT numero_ssa, data_cadastro FROM {table_name} "
@@ -118,11 +128,14 @@ def insert_dataframe_optimized(
                     ),
                     conn,
                 )
-
+                lookup_time = time.time() - lookup_start
+                
                 # Criar dicionário para lookup O(1) em vez de O(n) por linha
                 existing_dict = {}
                 if not existing_ssas_df.empty:
                     existing_dict = dict(zip(existing_ssas_df['numero_ssa'], existing_ssas_df['data_cadastro']))
+                
+                logger.info(f"🔍 Lookup de SSAs existentes: {len(existing_ssas_df)} encontrados em {lookup_time:.3f}s")
 
                 # Classificar registros em lotes
                 to_insert = []
