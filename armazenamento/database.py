@@ -242,7 +242,18 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     try:
         if not legacy_mode:
             # Caminho novo: abrir conexão via caminho
+            start_time = time.time()
+            logger.info(f"🔍 INICIANDO INSERÇÃO NORMA - {len(work_df)} registros em '{table_name}'")
+            
             with get_db_connection(db_path) as conn:  # type: ignore[arg-type]
+                # LOG: Verificar otimizações SQLite ativas
+                cur = conn.cursor()
+                cur.execute("PRAGMA journal_mode")
+                journal_mode = cur.fetchone()[0]
+                cur.execute("PRAGMA cache_size")
+                cache_size = cur.fetchone()[0]
+                logger.info(f"📊 Configurações SQLite: journal_mode={journal_mode}, cache_size={cache_size}")
+                
                 final_table = _resolve_target_table(conn, table_name)
                 # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
                 # SQLite tem limite padrão de 999 variáveis por query
@@ -252,16 +263,55 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
                 logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
                 logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
                 work_df.reset_index(drop=True, inplace=True)
+                
+                # LOG: Verificar se há SSAs para upsert
+                if 'numero_ssa' in work_df.columns:
+                    ssa_count = work_df['numero_ssa'].notna().sum()
+                    logger.info(f"🔍 Registros com SSA: {ssa_count}/{len(work_df)}")
+                
+                insert_start = time.time()
                 work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
+                insert_time = time.time() - insert_start
+                
                 conn.commit()
+                commit_time = time.time() - insert_start - insert_time
+                
+                total_time = time.time() - start_time
+                logger.info(f"📊 PERFORMANCE INSERÇÃO NORMA:")
+                logger.info(f"   ⏱️  Inserção: {insert_time:.2f}s")
+                logger.info(f"   ⏱️  Commit: {commit_time:.2f}s")
+                logger.info(f"   ⏱️  Total: {total_time:.2f}s")
+                logger.info(f"   📈 {(len(work_df)/total_time):.1f} registros/segundo")
+                
             logger.info("%s linhas inseridas (novo modo) em '%s'", len(work_df), table_name)
             return True
         # Legado: já temos conexão aberta
+        start_time = time.time()
+        logger.info(f"🔍 INICIANDO INSERÇÃO LEGADO - {len(work_df)} registros em '{table_name}'")
+        
         final_table = _resolve_target_table(conn, table_name)  # type: ignore[arg-type]
         batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
         work_df.reset_index(drop=True, inplace=True)
+        
+        # LOG: Verificar se há SSAs para upsert
+        if 'numero_ssa' in work_df.columns:
+            ssa_count = work_df['numero_ssa'].notna().sum()
+            logger.info(f"🔍 Registros com SSA: {ssa_count}/{len(work_df)}")
+        
+        insert_start = time.time()
         work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
+        insert_time = time.time() - insert_start
+        
         conn.commit()  # type: ignore[union-attr]
+        commit_time = time.time() - insert_start - insert_time
+        
+        total_time = time.time() - start_time
+        logger.info(f"📊 PERFORMANCE INSERÇÃO LEGADO:")
+        logger.info(f"   ⏱️  Inserção: {insert_time:.2f}s")
+        logger.info(f"   ⏱️  Commit: {commit_time:.2f}s")
+        logger.info(f"   ⏱️  Total: {total_time:.2f}s")
+        logger.info(f"   📈 {(len(work_df)/total_time):.1f} registros/segundo")
+        
         logger.info("%s linhas inseridas (modo legado) em '%s'", len(work_df), final_table)
         return True
     except ValueError:
