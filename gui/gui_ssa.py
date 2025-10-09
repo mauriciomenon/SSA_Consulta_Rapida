@@ -2891,23 +2891,30 @@ class SSAMainWindow(QMainWindow):
         if sys.platform != 'darwin':
             return
         normalized = normalize_theme(theme_name)
-        if normalized in {'grayscale', 'windows7', 'gnome'}:
-            css = (
-                "QLineEdit, QTextEdit, QTextBrowser {"
-                " color:#1a1a1a; background-color:#f7f7f7; border:1px solid #b5b5b5; }"
-                "QGroupBox, QLabel { color:#1a1a1a; }"
-            )
-        else:
-            css = (
-                "QLineEdit, QTextEdit, QTextBrowser {"
-                " color:#f2f2f2; background-color:#1b1b1b; border:1px solid #3f3f3f; }"
-                "QGroupBox, QLabel { color:#f2f2f2; }"
-            )
+        roles = get_theme_roles(normalized)
+        text_color = roles.get('panel_text', self.palette().windowText().color().name())
+        bg_color = roles.get('panel_bg', self.palette().window().color().name())
+        border_color = roles.get('panel_border', roles.get('input_border', '#b5b5b5'))
+        label_color = roles.get('label_color', text_color)
+        block = (
+            "/* SSA_MAC_QSS_START */\n"
+            "QLineEdit, QTextEdit, QTextBrowser {"
+            f" color:{text_color}; background-color:{bg_color}; border:1px solid {border_color}; }}\n"
+            "QGroupBox, QLabel {"
+            f" color:{label_color}; }}\n"
+            "/* SSA_MAC_QSS_END */"
+        )
         try:
             central = self.centralWidget()
             if central is not None:
                 existing = central.styleSheet() or ""
-                central.setStyleSheet(existing + css)
+                start = existing.find("/* SSA_MAC_QSS_START */")
+                end = existing.find("/* SSA_MAC_QSS_END */", start)
+                if start != -1 and end != -1 and end > start:
+                    end += len("/* SSA_MAC_QSS_END */")
+                    existing = existing[:start] + existing[end:]
+                new_qss = (existing + ("\n" if existing and not existing.endswith("\n") else "") + block).strip()
+                central.setStyleSheet(new_qss)
         except Exception:
             pass
 
@@ -3930,15 +3937,12 @@ class SSAMainWindow(QMainWindow):
             if child.widget():
                 child.widget().deleteLater()
 
-        # Estilo adaptativo claro/escuro
-        pal = self.palette()
-        base = pal.window().color()
-        is_dark = base.value() < 128
-        fg = pal.windowText().color().name()
-        border = '#6b6b6b' if is_dark else '#909090'
-        bg_normal = 'transparent'
-        bg_hover = '#2a2a2a' if is_dark else '#f0f7ff'
-        bg_pressed = '#3a3a3a' if is_dark else '#d9ecff'
+        roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
+        fg = self.palette().windowText().color().name()
+        border = roles.get('tag_border', '#6b6b6b')
+        bg_normal = roles.get('tag_normal_bg', 'transparent')
+        bg_hover = roles.get('tag_hover', '#2a2a2a')
+        bg_pressed = roles.get('tag_pressed', '#3a3a3a')
 
         tag_css = f"""
             QPushButton {{

@@ -14,6 +14,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "panel_bg": "#ffffff",
         "panel_text": "#1c1c1c",
         "panel_border": "#d7d9db",
+        "tag_border": "#909090",
+        "tag_hover": "#f0f7ff",
+        "tag_pressed": "#d9ecff",
+        "tag_normal_bg": "transparent",
     },
     "windows7": {
         "accent": "#2b6cc0",
@@ -28,6 +32,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "panel_bg": "#f8fbff",
         "panel_text": "#1a1a1a",
         "panel_border": "#d8e5fb",
+        "tag_border": "#909090",
+        "tag_hover": "#f0f7ff",
+        "tag_pressed": "#d9ecff",
+        "tag_normal_bg": "transparent",
     },
     "gnome": {
         "accent": "#3584e4",
@@ -42,6 +50,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "panel_bg": "#f6f5f4",
         "panel_text": "#2e3436",
         "panel_border": "#d7d4d1",
+        "tag_border": "#909090",
+        "tag_hover": "#f0f7ff",
+        "tag_pressed": "#d9ecff",
+        "tag_normal_bg": "transparent",
     },
     "gruvbox": {
         "accent": "#fabd2f",
@@ -140,6 +152,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "panel_bg": "#fdf6e3",
         "panel_text": "#586e75",
         "panel_border": "#d9d1be",
+        "tag_border": "#909090",
+        "tag_hover": "#f0f7ff",
+        "tag_pressed": "#d9ecff",
+        "tag_normal_bg": "transparent",
     },
     "tokyo-night": {
         "accent": "#7aa2f7",
@@ -184,6 +200,10 @@ THEME_ROLES_DEFAULT = {
     "panel_bg": "#2a2a2a",
     "panel_text": "#e0e0e0",
     "panel_border": "#555555",
+    "tag_border": "#6b6b6b",
+    "tag_hover": "#2a2a2a",
+    "tag_pressed": "#3a3a3a",
+    "tag_normal_bg": "transparent",
 }
 
 
