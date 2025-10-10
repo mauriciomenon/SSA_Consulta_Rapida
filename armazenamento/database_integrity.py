@@ -1,6 +1,6 @@
-"""Funções de verificação e reparo extraídas de `database.py`.
+"""Funcoes de verificacao e reparo extraidas de `database.py`.
 
-Publicadas novamente através de `database` para compatibilidade.
+Publicadas novamente atraves de `database` para compatibilidade.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 import pandas as pd  # type: ignore[import-not-found]
 
-# Imports serão resolvidos de forma lazy dentro das funções para evitar ciclos.
+# Imports serao resolvidos de forma lazy dentro das funcoes para evitar ciclos.
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def verify_database_integrity(
     }
     try:
         if not os.path.exists(db_path):
-            report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
+            report['issues'].append(f"Arquivo do banco de dados nao encontrado: {db_path}")
             report['needs_creation'] = True
             return report
         report['database_exists'] = True
@@ -45,23 +45,23 @@ def verify_database_integrity(
         try:
             if os.path.getsize(db_path) == 0:
                 report['issues'].append(
-                    "Arquivo de banco encontrado mas vazio (0 bytes) - inválido"
+                    "Arquivo de banco encontrado mas vazio (0 bytes) - invalido"
                 )
                 report['is_valid'] = False
                 return report
         except Exception as e:  # pragma: no cover
             report['warnings'].append(f"Falha ao obter tamanho do arquivo: {e}")
-        # Permissões
+        # Permissoes
         try:
             if not os.access(db_path, os.R_OK | os.W_OK):
-                report['issues'].append(f"Permissões insuficientes para o banco: {db_path}")
+                report['issues'].append(f"Permissoes insuficientes para o banco: {db_path}")
                 report['is_valid'] = False
             else:
                 report['file_permissions_ok'] = True
         except Exception as e:
-            report['issues'].append(f"Erro ao verificar permissões: {e}")
+            report['issues'].append(f"Erro ao verificar permissoes: {e}")
             report['is_valid'] = False
-        # Espaço em disco
+        # Espaco em disco
         try:
             db_dir = os.path.dirname(db_path) or '.'
             statvfs = os.statvfs(db_dir) if hasattr(os, 'statvfs') else None
@@ -73,10 +73,10 @@ def verify_database_integrity(
                 report['disk_space_sufficient'] = True
             else:
                 report['warnings'].append(
-                    f"Pouco espaço em disco: {free_space_gb:.2f}GB disponível"
+                    f"Pouco espaco em disco: {free_space_gb:.2f}GB disponivel"
                 )
         except Exception as e:
-            report['warnings'].append(f"Não foi possível verificar espaço em disco: {e}")
+            report['warnings'].append(f"Nao foi possivel verificar espaco em disco: {e}")
         # PRAGMA integrity_check
         try:
             from .database import get_db_connection  # lazy
@@ -85,14 +85,14 @@ def verify_database_integrity(
                 integrity_result = cursor.fetchone()
                 if not integrity_result or integrity_result[0] != 'ok':
                     report['issues'].append(
-                        f"Falha na verificação de integridade SQLite: {integrity_result}"
+                        f"Falha na verificacao de integridade SQLite: {integrity_result}"
                     )
                     report['is_valid'] = False
                     return report
                 report['database_accessible'] = True
                 report['data_consistent'] = True
         except Exception as e:
-            report['issues'].append(f"Banco de dados não acessível: {e}")
+            report['issues'].append(f"Banco de dados nao acessivel: {e}")
             report['is_valid'] = False
             return report
         # Tabela existe?
@@ -106,7 +106,7 @@ def verify_database_integrity(
                 if cursor.fetchone():
                     report['table_exists'] = True
                 else:
-                    report['issues'].append(f"Tabela '{table_name}' não encontrada")
+                    report['issues'].append(f"Tabela '{table_name}' nao encontrada")
                     report['is_valid'] = False
         except Exception as e:
             report['issues'].append(f"Erro ao verificar tabela: {e}")
@@ -118,19 +118,26 @@ def verify_database_integrity(
                 with get_db_connection(db_path) as conn:
                     cursor = conn.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
                     existing_columns = [row[1] for row in cursor.fetchall()]
+                if 'arquivo_origem' not in existing_columns:
+                    try:
+                        from .database import ensure_column_exists  # lazy
+                        if ensure_column_exists(db_path, table_name, 'arquivo_origem', 'TEXT'):
+                            existing_columns.append('arquivo_origem')
+                    except Exception:
+                        report['warnings'].append("Coluna 'arquivo_origem' ausente; nao foi possivel adiciona-la automaticamente.")
                 missing = [c for c in required_columns if c not in existing_columns]
                 if missing:
-                    report['issues'].append(f"Colunas obrigatórias ausentes: {missing}")
+                    report['issues'].append(f"Colunas obrigatorias ausentes: {missing}")
                     report['is_valid'] = False
                 else:
                     report['schema_valid'] = True
             except Exception as e:
                 report['issues'].append(f"Erro ao verificar schema: {e}")
                 report['is_valid'] = False
-        status_text = "✓ Válido" if report['is_valid'] else "✗ Problemas encontrados"
-        logger.info("Verificação de integridade concluída. Status: %s", status_text)
+        status_text = " Valido" if report['is_valid'] else " Problemas encontrados"
+        logger.info("Verificacao de integridade concluida. Status: %s", status_text)
     except Exception as e:  # pragma: no cover
-        report['issues'].append(f"Erro inesperado na verificação: {e}")
+        report['issues'].append(f"Erro inesperado na verificacao: {e}")
         report['is_valid'] = False
     return report
 
@@ -140,11 +147,11 @@ def repair_database_if_needed(
     schema_file: str = 'schema.sql',
     table_name: str = 'ssas',
 ) -> bool:  # noqa: PLR0912
-    logger.info("Iniciando verificação e reparo do banco de dados...")
+    logger.info("Iniciando verificacao e reparo do banco de dados...")
     try:
         integrity_report = verify_database_integrity(db_path, table_name)
         if integrity_report['is_valid']:
-            logger.info("Banco de dados íntegro - nenhum reparo necessário")
+            logger.info("Banco de dados integro - nenhum reparo necessario")
             return True
         logger.warning("Problemas detectados no banco: %s", integrity_report['issues'])
         repaired = False
@@ -159,7 +166,7 @@ def repair_database_if_needed(
             initialize_database(db_path, schema_file)
             repaired = True
         elif not integrity_report['data_consistent']:
-            logger.warning("Detectada corrupção no banco - tentando backup/restore...")
+            logger.warning("Detectada corrupcao no banco - tentando backup/restore...")
             backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             try:
                 shutil.copy2(db_path, backup_path)
@@ -173,20 +180,20 @@ def repair_database_if_needed(
                             os.remove(db_path)
                             initialize_database(db_path, schema_file)
                             if _up.insert_dataframe_with_smart_upsert_impl(df_backup, db_path, 'ssas'):
-                                logger.info("Dados restaurados com sucesso após correção")
+                                logger.info("Dados restaurados com sucesso apos correcao")
                                 repaired = True
                     except Exception as e:  # pragma: no cover
-                        logger.error("Não foi possível extrair dados do banco corrompido: %s", e)
+                        logger.error("Nao foi possivel extrair dados do banco corrompido: %s", e)
             except Exception as e:  # pragma: no cover
                 logger.error("Falha no processo de backup/restore: %s", e)
         if repaired:
-            final_check = verify_database_integrity(db_path)
+            final_check = verify_database_integrity(db_path, table_name)
             if final_check['is_valid']:
-                logger.info("✓ Reparo do banco de dados concluído com sucesso")
+                logger.info("Reparo do banco de dados concluido com sucesso")
                 return True
-            logger.error("✗ Reparo falhou - problemas persistem")
+            logger.error("Reparo falhou - problemas persistem")
             return False
-        logger.error("Nenhum reparo foi possível para os problemas detectados")
+        logger.error("Nenhum reparo foi possivel para os problemas detectados")
         return False
     except Exception as e:  # pragma: no cover
         logger.error("Erro durante tentativa de reparo: %s", e)

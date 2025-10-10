@@ -46,7 +46,7 @@ try:
     from utils.robust_logging import setup_logging
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
+    logger.debug("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
 except Exception as e:
     # Fallback para logging padrão
     logger = logging.getLogger(__name__)
@@ -1327,7 +1327,6 @@ class SSAMainWindow(QMainWindow):
                 self.col_filter_indicator.setFont(QFont(self._info_font))
         except Exception:
             pass
-        self.col_filter_indicator.setStyleSheet("color: palette(windowText);")
         self.col_filter_indicator.setToolTip(
             "Filtros por coluna acumulam com a Pesquisa Geral. Use vírgulas para combinar (E/AND) e OU/OR para alternativas. "
             "Consulte a ajuda para outros atalhos disponíveis."
@@ -1340,7 +1339,6 @@ class SSAMainWindow(QMainWindow):
         try:
             self.filters_summary_frame = QFrame()
             self.filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
-            self.filters_summary_frame.setStyleSheet("QFrame{ border:1px solid palette(mid); padding:4px; }")
             summary_layout = QHBoxLayout(self.filters_summary_frame)
             summary_layout.setContentsMargins(6,4,6,4)
             summary_layout.setSpacing(8)
@@ -1350,7 +1348,6 @@ class SSAMainWindow(QMainWindow):
                     self.filters_summary_label.setFont(QFont(self._info_font))
                 except Exception:
                     pass
-            self.filters_summary_label.setStyleSheet("color: palette(windowText);")
             self.clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             self.clear_all_filters_btn.setMaximumWidth(200)
             self.clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
@@ -1620,7 +1617,11 @@ class SSAMainWindow(QMainWindow):
             has_terms = bool(chunk_terms_lists or search_text or any(str(v).strip() for v in self._active_column_filters.values()))
             self.clear_filter_button.setEnabled(has_terms)
 
-        self._pending_search_display = search_text if search_text else ''
+        if chunk_terms_lists:
+            display_text = self._format_search_display(chunk_terms_lists)
+        else:
+            display_text = search_text if search_text else ''
+        self._pending_search_display = display_text
 
         self.status_label.setText("Status: Filtrando dados...")
         self.progress_bar.setVisible(True)
@@ -2207,27 +2208,17 @@ class SSAMainWindow(QMainWindow):
 
 
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
-        theme = getattr(self, '_current_theme', '') or ''
-        light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
-        if theme in light_themes or not theme:
-            if label_widget is not None:
-                label_widget.setStyleSheet('color: palette(windowText);')
-            if input_widget is not None:
-                input_widget.setStyleSheet('font-size: 11px;')
-            return
+        theme = getattr(self, '_current_theme', '') or 'dark'
         roles = get_theme_roles(theme)
-        label_color = roles.get('support_text_color', roles.get('label_color', ''))
+        label_color = roles.get('support_text_color') or roles.get('label_color')
         if label_widget is not None:
-            if label_color:
-                label_widget.setStyleSheet(f'color:{label_color};')
-            else:
-                label_widget.setStyleSheet('color: palette(windowText);')
+            label_widget.setStyleSheet(f'color:{label_color};')
         if input_widget is not None:
-            input_text = roles.get('input_text', '#e0e0e0')
-            input_bg = roles.get('input_bg', '#2b2b2b')
-            input_border = roles.get('input_border', '#555555')
-            input_focus = roles.get('input_border_focus', roles.get('accent', input_border))
-            input_placeholder = roles.get('input_placeholder', '#aaaaaa')
+            input_text = roles.get('input_text')
+            input_bg = roles.get('input_bg')
+            input_border = roles.get('input_border')
+            input_focus = roles.get('input_border_focus') or roles.get('accent')
+            input_placeholder = roles.get('input_placeholder')
             style = (
                 f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
                 f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
@@ -2584,12 +2575,33 @@ class SSAMainWindow(QMainWindow):
         try:
             central = self.centralWidget()
             if central is not None:
-                # Use the palette window color for a consistent background
-                bg = pal.window().color().name()
                 existing = central.styleSheet() or ""
-                # Only enforce for dark/gruvbox themes to avoid overriding light themes
-                if normalize_theme(normalized) in {'gruvbox', 'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
-                    central.setStyleSheet(existing + f"\nQWidget{{ background-color: {bg}; }}\n")
+                start = existing.find("/* SSA_MAIN_BG_START */")
+                if start != -1:
+                    end = existing.find("/* SSA_MAIN_BG_END */", start)
+                    if end != -1:
+                        end += len("/* SSA_MAIN_BG_END */")
+                        existing = (existing[:start] + existing[end:]).rstrip()
+                    else:
+                        existing = existing[:start].rstrip()
+                normalized_name = normalize_theme(normalized)
+                if normalized_name in {'gruvbox', 'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
+                    bg = pal.window().color().name()
+                    block = (
+                        "/* SSA_MAIN_BG_START */\n"
+                        f"QWidget {{ background-color: {bg}; }}\n"
+                        "/* SSA_MAIN_BG_END */"
+                    )
+                    new_css = existing
+                    if new_css:
+                        if not new_css.endswith("\n"):
+                            new_css += "\n"
+                        new_css += block
+                    else:
+                        new_css = block
+                    central.setStyleSheet(new_css)
+                else:
+                    central.setStyleSheet(existing)
         except Exception:
             pass
         try:
@@ -2609,20 +2621,19 @@ class SSAMainWindow(QMainWindow):
             base = pal_active.color(_QPal.ColorRole.Base).name()
             mid = pal_active.color(_QPal.ColorRole.Mid).name()
             high = pal_active.color(_QPal.ColorRole.Highlight).name()
-            placeholder_fallback = (
-                pal_active.color(_QPal.ColorRole.PlaceholderText).name()
-                if hasattr(_QPal.ColorRole, 'PlaceholderText')
-                else txt
-            )
             label_color = roles.get('label_color', txt)
-            support_color = roles.get('support_text_color', txt)
+            support_color = roles.get('support_text_color', label_color)
+            indicator_color = roles.get('indicator_text_color', support_color)
+            summary_color = roles.get('summary_text_color', label_color)
+            summary_bg = roles.get('summary_frame_bg', roles.get('panel_bg', base))
+            summary_border = roles.get('summary_frame_border', roles.get('panel_border', mid))
             accent = roles.get('accent', high)
             accent_soft = roles.get('accent_soft', support_color)
             input_bg = roles.get('input_bg', base)
             input_text = roles.get('input_text', txt)
             input_border = roles.get('input_border', mid)
-            input_focus = roles.get('input_border_focus', high)
-            input_placeholder = roles.get('input_placeholder', placeholder_fallback)
+            input_focus = roles.get('input_border_focus', accent)
+            input_placeholder = roles.get('input_placeholder', support_color)
             panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
             panel_text = roles.get('panel_text', txt)
             panel_border = roles.get('panel_border', input_border)
@@ -2689,10 +2700,7 @@ class SSAMainWindow(QMainWindow):
                     )
 
             if hasattr(self, 'search_help'):
-                if normalized in light_themes:
-                    css = 'color: palette(windowText); margin:0; padding:0;'
-                else:
-                    css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
+                css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
                 if hasattr(self, 'status_label'):
                     try:
                         self.search_help.setFont(self.status_label.font())
@@ -2701,28 +2709,23 @@ class SSAMainWindow(QMainWindow):
                 self.search_help.setStyleSheet(css)
 
             if hasattr(self, 'col_filter_indicator'):
-                if normalized in light_themes:
-                    self.col_filter_indicator.setStyleSheet('color: palette(windowText);')
-                else:
-                    self.col_filter_indicator.setStyleSheet(f"color:{accent_soft};")
+                self.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
 
             if hasattr(self, 'filters_summary_label'):
-                if normalized in light_themes:
-                    self.filters_summary_label.setStyleSheet('color: palette(windowText);')
-                else:
-                    self.filters_summary_label.setStyleSheet(f"color:{accent_soft};")
+                self.filters_summary_label.setStyleSheet(f"color:{summary_color};")
+
+            if hasattr(self, 'filters_summary_frame'):
+                self.filters_summary_frame.setStyleSheet(
+                    "QFrame {"
+                    f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
+                    " }"
+                )
 
             if selector is not None and hasattr(selector, 'summary_label'):
-                if normalized in light_themes:
-                    selector.summary_label.setStyleSheet('color: palette(windowText);')
-                else:
-                    selector.summary_label.setStyleSheet(f"color:{accent_soft};")
+                selector.summary_label.setStyleSheet(f"color:{indicator_color};")
 
             if hasattr(self, 'col_filters_hint'):
-                if normalized in light_themes:
-                    self.col_filters_hint.setStyleSheet('color: palette(windowText); font-size: 11px;')
-                else:
-                    self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
+                self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
         except Exception:
             pass
         self._refresh_column_filter_widgets()
@@ -2892,10 +2895,10 @@ class SSAMainWindow(QMainWindow):
             return
         normalized = normalize_theme(theme_name)
         roles = get_theme_roles(normalized)
-        text_color = roles.get('panel_text', self.palette().windowText().color().name())
-        bg_color = roles.get('panel_bg', self.palette().window().color().name())
-        border_color = roles.get('panel_border', roles.get('input_border', '#b5b5b5'))
-        label_color = roles.get('label_color', text_color)
+        text_color = roles.get('panel_text')
+        bg_color = roles.get('panel_bg')
+        border_color = roles.get('panel_border')
+        label_color = roles.get('label_color')
         block = (
             "/* SSA_MAC_QSS_START */\n"
             "QLineEdit, QTextEdit, QTextBrowser {"
@@ -3938,11 +3941,11 @@ class SSAMainWindow(QMainWindow):
                 child.widget().deleteLater()
 
         roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
-        fg = self.palette().windowText().color().name()
-        border = roles.get('tag_border', '#6b6b6b')
-        bg_normal = roles.get('tag_normal_bg', 'transparent')
-        bg_hover = roles.get('tag_hover', '#2a2a2a')
-        bg_pressed = roles.get('tag_pressed', '#3a3a3a')
+        fg = roles.get('summary_text_color', self.palette().windowText().color().name())
+        border = roles.get('tag_border')
+        bg_normal = roles.get('tag_normal_bg')
+        bg_hover = roles.get('tag_hover')
+        bg_pressed = roles.get('tag_pressed')
 
         tag_css = f"""
             QPushButton {{

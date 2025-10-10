@@ -1,4 +1,4 @@
 {
-  "version_short": "4.0.1",
-  "version_long": "SSA Consulta Rapida v4.0.1 – OU por coluna via botão [+ OU] na GUI, limpeza robusta de threads (QThread), e relatório de histórico dos últimos 50 commits; sem alterações de larguras/temas."
+  "version_short": "4.0.3",
+  "version_long": "SSA Consulta Rapida v4.0.3 – Temas totalmente parametrizados (bordas, indicadores, quadros) e normalização visual dos conectivos 'OU' ao digitar buscas com || na GUI."
 }
