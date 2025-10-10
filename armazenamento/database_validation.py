@@ -21,22 +21,66 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
         'invalid_rows': [],
         'fixed_rows': 0,
         'table_name': table_name,
+        'violations': [],
+        'invalid_by_column': {},
     }
     try:
         if df.empty:
             report['warnings'].append("DataFrame vazio - nada para validar")
             return report
-        # Checagem de nulos essenciais
-        for col in [c for c in ['numero_ssa', 'situacao'] if c in df.columns]:
-            null_count = df[col].isnull().sum()
-            if null_count > 0:
-                report['warnings'].append(f"Coluna '{col}' tem {null_count} valores nulos")
+
+        def _sample_ssas(mask) -> list[str]:
+            if 'numero_ssa' not in df.columns:
+                return []
+            return df.loc[mask, 'numero_ssa'].astype(str).head(5).tolist()
+
+        required_columns = [
+            ('numero_ssa', 'error'),
+            ('data_cadastro', 'error'),
+            ('situacao', 'warning'),
+        ]
+        for column, severity in required_columns:
+            if column not in df.columns:
+                continue
+            series = df[column]
+            missing_mask = series.isna() | (series.astype(str).str.strip() == '')
+            missing_count = int(missing_mask.sum())
+            if missing_count == 0:
+                continue
+            sample_ssas = _sample_ssas(missing_mask)
+            violation = {
+                'rule': f'missing_{column}',
+                'column': column,
+                'severity': severity,
+                'count': missing_count,
+                'sample_ssa': sample_ssas,
+            }
+            report['violations'].append(violation)
+            target = report['issues'] if severity == 'error' else report['warnings']
+            target.append(f"Coluna '{column}' possui {missing_count} valores ausentes")
+            indices = df.index[missing_mask].tolist()
+            report['invalid_by_column'][column] = indices
+            for idx in indices:
+                if idx not in report['invalid_rows']:
+                    report['invalid_rows'].append(idx)
+
         if 'numero_ssa' in df.columns:
-            invalid_ssa_mask = df['numero_ssa'].apply(lambda x: _normalize_numero_ssa_value(x) is None if pd.notna(x) else True)
-            invalid_count = invalid_ssa_mask.sum()
+            invalid_ssa_mask = df['numero_ssa'].apply(
+                lambda x: _normalize_numero_ssa_value(x) is None if pd.notna(x) else True
+            )
+            invalid_count = int(invalid_ssa_mask.sum())
             if invalid_count > 0:
                 report['warnings'].append(f"{invalid_count} números SSA inválidos encontrados")
                 report['invalid_rows'].extend(df[invalid_ssa_mask].index.tolist())
+                report['violations'].append(
+                    {
+                        'rule': 'invalid_numero_ssa',
+                        'column': 'numero_ssa',
+                        'severity': 'warning',
+                        'count': invalid_count,
+                        'sample_ssa': _sample_ssas(invalid_ssa_mask),
+                    }
+                )
         # Datas básicas
         date_cols = [
             c
@@ -73,6 +117,15 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
                 invalid_dates = invalid_mask.sum()
                 if invalid_dates:
                     report['warnings'].append(f"Coluna '{col}' tem {invalid_dates} datas inválidas")
+                    report['violations'].append(
+                        {
+                            'rule': f'invalid_{col}',
+                            'column': col,
+                            'severity': 'warning',
+                            'count': int(invalid_dates),
+                            'sample_ssa': _sample_ssas(invalid_mask),
+                        }
+                    )
                     report['invalid_rows'].extend([i for i in df.index[invalid_mask] if i not in report['invalid_rows']])
             except Exception:  # pragma: no cover
                 report['warnings'].append(f"Falha ao validar datas em '{col}'")
@@ -83,6 +136,15 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
                 duplicate_count = duplicated_ssa.sum()
                 if duplicate_count > 0:
                     report['warnings'].append(f"{duplicate_count} números SSA duplicados encontrados")
+                    report['violations'].append(
+                        {
+                            'rule': 'duplicate_numero_ssa',
+                            'column': 'numero_ssa',
+                            'severity': 'warning',
+                            'count': int(duplicate_count),
+                            'sample_ssa': _sample_ssas(duplicated_ssa),
+                        }
+                    )
         # Tamanho de texto
         for col in [c for c in ['descricao_ssa', 'descricao_execucao', 'solicitante'] if c in df.columns]:
             long_mask = df[col].astype(str).str.len() > MAX_TEXT_LEN
@@ -90,6 +152,15 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
             if long_count:
                 report['warnings'].append(
                     f"Coluna '{col}' tem {long_count} valores muito longos (>{MAX_TEXT_LEN} chars)"
+                )
+                report['violations'].append(
+                    {
+                        'rule': f'text_too_long_{col}',
+                        'column': col,
+                        'severity': 'warning',
+                        'count': int(long_count),
+                        'sample_ssa': _sample_ssas(long_mask),
+                    }
                 )
         report['is_valid'] = not report['issues']
         logger.info(

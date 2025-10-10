@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     -- Serviços e Origem
     servico_origem TEXT,
     sistema_origem TEXT,
+    arquivo_origem TEXT,
 
     -- Prioridades
     grau_prioridade_emissao TEXT,
