@@ -1,33 +1,34 @@
 # armazenamento/database.py 20250725 161500 (v2.1 - Boas Praticas Confirmadas)
 """
-Módulo para interação com o banco de dados SQLite.
+Modulo para interacao com o banco de dados SQLite.
 
-Responsável por criar tabelas, inserir DataFrames e consultar dados.
+Responsavel por criar tabelas, inserir DataFrames e consultar dados.
 """
 
 import logging
 import os
 import re
 import sqlite3
+import time
 from contextlib import contextmanager, suppress
 import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 from typing import Any, Literal
 
 import pandas as pd  # type: ignore[import-not-found]
 
-# Importações refatoradas serão carregadas de forma lazy dentro dos wrappers para evitar ciclos.
+# Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 
 logger = logging.getLogger(__name__)
 
-# Constantes (evitam "magic numbers" em validações)
+# Constantes (evitam "magic numbers" em validacoes)
 MIN_FREE_SPACE_GB_WARN = 0.1  # 100MB
 MAX_TEXT_LEN = 1000
 
-# Normalização agora centralizada em armazenamento.numero_ssa_utils. Mantemos apenas
+# Normalizacao agora centralizada em armazenamento.numero_ssa_utils. Mantemos apenas
 # constantes realmente usadas localmente. As regras detalhadas vivem em
 # core.numero_ssa.normalize_strict e no util compartilhado.
 
-# --- Gerenciamento de Conexão ---
+# --- Gerenciamento de Conexao ---
 
 # Nome do arquivo de schema (exposto para testes)
 schema_file = 'schema.sql'
@@ -35,23 +36,23 @@ schema_file = 'schema.sql'
 @contextmanager
 def get_db_connection(db_path: str):
     """
-    Gerenciador de contexto para obter uma conexão com o banco de dados.
+    Gerenciador de contexto para obter uma conexao com o banco de dados.
 
     Args:
         db_path (str): Caminho para o arquivo do banco de dados SQLite.
 
     Yields:
-        sqlite3.Connection: Uma conexão ativa com o banco de dados.
+        sqlite3.Connection: Uma conexao ativa com o banco de dados.
     """
     conn = None
     try:
-        # Verifica se o diretório do DB existe
+        # Verifica se o diretorio do DB existe
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
         conn = sqlite3.connect(db_path)
-        # Configurações recomendadas para performance e segurança (FKs, etc.)
+        # Configuracoes recomendadas para performance e seguranca (FKs, etc.)
         conn.execute("PRAGMA foreign_keys = ON")
         yield conn
     except sqlite3.Error as e:
@@ -63,7 +64,7 @@ def get_db_connection(db_path: str):
         if conn:
             conn.close()
 
-# --- Funções de Banco de Dados ---
+# --- Funcoes de Banco de Dados ---
 
 # armazenamento/database.py
 
@@ -74,21 +75,21 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
     Args:
         db_path: Caminho para o arquivo SQLite a ser criado/alterado.
         schema_file: Caminho para o arquivo .sql do schema. Pode ser absoluto ou relativo.
-            - Se relativo e existir no diretório atual, será usado.
-            - Caso não exista no CWD, será buscado em <raiz_projeto>/config/<schema_file>.
+            - Se relativo e existir no diretorio atual, sera usado.
+            - Caso nao exista no CWD, sera buscado em <raiz_projeto>/config/<schema_file>.
 
     Returns:
         True em caso de sucesso.
 
     Raises:
-        FileNotFoundError: Se o arquivo de schema não for encontrado.
-        Exception: Erros ao aplicar o schema serão propagados.
+        FileNotFoundError: Se o arquivo de schema nao for encontrado.
+        Exception: Erros ao aplicar o schema serao propagados.
     """
-    # Resolve o caminho do schema respeitando o parâmetro
-    # 1) Se for absoluto, deve existir; caso contrário, erro imediato
+    # Resolve o caminho do schema respeitando o parametro
+    # 1) Se for absoluto, deve existir; caso contrario, erro imediato
     if os.path.isabs(schema_file):
         if not os.path.exists(schema_file):
-            raise FileNotFoundError(f"Arquivo de schema absoluto não encontrado: '{schema_file}'")
+            raise FileNotFoundError(f"Arquivo de schema absoluto nao encontrado: '{schema_file}'")
         schema_path = schema_file
     elif os.path.exists(schema_file):  # 2) relativo direto
         schema_path = schema_file
@@ -102,9 +103,9 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
             config_dir = os.path.join(project_root, 'config')
             if os.path.isdir(config_dir):
                 with suppress(Exception):
-                    logger.info("Conteúdo da pasta config: %s", os.listdir(config_dir))
+                    logger.info("Conteudo da pasta config: %s", os.listdir(config_dir))
             raise FileNotFoundError(
-                "Arquivo de schema não encontrado. Tentativas: '\n"
+                "Arquivo de schema nao encontrado. Tentativas: '\n"
                 f"- relativo ao CWD: {os.path.abspath(schema_file)}\n"
                 f"- em config do projeto: {candidate}"
             )
@@ -113,7 +114,7 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
     with open(schema_path, encoding='utf-8') as f:
         schema_sql = f.read()
 
-    # Permitir que testes passem uma conexão já aberta (retrocompatibilidade)
+    # Permitir que testes passem uma conexao ja aberta (retrocompatibilidade)
     if isinstance(db_path, _sqlite3_typehint.Connection):
         conn = db_path
         conn.executescript(schema_sql)
@@ -135,7 +136,7 @@ def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ())
         db_path (str): Caminho para o banco de dados.
         table_name (str): Nome da tabela (usado se `query` estiver vazio).
         query (str, optional): Query SQL customizada. Se vazia, seleciona tudo da tabela.
-        params (tuple, optional): Parâmetros para a query.
+        params (tuple, optional): Parametros para a query.
 
     Returns:
         pd.DataFrame: Resultado da consulta.
@@ -146,7 +147,7 @@ def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ())
     logger.debug(f"Executando consulta: {query} com params: {params}")
     try:
         with get_db_connection(db_path) as conn:
-            # pd.read_sql_query é ótimo para SELECTs
+            # pd.read_sql_query e otimo para SELECTs
             df = pd.read_sql_query(query, conn, params=params)
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
@@ -164,11 +165,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 
     Formatos aceitos:
       1. (df, db_path, table_name, if_exists='append')  -> novo
-      2. (connection, df)                               -> legado (tabela padrão)
+      2. (connection, df)                               -> legado (tabela padrao)
       3. (connection, df, table_name)                   -> legado
 
     Regras adicionais:
-      * Se ``table_name`` for uma VIEW legada ("ssas" / "ssa_chamados") redireciona para tabela física ``ssa_table`` se existir
+      * Se ``table_name`` for uma VIEW legada ("ssas" / "ssa_chamados") redireciona para tabela fisica ``ssa_table`` se existir
       * Filtra (descarta) linhas cujo numero_ssa normalizado resulte em None
       * DataFrame vazio:
           - modo legado: levanta ValueError (test_dataframe_validation_rejects_empty)
@@ -177,8 +178,8 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     if len(args) == 0:
         raise TypeError("insert_dataframe_to_db requer ao menos um argumento")
 
-    # Detecta formato pela primeira posição
-    # Caso novo: primeiro argumento é DataFrame
+    # Detecta formato pela primeira posicao
+    # Caso novo: primeiro argumento e DataFrame
     if isinstance(args[0], pd.DataFrame):
         if len(args) < 3:
             raise TypeError("Uso novo requer (df, db_path, table_name)")
@@ -191,7 +192,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         # Legado: (conn, df [, table])
         conn = args[0]
         if not isinstance(conn, _sqlite3_typehint.Connection):  # pragma: no cover
-            raise TypeError("Primeiro argumento legado deve ser conexão sqlite3")
+            raise TypeError("Primeiro argumento legado deve ser conexao sqlite3")
         if len(args) < 2:
             raise TypeError("Uso legado requer (conn, df [, table_name])")
         df = args[1]
@@ -202,15 +203,15 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         if_exists = kwargs.get('if_exists', 'append')
         legacy_mode = True
 
-    # Normalização / validação DataFrame
+    # Normalizacao / validacao DataFrame
     if df.empty:
         if legacy_mode:
             raise ValueError("DataFrame vazio fornecido (modo legado)")
-        logger.warning("DataFrame vazio fornecido para inserção (modo novo). Nada a fazer.")
+        logger.warning("DataFrame vazio fornecido para insercao (modo novo). Nada a fazer.")
         return True
 
     work_df = df.copy()
-    # Aplicação de whitelist unificada (evita duplicação com smart upsert)
+    # Aplicacao de whitelist unificada (evita duplicacao com smart upsert)
     try:
         from .database_upsert_logic import apply_column_whitelist as _apply_wl
         work_df = _apply_wl(work_df)
@@ -218,14 +219,14 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         pass
     if 'numero_ssa' in work_df.columns:
         work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_value)
-        # Descarta linhas sem numero_ssa válido (regra implícita dos testes de importação)
+        # Descarta linhas sem numero_ssa valido (regra implicita dos testes de importacao)
         work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
 
-    # Após normalização, se ficar vazio em modo legado, também gera ValueError
+    # Apos normalizacao, se ficar vazio em modo legado, tambem gera ValueError
     if work_df.empty and legacy_mode:
-        raise ValueError("DataFrame sem linhas válidas após normalização")
+        raise ValueError("DataFrame sem linhas validas apos normalizacao")
 
-    # Redireciona view -> tabela física se necessário
+    # Redireciona view -> tabela fisica se necessario
     def _resolve_target_table(c: _sqlite3_typehint.Connection, name: str) -> str:
         try:
             cur = c.execute("SELECT name, type FROM sqlite_master WHERE name=?", (name,))
@@ -241,77 +242,63 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 
     try:
         if not legacy_mode:
-            # Caminho novo: abrir conexão via caminho
+            # Caminho novo: abrir conexao via caminho
             start_time = time.time()
-            logger.info(f"🔍 INICIANDO INSERÇÃO NORMA - {len(work_df)} registros em '{table_name}'")
-            
+            logger.info("Iniciando insercao padrao: %s registros em '%s'", len(work_df), table_name)
+
             with get_db_connection(db_path) as conn:  # type: ignore[arg-type]
-                # LOG: Verificar otimizações SQLite ativas
                 cur = conn.cursor()
                 cur.execute("PRAGMA journal_mode")
                 journal_mode = cur.fetchone()[0]
                 cur.execute("PRAGMA cache_size")
                 cache_size = cur.fetchone()[0]
-                logger.info(f"📊 Configurações SQLite: journal_mode={journal_mode}, cache_size={cache_size}")
-                
+                logger.info("Configuracoes SQLite: journal_mode=%s, cache_size=%s", journal_mode, cache_size)
+
                 final_table = _resolve_target_table(conn, table_name)
-                # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
-                # SQLite tem limite padrão de 999 variáveis por query
-                # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
-                # SQLite tem limite padrão de 999 variáveis por query
                 batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
-                logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
-                logger.debug(f"Batch size calculado: {batch_size} linhas para {len(work_df.columns)} colunas")
+                logger.debug("Batch size calculado: %s linhas para %s colunas", batch_size, len(work_df.columns))
                 work_df.reset_index(drop=True, inplace=True)
-                
-                # LOG: Verificar se há SSAs para upsert
+
                 if 'numero_ssa' in work_df.columns:
                     ssa_count = work_df['numero_ssa'].notna().sum()
-                    logger.info(f"🔍 Registros com SSA: {ssa_count}/{len(work_df)}")
-                
+                    logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
+
                 insert_start = time.time()
                 work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
                 insert_time = time.time() - insert_start
-                
+
                 conn.commit()
                 commit_time = time.time() - insert_start - insert_time
-                
+
                 total_time = time.time() - start_time
-                logger.info(f"📊 PERFORMANCE INSERÇÃO NORMA:")
-                logger.info(f"   ⏱️  Inserção: {insert_time:.2f}s")
-                logger.info(f"   ⏱️  Commit: {commit_time:.2f}s")
-                logger.info(f"   ⏱️  Total: {total_time:.2f}s")
-                logger.info(f"   📈 {(len(work_df)/total_time):.1f} registros/segundo")
-                
-            logger.info("%s linhas inseridas (novo modo) em '%s'", len(work_df), table_name)
+                logger.info("Desempenho insercao padrao: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
+                            insert_time, commit_time, total_time, (len(work_df) / total_time) if total_time else 0.0)
+
+            logger.info("%s linhas inseridas (modo padrao) em '%s'", len(work_df), table_name)
             return True
-        # Legado: já temos conexão aberta
+        # Legado: ja temos conexao aberta
         start_time = time.time()
-        logger.info(f"🔍 INICIANDO INSERÇÃO LEGADO - {len(work_df)} registros em '{table_name}'")
-        
+        logger.info("Iniciando insercao legado: %s registros em '%s'", len(work_df), table_name)
+
         final_table = _resolve_target_table(conn, table_name)  # type: ignore[arg-type]
         batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
         work_df.reset_index(drop=True, inplace=True)
-        
-        # LOG: Verificar se há SSAs para upsert
+
         if 'numero_ssa' in work_df.columns:
             ssa_count = work_df['numero_ssa'].notna().sum()
-            logger.info(f"🔍 Registros com SSA: {ssa_count}/{len(work_df)}")
-        
+            logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
+
         insert_start = time.time()
         work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
         insert_time = time.time() - insert_start
-        
+
         conn.commit()  # type: ignore[union-attr]
         commit_time = time.time() - insert_start - insert_time
-        
+
         total_time = time.time() - start_time
-        logger.info(f"📊 PERFORMANCE INSERÇÃO LEGADO:")
-        logger.info(f"   ⏱️  Inserção: {insert_time:.2f}s")
-        logger.info(f"   ⏱️  Commit: {commit_time:.2f}s")
-        logger.info(f"   ⏱️  Total: {total_time:.2f}s")
-        logger.info(f"   📈 {(len(work_df)/total_time):.1f} registros/segundo")
-        
+        logger.info("Desempenho insercao legado: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
+                    insert_time, commit_time, total_time, (len(work_df) / total_time) if total_time else 0.0)
+
         logger.info("%s linhas inseridas (modo legado) em '%s'", len(work_df), final_table)
         return True
     except ValueError:
@@ -324,7 +311,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 def reset_database(
     db_path: str,
     mode: str = 'table',
-    _table_name: str = 'ssas',  # parâmetro legado não usado
+    _table_name: str = 'ssas',  # parametro legado nao usado
     schema_path: str | None = None,
 ) -> bool:
     """Reseta o banco de dados.
@@ -340,7 +327,7 @@ def reset_database(
         if mode == 'table':
             # Reaplica o schema
             if schema_path is None:
-                schema_path = schema_file  # usa padrão e resolução em initialize_database
+                schema_path = schema_file  # usa padrao e resolucao em initialize_database
             initialize_database(db_path, schema_path)
             return True
         logger.error(f"Modo de reset desconhecido: {mode}")
@@ -351,16 +338,16 @@ def reset_database(
 
 
 def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
-    """Garante índices úteis para consultas comuns."""
+    """Garante indices uteis para consultas comuns."""
     try:
         with get_db_connection(db_path) as conn:
             cur = conn.cursor()
-            # Descobre colunas existentes para evitar erros ao criar índices
+            # Descobre colunas existentes para evitar erros ao criar indices
             cur.execute(f"PRAGMA table_info({table_name})")
             cols_info = cur.fetchall() or []
-            existing_cols = {row[1] for row in cols_info}  # nome da coluna na posição 1
+            existing_cols = {row[1] for row in cols_info}  # nome da coluna na posicao 1
 
-            # Índices candidatos e suas colunas
+            # Indices candidatos e suas colunas
             candidate_indexes = [
                 (f"idx_{table_name}_numero_ssa", "numero_ssa"),
                 (f"idx_{table_name}_setor_executor", "setor_executor"),
@@ -374,13 +361,51 @@ def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
             conn.commit()
         return True
     except Exception as e:
-        logger.error(f"Erro criando índices: {e}")
+        logger.error(f"Erro criando indices: {e}")
         return False
 
 
-# ---- Helpers extraídos para reduzir complexidade da função pública ----
+def ensure_column_exists(
+    db_path: str,
+    table_name: str,
+    column_name: str,
+    column_definition: str,
+) -> bool:
+    """Garante que uma coluna exista na tabela fisica alvo."""
+    try:
+        physical_table = table_name
+        if table_name in {'ssas', 'ssa_chamados'}:
+            physical_table = 'ssa_table'
 
-from . import database_upsert_logic as _up  # import único para usar diretamente funções refatoradas
+        with get_db_connection(db_path) as conn:
+            cursor = conn.execute(f"PRAGMA table_info({physical_table})")  # noqa: S608
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            if column_name in existing_columns:
+                return False
+            conn.execute(
+                f"ALTER TABLE {physical_table} ADD COLUMN {column_name} {column_definition}"
+            )
+            conn.commit()
+            logger.info(
+                "Coluna '%s' adicionada a tabela '%s' com definicao %s",
+                column_name,
+                physical_table,
+                column_definition,
+            )
+            return True
+    except Exception as exc:
+        logger.error(
+            "Falha ao garantir coluna '%s' na tabela '%s': %s",
+            column_name,
+            table_name,
+            exc,
+        )
+        return False
+
+
+# ---- Helpers extraidos para reduzir complexidade da funcao publica ----
+
+from . import database_upsert_logic as _up  # import unico para usar diretamente funcoes refatoradas
 
 
 
@@ -389,31 +414,31 @@ def insert_dataframe_with_smart_upsert(
     db_path: str | pd.DataFrame | None = None,
     table_name: str = 'ssas',
 ) -> bool:  # noqa: PLR0912, PLR0915, PLR0915, PLR0913, PLR0914
-    """Insere DataFrame com lógica de upsert (por ``numero_ssa``) em baixo
-    nível. Esta versão foi refatorada para reduzir complexidade mantendo a
-    mesma semântica relevante:
+    """Insere DataFrame com logica de upsert (por ``numero_ssa``) em baixo
+    nivel. Esta versao foi refatorada para reduzir complexidade mantendo a
+    mesma semantica relevante:
 
-    - Linhas sem ``numero_ssa``: inserção direta (append/replace se primeira)
+    - Linhas sem ``numero_ssa``: insercao direta (append/replace se primeira)
     - Linhas com ``numero_ssa``: upsert simples (delete + insert) se data nova
       for mais recente ou se empatar/ausente.
-    - Normalização de ``numero_ssa`` e conversão resiliente de colunas de data.
+    - Normalizacao de ``numero_ssa`` e conversao resiliente de colunas de data.
     """
-    # Suporte retrocompatível:
+    # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
     #  - Contrato legado usado em testes: (conn, df) ou (conn, df, table_name)
-    if isinstance(df, _sqlite3_typehint.Connection):  # padrão antigo: primeiro arg é conexão
+    if isinstance(df, _sqlite3_typehint.Connection):  # padrao antigo: primeiro arg e conexao
         conn = df
-        real_df = db_path  # neste formato, segundo argumento é o DataFrame
+        real_df = db_path  # neste formato, segundo argumento e o DataFrame
         if not isinstance(real_df, pd.DataFrame):  # tipo incorreto
             logger.error("Uso legado invalido: segundo argumento deve ser DataFrame quando primeiro e conexao")
             return False
-        # real_df já garantido DataFrame acima; apenas verificar vazio
+        # real_df ja garantido DataFrame acima; apenas verificar vazio
         if real_df.empty:
             return True
         try:
             return _up.insert_dataframe_with_smart_upsert_impl(real_df, conn, table_name)
         except Exception as e:  # pragma: no cover
-            logger.error(f"Falha na inserção (legacy conn mode): {e}")
+            logger.error(f"Falha na insercao (legacy conn mode): {e}")
             return False
 
     # caminho novo normal
@@ -425,7 +450,7 @@ def insert_dataframe_with_smart_upsert(
         assert isinstance(db_path, str)
         return _up.insert_dataframe_with_smart_upsert_impl(real_df, db_path, table_name)
     except Exception as e:  # pragma: no cover
-        logger.error(f"Falha na inserção: {e}")
+        logger.error(f"Falha na insercao: {e}")
         return False
 
 
@@ -445,7 +470,7 @@ def normalize_numero_ssa(value) -> str | None:  # retrocompat
     return _normalize_numero_ssa_display(value)
 
 
-# --- Funções de Verificação e Integridade do Banco ---
+# --- Funcoes de Verificacao e Integridade do Banco ---
 
 def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> dict[str, Any]:  # compat wrapper
     from . import database_integrity as _int

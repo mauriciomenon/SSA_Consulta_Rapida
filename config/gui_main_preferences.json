@@ -19,7 +19,8 @@
     "origem",
     "servico_origem",
     "execucao_simples",
-    "grau_prioridade_emissao"
+    "grau_prioridade_emissao",
+    "arquivo_origem"
   ],
   "column_display_names": {
     "numero_ssa": "Número SSA",
@@ -45,7 +46,8 @@
     "servico_origem": "Serv. Origem",
     "execucao_simples": "Exec. Simples",
     "responsavel_programacao": "Resp. Prog.",
-    "responsavel_execucao": "Resp. Exec."
+    "responsavel_execucao": "Resp. Exec.",
+    "arquivo_origem": "Arquivo Origem"
   },
   "column_widths": {
     "#": 30,
@@ -74,7 +76,7 @@
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
-    "theme": "gnome",
+    "theme": "dracula",
     "filter_cache_size": 50,
     "cache_enabled": true,
     "cache_auto_clear": false

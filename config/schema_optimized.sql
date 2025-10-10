@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     -- Serviços e Origem (CONSOLIDADO)
     servico_origem TEXT,
     sistema_origem TEXT,
+    arquivo_origem TEXT,
 
     -- Prioridades (CONSOLIDADO)
     grau_prioridade_emissao TEXT,
