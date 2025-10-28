@@ -329,3 +329,7 @@ docs_entrada/*.json
 # Exports com dados completos
 docs_saida/all.*
 exportacao/
+
+# Temporary work files and control files
+temp/
+temp/**
