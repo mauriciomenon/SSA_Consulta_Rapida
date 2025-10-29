@@ -80,17 +80,21 @@ class StreamlitFilterCache:
     def __init__(self, max_size: int = 30, ttl_seconds: int = 300):
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
-        
-        # Inicializa session state se nao existe (compativel com mocks sem __contains__)
-        state = getattr(st, 'session_state', None)
-        if state is None:
-            class _State: ...
-            state = _State()
-            setattr(st, 'session_state', state)
-        if not hasattr(state, 'filter_cache'):
-            setattr(state, 'filter_cache', {})
-        if not hasattr(state, 'cache_stats'):
-            setattr(state, 'cache_stats', {'hits': 0, 'misses': 0, 'evictions': 0})
+
+        # Use Streamlit session_state if available, otherwise use local dict
+        # This allows cache to work in tests and non-Streamlit contexts
+        if hasattr(st, 'session_state') and st.session_state is not None:
+            # Real Streamlit runtime - use session_state
+            self._use_session_state = True
+            if 'filter_cache' not in st.session_state:
+                st.session_state.filter_cache = {}
+            if 'cache_stats' not in st.session_state:
+                st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+        else:
+            # Not in Streamlit runtime - use local dict
+            self._use_session_state = False
+            self._local_cache = {}
+            self._local_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
     
     def _generate_key(self, df_shape: Tuple[int, int], search_terms: str, 
                      situacoes: list, executores: list, emissores: list) -> str:
@@ -106,45 +110,58 @@ class StreamlitFilterCache:
         params_str = str(sorted(params.items()))
         return hashlib.md5(params_str.encode('utf-8')).hexdigest()
     
-    def get(self, df_shape: Tuple[int, int], search_terms: str, 
+    def get(self, df_shape: Tuple[int, int], search_terms: str,
            situacoes: list, executores: list, emissores: list) -> Optional[pd.DataFrame]:
         """Recupera resultado do cache se valido."""
         key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores)
-        
-        cache = st.session_state.filter_cache
+
+        # Get cache and stats from appropriate source
+        if self._use_session_state:
+            cache = st.session_state.filter_cache
+            stats = st.session_state.cache_stats
+        else:
+            cache = self._local_cache
+            stats = self._local_stats
+
         if key in cache:
             entry = cache[key]
             # Verifica TTL
             if time.time() - entry['timestamp'] < self.ttl_seconds:
                 # Move para o final (LRU)
                 cache[key] = cache.pop(key)
-                st.session_state.cache_stats['hits'] += 1
+                stats['hits'] += 1
                 return entry['data'].copy()
             else:
                 # Cache expirado
                 del cache[key]
-        
-        st.session_state.cache_stats['misses'] += 1
+
+        stats['misses'] += 1
         return None
     
-    def put(self, df_shape: Tuple[int, int], search_terms: str, 
+    def put(self, df_shape: Tuple[int, int], search_terms: str,
            situacoes: list, executores: list, emissores: list, result: pd.DataFrame):
         """Armazena resultado no cache."""
         key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores)
-        
-        cache = st.session_state.filter_cache
-        
+
+        # Get cache and stats from appropriate source
+        if self._use_session_state:
+            cache = st.session_state.filter_cache
+            stats = st.session_state.cache_stats
+        else:
+            cache = self._local_cache
+            stats = self._local_stats
+
         # Remove entrada existente se houver
         if key in cache:
             del cache[key]
-        
+
         # Implementa politica LRU
         while len(cache) >= self.max_size:
             # Remove item mais antigo
             oldest_key = next(iter(cache))
             del cache[oldest_key]
-            st.session_state.cache_stats['evictions'] += 1
-        
+            stats['evictions'] += 1
+
         # Adiciona nova entrada
         cache[key] = {
             'data': result.copy(),
@@ -153,7 +170,7 @@ class StreamlitFilterCache:
     
     def get_stats(self) -> dict:
         """Retorna estatisticas do cache."""
-        stats = st.session_state.cache_stats
+        stats = st.session_state.cache_stats if self._use_session_state else self._local_stats
         total = stats['hits'] + stats['misses']
         hit_rate = (stats['hits'] / total * 100) if total > 0 else 0
         
