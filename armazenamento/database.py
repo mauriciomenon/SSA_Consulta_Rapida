@@ -1,5 +1,5 @@
 # armazenamento/database.py 20250725 161500 (v2.1 - Boas Praticas Confirmadas)
-# Last modified: 2025-10-29T10:30:00 (dispatcher pattern)
+# Last modified: 2025-10-29T11:15:00 (circular import documentation)
 """
 Modulo para interacao com o banco de dados SQLite.
 
@@ -424,6 +424,13 @@ def ensure_column_exists(
 
 
 # ---- Helpers extraidos para reduzir complexidade da funcao publica ----
+
+# CIRCULAR DEPENDENCY MITIGATION:
+# This module has circular dependencies with database_upsert_logic, database_integrity,
+# and database_optimized. We use lazy imports (inside functions) for most imports to
+# avoid import-time errors. Only database_upsert_logic is imported at top level because
+# it only uses lazy imports from this module.
+# DO NOT convert lazy imports to top-level imports without testing.
 
 from . import database_upsert_logic as _up  # import unico para usar diretamente funcoes refatoradas
 

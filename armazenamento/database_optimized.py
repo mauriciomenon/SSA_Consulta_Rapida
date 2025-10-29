@@ -8,8 +8,14 @@ facilitadores para ativar/desativar dinamicamente no módulo ``database``.
 
 Refatoração de estilo para conformidade com flake8 (remoção de imports não usados,
 quebras de linha longas, remoção de trailing whitespace).
+
+CIRCULAR DEPENDENCY MITIGATION:
+This module imports get_db_connection from database.py at top level (safe because
+get_db_connection is defined early in database.py). The database.py module imports
+insert_dataframe_optimized lazily (inside dispatcher function). This works but is
+fragile - if get_db_connection moves lower in database.py, circular import will break.
 """
-# Last modified: 2025-10-29T10:35:00 (dispatcher pattern)
+# Last modified: 2025-10-29T11:10:00 (circular import documentation)
 
 from __future__ import annotations
 
@@ -17,7 +23,7 @@ import logging
 import time
 import pandas as pd  # type: ignore[import-not-found]
 
-from .database import get_db_connection  # Import leve; evita duplicar lógica de conexão
+from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
 
 logger = logging.getLogger(__name__)
 
