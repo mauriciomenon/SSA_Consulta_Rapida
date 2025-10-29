@@ -1,12 +1,19 @@
 """
-Dev-only minimal GUI to fetch SSAs from Itaipu API without touching existing GUI.
-
-Features:
-- QThread-based worker wrapping utils.remote_itaipu.fetch_pending_ssas
-- Timeout, SSL verify toggle, cancel support
-- Simple preview table and JSON tab
-
-Run: python -m gui.gui_ssa_dev
+# ==============================================================================
+# DEV TOOL - KEEP AS ACTIVE DEVELOPMENT UTILITY
+# ==============================================================================
+# Status: Active development tool for API testing
+# Purpose: Test Itaipu API without affecting production GUI
+# Last modified: 2025-10-29T12:05:00 (documented purpose)
+#
+# Dev-only minimal GUI to fetch SSAs from Itaipu API without touching existing GUI.
+#
+# Features:
+# - QThread-based worker wrapping utils.remote_itaipu.fetch_pending_ssas
+# - Timeout, SSL verify toggle, cancel support
+# - Simple preview table and JSON tab
+#
+# Run: python -m gui.gui_ssa_dev
 """
 from __future__ import annotations
 
