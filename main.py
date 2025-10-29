@@ -40,6 +40,20 @@ class _ASCIIOnlyFilter(logging.Filter):
         return True
 
 
+# ==============================================================================
+# DEAD CODE - DELETE CANDIDATE
+# ==============================================================================
+# Status: Always returns None (extracao.extractor exists but has no run_importer_logic)
+# Created: Unknown (likely intended for future extensibility)
+# Last modified: 2025-10-29T12:30:00 (marked as dead code)
+# Recommendation: DELETE - function always returns None, serves no purpose
+# Lines affected: 43-76
+#
+# This function tries to load run_importer_logic from extracao.extractor, but:
+# - extracao/extractor.py exists but has no run_importer_logic function
+# - Function always returns None
+# - Caller (line 677) checks result but it's always None
+# - Can safely remove function and lines 677-679
 def _load_external_run_importer(project_root: str):
     """
     Try to load run_importer_logic from extracao.extractor, if available.
@@ -673,6 +687,8 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
         logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
+        # DEAD CODE: Lines 690-693 - external_run always None, condition never true
+        # Can safely delete lines 690-693 when deleting _load_external_run_importer
         logger.debug("Verificando implementacao externa de run_importer_logic")
         external_run = _load_external_run_importer(project_root)
         if external_run is not None:
