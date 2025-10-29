@@ -174,9 +174,11 @@ class StreamlitFilterCache:
         total = stats['hits'] + stats['misses']
         hit_rate = (stats['hits'] / total * 100) if total > 0 else 0
         
+        cache = st.session_state.filter_cache if self._use_session_state else self._local_cache
+
         return {
-            'size': len(st.session_state.filter_cache),
-            'entries': len(st.session_state.filter_cache),
+            'size': len(cache),
+            'entries': len(cache),
             'max_size': self.max_size,
             'hits': stats['hits'],
             'misses': stats['misses'],
@@ -184,10 +186,13 @@ class StreamlitFilterCache:
             'hit_rate': hit_rate,
             'ttl_seconds': self.ttl_seconds
         }
-    
+
     def clear(self):
         """Limpa todo o cache."""
-        st.session_state.filter_cache = {}
+        if self._use_session_state:
+            st.session_state.filter_cache = {}
+        else:
+            self._local_cache = {}
         st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
 
     # --- Metodos de compatibilidade com scripts de teste ---
