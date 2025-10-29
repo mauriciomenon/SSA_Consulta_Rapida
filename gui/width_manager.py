@@ -1,6 +1,16 @@
 """
-Width Manager - Sistema Unificado de Gerenciamento de Larguras
-Elimina as estratégias conflitantes de largura da GUI.
+# ==============================================================================
+# SUPERSEDED FILE - DELETE CANDIDATE
+# ==============================================================================
+# Status: Superseded by simple_width_manager.py
+# Created: Unknown
+# Last modified: 2025-10-29T12:15:00 (marked as superseded)
+# Recommendation: DELETE - gui_ssa.py uses simple_width_manager.py instead
+#
+# Width Manager - Sistema Unificado de Gerenciamento de Larguras
+# Elimina as estratégias conflitantes de largura da GUI.
+#
+# NOTA: Este arquivo não é mais usado. Use simple_width_manager.py
 """
 
 from typing import Dict, List, Optional, Tuple, Any
