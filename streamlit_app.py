@@ -1,5 +1,5 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
-# Last modified: 2025-10-29T10:15:00 (session_state fix, error logging)
+# Last modified: 2025-10-29T10:45:00 (copy-on-write enabled)
 from __future__ import annotations
 
 import hashlib
@@ -12,6 +12,11 @@ from typing import Dict, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
+
+# Enable copy-on-write mode for performance (pandas 1.5+)
+# With CoW, DataFrame.copy() returns lazy view that only copies on modification
+# This makes cache operations much faster while maintaining safety
+pd.options.mode.copy_on_write = True
 
 # Inicializar logging robusto
 class _ASCIIOnlyFilter(logging.Filter):
