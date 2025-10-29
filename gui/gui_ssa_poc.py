@@ -1,12 +1,22 @@
-"""Compat layer para GUI PoC legada.
-
-O módulo original muito extenso foi movido para ``legacy.gui_ssa_poc`` para
-reduzir ruído de lint e permitir evolução independente.
-
-ATENÇÃO: Atualize seus imports para usar diretamente:
-    from legacy.gui_ssa_poc import <Simbolo>
-
-Este arquivo será removido em uma versão futura.
+"""
+# ==============================================================================
+# COMPATIBILITY SHIM - DEPRECATION CANDIDATE
+# ==============================================================================
+# Status: Compatibility layer for legacy code
+# Created: Unknown (shim for legacy.gui_ssa_poc)
+# Last modified: 2025-10-29T12:10:00 (documented deprecation)
+# Purpose: Different purpose from main GUI (quick queries/PoC)
+# Recommendation: Keep if still used, document deprecation path
+#
+# Compat layer para GUI PoC legada.
+#
+# O módulo original muito extenso foi movido para ``legacy.gui_ssa_poc`` para
+# reduzir ruído de lint e permitir evolução independente.
+#
+# ATENÇÃO: Atualize seus imports para usar diretamente:
+#     from legacy.gui_ssa_poc import <Simbolo>
+#
+# Este arquivo será removido em uma versão futura.
 """
 from __future__ import annotations
 
