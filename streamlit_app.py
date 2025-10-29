@@ -1,11 +1,12 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
-# Last modified: 2025-10-29T10:45:00 (copy-on-write enabled)
+# Last modified: 2025-10-29T10:50:00 (error handling in data loading)
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
 import os
+import sqlite3
 import time
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -238,9 +239,29 @@ filter_cache = StreamlitFilterCache()
 
 
 def load_dataframe(db_path: str) -> pd.DataFrame:
+    """
+    Carrega dados do banco de dados com tratamento de erros.
+
+    Returns:
+        DataFrame com dados ou DataFrame vazio em caso de erro
+    """
     if not os.path.exists(db_path):
+        logger.warning(f"Database file not found: {db_path}")
         return pd.DataFrame()
-    return get_filtered_data(db_path)
+
+    try:
+        df = get_filtered_data(db_path)
+        if df.empty:
+            logger.info(f"Database query returned empty result: {db_path}")
+        else:
+            logger.debug(f"Loaded {len(df)} records from {db_path}")
+        return df
+    except sqlite3.Error as e:
+        logger.error(f"SQLite error loading data from {db_path}: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"Unexpected error loading data from {db_path}: {e}")
+        return pd.DataFrame()
 
 # Aplica cache do Streamlit se disponivel; adiciona clear() no fallback
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
