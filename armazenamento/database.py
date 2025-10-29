@@ -28,6 +28,25 @@ MAX_TEXT_LEN = 1000
 # constantes realmente usadas localmente. As regras detalhadas vivem em
 # core.numero_ssa.normalize_strict e no util compartilhado.
 
+# --- Optimized Mode Dispatch ---
+# Flag global para controlar modo otimizado (substituiu monkey-patching)
+_use_optimized_mode = False
+
+def set_optimized_mode(enabled: bool) -> None:
+    """
+    Ativa ou desativa o modo otimizado de importacao.
+
+    Quando ativado, insert_dataframe_with_smart_upsert usa a implementacao
+    otimizada de database_optimized.py. Quando desativado, usa a implementacao
+    padrao de database_upsert_logic.py.
+
+    Args:
+        enabled: True para ativar modo otimizado, False para modo padrao
+    """
+    global _use_optimized_mode
+    _use_optimized_mode = enabled
+    logger.info(f"Modo otimizado {'ativado' if enabled else 'desativado'}")
+
 # --- Gerenciamento de Conexao ---
 
 # Nome do arquivo de schema (exposto para testes)
@@ -422,6 +441,9 @@ def insert_dataframe_with_smart_upsert(
     - Linhas com ``numero_ssa``: upsert simples (delete + insert) se data nova
       for mais recente ou se empatar/ausente.
     - Normalizacao de ``numero_ssa`` e conversao resiliente de colunas de data.
+
+    Dispatcher: Se modo otimizado estiver ativo, delega para implementacao
+    otimizada. Modo legado (conn, df) sempre usa implementacao padrao.
     """
     # Suporte retrocompativel:
     #  - Novo contrato: (df, db_path, table_name)
@@ -435,6 +457,7 @@ def insert_dataframe_with_smart_upsert(
         # real_df ja garantido DataFrame acima; apenas verificar vazio
         if real_df.empty:
             return True
+        # Modo legado sempre usa implementacao padrao (nao suportado por optimized)
         try:
             return _up.insert_dataframe_with_smart_upsert_impl(real_df, conn, table_name)
         except Exception as e:  # pragma: no cover
@@ -445,13 +468,26 @@ def insert_dataframe_with_smart_upsert(
     real_df = df  # type: ignore[assignment]
     if isinstance(real_df, pd.DataFrame) and real_df.empty:
         return True
-    try:
-        assert isinstance(real_df, pd.DataFrame)
-        assert isinstance(db_path, str)
-        return _up.insert_dataframe_with_smart_upsert_impl(real_df, db_path, table_name)
-    except Exception as e:  # pragma: no cover
-        logger.error(f"Falha na insercao: {e}")
-        return False
+
+    # Dispatch: verificar se modo otimizado esta ativo
+    if _use_optimized_mode:
+        try:
+            assert isinstance(real_df, pd.DataFrame)
+            assert isinstance(db_path, str)
+            from .database_optimized import insert_dataframe_optimized
+            return insert_dataframe_optimized(real_df, db_path, table_name)
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Falha na insercao otimizada: {e}")
+            return False
+    else:
+        # Modo padrao
+        try:
+            assert isinstance(real_df, pd.DataFrame)
+            assert isinstance(db_path, str)
+            return _up.insert_dataframe_with_smart_upsert_impl(real_df, db_path, table_name)
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Falha na insercao: {e}")
+            return False
 
 
 from .numero_ssa_utils import (

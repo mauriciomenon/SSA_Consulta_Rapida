@@ -212,29 +212,15 @@ def insert_dataframe_optimized(
 
 def enable_optimized_import():
     """
-    Ativa o modo de importação otimizada substituindo a função padrão.
+    Ativa o modo de importacao otimizada.
     Deve ser chamado antes de run_importer_logic().
     """
-    # Substituir a função no módulo database
-    import armazenamento.database as db_module
-
-    # Backup da função original
-    if not hasattr(db_module, '_original_insert_dataframe_with_smart_upsert'):
-        db_module._original_insert_dataframe_with_smart_upsert = db_module.insert_dataframe_with_smart_upsert
-
-    # Substituir pela versão otimizada
-    db_module.insert_dataframe_with_smart_upsert = insert_dataframe_optimized
-
-    logger.info("🚀 Modo de importação otimizada ATIVADO")
+    from .database import set_optimized_mode
+    set_optimized_mode(True)
 
 def disable_optimized_import():
     """
-    Desativa o modo de importação otimizada restaurando a função original.
+    Desativa o modo de importacao otimizada.
     """
-    import armazenamento.database as db_module
-
-    if hasattr(db_module, '_original_insert_dataframe_with_smart_upsert'):
-        db_module.insert_dataframe_with_smart_upsert = db_module._original_insert_dataframe_with_smart_upsert
-        logger.info("🔄 Modo de importação padrão RESTAURADO")
-    else:
-        logger.warning("⚠️  Função original não encontrada para restaurar")
+    from .database import set_optimized_mode
+    set_optimized_mode(False)
