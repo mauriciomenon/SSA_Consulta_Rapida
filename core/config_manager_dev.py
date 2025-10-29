@@ -1,3 +1,22 @@
+# ==============================================================================
+# REFERENCE FILE - NOT USED IN PRODUCTION
+# ==============================================================================
+# Status: Legacy configuration loader
+# Created: 2025-09-22 (commit f61d396)
+# Purpose: Reference for simpler validation rules and backporting if needed
+#
+# This file is a legacy version of core/config_manager.py.
+# It is NOT imported by any production code.
+# The active version is core/config_manager.py
+#
+# Use cases:
+# - Understanding configuration evolution
+# - Simpler config approach for testing
+# - Reference for alternative validation strategies
+#
+# DO NOT import this file in production code.
+# ==============================================================================
+
 # core/config_manager.py 20250725 163000 (v2.1 - Melhorias de Erro, Logging)
 """
 Gerenciador de configurações da aplicação.
