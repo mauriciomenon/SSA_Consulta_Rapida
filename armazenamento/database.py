@@ -1,4 +1,5 @@
 # armazenamento/database.py 20250725 161500 (v2.1 - Boas Praticas Confirmadas)
+# Last modified: 2025-10-29T10:30:00 (dispatcher pattern)
 """
 Modulo para interacao com o banco de dados SQLite.
 
