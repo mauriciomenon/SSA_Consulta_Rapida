@@ -9,6 +9,7 @@ facilitadores para ativar/desativar dinamicamente no módulo ``database``.
 Refatoração de estilo para conformidade com flake8 (remoção de imports não usados,
 quebras de linha longas, remoção de trailing whitespace).
 """
+# Last modified: 2025-10-29T10:35:00 (dispatcher pattern)
 
 from __future__ import annotations
 

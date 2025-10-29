@@ -1,4 +1,5 @@
 # core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
+# Last modified: 2025-10-29T10:20:00 (error logging added)
 """
 Logica central da aplicacao para importacao e atualizacao do banco de dados.
 
