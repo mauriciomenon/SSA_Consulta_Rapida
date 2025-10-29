@@ -3,7 +3,13 @@
 Mantém a implementação original com pequenas adaptações para reduzir
 acoplamento e permitir testes mais focados. Importado por `database.py` para
 retrocompatibilidade (funções públicas não mudam de nome).
+
+CIRCULAR DEPENDENCY MITIGATION:
+This module is imported at top-level by database.py. To avoid circular import errors,
+we use lazy imports (inside functions) when we need to import from database.py.
+DO NOT add top-level imports from database.py - use lazy imports only.
 """
+# Last modified: 2025-10-29T11:00:00 (circular import documentation)
 from __future__ import annotations
 
 from typing import Any
@@ -14,7 +20,7 @@ import re
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
 
-# Import atrasado de get_db_connection para evitar ciclo (import dentro da função que usa)
+# Lazy imports from database.py to avoid circular dependency (see line 303)
 
 logger = logging.getLogger(__name__)
 

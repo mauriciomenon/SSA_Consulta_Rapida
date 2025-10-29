@@ -1,7 +1,14 @@
 """Funcoes de verificacao e reparo extraidas de `database.py`.
 
 Publicadas novamente atraves de `database` para compatibilidade.
+
+CIRCULAR DEPENDENCY MITIGATION:
+This module is imported lazily by database.py (inside functions). This module imports
+from database.py using lazy imports (inside functions) to avoid circular import errors.
+All imports from database.py must be lazy (inside functions).
+DO NOT add top-level imports from database.py.
 """
+# Last modified: 2025-10-29T11:05:00 (circular import documentation)
 from __future__ import annotations
 
 import logging
@@ -11,7 +18,7 @@ from datetime import datetime
 from typing import Any
 import pandas as pd  # type: ignore[import-not-found]
 
-# Imports serao resolvidos de forma lazy dentro das funcoes para evitar ciclos.
+# Lazy imports from database.py to avoid circular dependency (see lines 82, 100, 117, etc.)
 
 logger = logging.getLogger(__name__)
 
