@@ -1,4 +1,5 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
+# Last modified: 2025-10-29T10:15:00 (session_state fix, error logging)
 from __future__ import annotations
 
 import hashlib
