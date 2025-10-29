@@ -1,5 +1,5 @@
 """Streamlit frontend otimizado para explorar SSAs utilizando o banco local."""
-# Last modified: 2025-10-29T10:50:00 (error handling in data loading)
+# Last modified: 2025-10-29T11:45:00 (improved arrow compatibility)
 from __future__ import annotations
 
 import hashlib
@@ -321,17 +321,54 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
 
 
 def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
-    """Normaliza colunas para evitar falhas do Streamlit/Arrow."""
-    safe = df.copy()
+    """
+    Normaliza colunas para evitar falhas do Streamlit/Arrow.
+
+    Tenta preservar tipos numericos quando possivel, convertendo apenas
+    colunas verdadeiramente mistas para string.
+    """
+    safe = df.copy()  # Cheap with copy-on-write
+    conversions_made = []
+
     for col in safe.columns:
         series = safe[col]
+        dtype_str = str(series.dtype)
+
+        # Skip modern nullable dtypes (already Arrow-compatible)
+        if dtype_str.startswith('string') or dtype_str in ['Int64', 'Int32', 'Float64', 'Float32']:
+            continue
+
         if series.dtype == "object":
             non_null = series.dropna()
             if not non_null.empty:
                 sample_types = {type(x) for x in non_null.head(20)}
+
+                # Check if truly mixed types
                 if len(sample_types) > 1:
+                    # Sample more values to determine majority type
+                    sample_size = min(100, len(non_null))
+                    type_counts = {}
+                    for val in non_null.head(sample_size):
+                        t = type(val)
+                        type_counts[t] = type_counts.get(t, 0) + 1
+
+                    majority_type = max(type_counts, key=type_counts.get)
+
+                    # If mostly numeric, try to preserve as numeric
+                    if majority_type in (int, float):
+                        try:
+                            safe[col] = pd.to_numeric(series, errors='coerce')
+                            conversions_made.append(f"{col}: mixed->numeric")
+                            continue
+                        except Exception:
+                            pass  # Fall through to string conversion
+
+                    # Otherwise convert to string
                     safe[col] = series.astype(str)
+                    conversions_made.append(f"{col}: mixed->string")
                     continue
+
+                # Handle list/dict types
                 sample = non_null.iloc[0]
                 if isinstance(sample, (list, dict)):
                     safe[col] = series.apply(
@@ -339,8 +376,14 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                         if isinstance(x, (list, dict))
                         else x
                     )
+                    conversions_made.append(f"{col}: list/dict->json")
+
         elif pd.api.types.is_integer_dtype(series.dtype):
             safe[col] = series.astype("Int64")
+
+    if conversions_made:
+        logger.debug(f"Arrow compatibility conversions: {', '.join(conversions_made)}")
+
     return safe
 
 
