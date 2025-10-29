@@ -321,16 +321,16 @@ def run_importer_logic(
         if progress_callback:
             try:
                 progress_callback('start', {'total': total_files})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Progress callback failed: {e}")
 
         if not files_to_process:
             logger.info("Nenhum arquivo novo ou modificado encontrado para processamento.")
             if progress_callback:
                 try:
                     progress_callback('finish', {'total': 0, 'processed': 0, 'errors': []})
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Progress callback failed: {e}")
             return False
 
         logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importacao.")
@@ -349,8 +349,8 @@ def run_importer_logic(
                             'total': total_files,
                             'filename': base_name
                         })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Progress callback failed during file processing: {e}")
 
                 if base_name.startswith('~$'):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
@@ -413,8 +413,8 @@ def run_importer_logic(
                         'processed': len(successfully_processed_files),
                         'errors': critical_errors
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Progress callback failed at finish: {e}")
 
         # Log de resumo de erros
         if critical_errors:

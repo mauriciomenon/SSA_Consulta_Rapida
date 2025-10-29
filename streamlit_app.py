@@ -191,9 +191,10 @@ class StreamlitFilterCache:
         """Limpa todo o cache."""
         if self._use_session_state:
             st.session_state.filter_cache = {}
+            st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
         else:
             self._local_cache = {}
-        st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+            self._local_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
@@ -379,8 +380,8 @@ if _is_real_streamlit_runtime():
                 try:
                     if hasattr(load_dataframe, "clear"):
                         load_dataframe.clear()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to clear load_dataframe cache: {e}")
                 filter_cache.clear()
 
                 progress_holder.progress(100)
@@ -563,7 +564,8 @@ if _is_real_streamlit_runtime() and consult_api:
             )
         else:
             st.info("API Itaipu respondeu sem novos registros. Exibindo apenas dados do banco local.")
-    except Exception:
+    except Exception as e:
+            logger.error(f"Failed to fetch data from Itaipu API: {e}")
             st.warning(
                 "Nao foi possivel acessar dados mais recentes via API. O dashboard continua com o banco local."
             )
