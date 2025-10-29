@@ -1,3 +1,27 @@
+# ==============================================================================
+# UNUSED FILE - NEVER INTEGRATED INTO PRODUCTION
+# ==============================================================================
+# Status: Alternative configuration system that was never used
+# Created: 2025-09-15 (commit 79543c5)
+# Purpose: Intended as centralized config manager but never adopted
+#
+# This file implements ConfigurationManager class with advanced features:
+# - File priority system
+# - Deep merging of configurations
+# - Conflict resolution
+# - Multi-file coordination
+#
+# However, core/config_manager.py was used instead (simpler approach).
+# This file is NOT imported anywhere in the codebase.
+#
+# Evidence of non-use:
+# - No imports found in any production code
+# - Only mentioned in tests/debug_frankenstein.py (planning doc)
+# - config_manager.py is the active configuration system
+#
+# Recommendation: Delete candidate (496 lines of unused code)
+# ==============================================================================
+
 """
 Configuration Manager - Sistema Centralizado de Configurações
 Elimina chaves duplicadas entre arquivos de configuração.
