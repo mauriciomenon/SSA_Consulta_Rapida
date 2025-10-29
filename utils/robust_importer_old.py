@@ -1,3 +1,22 @@
+# ==============================================================================
+# REFERENCE FILE - NOT USED IN PRODUCTION
+# ==============================================================================
+# Status: Historical version before current robust_importer.py
+# Created: 2025-09-19 (commit 7b2ace3)
+# Purpose: Reference for old import logic and deduplication strategies
+#
+# This file is an old version of utils/robust_importer.py.
+# It is NOT imported by any production code.
+# The active version is utils/robust_importer.py
+#
+# Use cases:
+# - Understanding why import logic changes were made
+# - Comparing old vs new deduplication approaches
+# - Recovery of specific logic if regression occurs
+#
+# DO NOT import this file in production code.
+# ==============================================================================
+
 # utils/robust_importer.py
 # Referência: documentação de heurísticas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
 """Importador "à prova de bala" para planilhas SSA.

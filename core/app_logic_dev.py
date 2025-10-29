@@ -1,3 +1,22 @@
+# ==============================================================================
+# REFERENCE FILE - NOT USED IN PRODUCTION
+# ==============================================================================
+# Status: Historical snapshot frozen at v3.1
+# Created: 2025-09-22 (commit f61d396)
+# Purpose: Reference for comparing logic evolution and porting removed behaviors
+#
+# This file is a frozen copy of core/app_logic.py from v3.1.
+# It is NOT imported by any production code.
+# The active version is core/app_logic.py
+#
+# Use cases:
+# - Understanding what changed between v3.1 and current version
+# - A/B comparison of orchestration logic
+# - Recovering specific functionality if needed
+#
+# DO NOT import this file in production code.
+# ==============================================================================
+
 # core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Exceções, Logging)
 """
 Lógica central da aplicação para importação e atualização do banco de dados.
