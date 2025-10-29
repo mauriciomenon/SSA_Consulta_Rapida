@@ -1,4 +1,5 @@
 # utils/robust_importer.py
+# Last modified: 2025-10-29T11:30:00 (pandas import improvements)
 # Referência: documentação de heurísticas e schema unificado em docs/SCHEMA_UNIFICADO_IMPORTACAO.md
 """Importador "à prova de bala" para planilhas SSA.
 
@@ -160,7 +161,11 @@ def import_excel_robust(
         logger.debug("[import_excel_robust] Lendo planilha %s", file_path)
 
     try:
-        raw_df = pd.read_excel(file_path)  # confiar no pandas para engine
+        raw_df = pd.read_excel(
+            file_path,
+            engine='openpyxl',
+            dtype_backend='numpy_nullable'
+        )
     except Exception as e:
         logger.error("Falha ao ler planilha %s: %s", file_path, e)
         return pd.DataFrame(), stats.to_dict()
@@ -180,7 +185,12 @@ def import_excel_robust(
             logger.debug("[import_excel_robust] Detectado header mesclado único (%s). Tentando reinterpretar próxima linha como cabeçalho real.", list(distinct_non_empty)[0])
         try:
             # Releitura bruta sem header para inspecionar.
-            raw_no_header = pd.read_excel(file_path, header=None)
+            raw_no_header = pd.read_excel(
+                file_path,
+                header=None,
+                engine='openpyxl',
+                dtype_backend='numpy_nullable'
+            )
             # Procurar primeira linha (após a 0) que contenha >=5 strings não vazias curtas.
             candidate_idx = None
             max_scan = min(15, raw_no_header.shape[0])
@@ -194,7 +204,12 @@ def import_excel_robust(
             if candidate_idx is not None:
                 if debug_enabled:
                     logger.debug("[import_excel_robust] Linha %d escolhida como header real.", candidate_idx)
-                raw_df = pd.read_excel(file_path, header=candidate_idx)
+                raw_df = pd.read_excel(
+                    file_path,
+                    header=candidate_idx,
+                    engine='openpyxl',
+                    dtype_backend='numpy_nullable'
+                )
             else:
                 if debug_enabled:
                     logger.debug("[import_excel_robust] Nenhuma linha candidata encontrada; mantendo header original.")
@@ -213,7 +228,12 @@ def import_excel_robust(
     # Função auxiliar interna para tentar reconstruir DataFrame com um header específico e remapear.
     def _attempt_reheader(candidate_header_row: int) -> tuple[pd.DataFrame, dict[str, list[str]], dict[str, str]]:
         try:
-            tmp_df = pd.read_excel(file_path, header=candidate_header_row)
+            tmp_df = pd.read_excel(
+                file_path,
+                header=candidate_header_row,
+                engine='openpyxl',
+                dtype_backend='numpy_nullable'
+            )
         except Exception:
             return raw_df, {}, {}
         orig_to_can: Dict[str, str] = {}
