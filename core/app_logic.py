@@ -1,5 +1,5 @@
 # core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
-# Last modified: 2025-10-29T10:20:00 (error logging added)
+# Last modified: 2025-10-30T15:35:00 (removed v as OR separator in search)
 """
 Logica central da aplicacao para importacao e atualizacao do banco de dados.
 
@@ -467,7 +467,8 @@ def parse_search_terms(
 
     def _tokenize_inputs(raw_terms: List[str]) -> List[str]:
         tokens: List[str] = []
-        pattern = re.compile(r'(?i)(\|\||&&|\bOU\b|\bOR\b|\bAND\b|\bE\b|(?<=\S)[vV](?=\S))')
+        # Removed [vV] pattern - 'v' is no longer treated as OR separator
+        pattern = re.compile(r'(?i)(\|\||&&|\bOU\b|\bOR\b|\bAND\b|\bE\b)')
         for raw in raw_terms:
             if not isinstance(raw, str):
                 continue
@@ -487,7 +488,8 @@ def parse_search_terms(
         current: List[str] = []
         for token in tokens:
             lower = token.lower()
-            if lower in {'or', 'ou', '||', 'v'}:
+            # Removed 'v' from OR operators - no longer treated as separator
+            if lower in {'or', 'ou', '||'}:
                 if current:
                     segments.append(current)
                     current = []

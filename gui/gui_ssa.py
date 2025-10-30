@@ -1,5 +1,6 @@
 # flake8: noqa
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
+# Last modified: 2025-10-30T15:40:00 (fixed search logic: removed v as OR, updated descriptions)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -1199,10 +1200,11 @@ class SSAMainWindow(QMainWindow):
         left.setContentsMargins(0, 0, 0, 0)
         self.search_label = QLabel("Pesquisa Geral:")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Separe por vírgulas; ! exclui; use OU para alternativas")
+        self.search_input.setPlaceholderText("Separe por virgulas (condicao E: todos os termos obrigatorios); ! exclui")
         self.search_input.setToolTip(
+            "Condicao E: Todos os termos separados por virgula devem estar presentes.\n\n"
             "Modos por termo: \n"
-            "- contêm (padrção): foo\n- começa com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
+            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
         )
         self.search_input.setMinimumWidth(425)  # +~25% para mais conforto
         self.search_input.setMaximumWidth(950)
