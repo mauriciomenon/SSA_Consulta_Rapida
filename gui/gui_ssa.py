@@ -1,6 +1,6 @@
 # flake8: noqa
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
-# Last modified: 2025-10-30T15:40:00 (fixed search logic: removed v as OR, updated descriptions)
+# Last modified: 2025-10-30T15:55:00 (simplified search: removed OU button, only commas)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -2074,37 +2074,7 @@ class SSAMainWindow(QMainWindow):
                 term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
             except Exception:
                 pass
-            # Botão [+ OU] insere o separador visual " OU " no ponto do cursor (apenas nesta coluna)
-            ou_btn = QPushButton("OU")
-            try:
-                ou_btn.setMinimumHeight(26)
-                ou_btn.setFixedWidth(56)
-                ou_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            def _mk_insert_ou(tb=term_box):
-                def _inner():
-                    try:
-                        # Insere " OU " no ponto do cursor sem alterar semântica global
-                        cursor_pos = tb.cursorPosition()
-                        txt = tb.text()
-                        new_txt = (txt[:cursor_pos] + (" OU " if cursor_pos > 0 and txt[cursor_pos-1] != ' ' else "OU ") + txt[cursor_pos:])
-                        tb.setText(new_txt)
-                        # Reposiciona cursor após a inserção
-                        try:
-                            tb.setCursorPosition(cursor_pos + (4 if cursor_pos > 0 and txt[cursor_pos-1] != ' ' else 3))
-                        except Exception:
-                            pass
-                        tb.setFocus()
-                    except Exception:
-                        pass
-                return _inner
-            try:
-                ou_btn.clicked.connect(_mk_insert_ou())
-            except Exception:
-                pass
-
-            # Botção Aplicar atualiza o filtro com o texto da caixa
+            # Botao Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             try:
                 apply_btn.setMinimumHeight(26)
@@ -2120,15 +2090,8 @@ class SSAMainWindow(QMainWindow):
                 pass
             def _mk_apply(c=col, tb=term_box):
                 def _inner():
-                    # Converte apenas nesta coluna o visual " OU " para vírgulas
-                    raw_text = tb.text()
-                    # Normaliza espaços redundantes ao redor de OU
-                    try:
-                        import re as _re
-                        tmp = _re.sub(r"\s+OU\s+", ",", raw_text)
-                    except Exception:
-                        tmp = raw_text.replace(" OU ", ",")
-                    new_text = str(tmp).strip()
+                    # Simplified: use text directly (comma-separated terms = OR logic)
+                    new_text = str(tb.text()).strip()
                     self._active_column_filters[c] = new_text
                     self._sync_or_group_values(c, new_text)
                     self._mark_profile_as_custom()
@@ -2176,8 +2139,7 @@ class SSAMainWindow(QMainWindow):
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
             row.addWidget(clear_btn)
-            row.addWidget(ou_btn)
-            # (clear_btn já adicionado acima, manter ordem: label, input, Aplicar, Remover linha, + OU)
+            # Layout order: label, input, Aplicar, Remover (OU button removed - only commas needed)
             row_w = QWidget()
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
@@ -3216,31 +3178,22 @@ class SSAMainWindow(QMainWindow):
     # --- Helpers: Busca Geral com suporte a OR/AND amigável ---
 
     def _split_search_expression(self, text: str) -> list[str]:
+        # Simplified: General search uses ONLY AND logic (commas separate terms)
+        # No OR/OU splitting - returns single chunk containing all terms
         if not text:
             return []
-        import re
-        normalized = text
-        normalized = normalized.replace('&&', ' ^ ')
-        normalized = normalized.replace('||', ' OU ')
-        # Mantém suporte para AND/E explícitos entre termos no filtro global
-        normalized = re.sub(r'(?i)\b(AND|E)\b', ' ^ ', normalized)
-        # OR apenas quando for palavra isolada OR/OU (não quebrar "svp")
-        normalized = re.sub(r'(?i)\b(OR|OU)\b', ' OU ', normalized)
-        normalized = re.sub(r'(?<=\S)\^(?=\S)', ' ^ ', normalized)
-        parts = [chunk.strip() for chunk in normalized.split(' OU ') if chunk.strip()]
-        return parts if parts else []
+        # Return text as single chunk - will be split by commas in _normalize_chunk_for_parse
+        return [text.strip()] if text.strip() else []
 
     def _normalize_chunk_for_parse(self, chunk: str) -> list[str]:
-        # Para cada "chunk" do filtro global, normaliza conectivos de AND em vírgula.
-        import re
-        cleaned = str(chunk)
+        # Simplified: Split ONLY by commas (no AND/E/OR/OU keywords)
+        # User enters terms separated by commas - all terms are required (AND logic)
+        if not chunk:
+            return []
+        cleaned = str(chunk).strip()
+        # Replace em-dash and en-dash with regular dash for consistency
         cleaned = cleaned.replace('–', '-').replace('—', '-')
-        # Trata apenas AND/E e variantes; NÃO converte 'v' para OR aqui.
-        cleaned = cleaned.replace('&&', ',')
-        cleaned = cleaned.replace('∧', ',')
-        cleaned = re.sub(r'(?i)\b(AND|E)\b', ',', cleaned)
-        cleaned = cleaned.replace(' ^ ', ',')
-        cleaned = re.sub(r'(?<=\S)\^(?=\S)', ',', cleaned)
+        # Split by commas only
         tokens = [term.strip() for term in cleaned.split(',') if term.strip()]
         return tokens
 

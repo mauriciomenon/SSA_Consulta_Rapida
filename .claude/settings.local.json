@@ -16,7 +16,8 @@
       "Bash(for f in ANALYSIS_PANDAS_IMPORT_ISSUES.md FINAL_SUMMARY.md HANDOFF_NEXT_SESSION.md README_START_HERE.md REVIEW_CHECKLIST.md TESTING_PANDAS_FIXES.md)",
       "Bash(do sed -i 's/✓//g; s/ó/o/g; s/ç/c/g; s/á/a/g; s/é/e/g; s/í/i/g; s/ú/u/g; s/â/a/g; s/ê/e/g; s/ô/o/g; s/ã/a/g; s/õ/o/g' \"$f\")",
       "Bash(done)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git tag:*)"
     ],
     "deny": [],
     "ask": []
