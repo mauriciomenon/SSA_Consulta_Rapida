@@ -1,5 +1,5 @@
 # core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
-# Last modified: 2025-10-30T15:35:00 (removed v as OR separator in search)
+# Last modified: 2025-10-30T15:50:00 (simplified search: removed ALL logical operators, only commas)
 """
 Logica central da aplicacao para importacao e atualizacao do banco de dados.
 
@@ -447,6 +447,10 @@ def parse_search_terms(
     """
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
 
+    SIMPLIFIED: No logical operators (OU/OR/AND/E) - ONLY commas separate terms.
+    - General search: all terms are required (AND logic implicit, all group=0)
+    - Column filters: any term matches (OR logic handled in column filter code)
+
     Modos aceitos por termo:
     - contem (padrao): foo
     - comeca com: ^foo
@@ -454,10 +458,6 @@ def parse_search_terms(
     - igual: =foo
     - regex: ~foo.*bar
     Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
-
-    Conectivos aceitos (case-insensitive):
-    - OU / OR / || (agrupa condicoes como disjuncao)
-    - E / AND / && (tratado como conjuncao implicita)
     """
     parsed: List[Dict[str, Any]] = []
     if not search_terms:
@@ -465,87 +465,44 @@ def parse_search_terms(
     if not isinstance(search_terms, list):
         return parsed
 
-    def _tokenize_inputs(raw_terms: List[str]) -> List[str]:
-        tokens: List[str] = []
-        # Removed [vV] pattern - 'v' is no longer treated as OR separator
-        pattern = re.compile(r'(?i)(\|\||&&|\bOU\b|\bOR\b|\bAND\b|\bE\b)')
-        for raw in raw_terms:
-            if not isinstance(raw, str):
-                continue
-            normalized = raw.replace(',', ' AND ')
-            normalized = normalized.replace('||', ' OR ').replace('&&', ' AND ')
-            parts = pattern.split(normalized)
-            for part in parts:
-                if not part:
-                    continue
-                piece = part.strip()
-                if piece:
-                    tokens.append(piece)
-        return tokens
-
-    def _split_segments(tokens: List[str]) -> List[List[str]]:
-        segments: List[List[str]] = []
-        current: List[str] = []
-        for token in tokens:
-            lower = token.lower()
-            # Removed 'v' from OR operators - no longer treated as separator
-            if lower in {'or', 'ou', '||'}:
-                if current:
-                    segments.append(current)
-                    current = []
-                continue
-            if lower in {'and', 'e', '&&', '^'}:
-                continue
-            current.append(token)
-        if current:
-            segments.append(current)
-        if not segments:
-            segments.append([])
-        return segments
-
-    tokens = _tokenize_inputs(search_terms)
-    segments = _split_segments(tokens)
-
     allowed_modes = {'contains', 'prefix', 'suffix', 'exact', 'regex'}
     fallback_mode = default_mode if default_mode in allowed_modes else 'contains'
 
-    for group_index, segment in enumerate(segments):
-        if not segment:
+    # Simplified: process all terms directly, all with group=0 (AND logic)
+    for raw in search_terms:
+        if not isinstance(raw, str):
             continue
-        for raw in segment:
-            if not isinstance(raw, str):
-                continue
-            t = raw.strip()
-            if not t:
-                continue
-            negative = False
-            if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
-                negative = True
-                t = t[1:]
-            mode = fallback_mode
-            value = t
-            if t.startswith('~') and len(t) > 1:
-                mode = 'regex'
-                value = t[1:]
-            elif t.startswith('=') and len(t) > 1:
-                mode = 'exact'
-                value = t[1:]
-            elif t.startswith('$') and len(t) > 1:
-                mode = 'suffix'
-                value = t[1:]
-            elif fallback_mode != 'regex' and t.startswith('^') and len(t) > 1:
-                mode = 'prefix'
-                value = t[1:]
-            elif fallback_mode != 'regex' and t.endswith('$') and len(t) > 1:
-                mode = 'suffix'
-                value = t[:-1]
-            parsed.append({
-                'raw': raw,
-                'mode': mode,
-                'value': value,
-                'negative': negative,
-                'group': group_index,
-            })
+        t = raw.strip()
+        if not t:
+            continue
+        negative = False
+        if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
+            negative = True
+            t = t[1:]
+        mode = fallback_mode
+        value = t
+        if t.startswith('~') and len(t) > 1:
+            mode = 'regex'
+            value = t[1:]
+        elif t.startswith('=') and len(t) > 1:
+            mode = 'exact'
+            value = t[1:]
+        elif t.startswith('$') and len(t) > 1:
+            mode = 'suffix'
+            value = t[1:]
+        elif fallback_mode != 'regex' and t.startswith('^') and len(t) > 1:
+            mode = 'prefix'
+            value = t[1:]
+        elif fallback_mode != 'regex' and t.endswith('$') and len(t) > 1:
+            mode = 'suffix'
+            value = t[:-1]
+        parsed.append({
+            'raw': raw,
+            'mode': mode,
+            'value': value,
+            'negative': negative,
+            'group': 0,  # All terms in same group (AND logic)
+        })
     return parsed
 
 
