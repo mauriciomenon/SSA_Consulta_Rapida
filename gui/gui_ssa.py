@@ -1246,7 +1246,7 @@ class SSAMainWindow(QMainWindow):
         help_line.setContentsMargins(0, 0, 0, 0)
         # Texto direto e visivel; etiqueta se expande ate o fim da linha
         self.search_help = QLabel(
-            "Separe por virgulas. Use ! para excluir. A busca vale para qualquer coluna. Tambem aceita OU/OR e mantem o E/AND implicito entre termos. Entre colunas o filtro usa E implicito."
+            "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
         )
         self.search_help.setWordWrap(False)
         try:
@@ -1330,8 +1330,8 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
         self.col_filter_indicator.setToolTip(
-            "Filtros por coluna acumulam com a Pesquisa Geral. Use vírgulas para combinar (E/AND) e OU/OR para alternativas. "
-            "Consulte a ajuda para outros atalhos disponíveis."
+            "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
+            "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
         )
         pagination_filters_layout.addWidget(self.col_filter_indicator)
 
@@ -1449,7 +1449,7 @@ class SSAMainWindow(QMainWindow):
         self.col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(self.col_filters_group)
         from PyQt6.QtWidgets import QScrollArea
-        self.col_filters_hint = QLabel("Use virgulas para combinar (E). Para alternativas use OU ou OR. Entre colunas mantemos E implicito.")
+        self.col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
         try:
             self.col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
         except Exception:
