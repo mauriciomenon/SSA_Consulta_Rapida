@@ -1,6 +1,6 @@
 # flake8: noqa
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
-# Last modified: 2025-10-30T15:55:00 (simplified search: removed OU button, only commas)
+# Last modified: 2025-10-30T16:05:00 (completed search simplification: removed ALL v/OU/OR/AND processing)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -955,8 +955,8 @@ class FilterHelpDialog(QDialog):
             <h3>Como usar os filtros</h3>
             <h4>Separacao de termos</h4>
             <ul>
-              <li><b>Virgula (,)</b> ou <b>espaco</b> separam multiplos termos (combinação do tipo <b>E</b>/<b>AND</b>)</li>
-              <li>Use <b>OU</b> para alternativas (equivalente a <b>OR</b>; atalhos <b>&amp;&amp;</b> e <b>||</b> também são aceitos)</li>
+              <li><b>Pesquisa Geral</b>: virgulas separam termos (logica E - TODOS os termos obrigatorios)</li>
+              <li><b>Filtros de Coluna</b>: virgulas separam alternativas (logica OU - qualquer termo serve)</li>
             </ul>
             <h4>Modos por termo</h4>
             <ul>
@@ -2307,7 +2307,7 @@ class SSAMainWindow(QMainWindow):
                     label = 'Executor ou Emissor (OU)'
                 else:
                     label = f"{' ou '.join(_display_name(c) for c in columns)} (OU)"
-                values_txt = self._format_column_filter_display_value(' OU '.join(group.get('values', [])))
+                values_txt = self._format_column_filter_display_value(', '.join(group.get('values', [])))
                 if values_txt:
                     active_filters.append(f"{label}: {values_txt}")
 
@@ -2333,53 +2333,45 @@ class SSAMainWindow(QMainWindow):
             self.filters_summary_label.setText(summary_text)
 
     def _format_column_filter_display_value(self, raw: str, *, column: str | None = None) -> str:
-        """Normaliza um valor de filtro de coluna para exibição consistente.
-        - Unifica conectivos (OU/OR/||/v) e (E/AND/&&/^)
-        - Remove espaços extras e separadores redundantes
-        - Mantém marcadores (^, $, =, ~, !) nos tokens
-        - Renderiza como ' OU ' entre alternativas; vírgulas indicam conjunção implícita
+        """Normaliza um valor de filtro de coluna para exibicao consistente.
 
-        Observação: Esta função não altera a semântica de filtragem.
+        SIMPLIFIED: No logical operators - just comma-separated terms.
+        - Splits by commas only
+        - Removes extra spaces
+        - Maintains markers (^, $, =, ~, !) in tokens
+        - Applies optional column aliases for display
+        - Returns comma-separated terms (OR logic implicit)
         """
         if not raw:
             return ""
         try:
+            text = str(raw).strip()
+            # Remove extra spaces
             import re as _re
-            text = str(raw)
-            # Normaliza conectivos
-            text = text.replace('||', ' OU ')
-            text = text.replace('∨', ' OU ')
-            text = text.replace(' v ', ' OU ').replace(' V ', ' OU ')
-            text = _re.sub(r'(?i)\b(OR|OU|V)\b', ' OU ', text)
-            text = _re.sub(r'(?i)\b(AND|E)\b', ',', text)
-            text = text.replace('&&', ',').replace('∧', ',')
-            # Unifica separadores e espaços
-            text = text.replace(' ^ ', ',')
             text = _re.sub(r'\s+', ' ', text).strip()
-            # Divide em tokens (tratando OU como separador)
-            tokens = [t.strip() for t in text.replace(' OU ', ',').split(',') if t.strip()]
-            # Aplica alias opcional de exibição por coluna
+            # Split by commas only
+            tokens = [t.strip() for t in text.split(',') if t.strip()]
+            # Apply optional display aliases per column
             if tokens:
                 alias_map = self._get_filter_alias_map()
                 mapped: list[str] = []
                 col_map = None
                 if column and isinstance(alias_map, dict):
-                    # Busca mapping específico da coluna e global
                     col_map = alias_map.get(column) or alias_map.get(column.lower())
                 global_map = alias_map.get('_global') if isinstance(alias_map, dict) else None
                 for tok in tokens:
                     key = tok.casefold()
                     new_tok = None
                     if isinstance(col_map, dict):
-                        new_tok = col_map.get(key) or col_map.get(tok)  # aceita chave sensível ou não
+                        new_tok = col_map.get(key) or col_map.get(tok)
                     if new_tok is None and isinstance(global_map, dict):
                         new_tok = global_map.get(key) or global_map.get(tok)
                     mapped.append(new_tok if isinstance(new_tok, str) and new_tok.strip() else tok)
                 tokens = mapped
-            # Exibe como alternativas unificadas
-            return ' OU '.join(tokens)
+            # Display as comma-separated (OR logic)
+            return ', '.join(tokens)
         except Exception:
-            # Fallback: exibir cru, mas sem espaços sobrando
+            # Fallback: display raw, trimmed
             return str(raw).strip()
 
     def _get_filter_alias_map(self) -> dict:
@@ -2777,23 +2769,21 @@ class SSAMainWindow(QMainWindow):
         return group
 
     def _sync_or_group_values(self, column: str, text: str):
+        """Syncs filter values across columns in same OR group.
+
+        SIMPLIFIED: No logical operators - just comma-separated terms.
+        """
         group = self._column_to_or_group.get(column)
         if not group:
             return
-        normalized = str(text or '')
-        normalized = normalized.replace('||', ' OU ')
-        normalized = normalized.replace('&&', ',')
-        normalized = normalized.replace('∨', ' OU ')
-        normalized = normalized.replace(' v ', ' OU ').replace(' V ', ' OU ')
-        normalized = re.sub(r'(?i)\b(OU|OR|V)\b', ' OU ', normalized)
-        normalized = re.sub(r'(?i)\b(AND|E)\b', ',', normalized)
-        normalized = normalized.replace(' ^ ', ',')
-        normalized = normalized.replace('∧', ',')
+        normalized = str(text or '').strip()
+        # Remove extra spaces, semicolons
         normalized = normalized.replace(';', ',')
         normalized = re.sub(r'\s+', ' ', normalized).strip()
-        tokens = [token.strip() for token in normalized.replace(' OU ', ',').split(',') if token.strip()]
+        # Split by commas only
+        tokens = [token.strip() for token in normalized.split(',') if token.strip()]
         group['values'] = tokens
-        # Armazena internamente como lista separada por vírgulas (lógica usa split(','))
+        # Store internally as comma-separated list (OR logic)
         common_text = ', '.join(tokens)
         for col in group['columns']:
             self._active_column_filters[col] = common_text
@@ -2902,7 +2892,7 @@ class SSAMainWindow(QMainWindow):
             for col in referenced_columns:
                 if col in self._column_to_or_group:
                     group = self._column_to_or_group.get(col)
-                    current_columns[col] = ' OU '.join(group.get('values', [])) if group else ''
+                    current_columns[col] = ', '.join(group.get('values', [])) if group else ''
                 else:
                     current_columns[col] = str(self._active_column_filters.get(col, '')).strip()
 
@@ -3198,17 +3188,18 @@ class SSAMainWindow(QMainWindow):
         return tokens
 
     def _format_search_display(self, chunks: list[list[str]]) -> str:
+        """Formats search terms for display in search input.
+
+        SIMPLIFIED: Always single chunk (no OU splitting), comma-separated terms.
+        All terms are required (AND logic).
+        """
         if not chunks:
             return ""
-        if len(chunks) == 1:
+        # Since _split_search_expression now always returns single chunk,
+        # we always have chunks[0] with comma-separated terms
+        if chunks and chunks[0]:
             return ', '.join(chunks[0])
-        formatted_chunks = []
-        for terms in chunks:
-            if len(terms) > 1:
-                formatted_chunks.append(' ^ '.join(terms))
-            elif terms:
-                formatted_chunks.append(terms[0])
-        return ' OU '.join(filter(None, formatted_chunks))
+        return ""
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
