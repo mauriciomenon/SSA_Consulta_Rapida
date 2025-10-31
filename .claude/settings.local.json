@@ -17,7 +17,8 @@
       "Bash(do sed -i 's/✓//g; s/ó/o/g; s/ç/c/g; s/á/a/g; s/é/e/g; s/í/i/g; s/ú/u/g; s/â/a/g; s/ê/e/g; s/ô/o/g; s/ã/a/g; s/õ/o/g' \"$f\")",
       "Bash(done)",
       "Bash(git mv:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
