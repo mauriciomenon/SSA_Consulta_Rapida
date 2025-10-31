@@ -3645,24 +3645,152 @@ class SSAMainWindow(QMainWindow):
             # Evita quebrar a GUI por falhas de IO
             pass
 
-    def on_table_double_click(self, index):
-        """Placeholder para açção de clique duplo (ex: mostrar detalhes)."""
-        row = index.row()
-        # O item da coluna '#' contêm o ándice da linha original
-        index_item = self.table_widget.item(row, 0)  # Assume '#' eh a primeira coluna
-        if index_item:
-            original_index = index_item.data(Qt.ItemDataRole.UserRole)
-            if original_index is not None and 0 <= original_index < len(self.df_exibido):
-                # Aqui voce chamaria uma funcao para mostrar detalhes
-                # Ex: show_details_window(self.df_exibido.iloc[original_index])
-                QMessageBox.information(
-                    self,
-                    "Detalhes",
-                    f"Detalhes para SSA na linha {original_index + 1} (pãgina {self.paginator.current_page})\n"
-                    f"Dados: {self.df_exibido.iloc[original_index].to_dict()}",
-                )
+    def _format_value_for_display(self, value, col=None):
+        """Formata valor removendo NaN/None/nan e aplicando formatacao especifica."""
+        # Remove valores nulos
+        if pd.isna(value) or value is None:
+            return ""
+
+        # Converte para string
+        text = str(value)
+
+        # Remove variacoes de nan/none
+        if text.lower() in ('nan', 'none', 'nat', '<na>'):
+            return ""
+
+        # Formatacao especifica por coluna
+        if col == 'numero_ssa':
+            try:
+                return str(int(float(text)))
+            except (ValueError, TypeError):
+                return text
+
+        return text.strip()
+
+    def _get_current_search_terms(self):
+        """Retorna lista de termos de busca atuais."""
+        search_text = self.search_input.text().strip()
+        if not search_text:
+            return []
+        # Split por virgulas
+        terms = [term.strip() for term in search_text.split(',') if term.strip()]
+        # Remove prefixos de modo (^, $, =, ~, !)
+        clean_terms = []
+        for term in terms:
+            # Remove negativos
+            if term.startswith('!') or term.startswith('-'):
+                term = term[1:]
+            # Remove modos
+            if term.startswith('~'):
+                term = term[1:]
+            elif term.startswith('='):
+                term = term[1:]
+            elif term.startswith('^'):
+                term = term[1:]
+            elif term.endswith('$'):
+                term = term[:-1]
+            if term:
+                clean_terms.append(term)
+        return clean_terms
+
+    def _highlight_text(self, text, terms):
+        """Aplica highlight HTML nos termos encontrados no texto."""
+        if not text or not terms:
+            return text
+
+        # Escapar HTML
+        import html
+        text_escaped = html.escape(str(text))
+
+        # Aplicar highlight para cada termo
+        for term in terms:
+            if not term:
+                continue
+            # Case-insensitive search
+            pattern = re.compile(re.escape(term), re.IGNORECASE)
+            text_escaped = pattern.sub(
+                lambda m: f'<span style="background-color: yellow; font-weight: bold;">{m.group()}</span>',
+                text_escaped
+            )
+
+        return text_escaped
+
+    def _format_details_html(self, series, highlight_search_terms=False):
+        """Formata dados da SSA como HTML com highlight opcional."""
+        import html as html_module
+
+        # Obtem termos de busca se necessario
+        search_terms = self._get_current_search_terms() if highlight_search_terms else []
+
+        html_lines = ['<html><body style="font-family: monospace; font-size: 12pt;">']
+        html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
+
+        for col, value in series.items():
+            # Formata valor
+            formatted_value = self._format_value_for_display(value, col)
+
+            # Pula campos vazios
+            if not formatted_value:
+                continue
+
+            # Nome de exibicao
+            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
+
+            # Aplica highlight se necessario
+            if highlight_search_terms and search_terms:
+                formatted_value = self._highlight_text(formatted_value, search_terms)
             else:
-                QMessageBox.information(self, "Info", "Nção foi possável encontrar os dados detalhados para esta linha.")
+                formatted_value = html_module.escape(formatted_value)
+
+            # Adiciona linha
+            html_lines.append(
+                f'<tr>'
+                f'<td style="padding: 8px; border-bottom: 1px solid #ccc; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
+                f'<td style="padding: 8px; border-bottom: 1px solid #ccc; width: 70%;">{formatted_value}</td>'
+                f'</tr>'
+            )
+
+        html_lines.append('</table></body></html>')
+        return '\n'.join(html_lines)
+
+    def on_table_double_click(self, index):
+        """Mostra janela de detalhes formatada ao duplo clique."""
+        row = index.row()
+        index_item = self.table_widget.item(row, 0)
+        if not index_item:
+            return
+        original_index = index_item.data(Qt.ItemDataRole.UserRole)
+        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
+            QMessageBox.information(self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha.")
+            return
+
+        # Obtem dados da SSA
+        series = self.df_exibido.iloc[int(original_index)]
+
+        # Cria janela de dialogo
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Detalhes da SSA #{series.get('numero_ssa', 'N/A')}")
+        dialog.setMinimumWidth(700)
+        dialog.setMinimumHeight(500)
+
+        layout = QVBoxLayout(dialog)
+
+        # Texto formatado com HTML
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(False)
+
+        # Formata conteudo
+        html_content = self._format_details_html(series, highlight_search_terms=True)
+        text_browser.setHtml(html_content)
+
+        layout.addWidget(text_browser)
+
+        # Botao fechar
+        close_button = QPushButton("Fechar")
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button)
+
+        dialog.exec()
 
     def _save_page_size_pref(self, new_size: int):
         """Persiste o tamanho da pãgina no settings."""
@@ -3689,21 +3817,24 @@ class SSAMainWindow(QMainWindow):
             self.details_text.clear()
             return
 
-        # Usa dados originais (nção formatados) para detalhes
+        # Usa dados originais (nao formatados) para detalhes
         series = self.df_exibido.iloc[int(original_index)]
-        # Constroi um texto amigavel com nomes de exibicao
+
+        # Constroi texto formatado sem NaN/None
         lines = []
         for col, value in series.items():
+            # Formata valor
+            formatted_value = self._format_value_for_display(value, col)
+
+            # Pula campos vazios
+            if not formatted_value:
+                continue
+
+            # Nome de exibicao
             display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-            # Mostra numero_ssa "natural" (int se possável)
-            if col == 'numero_ssa':
-                try:
-                    if pd.notna(value):
-                        value = int(value)
-                except Exception:
-                    pass
-            text = "" if pd.isna(value) else str(value)
-            lines.append(f"{display_name}: {text}")
+
+            lines.append(f"{display_name}: {formatted_value}")
+
         details_str = "\n".join(lines)
         self.details_text.setPlainText(details_str)
 
