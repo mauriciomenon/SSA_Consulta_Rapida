@@ -3722,7 +3722,7 @@ class SSAMainWindow(QMainWindow):
         # Obtem termos de busca se necessario
         search_terms = self._get_current_search_terms() if highlight_search_terms else []
 
-        html_lines = ['<html><body style="font-family: monospace; font-size: 12pt;">']
+        html_lines = ['<html><body style="font-family: monospace; font-size: 10pt;">']
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
         for col, value in series.items():
