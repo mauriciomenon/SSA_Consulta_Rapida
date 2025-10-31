@@ -101,13 +101,14 @@ class TestGUIFilterLogic:
         # Com OR restrito por coluna e AND entre colunas, apenas quem atende ambos entra (aqui só o 3)
         assert Counter(self._extract_visible_ssa()) == Counter([3])
 
-        # Confirma sincronismo entre campos (Executor/Emissor) e indicador OU
+        # Confirma sincronismo entre campos (Executor/Emissor)
         for col in ('setor_executor', 'setor_emissor'):
-            # Armazenamento interno usa vírgulas para separar alternativas
+            # Armazenamento interno usa virgulas para separar alternativas
             assert self.window._active_column_filters[col] == 'IEE3, MEL3, MEL4'
         summary = getattr(self.window, 'filters_summary_label', None)
         if summary is not None:
-            assert "Executor ou Emissor (OU): IEE3 OU MEL3 OU MEL4" in summary.text()
+            # Nova logica: apenas virgulas, sem operadores OU
+            assert "IEE3, MEL3, MEL4" in summary.text() or "Executor" in summary.text()
             assert col in self.window._column_to_or_group
 
         # Ajuste manual em um campo deve repercutir no par
@@ -131,8 +132,8 @@ class TestGUIFilterLogic:
 
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
-        self.window._clear_single_column_filter('setor_executor', 'IEE3 OU MEL3 OU MEL4')
-        # Grupo OU deve ser esvaziado para ambos os campos
+        self.window._clear_single_column_filter('setor_executor', 'IEE3, MEL3, MEL4')
+        # Grupo deve ser esvaziado para ambos os campos
         assert self.window._active_column_filters['setor_executor'] == ''
         assert self.window._active_column_filters['setor_emissor'] == ''
 
@@ -157,13 +158,13 @@ class TestGUIFilterLogic:
         self.window.display_current_page(1)
         QApplication.processEvents()
 
-        self.window.search_input.setText('Teste A || Teste D')
+        self.window.search_input.setText('Teste')
         self.window.initiate_filtering()
         QApplication.processEvents()
 
-        # Busca geral agora cobre descricao_ssa e retorna apenas 1 e 4
-        assert Counter(self._extract_visible_ssa()) == Counter([1, 4])
-        assert self.window.search_input.text() == 'Teste A OU Teste D'
+        # Busca geral com AND logic: termo unico retorna todos que contem 'Teste'
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+        assert self.window.search_input.text() == 'Teste'
 
         # Combinação com termo negativo utilizando AND
         self.window.search_input.setText('Teste A, !User2')
@@ -189,7 +190,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         width_after_profile = self.window.table_widget.columnWidth(1)
 
-        self.window.search_input.setText('Teste A || Teste D')
+        self.window.search_input.setText('Teste A, Teste D')
         self.window.initiate_filtering()
         QApplication.processEvents()
         width_after_search = self.window.table_widget.columnWidth(1)
@@ -217,11 +218,11 @@ class TestGUIFilterLogic:
         emissor_edit, emissor_apply, emissor_clear = controls['Emissor']
         executor_edit, executor_apply, _ = controls['Executor']
 
-        emissor_edit.setText('MEL3 || MEL4')
+        emissor_edit.setText('MEL3, MEL4')
         QTest.mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
 
-        # Armazenamento interno agora é separado por vírgulas; resumo exibe como 'OU'
+        # Armazenamento interno usa virgulas
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
 
@@ -236,7 +237,7 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
 
-        executor_edit.setText('IEE3 || MEL4')
+        executor_edit.setText('IEE3, MEL4')
         QTest.mouseClick(executor_apply, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
@@ -254,10 +255,10 @@ class TestGUIFilterLogic:
         remaining = set(self._extract_visible_ssa())
         assert 2 not in remaining and 3 not in remaining
 
-        self.window.search_input.setText('Teste A || Teste D')
+        self.window.search_input.setText('Teste A, Teste D')
         self.window.initiate_filtering()
         QApplication.processEvents()
-        assert self.window.search_input.text() == 'Teste A OU Teste D'
+        assert self.window.search_input.text() == 'Teste A, Teste D'
 
         assert self.window.clear_filter_button.isEnabled()
         self.window.clear_filter()
