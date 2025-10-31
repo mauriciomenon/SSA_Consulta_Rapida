@@ -385,6 +385,28 @@ except ImportError as exc:
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
+
+# Constantes de UI
+DETAILS_DIALOG_FONT_SIZE = 10  # pt
+DETAILS_DIALOG_TABLE_PADDING = 8  # px
+DETAILS_DIALOG_BORDER_COLOR = '#ccc'
+DETAILS_DIALOG_MIN_WIDTH = 700  # px
+DETAILS_DIALOG_MIN_HEIGHT = 500  # px
+HIGHLIGHT_BACKGROUND_COLOR = 'yellow'
+HIGHLIGHT_FONT_WEIGHT = 'bold'
+
+# Prioridade de campos para ordenacao em detalhes
+DETAIL_FIELD_PRIORITY = [
+    'numero_ssa',
+    'situacao',
+    'descricao_ssa',
+    'descricao_servico',
+    'setor_executor',
+    'setor_emissor',
+    'data_cadastro',
+    'prazo_limite',
+]
+
 DETAIL_DISPLAY_OVERRIDES = {
     'situacao': 'Situação',
     'semana_cadastro': 'Semana de Cadastro',
@@ -3709,7 +3731,7 @@ class SSAMainWindow(QMainWindow):
             # Case-insensitive search
             pattern = re.compile(re.escape(term), re.IGNORECASE)
             text_escaped = pattern.sub(
-                lambda m: f'<span style="background-color: yellow; font-weight: bold;">{m.group()}</span>',
+                lambda m: f'<span style="background-color: {HIGHLIGHT_BACKGROUND_COLOR}; font-weight: {HIGHLIGHT_FONT_WEIGHT};">{m.group()}</span>',
                 text_escaped
             )
 
@@ -3722,10 +3744,20 @@ class SSAMainWindow(QMainWindow):
         # Obtem termos de busca se necessario
         search_terms = self._get_current_search_terms() if highlight_search_terms else []
 
-        html_lines = ['<html><body style="font-family: monospace; font-size: 10pt;">']
+        html_lines = [f'<html><body style="font-family: monospace; font-size: {DETAILS_DIALOG_FONT_SIZE}pt;">']
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
-        for col, value in series.items():
+        # Ordenar campos: prioridade primeiro, depois alfabetico
+        def field_sort_key(item):
+            col, _ = item
+            try:
+                return (0, DETAIL_FIELD_PRIORITY.index(col))
+            except ValueError:
+                return (1, col)
+
+        sorted_items = sorted(series.items(), key=field_sort_key)
+
+        for col, value in sorted_items:
             # Formata valor
             formatted_value = self._format_value_for_display(value, col)
 
@@ -3745,8 +3777,8 @@ class SSAMainWindow(QMainWindow):
             # Adiciona linha
             html_lines.append(
                 f'<tr>'
-                f'<td style="padding: 8px; border-bottom: 1px solid #ccc; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
-                f'<td style="padding: 8px; border-bottom: 1px solid #ccc; width: 70%;">{formatted_value}</td>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{formatted_value}</td>'
                 f'</tr>'
             )
 
@@ -3770,8 +3802,8 @@ class SSAMainWindow(QMainWindow):
         # Cria janela de dialogo
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Detalhes da SSA #{series.get('numero_ssa', 'N/A')}")
-        dialog.setMinimumWidth(700)
-        dialog.setMinimumHeight(500)
+        dialog.setMinimumWidth(DETAILS_DIALOG_MIN_WIDTH)
+        dialog.setMinimumHeight(DETAILS_DIALOG_MIN_HEIGHT)
 
         layout = QVBoxLayout(dialog)
 
@@ -3820,9 +3852,19 @@ class SSAMainWindow(QMainWindow):
         # Usa dados originais (nao formatados) para detalhes
         series = self.df_exibido.iloc[int(original_index)]
 
+        # Ordenar campos: prioridade primeiro, depois alfabetico
+        def field_sort_key(item):
+            col, _ = item
+            try:
+                return (0, DETAIL_FIELD_PRIORITY.index(col))
+            except ValueError:
+                return (1, col)
+
+        sorted_items = sorted(series.items(), key=field_sort_key)
+
         # Constroi texto formatado sem NaN/None
         lines = []
-        for col, value in series.items():
+        for col, value in sorted_items:
             # Formata valor
             formatted_value = self._format_value_for_display(value, col)
 
