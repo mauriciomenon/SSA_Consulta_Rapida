@@ -547,11 +547,11 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
     if not available_search_cols:
         logger.warning("Nenhuma coluna de busca valida encontrada")
         return df
-        
-    base_str_df = df[available_search_cols].select_dtypes(include=['object']).astype(str)
+
+    base_str_df = df[available_search_cols].select_dtypes(include=['object']).fillna('').astype(str)
     if base_str_df.shape[1] == 0:
-        # Sem colunas de texto, nao ha onde buscar: retorna o proprio df
-        return df
+        # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
+        return df.iloc[0:0]
         
     logger.debug(f" Buscando em {len(base_str_df.columns)} colunas: {list(base_str_df.columns)}")
 
@@ -572,32 +572,46 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
     if not grouped_terms:
         return df
 
+    # Cache de patterns: pre-compila patterns para evitar re.escape repetido
+    pattern_cache = {}
+    for term in terms:
+        mode = term.get('mode', 'contains')
+        value = term.get('value', '') or ''
+        cache_key = (mode, value)
+
+        if cache_key not in pattern_cache:
+            if mode == 'contains':
+                pattern_cache[cache_key] = (value, False)
+            elif mode == 'prefix':
+                pattern_cache[cache_key] = (f"^{re.escape(value)}", True)
+            elif mode == 'suffix':
+                pattern_cache[cache_key] = (f"{re.escape(value)}$", True)
+            elif mode == 'exact':
+                pattern_cache[cache_key] = (f"^{re.escape(value)}$", True)
+            elif mode == 'regex':
+                pattern_cache[cache_key] = (value, True)
+            else:
+                pattern_cache[cache_key] = (value, False)
+
     def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
         mode = term.get('mode', 'contains')
         value = term.get('value', '') or ''
+        cache_key = (mode, value)
+
+        pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
         def _contains(pattern: str, *, regex: bool) -> pd.Series:
             return base_str_df.apply(
                 lambda col: col.str.contains(pattern, case=False, na=False, regex=regex)
             ).any(axis=1)
 
-        if mode == 'contains':
-            return _contains(value, regex=False)
-        if mode == 'prefix':
-            pattern = f"^{re.escape(value)}"
-            return _contains(pattern, regex=True)
-        if mode == 'suffix':
-            pattern = f"{re.escape(value)}$"
-            return _contains(pattern, regex=True)
-        if mode == 'exact':
-            pattern = f"^{re.escape(value)}$"
-            return _contains(pattern, regex=True)
         if mode == 'regex':
             try:
-                return _contains(value, regex=True)
+                return _contains(pattern, regex=True)
             except re.error:
-                return _contains(value, regex=False)
-        return _contains(value, regex=False)
+                return _contains(pattern, regex=False)
+
+        return _contains(pattern, regex=use_regex)
 
     final_mask = pd.Series(False, index=df.index)
 
