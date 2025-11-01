@@ -333,3 +333,5 @@ exportacao/
 # Temporary work files and control files
 temp/
 temp/**
+data/ssas.db-shm
+data/ssas.db-wal
