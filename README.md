@@ -1,6 +1,14 @@
-#  SSA Consulta Rápida v4.0.0 - OTIMIZAÇÕES MASSIVAS DE PERFORMANCE
+# SSA Consulta Rapida v4.0.3
 
-##  **RESULTADOS FINAIS - Release v4.0.0 (2025-09)**
+## Release v4.0.3 (2025-11)
+
+### Filter Corrections Release
+- Fixed filter behavior from release 4.x series
+- GUI filter logic stabilized
+- Column filters working correctly
+- Test suite updated and passing
+
+## Previous Release v4.0.0 (2025-09) - Performance Improvements
 
 ###  **GANHOS DE PERFORMANCE MENSURADOS:**
 - **Imports:** 80-90% mais rápidos com modo otimizado padrão
