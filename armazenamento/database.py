@@ -403,8 +403,15 @@ def ensure_column_exists(
     """Garante que uma coluna exista na tabela fisica alvo."""
     try:
         physical_table = table_name
+        # Redireciona somente se a tabela fisica realmente existir para evitar
+        # logs de erro "no such table: ssa_table" em cenarios de teste minimo.
         if table_name in {'ssas', 'ssa_chamados'}:
-            physical_table = 'ssa_table'
+            with get_db_connection(db_path) as _conn:
+                cur = _conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+                )
+                if cur.fetchone():  # ssa_table existe
+                    physical_table = 'ssa_table'
 
         if not is_valid_identifier(physical_table):
             raise ValueError(f"Invalid SQL identifier for table: {physical_table}")
