@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView
 )
 from PyQt6.QtCore import Qt
+import logging
 
 
 class ColumnManagerDialog(QDialog):
@@ -89,8 +90,9 @@ class ColumnManagerDialog(QDialog):
             try:
                 flags = item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable
                 item.setFlags(flags)
-            except Exception:
-                pass
+            except Exception as e:
+                # Avoid silent failure (B110): log at debug, continue rendering list
+                logging.getLogger(__name__).debug("Nao foi possivel ajustar flags do item '%s': %s", display_name, e)
             item.setData(Qt.ItemDataRole.UserRole, col)
             if selected_columns:
                 state = Qt.CheckState.Checked if col in selected_columns else Qt.CheckState.Unchecked
@@ -110,8 +112,8 @@ class ColumnManagerDialog(QDialog):
             visible = not text or text in display or text in internal
             try:
                 item.setHidden(not visible)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).debug("Falha ao ocultar/mostrar item '%s': %s", display, e)
 
     def restore_defaults(self):
         self._populate_list(self.default_columns)
