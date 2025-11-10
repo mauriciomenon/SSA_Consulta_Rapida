@@ -428,11 +428,11 @@ def _handle_help():
 ║   rescan        → Reimporta arquivos Excel (modo compatibilidade)            ║
 ║   force-rescan  → Força reimportação completa (recomendado)                  ║
 ║                                                                               ║
-║   ┌─ DIFERENÇA: rescan vs force-rescan ─────────────────────────────────────┐ ║
+║   +-- DIFERENCA: rescan vs force-rescan -------------------------------------+ ║
 ║   │ rescan:       Alias histórico, mesmo comportamento                      │ ║
 ║   │ force-rescan: Nome mais explícito, recomendado                          │ ║
 ║   │ AMBOS fazem:  Ignora cache, processa todos os arquivos novamente        │ ║
-║   └─────────────────────────────────────────────────────────────────────────┘ ║
+║   +--------------------------------------------------------------------------+ ║
 ║                                                                               ║
 ║ COMANDOS DE EXPORTAÇÃO                                                        ║
 ║   e <nome>      → Exporta resultados atuais para XLSX e CSV                  ║
@@ -988,12 +988,12 @@ def start_cli_loop(db_path: str, table_name: str):
     if not initial_df.empty:
         total_ssas = len(initial_df)
         print(f"\nDADOS CARREGADOS: {total_ssas:,} SSAs disponíveis para consulta")
-        print("" + "─" * 80)
+        print("-" * 80)
         print(f"[{total_ssas} SSAs] Digite seus termos de busca ou comando:")
     else:
         print("\nNenhum dado disponível para exibição.")
         print("Dica: Digite 'rescan' para reimportar os dados ou 'h' para ajuda.")
-        print("" + "─" * 80)
+        print("-" * 80)
         print("[0 SSAs] Digite comando:")
         # Mesmo com dados vazios, entra no loop para permitir rescan, etc.
 

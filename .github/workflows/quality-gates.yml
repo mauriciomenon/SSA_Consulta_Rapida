@@ -45,7 +45,11 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          python -m pytest -m "smoke" -q || echo "SMOKE_FAILED" > smoke_failed.flag
+          # Ignora testes GUI que exigem libEGL em ambiente headless
+          python -m pytest -m "smoke" -q \
+            --ignore=tests/gui_poc_smoke_test.py \
+            --ignore=tests/test_gui_filter_logic.py \
+            --ignore=tests/test_gui_stability.py || echo "SMOKE_FAILED" > smoke_failed.flag
 
       - name: Evaluate gate + smoke results
         run: |

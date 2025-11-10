@@ -24,6 +24,7 @@ import time
 import pandas as pd  # type: ignore[import-not-found]
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
+from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
 
@@ -118,23 +119,37 @@ def insert_dataframe_optimized(
 
             total_inserted = 0
 
+            # ===== GARANTIR QUE TODAS AS COLUNAS EXISTEM =====
+            # Adicionar colunas faltantes antes de inserir
+            ensure_columns_exist(conn, table_name, work)
+
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
                 no_ssa.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
                 total_inserted += len(no_ssa)
-                logger.info(f"✅ Inseridos {len(no_ssa)} registros sem numero_ssa")
+                logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
-                # 🚀 OTIMIZAÇÃO CHAVE: Uma consulta para TODAS as SSAs existentes
-                lookup_start = time.time()
-                existing_ssas_df = pd.read_sql_query(
-                    (
-                        f"SELECT numero_ssa, data_cadastro FROM {table_name} "
-                        "WHERE numero_ssa IS NOT NULL"
-                    ),
-                    conn,
+                # Verificar se tabela existe antes de fazer SELECT
+                table_exists = pd.read_sql_query(
+                    f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
+                    conn
                 )
+
+                # OTIMIZACAO CHAVE: Uma consulta para TODAS as SSAs existentes
+                lookup_start = time.time()
+                existing_ssas_df = pd.DataFrame()  # Vazio por padrao
+
+                if not table_exists.empty:
+                    # Tabela existe, fazer lookup
+                    existing_ssas_df = pd.read_sql_query(
+                        (
+                            f"SELECT numero_ssa, data_cadastro FROM {table_name} "
+                            "WHERE numero_ssa IS NOT NULL"
+                        ),
+                        conn,
+                    )
                 lookup_time = time.time() - lookup_start
                 
                 # Criar dicionário para lookup O(1) em vez de O(n) por linha
@@ -172,9 +187,13 @@ def insert_dataframe_optimized(
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
                     insert_df = pd.DataFrame(to_insert)
-                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
+                    # Calcula chunksize dinamico para evitar "too many SQL variables"
+                    # SQLite tem limite de ~999 variaveis. Com 82 colunas: 999/82 = ~12 linhas seguras
+                    num_cols = len(insert_df.columns)
+                    safe_chunksize = max(1, 999 // (num_cols + 1))  # +1 margem de seguranca
+                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=safe_chunksize)
                     total_inserted += len(insert_df)
-                    logger.info(f"✅ Inseridos {len(insert_df)} novos registros com SSA")
+                    logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
 
                 # ===== ATUALIZAÇÃO EM LOTE (DELETE + INSERT é mais rápido que UPDATE) =====
                 if to_update:
@@ -198,7 +217,7 @@ def insert_dataframe_optimized(
                     # Inserir versões atualizadas com chunk size dinâmico
                     update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
-                    logger.info(f"✅ Atualizados {len(update_df)} registros existentes")
+                    logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
 
             # Commit explícito
             conn.commit()
@@ -206,15 +225,15 @@ def insert_dataframe_optimized(
             elapsed_time = time.time() - start_time
             rate = total_inserted / elapsed_time if elapsed_time > 0 else 0
 
-            logger.info("🚀 Inserção otimizada concluída:")
-            logger.info("   📊 %s registros processados", total_inserted)
-            logger.info("   ⏱️  %.2f segundos", elapsed_time)
-            logger.info("   📈 %.1f registros/segundo", rate)
+            logger.info("[OK] Insercao otimizada concluida:")
+            logger.info("   [STATS] %s registros processados", total_inserted)
+            logger.info("   [TIME] %.2f segundos", elapsed_time)
+            logger.info("   [RATE] %.1f registros/segundo", rate)
 
             return True
 
     except Exception as e:  # pragma: no cover - caminho de erro
-        logger.error("❌ Erro na inserção otimizada: %s", e)
+        logger.error("[ERRO] Erro na insercao otimizada: %s", e)
         return False
 
 def enable_optimized_import():
