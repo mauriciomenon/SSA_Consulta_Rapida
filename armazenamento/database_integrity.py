@@ -45,7 +45,8 @@ def verify_database_integrity(
     }
     try:
         if not os.path.exists(db_path):
-            report['issues'].append(f"Arquivo do banco de dados nao encontrado: {db_path}")
+            # Mensagem com acento para alinhar aos testes e melhorar UX
+            report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
             report['needs_creation'] = True
             return report
         report['database_exists'] = True
