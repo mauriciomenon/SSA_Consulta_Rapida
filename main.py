@@ -11,7 +11,6 @@ import argparse
 import logging
 import os
 import shutil
-import socket
 import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
@@ -765,27 +764,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 return
 
             try:
-                # Guarda de instancia unica da GUI via socket local
-                # Se a porta estiver ocupada, assume GUI ja em execucao
-                SINGLE_INSTANCE_PORT = 51234
-                single_instance_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                try:
-                    single_instance_sock.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
-                    single_instance_sock.listen(1)
-                except OSError:
-                    logger.warning("Outra instancia da GUI ja esta em execucao. Encerrando esta execucao.")
-                    print("Ja existe uma janela da GUI aberta. Use-a ou feche-a antes de abrir outra.")
-                    return
+                # Permite multiplas janelas da GUI
+                # O SQLite tem seus proprios mecanismos de lock para prevenir corrupcao
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
                 window.show()  # type: ignore[attr-defined]
                 # Executa o loop de eventos
                 app.exec()
-                # Fecha o socket da guarda ao sair
-                try:
-                    single_instance_sock.close()
-                except Exception as e:
-                    logger.warning(f"Falha ao fechar socket de instancia unica: {e}")
             except Exception as e:
                 logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
                 logger.info("Recuando para CLI.")

@@ -20,6 +20,7 @@ import pandas as pd  # type: ignore[import-not-found]
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 
 logger = logging.getLogger(__name__)
+from .identifier_utils import is_valid_identifier
 
 # Constantes (evitam "magic numbers" em validacoes)
 MIN_FREE_SPACE_GB_WARN = 0.1  # 100MB
@@ -360,6 +361,8 @@ def reset_database(
 def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
     """Garante indices uteis para consultas comuns."""
     try:
+        if not is_valid_identifier(table_name):
+            raise ValueError(f"Invalid SQL identifier for table: {table_name}")
         with get_db_connection(db_path) as conn:
             cur = conn.cursor()
             # Descobre colunas existentes para evitar erros ao criar indices
@@ -376,6 +379,12 @@ def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
             ]
 
             for idx_name, col in candidate_indexes:
+                if not is_valid_identifier(col):
+                    logger.warning("Ignorando coluna invalida para indice: %s", col)
+                    continue
+                if not is_valid_identifier(idx_name):
+                    logger.warning("Ignorando nome de indice invalido: %s", idx_name)
+                    continue
                 if col in existing_cols:
                     cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({col})")
             conn.commit()
@@ -394,8 +403,20 @@ def ensure_column_exists(
     """Garante que uma coluna exista na tabela fisica alvo."""
     try:
         physical_table = table_name
+        # Redireciona somente se a tabela fisica realmente existir para evitar
+        # logs de erro "no such table: ssa_table" em cenarios de teste minimo.
         if table_name in {'ssas', 'ssa_chamados'}:
-            physical_table = 'ssa_table'
+            with get_db_connection(db_path) as _conn:
+                cur = _conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+                )
+                if cur.fetchone():  # ssa_table existe
+                    physical_table = 'ssa_table'
+
+        if not is_valid_identifier(physical_table):
+            raise ValueError(f"Invalid SQL identifier for table: {physical_table}")
+        if not is_valid_identifier(column_name):
+            raise ValueError(f"Invalid SQL identifier for column: {column_name}")
 
         with get_db_connection(db_path) as conn:
             cursor = conn.execute(f"PRAGMA table_info({physical_table})")  # noqa: S608

@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased] - 2025-11-10
+
+### Fixed
+- **Missing imports in mixins**: Fixed NameError when accessing format_search_display and GUI_MAIN_PREFERENCES in gui/mixins/filter_gui_ssa_mixin.py
+- **Desynchronized progress callbacks**: Synchronized events between core/app_logic.py and RescanWorker (file_start, file_success, file_error)
+- **Record counting**: _import_single_file now returns actual number of processed records
+- **Single-instance lock**: Removed buggy mechanism via TCP socket that caused hangs
+
+### Changed
+- main.py: Removed single-instance check code
+- core/app_logic.py: Function _import_single_file returns tuple[bool, int] instead of just bool
+- GUI allows multiple simultaneous instances (real lock is in SQLite)
+
+### Added
+- **Verification script**: verify_integrity.py for general system validation
+- **Specialized script**: verify_mixin_imports.py to detect missing imports in mixins
+- **Documentation**: docs/VERIFICACAO_INTEGRIDADE.md with complete technical details
+
+### Technical Details
+- Callbacks now report: start (file_start), success with count (file_success), and errors (file_error)
+- Import shows real-time progress in GUI
+- SQLite uses WAL mode + busy timeout for concurrency control
+
+---
+
 ## [v4.0.3] - 2025-10-09
 Released: https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.0.3
 

@@ -1,0 +1,110 @@
+# gui/helpers/theme_helpers.py
+# Pure stylesheet builder functions for theme application
+
+from PyQt6.QtGui import QPalette
+
+
+def build_global_widget_qss(palette: QPalette) -> str:
+    """
+    Build global QSS for QMenu, QToolTip, and QComboBox widgets.
+
+    This stylesheet ensures consistent colors across all dropdown menus,
+    tooltips, and combo boxes, preventing white backgrounds with light text.
+
+    Args:
+        palette: QPalette with theme colors loaded
+
+    Returns:
+        QSS string with SSA_THEME_QSS markers for replacement
+    """
+    win = palette.color(QPalette.ColorRole.Window).name()
+    wtxt = palette.color(QPalette.ColorRole.WindowText).name()
+    base = palette.color(QPalette.ColorRole.Base).name()
+    text = palette.color(QPalette.ColorRole.Text).name()
+    mid = palette.color(QPalette.ColorRole.Mid).name()
+    hi = palette.color(QPalette.ColorRole.Highlight).name()
+    hitxt = palette.color(QPalette.ColorRole.HighlightedText).name()
+    ttbase = palette.color(QPalette.ColorRole.ToolTipBase).name()
+    tttext = palette.color(QPalette.ColorRole.ToolTipText).name()
+
+    return (
+        "/* SSA_THEME_QSS_START */\n"
+        f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}\n"
+        f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}\n"
+        f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}\n"
+        f"QToolTip {{ background-color: {ttbase}; color: {tttext}; border:1px solid {mid}; }}\n"
+        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; }}\n"
+        "/* SSA_THEME_QSS_END */"
+    )
+
+
+def build_central_widget_qss(bg_color: str) -> str:
+    """
+    Build QSS for central widget background.
+
+    Used in dark themes to ensure the central widget background matches
+    the theme and prevents white boxes from appearing.
+
+    Args:
+        bg_color: Hex color string (e.g., '#2c2c2c')
+
+    Returns:
+        QSS string with SSA_MAIN_BG markers for replacement
+    """
+    return (
+        "/* SSA_MAIN_BG_START */\n"
+        f"QWidget {{ background-color: {bg_color}; }}\n"
+        "/* SSA_MAIN_BG_END */"
+    )
+
+
+def build_group_box_qss(panel_text: str, panel_border: str) -> str:
+    """
+    Build QSS for QGroupBox styling.
+
+    Used for details_group and col_filters_group to ensure proper
+    borders and title positioning.
+
+    Args:
+        panel_text: Hex color for text (e.g., '#e0e0e0')
+        panel_border: Hex color for border (e.g., '#555555')
+
+    Returns:
+        QSS string for QGroupBox
+    """
+    return (
+        "QGroupBox {"
+        f" color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 6px;"
+        " }"
+        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
+    )
+
+
+def build_line_edit_qss(input_text: str, input_bg: str, input_border: str,
+                        input_focus: str, input_placeholder: str) -> str:
+    """
+    Build QSS for QLineEdit styling with focus and placeholder.
+
+    Used for search_input and other line edit widgets.
+
+    Args:
+        input_text: Hex color for text
+        input_bg: Hex color for background
+        input_border: Hex color for normal border
+        input_focus: Hex color for focus border
+        input_placeholder: Hex color for placeholder text
+
+    Returns:
+        QSS string for QLineEdit
+    """
+    return (
+        "QLineEdit {"
+        f" color: {input_text}; background: {input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px;"
+        " }"
+        "QLineEdit::placeholder {"
+        f" color: {input_placeholder};"
+        " }"
+        "QLineEdit:focus {"
+        f" border:2px solid {input_focus};"
+        " }"
+    )

@@ -112,7 +112,7 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
         raise CacheError(f"Falha na verificacao de arquivos: {e}") from e
 
 
-def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
+def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[bool, int]:
     """
     Importa um unico arquivo Excel para o banco de dados.
 
@@ -122,7 +122,7 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
         table_name (str): Nome da tabela no banco de dados.
 
     Returns:
-        bool: True se a importacao foi bem-sucedida, False caso contrario.
+        tuple[bool, int]: (sucesso, numero_de_registros_processados)
 
     Raises:
         ExtractionError: Se houver falha na extracao.
@@ -176,7 +176,7 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
                     "Nenhuma linha valida restou apos validacao de '%s'; nada sera inserido.",
                     os.path.basename(file_path),
                 )
-                return False
+                return False, 0
 
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
             if not validation_report['is_valid']:
@@ -202,17 +202,20 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
             else:
                 df['arquivo_origem'] = df['arquivo_origem'].fillna(os.path.basename(file_path))
 
+            # Conta registros antes de inserir
+            record_count = len(df)
+            
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name)
             if success:
                 logger.info(f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas).")
-                return True
+                return True, record_count
             else:
                 logger.error(f"Falha ao inserir dados de '{file_path}' no banco de dados.")
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
             logger.warning(f"Nenhum dado valido extraido de '{file_path}'. Pulando.")
-            return True  # Nao e um erro critico, apenas nao ha dados
+            return True, 0  # Nao e um erro critico, apenas nao ha dados
     except extractor.ExtractionError:
         # Re-levanta erros especificos de extracao
         raise
@@ -343,30 +346,52 @@ def run_importer_logic(
         try:
             for index, file_path in enumerate(files_to_process):
                 base_name = os.path.basename(file_path)
+                
+                # Notify file start
                 if progress_callback:
                     try:
-                        progress_callback('file', {
-                            'index': index,
+                        progress_callback('file_start', {
+                            'current': index + 1,
                             'total': total_files,
                             'filename': base_name
                         })
                     except Exception as e:
-                        logger.debug(f"Progress callback failed during file processing: {e}")
+                        logger.debug(f"Progress callback failed during file_start: {e}")
 
                 if base_name.startswith('~$'):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
                     continue
                 try:
-                    if _import_single_file(file_path, db_path, table_name):
+                    success, record_count = _import_single_file(file_path, db_path, table_name)
+                    if success:
                         successfully_processed_files.append(file_path)
+                        # Notify file success
+                        if progress_callback:
+                            try:
+                                progress_callback('file_success', {
+                                    'filename': base_name,
+                                    'records': record_count
+                                })
+                            except Exception as e:
+                                logger.debug(f"Progress callback failed during file_success: {e}")
                 except DatabaseConnectionError as e:
                     logger.error(f"Erro de conexao com banco ao processar '{file_path}': {e}")
                     logger.error("Interrompendo processamento devido a falha de conexao")
                     critical_errors.append(('connection', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     break
                 except DatabaseCorruptionError as e:
                     logger.error(f"Corrupcao detectada ao processar '{file_path}': {e}")
                     logger.info("Tentando reparo automatico do banco...")
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     if database.repair_database_if_needed(db_path, table_name=table_name):
                         logger.info("Reparo bem-sucedido, continuando processamento...")
                         critical_errors.append(('corruption_repaired', file_path, str(e)))
@@ -378,10 +403,20 @@ def run_importer_logic(
                 except DatabaseSpaceError as e:
                     logger.error(f"Espaco em disco insuficiente ao processar '{file_path}': {e}")
                     critical_errors.append(('space', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     break
                 except DatabaseSchemaError as e:
                     logger.error(f"Erro de schema ao processar '{file_path}': {e}")
                     logger.info("Tentando recriacao do schema...")
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     if database.initialize_database(db_path):
                         logger.info("Schema recriado, continuando processamento...")
                         critical_errors.append(('schema_repaired', file_path, str(e)))
@@ -393,18 +428,38 @@ def run_importer_logic(
                 except DataValidationError as e:
                     logger.warning(f"Dados invalidos em '{file_path}': {e}. Pulando arquivo...")
                     critical_errors.append(('validation', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     continue
                 except ExtractionError as e:
                     logger.warning(f"Erro de extracao em '{file_path}': {e}. Pulando arquivo...")
                     critical_errors.append(('extraction', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     continue
                 except DatabaseError as e:
                     logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
                     critical_errors.append(('database_generic', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     continue
                 except Exception as e:
                     logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
                     critical_errors.append(('unexpected', file_path, str(e)))
+                    if progress_callback:
+                        try:
+                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                        except Exception:
+                            pass
                     continue
         finally:
             if progress_callback:
