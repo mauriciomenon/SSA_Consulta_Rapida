@@ -39,6 +39,9 @@ except ImportError:
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
+# Imports de gui helpers
+from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
+
 # Imports de utils
 from utils.themes import get_theme_roles, normalize_theme
 
@@ -78,7 +81,9 @@ class FilterGUISSAMixin:
 
         # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
         if not hasattr(self, '_cached_default_mode'):
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            # Acessa GUI_MAIN_PREFERENCES do módulo gui_ssa através do parent
+            from gui import gui_ssa
+            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
@@ -1147,7 +1152,8 @@ class FilterGUISSAMixin:
 
         # Determina modo padrao a partir das preferencias
         if not hasattr(self, '_cached_default_mode'):
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            from gui import gui_ssa
+            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
@@ -1247,13 +1253,13 @@ class FilterGUISSAMixin:
             QMessageBox.information(self, "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
             return
 
-        # Cria um nome baseado no filtro (limitado para exibiçção)
+        # Cria um nome baseado no filtro (limitado para exibicao)
         filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
 
-        # Verifica se jã existe
+        # Verifica se ja existe
         for f in self.persistent_filters:
             if f["terms"] == current_text:
-                QMessageBox.information(self, "Aviso", "Este filtro jã estã salvo.")
+                QMessageBox.information(self, "Aviso", "Este filtro ja esta salvo.")
                 return
 
         # Adiciona novo filtro
