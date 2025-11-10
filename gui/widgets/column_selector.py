@@ -4,6 +4,7 @@
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QDialog
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
+import logging
 
 from gui.widgets.column_manager_dialog import ColumnManagerDialog
 
@@ -102,8 +103,8 @@ class ColumnSelector(QWidget):
             return
         try:
             self.summary_label.setFont(QFont(font))
-        except Exception:
+        except Exception as e1:
             try:
                 self.summary_label.setFont(font)
-            except Exception:
-                pass
+            except Exception as e2:
+                logging.getLogger(__name__).debug("Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2)
