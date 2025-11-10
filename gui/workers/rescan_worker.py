@@ -147,5 +147,6 @@ class _LogHandler(logging.Handler):
                 self.error_signal.emit(msg)
             else:
                 self.output_signal.emit(msg)
-        except Exception:
-            pass  # Silently ignore errors in log handler
+        except Exception as e:
+            # Replaced silent pass (B110) with debug logging for traceability
+            logging.getLogger(__name__).debug("LogHandler emit falhou: %s", e)
