@@ -4,10 +4,10 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
 
 try:
-    from utils.version import get_app_version
-except ImportError:
-    def get_app_version():
-        return "3.11+"
+  from utils.version import get_app_version
+except ImportError:  # Centralizacao: fallback minimo
+  def get_app_version():
+    return "0.0.0"
 
 
 class FilterHelpDialog(QDialog):
@@ -19,7 +19,7 @@ class FilterHelpDialog(QDialog):
         layout = QVBoxLayout()
         help_text = QTextBrowser()
         help_text.setOpenExternalLinks(True)
-        app_version = get_app_version() if callable(get_app_version) else "3.0.7+"
+  app_version = get_app_version() if callable(get_app_version) else "0.0.0"
         help_text.setHtml(
             """
             <h3>Como usar os filtros</h3>
