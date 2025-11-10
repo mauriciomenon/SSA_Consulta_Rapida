@@ -271,6 +271,11 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 """
     )
 
+    # Versao
+    parser.add_argument(
+        '--version', action='store_true',
+        help='Exibe versao curta e encerra')
+
     # Suporta --rescan como alias historico de --force-rescan
     parser.add_argument(
         '--force-rescan', '--rescan',
@@ -440,6 +445,14 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
     # Parse dos argumentos principais
     args = parser.parse_args(main_args)
+
+    # --version: imprime e sai antes de qualquer outra acao
+    if getattr(args, 'version', False):
+        try:
+            print(get_app_version())
+        except Exception:
+            print('0.0.0')
+        return
 
     # Configura logging
     _configure_logging(project_root)
