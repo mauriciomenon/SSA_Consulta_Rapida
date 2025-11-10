@@ -326,12 +326,17 @@ def insert_dataframe_with_smart_upsert_impl(
                     break
         table_exists = table_name in existing_tables
         if table_exists:
+            from .identifier_utils import is_valid_identifier  # local import to avoid cycles
+            if not is_valid_identifier(table_name):
+                raise ValueError(f"Invalid SQL identifier for table: {table_name}")
             cursor.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
             existing_columns = {row[1] for row in cursor.fetchall()}
             missing_columns = [col for col in work.columns if col not in existing_columns]
             for col in missing_columns:
                 sql_type = _infer_sql_type(work[col] if col in work.columns else None)
                 logger.info("Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type)
+                if not is_valid_identifier(col):
+                    raise ValueError(f"Invalid SQL identifier for column: {col}")
                 cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
         if not no_ssa.empty:
             mode = 'append' if table_exists else 'replace'

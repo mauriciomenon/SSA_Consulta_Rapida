@@ -8,14 +8,14 @@
 # Recommendation: DELETE - gui_ssa.py uses simple_width_manager.py instead
 #
 # Width Manager - Sistema Unificado de Gerenciamento de Larguras
-# Elimina as estratégias conflitantes de largura da GUI.
+# Elimina as estrategias conflitantes de largura da GUI.
 #
-# NOTA: Este arquivo não é mais usado. Use simple_width_manager.py
+# NOTA: Este arquivo nao e mais usado. Use simple_width_manager.py
 """
 
 from typing import Dict, List, Optional, Tuple, Any
 
-# Importação lazy do pandas para evitar travamento na inicialização
+# Importacao lazy do pandas para evitar travamento na inicializacao
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -27,7 +27,7 @@ except ImportError:
 class WidthManager:
     """
     Gerenciador unificado de larguras de colunas.
-    Substitui as múltiplas estratégias conflitantes por uma implementação limpa.
+    Substitui as multiplas estrategias conflitantes por uma implementacao limpa.
     """
 
     def __init__(self, default_widths: Optional[Dict[str, int]] = None):
@@ -35,13 +35,13 @@ class WidthManager:
         Inicializa o gerenciador de larguras.
 
         Args:
-            default_widths: Larguras padrão por coluna (opcional)
+            default_widths: Larguras padrao por coluna (opcional)
         """
         # Cache unificado
         self._computed_widths: Dict[str, Dict[str, int]] = {}
         self._dataframe_hashes: Dict[str, str] = {}
 
-        # Configurações base
+        # Configuracoes base
         self.default_widths = default_widths or {}
         self.min_char_sizes = {
             'numero_ssa': 8,
@@ -59,7 +59,7 @@ class WidthManager:
             'observacoes': 15
         }
 
-        # Colunas expandíveis
+        # Colunas expandiveis
         self.expandable_columns = [
             'descricao_ssa', 'descricao_execucao', 'observacoes',
             'solicitante', 'derivada_de'
@@ -67,7 +67,7 @@ class WidthManager:
 
     def compute_optimal_widths(
         self,
-        df: Any,  # pd.DataFrame quando pandas disponível
+        df: Any,  # pd.DataFrame quando pandas disponivel
         available_width: int,
         display_mappings: Optional[Dict[str, str]] = None,
         saved_widths: Optional[Dict[str, int]] = None
@@ -77,18 +77,18 @@ class WidthManager:
 
         Args:
             df: DataFrame para calcular larguras
-            available_width: Largura total disponível
-            display_mappings: Mapeamentos de exibição (opcional)
-            saved_widths: Larguras salvas pelo usuário (opcional)
+            available_width: Largura total disponivel
+            display_mappings: Mapeamentos de exibicao (opcional)
+            saved_widths: Larguras salvas pelo usuario (opcional)
 
         Returns:
             Dict com larguras por coluna
         """
         if not PANDAS_AVAILABLE:
-            # Fallback quando pandas não está disponível
+            # Fallback quando pandas nao esta disponivel
             return {col: 100 for col in getattr(df, 'columns', ['col1', 'col2'])}
 
-        # Gera hash único do DataFrame
+        # Gera hash unico do DataFrame
         df_hash = self._generate_df_hash(df, available_width)
 
         # Verifica cache
@@ -110,7 +110,7 @@ class WidthManager:
         return widths
 
     def _generate_df_hash(self, df: Any, available_width: int) -> str:
-        """Gera hash único para o DataFrame e largura disponível."""
+        """Gera hash unico para o DataFrame e largura disponivel."""
         try:
             return f"{len(df)}x{len(df.columns)}_{available_width}_{hash(tuple(df.columns))}"
         except:
@@ -123,32 +123,32 @@ class WidthManager:
         display_mappings: Optional[Dict[str, str]] = None,
         saved_widths: Optional[Dict[str, int]] = None
     ) -> Dict[str, int]:
-        """Executa o cálculo real das larguras."""
+        """Executa o calculo real das larguras."""
 
         display_mappings = display_mappings or {}
         saved_widths = saved_widths or {}
         widths = {}
 
-        # 1. Calcula larguras mínimas
+        # 1. Calcula larguras minimas
         total_min_width = 0
         for col in df.columns:
             if col == '#':
                 min_width = 40
             else:
-                # Largura baseada no cabeçalho
+                # Largura baseada no cabecalho
                 header_text = display_mappings.get(col, col)
                 header_width = len(header_text) * 8 + 20  # 8px por char + padding
 
-                # Largura baseada no conteúdo mínimo
+                # Largura baseada no conteudo minimo
                 content_min = self.min_char_sizes.get(col, 10) * 8 + 20
 
-                # Usa o maior entre header e conteúdo mínimo
+                # Usa o maior entre header e conteudo minimo
                 min_width = max(header_width, content_min)
 
             widths[col] = min_width
             total_min_width += min_width
 
-        # 2. Distribui espaço extra
+        # 2. Distribui espaco extra
         extra_space = max(0, available_width - total_min_width)
         if extra_space > 0:
             self._distribute_extra_space(df, widths, extra_space)
@@ -161,9 +161,9 @@ class WidthManager:
         widths: Dict[str, int],
         extra_space: int
     ) -> None:
-        """Distribui espaço extra de forma inteligente."""
+        """Distribui espaco extra de forma inteligente."""
 
-        # Identifica colunas expandíveis presentes
+        # Identifica colunas expandiveis presentes
         expandable_present = [
             col for col in self.expandable_columns
             if col in df.columns
@@ -189,7 +189,7 @@ class WidthManager:
         expandable_cols: List[str],
         extra_space: int
     ) -> None:
-        """Distribui espaço para telas grandes."""
+        """Distribui espaco para telas grandes."""
 
         # Prioridades para tela grande
         priorities = {
@@ -211,7 +211,7 @@ class WidthManager:
         expandable_cols: List[str],
         extra_space: int
     ) -> None:
-        """Distribui espaço para telas normais."""
+        """Distribui espaco para telas normais."""
 
         # Prioridades para tela normal
         priorities = {
@@ -233,7 +233,7 @@ class WidthManager:
         self._dataframe_hashes.clear()
 
     def get_cache_stats(self) -> Dict[str, Any]:
-        """Retorna estatísticas do cache."""
+        """Retorna estatisticas do cache."""
         return {
             'cached_computations': len(self._computed_widths),
             'cache_keys': list(self._computed_widths.keys()),
@@ -241,19 +241,19 @@ class WidthManager:
         }
 
     def set_min_width(self, column: str, min_width_chars: int) -> None:
-        """Define largura mínima para uma coluna específica."""
+        """Define largura minima para uma coluna especifica."""
         self.min_char_sizes[column] = min_width_chars
-        # Invalida cache pois os parâmetros mudaram
+        # Invalida cache pois os parametros mudaram
         self.invalidate_cache()
 
     def add_expandable_column(self, column: str) -> None:
-        """Adiciona coluna à lista de expandíveis."""
+        """Adiciona coluna a lista de expandiveis."""
         if column not in self.expandable_columns:
             self.expandable_columns.append(column)
             self.invalidate_cache()
 
     def remove_expandable_column(self, column: str) -> None:
-        """Remove coluna da lista de expandíveis."""
+        """Remove coluna da lista de expandiveis."""
         if column in self.expandable_columns:
             self.expandable_columns.remove(column)
             self.invalidate_cache()

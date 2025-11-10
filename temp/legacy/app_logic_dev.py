@@ -17,12 +17,12 @@
 # DO NOT import this file in production code.
 # ==============================================================================
 
-# core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Exceções, Logging)
+# core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)
 """
-Lógica central da aplicação para importação e atualização do banco de dados.
+Logica central da aplicacao para importacao e atualizacao do banco de dados.
 
-Coordena a verificação de arquivos modificados, a extração de dados,
-a atualização do banco de dados SQLite e o gerenciamento do cache.
+Coordena a verificacao de arquivos modificados, a extracao de dados,
+a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 """
 
 import os
@@ -32,7 +32,7 @@ import pandas as pd
 import re
 from typing import List, Dict, Any
 
-# Adiciona o diretório raiz do projeto ao sys.path
+# Adiciona o diretorio raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
@@ -40,14 +40,14 @@ from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
 
-# Configura logger específico para este módulo
+# Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
 
-# --- Exceções Personalizadas ---
+# --- Excecoes Personalizadas ---
 
 
 class ImporterError(Exception):
-    """Exceção base para erros no processo de importação."""
+    """Excecao base para erros no processo de importacao."""
     pass
 
 
@@ -57,22 +57,22 @@ class CacheError(ImporterError):
 
 
 class ExtractionError(ImporterError):
-    """Erro durante a extração de dados de um arquivo."""
+    """Erro durante a extracao de dados de um arquivo."""
     pass
 
 
 class DatabaseError(ImporterError):
-    """Erro durante operações no banco de dados."""
+    """Erro durante operacoes no banco de dados."""
     pass
 
 
 class DatabaseConnectionError(DatabaseError):
-    """Erro de conexão com o banco de dados."""
+    """Erro de conexao com o banco de dados."""
     pass
 
 
 class DatabaseCorruptionError(DatabaseError):
-    """Erro indicando corrupção no banco de dados."""
+    """Erro indicando corrupcao no banco de dados."""
     pass
 
 
@@ -82,25 +82,25 @@ class DatabaseSchemaError(DatabaseError):
 
 
 class DatabaseSpaceError(DatabaseError):
-    """Erro de espaço insuficiente em disco."""
+    """Erro de espaco insuficiente em disco."""
     pass
 
 
 class DataValidationError(ImporterError):
-    """Erro de validação de dados antes da inserção."""
+    """Erro de validacao de dados antes da insercao."""
     pass
 
 
-# --- Funções Auxiliares Refatoradas ---
+# --- Funcoes Auxiliares Refatoradas ---
 
 def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) -> List[str]:
     """
     Determina quais arquivos precisam ser processados.
 
     Args:
-        docs_dir (str): Diretório de entrada dos arquivos Excel.
+        docs_dir (str): Diretorio de entrada dos arquivos Excel.
         cache_file (str): Caminho para o arquivo de cache.
-        force_import (bool): Se True, força o reprocessamento de todos os arquivos.
+        force_import (bool): Se True, forca o reprocessamento de todos os arquivos.
 
     Returns:
         List[str]: Lista de caminhos completos para os arquivos que precisam ser processados.
@@ -110,13 +110,13 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
     """
     try:
         if force_import:
-            logger.info("Modo 'force_import' ativado. Todos os arquivos serão reprocessados.")
+            logger.info("Modo 'force_import' ativado. Todos os arquivos serao reprocessados.")
             all_files = caching.get_all_xlsx_files(docs_dir)
             return all_files
 
         # Verifica se o cache existe
         if not os.path.exists(cache_file):
-            logger.info("Arquivo de cache não encontrado. Todos os arquivos serão processados.")
+            logger.info("Arquivo de cache nao encontrado. Todos os arquivos serao processados.")
             all_files = caching.get_all_xlsx_files(docs_dir)
             return all_files
 
@@ -127,12 +127,12 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
 
     except Exception as e:
         logger.error(f"Erro ao determinar arquivos para processamento: {e}")
-        raise CacheError(f"Falha na verificação de arquivos: {e}") from e
+        raise CacheError(f"Falha na verificacao de arquivos: {e}") from e
 
 
 def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
     """
-    Importa um único arquivo Excel para o banco de dados.
+    Importa um unico arquivo Excel para o banco de dados.
 
     Args:
         file_path (str): Caminho completo para o arquivo Excel.
@@ -140,55 +140,55 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> bool:
         table_name (str): Nome da tabela no banco de dados.
 
     Returns:
-        bool: True se a importação foi bem-sucedida, False caso contrário.
+        bool: True se a importacao foi bem-sucedida, False caso contrario.
 
     Raises:
-        ExtractionError: Se houver falha na extração.
-        DatabaseError: Se houver falha na inserção no DB.
+        ExtractionError: Se houver falha na extracao.
+        DatabaseError: Se houver falha na insercao no DB.
     """
-    logger.info(f"Iniciando importação de '{file_path}'...")
+    logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path)
         if df is not None and not df.empty:
-            # NOVA: Validar dados antes da inserção
-            logger.info(f"Validando dados extraídos de '{file_path}'...")
+            # NOVA: Validar dados antes da insercao
+            logger.info(f"Validando dados extraidos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(df, table_name)
 
-            # Log de avisos de validação
+            # Log de avisos de validacao
             if validation_report['warnings']:
                 for warning in validation_report['warnings']:
-                    logger.warning(f"Validação - {warning}")
+                    logger.warning(f"Validacao - {warning}")
 
-            # Se há problemas críticos, pode escolher entre falhar ou continuar
+            # Se ha problemas criticos, pode escolher entre falhar ou continuar
             if not validation_report['is_valid']:
                 critical_issues = validation_report['issues']
-                logger.error(f"Dados com problemas críticos em '{file_path}': {critical_issues}")
+                logger.error(f"Dados com problemas criticos em '{file_path}': {critical_issues}")
 
-                # Para problemas críticos de validação, pode escolher:
-                # Opção 1: Falhar imediatamente
-                # raise DataValidationError(f"Dados inválidos: {critical_issues}")
+                # Para problemas criticos de validacao, pode escolher:
+                # Opcao 1: Falhar imediatamente
+                # raise DataValidationError(f"Dados invalidos: {critical_issues}")
 
-                # Opção 2: Tentar inserir mesmo assim (atual)
-                logger.warning("Tentando inserção apesar dos problemas críticos...")
+                # Opcao 2: Tentar inserir mesmo assim (atual)
+                logger.warning("Tentando insercao apesar dos problemas criticos...")
             else:
                 logger.info(
-                    "✓ Dados validados: %s linhas prontas para inserção",
+                    "✓ Dados validados: %s linhas prontas para insercao",
                     validation_report['row_count'],
                 )
 
-            # CORREÇÃO CRÍTICA: Usar smart_upsert para evitar duplicatas
+            # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name)
             if success:
-                logger.info(f"Importação de '{file_path}' concluída com sucesso (sem duplicatas).")
+                logger.info(f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas).")
                 return True
             else:
                 logger.error(f"Falha ao inserir dados de '{file_path}' no banco de dados.")
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
-            logger.warning(f"Nenhum dado válido extraído de '{file_path}'. Pulando.")
-            return True  # Não é um erro crítico, apenas não há dados
+            logger.warning(f"Nenhum dado valido extraido de '{file_path}'. Pulando.")
+            return True  # Nao e um erro critico, apenas nao ha dados
     except extractor.ExtractionError:
-        # Re-levanta erros específicos de extração
+        # Re-levanta erros especificos de extracao
         raise
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
@@ -201,12 +201,12 @@ def _update_cache_after_import(
     docs_dir: str
 ) -> None:
     """
-    Atualiza o arquivo de cache após uma importação bem-sucedida.
+    Atualiza o arquivo de cache apos uma importacao bem-sucedida.
 
     Args:
         processed_files (List[str]): Lista de arquivos processados com sucesso.
         cache_file (str): Caminho para o arquivo de cache.
-        docs_dir (str): Diretório de entrada dos arquivos Excel.
+        docs_dir (str): Diretorio de entrada dos arquivos Excel.
 
     Raises:
         CacheError: Se houver falha ao atualizar o cache.
@@ -218,10 +218,10 @@ def _update_cache_after_import(
         logger.info("Cache atualizado com sucesso.")
     except Exception as e:
         logger.error(f"Erro ao atualizar o cache: {e}")
-        raise CacheError("Falha ao atualizar o cache após importação.") from e
+        raise CacheError("Falha ao atualizar o cache apos importacao.") from e
 
 
-# --- Função Principal Refatorada ---
+# --- Funcao Principal Refatorada ---
 
 
 def run_importer_logic(
@@ -232,21 +232,21 @@ def run_importer_logic(
     force_import: bool = False
 ) -> bool:
     """
-    Executa a lógica principal de importação de dados.
+    Executa a logica principal de importacao de dados.
 
     Args:
-        docs_dir (str): Diretório de entrada dos arquivos Excel.
-        data_dir (str): Diretório para armazenamento do banco de dados e cache.
+        docs_dir (str): Diretorio de entrada dos arquivos Excel.
+        data_dir (str): Diretorio para armazenamento do banco de dados e cache.
         db_name (str): Nome do arquivo do banco de dados SQLite.
         table_name (str): Nome da tabela no banco de dados.
-        force_import (bool): Se True, força a reimportação de todos os arquivos.
+        force_import (bool): Se True, forca a reimportacao de todos os arquivos.
 
     Returns:
-        bool: True se o banco de dados foi atualizado, False caso contrário.
+        bool: True se o banco de dados foi atualizado, False caso contrario.
     """
-    logger.info("=== Iniciando processo de importação ===")
+    logger.info("=== Iniciando processo de importacao ===")
 
-    # --- Configuração de Caminhos ---
+    # --- Configuracao de Caminhos ---
     docs_dir = os.path.join(project_root, docs_dir)
     data_dir = os.path.join(project_root, data_dir)
     db_path = os.path.join(data_dir, db_name)
@@ -256,28 +256,28 @@ def run_importer_logic(
         # --- 0. Verificar e reparar integridade do banco de dados ---
         logger.info("Verificando integridade do banco de dados...")
 
-        # Criar diretório de dados se não existir
+        # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
 
-        # Verificar e reparar banco se necessário
+        # Verificar e reparar banco se necessario
         if not database.repair_database_if_needed(db_path, table_name=table_name):
-            logger.error("Falha crítica: não foi possível garantir integridade do banco de dados")
-            raise DatabaseCorruptionError("Banco de dados inacessível ou corrompido")
+            logger.error("Falha critica: nao foi possivel garantir integridade do banco de dados")
+            raise DatabaseCorruptionError("Banco de dados inacessivel ou corrompido")
 
-        # Verificação adicional de integridade
+        # Verificacao adicional de integridade
         integrity_report = database.verify_database_integrity(db_path, table_name)
         if not integrity_report['is_valid']:
-            # Classificar tipo de erro baseado no relatório
+            # Classificar tipo de erro baseado no relatorio
             issues = integrity_report['issues']
 
             if not integrity_report['database_accessible']:
-                raise DatabaseConnectionError(f"Banco de dados inacessível: {issues}")
+                raise DatabaseConnectionError(f"Banco de dados inacessivel: {issues}")
             elif not integrity_report['table_exists'] or not integrity_report['schema_valid']:
                 raise DatabaseSchemaError(f"Problemas de schema: {issues}")
             elif not integrity_report['data_consistent']:
                 raise DatabaseCorruptionError(f"Dados corrompidos: {issues}")
             elif not integrity_report['disk_space_sufficient']:
-                raise DatabaseSpaceError(f"Espaço em disco insuficiente: {issues}")
+                raise DatabaseSpaceError(f"Espaco em disco insuficiente: {issues}")
             else:
                 raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
@@ -295,7 +295,7 @@ def run_importer_logic(
             logger.info("Nenhum arquivo novo ou modificado encontrado para processamento.")
             return False
 
-        logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importação.")
+        logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importacao.")
 
         # --- 2. Processar cada arquivo ---
         successfully_processed_files = []
@@ -304,58 +304,58 @@ def run_importer_logic(
         for file_path in files_to_process:
             base_name = os.path.basename(file_path)
             if base_name.startswith('~$'):
-                logger.info("Ignorando arquivo temporário '%s'", base_name)
+                logger.info("Ignorando arquivo temporario '%s'", base_name)
                 continue
             try:
                 if _import_single_file(file_path, db_path, table_name):
                     successfully_processed_files.append(file_path)
             except DatabaseConnectionError as e:
-                # Erro de conexão - provavelmente fatal para todos os arquivos
-                logger.error(f"Erro de conexão com banco ao processar '{file_path}': {e}")
-                logger.error("Interrompendo processamento devido a falha de conexão")
+                # Erro de conexao - provavelmente fatal para todos os arquivos
+                logger.error(f"Erro de conexao com banco ao processar '{file_path}': {e}")
+                logger.error("Interrompendo processamento devido a falha de conexao")
                 critical_errors.append(('connection', file_path, str(e)))
                 break  # Para todo o processamento
             except DatabaseCorruptionError as e:
-                # Corrupção - tentar reparo e continuar
-                logger.error(f"Corrupção detectada ao processar '{file_path}': {e}")
-                logger.info("Tentando reparo automático do banco...")
+                # Corrupcao - tentar reparo e continuar
+                logger.error(f"Corrupcao detectada ao processar '{file_path}': {e}")
+                logger.info("Tentando reparo automatico do banco...")
                 if database.repair_database_if_needed(db_path, table_name=table_name):
                     logger.info("Reparo bem-sucedido, continuando processamento...")
                     critical_errors.append(('corruption_repaired', file_path, str(e)))
-                    continue  # Tenta processar novamente após reparo
+                    continue  # Tenta processar novamente apos reparo
                 else:
-                    logger.error("Falha no reparo automático")
+                    logger.error("Falha no reparo automatico")
                     critical_errors.append(('corruption_failed', file_path, str(e)))
                     break  # Para todo o processamento
             except DatabaseSpaceError as e:
-                # Espaço insuficiente - provavelmente fatal
-                logger.error(f"Espaço em disco insuficiente ao processar '{file_path}': {e}")
+                # Espaco insuficiente - provavelmente fatal
+                logger.error(f"Espaco em disco insuficiente ao processar '{file_path}': {e}")
                 critical_errors.append(('space', file_path, str(e)))
                 break  # Para todo o processamento
             except DatabaseSchemaError as e:
                 # Problema de schema - tentar recriar
                 logger.error(f"Erro de schema ao processar '{file_path}': {e}")
-                logger.info("Tentando recriação do schema...")
+                logger.info("Tentando recriacao do schema...")
                 if database.initialize_database(db_path):
                     logger.info("Schema recriado, continuando processamento...")
                     critical_errors.append(('schema_repaired', file_path, str(e)))
                     continue  # Tenta processar novamente
                 else:
-                    logger.error("Falha na recriação do schema")
+                    logger.error("Falha na recriacao do schema")
                     critical_errors.append(('schema_failed', file_path, str(e)))
                     break
             except DataValidationError as e:
-                # Dados inválidos - continua com próximo arquivo
-                logger.warning(f"Dados inválidos em '{file_path}': {e}. Pulando arquivo...")
+                # Dados invalidos - continua com proximo arquivo
+                logger.warning(f"Dados invalidos em '{file_path}': {e}. Pulando arquivo...")
                 critical_errors.append(('validation', file_path, str(e)))
                 continue
             except ExtractionError as e:
-                # Erro de extração - continua com próximo arquivo
-                logger.warning(f"Erro de extração em '{file_path}': {e}. Pulando arquivo...")
+                # Erro de extracao - continua com proximo arquivo
+                logger.warning(f"Erro de extracao em '{file_path}': {e}. Pulando arquivo...")
                 critical_errors.append(('extraction', file_path, str(e)))
                 continue
             except DatabaseError as e:
-                # Erro genérico de banco - log e continua
+                # Erro generico de banco - log e continua
                 logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
                 critical_errors.append(('database_generic', file_path, str(e)))
                 continue
@@ -367,25 +367,25 @@ def run_importer_logic(
 
         # Log de resumo de erros
         if critical_errors:
-            logger.warning(f"Processamento concluído com {len(critical_errors)} erro(s):")
+            logger.warning(f"Processamento concluido com {len(critical_errors)} erro(s):")
             for error_type, file_path, message in critical_errors:
                 logger.warning(f"  - {error_type}: {os.path.basename(file_path)} -> {message}")
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
             _update_cache_after_import(successfully_processed_files, cache_file, docs_dir)
-            logger.info("=== Processo de importação concluído com atualizações ===")
+            logger.info("=== Processo de importacao concluido com atualizacoes ===")
             return True
         else:
             logger.info("Nenhum arquivo foi processado com sucesso.")
             return False
 
     except ImporterError:
-        # Re-levanta exceções personalizadas
+        # Re-levanta excecoes personalizadas
         raise
     except Exception as e:
-        logger.critical(f"Erro inesperado no processo de importação: {e}", exc_info=True)
-        raise ImporterError("Erro crítico no processo de importação.") from e
+        logger.critical(f"Erro inesperado no processo de importacao: {e}", exc_info=True)
+        raise ImporterError("Erro critico no processo de importacao.") from e
 
 
 def parse_search_terms(
@@ -396,16 +396,16 @@ def parse_search_terms(
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
 
     Modos aceitos por termo:
-    - contém (padrão): foo
-    - começa com: ^foo
+    - contem (padrao): foo
+    - comeca com: ^foo
     - termina com: foo$
     - igual: =foo
     - regex: ~foo.*bar
     Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
 
     Conectivos aceitos (case-insensitive):
-    - OU / OR / || (agrupa condições como disjunção)
-    - E / AND / && (tratado como conjunção implícita)
+    - OU / OR / || (agrupa condicoes como disjuncao)
+    - E / AND / && (tratado como conjuncao implicita)
     """
     parsed: List[Dict[str, Any]] = []
     if not search_terms:
@@ -498,23 +498,23 @@ def parse_search_terms(
 def filter_dataframe(df: pd.DataFrame, search_terms: list) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
-    termos já parseados por parse_search_terms(). Busca em todas as colunas de texto.
+    termos ja parseados por parse_search_terms(). Busca em todas as colunas de texto.
 
-    Modos por termo: contém (padrão), começa (^), termina ($), igual (=), regex (~),
+    Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
     com suporte a negativos (! ou -).
     """
     if df is None or df.empty or not search_terms:
         return df
 
-    # Extrai colunas de texto base para buscas (sem lower; usaremos case=False nos métodos)
+    # Extrai colunas de texto base para buscas (sem lower; usaremos case=False nos metodos)
     base_str_df = df.select_dtypes(include=['object']).astype(str)
     if base_str_df.shape[1] == 0:
-        # Sem colunas de texto, não há onde buscar: retorna o próprio df
+        # Sem colunas de texto, nao ha onde buscar: retorna o proprio df
         return df
 
     # Permite tanto termos brutos (str) quanto parseados (dict)
     if search_terms and isinstance(search_terms[0], dict):
-        terms = search_terms  # já parseados
+        terms = search_terms  # ja parseados
     else:
         terms = parse_search_terms(search_terms)
 
@@ -583,25 +583,25 @@ def import_files_to_database(
     force_import: bool = False,
 ) -> bool:
     """
-    Importa arquivos de um diretório para o banco de dados.
+    Importa arquivos de um diretorio para o banco de dados.
 
     Args:
-        docs_dir: Diretório contendo arquivos Excel
+        docs_dir: Diretorio contendo arquivos Excel
         db_path: Caminho para o banco de dados
-        force_import: Se True, força reimportação de todos os arquivos
+        force_import: Se True, forca reimportacao de todos os arquivos
 
     Returns:
-        bool: True se importação foi bem-sucedida
+        bool: True se importacao foi bem-sucedida
     """
     try:
-        # Extrair diretório e nome do banco
+        # Extrair diretorio e nome do banco
         data_dir = os.path.dirname(db_path)
         db_name = os.path.basename(db_path)
 
-        # Criar diretório de dados se não existir
+        # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
 
-        # Executar lógica de importação
+        # Executar logica de importacao
         success = run_importer_logic(
             docs_dir=docs_dir,
             data_dir=data_dir,
@@ -613,7 +613,7 @@ def import_files_to_database(
         return success
 
     except Exception as e:
-        logger.error(f"Erro na importação de arquivos: {e}")
+        logger.error(f"Erro na importacao de arquivos: {e}")
         return False
 
 
@@ -622,11 +622,11 @@ def get_filtered_data(
     filters: Dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     """
-    Obtém dados filtrados do banco de dados.
+    Obtem dados filtrados do banco de dados.
 
     Args:
         db_path: Caminho para o banco de dados
-        filters: Dicionário com filtros a aplicar
+        filters: Dicionario com filtros a aplicar
 
     Returns:
         DataFrame com dados filtrados

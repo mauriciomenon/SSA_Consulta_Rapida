@@ -234,9 +234,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Ignorar arquivos tempor?rios do Excel na pasta docs
+# Ignorar arquivos temporários do Excel (arquivos de trava) na pasta docs
 docs/~$*.xlsx
-/*.webui_secret_key
 
 # -- SSA local ignores --
 # SQLite + backups locais
