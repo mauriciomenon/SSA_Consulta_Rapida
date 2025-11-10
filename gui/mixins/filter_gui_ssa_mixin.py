@@ -9,6 +9,10 @@ Padrao de nomenclatura: funcao_pai_mixin.py
 """
 
 # Imports necessarios
+import logging
+import os
+import json
+import re
 import pandas as pd
 from collections import OrderedDict
 from PyQt6.QtCore import QTimer
@@ -45,6 +49,8 @@ from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_sea
 # Imports de utils
 from utils.themes import get_theme_roles, normalize_theme
 
+# Module logger
+logger = logging.getLogger(__name__)
 
 class FilterGUISSAMixin:
     """
@@ -81,8 +87,8 @@ class FilterGUISSAMixin:
 
         # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
         if not hasattr(self, '_cached_default_mode'):
-            # Acessa GUI_MAIN_PREFERENCES do módulo gui_ssa através do parent
-            from gui import gui_ssa
+            # Inline import para evitar ciclo (SSAMainWindow -> mixin -> gui_ssa). Mantido propositalmente.
+            from gui import gui_ssa  # noqa: WPS433
             gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
@@ -261,13 +267,25 @@ class FilterGUISSAMixin:
 
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
-        FilterWorker._cache.clear()
-        logger.info("Cache de filtros limpo")
+        # Usa logger e verifica disponibilidade do FilterWorker e cache
+        if FilterWorker is not None and hasattr(FilterWorker, '_cache'):
+            try:
+                FilterWorker._cache.clear()
+                logger.info("Cache de filtros limpo")
+            except Exception as e:  # pragma: no cover
+                logger.debug("Falha ao limpar cache de filtros: %s", e)
+        else:
+            logger.debug("FilterWorker indisponivel; cache nao limpo")
     
 
     def get_filter_cache_stats(self) -> dict:
         """Retorna estatísticas do cache de filtros."""
-        return FilterWorker._cache.get_stats()
+        if FilterWorker is not None and hasattr(FilterWorker, '_cache') and hasattr(FilterWorker._cache, 'get_stats'):
+            try:
+                return FilterWorker._cache.get_stats()
+            except Exception:  # pragma: no cover
+                return {}
+        return {}
 
     # --- Slots e Handlers ---
 
@@ -703,8 +721,7 @@ class FilterGUISSAMixin:
         try:
             text = str(raw).strip()
             # Remove extra spaces
-            import re as _re
-            text = _re.sub(r'\s+', ' ', text).strip()
+            text = re.sub(r'\s+', ' ', text).strip()
             # Split by commas only
             tokens = [t.strip() for t in text.split(',') if t.strip()]
             # Apply optional display aliases per column
@@ -743,7 +760,10 @@ class FilterGUISSAMixin:
         if hasattr(self, '_filter_alias_map') and isinstance(self._filter_alias_map, dict):
             return self._filter_alias_map
         try:
-            cfg_path = os.path.join(project_root, 'config', 'filter_aliases.json')
+            # Resolve config path relative to repository root, avoiding reliance on project_root
+            # Walk up three levels from this file: gui/mixins/ -> gui/ -> repo root
+            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            cfg_path = os.path.join(repo_root, 'config', 'filter_aliases.json')
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)

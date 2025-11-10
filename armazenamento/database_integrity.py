@@ -12,6 +12,7 @@ DO NOT add top-level imports from database.py.
 from __future__ import annotations
 
 import logging
+from .identifier_utils import is_valid_identifier
 import os
 import shutil
 from datetime import datetime
@@ -123,6 +124,8 @@ def verify_database_integrity(
                 required_columns = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
                 from .database import get_db_connection  # lazy
                 with get_db_connection(db_path) as conn:
+                    if not is_valid_identifier(table_name):
+                        raise ValueError(f"Invalid SQL identifier: {table_name}")
                     cursor = conn.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
                     existing_columns = [row[1] for row in cursor.fetchall()]
                 if 'arquivo_origem' not in existing_columns:
