@@ -1,6 +1,7 @@
 """Schema manager for dynamic column addition."""
 
 import logging
+from .identifier_utils import is_valid_identifier
 import sqlite3
 import pandas as pd
 
@@ -22,6 +23,8 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
     cursor = conn.cursor()
 
     # Check if table exists
+    if not is_valid_identifier(table_name):
+        raise ValueError(f"Invalid SQL identifier for table: {table_name}")
     cursor.execute(
         f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
     )
