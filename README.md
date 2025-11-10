@@ -1,3 +1,29 @@
+# SSA Consulta Rapida v4.10.0
+
+Release 4.10.0 formaliza correcao dos problemas de filtros e aplicacao de temas observados na serie 4.0. Todo o texto abaixo permanece para historico. As instrucoes principais seguem em portugues sem acentos.
+
+## Release v4.10.0 (2025-11)
+
+### Contexto historico
+Na serie 4.0 ocorreram falhas em dois pontos principais:
+- Filtros: divergencia entre GUI CLI e streamlit em combinacoes com OU e negativos, alem de substituicao visual que induzia interpretacao incorreta.
+- Temas: papeis de cores para quadros indicadores e tags aplicados de forma inconsistente em alguns sistemas.
+
+### O que foi corrigido
+- Unificacao do parsing de conectivos OU entre todas as interfaces sem alteracao visual ambigua
+- Invalidacao correta de cache quando entra OU ou negativo
+- Ajuste de ordem de normalizacao evitando estados intermediarios incoerentes
+- Mapeamento central de chaves de tema para quadros indicadores e tags
+
+### Resultados esperados
+- Mesmos resultados de busca em CLI GUI e streamlit
+- Negativos honrados quando combinados com OU
+- Temas aplicados de forma previsivel em plataformas suportadas
+
+### Observacoes
+- Sem alteracao de schema
+- Sem mudanca de formatos de exportacao
+
 # SSA Consulta Rapida v4.0.3
 
 ## Release v4.0.3 (2025-11)
