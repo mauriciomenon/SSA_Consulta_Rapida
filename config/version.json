@@ -1,4 +1,4 @@
 {
-  "version_short": "4.0.3",
-  "version_long": "SSA Consulta Rapida v4.0.3 – Temas totalmente parametrizados (bordas, indicadores, quadros) e normalização visual dos conectivos 'OU' ao digitar buscas com || na GUI."
+  "version_short": "4.10.0",
+  "version_long": "SSA Consulta Rapida v4.10.0 - Correcao de falhas de filtros e aplicacao de temas da serie 4.0; registro historico das falhas anteriores para rastreabilidade."
 }
