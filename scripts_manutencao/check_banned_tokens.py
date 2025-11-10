@@ -64,6 +64,15 @@ IGNORE_DIRS = {
     "exportacao",
     "launchers/platforms",  # large vendor tree
     "launchers/platforms/macos_arm64/venv",  # nested venv
+    "docs",  # documentation with historical references
+}
+
+
+# Files to exclude completely from scanning (self-reference problem)
+IGNORE_FILES = {
+    "check_banned_tokens.py",  # This file contains token definitions
+    "SECRET_HISTORY_REPORT.md",  # Historical security audit
+    "SESSION_CONTEXT_SNAPSHOT_20250915.md",  # Historical snapshot
 }
 
 ANSI_RED = "\033[31m"
@@ -86,8 +95,14 @@ def load_exts() -> set[str]:
 
 
 def should_skip(path: Path) -> bool:
+    # Skip by directory
     parts = set(path.parts)
-    return any(d in parts for d in IGNORE_DIRS)
+    if any(d in parts for d in IGNORE_DIRS):
+        return True
+    # Skip by filename
+    if path.name in IGNORE_FILES:
+        return True
+    return False
 
 
 SCAN_DIRS_DEFAULT = [
