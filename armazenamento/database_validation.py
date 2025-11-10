@@ -34,8 +34,12 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
                 return []
             return df.loc[mask, 'numero_ssa'].astype(str).head(5).tolist()
 
+        # Severidades:
+        # - numero_ssa: warning (linhas sem/invalidas devem gerar aviso, nao invalidar o lote)
+        # - data_cadastro: error (critico para ordenacao/relatorios)
+        # - situacao: warning (ausencia nao impede insercao)
         required_columns = [
-            ('numero_ssa', 'error'),
+            ('numero_ssa', 'warning'),
             ('data_cadastro', 'error'),
             ('situacao', 'warning'),
         ]

@@ -18,7 +18,16 @@
       "Bash(done)",
       "Bash(git mv:*)",
       "Bash(git tag:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout 3 python:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout 120 python:*)",
+      "Bash(timeout 240 python:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

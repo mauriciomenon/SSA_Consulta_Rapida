@@ -24,8 +24,8 @@
 # ==============================================================================
 
 """
-Configuration Manager - Sistema Centralizado de Configurações
-Elimina chaves duplicadas entre arquivos de configuração.
+Configuration Manager - Sistema Centralizado de Configuracoes
+Elimina chaves duplicadas entre arquivos de configuracao.
 """
 
 import json
@@ -37,16 +37,16 @@ from datetime import datetime
 
 class ConfigurationManager:
     """
-    Gerenciador centralizado de configurações.
-    Elimina duplicações e inconsistências entre arquivos de config.
+    Gerenciador centralizado de configuracoes.
+    Elimina duplicacoes e inconsistencias entre arquivos de config.
     """
 
     def __init__(self, config_dir: Union[str, Path]):
         """
-        Inicializa gerenciador de configurações.
+        Inicializa gerenciador de configuracoes.
 
         Args:
-            config_dir: Diretório com arquivos de configuração
+            config_dir: Diretorio com arquivos de configuracao
         """
         self.config_dir = Path(config_dir)
         self._configs: Dict[str, Dict[str, Any]] = {}
@@ -64,7 +64,7 @@ class ConfigurationManager:
             'version.json': 40             # Menor prioridade
         }
 
-        # Configurações padrão integradas
+        # Configuracoes padrao integradas
         self._default_config = {
             # GUI Settings
             'gui': {
@@ -100,7 +100,7 @@ class ConfigurationManager:
                 },
                 'mappings': {
                     'SSA': 'SSA',
-                    'TITULO': 'Título',
+                    'TITULO': 'Titulo',
                     'STATUS': 'Status',
                     'PLANEJADOR': 'Planejador'
                 },
@@ -148,7 +148,7 @@ class ConfigurationManager:
         self._merge_configurations()
 
     def _load_all_configs(self) -> None:
-        """Carrega todos os arquivos de configuração."""
+        """Carrega todos os arquivos de configuracao."""
         if not self.config_dir.exists():
             return
 
@@ -157,10 +157,10 @@ class ConfigurationManager:
 
     def _load_config_file(self, file_path: Path) -> None:
         """
-        Carrega arquivo de configuração específico.
+        Carrega arquivo de configuracao especifico.
 
         Args:
-            file_path: Caminho do arquivo de configuração
+            file_path: Caminho do arquivo de configuracao
         """
         try:
             # Verifica se arquivo foi modificado
@@ -169,7 +169,7 @@ class ConfigurationManager:
 
             if (file_key in self._file_timestamps and
                 self._file_timestamps[file_key] >= current_mtime):
-                return  # Arquivo não foi modificado
+                return  # Arquivo nao foi modificado
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
@@ -181,10 +181,10 @@ class ConfigurationManager:
 
     def _merge_configurations(self) -> None:
         """
-        Mescla todas as configurações por prioridade.
-        Elimina duplicações e conflitos.
+        Mescla todas as configuracoes por prioridade.
+        Elimina duplicacoes e conflitos.
         """
-        # Inicia com configuração padrão
+        # Inicia com configuracao padrao
         merged = self._default_config.copy()
 
         # Ordena arquivos por prioridade (menor prioridade primeiro)
@@ -193,7 +193,7 @@ class ConfigurationManager:
             key=lambda f: self._file_priority.get(f, 0)
         )
 
-        # Mescla configurações por prioridade
+        # Mescla configuracoes por prioridade
         for file_name in sorted_files:
             file_config = self._configs[file_name]
             merged = self._deep_merge(merged, file_config)
@@ -203,14 +203,14 @@ class ConfigurationManager:
 
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         """
-        Mescla dicionários recursivamente.
+        Mescla dicionarios recursivamente.
 
         Args:
-            base: Dicionário base
-            override: Dicionário para sobrescrever
+            base: Dicionario base
+            override: Dicionario para sobrescrever
 
         Returns:
-            Dicionário mesclado
+            Dicionario mesclado
         """
         result = base.copy()
 
@@ -226,7 +226,7 @@ class ConfigurationManager:
 
     def _resolve_conflicts(self) -> None:
         """
-        Resolve conflitos conhecidos nas configurações.
+        Resolve conflitos conhecidos nas configuracoes.
         Elimina chaves duplicadas identificadas pelo detector.
         """
         # Conflitos conhecidos do detector_frankenstein.py:
@@ -236,14 +236,14 @@ class ConfigurationManager:
 
         config = self._merged_config
 
-        # Unifica configurações de largura
+        # Unifica configuracoes de largura
         if 'max_width' in config and 'gui' in config:
             if 'table_max_width' not in config['gui']:
                 config['gui']['table_max_width'] = config.get('max_width', 1000)
             # Remove duplicata
             config.pop('max_width', None)
 
-        # Unifica configurações de fonte
+        # Unifica configuracoes de fonte
         gui_font = config.get('gui', {}).get('font_size')
         root_font = config.get('font_size')
 
@@ -254,7 +254,7 @@ class ConfigurationManager:
             config.setdefault('gui', {})['font_size'] = root_font
             config.pop('font_size', None)
 
-        # Unifica configurações de summary
+        # Unifica configuracoes de summary
         gui_summary = config.get('gui', {}).get('show_summary')
         cli_summary = config.get('cli', {}).get('show_stats')
         root_summary = config.get('show_summary')
@@ -266,15 +266,15 @@ class ConfigurationManager:
 
     def get(self, key: str, default: Any = None) -> Any:
         """
-        Recupera configuração por chave.
-        Suporta notação com pontos (ex: 'gui.window_width').
+        Recupera configuracao por chave.
+        Suporta notacao com pontos (ex: 'gui.window_width').
 
         Args:
-            key: Chave da configuração
-            default: Valor padrão se não encontrado
+            key: Chave da configuracao
+            default: Valor padrao se nao encontrado
 
         Returns:
-            Valor da configuração
+            Valor da configuracao
         """
         if '.' in key:
             return self._get_nested(key, default)
@@ -283,14 +283,14 @@ class ConfigurationManager:
 
     def _get_nested(self, key: str, default: Any = None) -> Any:
         """
-        Recupera configuração aninhada por notação com pontos.
+        Recupera configuracao aninhada por notacao com pontos.
 
         Args:
             key: Chave aninhada (ex: 'gui.window_width')
-            default: Valor padrão
+            default: Valor padrao
 
         Returns:
-            Valor da configuração
+            Valor da configuracao
         """
         keys = key.split('.')
         current = self._merged_config
@@ -305,10 +305,10 @@ class ConfigurationManager:
 
     def set(self, key: str, value: Any, persist: bool = False) -> None:
         """
-        Define configuração.
+        Define configuracao.
 
         Args:
-            key: Chave da configuração
+            key: Chave da configuracao
             value: Valor a definir
             persist: Se deve salvar no arquivo settings.json
         """
@@ -322,7 +322,7 @@ class ConfigurationManager:
 
     def _set_nested(self, key: str, value: Any) -> None:
         """
-        Define configuração aninhada por notação com pontos.
+        Define configuracao aninhada por notacao com pontos.
 
         Args:
             key: Chave aninhada
@@ -331,7 +331,7 @@ class ConfigurationManager:
         keys = key.split('.')
         current = self._merged_config
 
-        # Navega até o penúltimo nível
+        # Navega ate o penultimo nivel
         for k in keys[:-1]:
             if k not in current:
                 current[k] = {}
@@ -341,15 +341,15 @@ class ConfigurationManager:
         current[keys[-1]] = value
 
     def get_gui_config(self) -> Dict[str, Any]:
-        """Retorna configurações específicas da GUI."""
+        """Retorna configuracoes especificas da GUI."""
         return self.get('gui', {})
 
     def get_cli_config(self) -> Dict[str, Any]:
-        """Retorna configurações específicas do CLI."""
+        """Retorna configuracoes especificas do CLI."""
         return self.get('cli', {})
 
     def get_column_config(self) -> Dict[str, Any]:
-        """Retorna configurações de colunas."""
+        """Retorna configuracoes de colunas."""
         return self.get('columns', {})
 
     def get_column_priorities(self) -> Dict[str, int]:
@@ -361,38 +361,38 @@ class ConfigurationManager:
         return self.get('columns.mappings', {})
 
     def get_display_formats(self) -> Dict[str, Dict[str, Any]]:
-        """Retorna formatos de exibição das colunas."""
+        """Retorna formatos de exibicao das colunas."""
         return self.get('columns.display_formats', {})
 
     def get_min_widths(self) -> Dict[str, int]:
-        """Retorna larguras mínimas das colunas."""
+        """Retorna larguras minimas das colunas."""
         return self.get('columns.min_widths', {})
 
     def get_export_config(self) -> Dict[str, Any]:
-        """Retorna configurações de exportação."""
+        """Retorna configuracoes de exportacao."""
         return self.get('export', {})
 
     def get_performance_config(self) -> Dict[str, Any]:
-        """Retorna configurações de performance."""
+        """Retorna configuracoes de performance."""
         return self.get('performance', {})
 
     def get_validation_config(self) -> Dict[str, Any]:
-        """Retorna configurações de validação."""
+        """Retorna configuracoes de validacao."""
         return self.get('validation', {})
 
     def reload(self) -> None:
-        """Recarrega todas as configurações."""
+        """Recarrega todas as configuracoes."""
         self._configs.clear()
         self._file_timestamps.clear()
         self._load_all_configs()
         self._merge_configurations()
 
     def _save_settings(self) -> None:
-        """Salva configurações no arquivo settings.json."""
+        """Salva configuracoes no arquivo settings.json."""
         settings_file = self.config_dir / 'settings.json'
 
         try:
-            # Salva apenas configurações modificáveis (não as padrão)
+            # Salva apenas configuracoes modificaveis (nao as padrao)
             save_data = {}
 
             for section in ['gui', 'cli', 'columns', 'export', 'performance']:
@@ -403,17 +403,17 @@ class ConfigurationManager:
                 json.dump(save_data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            print(f"Erro ao salvar configurações: {e}")
+            print(f"Erro ao salvar configuracoes: {e}")
 
     def export_merged_config(self, output_path: Optional[Path] = None) -> Dict[str, Any]:
         """
-        Exporta configuração mesclada para debugging.
+        Exporta configuracao mesclada para debugging.
 
         Args:
             output_path: Caminho para salvar (opcional)
 
         Returns:
-            Configuração mesclada completa
+            Configuracao mesclada completa
         """
         export_data = {
             'timestamp': datetime.now().isoformat(),
@@ -427,48 +427,48 @@ class ConfigurationManager:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(export_data, f, indent=2, ensure_ascii=False)
             except Exception as e:
-                print(f"Erro ao exportar configuração: {e}")
+                print(f"Erro ao exportar configuracao: {e}")
 
         return export_data
 
     def validate_config(self) -> List[str]:
         """
-        Valida configuração mesclada.
+        Valida configuracao mesclada.
 
         Returns:
-            Lista de erros/warnings de validação
+            Lista de erros/warnings de validacao
         """
         issues = []
         config = self._merged_config
 
-        # Valida configurações da GUI
+        # Valida configuracoes da GUI
         gui_config = config.get('gui', {})
         if gui_config.get('window_width', 0) < 800:
-            issues.append("GUI window_width muito pequena (mínimo 800)")
+            issues.append("GUI window_width muito pequena (minimo 800)")
 
-        # Valida configurações de colunas
+        # Valida configuracoes de colunas
         column_config = config.get('columns', {})
         required_cols = config.get('validation', {}).get('required_columns', [])
         priorities = column_config.get('priorities', {})
 
         for col in required_cols:
             if col not in priorities:
-                issues.append(f"Coluna obrigatória '{col}' sem prioridade definida")
+                issues.append(f"Coluna obrigatoria '{col}' sem prioridade definida")
 
-        # Valida configurações de performance
+        # Valida configuracoes de performance
         perf_config = config.get('performance', {})
         max_memory = perf_config.get('max_memory_mb', 0)
         if max_memory > 0 and max_memory < 128:
-            issues.append("max_memory_mb muito baixo (mínimo 128MB)")
+            issues.append("max_memory_mb muito baixo (minimo 128MB)")
 
         return issues
 
     def get_conflicts_report(self) -> Dict[str, Any]:
         """
-        Gera relatório de conflitos resolvidos.
+        Gera relatorio de conflitos resolvidos.
 
         Returns:
-            Relatório detalhado de conflitos
+            Relatorio detalhado de conflitos
         """
         report = {
             'duplicate_keys_found': [],
@@ -500,10 +500,10 @@ class ConfigurationManager:
 
     def _get_all_keys(self, config: Dict[str, Any], prefix: str = '') -> List[str]:
         """
-        Recupera todas as chaves de um dicionário aninhado.
+        Recupera todas as chaves de um dicionario aninhado.
 
         Args:
-            config: Dicionário de configuração
+            config: Dicionario de configuracao
             prefix: Prefixo para chaves aninhadas
 
         Returns:

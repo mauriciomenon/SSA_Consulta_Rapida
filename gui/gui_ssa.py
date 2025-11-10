@@ -126,6 +126,17 @@ try:
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
     from PyQt6.QtGui import QAction, QFont
+
+    # Import workers, cache, widgets, and helpers from separate modules
+    from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
+    from gui.cache import FilterCache  # noqa: E402
+    from gui.widgets import ColumnManagerDialog, ColumnSelector, DataPaginator, FilterHelpDialog  # noqa: E402
+    from gui.helpers import (  # noqa: E402
+        build_global_widget_qss, build_central_widget_qss, build_group_box_qss, build_line_edit_qss,
+        normalize_chunk_for_parse, format_search_display, format_value_for_display, highlight_text
+    )
+    # Import mixins for code organization
+    from gui.mixins import FilterGUISSAMixin  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
@@ -383,6 +394,11 @@ except ImportError as exc:
     class Qt:
         AlignLeft = 0
 
+    # Stub for FilterGUISSAMixin in headless mode
+    class FilterGUISSAMixin:
+        """Stub mixin for headless testing."""
+        pass
+
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
 
@@ -408,28 +424,28 @@ DETAIL_FIELD_PRIORITY = [
 ]
 
 DETAIL_DISPLAY_OVERRIDES = {
-    'situacao': 'Situação',
+    'situacao': 'Situacao',
     'semana_cadastro': 'Semana de Cadastro',
     'data_cadastro': 'Data de Cadastro',
-    'descricao_ssa': 'Descrição da SSA',
+    'descricao_ssa': 'Descricao da SSA',
     'setor_executor': 'Setor Executor',
     'setor_emissor': 'Setor Emissor',
     'solicitante': 'Solicitante',
-    'servico_origem': 'Serviço de Origem',
-    'grau_prioridade_emissao': 'Grau de Prioridade (Emissão)',
+    'servico_origem': 'Servico de Origem',
+    'grau_prioridade_emissao': 'Grau de Prioridade (Emissao)',
     'grau_prioridade_planejamento': 'Grau de Prioridade (Planejamento)',
-    'execucao_simples': 'Execução Simples',
-    'responsavel_programacao': 'Responsável pela Programação',
-    'responsavel_execucao': 'Responsável pela Execução',
+    'execucao_simples': 'Execucao Simples',
+    'responsavel_programacao': 'Responsavel pela Programacao',
+    'responsavel_execucao': 'Responsavel pela Execucao',
     'semana_programada': 'Semana Programada',
     'prazo_limite': 'Prazo Limite',
-    'tempo_disponivel': 'Tempo Disponível',
+    'tempo_disponivel': 'Tempo Disponivel',
     'data_limite': 'Data Limite',
     'tempo_excedido': 'Tempo Excedido',
-    'numero_ssa': 'Número da SSA',
-    'descricao_execucao': 'Descrição da Execução',
-    'status_execucao_prazo': 'Situação do Prazo',
-    'execucao_parcial': 'Execução Parcial',
+    'numero_ssa': 'Numero da SSA',
+    'descricao_execucao': 'Descricao da Execucao',
+    'status_execucao_prazo': 'Situacao do Prazo',
+    'execucao_parcial': 'Execucao Parcial',
 }
 
 TABLE_NAME = 'ssas'
@@ -445,586 +461,14 @@ def load_display_mappings():
 
 # --- Worker Threads ---
 
-class DataLoaderWorker(QThread):
-    """Thread para carregar dados do banco."""
-    data_loaded = pyqtSignal(pd.DataFrame)
-    error_occurred = pyqtSignal(str)
-
-    def __init__(self, db_path, table_name):
-        super().__init__()
-        self.db_path = db_path
-        self.table_name = table_name
-
-    def run(self):
-        try:
-            # Query customizada que mapeia os nomes corretos das colunas
-            query = '''
-            SELECT
-                numero_ssa,
-                situacao,
-                derivada_de,
-                localizacao_codigo,
-                descricao_localizacao,
-                equipamento,
-                semana_cadastro,
-                data_cadastro,
-                descricao_ssa,
-                setor_emissor,
-                setor_executor,
-                solicitante,
-                servico_origem,
-                grau_prioridade_emissao,
-                grau_prioridade_planejamento,
-                execucao_simples,
-                responsavel_programacao,
-                semana_programada,
-                responsavel_execucao,
-                descricao_execucao,
-                id,
-                sistema_origem,
-                prazo_limite,
-                tempo_disponivel,
-                data_limite,
-                tempo_excedido,
-                desde,
-                tempo_total,
-                desde_1,
-                total_tempo_tpe_planejado,
-                total_tempo_tex_planejado,
-                total_tempo_tpo_planejado,
-                total_horas_programadas,
-                execucao_parcial,
-                anomalia,
-                semana_executada,
-                num_reprogramacoes
-            FROM ssa_table
-            '''
-
-            df = query_db(self.db_path, '', query)
-            if not df.empty:
-                self.data_loaded.emit(df)
-            else:
-                self.error_occurred.emit("Falha ao carregar dados do banco.")
-        except Exception as e:
-            self.error_occurred.emit(f"Erro ao carregar dados: {e}")
-
-class FilterCache:
-    """Cache inteligente LRU para resultados de filtros da GUI."""
-    
-    def __init__(self, max_size: int = 50):
-        self.max_size = max_size
-        self._cache = OrderedDict()  # LRU cache
-        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
-    
-    def _generate_key(self, df_hash: str, search_chunks: list, default_mode: str) -> str:
-        """Gera chave única para cache baseada nos parâmetros de filtro."""
-        # Converte search_chunks em string determinística
-        chunks_str = str(sorted([str(sorted(chunk)) if isinstance(chunk, list) else str(chunk) for chunk in search_chunks]))
-        
-        # Cria hash combinado
-        combined = f"{df_hash}|{chunks_str}|{default_mode}"
-        return hashlib.md5(combined.encode('utf-8')).hexdigest()
-    
-    def get(self, df_hash: str, search_chunks: list, default_mode: str) -> pd.DataFrame:
-        """Recupera resultado do cache se disponível."""
-        key = self._generate_key(df_hash, search_chunks, default_mode)
-        
-        if key in self._cache:
-            # Move para o final (marca como recentemente usado)
-            result = self._cache.pop(key)
-            self._cache[key] = result
-            self._stats['hits'] += 1
-            logger.debug(f"Cache hit for filter key: {key[:8]}...")
-            return result.copy()  # Retorna cópia para evitar modificações
-        
-        self._stats['misses'] += 1
-        logger.debug(f"Cache miss for filter key: {key[:8]}...")
-        return None
-    
-    def put(self, df_hash: str, search_chunks: list, default_mode: str, result: pd.DataFrame):
-        """Armazena resultado no cache."""
-        key = self._generate_key(df_hash, search_chunks, default_mode)
-        
-        # Remove entrada existente se houver
-        if key in self._cache:
-            del self._cache[key]
-        
-        # Adiciona nova entrada
-        self._cache[key] = result.copy()
-        
-        # Implementa política LRU
-        while len(self._cache) > self.max_size:
-            # Remove item mais antigo (primeiro na OrderedDict)
-            oldest_key = next(iter(self._cache))
-            del self._cache[oldest_key]
-            self._stats['evictions'] += 1
-        
-        logger.debug(f"Cache put for filter key: {key[:8]}... (size: {len(self._cache)})")
-    
-    def clear(self):
-        """Limpa todo o cache."""
-        self._cache.clear()
-        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
-        logger.debug("Filter cache cleared")
-    
-    def get_stats(self) -> dict:
-        """Retorna estatísticas do cache."""
-        total = self._stats['hits'] + self._stats['misses']
-        hit_rate = (self._stats['hits'] / total * 100) if total > 0 else 0
-        
-        return {
-            'size': len(self._cache),
-            'max_size': self.max_size,
-            'hits': self._stats['hits'],
-            'misses': self._stats['misses'],
-            'evictions': self._stats['evictions'],
-            'hit_rate': hit_rate
-        }
-
-
-class FilterWorker(QThread):
-    """Thread para filtrar dados com cache inteligente."""
-    filter_finished = pyqtSignal(pd.DataFrame) # Emite o DataFrame filtrado
-    error_occurred = pyqtSignal(str)
-    
-    # Cache de classe compartilhado entre instâncias
-    _cache = FilterCache(max_size=50)
-
-    def __init__(self, df_completo, search_chunks, default_mode: str = 'contains'):
-        super().__init__()
-        self.df_completo = df_completo
-        self.search_chunks = search_chunks or []
-        self.default_mode = default_mode
-        
-        # Gera hash do DataFrame para cache
-        self.df_hash = hashlib.md5(str(df_completo.shape).encode()).hexdigest()[:16]
-
-    def run(self):
-        try:
-            # Verifica cache primeiro
-            cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
-            if cached_result is not None:
-                self.filter_finished.emit(cached_result)
-                return
-            
-            # Cache miss - executa filtro
-            if self.search_chunks:
-                frames = []
-                for terms in self.search_chunks:
-                    if terms:
-                        parsed = parse_search_terms(terms, default_mode=self.default_mode)
-                        frames.append(filter_dataframe(self.df_completo, parsed))
-                    else:
-                        frames.append(self.df_completo.copy())
-                if frames:
-                    df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True)
-                else:
-                    df_filtrado = self.df_completo.copy()
-            else:
-                df_filtrado = self.df_completo.copy()
-            
-            # Armazena no cache
-            self._cache.put(self.df_hash, self.search_chunks, self.default_mode, df_filtrado)
-            
-            self.filter_finished.emit(df_filtrado)
-        except Exception as e:
-            self.error_occurred.emit(f"Erro ao filtrar dados: {e}")
-
 # --- Componentes da GUI ---
 
-class ColumnManagerDialog(QDialog):
-    """Diálogo para marcar e reordenar colunas visíveis."""
-
-    def __init__(self, display_map, selected_columns, default_columns=None, available_columns=None, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Configurar colunas visíveis")
-        self.resize(420, 500)
-        self.display_map = display_map or {}
-        self.default_columns = list(default_columns or [])
-        all_from_map = list(self.display_map.keys())
-        self.available_columns = list(available_columns or []) or all_from_map
-        if not self.available_columns:
-            self.available_columns = list(selected_columns)
-        self.available_columns = list(dict.fromkeys(self.available_columns + [c for c in all_from_map if c not in self.available_columns]))
-        self._build_ui(selected_columns)
-
-    def _build_ui(self, selected_columns):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        hint = QLabel("Marque as colunas que deseja ver. Arraste as linhas marcadas para reordenar.")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
-
-        search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("Buscar:"))
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Filtrar por nome da coluna")
-        self.search_edit.textChanged.connect(self._apply_filter)
-        search_row.addWidget(self.search_edit)
-        layout.addLayout(search_row)
-
-        self.list_widget = QListWidget()
-        try:
-            self.list_widget.setAlternatingRowColors(True)
-            self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-            self.list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-            self.list_widget.setDefaultDropAction(Qt.DropAction.MoveAction)
-        except Exception:
-            pass
-        layout.addWidget(self.list_widget, 1)
-
-        self._populate_list(selected_columns)
-
-        tools_row = QHBoxLayout()
-        self.restore_btn = QPushButton("Restaurar padrão")
-        self.restore_btn.clicked.connect(self.restore_defaults)
-        tools_row.addWidget(self.restore_btn)
-
-        self.select_all_btn = QPushButton("Selecionar tudo")
-        self.select_all_btn.clicked.connect(self.select_all)
-        tools_row.addWidget(self.select_all_btn)
-
-        self.clear_all_btn = QPushButton("Limpar seleção")
-        self.clear_all_btn.clicked.connect(self.clear_all)
-        tools_row.addStretch()
-        tools_row.addWidget(self.clear_all_btn)
-        layout.addLayout(tools_row)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _ordered_columns(self, selected_columns):
-        selection = [c for c in selected_columns if c in self.available_columns]
-        if not selection and self.default_columns:
-            selection = [c for c in self.default_columns if c in self.available_columns]
-        remaining = [c for c in self.available_columns if c not in selection]
-        return selection + remaining
-
-    def _populate_list(self, selected_columns):
-        self.list_widget.clear()
-        for col in self._ordered_columns(selected_columns):
-            display_name = self.display_map.get(col, col)
-            item = QListWidgetItem(display_name)
-            try:
-                flags = item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable
-                item.setFlags(flags)
-            except Exception:
-                pass
-            item.setData(Qt.ItemDataRole.UserRole, col)
-            if selected_columns:
-                state = Qt.CheckState.Checked if col in selected_columns else Qt.CheckState.Unchecked
-            else:
-                state = Qt.CheckState.Checked if col in self.default_columns else Qt.CheckState.Unchecked
-            item.setCheckState(state)
-            self.list_widget.addItem(item)
-
-    def _apply_filter(self, text):
-        text = (text or '').strip().casefold()
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            if not item:
-                continue
-            display = item.text().casefold()
-            internal = str(item.data(Qt.ItemDataRole.UserRole) or '').casefold()
-            visible = not text or text in display or text in internal
-            try:
-                item.setHidden(not visible)
-            except Exception:
-                pass
-
-    def restore_defaults(self):
-        self._populate_list(self.default_columns)
-
-    def select_all(self):
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            if item:
-                item.setCheckState(Qt.CheckState.Checked)
-
-    def clear_all(self):
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            if item:
-                item.setCheckState(Qt.CheckState.Unchecked)
-
-    def get_selected_columns(self):
-        selected = []
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            if not item:
-                continue
-            if item.checkState() == Qt.CheckState.Checked:
-                col = item.data(Qt.ItemDataRole.UserRole)
-                if col and col not in selected:
-                    selected.append(col)
-        return selected
-
-
-class ColumnSelector(QWidget):
-    """Widget compacto que abre o gerenciador de colunas."""
-    columns_changed = pyqtSignal(list)
-
-    def __init__(
-        self,
-        display_map,
-        initial_columns,
-        default_columns=None,
-        available_columns=None,
-        info_font=None,
-    ):
-        super().__init__()
-        self.display_map = display_map or {}
-        self.default_columns = list(default_columns or initial_columns)
-        self.selected_internal_columns = list(initial_columns)
-        self.available_columns = list(available_columns or self.display_map.keys())
-        for col in self.selected_internal_columns:
-            if col not in self.available_columns:
-                self.available_columns.append(col)
-        self._info_font = info_font
-        self.init_ui()
-        if self._info_font is not None:
-            self.set_summary_font(self._info_font)
-        self._update_summary()
-
-    def init_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-
-        self.manage_button = QPushButton("Colunas visíveis...")
-        self.manage_button.setToolTip("Configurar colunas rápidas (marcar, ordenar e restaurar padrão)")
-        self.manage_button.clicked.connect(self.open_dialog)
-        layout.addWidget(self.manage_button)
-
-        self.summary_label = QLabel()
-        try:
-            self.summary_label.setStyleSheet("color: palette(windowText);")
-        except Exception:
-            pass
-        layout.addWidget(self.summary_label)
-        layout.addStretch()
-
-    def open_dialog(self):
-        dialog = ColumnManagerDialog(
-            self.display_map,
-            self.selected_internal_columns,
-            default_columns=self.default_columns,
-            available_columns=self.available_columns,
-            parent=self
-        )
-        try:
-            result = dialog.exec()
-        except Exception:
-            result = dialog.accept() or QDialog.DialogCode.Accepted
-        if result == QDialog.DialogCode.Accepted:
-            new_columns = dialog.get_selected_columns()
-            if not new_columns:
-                new_columns = list(self.default_columns)
-            self.selected_internal_columns = new_columns
-            for col in self.selected_internal_columns:
-                if col not in self.available_columns:
-                    self.available_columns.append(col)
-            self._update_summary()
-            self.columns_changed.emit(self.selected_internal_columns)
-
-    def _update_summary(self):
-        translated = [self.display_map.get(col, col) for col in self.selected_internal_columns]
-        if not translated:
-            text = "Nenhuma coluna selecionada"
-            tooltip = text
-        else:
-            text = f"{len(translated)} colunas ativas"
-            tooltip = ", ".join(translated)
-        self.summary_label.setText(text)
-        self.summary_label.setToolTip(tooltip)
-
-    def get_selected_columns(self):
-        return self.selected_internal_columns
-
-    def set_selected_columns(self, columns):
-        self.selected_internal_columns = list(columns)
-        for col in self.selected_internal_columns:
-            if col not in self.available_columns:
-                self.available_columns.append(col)
-        self._update_summary()
-
-    def set_summary_font(self, font):
-        """Aplica fonte compartilhada para o resumo (harmoniza com outros indicadores)."""
-        if font is None:
-            return
-        try:
-            self.summary_label.setFont(QFont(font))
-        except Exception:
-            try:
-                self.summary_label.setFont(font)
-            except Exception:
-                pass
-
-
-class DataPaginator(QWidget):
-    """Widget para paginacao de dados."""
-    page_changed = pyqtSignal(int) # Emite o numero da nova pagina (1-based)
-
-    def __init__(self, df, page_size=50):
-        super().__init__()
-        self.df = df
-        self.page_size = page_size
-        self.current_page = 1
-        self.total_pages = 1
-        self.init_ui()
-        self.update_pagination_info()
-
-    def init_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        self.prev_button = QPushButton("Pagina Anterior")
-        self.prev_button.clicked.connect(self.prev_page)
-        self.prev_button.setEnabled(False)
-
-        self.page_info_label = QLabel("Pagina 1 de 1")
-
-        self.next_button = QPushButton("Proxima Pagina")
-        self.next_button.clicked.connect(self.next_page)
-        self.next_button.setEnabled(False)
-
-        # Controle de tamanho da pagina
-        page_size_layout = QHBoxLayout()
-        page_size_layout.addWidget(QLabel("Linhas por Pagina:"))
-        self.page_size_spinbox = QSpinBox()
-        self.page_size_spinbox.setRange(10, 500)
-        self.page_size_spinbox.setSingleStep(10)
-        self.page_size_spinbox.setValue(self.page_size)
-        self.page_size_spinbox.valueChanged.connect(self.change_page_size)
-        page_size_layout.addWidget(self.page_size_spinbox)
-
-        layout.addWidget(self.prev_button)
-        layout.addWidget(self.page_info_label)
-        layout.addWidget(self.next_button)
-        layout.addStretch()
-        layout.addLayout(page_size_layout)
-
-    def set_dataframe(self, df):
-        self.df = df
-        self.current_page = 1
-        self.update_pagination_info()
-        self.update_buttons()
-
-    def update_pagination_info(self):
-        # Calcula total de paginas com guard rails (df pode estar vazio ou ainda nao definido)
-        if getattr(self, 'df', None) is not None and not self.df.empty:
-            self.total_pages = (len(self.df) + self.page_size - 1) // self.page_size
-        else:
-            self.total_pages = 1
-            self.current_page = 1
-        # Pode ser chamado antes do init_ui terminar em alguns cenarios; proteja acesso
-        if hasattr(self, 'page_info_label'):
-            self.page_info_label.setText(f"Pagina {self.current_page} de {self.total_pages}")
-
-    def update_buttons(self):
-        self.prev_button.setEnabled(self.current_page > 1)
-        self.next_button.setEnabled(self.current_page < self.total_pages)
-
-    def next_page(self):
-        if self.current_page < self.total_pages:
-            self.current_page += 1
-            self.update_pagination_info()
-            self.update_buttons()
-            self.page_changed.emit(self.current_page)
-
-    def prev_page(self):
-        if self.current_page > 1:
-            self.current_page -= 1
-            self.update_pagination_info()
-            self.update_buttons()
-            self.page_changed.emit(self.current_page)
-
-    def change_page_size(self, new_size):
-        self.page_size = new_size
-        # Reset para a pagina 1 ao mudar o tamanho
-        self.current_page = 1
-        self.update_pagination_info()
-        self.update_buttons()
-        # Notifica que a pagina 1 (com novo tamanho) deve ser carregada
-        self.page_changed.emit(self.current_page)
-
-    def get_current_slice(self):
-        """Retorna o slice do DataFrame para a pagina atual."""
-        if self.df is None or self.df.empty:
-            return pd.DataFrame()
-        start_idx = (self.current_page - 1) * self.page_size
-        end_idx = start_idx + self.page_size
-        return self.df.iloc[start_idx:end_idx]
-
-
-# --- Diãlogo de Ajuda (GUI PoC revisado) ---
-class FilterHelpDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Ajuda - Filtros (CLI/GUI)")
-        self.setModal(True)
-        self.resize(560, 480)
-        layout = QVBoxLayout()
-        help_text = QTextBrowser()
-        help_text.setOpenExternalLinks(True)
-        app_version = get_app_version() if callable(get_app_version) else "3.0.7+"
-        help_text.setHtml(
-            """
-            <h3>Como usar os filtros</h3>
-            <h4>Separacao de termos</h4>
-            <ul>
-              <li><b>Pesquisa Geral</b>: virgulas separam termos (logica E - TODOS os termos obrigatorios)</li>
-              <li><b>Filtros de Coluna</b>: virgulas separam alternativas (logica OU - qualquer termo serve)</li>
-            </ul>
-            <h4>Modos por termo</h4>
-            <ul>
-              <li><b>contem</b> (padrao): <code>foo</code></li>
-              <li><b>comeca com</b>: <code>^foo</code></li>
-              <li><b>termina com</b>: <code>foo$</code></li>
-              <li><b>igual</b>: <code>=foo</code></li>
-              <li><b>regex</b>: <code>~foo.*bar</code></li>
-              <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
-              <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
-            </ul>
-            <h4>Exemplos</h4>
-            <ul>
-              <li><code>mel3</code> — procura por MEL3</li>
-              <li><code>pendente, programar</code> — termos combinados</li>
-              <li><code>executada, !mel4</code> — exclui MEL4</li>
-              <li><code>g076, amp</code> — combina setores</li>
-              <li><code>=NULL</code> — somente campos vazios/nulos</li>
-            </ul>
-            <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b> e <b>Limpar</b>. Regras identicas as do filtro geral.</p>
-            <h4>Dicas</h4>
-            <ul>
-              <li>Nao diferencia maiusculas/minusculas</li>
-              <li>Termos parciais funcionam (ex.: <code>exec</code> encontra <i>executada</i>)</li>
-              <li>Deixe vazio para ver todas as SSAs</li>
-            </ul>
-            <hr/>
-            <p style='font-size:12px;'>
-              <b>Projeto:</b> SSA_Consulta_Rapida • <b>Versao:</b> %s<br/>
-              <b>Autor:</b> Mauricio Menon • <b>Repositorio:</b>
-              <a href='https://github.com/mauriciomenon/SSA_Consulta_Rapida'>github.com/mauriciomenon/SSA_Consulta_Rapida</a>
-            </p>
-            """
-            % app_version
-        )
-        layout.addWidget(help_text)
-        okb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-        okb.accepted.connect(self.accept)
-        layout.addWidget(okb)
-        self.setLayout(layout)
-
 # --- Janela Principal da Aplicacao ---
-class SSAMainWindow(QMainWindow):
+class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     """
     Janela principal da aplicação GUI.
+
+    Inherits from FilterGUISSAMixin for filter-related methods.
     """
     def __init__(self):
         super().__init__()
@@ -1323,8 +767,8 @@ class SSAMainWindow(QMainWindow):
         save_filter_button.clicked.connect(self.save_current_filter)
         self.persistent_filters_layout.addWidget(save_filter_button)
 
-        self.exclude_ste_checkbox = QCheckBox("Não está em STE/SCA")
-        self.exclude_ste_checkbox.setToolTip("Oculta SSAs com situação STE ou SCA")
+        self.exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
+        self.exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
         try:
             self.exclude_ste_checkbox.setChecked(False)
         except Exception:
@@ -1534,25 +978,9 @@ class SSAMainWindow(QMainWindow):
         cache_size = gui_settings.get("filter_cache_size", 50)
         FilterWorker._cache = FilterCache(max_size=cache_size)
 
-    def _on_search_text_changed(self, _text: str):
-        """Reinicia o temporizador de debounce ao digitar na busca."""
-        # Chamar start() novamente reinicia o QTimer automaticamente
-        self._debounce_timer.start()
-    
-    def clear_filter_cache(self):
-        """Limpa o cache de filtros."""
-        FilterWorker._cache.clear()
-        logger.info("Cache de filtros limpo")
-    
-    def get_filter_cache_stats(self) -> dict:
-        """Retorna estatísticas do cache de filtros."""
-        return FilterWorker._cache.get_stats()
-
-    # --- Slots e Handlers ---
-
     def load_data(self):
         if not os.path.exists(DB_PATH):
-            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nção encontrado. Execute o programa principal primeiro.")
+            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
 
         self.status_label.setText("Status: Carregando dados...")
@@ -1626,199 +1054,6 @@ class SSAMainWindow(QMainWindow):
         finally:
             self.data_loader_thread = None
 
-    def initiate_filtering(self):
-        if self.df_completo.empty:
-            QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
-            return
-
-        search_text = self.search_input.text().strip()
-        raw_chunks = self._split_search_expression(search_text) if search_text else []
-        chunk_terms_lists = [self._normalize_chunk_for_parse(chunk) for chunk in raw_chunks] if raw_chunks else ([] if not search_text else [self._normalize_chunk_for_parse(search_text)])
-        # remove empty chunk lists
-        chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
-
-        if hasattr(self, 'clear_filter_button'):
-            has_terms = bool(chunk_terms_lists or search_text or any(str(v).strip() for v in self._active_column_filters.values()))
-            self.clear_filter_button.setEnabled(has_terms)
-
-        if chunk_terms_lists:
-            display_text = self._format_search_display(chunk_terms_lists)
-        else:
-            display_text = search_text if search_text else ''
-        self._pending_search_display = display_text
-
-        self.status_label.setText("Status: Filtrando dados...")
-        self.progress_bar.setVisible(True)
-        self.load_button.setEnabled(False)
-        self.search_button.setEnabled(False)
-
-        # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
-        if not hasattr(self, '_cached_default_mode'):
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
-        default_mode = self._cached_default_mode
-
-        # Modo síncrono (sem QThread) opcional para testes
-        if getattr(self, '_sync_filtering', False):
-            try:
-                if chunk_terms_lists:
-                    frames = []
-                    for terms in chunk_terms_lists:
-                        parsed = parse_search_terms(terms, default_mode=default_mode)
-                        frames.append(filter_dataframe(self.df_completo, parsed))
-                    df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True) if frames else self.df_completo.copy()
-                else:
-                    df_filtrado = self.df_completo.copy()
-                self.on_filter_finished(df_filtrado)
-                # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
-                try:
-                    self._ensure_nonzero_column_widths()
-                except Exception:
-                    pass
-                try:
-                    if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
-                        self.table_widget.setColumnWidth(1, 80)
-                except Exception:
-                    pass
-            except Exception as e:  # noqa: BLE001
-                self.on_filter_error(f"Erro ao filtrar dados: {e}")
-            finally:
-                self.on_filter_finished_cleanup()
-            return
-
-        # Inicia a thread de filtragem (modo padrão assíncrono)
-        self.filter_thread = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
-        self.filter_thread.filter_finished.connect(self.on_filter_finished)
-        self.filter_thread.error_occurred.connect(self.on_filter_error)
-        self.filter_thread.finished.connect(self.on_filter_finished_cleanup)
-        # Garante destruição segura do objeto thread após terminar
-        try:
-            self.filter_thread.finished.connect(self.filter_thread.deleteLater)
-        except Exception:
-            pass
-        self.filter_thread.start()
-
-    def on_filter_finished(self, df_filtrado: pd.DataFrame):
-        # Atualiza baseline do resultado da busca global
-        self._df_last_search_filtered = df_filtrado.copy()
-        # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
-        self._widths_computed_for_df_hash = None
-        self._refresh_after_filter_change()
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas.")
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(True)
-        self._apply_search_display()
-        # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
-        try:
-            self._ensure_nonzero_column_widths()
-        except Exception:
-            pass
-        # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
-        try:
-            if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
-                self._compute_gui_column_widths(self.df_para_tabela)
-                self._apply_computed_widths_only()
-        except Exception:
-            pass
-        # Garantia específica: coluna 1 (primeira após '#') nunca deve ficar com largura 0
-        try:
-            if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
-                self.table_widget.setColumnWidth(1, 80)
-        except Exception:
-            pass
-        # Agenda um ajuste seguro pós-loop de eventos
-        try:
-            QTimer.singleShot(0, lambda: self._set_safe_width_for_col_index(1, 80))
-        except Exception:
-            pass
-
-    def on_filter_error(self, error_msg: str):
-        QMessageBox.critical(self, "Erro de Filtro", error_msg)
-        self.status_label.setText("Status: Erro ao aplicar filtro.")
-
-    def on_filter_finished_cleanup(self):
-        """Limpa estado pós-thread de filtragem com checagens defensivas.
-
-        Em execuções headless/CI alguns widgets podem já ter sido destruídos
-        (ex.: fechamento da janela durante teardown de teste), o que pode causar
-        abort em chamadas Qt nativas. Garantimos que os atributos existem e que
-        o thread já não está em execução antes de manipular.
-        """
-        # Debug trace para investigação de estabilidade em testes headless
-        try:
-            progress_bar = getattr(self, "progress_bar", None)
-            if progress_bar is not None:
-                try:
-                    progress_bar.setVisible(False)
-                except Exception:
-                    pass
-            for btn_attr in ("load_button", "search_button"):
-                btn = getattr(self, btn_attr, None)
-                if btn is not None:
-                    try:
-                        btn.setEnabled(True)
-                    except Exception:
-                        pass
-            # Garantir finalização adequada do worker de filtro
-            worker = getattr(self, "filter_thread", None)
-            if worker is not None:
-                try:
-                    # Desconectar sinais para evitar callbacks tardios
-                    try:
-                        worker.filter_finished.disconnect(self.on_filter_finished)
-                    except Exception:
-                        pass
-                    try:
-                        worker.error_occurred.disconnect(self.on_filter_error)
-                    except Exception:
-                        pass
-                    try:
-                        worker.finished.disconnect(self.on_filter_finished_cleanup)
-                    except Exception:
-                        pass
-                    # Solicita término e aguarda brevemente
-                    try:
-                        if hasattr(worker, 'isRunning') and worker.isRunning():
-                            worker.quit()
-                            worker.wait(1500)
-                    except Exception:
-                        pass
-                    # Deleta o objeto de forma segura
-                    try:
-                        worker.deleteLater()
-                    except Exception:
-                        pass
-                finally:
-                    self.filter_thread = None
-        except Exception:
-            # Nunca propagar exceção daqui; log mínimo opcional futuro
-            self.filter_thread = None
-
-    def clear_filter(self):
-        """Limpa o filtro e mostra todos os dados."""
-        try:
-            self.search_input.blockSignals(True)
-            self.search_input.clear()
-            self.search_input.setText('')
-        finally:
-            self.search_input.blockSignals(False)
-        self._pending_search_display = None
-        # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
-        # Limpa o cache de filtros ao limpar filtros
-        self.clear_filter_cache()
-        self.df_exibido = self.df_completo.copy()
-        self._df_last_search_filtered = self.df_completo.copy()
-        self.paginator.set_dataframe(self.df_exibido)
-        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
-        self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
-        self._build_column_filters_panel()
-        # Atualizar resumo de filtros
-        try:
-            self._update_filters_summary()
-        except Exception:
-            pass
-
-    # --- Ordenaçção por clique no cabeçalho ---
     def on_header_clicked(self, logical_index: int):
         try:
             if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -1949,478 +1184,6 @@ class SSAMainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
-    def _open_add_column_filter_menu(self):
-        """Exibe menu com colunas visiveis para ativar filtros dedicados."""
-        try:
-            from PyQt6.QtWidgets import QMenu
-        except Exception:
-            return
-        if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
-            return
-        menu = QMenu(self)
-        columns = []
-        for col in self._current_display_columns:
-            if col == '#':
-                continue
-            display = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
-            action = menu.addAction(display)
-            action.setCheckable(True)
-            action.setChecked(col in self._active_column_filters)
-            action.setData(col)
-            columns.append(action)
-        if not columns:
-            menu.deleteLater()
-            return
-        chosen = menu.exec(self.add_column_filter_btn.mapToGlobal(self.add_column_filter_btn.rect().bottomLeft()))
-        if chosen is None:
-            return
-        col_name = chosen.data()
-        if not col_name:
-            return
-        if col_name in self._active_column_filters:
-            self._deactivate_column_filter(col_name)
-        else:
-            self._activate_column_filter(col_name)
-
-    def _activate_column_filter(self, col_name: str):
-        """Garante entrada para a coluna solicitada e prepara foco na interface."""
-        if not col_name:
-            return
-        if col_name not in self._active_column_filters:
-            self._active_column_filters[col_name] = ""
-            try:
-                self._mark_profile_as_custom()
-            except Exception:
-                pass
-        self._pending_filter_focus = col_name
-        self._build_column_filters_panel()
-
-
-    def _deactivate_column_filter(self, col_name: str):
-        """Remove coluna do conjunto de filtros ativos e atualiza a interface."""
-        if not col_name:
-            return
-        removed = False
-        if col_name in self._column_to_or_group:
-            group = self._column_to_or_group.get(col_name)
-            if group:
-                for member in group.get('columns', []):
-                    if member in self._active_column_filters:
-                        self._active_column_filters.pop(member, None)
-                        removed = True
-                group['values'] = []
-        elif col_name in self._active_column_filters:
-            self._active_column_filters.pop(col_name, None)
-            removed = True
-        if not removed:
-            return
-        try:
-            self._mark_profile_as_custom()
-        except Exception:
-            pass
-        self._pending_filter_focus = None
-        self._build_column_filters_panel()
-        self._refresh_after_filter_change()
-
-    def _build_column_filters_panel(self):
-        # Escolhe layout de lista (compatável com versões antigas e novas)
-        target_layout = None
-        if hasattr(self, 'col_filters_list_layout'):
-            target_layout = self.col_filters_list_layout
-        elif hasattr(self, 'col_filters_layout'):
-            target_layout = self.col_filters_layout
-        else:
-            return
-
-        # Limpa layout
-        while target_layout.count():
-            item = target_layout.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-        self._column_filter_inputs = {}
-        self._column_filter_labels = {}
-        # Controle de linhas ocultas (somente exibição)
-        if not hasattr(self, '_hidden_column_filter_lines'):
-            self._hidden_column_filter_lines = set()
-
-        if not self._active_column_filters:
-            lbl = QLabel("Nenhum filtro por coluna aplicado.")
-            lbl.setWordWrap(True)
-            target_layout.addWidget(lbl)
-            target_layout.addStretch()
-            self._column_filter_inputs = {}
-            self._column_filter_labels = {}
-            self._pending_filter_focus = None
-            self._update_col_filter_indicator()
-            return
-
-
-        for col, term in self._active_column_filters.items():
-            # Pula linhas ocultas (removidas da exibição)
-            if hasattr(self, '_hidden_column_filter_lines') and col in self._hidden_column_filter_lines:
-                continue
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(4)
-            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
-            name_lbl = QLabel(full_name)
-            self._column_filter_labels[col] = name_lbl
-            name_lbl.setMinimumWidth(100)
-            try:
-                name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            # Exibe 'OU' no campo (apenas visual). Internamente continuamos usando vírgulas.
-            try:
-                display_text = self._format_column_filter_display_value(str(term), column=col)
-            except Exception:
-                display_text = str(term)
-            term_box = QLineEdit(display_text)
-            self._column_filter_inputs[col] = term_box
-            # Placeholder sem conectivos OU/AND — OR agora é dedicado
-            term_box.setPlaceholderText("Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
-            # Reduzido para garantir visibilidade dos botões em telas estreitas
-            term_box.setMinimumWidth(220)
-            try:
-                term_box.setMinimumHeight(26)
-            except Exception:
-                pass
-            try:
-                term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            self._apply_filter_widget_theme(name_lbl, term_box)
-            # Enter aplica o filtro desta coluna
-            try:
-                term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
-            except Exception:
-                pass
-            # Botao Aplicar atualiza o filtro com o texto da caixa
-            apply_btn = QPushButton("Aplicar")
-            try:
-                apply_btn.setMinimumHeight(26)
-            except Exception:
-                pass
-            try:
-                apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            try:
-                apply_btn.setFixedWidth(72)
-            except Exception:
-                pass
-            def _mk_apply(c=col, tb=term_box):
-                def _inner():
-                    # Simplified: use text directly (comma-separated terms = OR logic)
-                    new_text = str(tb.text()).strip()
-                    self._active_column_filters[c] = new_text
-                    self._sync_or_group_values(c, new_text)
-                    self._mark_profile_as_custom()
-                    self._build_column_filters_panel()
-                    self._refresh_after_filter_change()
-                return _inner
-            apply_btn.clicked.connect(_mk_apply())
-            # Botão para remover a linha da exibição (não altera o valor do filtro)
-            clear_btn = QPushButton("Remover")  # Corrigido capitalização
-            try:
-                clear_btn.setMinimumHeight(26)
-            except Exception:
-                pass
-            try:
-                clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
-            try:
-                clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
-            except Exception:
-                pass
-            
-            def _mk_remove_line(c=col):
-                def _inner():
-                    try:
-                        self._hidden_column_filter_lines.add(c)
-                    except Exception:
-                        self._hidden_column_filter_lines = {c}
-                    # Não altera self._active_column_filters[c]
-                    self._build_column_filters_panel()
-                    # Não refiltra; apenas exibição
-                return _inner
-            try:
-                clear_btn.clicked.connect(_mk_remove_line())
-            except Exception:
-                pass
-            # Oculta o botão para colunas fixas que não devem ser removidas da exibição
-            try:
-                fixed_cols = {"descricao_ssa", "setor_executor", "situacao", "localizacao_codigo", "descricao_localizacao"}
-                if col in fixed_cols:
-                    clear_btn.setVisible(False)
-            except Exception:
-                pass
-            row.addWidget(name_lbl)
-            row.addWidget(term_box, 1)
-            row.addWidget(apply_btn)
-            row.addWidget(clear_btn)
-            # Layout order: label, input, Aplicar, Remover (OU button removed - only commas needed)
-            row_w = QWidget()
-            row_w.setLayout(row)
-            target_layout.addWidget(row_w)
-
-        self._update_col_filter_indicator()
-        focus_col = self._pending_filter_focus
-        if focus_col and focus_col in self._column_filter_inputs:
-            try:
-                widget = self._column_filter_inputs[focus_col]
-                widget.setFocus()
-                widget.selectAll()
-            except Exception:
-                pass
-        self._pending_filter_focus = None
-        self._refresh_column_filter_widgets()
-        # Botção limpar todos
-        # Rodape centralizado (se nao houver barra fixa)
-        if not hasattr(self, 'clear_all_btn'):
-            clear_all = QPushButton("Limpar todos filtros de colunas")
-            clear_all.setMaximumWidth(260)
-            clear_all.clicked.connect(self._clear_all_column_filters)
-            footer = QHBoxLayout()
-            footer.addStretch()
-            footer.addWidget(clear_all)
-            footer.addStretch()
-            row_w = QWidget()
-            row_w.setLayout(footer)
-            target_layout.addWidget(row_w)
-        target_layout.addStretch()
-
-
-    def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
-        theme = getattr(self, '_current_theme', '') or 'dark'
-        roles = get_theme_roles(theme)
-        label_color = roles.get('support_text_color') or roles.get('label_color')
-        if label_widget is not None:
-            label_widget.setStyleSheet(f'color:{label_color};')
-        if input_widget is not None:
-            input_text = roles.get('input_text')
-            input_bg = roles.get('input_bg')
-            input_border = roles.get('input_border')
-            input_focus = roles.get('input_border_focus') or roles.get('accent')
-            input_placeholder = roles.get('input_placeholder')
-            style = (
-                f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
-                f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
-                f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
-            )
-            input_widget.setStyleSheet(style)
-
-    def _refresh_column_filter_widgets(self):
-        labels = getattr(self, '_column_filter_labels', {}) or {}
-        inputs = getattr(self, '_column_filter_inputs', {}) or {}
-        for col, label in labels.items():
-            self._apply_filter_widget_theme(label, inputs.get(col))
-    def _clear_single_column_filter(self, col_name: str, current_text: str = None):
-        if col_name in self._active_column_filters:
-            # Se já está vazio e o campo também está vazio, não faz nada
-            try:
-                if str(self._active_column_filters.get(col_name, '')).strip() == '' and (current_text is None or str(current_text).strip() == ''):
-                    return
-            except Exception:
-                pass
-            if col_name in self._column_to_or_group:
-                self._sync_or_group_values(col_name, "")
-            elif col_name in self._active_column_filters:
-                self._active_column_filters[col_name] = ""
-            self._mark_profile_as_custom()
-            self._build_column_filters_panel()
-            self._refresh_after_filter_change()
-
-    def _clear_all_column_filters(self):
-        if self._active_column_filters:
-            for group in getattr(self, '_column_or_groups', []):
-                group['values'] = []
-                for col in group.get('columns', []):
-                    self._active_column_filters[col] = ""
-            for col in list(self._active_column_filters.keys()):
-                if col not in self._column_to_or_group:
-                    self._active_column_filters[col] = ""
-            # Restaura linhas ocultas apenas na exibição
-            try:
-                self._hidden_column_filter_lines.clear()
-            except Exception:
-                self._hidden_column_filter_lines = set()
-            # Limpa também o texto dedicado de OR (somente exibição)
-            self._dedicated_or_text = ''
-            self._mark_profile_as_custom()
-            self._build_column_filters_panel()
-            self._refresh_after_filter_change()
-
-    def _on_exclude_ste_sca_toggled(self, checked: bool):
-        self._exclude_ste_sca = bool(checked)
-        self._mark_profile_as_custom()
-        self._refresh_after_filter_change()
-
-    def _clear_all_filters_global(self):
-        """Limpa todos os filtros: busca geral + filtros de coluna"""
-        # Limpar filtro de busca geral
-        self.search_input.clear()
-        self._df_last_search_filtered = pd.DataFrame()
-
-        # Limpar todos os filtros de coluna
-        if self._active_column_filters:
-            self._active_column_filters.clear()
-            for k in ("situacao", "setor_executor", "descricao_ssa"):
-                self._active_column_filters[k] = ""
-
-        # Resetar para dataset completo
-        self.df_exibido = self.df_completo.copy()
-        self.paginator.set_dataframe(self.df_exibido)
-        self.display_current_page(1)
-        # Restaura linhas ocultas e limpa Filtro OU dedicado (exibição)
-        try:
-            self._hidden_column_filter_lines.clear()
-        except Exception:
-            self._hidden_column_filter_lines = set()
-        self._dedicated_or_text = ''
-        self._build_column_filters_panel()
-        self._update_col_filter_indicator()
-
-        # Atualizar interface
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas. Pronto para filtrar.")
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(False)
-
-        # Atualizar resumo de filtros
-        self._update_filters_summary()
-
-    def _update_filters_summary(self):
-        """Atualiza o resumo de filtros ativos na interface"""
-        # Coleta filtros ativos
-        active_filters = []
-
-        # Filtro de busca geral
-        if hasattr(self, 'search_input') and self.search_input.text().strip():
-            active_filters.append(f"Busca: '{self.search_input.text().strip()}'")
-
-        def _display_name(col: str) -> str:
-            if col == 'setor_executor':
-                return 'Executor'
-            if col == 'setor_emissor':
-                return 'Emissor'
-            if col == 'descricao_ssa':
-                return 'Descricao da SSA'
-            if col == 'situacao':
-                return 'Situacao'
-            return self.internal_to_display.get(col, col.replace('_', ' ').title())
-
-        # Filtro OU dedicado (exibição)
-        or_text = str(getattr(self, '_dedicated_or_text', '') or '').strip()
-        if or_text:
-            active_filters.append(f"Filtro OU: {self._format_column_filter_display_value(or_text)}")
-
-        # Filtros de coluna (exibição)
-        if hasattr(self, '_active_column_filters') and self._active_column_filters:
-            processed_groups = set()
-            for group in getattr(self, '_column_or_groups', []):
-                if not group.get('values'):
-                    continue
-                gid = id(group)
-                processed_groups.add(gid)
-                columns = group.get('columns', [])
-                if set(columns) == {'setor_executor', 'setor_emissor'}:
-                    label = 'Executor ou Emissor (OU)'
-                else:
-                    label = f"{' ou '.join(_display_name(c) for c in columns)} (OU)"
-                values_txt = self._format_column_filter_display_value(', '.join(group.get('values', [])))
-                if values_txt:
-                    active_filters.append(f"{label}: {values_txt}")
-
-            for col_name, filter_value in self._active_column_filters.items():
-                if col_name in self._column_to_or_group:
-                    continue
-                normalized_value = self._format_column_filter_display_value(str(filter_value), column=col_name)
-                if not normalized_value:
-                    continue
-                active_filters.append(f"{_display_name(col_name)}: {normalized_value}")
-
-        if getattr(self, '_exclude_ste_sca', False):
-            active_filters.append("situacao≠{STE,SCA}")
-
-        # Monta texto do resumo
-        if active_filters:
-            summary_text = "Filtros ativos: " + "; ".join(active_filters)
-        else:
-            summary_text = "Nenhum filtro ativo"
-
-        # Atualiza label de resumo principal
-        if hasattr(self, 'filters_summary_label'):
-            self.filters_summary_label.setText(summary_text)
-
-    def _format_column_filter_display_value(self, raw: str, *, column: str | None = None) -> str:
-        """Normaliza um valor de filtro de coluna para exibicao consistente.
-
-        SIMPLIFIED: No logical operators - just comma-separated terms.
-        - Splits by commas only
-        - Removes extra spaces
-        - Maintains markers (^, $, =, ~, !) in tokens
-        - Applies optional column aliases for display
-        - Returns comma-separated terms (OR logic implicit)
-        """
-        if not raw:
-            return ""
-        try:
-            text = str(raw).strip()
-            # Remove extra spaces
-            import re as _re
-            text = _re.sub(r'\s+', ' ', text).strip()
-            # Split by commas only
-            tokens = [t.strip() for t in text.split(',') if t.strip()]
-            # Apply optional display aliases per column
-            if tokens:
-                alias_map = self._get_filter_alias_map()
-                mapped: list[str] = []
-                col_map = None
-                if column and isinstance(alias_map, dict):
-                    col_map = alias_map.get(column) or alias_map.get(column.lower())
-                global_map = alias_map.get('_global') if isinstance(alias_map, dict) else None
-                for tok in tokens:
-                    key = tok.casefold()
-                    new_tok = None
-                    if isinstance(col_map, dict):
-                        new_tok = col_map.get(key) or col_map.get(tok)
-                    if new_tok is None and isinstance(global_map, dict):
-                        new_tok = global_map.get(key) or global_map.get(tok)
-                    mapped.append(new_tok if isinstance(new_tok, str) and new_tok.strip() else tok)
-                tokens = mapped
-            # Display as comma-separated (OR logic)
-            return ', '.join(tokens)
-        except Exception:
-            # Fallback: display raw, trimmed
-            return str(raw).strip()
-
-    def _get_filter_alias_map(self) -> dict:
-        """Carrega mapeamento opcional de aliases para exibição de filtros de coluna.
-        Estrutura esperada (config/filter_aliases.json):
-        {
-          "_global": { "ste": "STE" },
-          "setor_executor": { "svp": "S/P" }
-        }
-        Chaves de lookup aceitam minúsculas (casefold). Retorna {} se ausente/erro.
-        """
-        if hasattr(self, '_filter_alias_map') and isinstance(self._filter_alias_map, dict):
-            return self._filter_alias_map
-        try:
-            cfg_path = os.path.join(project_root, 'config', 'filter_aliases.json')
-            if os.path.exists(cfg_path):
-                with open(cfg_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                # Normaliza apenas para dict
-                if isinstance(data, dict):
-                    self._filter_alias_map = data
-                    return self._filter_alias_map
-        except Exception:
-            pass
-        self._filter_alias_map = {}
-        return self._filter_alias_map
-
     def toggle_theme_menu(self):
         from PyQt6.QtWidgets import QMenu
         from functools import partial
@@ -2481,7 +1244,19 @@ class SSAMainWindow(QMainWindow):
             pass
 
     def apply_theme(self, name: str):
-        # get_palette ja importado no topo; fallback silencioso se falhar
+        """
+        Apply theme to the entire application and all widgets.
+
+        This method is organized into clear sections for easy maintenance.
+        See temp/THEME_ROLES_MAPPING.md for mapping of theme roles to widgets.
+
+        Args:
+            name: Theme name (will be normalized: 'dark', 'grayscale', 'gruvbox', etc.)
+        """
+        # ============================================================
+        # SECTION 1: Theme Setup and Palette Loading
+        # ============================================================
+        # Normalize theme name and load QPalette from utils.themes
         normalized = normalize_theme(name)
         try:
             from PyQt6.QtWidgets import QApplication, QStyleFactory
@@ -2514,25 +1289,7 @@ class SSAMainWindow(QMainWindow):
                 app.setPalette(pal)
                 # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
                 try:
-                    from PyQt6.QtGui import QPalette as _QPal
-                    win = pal.color(_QPal.ColorRole.Window).name()
-                    wtxt = pal.color(_QPal.ColorRole.WindowText).name()
-                    base = pal.color(_QPal.ColorRole.Base).name()
-                    text = pal.color(_QPal.ColorRole.Text).name()
-                    mid = pal.color(_QPal.ColorRole.Mid).name()
-                    hi = pal.color(_QPal.ColorRole.Highlight).name()
-                    hitxt = pal.color(_QPal.ColorRole.HighlightedText).name()
-                    ttbase = pal.color(_QPal.ColorRole.ToolTipBase).name()
-                    tttext = pal.color(_QPal.ColorRole.ToolTipText).name()
-                    block = (
-                        "/* SSA_THEME_QSS_START */\n"
-                        f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}\n"
-                        f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}\n"
-                        f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}\n"
-                        f"QToolTip {{ background-color: {ttbase}; color: {tttext}; border:1px solid {mid}; }}\n"
-                        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; }}\n"
-                        "/* SSA_THEME_QSS_END */"
-                    )
+                    block = build_global_widget_qss(pal)
                     existing_qss = app.styleSheet() or ""
                     start = existing_qss.find("/* SSA_THEME_QSS_START */")
                     end = existing_qss.find("/* SSA_THEME_QSS_END */")
@@ -2549,6 +1306,11 @@ class SSAMainWindow(QMainWindow):
         except Exception:  # noqa: BLE001
             pal = get_palette(normalized)
             self.setPalette(pal)
+
+        # ============================================================
+        # SECTION 2: Application-Wide Widget Settings
+        # ============================================================
+        # Set central widget background and table header styling
         # Ensure central widget background matches the palette to avoid white boxes
         try:
             central = self.centralWidget()
@@ -2565,11 +1327,7 @@ class SSAMainWindow(QMainWindow):
                 normalized_name = normalize_theme(normalized)
                 if normalized_name in {'gruvbox', 'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
                     bg = pal.window().color().name()
-                    block = (
-                        "/* SSA_MAIN_BG_START */\n"
-                        f"QWidget {{ background-color: {bg}; }}\n"
-                        "/* SSA_MAIN_BG_END */"
-                    )
+                    block = build_central_widget_qss(bg)
                     new_css = existing
                     if new_css:
                         if not new_css.endswith("\n"):
@@ -2587,7 +1345,12 @@ class SSAMainWindow(QMainWindow):
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
         except Exception:
             pass
-        # Ajustes de contraste por tema para rotulos informativos
+
+        # ============================================================
+        # SECTION 3: Extract Theme Color Roles
+        # ============================================================
+        # Load all color roles from theme for widget styling
+        # These variables are used in subsequent sections
         self._current_theme = normalized
         try:
             light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
@@ -2616,22 +1379,22 @@ class SSAMainWindow(QMainWindow):
             panel_text = roles.get('panel_text', txt)
             panel_border = roles.get('panel_border', input_border)
 
+            # ============================================================
+            # SECTION 4: Search Bar Components
+            # ============================================================
+            # Style the search label and search input field
             if hasattr(self, 'search_label'):
                 self.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
 
             if hasattr(self, 'search_input') and self.search_input is not None:
                 self.search_input.setStyleSheet(
-                    "QLineEdit {"
-                    f" color: {input_text}; background: {input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px;"
-                    " }"
-                    "QLineEdit::placeholder {"
-                    f" color: {input_placeholder};"
-                    " }"
-                    "QLineEdit:focus {"
-                    f" border:2px solid {input_focus};"
-                    " }"
+                    build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
                 )
 
+            # ============================================================
+            # SECTION 5: Details Panel
+            # ============================================================
+            # Style the SSA details text widget and its group box
             if hasattr(self, 'details_text'):
                 if normalized in light_themes:
                     self.details_text.setStyleSheet('')
@@ -2642,12 +1405,7 @@ class SSAMainWindow(QMainWindow):
                         " }"
                     )
 
-            group_css = (
-                "QGroupBox {"
-                f" color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 6px;"
-                " }"
-                "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
-            )
+            group_css = build_group_box_qss(panel_text, panel_border)
 
             if hasattr(self, 'details_group'):
                 if normalized in light_themes:
@@ -2655,12 +1413,20 @@ class SSAMainWindow(QMainWindow):
                 else:
                     self.details_group.setStyleSheet(group_css)
 
+            # ============================================================
+            # SECTION 6: Column Filters Panel
+            # ============================================================
+            # Style the column filters group box
             if hasattr(self, 'col_filters_group'):
                 if normalized in light_themes:
                     self.col_filters_group.setStyleSheet('')
                 else:
                     self.col_filters_group.setStyleSheet(group_css)
 
+            # ============================================================
+            # SECTION 7: Status and Week Labels
+            # ============================================================
+            # Style the week indicator and status bar label
             if hasattr(self, 'week_label'):
                 if normalized in light_themes:
                     self.week_label.setStyleSheet('')
@@ -2677,6 +1443,10 @@ class SSAMainWindow(QMainWindow):
                         f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
                     )
 
+            # ============================================================
+            # SECTION 8: Support Text and Indicators
+            # ============================================================
+            # Style help text and filter indicator labels
             if hasattr(self, 'search_help'):
                 css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
                 if hasattr(self, 'status_label'):
@@ -2689,6 +1459,10 @@ class SSAMainWindow(QMainWindow):
             if hasattr(self, 'col_filter_indicator'):
                 self.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
 
+            # ============================================================
+            # SECTION 9: Filters Summary
+            # ============================================================
+            # Style the summary label and frame showing active filters
             if hasattr(self, 'filters_summary_label'):
                 self.filters_summary_label.setStyleSheet(f"color:{summary_color};")
 
@@ -2699,6 +1473,10 @@ class SSAMainWindow(QMainWindow):
                     " }"
                 )
 
+            # ============================================================
+            # SECTION 10: Column Selector and Hints
+            # ============================================================
+            # Style the column selector widget and filter hints
             if selector is not None and hasattr(selector, 'summary_label'):
                 selector.summary_label.setStyleSheet(f"color:{indicator_color};")
 
@@ -2706,8 +1484,17 @@ class SSAMainWindow(QMainWindow):
                 self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
         except Exception:
             pass
+
+        # ============================================================
+        # SECTION 11: Dynamic Column Filter Widgets
+        # ============================================================
+        # Refresh all dynamically created column filter input widgets
         self._refresh_column_filter_widgets()
-        # Persistencia
+
+        # ============================================================
+        # SECTION 12: Persistence and Platform Adjustments
+        # ============================================================
+        # Save theme preference and apply macOS-specific contrast fixes
         try:
             # Persistencia simples do tema sem normalizacao adicional
             GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalized
@@ -2716,155 +1503,6 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
         self._apply_macos_contrast(normalized)
-
-    def _update_col_filter_indicator(self):
-        # Ativo quando existe ao menos um termo não vazio em filtros por coluna
-        active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
-        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Não ativo"
-        if hasattr(self, 'col_filter_indicator'):
-            self.col_filter_indicator.setText(txt)
-
-    def show_filter_help(self):
-        try:
-            dlg = FilterHelpDialog(self)
-            dlg.exec()
-        except Exception:
-            # Em ambientes sem GUI completa, ignore
-            pass
-
-    def _collect_profile_columns(self, profiles: dict) -> list:
-        cols = []
-        for profile_data in profiles.values():
-            if isinstance(profile_data, dict):
-                all_section = profile_data.get('all') if isinstance(profile_data.get('all'), dict) else None
-                if all_section:
-                    for col_name in all_section.keys():
-                        if col_name not in cols:
-                            cols.append(col_name)
-                any_section = profile_data.get('any') if isinstance(profile_data.get('any'), list) else None
-                if any_section:
-                    for group in any_section:
-                        columns = group.get('columns') if isinstance(group, dict) else None
-                        if isinstance(columns, list):
-                            for col_name in columns:
-                                if col_name not in cols:
-                                    cols.append(col_name)
-                # Suporte legado: simples dict coluna->valor
-                if not (all_section or any_section):
-                    for col_name in profile_data.keys():
-                        if col_name not in cols:
-                            cols.append(col_name)
-            elif isinstance(profile_data, list):
-                for col_name in profile_data:
-                    if isinstance(col_name, str) and col_name not in cols:
-                        cols.append(col_name)
-        return cols
-
-    def _initialize_profile_filter_placeholders(self):
-        """Garante que colunas monitoradas tenham entradas nas estruturas de filtro."""
-        if not isinstance(self._active_column_filters, OrderedDict):
-            self._active_column_filters = OrderedDict(self._active_column_filters or {})
-        for col in self._profile_columns:
-            if col not in self._active_column_filters:
-                self._active_column_filters[col] = ""
-        # Garante linhas iniciais úteis mesmo sem perfil aplicado
-        for default_col in ("setor_executor", "setor_emissor", "descricao_ssa"):
-            if default_col not in self._active_column_filters:
-                self._active_column_filters[default_col] = ""
-
-    def _reset_or_groups(self):
-        self._column_or_groups = []
-        self._column_to_or_group = {}
-
-    def _register_or_group(self, columns: list, values: list):
-        normalized_columns = [c for c in (columns or []) if isinstance(c, str) and c]
-        normalized_values = [str(v).strip() for v in (values or []) if str(v).strip()]
-        if not normalized_columns:
-            return None
-        group = {
-            'columns': normalized_columns,
-            'values': normalized_values,
-        }
-        self._column_or_groups.append(group)
-        for col in normalized_columns:
-            self._column_to_or_group[col] = group
-        return group
-
-    def _sync_or_group_values(self, column: str, text: str):
-        """Syncs filter values across columns in same OR group.
-
-        SIMPLIFIED: No logical operators - just comma-separated terms.
-        """
-        group = self._column_to_or_group.get(column)
-        if not group:
-            return
-        normalized = str(text or '').strip()
-        # Remove extra spaces, semicolons
-        normalized = normalized.replace(';', ',')
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
-        # Split by commas only
-        tokens = [token.strip() for token in normalized.split(',') if token.strip()]
-        group['values'] = tokens
-        # Store internally as comma-separated list (OR logic)
-        common_text = ', '.join(tokens)
-        for col in group['columns']:
-            self._active_column_filters[col] = common_text
-
-    def _apply_column_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Aplica todos os filtros por coluna com as mesmas regras de busca (prefixo ^, sufixo $, =exato, ~regex, !neg)."""
-        if df is None or df.empty or not self._active_column_filters:
-            return df
-        working_df = df
-        mask = pd.Series(True, index=working_df.index)
-        for col, raw in self._active_column_filters.items():
-            if col not in working_df.columns:
-                continue
-            raw_str = str(raw).strip()
-            if not raw_str:
-                continue
-            col_series = working_df[col].astype(str)
-            mask &= self._build_column_mask(col_series, raw_str)
-
-        if mask.all():
-            return working_df
-        return working_df[mask]
-
-    def _refresh_after_filter_change(self):
-        """Reaplica filtros de coluna, atualiza tabela e indicadores."""
-        base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
-        filtered = self._apply_column_filters(base)
-        if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
-            try:
-                mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
-                filtered = filtered[mask]
-            except Exception:
-                pass
-        self.df_exibido = filtered
-        self.paginator.set_dataframe(self.df_exibido)
-        try:
-            current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
-            self.display_current_page(current)
-        except Exception:
-            (lambda cp=max(1, min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1))): self.display_current_page(cp))()
-        self._update_col_filter_indicator()
-        try:
-            self._update_filters_summary()
-        except Exception:
-            pass
-
-    def _apply_search_display(self):
-        display_text = getattr(self, '_pending_search_display', None)
-        if display_text is None:
-            return
-        try:
-            self.search_input.blockSignals(True)
-            if display_text:
-                self.search_input.setText(display_text)
-            else:
-                self.search_input.clear()
-        finally:
-            self.search_input.blockSignals(False)
-        self._pending_search_display = None
 
     def _apply_macos_contrast(self, theme_name: str):
         if sys.platform != 'darwin':
@@ -2896,332 +1534,6 @@ class SSAMainWindow(QMainWindow):
                 central.setStyleSheet(new_qss)
         except Exception:
             pass
-
-    def _mark_profile_as_custom(self):
-        """Marca o perfil atual como personalizado quando filtros divergem."""
-        if getattr(self, '_profile_lock', False):
-            return
-        base = self._profile_base_filters or {}
-        base_columns = {k: str(v).strip() for k, v in (base.get('columns') or {}).items()}
-        base_groups = base.get('or_groups') or []
-        base_exclude = bool(base.get('exclude_ste_sca', False))
-
-        if self.current_filter_profile and self.current_filter_profile in self.filter_profiles:
-            mismatch = False
-            # Verifica colunas mapeadas
-            current_columns = {}
-            referenced_columns = set(base_columns.keys()) | set(self._active_column_filters.keys())
-            for col in referenced_columns:
-                if col in self._column_to_or_group:
-                    group = self._column_to_or_group.get(col)
-                    current_columns[col] = ', '.join(group.get('values', [])) if group else ''
-                else:
-                    current_columns[col] = str(self._active_column_filters.get(col, '')).strip()
-
-            for col, expected in base_columns.items():
-                if current_columns.get(col, '').strip() != expected:
-                    mismatch = True
-                    break
-
-            if not mismatch:
-                # Valores adicionais além do perfil base
-                for col, current in current_columns.items():
-                    if col not in base_columns and current.strip():
-                        mismatch = True
-                        break
-
-            if not mismatch:
-                # Compara grupos OR
-                def _group_repr(group):
-                    cols = tuple(group.get('columns', ()))
-                    vals = tuple(group.get('values', ()))
-                    return (cols, vals)
-
-                current_groups = sorted(_group_repr(g) for g in getattr(self, '_column_or_groups', []))
-                expected_groups = sorted(_group_repr({'columns': g.get('columns', ()), 'values': g.get('values', ())}) for g in base_groups)
-                if current_groups != expected_groups:
-                    mismatch = True
-
-            if not mismatch and base_exclude != bool(self._exclude_ste_sca):
-                mismatch = True
-
-            if not mismatch:
-                return
-        self.current_filter_profile = None
-        self._profile_base_filters = {}
-        selector = getattr(self, 'profile_selector', None)
-        if selector is not None:
-            idx = selector.findData(None)
-            if idx >= 0 and selector.currentIndex() != idx:
-                self._profile_lock = True
-                try:
-                    selector.setCurrentIndex(idx)
-                finally:
-                    self._profile_lock = False
-
-    def _apply_filter_profile(self, profile_name, update_selector=True, refresh=True):
-        """Aplica filtros pré-configurados de setor."""
-        if not profile_name or profile_name not in self.filter_profiles:
-            # Fallback ad-hoc: permite strings como "IEE3 + MEL3 + MEL4" para grupo Executor/Emissor
-            try:
-                import re as _re
-                raw = str(profile_name)
-                tokens = [_t.strip() for _t in _re.split(r"[+,]", raw) if _t and _t.strip()]
-                if tokens:
-                    self._reset_or_groups()
-                    self._register_or_group(['setor_executor', 'setor_emissor'], tokens)
-                    # Garante colunas monitoradas
-                    for _col in ('setor_executor', 'setor_emissor'):
-                        if _col not in self._profile_columns:
-                            self._profile_columns.append(_col)
-                    # Define filtros subjacentes separados por vírgulas (lógica)
-                    new_filters = OrderedDict(self._active_column_filters or {})
-                    for _col in ('setor_executor', 'setor_emissor'):
-                        new_filters[_col] = ', '.join(tokens)
-                    self._active_column_filters = new_filters
-                    # Base do perfil para marcação de personalizado
-                    self._profile_base_filters = {
-                        'columns': {c: new_filters.get(c, '') for c in ('setor_executor', 'setor_emissor')},
-                        'or_groups': [{'columns': ('setor_executor', 'setor_emissor'), 'values': tuple(tokens)}],
-                        'exclude_ste_sca': bool(self._exclude_ste_sca),
-                    }
-                    self._build_column_filters_panel()
-                    if refresh:
-                        self._refresh_after_filter_change()
-                return
-            except Exception:
-                return
-        profile_def = self.filter_profiles.get(profile_name) or {}
-        def normalize_values(value) -> list:
-            if isinstance(value, list):
-                return [str(v).strip() for v in value if str(v).strip()]
-            if isinstance(value, str):
-                return [value.strip()] if value.strip() else []
-            if value is None:
-                return []
-            text = str(value).strip()
-            return [text] if text else []
-
-        normalized_columns = OrderedDict()
-        normalized_groups = []
-        self._reset_or_groups()
-
-        if isinstance(profile_def, dict):
-            all_section = profile_def.get('all') if isinstance(profile_def.get('all'), dict) else None
-            if all_section:
-                for col, value in all_section.items():
-                    values_list = normalize_values(value)
-                    normalized_columns[col] = ', '.join(values_list) if values_list else ''
-                    if col not in self._profile_columns:
-                        self._profile_columns.append(col)
-            any_section = profile_def.get('any') if isinstance(profile_def.get('any'), list) else None
-            if any_section:
-                for group in any_section:
-                    if not isinstance(group, dict):
-                        continue
-                    columns = group.get('columns') if isinstance(group.get('columns'), list) else None
-                    values_list = normalize_values(group.get('values'))
-                    registered = self._register_or_group(columns, values_list)
-                    if registered:
-                        display_values = ', '.join(registered['values'])
-                        for col in registered['columns']:
-                            normalized_columns[col] = display_values
-                        for col in registered['columns']:
-                            if col not in self._profile_columns:
-                                self._profile_columns.append(col)
-                        normalized_groups.append({
-                            'columns': tuple(registered['columns']),
-                            'values': tuple(registered['values'])
-                        })
-            if not all_section and 'any' not in profile_def:
-                for col, value in profile_def.items():
-                    values_list = normalize_values(value)
-                    normalized_columns[col] = ', '.join(values_list) if values_list else ''
-                    if col not in self._profile_columns:
-                        self._profile_columns.append(col)
-        else:
-            values_list = normalize_values(profile_def)
-            if values_list:
-                normalized_columns['situacao'] = ', '.join(values_list)
-                if 'situacao' not in self._profile_columns:
-                    self._profile_columns.append('situacao')
-
-        self._profile_lock = True
-        try:
-            self.current_filter_profile = profile_name
-            new_filters = OrderedDict()
-            for col in self._profile_columns:
-                new_filters[col] = ""
-            for col, text in normalized_columns.items():
-                if col not in new_filters:
-                    new_filters[col] = text
-                else:
-                    new_filters[col] = text
-            for group in self._column_or_groups:
-                group_text = ', '.join(group.get('values', []))
-                for col in group.get('columns', []):
-                    if col not in new_filters:
-                        new_filters[col] = group_text
-                    else:
-                        new_filters[col] = group_text
-            self._active_column_filters = new_filters
-            # Garante consistência das strings dos grupos OR (subjacente em vírgulas)
-            for group in self._column_or_groups:
-                display_group = ', '.join(group.get('values', []))
-                for col in group.get('columns', []):
-                    self._active_column_filters[col] = display_group
-            self._profile_base_filters = {
-                'columns': {col: new_filters.get(col, '').strip() for col in new_filters},
-                'or_groups': normalized_groups,
-                'exclude_ste_sca': bool(self._exclude_ste_sca)
-            }
-            if update_selector and getattr(self, 'profile_selector', None) is not None:
-                idx = self.profile_selector.findData(profile_name)
-                if idx >= 0 and self.profile_selector.currentIndex() != idx:
-                    self.profile_selector.setCurrentIndex(idx)
-        finally:
-            self._profile_lock = False
-        self._build_column_filters_panel()
-        if refresh:
-            self._refresh_after_filter_change()
-
-    def _apply_initial_filter_profile(self):
-        """Seleciona e aplica o perfil inicial definido em configuração."""
-        selector = getattr(self, 'profile_selector', None)
-        if selector is None:
-            return
-        initial_profile = self.default_filter_profile if self.default_filter_profile in self.filter_profiles else None
-        if not initial_profile and self.filter_profiles:
-            initial_profile = next(iter(self.filter_profiles.keys()))
-        if initial_profile:
-            self._apply_filter_profile(initial_profile, update_selector=True, refresh=False)
-        else:
-            idx = selector.findData(None)
-            if idx >= 0:
-                self._profile_lock = True
-                try:
-                    selector.setCurrentIndex(idx)
-                finally:
-                    self._profile_lock = False
-        self._build_column_filters_panel()
-        self._refresh_after_filter_change()
-
-    def on_profile_changed(self, index):
-        """Callback ao trocar o perfil de filtros por setor."""
-        if getattr(self, '_profile_lock', False):
-            return
-        selector = getattr(self, 'profile_selector', None)
-        if selector is None:
-            return
-        profile_name = selector.itemData(index)
-        if profile_name:
-            self._apply_filter_profile(profile_name, update_selector=False)
-        else:
-            self.current_filter_profile = None
-            self._profile_base_filters = {}
-
-    def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
-        # Divide SOMENTE por vírgulas; não há conectivos especiais aqui.
-        normalized = str(raw)
-        tokens = [t.strip() for t in normalized.split(',') if t.strip()]
-        if not tokens:
-            return pd.Series([True]*len(series), index=series.index)
-
-        # Determina modo padrao a partir das preferencias
-        if not hasattr(self, '_cached_default_mode'):
-            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
-        default_mode = self._cached_default_mode
-
-        def match_token(s: pd.Series, token: str) -> pd.Series:
-            neg = token.startswith('!')
-            t = token[1:] if neg else token
-            # VAZIOS/NULL: aceita NULL ou =NULL (case-insensitive)
-            if t.upper() in ('NULL', '=NULL'):
-                # Considera nulos, strings vazias e '-'
-                res = s.isna() | (s.str.strip().eq('', na=False)) | (s == '-')
-                return ~res if neg else res
-            # Regex explácito
-            if t.startswith('~') and len(t) > 1:
-                try:
-                    import re
-                    pat = re.compile(t[1:], re.IGNORECASE)
-                    res = s.str.contains(pat, na=False)
-                except Exception:
-                    res = s.str.contains(t[1:], case=False, na=False)
-            elif t.startswith('='):
-                res = s.str.casefold().eq(t[1:].casefold())
-            elif t.startswith('^'):
-                res = s.str.casefold().str.startswith(t[1:].casefold())
-            elif t.endswith('$'):
-                res = s.str.casefold().str.endswith(t[:-1].casefold())
-            else:
-                if default_mode == 'prefix':
-                    res = s.str.casefold().str.startswith(t.casefold())
-                elif default_mode == 'suffix':
-                    res = s.str.casefold().str.endswith(t.casefold())
-                elif default_mode == 'exact':
-                    res = s.str.casefold().eq(t.casefold())
-                elif default_mode == 'regex':
-                    try:
-                        import re
-                        pat = re.compile(t, re.IGNORECASE)
-                        res = s.str.contains(pat, na=False)
-                    except Exception:
-                        res = s.str.contains(t, case=False, na=False)
-                else:  # contains
-                    res = s.str.contains(t, case=False, na=False)
-            return ~res if neg else res
-
-    # OR entre inclusões no MESMO CAMPO; exclusões (com !) removem
-        includes = [tok for tok in tokens if not tok.startswith('!')]
-        excludes = [tok for tok in tokens if tok.startswith('!')]
-
-        if includes:
-            m = match_token(series, includes[0])
-            for tok in includes[1:]:
-                m = m | match_token(series, tok)
-        else:
-            m = pd.Series([True]*len(series), index=series.index)
-        for tok in excludes:
-            m = m & match_token(series, tok)
-        return m
-
-    # --- Helpers: Busca Geral com suporte a OR/AND amigável ---
-
-    def _split_search_expression(self, text: str) -> list[str]:
-        # Simplified: General search uses ONLY AND logic (commas separate terms)
-        # No OR/OU splitting - returns single chunk containing all terms
-        if not text:
-            return []
-        # Return text as single chunk - will be split by commas in _normalize_chunk_for_parse
-        return [text.strip()] if text.strip() else []
-
-    def _normalize_chunk_for_parse(self, chunk: str) -> list[str]:
-        # Simplified: Split ONLY by commas (no AND/E/OR/OU keywords)
-        # User enters terms separated by commas - all terms are required (AND logic)
-        if not chunk:
-            return []
-        cleaned = str(chunk).strip()
-        # Replace em-dash and en-dash with regular dash for consistency
-        cleaned = cleaned.replace('–', '-').replace('—', '-')
-        # Split by commas only
-        tokens = [term.strip() for term in cleaned.split(',') if term.strip()]
-        return tokens
-
-    def _format_search_display(self, chunks: list[list[str]]) -> str:
-        """Formats search terms for display in search input.
-
-        SIMPLIFIED: Always single chunk (no OU splitting), comma-separated terms.
-        All terms are required (AND logic).
-        """
-        if not chunks:
-            return ""
-        # Since _split_search_expression now always returns single chunk,
-        # we always have chunks[0] with comma-separated terms
-        if chunks and chunks[0]:
-            return ', '.join(chunks[0])
-        return ""
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
@@ -3511,12 +1823,6 @@ class SSAMainWindow(QMainWindow):
         except Exception:
             pass
 
-    def filter_data(self):  # chama o fluxo novo de filtragem
-        try:
-            self.initiate_filtering()
-        except Exception:
-            pass
-
     def _force_column_widths(self):
         """Força reaplicaçção das larguras das colunas para garantir que sejam respeitadas."""
         if not hasattr(self, 'visible_columns') or not self.visible_columns:
@@ -3668,26 +1974,8 @@ class SSAMainWindow(QMainWindow):
             pass
 
     def _format_value_for_display(self, value, col=None):
-        """Formata valor removendo NaN/None/nan e aplicando formatacao especifica."""
-        # Remove valores nulos
-        if pd.isna(value) or value is None:
-            return ""
-
-        # Converte para string
-        text = str(value)
-
-        # Remove variacoes de nan/none
-        if text.lower() in ('nan', 'none', 'nat', '<na>'):
-            return ""
-
-        # Formatacao especifica por coluna
-        if col == 'numero_ssa':
-            try:
-                return str(int(float(text)))
-            except (ValueError, TypeError):
-                return text
-
-        return text.strip()
+        """Delegate to helper function."""
+        return format_value_for_display(value, col)
 
     def _get_current_search_terms(self):
         """Retorna lista de termos de busca atuais."""
@@ -3716,26 +2004,8 @@ class SSAMainWindow(QMainWindow):
         return clean_terms
 
     def _highlight_text(self, text, terms):
-        """Aplica highlight HTML nos termos encontrados no texto."""
-        if not text or not terms:
-            return text
-
-        # Escapar HTML
-        import html
-        text_escaped = html.escape(str(text))
-
-        # Aplicar highlight para cada termo
-        for term in terms:
-            if not term:
-                continue
-            # Case-insensitive search
-            pattern = re.compile(re.escape(term), re.IGNORECASE)
-            text_escaped = pattern.sub(
-                lambda m: f'<span style="background-color: {HIGHLIGHT_BACKGROUND_COLOR}; font-weight: {HIGHLIGHT_FONT_WEIGHT};">{m.group()}</span>',
-                text_escaped
-            )
-
-        return text_escaped
+        """Delegate to helper function."""
+        return highlight_text(text, terms, HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT)
 
     def _format_details_html(self, series, highlight_search_terms=False):
         """Formata dados da SSA como HTML com highlight opcional."""
@@ -3952,35 +2222,55 @@ class SSAMainWindow(QMainWindow):
                 self._save_column_width(internal_column, new_width)
 
     def rescan_data(self):
-        """Reprocessa os arquivos Excel executando o processo principal."""
-        self.status_label.setText("Status: Reescaneando dados...")
-        self.progress_bar.setVisible(True)
-        self.rescan_button.setEnabled(False)
+        """Reprocessa os arquivos Excel com feedback visual em tempo real."""
+        from gui.workers import RescanWorker
+        from gui.widgets import RescanProgressDialog
 
-        try:
-            # Executa o main.py para reprocessar dados
-            main_py_path = os.path.join(project_root, 'main.py')
-            if os.path.exists(main_py_path):
-                # Executa de forma assáncrona
-                result = subprocess.run([
-                    sys.executable, main_py_path
-                ], capture_output=True, text=True, cwd=project_root)
+        # Check if main.py exists
+        main_py_path = os.path.join(project_root, 'main.py')
+        if not os.path.exists(main_py_path):
+            QMessageBox.warning(self, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}")
+            return
 
-                if result.returncode == 0:
-                    self.status_label.setText("Status: Reescaneamento concluádo. Clique em 'Carregar Dados' para atualizar.")
-                    QMessageBox.information(self, "Sucesso", "Reescaneamento concluádo com sucesso!")
-                else:
-                    self.status_label.setText("Status: Erro no reescaneamento.")
-                    QMessageBox.warning(self, "Erro", f"Erro no reescaneamento:\n{result.stderr}")
-            else:
-                QMessageBox.warning(self, "Erro", f"Arquivo main.py nção encontrado em {main_py_path}")
+        # Create progress dialog
+        progress_dialog = RescanProgressDialog(self)
 
-        except Exception as e:
+        # Create and configure worker
+        worker = RescanWorker(main_py_path, project_root)
+
+        # Connect signals
+        worker.output_line.connect(progress_dialog.append_output)
+        worker.error_line.connect(progress_dialog.append_error)
+        worker.progress.connect(progress_dialog.update_progress)
+
+        def on_success():
+            progress_dialog.set_finished(True)
+            self.status_label.setText("Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar.")
+
+        def on_error(error_msg):
+            progress_dialog.set_finished(False, error_msg)
             self.status_label.setText("Status: Erro no reescaneamento.")
-            QMessageBox.critical(self, "Erro", f"Erro ao executar reescaneamento: {e}")
-        finally:
-            self.progress_bar.setVisible(False)
-            self.rescan_button.setEnabled(True)
+
+        worker.finished_success.connect(on_success)
+        worker.finished_error.connect(on_error)
+
+        # Handle dialog rejection (cancel button)
+        def on_dialog_rejected():
+            if worker.isRunning():
+                worker.stop()
+                worker.wait(2000)  # Wait up to 2 seconds
+                if worker.isRunning():
+                    worker.terminate()
+
+        progress_dialog.rejected.connect(on_dialog_rejected)
+
+        # Start worker and show dialog
+        worker.start()
+        progress_dialog.exec()
+
+        # Cleanup
+        if worker.isRunning():
+            worker.wait()
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no Windows Explorer."""
@@ -3993,7 +2283,7 @@ class SSAMainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
         else:
-            QMessageBox.warning(self, "Erro", f"Pasta nção encontrada: {docs_path}")
+            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
@@ -4016,103 +2306,11 @@ class SSAMainWindow(QMainWindow):
                     self.status_label.setText(f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}")
                     QMessageBox.information(self, "Sucesso", f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.")
                 else:
-                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nção contêm dados vãlidos na tabela 'ssas'.")
+                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela 'ssas'.")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
-        elif db_file:  # Arquivo selecionado mas nção existe
-            QMessageBox.warning(self, "Erro", "Arquivo selecionado nção existe.")
-
-    def load_persistent_filters(self):
-        """Carrega filtros persistentes salvos (inicia vazio)."""
-        self.persistent_filters = []
-        self.update_filter_tags()
-
-    def save_current_filter(self):
-        """Salva o filtro atual como persistente."""
-        current_text = self.search_input.text().strip()
-        if not current_text:
-            QMessageBox.information(self, "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
-            return
-
-        # Cria um nome baseado no filtro (limitado para exibiçção)
-        filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
-
-        # Verifica se jã existe
-        for f in self.persistent_filters:
-            if f["terms"] == current_text:
-                QMessageBox.information(self, "Aviso", "Este filtro jã estã salvo.")
-                return
-
-        # Adiciona novo filtro
-        new_filter = {"name": filter_name, "terms": current_text}
-        self.persistent_filters.append(new_filter)
-        self.persistent_filters.sort(key=lambda f: f["name"].casefold())
-        self.update_filter_tags()
-
-        QMessageBox.information(self, "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!")
-
-    def update_filter_tags(self):
-        """Atualiza as tags visuais dos filtros persistentes."""
-        # Remove tags existentes
-        for i in reversed(range(self.filter_tags_layout.count())):
-            child = self.filter_tags_layout.takeAt(i)
-            if child.widget():
-                child.widget().deleteLater()
-
-        roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
-        fg = roles.get('summary_text_color', self.palette().windowText().color().name())
-        border = roles.get('tag_border')
-        bg_normal = roles.get('tag_normal_bg')
-        bg_hover = roles.get('tag_hover')
-        bg_pressed = roles.get('tag_pressed')
-
-        tag_css = f"""
-            QPushButton {{
-                color: {fg};
-                background-color: {bg_normal};
-                border: 1px solid {border};
-                border-radius: 3px;
-                padding: 2px 8px;
-                font-size: 10px;
-            }}
-            QPushButton:hover {{
-                background-color: {bg_hover};
-            }}
-            QPushButton:pressed {{
-                background-color: {bg_pressed};
-            }}
-        """
-
-        # Adiciona novas tags
-        for filter_data in sorted(self.persistent_filters, key=lambda f: f["name"].casefold()):
-            tag_button = QPushButton(filter_data["name"])
-            tag_button.setMaximumHeight(25)
-            tag_button.setStyleSheet(tag_css)
-            tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
-            tag_button.clicked.connect(lambda checked, terms=filter_data["terms"]: self.apply_persistent_filter(terms))
-
-            # Botção X para remover
-            remove_button = QPushButton("X")
-            remove_button.setMaximumSize(20, 20)
-            remove_button.setStyleSheet(tag_css)
-            remove_button.setToolTip("Remover filtro")
-            remove_button.clicked.connect(lambda checked, filter_data=filter_data: self.remove_persistent_filter(filter_data))
-
-            # Layout horizontal para tag + botção remover
-            tag_layout = QHBoxLayout()
-            tag_layout.setContentsMargins(0, 0, 0, 0)
-            tag_layout.setSpacing(2)
-            tag_layout.addWidget(tag_button)
-            tag_layout.addWidget(remove_button)
-
-            tag_widget = QWidget()
-            tag_widget.setLayout(tag_layout)
-            self.filter_tags_layout.addWidget(tag_widget)
-
-    def apply_persistent_filter(self, terms):
-        """Aplica um filtro persistente."""
-        self.search_input.setText(terms)
-        self.initiate_filtering()
+        elif db_file:  # Arquivo selecionado mas nao existe
+            QMessageBox.warning(self, "Erro", "Arquivo selecionado nao existe.")
 
     def remove_persistent_filter(self, filter_data):
         """Remove um filtro persistente e atualiza imediatamente."""
