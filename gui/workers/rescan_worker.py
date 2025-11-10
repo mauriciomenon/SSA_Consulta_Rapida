@@ -3,22 +3,26 @@
 
 import os
 import sys
-import subprocess
-import threading
-import time
-from queue import Queue, Empty
+import logging
 from PyQt6.QtCore import QThread, pyqtSignal
+
+# Add project root to path for imports
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from core.app_logic import run_importer_logic
 
 
 class RescanWorker(QThread):
     """
     Worker thread to execute database rescan without blocking UI.
 
-    Uses threading to read stdout/stderr simultaneously (Windows compatible).
+    Calls run_importer_logic directly (modular approach) instead of subprocess.
 
     Signals:
-        output_line: Emitted for each line of stdout
-        error_line: Emitted for each line of stderr
+        output_line: Emitted for each line of output
+        error_line: Emitted for each line of errors
         progress: Emitted with progress updates
         finished_success: Emitted when completed successfully
         finished_error: Emitted when an error occurs
@@ -32,146 +36,116 @@ class RescanWorker(QThread):
 
     def __init__(self, main_py_path, project_root):
         super().__init__()
-        self.main_py_path = main_py_path
+        self.main_py_path = main_py_path  # Not used anymore but kept for compatibility
         self.project_root = project_root
         self._should_stop = False
 
-    def _enqueue_output(self, pipe, queue, pipe_name):
-        """Read lines from pipe and put in queue (runs in thread)."""
-        try:
-            for line in iter(pipe.readline, ''):
-                if line:
-                    queue.put((pipe_name, line.rstrip()))
-        except Exception as e:
-            queue.put((pipe_name, f"[ERRO lendo {pipe_name}: {e}]"))
-        finally:
-            pipe.close()
+        # Set up logging to capture import messages
+        self.log_handler = _LogHandler(self.output_line, self.error_line)
+        self.logger = logging.getLogger('ssa')
+        self.original_level = self.logger.level
+
+    def _progress_callback(self, event_type, data):
+        """Handle progress callbacks from run_importer_logic."""
+        if self._should_stop:
+            return
+
+        if event_type == 'start':
+            total = data.get('total', 0)
+            self.output_line.emit(f"Total de {total} arquivos para processar")
+            self.progress.emit(10, "Iniciando processamento...")
+
+        elif event_type == 'file_start':
+            filename = data.get('filename', '')
+            current = data.get('current', 0)
+            total = data.get('total', 1)
+            percentage = int(10 + (current / total * 70))  # 10% to 80%
+            self.output_line.emit(f"[{current}/{total}] Processando: {filename}")
+            self.progress.emit(percentage, f"Arquivo {current}/{total}")
+
+        elif event_type == 'file_success':
+            filename = data.get('filename', '')
+            records = data.get('records', 0)
+            self.output_line.emit(f"[OK] {filename}: {records} registros")
+
+        elif event_type == 'file_error':
+            filename = data.get('filename', '')
+            error = data.get('error', 'Unknown error')
+            self.error_line.emit(f"[ERRO] {filename}: {error}")
+
+        elif event_type == 'finish':
+            total = data.get('total', 0)
+            processed = data.get('processed', 0)
+            errors = data.get('errors', [])
+            self.output_line.emit("")
+            self.output_line.emit(f"Processamento concluido: {processed}/{total} arquivos")
+            if errors:
+                self.output_line.emit(f"Erros: {len(errors)} arquivos falharam")
+            self.progress.emit(90, "Finalizando...")
 
     def run(self):
-        """Execute rescan in background thread."""
+        """Execute rescan in background thread using modular import."""
         try:
-            self.output_line.emit("=== Iniciando Reescaneamento ===")
-            self.output_line.emit(f"Executando: {self.main_py_path}")
+            self.output_line.emit("=== Iniciando Reescaneamento (Modular) ===")
             self.output_line.emit("")
-            self.progress.emit(5, "Iniciando processo...")
+            self.progress.emit(5, "Configurando...")
 
-            # Execute main.py with real-time output streaming
-            process = subprocess.Popen(
-                [sys.executable, self.main_py_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                cwd=self.project_root,
-                universal_newlines=True
+            # Add log handler to capture import messages
+            self.logger.addHandler(self.log_handler)
+            self.logger.setLevel(logging.INFO)
+
+            # Call modular import function directly
+            success = run_importer_logic(
+                docs_dir='docs_entrada',
+                data_dir='data',
+                db_name='ssas.db',
+                table_name='ssa_table',
+                force_import=True,  # Rescan = force reimport
+                progress_callback=self._progress_callback
             )
 
-            # Create queue and threads to read stdout and stderr simultaneously
-            # This avoids deadlock and works on Windows
-            output_queue = Queue()
+            # Remove log handler
+            self.logger.removeHandler(self.log_handler)
+            self.logger.setLevel(self.original_level)
 
-            stdout_thread = threading.Thread(
-                target=self._enqueue_output,
-                args=(process.stdout, output_queue, 'stdout'),
-                daemon=True
-            )
-            stderr_thread = threading.Thread(
-                target=self._enqueue_output,
-                args=(process.stderr, output_queue, 'stderr'),
-                daemon=True
-            )
+            if self._should_stop:
+                self.finished_error.emit("Processo cancelado pelo usuario")
+                return
 
-            stdout_thread.start()
-            stderr_thread.start()
-
-            stdout_lines = []
-            stderr_lines = []
-            last_progress = 5
-
-            # Read output until process finishes
-            while True:
-                if self._should_stop:
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                    self.finished_error.emit("Processo cancelado pelo usuario")
-                    return
-
-                # Check if process has finished
-                retcode = process.poll()
-
-                # Read all available output from queue
-                has_output = False
-                try:
-                    while True:
-                        try:
-                            pipe_name, line = output_queue.get_nowait()
-                            has_output = True
-
-                            if pipe_name == 'stdout':
-                                self.output_line.emit(line)
-                                stdout_lines.append(line)
-
-                                # Update progress based on output
-                                if "Processando" in line or "Processing" in line:
-                                    last_progress = min(90, last_progress + 5)
-                                    self.progress.emit(last_progress, line[:50])
-                                elif "Importacao concluida" in line or "Import complete" in line:
-                                    self.progress.emit(95, "Importacao concluida")
-                                elif "arquivo" in line.lower() or "file" in line.lower():
-                                    last_progress = min(85, last_progress + 2)
-                                    self.progress.emit(last_progress, line[:50])
-
-                            elif pipe_name == 'stderr':
-                                self.error_line.emit(line)
-                                stderr_lines.append(line)
-
-                        except Empty:
-                            break
-
-                except Exception as e:
-                    self.error_line.emit(f"Erro ao ler saida: {e}")
-
-                # If process finished and no more output, exit
-                if retcode is not None and not has_output:
-                    # Give threads a moment to flush remaining output
-                    time.sleep(0.1)
-
-                    # Try one more time to get any remaining output
-                    try:
-                        while True:
-                            pipe_name, line = output_queue.get_nowait()
-                            if pipe_name == 'stdout':
-                                self.output_line.emit(line)
-                                stdout_lines.append(line)
-                            elif pipe_name == 'stderr':
-                                self.error_line.emit(line)
-                                stderr_lines.append(line)
-                    except Empty:
-                        pass
-
-                    break
-
-                # Small sleep to prevent busy waiting
-                time.sleep(0.05)
-
-            # Process finished
-            if retcode == 0:
+            if success:
                 self.progress.emit(100, "Concluido com sucesso")
                 self.output_line.emit("")
                 self.output_line.emit("=== Reescaneamento Concluido ===")
                 self.finished_success.emit()
             else:
-                error_msg = f"Processo terminou com erro (codigo {retcode})"
-                if stderr_lines:
-                    error_msg += f"\nUltimos erros:\n" + "\n".join(stderr_lines[-5:])
-                self.finished_error.emit(error_msg)
+                self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
 
         except Exception as e:
+            self.logger.removeHandler(self.log_handler)
+            self.logger.setLevel(self.original_level)
+            self.error_line.emit(f"Erro ao executar reescaneamento: {e}")
             self.finished_error.emit(f"Erro ao executar reescaneamento: {e}")
 
     def stop(self):
         """Request thread to stop."""
         self._should_stop = True
+
+
+class _LogHandler(logging.Handler):
+    """Custom log handler to emit logs to Qt signals."""
+
+    def __init__(self, output_signal, error_signal):
+        super().__init__()
+        self.output_signal = output_signal
+        self.error_signal = error_signal
+
+    def emit(self, record):
+        """Emit log record to appropriate signal."""
+        try:
+            msg = self.format(record)
+            if record.levelno >= logging.ERROR:
+                self.error_signal.emit(msg)
+            else:
+                self.output_signal.emit(msg)
+        except Exception:
+            pass  # Silently ignore errors in log handler

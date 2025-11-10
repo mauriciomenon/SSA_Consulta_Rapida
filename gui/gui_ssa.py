@@ -424,28 +424,28 @@ DETAIL_FIELD_PRIORITY = [
 ]
 
 DETAIL_DISPLAY_OVERRIDES = {
-    'situacao': 'Situação',
+    'situacao': 'Situacao',
     'semana_cadastro': 'Semana de Cadastro',
     'data_cadastro': 'Data de Cadastro',
-    'descricao_ssa': 'Descrição da SSA',
+    'descricao_ssa': 'Descricao da SSA',
     'setor_executor': 'Setor Executor',
     'setor_emissor': 'Setor Emissor',
     'solicitante': 'Solicitante',
-    'servico_origem': 'Serviço de Origem',
-    'grau_prioridade_emissao': 'Grau de Prioridade (Emissão)',
+    'servico_origem': 'Servico de Origem',
+    'grau_prioridade_emissao': 'Grau de Prioridade (Emissao)',
     'grau_prioridade_planejamento': 'Grau de Prioridade (Planejamento)',
-    'execucao_simples': 'Execução Simples',
-    'responsavel_programacao': 'Responsável pela Programação',
-    'responsavel_execucao': 'Responsável pela Execução',
+    'execucao_simples': 'Execucao Simples',
+    'responsavel_programacao': 'Responsavel pela Programacao',
+    'responsavel_execucao': 'Responsavel pela Execucao',
     'semana_programada': 'Semana Programada',
     'prazo_limite': 'Prazo Limite',
-    'tempo_disponivel': 'Tempo Disponível',
+    'tempo_disponivel': 'Tempo Disponivel',
     'data_limite': 'Data Limite',
     'tempo_excedido': 'Tempo Excedido',
-    'numero_ssa': 'Número da SSA',
-    'descricao_execucao': 'Descrição da Execução',
-    'status_execucao_prazo': 'Situação do Prazo',
-    'execucao_parcial': 'Execução Parcial',
+    'numero_ssa': 'Numero da SSA',
+    'descricao_execucao': 'Descricao da Execucao',
+    'status_execucao_prazo': 'Situacao do Prazo',
+    'execucao_parcial': 'Execucao Parcial',
 }
 
 TABLE_NAME = 'ssas'
@@ -767,8 +767,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         save_filter_button.clicked.connect(self.save_current_filter)
         self.persistent_filters_layout.addWidget(save_filter_button)
 
-        self.exclude_ste_checkbox = QCheckBox("Não está em STE/SCA")
-        self.exclude_ste_checkbox.setToolTip("Oculta SSAs com situação STE ou SCA")
+        self.exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
+        self.exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
         try:
             self.exclude_ste_checkbox.setChecked(False)
         except Exception:
@@ -980,7 +980,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def load_data(self):
         if not os.path.exists(DB_PATH):
-            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nção encontrado. Execute o programa principal primeiro.")
+            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
 
         self.status_label.setText("Status: Carregando dados...")
@@ -2283,7 +2283,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception as e:
                 QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
         else:
-            QMessageBox.warning(self, "Erro", f"Pasta nção encontrada: {docs_path}")
+            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
@@ -2306,11 +2306,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.status_label.setText(f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}")
                     QMessageBox.information(self, "Sucesso", f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.")
                 else:
-                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nção contêm dados vãlidos na tabela 'ssas'.")
+                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela 'ssas'.")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
-        elif db_file:  # Arquivo selecionado mas nção existe
-            QMessageBox.warning(self, "Erro", "Arquivo selecionado nção existe.")
+        elif db_file:  # Arquivo selecionado mas nao existe
+            QMessageBox.warning(self, "Erro", "Arquivo selecionado nao existe.")
 
     def remove_persistent_filter(self, filter_data):
         """Remove um filtro persistente e atualiza imediatamente."""

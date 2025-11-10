@@ -24,6 +24,7 @@ import time
 import pandas as pd  # type: ignore[import-not-found]
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
+from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
 
@@ -118,23 +119,37 @@ def insert_dataframe_optimized(
 
             total_inserted = 0
 
+            # ===== GARANTIR QUE TODAS AS COLUNAS EXISTEM =====
+            # Adicionar colunas faltantes antes de inserir
+            ensure_columns_exist(conn, table_name, work)
+
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
                 no_ssa.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
                 total_inserted += len(no_ssa)
-                logger.info(f"✅ Inseridos {len(no_ssa)} registros sem numero_ssa")
+                logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
-                # 🚀 OTIMIZAÇÃO CHAVE: Uma consulta para TODAS as SSAs existentes
-                lookup_start = time.time()
-                existing_ssas_df = pd.read_sql_query(
-                    (
-                        f"SELECT numero_ssa, data_cadastro FROM {table_name} "
-                        "WHERE numero_ssa IS NOT NULL"
-                    ),
-                    conn,
+                # Verificar se tabela existe antes de fazer SELECT
+                table_exists = pd.read_sql_query(
+                    f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
+                    conn
                 )
+
+                # OTIMIZACAO CHAVE: Uma consulta para TODAS as SSAs existentes
+                lookup_start = time.time()
+                existing_ssas_df = pd.DataFrame()  # Vazio por padrao
+
+                if not table_exists.empty:
+                    # Tabela existe, fazer lookup
+                    existing_ssas_df = pd.read_sql_query(
+                        (
+                            f"SELECT numero_ssa, data_cadastro FROM {table_name} "
+                            "WHERE numero_ssa IS NOT NULL"
+                        ),
+                        conn,
+                    )
                 lookup_time = time.time() - lookup_start
                 
                 # Criar dicionário para lookup O(1) em vez de O(n) por linha

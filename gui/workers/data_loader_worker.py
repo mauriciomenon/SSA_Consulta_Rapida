@@ -18,48 +18,10 @@ class DataLoaderWorker(QThread):
 
     def run(self):
         try:
-            # Query customizada que mapeia os nomes corretos das colunas
-            query = '''
-            SELECT
-                numero_ssa,
-                situacao,
-                derivada_de,
-                localizacao_codigo,
-                descricao_localizacao,
-                equipamento,
-                semana_cadastro,
-                data_cadastro,
-                descricao_ssa,
-                setor_emissor,
-                setor_executor,
-                solicitante,
-                servico_origem,
-                grau_prioridade_emissao,
-                grau_prioridade_planejamento,
-                execucao_simples,
-                responsavel_programacao,
-                semana_programada,
-                responsavel_execucao,
-                descricao_execucao,
-                id,
-                sistema_origem,
-                prazo_limite,
-                tempo_disponivel,
-                data_limite,
-                tempo_excedido,
-                desde,
-                tempo_total,
-                desde_1,
-                total_tempo_tpe_planejado,
-                total_tempo_tex_planejado,
-                total_tempo_tpo_planejado,
-                total_horas_programadas,
-                execucao_parcial,
-                anomalia,
-                semana_executada,
-                num_reprogramacoes
-            FROM ssa_table
-            '''
+            # Use SELECT * para schema dinamico
+            # O schema pode variar dependendo dos arquivos importados
+            # Garantimos que todas as colunas disponiveis sejam carregadas
+            query = 'SELECT * FROM ssa_table'
 
             df = query_db(self.db_path, '', query)
             if not df.empty:
