@@ -6,7 +6,6 @@ Testes de Estabilidade para GUI SSA PoC
 Este módulo contém testes específicos para monitorar travamentos e performance
 da GUI SSA PoC conforme solicitado.
 
-Autor: GitHub Copilot
 Data: 2025-08-18
 """
 
