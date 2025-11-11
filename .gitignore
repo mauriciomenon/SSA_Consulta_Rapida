@@ -1,3 +1,5 @@
+/.emoji_backups/
+/LocalTemp/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -270,9 +272,12 @@ dist/
 *.db-journal
 reports/
 
-# VS Code workspace (optional)
+# VS Code workspace (optional) + personal files
 *.code-workspace
-nul
+
+# Local AI artifacts and temporary analysis files
+/local_ai_private/
+/LocalTemp/
 
 # === BUILD SYSTEM ARTIFACTS ===
 # Executaveis compilados
@@ -334,3 +339,36 @@ temp/
 temp/**
 data/ssas.db-shm
 data/ssas.db-wal
+# Local AI / TODO removed artifacts (keep only locally, never commit)
+local_ai_private/
+.claude/
+docs/ANALISE_PERFORMANCE_QWEN3CLI.md
+docs/avaliacao_codigo_gemini.md
+docs/avaliacao_codigo_gemini.html
+docs/LOG_CONFIGURACAO_COPILOT_COMPLETA_20250907.md
+docs/SESSION_CONTEXT_SNAPSHOT_20250915.md
+docs/SESSION_SECURITY_OPERATIONS_20250915.md
+docs/LICOES_APRENDIDAS.md
+docs/CHECKLIST_ACOES_IMEDIATAS.md
+docs/CHECKLIST_MASTER.md
+docs/CHECKLIST_PENDENCIAS_FUTURAS.md
+docs/CHECKLIST_PENDENCIAS_v3.10.md
+docs/NEXT_STEPS_AFTER_CONFIG_FIXES.md
+docs/PLANOS_MELHORIAS.md
+docs/PLANEJAMENTO_ROADMAP.md
+docs/PROXIMOS_PASSOS_POS_CONSOLIDACAO.md
+docs/ORDENS_E_PLANO_DE_ACAO.md
+docs/SECRET_HISTORY_REPORT.md
+docs/RELATORIO_CONSOLIDACAO_FINAL.md
+docs/RELATORIOS_DESENVOLVIMENTO.md
+docs/RELATORIOS_TECNICOS.md
+docs/RESUMO_ORGANIZACAO_FINAL.md
+docs/CORRECOES_2025_11_10.md
+docs/INTEGRITY_VERIFICATION.md
+docs/HISTORICO_ULTIMOS_50_COMMITS.md
+gemini.md
+temp_claude.txt
+.github/copilot-instructions.md
+WARP.md
+temp/PR_REPORT.md
+temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md

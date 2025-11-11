@@ -24,6 +24,25 @@ Na serie 4.0 ocorreram falhas em dois pontos principais:
 - Sem alteracao de schema
 - Sem mudanca de formatos de exportacao
 
+## Política de Remoção de Artefatos de IA / Sessões
+
+Este repositório foi sanitizado para remover documentos de sessões, planos de ação automatizados, relatórios gerados por modelos (Claude, Gemini, Copilot, etc.) e históricos de conversas. Esses arquivos agora são mantidos apenas localmente em `local_ai_private/` (gitignored) para referência pessoal e nunca devem ser cometados.
+
+Diretrizes:
+
+- Não adicionar novamente logs de conversa, relatórios de “AI Assistant”, planos de refatoração automatizados ou snapshots de sessão.
+- Se for realmente necessário manter um registro técnico, sintetize em documentação neutra sem autoria de modelo ou linguagem de sessão.
+- Scripts de verificação e código fonte permanecem; apenas artefatos narrativos de IA foram excluídos.
+- A lista de arquivos banidos está ancorada em `.gitignore` (seção Local AI / TODO) para evitar regressão.
+
+Benefícios:
+
+- Reduz ruído e volume de documentação não essencial.
+- Minimiza risco de vazamento acidental de chaves ou contexto sensível em logs extensos.
+- Mantém foco em documentação técnica estável (README, guias, schemas, changelogs técnicos).
+
+Em caso de dúvida, tratar o conteúdo como temporário e armazenar em `local_ai_private/`.
+
 # SSA Consulta Rapida v4.0.3
 
 ## Release v4.0.3 (2025-11)
