@@ -4,6 +4,13 @@ Script de verificação completa de imports em mixins.
 Detecta imports faltantes que são efeito colateral de separar código em mixins.
 """
 import sys
+import os
+
+# Ensure correct Python path when running from tests/
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_root_dir = os.path.dirname(_script_dir)
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 
 errors = []
 
