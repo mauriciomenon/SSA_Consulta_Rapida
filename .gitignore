@@ -1,4 +1,5 @@
 /.emoji_backups/
+/LocalTemp/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -273,11 +274,10 @@ reports/
 
 # VS Code workspace (optional) + personal files
 *.code-workspace
-nul
-fix_commas.py
-meu_script.ps1
-test_keys.txt
-INSTRUCOES_LEITURA.md
+
+# Local AI artifacts and temporary analysis files
+/local_ai_private/
+/LocalTemp/
 
 # === BUILD SYSTEM ARTIFACTS ===
 # Executaveis compilados
