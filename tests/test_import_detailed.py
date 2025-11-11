@@ -271,8 +271,10 @@ def generate_report():
     for tipo, items in tipos.items():
         print(f"  - {tipo}: {len(items)} ocorrencias")
 
-    # Cria arquivo de relatorio
-    report_file = f"temp/import_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    # Cria arquivo de relatorio em LocalTemp (local-only, gitignored)
+    import os
+    os.makedirs("LocalTemp", exist_ok=True)
+    report_file = f"LocalTemp/import_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write("="*80 + "\n")

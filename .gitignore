@@ -1,5 +1,10 @@
 /.emoji_backups/
 /LocalTemp/
+
+# Temporary test outputs (folder exists, contents ignored)
+/temp/*
+!/temp/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
