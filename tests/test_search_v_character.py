@@ -6,7 +6,7 @@ This test demonstrates that the CORRECT app_logic.py (simplified version)
 does NOT have the regex bug that cuts the 'v' character.
 
 Run this test to verify the fix:
-    python temp/test_search_v_character.py
+    python tests/test_search_v_character.py
 
 Expected: All tests PASS with 'v' character preserved in all cases.
 """

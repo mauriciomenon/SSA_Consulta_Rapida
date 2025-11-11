@@ -140,10 +140,10 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 
 ```powershell
 # General integrity verification
-python verify_integrity.py
+python tests/verify_code_integrity.py
 
 # Specialized mixin verification
-python verify_mixin_imports.py
+python tests/verify_mixin_imports.py
 
 # GUI test
 python main.py --gui
@@ -338,10 +338,10 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 
 ```powershell
 # Verificação de integridade geral
-python verify_integrity.py
+python tests/verify_code_integrity.py
 
 # Verificação especializada de mixins
-python verify_mixin_imports.py
+python tests/verify_mixin_imports.py
 
 # Teste da GUI
 python main.py --gui
