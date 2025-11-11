@@ -204,7 +204,7 @@ Automated verification scripts are essential:
 
 ## Problemas Identificados e Corrigidos
 
-### 1. NameError: format_search_display não definido ❌ → ✅
+### 1. NameError: format_search_display não definido FAIL → OK
 
 **Sintoma**:
 ```python
@@ -222,7 +222,7 @@ from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_sea
 
 ---
 
-### 2. NameError: GUI_MAIN_PREFERENCES não definido ❌ → ✅
+### 2. NameError: GUI_MAIN_PREFERENCES não definido FAIL → OK
 
 **Sintoma**:
 ```python
@@ -241,7 +241,7 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 
 ---
 
-### 3. Callbacks de Progresso Desalinhados ❌ → ✅
+### 3. Callbacks de Progresso Desalinhados FAIL → OK
 
 **Problema**: Eventos incompatíveis entre `core/app_logic.py` e `RescanWorker`.
 
@@ -256,7 +256,7 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 
 ---
 
-### 4. Lock Tosco de Single-Instance ❌ → ✅
+### 4. Lock Tosco de Single-Instance FAIL → OK
 
 **Problema**: Socket TCP na porta 51234 causava:
 - Locks "fantasma" após crashes
@@ -273,36 +273,36 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 ## Arquivos Modificados
 
 ### Core
-- ✏️ `core/app_logic.py` (+65/-15 linhas)
+- `core/app_logic.py` (+65/-15 linhas)
   - `_import_single_file`: retorna `tuple[bool, int]`
   - Callbacks detalhados implementados
   - Contagem real de registros
 
 ### GUI
-- ✏️ `main.py` (-20 linhas)
+- `main.py` (-20 linhas)
   - Removido import `socket`
   - Removido código de single-instance
 
-- ✏️ `gui/mixins/filter_gui_ssa_mixin.py` (+6/-2 linhas)
+- `gui/mixins/filter_gui_ssa_mixin.py` (+6/-2 linhas)
   - Import: `format_search_display`
   - Acesso via `gui_ssa.GUI_MAIN_PREFERENCES`
 
 ### Verificação
-- ➕ `verify_integrity.py` (novo)
+- NEW `verify_integrity.py` (novo)
   - Verificação geral de integridade
   - 7 categorias de testes
 
-- ➕ `verify_mixin_imports.py` (novo)
+- NEW `verify_mixin_imports.py` (novo)
   - Especializado para mixins
   - 10 testes específicos
 
 ### Documentação
-- ➕ `docs/VERIFICACAO_INTEGRIDADE.md` (novo)
+- NEW `docs/VERIFICACAO_INTEGRIDADE.md` (novo)
   - 2500+ linhas de documentação técnica
   - Tabelas de parâmetros
   - Diagrama de callbacks
 
-- ✏️ `CHANGELOG.md` (atualizado)
+- `CHANGELOG.md` (atualizado)
   - Seção [Unreleased] com detalhes
 
 ---
@@ -310,27 +310,27 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 ## Verificações Implementadas
 
 ### verify_integrity.py
-1. ✅ Imports sem ciclos circulares
-2. ✅ Exports de helpers
-3. ✅ Exports de workers  
-4. ✅ Exports de core
-5. ✅ Assinaturas de `parse_search_terms`
-6. ✅ Assinaturas de `filter_dataframe`
-7. ✅ Assinaturas de `run_importer_logic`
-8. ✅ Métodos de mixins
-9. ✅ Acesso a `GUI_MAIN_PREFERENCES`
+1. OK Imports sem ciclos circulares
+2. OK Exports de helpers
+3. OK Exports de workers  
+4. OK Exports de core
+5. OK Assinaturas de `parse_search_terms`
+6. OK Assinaturas de `filter_dataframe`
+7. OK Assinaturas de `run_importer_logic`
+8. OK Métodos de mixins
+9. OK Acesso a `GUI_MAIN_PREFERENCES`
 
 ### verify_mixin_imports.py
-1. ✅ Import do mixin
-2. ✅ Funções helper
-3. ✅ Constantes core
-4. ✅ Variáveis globais de módulo
-5. ✅ Workers
-6. ✅ Widgets (opcionais)
-7. ✅ Funções core.app_logic
-8. ✅ Theme helpers
-9. ✅ Métodos do mixin
-10. ✅ Acesso inline
+1. OK Import do mixin
+2. OK Funções helper
+3. OK Constantes core
+4. OK Variáveis globais de módulo
+5. OK Workers
+6. OK Widgets (opcionais)
+7. OK Funções core.app_logic
+8. OK Theme helpers
+9. OK Métodos do mixin
+10. OK Acesso inline
 
 ---
 
@@ -365,11 +365,11 @@ python -m py_compile core/app_logic.py gui/mixins/filter_gui_ssa_mixin.py main.p
 
 ## Próximos Passos
 
-1. ✅ Commit realizado: `604bd50`
-2. ⏭️ Testar importação com arquivos reais
-3. ⏭️ Validar progresso em tempo real
-4. ⏭️ Confirmar múltiplas instâncias da GUI
-5. ⏭️ Atualizar tag de versão se necessário
+1. OK Commit realizado: `604bd50`
+2. NEXT Testar importação com arquivos reais
+3. NEXT Validar progresso em tempo real
+4. NEXT Confirmar múltiplas instâncias da GUI
+5. NEXT Atualizar tag de versão se necessário
 
 ---
 
