@@ -271,9 +271,13 @@ dist/
 *.db-journal
 reports/
 
-# VS Code workspace (optional)
+# VS Code workspace (optional) + personal files
 *.code-workspace
 nul
+fix_commas.py
+meu_script.ps1
+test_keys.txt
+INSTRUCOES_LEITURA.md
 
 # === BUILD SYSTEM ARTIFACTS ===
 # Executaveis compilados
