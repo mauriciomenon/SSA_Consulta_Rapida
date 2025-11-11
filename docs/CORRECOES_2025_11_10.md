@@ -198,7 +198,6 @@ Automated verification scripts are essential:
 
 ---
 
-**Author**: AI Assistant  
 **Date**: 2025-11-10  
 **Commit**: TBD
 
