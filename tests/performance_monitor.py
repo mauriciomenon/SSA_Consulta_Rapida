@@ -6,8 +6,6 @@ Monitor de Performance e Travamentos
 Script para monitorar continuamente a performance da GUI e detectar travamentos.
 
 Uso: python tests/performance_monitor.py
-
-Autor: GitHub Copilot
 Data: 2025-08-18
 """
 
