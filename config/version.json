@@ -1,4 +1,4 @@
 {
-  "version_short": "4.10.0",
-  "version_long": "SSA Consulta Rapida v4.10.0 - Correcao de falhas de filtros e aplicacao de temas da serie 4.0; registro historico das falhas anteriores para rastreabilidade."
+  "version_short": "4.11.0",
+  "version_long": "SSA Consulta Rapida v4.11.0 - Repository cleanup: removed legacy code, consolidated documentation, archived old backups."
 }
