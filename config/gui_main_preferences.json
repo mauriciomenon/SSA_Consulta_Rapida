@@ -70,7 +70,7 @@
   "gui_settings": {
     "page_size": 50,
     "auto_load": false,
-    "debounce_delay": 250,
+    "debounce_delay": 800,
     "default_filter_mode": "contains",
     "show_progress_bar": true,
     "enable_column_sorting": true,
