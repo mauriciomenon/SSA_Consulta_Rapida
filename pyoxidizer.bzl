@@ -9,7 +9,8 @@ def make_exe():
     policy.resources_location_fallback = "filesystem-relative:lib"
 
     python_config = dist.make_python_interpreter_config()
-    python_config.run_command = "import sys; sys.path.insert(0, '.'); from main import main; main()"
+    # Run main.py as script instead of calling main() directly to avoid duplicate execution
+    python_config.run_module = "main"
     python_config.filesystem_importer = True
 
     exe = dist.to_python_executable(
