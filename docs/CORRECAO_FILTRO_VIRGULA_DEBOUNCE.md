@@ -26,7 +26,7 @@ Usuario reportou que virgulas sao apagadas automaticamente durante a digitacao n
 
 ### 1. Aumento do Debounce
 
-Arquivo: [config/gui_main_preferences.json](config/gui_main_preferences.json)
+Arquivo: [config/gui_main_preferences.json](config/gui_main_preferences.json:73)
 
 ```json
 "debounce_delay": 800  // 0.8 segundos - tempo mais seguro
@@ -37,7 +37,38 @@ Arquivo: [config/gui_main_preferences.json](config/gui_main_preferences.json)
 - Velocidade media de digitacao: 40-60 palavras/minuto = ~300-400ms entre palavras
 - 800ms e um equilibrio entre responsividade e evitar disparo prematuro
 
-### 2. Testes de Regressao
+**Status:** Implementado, mas insuficiente. Problema persistiu.
+
+### 2. Bloqueio de Reformatacao Durante Digitacao
+
+Arquivo: [gui/mixins/filter_gui_ssa_mixin.py](gui/mixins/filter_gui_ssa_mixin.py:930-931)
+
+**Problema Identificado:**
+- `_apply_search_display()` chamava `setText()` mesmo durante digitacao
+- Reformatava texto com `', '.join()` adicionando espacos
+- Causava corrupcao: "svp,mel4" virava "svpmel4", "svp,mel4, mel3 , teste" virava "svpmel4, mel3steste"
+
+**Correcao:**
+```python
+def _apply_search_display(self):
+    display_text = getattr(self, '_pending_search_display', None)
+    if display_text is None:
+        return
+
+    # Don't modify text while user is typing
+    if self.search_input.hasFocus():
+        return
+
+    # ... rest of function
+```
+
+**Justificativa:**
+- Verifica se campo de busca tem foco antes de modificar texto
+- Se usuario esta digitando (hasFocus() == True), nao aplica reformatacao
+- Reformatacao so ocorre quando usuario clica fora do campo ou foco e perdido
+- Preserva virgulas e texto exato durante digitacao
+
+### 3. Testes de Regressao
 
 Arquivo: [tests/test_filter_regression.py](tests/test_filter_regression.py)
 
@@ -91,6 +122,7 @@ Criados testes automatizados para garantir:
 ### Checklist Pre-Deploy
 
 - [x] Debounce aumentado para 800ms
+- [x] Bloqueio de reformatacao durante digitacao (hasFocus check)
 - [x] Testes de regressao criados e passando
 - [x] Documentacao atualizada
 - [ ] Usuario testou e confirmou correcao

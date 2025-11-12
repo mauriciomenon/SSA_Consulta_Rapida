@@ -925,6 +925,11 @@ class FilterGUISSAMixin:
         display_text = getattr(self, '_pending_search_display', None)
         if display_text is None:
             return
+
+        # Don't modify text while user is typing
+        if self.search_input.hasFocus():
+            return
+
         try:
             self.search_input.blockSignals(True)
             if display_text:
