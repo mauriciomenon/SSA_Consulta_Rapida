@@ -21,43 +21,27 @@ Python automaticamente compila modulos para bytecode (.pyc) em `__pycache__/`.
 
 **Status:** Automatico, nenhuma acao necessaria
 
-### 2. PyInstaller - Executavel Standalone
+### 2. PyOxidizer - Executavel Nativo (Implementado)
 
-Cria executavel unico com Python e dependencias embutidas.
+Compila Python e codigo para executavel nativo.
 
-**Ganho:** Reducao moderada, de 6s para 3.5-4s
+**Ganho:** Reducao significativa, de 6s para 2-3s
 
 **Vantagens:**
+- Codigo compilado para C nativo (alta seguranca)
+- Pastas editaveis mantidas separadas (config/, themes/, data/)
 - Nao requer Python instalado
-- Distribuivel como executavel unico
-- Startup consistente
+- Startup rapido
 
-**Instalacao:**
+**Build:**
 ```bash
-pip install pyinstaller
+pip install pyoxidizer
+pyoxidizer build --release
 ```
 
-**Criar executavel Windows:**
-```bash
-pyinstaller --name SSA_Consulta_Rapida ^
-    --windowed ^
-    --onefile ^
-    --add-data "config;config" ^
-    --add-data "themes;themes" ^
-    main.py
-```
+Resultado em: `build/x86_64-pc-windows-msvc/release/install/`
 
-Executavel gerado em: `dist/SSA_Consulta_Rapida.exe`
-
-**Criar executavel Linux/Mac:**
-```bash
-pyinstaller --name SSA_Consulta_Rapida \
-    --windowed \
-    --onefile \
-    --add-data "config:config" \
-    --add-data "themes:themes" \
-    main.py
-```
+Veja: [launchers/BUILD_PYOXIDIZER.md](../launchers/BUILD_PYOXIDIZER.md)
 
 ### 3. Lazy Imports (Nao Implementado)
 
@@ -81,20 +65,31 @@ def launch_gui():
 
 ## Recomendacao
 
-Para uso diario: **PyInstaller**
+### Para Distribuicao: **PyOxidizer**
 
-1. Compilar uma vez:
+Melhor opcao para build final.
+
+**Build:**
 ```bash
-pyinstaller --name SSA_Consulta_Rapida --windowed --onefile main.py
+pyoxidizer build --release
 ```
 
-2. Usar executavel gerado:
+**Resultado:**
+- Startup: 2-3s
+- Codigo fonte protegido (C nativo)
+- Pastas editaveis separadas
+- Tamanho: ~150-200MB
+
+Veja: [launchers/BUILD_PYOXIDIZER.md](../launchers/BUILD_PYOXIDIZER.md)
+
+### Para Desenvolvimento: Python Direto
+
+Durante desenvolvimento:
 ```bash
-dist/SSA_Consulta_Rapida.exe --gui
+python main.py --gui
 ```
 
-Primeira execucao: ~4s (descompactacao)
-Execucoes seguintes: ~3.5-4s
+Startup: 6s (aceitavel para dev)
 
 ## Medicao de Performance
 

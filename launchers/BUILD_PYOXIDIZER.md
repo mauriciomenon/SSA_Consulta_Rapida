@@ -1,0 +1,93 @@
+# Build com PyOxidizer
+
+## Instalacao
+
+```bash
+pip install pyoxidizer
+```
+
+## Build
+
+```bash
+pyoxidizer build --release
+```
+
+Tempo de compilacao: 10-30 minutos (primeira vez)
+
+## Resultado
+
+Executavel gerado em: `build/x86_64-pc-windows-msvc/release/install/`
+
+Estrutura:
+```
+install/
+  SSA_Consulta_Rapida.exe    <- Executavel com Python e codigo compilado
+  lib/                        <- Bibliotecas Python embutidas
+  config/                     <- Configs JSON (editaveis)
+  themes/                     <- Temas (editaveis)
+  docs_entrada/               <- Pasta para Excel de entrada (vazia inicial)
+  data/                       <- Pasta para banco de dados (vazia inicial)
+```
+
+## Distribuir
+
+Copie toda a pasta `install/` para distribuir.
+
+Usuario final:
+1. Descompacta pasta
+2. Executa `SSA_Consulta_Rapida.exe --gui`
+3. Coloca arquivos Excel em `docs_entrada/`
+4. Edita configs em `config/` se necessario
+
+## Performance
+
+- Startup: 2-3s (melhor que PyInstaller)
+- Seguranca: Alta (codigo compilado para C nativo)
+- Tamanho: ~150-200MB
+
+## Pastas Editaveis
+
+Usuario pode modificar:
+- `config/gui_main_preferences.json` - Debounce, colunas, tema
+- `config/column_mappings.json` - Mapeamento de colunas
+- `themes/*.json` - Arquivos de tema
+- `docs_entrada/` - Adicionar/remover Excels
+- `data/` - Banco de dados gerado
+
+## Pastas Protegidas (codigo compilado)
+
+Nao editaveis, dentro do executavel:
+- core/
+- gui/
+- armazenamento/
+- extracao/
+- utils/
+- interface/
+- exportacao/
+- shared/
+- Todas as libs Python (pandas, PyQt6, etc)
+
+## Troubleshooting
+
+### Erro: "Module not found"
+
+Adicione o modulo em `pyoxidizer.bzl`:
+```python
+exe.add_python_resources(exe.pip_install([
+    "pandas",
+    "openpyxl",
+    "PyQt6",
+    "novo_modulo_aqui",  # Adicione aqui
+]))
+```
+
+### Erro: "Cannot find config/..."
+
+Verifique se pasta `config/` esta na mesma pasta do executavel.
+
+### Performance ruim
+
+Compile com `--release`:
+```bash
+pyoxidizer build --release
+```
