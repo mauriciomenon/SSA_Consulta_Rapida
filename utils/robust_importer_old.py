@@ -43,8 +43,8 @@ import unicodedata
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd  # type: ignore
-from core.numero_ssa import normalize_strict as normalize_numero_ssa_strict
-from core.date_utils import parse_any_date
+from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
+from shared.date_utils import parse_any_date
 
 logger = logging.getLogger(__name__)
 

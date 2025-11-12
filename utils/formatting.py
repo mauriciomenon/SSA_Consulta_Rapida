@@ -17,11 +17,7 @@ from typing import Optional
 
 import pandas as pd
 
-try:
-    # Evita import circular em tempo de import; usado apenas quando necessário
-    from armazenamento.database import normalize_numero_ssa as _normalize_ssa_str
-except Exception:
-    _normalize_ssa_str = None  # fallback seguro
+from shared.numero_ssa import normalize_numero_ssa as _normalize_ssa_str
 
 
 def _is_nullish(v) -> bool:

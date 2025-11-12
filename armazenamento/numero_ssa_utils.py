@@ -21,7 +21,8 @@ from typing import Iterable
 import re
 import pandas as pd  # type: ignore[import-not-found]
 
-from core.numero_ssa import normalize_strict as _strict  # fonte única de verdade
+from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
+from shared.numero_ssa import normalize_numero_ssa
 
 NUMERO_SSA_LEN = 9
 NUMERO_SSA_ANO_MIN = 1980
@@ -100,31 +101,6 @@ def extract_candidate_digits(value) -> str:
 
 def bulk_int_or_none(values: Iterable) -> list[int | None]:  # pragma: no cover (usado esporadicamente)
     return [_normalize_numero_ssa_value(v) for v in values]
-
-
-def normalize_numero_ssa(value) -> str | None:  # noqa: PLR0911
-    """Replica regra legacy de exibição (padding / prefixos).
-
-    Mantida aqui para centralizar e permitir que `database.py` apenas reexporte.
-    """
-    if value is None:
-        return None
-    raw = re.sub(r"\D", "", str(value))
-    if not raw:
-        return None
-    trimmed = raw.lstrip('0')
-    if not trimmed:
-        return None
-    n_trim = len(trimmed)
-    if n_trim <= 5:
-        return "2025" + trimmed.zfill(5)
-    if n_trim == 7 and trimmed.startswith(("21", "22", "23", "24", "25")):
-        return "20" + trimmed
-    if len(raw) < 9:
-        return raw.zfill(9)
-    if len(raw) > 9:
-        return raw[:9]
-    return raw
 
 
 def normalize_numero_ssa_dataframe(df: pd.DataFrame) -> pd.DataFrame:
