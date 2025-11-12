@@ -11,7 +11,7 @@ import os
 import re
 from typing import Optional, Dict, Any
 import logging
-from core.config_manager import load_column_mappings_integrity
+from shared.column_mappings import load_column_mappings_integrity
 
 logger = logging.getLogger(__name__)
 
