@@ -1,4 +1,4 @@
-# Dependências de desenvolvimento (mínimas)
+# Dependencias de desenvolvimento (minimas)
 # Instale junto com requirements.txt para desenvolvimento local
 
 pytest>=7.0.0

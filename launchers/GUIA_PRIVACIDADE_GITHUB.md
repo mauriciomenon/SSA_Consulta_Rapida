@@ -1,60 +1,60 @@
-#  GUIA DE PRIVACIDADE E GESTÃO DE ARQUIVOS PESSOAIS
+#  GUIA DE PRIVACIDADE E GESTAO DE ARQUIVOS PESSOAIS
 
-##  **SUA SITUAÇÃO ATUAL**
+##  **SUA SITUACAO ATUAL**
 
 ### **Arquivos que PRECISAM ser privados:**
--  **docs_entrada/*.xlsx** - Dados sensíveis da empresa
--  **Alguns .md pessoais** - Lembretes, "não mexer", conversas
--  **docs_saida/relatórios** - Podem conter dados sensíveis
--  **Configurações locais** - Específicas da sua máquina
+-  **docs_entrada/*.xlsx** - Dados sensiveis da empresa
+-  **Alguns .md pessoais** - Lembretes, "nao mexer", conversas
+-  **docs_saida/relatorios** - Podem conter dados sensiveis
+-  **Configuracoes locais** - Especificas da sua maquina
 
-### **Arquivos que PODEM ser públicos:**
--  **Código fonte** - Valor técnico para comunidade
--  **Documentação técnica** - ESTRUTURA, REGRAS, CHANGELOG
--  **Scripts de build** - Úteis para outros desenvolvedores
+### **Arquivos que PODEM ser publicos:**
+-  **Codigo fonte** - Valor tecnico para comunidade
+-  **Documentacao tecnica** - ESTRUTURA, REGRAS, CHANGELOG
+-  **Scripts de build** - Uteis para outros desenvolvedores
 
-## ️ **OPÇÕES DE PRIVACIDADE**
+##  **OPCOES DE PRIVACIDADE**
 
-### **Opção 1: Repositório Privado (RECOMENDADA)**
+### **Opcao 1: Repositorio Privado (RECOMENDADA)**
 ```bash
 # No GitHub.com:
-# 1. Ir para Settings do repositório
+# 1. Ir para Settings do repositorio
 # 2. General → Danger Zone → Change visibility
 # 3. Escolher "Private"
 ```
 
 **Vantagens:**
 -  Acesso apenas com sua conta GitHub
--  Sincronização entre suas máquinas
--  Histórico completo preservado
--  Colaboração controlada (você escolhe quem pode ver)
+-  Sincronizacao entre suas maquinas
+-  Historico completo preservado
+-  Colaboracao controlada (voce escolhe quem pode ver)
 
 **Desvantagens:**
--  Código técnico não fica disponível para comunidade
--  Limite de repositórios privados (dependendo do plano)
+-  Codigo tecnico nao fica disponivel para comunidade
+-  Limite de repositorios privados (dependendo do plano)
 
-### **Opção 2: Dois Repositórios**
+### **Opcao 2: Dois Repositorios**
 ```bash
-# Repositório público: SSA_Consulta_Rapida_Public
-- Código fonte limpo
-- Documentação técnica
+# Repositorio publico: SSA_Consulta_Rapida_Public
+- Codigo fonte limpo
+- Documentacao tecnica
 - Scripts de build
 - README profissional
 
-# Repositório privado: SSA_Consulta_Rapida_Data
+# Repositorio privado: SSA_Consulta_Rapida_Data
 - docs_entrada/
 - docs_saida/
 - Arquivos .md pessoais
-- Configurações locais
+- Configuracoes locais
 ```
 
-### **Opção 3: .gitignore Avançado + Branches**
+### **Opcao 3: .gitignore Avancado + Branches**
 ```bash
-# Branch main: Código público
-# Branch personal: Arquivos pessoais (não fazer push)
+# Branch main: Codigo publico
+# Branch personal: Arquivos pessoais (nao fazer push)
 ```
 
-##  **CLASSIFICAÇÃO DOS SEUS ARQUIVOS .md**
+##  **CLASSIFICACAO DOS SEUS ARQUIVOS .md**
 
 ### ** PESSOAIS (devem ser privados):**
 ```
@@ -65,7 +65,7 @@
 TEMPLATE_NOVA_CONVERSA.md
 ```
 
-### ** PROFISSIONAIS (podem ser públicos):**
+### ** PROFISSIONAIS (podem ser publicos):**
 ```
 README.md
 ESTRUTURA_PROJETO.md
@@ -76,32 +76,32 @@ BUILD_*.md
 GUIA_*.md
 ```
 
-##  **CONFIGURAÇÃO RECOMENDADA**
+##  **CONFIGURACAO RECOMENDADA**
 
-### **1. Tornar Repositório Privado (AGORA)**
-1. Vá para https://github.com/mauriciomenon/SSA_Consulta_Rapida
+### **1. Tornar Repositorio Privado (AGORA)**
+1. Va para https://github.com/mauriciomenon/SSA_Consulta_Rapida
 2. Settings → General → Danger Zone
 3. Change repository visibility → Private
 4. Confirmar
 
 ### **2. Atualizar .gitignore**
 ```gitignore
-# === DADOS SENSÍVEIS ===
+# === DADOS SENSIVEIS ===
 # Arquivos de entrada (dados da empresa)
 docs_entrada/
 
-# Relatórios com dados (manter apenas templates)
+# Relatorios com dados (manter apenas templates)
 docs_saida/*.xlsx
 docs_saida/*.csv
 docs_saida/all.*
 
-# Arquivos pessoais (padrões)
+# Arquivos pessoais (padroes)
 *LEMBRETE*.md
 *NAO_MEXER*.md
 *CONVERSA*.md
 *TRANSICAO*.md
 
-# Configurações locais
+# Configuracoes locais
 .envrc
 data/
 logs/
@@ -109,31 +109,31 @@ logs/
 
 ### **3. Executar Limpeza Inteligente**
 ```bash
-# O script atualizado perguntará sobre cada categoria
+# O script atualizado perguntara sobre cada categoria
 python launchers/cleanup_repository.py
 ```
 
-##  **FUTURO: REPOSITÓRIO PÚBLICO**
+##  **FUTURO: REPOSITORIO PUBLICO**
 
-Se quiser disponibilizar o código publicamente:
+Se quiser disponibilizar o codigo publicamente:
 
-### **1. Fork Público**
+### **1. Fork Publico**
 ```bash
-# Criar fork limpo apenas com código
+# Criar fork limpo apenas com codigo
 git clone --bare https://github.com/mauriciomenon/SSA_Consulta_Rapida.git ssa-public
 cd ssa-public
 git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch docs_entrada/* docs_saida/*.xlsx' --prune-empty --tag-name-filter cat -- --all
 ```
 
-### **2. README Público**
+### **2. README Publico**
 ```markdown
-# SSA Consulta Rápida
+# SSA Consulta Rapida
 
-Sistema profissional para consulta rápida de SSAs com:
+Sistema profissional para consulta rapida de SSAs com:
 - Interface GUI em PyQt6
 - CLI robusta
 - Build system multi-plataforma
-- Arquitetura modular e extensível
+- Arquitetura modular e extensivel
 
 ## Para usar com seus dados:
 1. Coloque arquivos Excel em `docs_entrada/`
@@ -141,7 +141,7 @@ Sistema profissional para consulta rápida de SSAs com:
 3. Execute `python main.py`
 ```
 
-##  **SEGURANÇA DE DADOS**
+##  **SEGURANCA DE DADOS**
 
 ### **Dados de Entrada (.xlsx)**
 -  **NUNCA** committar arquivos da empresa
@@ -150,29 +150,29 @@ Sistema profissional para consulta rápida de SSAs com:
 -  Fazer backup separado (OneDrive, etc.)
 
 ### **Banco de Dados**
--  `data/ssas.db` já está no .gitignore
+-  `data/ssas.db` ja esta no .gitignore
 -  Fazer backup regular fora do git
--  Não sincronizar via GitHub
+-  Nao sincronizar via GitHub
 
-### **Configurações Sensíveis**
--  Separar configs públicas das privadas
--  Usar variáveis de ambiente para senhas
--  Templates para configurações
+### **Configuracoes Sensiveis**
+-  Separar configs publicas das privadas
+-  Usar variaveis de ambiente para senhas
+-  Templates para configuracoes
 
-##  **RECOMENDAÇÃO FINAL**
+##  **RECOMENDACAO FINAL**
 
 ### **PARA AGORA:**
-1.  **Tornar repositório privado** (5 minutos)
+1.  **Tornar repositorio privado** (5 minutos)
 2.  **Executar limpeza inteligente** (10 minutos)
 3.  **Atualizar .gitignore** (5 minutos)
 
 ### **PARA O FUTURO:**
-1.  **Considerar repositório público** apenas com código
-2.  **Melhorar documentação** técnica
-3.  **Contribuir para comunidade** com código limpo
+1.  **Considerar repositorio publico** apenas com codigo
+2.  **Melhorar documentacao** tecnica
+3.  **Contribuir para comunidade** com codigo limpo
 
 **Isso resolve sua necessidade de:**
--  Privacidade dos dados sensíveis
--  Sincronização entre máquinas
+-  Privacidade dos dados sensiveis
+-  Sincronizacao entre maquinas
 -  Acesso apenas com sua conta
-- ️ Proteção automática contra commits acidentais
+-  Protecao automatica contra commits acidentais

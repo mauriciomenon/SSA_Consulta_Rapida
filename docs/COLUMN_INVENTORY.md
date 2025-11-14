@@ -8,14 +8,14 @@
 
 ## Categories
 
-### Identificação (6)
+### Identificacao (6)
 - arquivo_origem, id, numero_ssa, numero_ssa_relacionada_1, numero_ssa_relacionada_2, numero_ssa_relacionada_3
 
 ### Status (8)
 - situacao, situacao_da_parcial, situacao_de_desvio, situacao_espera, situacao_relacionada_1, situacao_relacionada_2
 - situacao_reprogramacao, status_execucao_prazo
 
-### Localização (11)
+### Localizacao (11)
 - ate, ate_1, ate_2, desativacao_da_localizacao, descricao_localizacao, desde
 - desde_1, desde_2, destino, localizacao_codigo, origem
 
@@ -35,7 +35,7 @@
 ### Prioridades (2)
 - grau_prioridade_emissao, grau_prioridade_planejamento
 
-### Execução e Fluxo (7)
+### Execucao e Fluxo (7)
 - atividade_especial, execucao_parcial, execucao_simples, num_reprogramacoes, parciais, registros_espera
 - total_de_reprogramacoes
 
@@ -45,8 +45,8 @@
 ### Metadados Diversos (7)
 - derivada_de, descricao_execucao, descricao_ssa, relacao, servico_origem, sistema_origem, total_horas_programadas
 
-## Observações
-- 'id' permanece apenas para compatibilidade com consultas diretas; não é exibido na interface.
-- Campos sem rótulo em 'display_mappings' (por exemplo 'numero_desvios', 'situacao_da_parcial') aparecem apenas em fluxos internos; convém definir nomes amigáveis antes de levá-los para a UI.
-- 'arquivo_origem' é preenchido durante a importação e fica oculto por padrão; pode ser exposto em relatórios conforme necessidade.
-- As categorias acima foram geradas por heurísticas baseadas no nome das colunas; revise antes de qualquer ajuste visual.
+## Observacoes
+- 'id' permanece apenas para compatibilidade com consultas diretas; nao e exibido na interface.
+- Campos sem rotulo em 'display_mappings' (por exemplo 'numero_desvios', 'situacao_da_parcial') aparecem apenas em fluxos internos; convem definir nomes amigaveis antes de leva-los para a UI.
+- 'arquivo_origem' e preenchido durante a importacao e fica oculto por padrao; pode ser exposto em relatorios conforme necessidade.
+- As categorias acima foram geradas por heuristicas baseadas no nome das colunas; revise antes de qualquer ajuste visual.

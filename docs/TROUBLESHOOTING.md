@@ -1,61 +1,61 @@
-# GUIA DE SOLUÇÃO DE PROBLEMAS
+# GUIA DE SOLUCAO DE PROBLEMAS
 
-Este documento consolida toda a documentação de troubleshooting e soluções técnicas para o SSA Consulta Rápida.
+Este documento consolida toda a documentacao de troubleshooting e solucoes tecnicas para o SSA Consulta Rapida.
 
-## **PROBLEMAS CONHECIDOS E SOLUÇÕES**
+## **PROBLEMAS CONHECIDOS E SOLUCOES**
 
 ### **1. PROBLEMAS DE GUI - LARGURAS DE COLUNAS**
 
 #### **Sintoma**
 - Colunas da GUI aparecem com larguras incorretas
-- Interface fica desorganizada após redimensionamento
-- Larguras não são salvas entre sessões
+- Interface fica desorganizada apos redimensionamento
+- Larguras nao sao salvas entre sessoes
 
 #### **Causa Raiz**
-O sistema de larguras de colunas do PyQt6 é complexo e requer gerenciamento cuidadoso.
+O sistema de larguras de colunas do PyQt6 e complexo e requer gerenciamento cuidadoso.
 
-#### **Solução Implementada - SimpleWidthManager**
+#### **Solucao Implementada - SimpleWidthManager**
 ```python
-# Localização: gui/simple_width_manager.py
+# Localizacao: gui/simple_width_manager.py
 class SimpleWidthManager:
     def save_widths(self, table_widget, config_key):
-        # Salva larguras no arquivo de configuração
+        # Salva larguras no arquivo de configuracao
     
     def load_widths(self, table_widget, config_key):
-        # Carrega larguras do arquivo de configuração
+        # Carrega larguras do arquivo de configuracao
 ```
 
-#### **Algoritmo Crítico**
+#### **Algoritmo Critico**
 **REGRA FUNDAMENTAL**: NUNCA modificar diretamente o sistema de larguras sem usar o SimpleWidthManager.
 
 **Fluxo de Funcionamento:**
-1. **Inicialização**: LoadWidths() carrega larguras salvas
+1. **Inicializacao**: LoadWidths() carrega larguras salvas
 2. **Uso Normal**: Sistema gerencia larguras automaticamente
-3. **Fechamento**: SaveWidths() persiste configurações
-4. **Problemas**: Reset através de configurações
+3. **Fechamento**: SaveWidths() persiste configuracoes
+4. **Problemas**: Reset atraves de configuracoes
 
-#### **Comandos de Diagnóstico**
+#### **Comandos de Diagnostico**
 ```bash
-# Verificar arquivo de configuração
+# Verificar arquivo de configuracao
 cat config/gui_main_preferences.json
 
-# Reset de larguras (remove configurações salvas)
+# Reset de larguras (remove configuracoes salvas)
 rm config/gui_main_preferences.json
 
 # Verificar logs da GUI
 tail -f logs/gui_debug.log
 ```
 
-#### **Prevenção**
-- NUNCA editar manualmente arquivos de configuração de larguras
+#### **Prevencao**
+- NUNCA editar manualmente arquivos de configuracao de larguras
 
 ---
 
-## **AUDIT DE ORDEM DE EXECUÇÃO - PROBLEMAS CRÍTICOS**
+## **AUDIT DE ORDEM DE EXECUCAO - PROBLEMAS CRITICOS**
 
-### **1. CONFLITO: Recarga de Configurações**
+### **1. CONFLITO: Recarga de Configuracoes**
 
-**Problema**: GUI e CLI carregam configurações de forma diferente e concorrente
+**Problema**: GUI e CLI carregam configuracoes de forma diferente e concorrente
 
 #### GUI (gui_ssa.py):
 ```python
@@ -67,20 +67,20 @@ self.display_map = load_display_mappings()
 
 #### CLI (cli.py):
 ```python
-# Linhas 363-365: Recarga a cada iteração do loop
+# Linhas 363-365: Recarga a cada iteracao do loop
 settings = load_settings() 
 display_map = load_display_mappings_integrity()
 ```
 
-**CONFLITO**: GUI carrega uma vez, CLI recarrega constantemente → inconsistências.
+**CONFLITO**: GUI carrega uma vez, CLI recarrega constantemente → inconsistencias.
 
-**Solução**: Implementar cache de configurações com invalidação controlada.
+**Solucao**: Implementar cache de configuracoes com invalidacao controlada.
 
-### **2. INTERFERÊNCIA: Best-Fit vs Configurações Salvas**
+### **2. INTERFERENCIA: Best-Fit vs Configuracoes Salvas**
 
 **Problema**: Algoritmos de largura de coluna conflitam entre si
 
-#### GUI - Ordem de Aplicação:
+#### GUI - Ordem de Aplicacao:
 ```python
 # Linha 744: Sempre recalcula best-fit
 self._compute_gui_column_widths(display_df)
@@ -88,19 +88,19 @@ self._compute_gui_column_widths(display_df)
 # Linhas 761-786: Aplica larguras em ordem conflitante
 # 1. Best-fit calculado
 px = self._gui_column_pixel_widths.get(col_key)
-# 2. Configuração salva manualmente
+# 2. Configuracao salva manualmente
 if px is None:
     px = self._saved_gui_column_widths.get(col_key)
 # 3. Fallbacks hardcoded
 ```
 
-**INTERFERÊNCIA**: Best-fit pode ser sobrescrito por configurações antigas.
+**INTERFERENCIA**: Best-fit pode ser sobrescrito por configuracoes antigas.
 
-**Solução**: Priorizar configurações salvas sobre best-fit automático.
+**Solucao**: Priorizar configuracoes salvas sobre best-fit automatico.
 
 ### **3. CONFLITO: Thread Safety**
 
-**Problema**: Múltiplas threads modificando estado sem sincronização
+**Problema**: Multiplas threads modificando estado sem sincronizacao
 
 #### Threads Concorrentes:
 1. **DataLoaderWorker** (linha 115)
@@ -112,9 +112,9 @@ if px is None:
 - `self.df_completo` modificado por DataLoaderWorker
 - `self.df_exibido` modificado por FilterWorker
 - `self._gui_column_pixel_widths` modificado por resize timer
-- Sem locks ou sincronização
+- Sem locks ou sincronizacao
 
-**Solução Crítica**: Implementar QMutex para proteger estado compartilhado:
+**Solucao Critica**: Implementar QMutex para proteger estado compartilhado:
 ```python
 from PyQt6.QtCore import QMutex
 
@@ -131,11 +131,11 @@ class ThreadSafeGUI:
             self.data_mutex.unlock()
 ```
 
-### **4. ORDEM CONFLITANTE: Inicialização da GUI**
+### **4. ORDEM CONFLITANTE: Inicializacao da GUI**
 
-**Problema**: Dependências circulares na ordem de inicialização
+**Problema**: Dependencias circulares na ordem de inicializacao
 
-#### Sequência Atual:
+#### Sequencia Atual:
 ```python
 # main.py linhas 110-122
 1. setup_project_structure.setup_dirs()
@@ -146,23 +146,23 @@ class ThreadSafeGUI:
 
 **CONFLITO**: GUI pode inicializar antes do banco estar pronto.
 
-**Solução**: Verificação de dependências antes da inicialização:
+**Solucao**: Verificacao de dependencias antes da inicializacao:
 ```python
 def safe_gui_init():
     if not database_ready():
-        show_error("Banco não está pronto")
+        show_error("Banco nao esta pronto")
         return False
     if not config_valid():
-        show_error("Configurações inválidas")
+        show_error("Configuracoes invalidas")
         return False
     return True
 ```
 
 ### **5. RECARREGAMENTO EXCESSIVO: CLI Loop**
 
-**Problema**: Configurações recarregadas desnecessariamente a cada comando CLI
+**Problema**: Configuracoes recarregadas desnecessariamente a cada comando CLI
 
-**Solução**: Cache com invalidação inteligente:
+**Solucao**: Cache com invalidacao inteligente:
 ```python
 class ConfigCache:
     def __init__(self):
@@ -180,35 +180,35 @@ class ConfigCache:
 
 ---
 
-## **SISTEMA DE LIMITAÇÃO DE EXIBIÇÃO - COMPORTAMENTO IMPLEMENTADO**
+## **SISTEMA DE LIMITACAO DE EXIBICAO - COMPORTAMENTO IMPLEMENTADO**
 
-### **Como Funciona a Limitação de 300 Registros**
+### **Como Funciona a Limitacao de 300 Registros**
 
-O sistema implementa um comportamento específico para melhorar performance mantendo funcionalidade completa:
+O sistema implementa um comportamento especifico para melhorar performance mantendo funcionalidade completa:
 
-#### **Cenário: Banco com 12.000 SSAs**
+#### **Cenario: Banco com 12.000 SSAs**
 
 **1. Carregamento Inicial:**
 ```
-df_completo = 12.000 SSAs (TODO o banco carregado na memória)
+df_completo = 12.000 SSAs (TODO o banco carregado na memoria)
 df_exibido = 300 SSAs (apenas os primeiros 300 para exibir)
 Status: "Exibindo 300 de 12.000 SSAs (use filtros para refinar)"
 ```
 
-**2. Filtro "ELÉTRICA":**
+**2. Filtro "ELETRICA":**
 ```
 Busca em: df_completo (todos os 12.000 SSAs)
-Filtro encontra: 850 SSAs com "ELÉTRICA"
+Filtro encontra: 850 SSAs com "ELETRICA"
 df_exibido = 300 SSAs (primeiros 300 dos 850 encontrados)
-Status: "Exibindo 300 de 850 SSAs encontradas (de 12.000 total) com 'ELÉTRICA'"
+Status: "Exibindo 300 de 850 SSAs encontradas (de 12.000 total) com 'ELETRICA'"
 ```
 
-**3. Filtro Específico "ELÉTRICA, URGENTE":**
+**3. Filtro Especifico "ELETRICA, URGENTE":**
 ```
 Busca em: df_completo (todos os 12.000 SSAs)
-Filtro encontra: 45 SSAs com "ELÉTRICA" E "URGENTE"
+Filtro encontra: 45 SSAs com "ELETRICA" E "URGENTE"
 df_exibido = 45 SSAs (todos os encontrados, menos que 300)
-Status: "45 SSAs encontradas (de 12.000 total) com 'ELÉTRICA, URGENTE'"
+Status: "45 SSAs encontradas (de 12.000 total) com 'ELETRICA, URGENTE'"
 ```
 
 **4. Limpeza de Filtro:**
@@ -217,36 +217,36 @@ df_exibido = 300 SSAs (volta a mostrar primeiros 300)
 Status: "Exibindo 300 de 12.000 SSAs (use filtros para refinar)"
 ```
 
-#### **Vantagens da Implementação**
+#### **Vantagens da Implementacao**
 
-1. **Performance**: Interface sempre rápida (máximo 300 linhas na tabela)
+1. **Performance**: Interface sempre rapida (maximo 300 linhas na tabela)
 2. **Busca Completa**: Filtros sempre pesquisam no dataset completo
-3. **Memória Eficiente**: Dataset inteiro na memória para buscas instantâneas
-4. **Transparência**: Usuário sempre vê quantos registros existem vs. exibidos
-5. **Flexibilidade**: Filtros específicos mostram todos os resultados se <300
+3. **Memoria Eficiente**: Dataset inteiro na memoria para buscas instantaneas
+4. **Transparencia**: Usuario sempre ve quantos registros existem vs. exibidos
+5. **Flexibilidade**: Filtros especificos mostram todos os resultados se <300
 
-#### **Troubleshooting da Limitação**
+#### **Troubleshooting da Limitacao**
 
-**Problema**: "Não vejo todos os meus dados"
-- **Causa**: Limitação intencional para performance
-- **Solução**: Use filtros para refinar a busca
+**Problema**: "Nao vejo todos os meus dados"
+- **Causa**: Limitacao intencional para performance
+- **Solucao**: Use filtros para refinar a busca
 
-**Problema**: "Filtro não encontra dados que sei que existem"
-- **Causa**: Dados podem estar além dos primeiros 300
-- **Solução**: Use filtros mais específicos para reduzir o conjunto
-- Usar sempre o SimpleWidthManager para mudanças programáticas
-- Testar redimensionamento após qualquer mudança na GUI
+**Problema**: "Filtro nao encontra dados que sei que existem"
+- **Causa**: Dados podem estar alem dos primeiros 300
+- **Solucao**: Use filtros mais especificos para reduzir o conjunto
+- Usar sempre o SimpleWidthManager para mudancas programaticas
+- Testar redimensionamento apos qualquer mudanca na GUI
 
 ---
 
 ### **2. PROBLEMAS DE PERFORMANCE COM ARQUIVOS GRANDES**
 
 #### **Sintoma**
-- Lentidão extrema ao importar arquivos >5MB
-- Interface trava durante importação
-- Memória elevada durante processamento
+- Lentidao extrema ao importar arquivos >5MB
+- Interface trava durante importacao
+- Memoria elevada durante processamento
 
-#### **Solução - Modo Optimized**
+#### **Solucao - Modo Optimized**
 ```bash
 # Usar modo otimizado para arquivos grandes
 python main.py --import arquivo_grande.xlsx --optimized
@@ -255,32 +255,32 @@ python main.py --import arquivo_grande.xlsx --optimized
 python main.py --gui --optimized
 ```
 
-#### **Algoritmo de Otimização**
-1. **Detecção Automática**: Sistema detecta arquivos >5MB
+#### **Algoritmo de Otimizacao**
+1. **Deteccao Automatica**: Sistema detecta arquivos >5MB
 2. **Processamento em Chunks**: Divide dados em blocos menores
-3. **Lazy Loading**: Carrega dados conforme necessário
-4. **Cache Inteligente**: Mantém apenas dados ativos na memória
+3. **Lazy Loading**: Carrega dados conforme necessario
+4. **Cache Inteligente**: Mantem apenas dados ativos na memoria
 
-#### **Métricas de Performance**
-- **Sem Otimização**: ~30 segundos para arquivo de 10MB
-- **Com Otimização**: ~8 segundos para arquivo de 10MB
-- **Uso de Memória**: Redução de ~60%
+#### **Metricas de Performance**
+- **Sem Otimizacao**: ~30 segundos para arquivo de 10MB
+- **Com Otimizacao**: ~8 segundos para arquivo de 10MB
+- **Uso de Memoria**: Reducao de ~60%
 
 ---
 
-### **3. PROBLEMAS DE IMPORTAÇÃO DE DADOS**
+### **3. PROBLEMAS DE IMPORTACAO DE DADOS**
 
 #### **Sintomas Comuns**
-- Erro "Arquivo não encontrado"
+- Erro "Arquivo nao encontrado"
 - Dados importados incorretamente
 - Conflitos de encoding
 - SSAs truncados ou duplicados
 
-#### **Diagnóstico Passo-a-Passo**
+#### **Diagnostico Passo-a-Passo**
 
-##### **3.1 Verificação do Arquivo**
+##### **3.1 Verificacao do Arquivo**
 ```bash
-# Verificar se arquivo existe e é acessível
+# Verificar se arquivo existe e e acessivel
 ls -la arquivo.xlsx
 
 # Verificar formato do arquivo
@@ -290,40 +290,40 @@ file arquivo.xlsx
 du -h arquivo.xlsx
 ```
 
-##### **3.2 Teste de Importação Básica**
+##### **3.2 Teste de Importacao Basica**
 ```bash
-# Importação em modo debug
+# Importacao em modo debug
 python main.py --import arquivo.xlsx --debug
 
 # Verificar logs
 tail -f logs/import_debug.log
 ```
 
-##### **3.3 Verificação do Banco de Dados**
+##### **3.3 Verificacao do Banco de Dados**
 ```bash
 # Verificar integridade do banco
 python scripts_manutencao/verificar_integridade.py
 
-# Estatísticas do banco
+# Estatisticas do banco
 python scripts_manutencao/estatisticas_db.py
 
-# Backup antes de correções
+# Backup antes de correcoes
 python scripts_manutencao/backup_db.py
 ```
 
-#### **Problemas Específicos e Soluções**
+#### **Problemas Especificos e Solucoes**
 
-##### **SSAs Truncados (Problema Histórico Crítico)**
-**Causa**: Função `clean_ssa_number()` removendo dígitos válidos
-**Solução**: Algoritmo corrigido
+##### **SSAs Truncados (Problema Historico Critico)**
+**Causa**: Funcao `clean_ssa_number()` removendo digitos validos
+**Solucao**: Algoritmo corrigido
 ```python
 def clean_ssa_number(value):
-    # VERSÃO CORRIGIDA - mantém todos os dígitos
+    # VERSAO CORRIGIDA - mantem todos os digitos
     if pd.isna(value):
         return None
     
     str_value = str(value).strip()
-    # Remove apenas caracteres não-numéricos, preserva dígitos
+    # Remove apenas caracteres nao-numericos, preserva digitos
     cleaned = re.sub(r'[^\d]', '', str_value)
     
     return int(cleaned) if cleaned else None
@@ -349,43 +349,43 @@ HAVING COUNT(*) > 1;
 
 ---
 
-### **4. PROBLEMAS DE INSTALAÇÃO E AMBIENTE**
+### **4. PROBLEMAS DE INSTALACAO E AMBIENTE**
 
 #### **4.1 Python Environment Issues**
 
-##### **Verificação Rápida**
+##### **Verificacao Rapida**
 ```bash
-# Verificar versão do Python
+# Verificar versao do Python
 python --version
 
 # Verificar ambiente virtual
 which python
 
-# Verificar dependências
+# Verificar dependencias
 pip list | grep -E "(PyQt6|pandas|openpyxl)"
 ```
 
 ##### **Problemas Comuns**
-1. **PyQt6 não instalado**: `pip install PyQt6>=6.5.0`
+1. **PyQt6 nao instalado**: `pip install PyQt6>=6.5.0`
 2. **Pandas desatualizado**: `pip install pandas>=2.0.0`
 3. **openpyxl ausente**: `pip install openpyxl>=3.1.0`
 
-#### **4.2 Script de Verificação Automática**
+#### **4.2 Script de Verificacao Automatica**
 ```bash
-# Verificação completa do ambiente
+# Verificacao completa do ambiente
 ./verificar_instalacao.ps1  # Windows
 ./verificar_instalacao.sh   # Linux/macOS
 ```
 
 ---
 
-### **5. PROBLEMAS DE BUILD E EXECUTÁVEIS**
+### **5. PROBLEMAS DE BUILD E EXECUTAVEIS**
 
 #### **5.1 Build Falha**
 
-##### **Diagnóstico**
+##### **Diagnostico**
 ```bash
-# Verificar configuração de build
+# Verificar configuracao de build
 cat launchers/platforms/*/build_config.json
 
 # Build com verbose
@@ -395,56 +395,56 @@ python launchers/build_multiplatform.py --apps gui --verbose
 tail -f launchers/logs/build_*.log
 ```
 
-##### **Soluções Comuns**
-1. **Dependências de Build**: Instalar `pyinstaller`, `setuptools`
+##### **Solucoes Comuns**
+1. **Dependencias de Build**: Instalar `pyinstaller`, `setuptools`
 2. **Paths Incorretos**: Verificar caminhos relativos nos configs
-3. **Recursos Ausentes**: Verificar se `resources/` está presente
+3. **Recursos Ausentes**: Verificar se `resources/` esta presente
 
-#### **5.2 Executável Não Inicia**
+#### **5.2 Executavel Nao Inicia**
 
-##### **Diagnóstico**
+##### **Diagnostico**
 ```bash
 # Executar em modo debug
 ./executavel --debug
 
-# Verificar dependências do sistema
+# Verificar dependencias do sistema
 ldd executavel  # Linux
 otool -L executavel  # macOS
 ```
 
 ---
 
-### **6. COMANDOS DE EMERGÊNCIA**
+### **6. COMANDOS DE EMERGENCIA**
 
 #### **6.1 Reset Completo**
 ```bash
 # Backup atual
 cp -r data/ssas.db data/ssas_backup_$(date +%Y%m%d).db
 
-# Reset de configurações
+# Reset de configuracoes
 rm -f config/*_preferences.json
 
 # Limpar cache
 rm -rf logs/*
 rm -rf __pycache__/*
 
-# Reinstalar dependências
+# Reinstalar dependencias
 pip install -r requirements.txt --force-reinstall
 ```
 
-#### **6.2 Recuperação de Dados**
+#### **6.2 Recuperacao de Dados**
 ```bash
-# Verificar backups disponíveis
+# Verificar backups disponiveis
 ls -la data/historico_backups/
 
-# Restaurar backup específico
+# Restaurar backup especifico
 python scripts_manutencao/restaurar_backup.py --backup data/historico_backups/backup_20250906.db
 
-# Verificar integridade após restauração
+# Verificar integridade apos restauracao
 python scripts_manutencao/verificar_integridade.py
 ```
 
-#### **6.3 Debug Avançado**
+#### **6.3 Debug Avancado**
 ```bash
 # Ativar todos os logs de debug
 export SSA_DEBUG=1
@@ -458,9 +458,9 @@ python -m pstats profile_output.prof
 
 ---
 
-## **PROCEDIMENTOS DE MANUTENÇÃO PREVENTIVA**
+## **PROCEDIMENTOS DE MANUTENCAO PREVENTIVA**
 
-### **1. Verificações Semanais**
+### **1. Verificacoes Semanais**
 ```bash
 # Integridade do banco de dados
 python scripts_manutencao/verificar_integridade.py
@@ -468,31 +468,31 @@ python scripts_manutencao/verificar_integridade.py
 # Limpeza de logs antigos
 find logs -name "*.log" -mtime +30 -delete
 
-# Backup automático
+# Backup automatico
 python scripts_manutencao/backup_automatico.py
 ```
 
-### **2. Verificações Mensais**
+### **2. Verificacoes Mensais**
 ```bash
-# Atualização de dependências
+# Atualizacao de dependencias
 pip list --outdated
 
-# Verificação de performance
+# Verificacao de performance
 python scripts_manutencao/benchmark_performance.py
 
-# Análise de uso de espaço
+# Analise de uso de espaco
 du -sh data/ docs/ logs/
 ```
 
-### **3. Verificações por Release**
+### **3. Verificacoes por Release**
 ```bash
-# Testes de regressão
+# Testes de regressao
 python -m pytest tests/ -v
 
-# Verificação de compatibilidade
+# Verificacao de compatibilidade
 python scripts_manutencao/teste_compatibilidade.py
 
-# Validação de builds
+# Validacao de builds
 python launchers/build_multiplatform.py --test-all
 ```
 
@@ -500,29 +500,29 @@ python launchers/build_multiplatform.py --test-all
 
 ## **CONTATOS PARA SUPORTE**
 
-### **Documentação Técnica**
+### **Documentacao Tecnica**
 - **Arquivo Principal**: `ESTRUTURA_PROJETO.md`
-- **Configurações**: `config/README.md`
+- **Configuracoes**: `config/README.md`
 - **Build System**: `launchers/BUILD_SYSTEM.md`
 
-### **Scripts de Diagnóstico**
+### **Scripts de Diagnostico**
 - **Integridade**: `scripts_manutencao/verificar_integridade.py`
 - **Performance**: `scripts_manutencao/benchmark_*.py`
 - **Debug**: `scripts_manutencao/debug_*.py`
 
 ### **Logs Importantes**
-- **Aplicação**: `logs/app.log`
+- **Aplicacao**: `logs/app.log`
 - **GUI**: `logs/gui_debug.log`
-- **Importação**: `logs/import_debug.log`
+- **Importacao**: `logs/import_debug.log`
 - **Build**: `launchers/logs/build_*.log`
 
-**Lembrete**: Sempre fazer backup antes de aplicar qualquer solução que modifique dados!
+**Lembrete**: Sempre fazer backup antes de aplicar qualquer solucao que modifique dados!
 
 ---
 
-## **ANÁLISE CRÍTICA DO BANCO DE DADOS**
+## **ANALISE CRITICA DO BANCO DE DADOS**
 
-### **Relatório de Integridade Completo (25/08/2025)**
+### **Relatorio de Integridade Completo (25/08/2025)**
 
 #### **Resumo Executivo**
 - **Total de Registros**: 14,426
@@ -530,17 +530,17 @@ python launchers/build_multiplatform.py --test-all
 - **Grupos de Colunas Duplicadas**: 7
 - **Backup Criado**: `data/backups/ssas_backup_20250825_122217.db`
 
-#### **Problemas Críticos Identificados**
+#### **Problemas Criticos Identificados**
 
 ##### **Integridade de Dados**
 ```
-CRÍTICO: Missing Numero Ssa      → 1,676 registros (11.6%)
-CRÍTICO: Missing Descricao       → 6 registros
-CRÍTICO: Missing Area Emissora   → 6 registros  
-CRÍTICO: Missing Localizacao     → 6 registros
-CRÍTICO: Duplicate Numbers       → 4,196 registros (29.1%)
+CRITICO: Missing Numero Ssa      → 1,676 registros (11.6%)
+CRITICO: Missing Descricao       → 6 registros
+CRITICO: Missing Area Emissora   → 6 registros  
+CRITICO: Missing Localizacao     → 6 registros
+CRITICO: Duplicate Numbers       → 4,196 registros (29.1%)
 VALIDADO: Invalid Dates          → 0 registros
-CRÍTICO: Empty Records           → 6 registros
+CRITICO: Empty Records           → 6 registros
 ```
 
 ##### **Colunas Duplicadas - Problema de Schema**
@@ -548,35 +548,35 @@ CRÍTICO: Empty Records           → 6 registros
 PROBLEMA: Sistema possui colunas duplicadas com formatos diferentes:
 
 1. Numero Ssa:
-    "Número da SSA" (TEXT) → 12,750 registros (PRIMÁRIA)
+    "Numero da SSA" (TEXT) → 12,750 registros (PRIMARIA)
     "numero_ssa" (INTEGER) → 1,670 registros (LEGADO)
 
 2. Semana Cadastro:
-    "Semana de Cadastro" (INTEGER) → 12,750 registros (PRIMÁRIA)
+    "Semana de Cadastro" (INTEGER) → 12,750 registros (PRIMARIA)
     "semana_cadastro" (INTEGER) → 1,670 registros (LEGADO)
 
 3. Descricao Execucao:
-    "Descrição Execução" (TEXT) → 10,845 registros (PRIMÁRIA)
+    "Descricao Execucao" (TEXT) → 10,845 registros (PRIMARIA)
     "descricao_execucao" (TEXT) → 1,195 registros (LEGADO)
 
 4. Responsavel Programacao:
-    "Responsável na Programação" (TEXT) → 11,376 registros (PRIMÁRIA)
+    "Responsavel na Programacao" (TEXT) → 11,376 registros (PRIMARIA)
     "responsavel_programacao" (TEXT) → 1,327 registros (LEGADO)
 
 5. Responsavel Execucao:
-    "Responsável na Execução" (TEXT) → 11,188 registros (PRIMÁRIA)
+    "Responsavel na Execucao" (TEXT) → 11,188 registros (PRIMARIA)
     "responsavel_execucao" (TEXT) → 1,259 registros (LEGADO)
 
 6. Grau Prioridade Emissao:
-    "Grau de Prioridade Emissão" (TEXT) → 12,750 registros (PRIMÁRIA)
+    "Grau de Prioridade Emissao" (TEXT) → 12,750 registros (PRIMARIA)
     "grau_prioridade_emissao" (TEXT) → 1,670 registros (LEGADO)
 
 7. Grau Prioridade Planejamento:
-    "Grau de Prioridade Planejamento" (TEXT) → 11,058 registros (PRIMÁRIA)
+    "Grau de Prioridade Planejamento" (TEXT) → 11,058 registros (PRIMARIA)
     "grau_prioridade_planejamento" (TEXT) → 1,494 registros (LEGADO)
 ```
 
-#### **Distribuição de Dados por Qualidade**
+#### **Distribuicao de Dados por Qualidade**
 
 ##### **Colunas com Alta Completude (>99%)**
 ```
@@ -596,57 +596,57 @@ execucao_simples         → 14,413/14,426 (99.91%)
 equipamento             → 14,357/14,426 (99.52%)
 data_cadastro           → 14,343/14,426 (99.42%)
 semana_programada       → 12,773/14,426 (88.54%)
-"Número da SSA"         → 12,750/14,426 (88.38%)
+"Numero da SSA"         → 12,750/14,426 (88.38%)
 ```
 
 ##### **Colunas com Completude Baixa (<80%)**
 ```
-"Responsável na Programação"     → 11,376/14,426 (78.86%)
-"Responsável na Execução"        → 11,188/14,426 (77.55%)
+"Responsavel na Programacao"     → 11,376/14,426 (78.86%)
+"Responsavel na Execucao"        → 11,188/14,426 (77.55%)
 "Grau de Prioridade Planejamento" → 11,058/14,426 (76.65%)
-"Descrição Execução"             → 10,845/14,426 (75.18%)
+"Descricao Execucao"             → 10,845/14,426 (75.18%)
 ```
 
-#### **Recomendações de Correção**
+#### **Recomendacoes de Correcao**
 
-##### **Prioridade CRÍTICA**
-1. **Merge das Colunas Duplicadas**: Consolidar dados das colunas legado nas primárias
+##### **Prioridade CRITICA**
+1. **Merge das Colunas Duplicadas**: Consolidar dados das colunas legado nas primarias
 2. **Limpeza de Registros Vazios**: Investigar e corrigir 6 registros completamente vazios
-3. **Normalização de Números SSA**: Resolver 4,196 duplicatas
-4. **Preenchimento de Dados Críticos**: Resolver 1,676 SSAs sem número
+3. **Normalizacao de Numeros SSA**: Resolver 4,196 duplicatas
+4. **Preenchimento de Dados Criticos**: Resolver 1,676 SSAs sem numero
 
 ##### **Prioridade ALTA**
-1. **Padronização de Schema**: Remover colunas legado após merge
-2. **Validação de Integridade**: Implementar constraints de NOT NULL em campos críticos
-3. **Auditoria de Duplicatas**: Sistema de detecção automática
+1. **Padronizacao de Schema**: Remover colunas legado apos merge
+2. **Validacao de Integridade**: Implementar constraints de NOT NULL em campos criticos
+3. **Auditoria de Duplicatas**: Sistema de deteccao automatica
 
-##### **Scripts de Correção Sugeridos**
+##### **Scripts de Correcao Sugeridos**
 ```sql
 -- 1. Merge de colunas duplicadas
-UPDATE ssas SET "Número da SSA" = numero_ssa 
-WHERE "Número da SSA" IS NULL AND numero_ssa IS NOT NULL;
+UPDATE ssas SET "Numero da SSA" = numero_ssa 
+WHERE "Numero da SSA" IS NULL AND numero_ssa IS NOT NULL;
 
 -- 2. Limpeza de registros vazios
 DELETE FROM ssas WHERE 
-    "Número da SSA" IS NULL AND 
+    "Numero da SSA" IS NULL AND 
     descricao_ssa IS NULL AND 
     situacao IS NULL;
 
--- 3. Remoção de colunas legado (após verificação)
+-- 3. Remocao de colunas legado (apos verificacao)
 -- ALTER TABLE ssas DROP COLUMN numero_ssa;
 -- ALTER TABLE ssas DROP COLUMN semana_cadastro;
 -- (etc para outras colunas legado)
 ```
 
-##### **Verificação Pós-Correção**
+##### **Verificacao Pos-Correcao**
 ```bash
-# Executar verificação de integridade
+# Executar verificacao de integridade
 python scripts_manutencao/verificar_integridade.py
 
-# Gerar novo relatório de análise
+# Gerar novo relatorio de analise
 python scripts_manutencao/database_analysis.py
 
-# Validar importações após correções
+# Validar importacoes apos correcoes
 python main.py -rescan --verify-integrity
 ```
 
@@ -654,93 +654,93 @@ python main.py -rescan --verify-integrity
 
 ## **PROBLEMAS DE ENCODING E CHARSET**
 
-### **Relatório de Testes Automatizados (25/08/2025)**
+### **Relatorio de Testes Automatizados (25/08/2025)**
 
-#### **Problema Crítico Identificado**
+#### **Problema Critico Identificado**
 ```
 ERROR: UnicodeEncodeError em Testes Automatizados
 Codec: 'charmap' (cp1252)
 Caractere: '\U0001f680' (emoji de foguete )
-Posição: 0
+Posicao: 0
 Status: character maps to <undefined>
 ```
 
 #### **Contexto do Problema**
 - **Data**: 25/08/2025 14:16:43
 - **Arquivo**: `tests/automated_system_tests.py`
-- **Função**: `run_all_tests()` linha 571
-- **Situação**: Sistema Windows com encoding cp1252 não suporta emojis Unicode
+- **Funcao**: `run_all_tests()` linha 571
+- **Situacao**: Sistema Windows com encoding cp1252 nao suporta emojis Unicode
 
-#### **Análise da Falha**
+#### **Analise da Falha**
 ```python
-# Código que causou a falha:
+# Codigo que causou a falha:
 print("\U0001f680 Iniciando testes automatizados do sistema SSA...")
 #      ^^^^^^^^^^^
-#      Emoji de foguete não suportado em cp1252
+#      Emoji de foguete nao suportado em cp1252
 ```
 
 #### **Impacto no Sistema**
 -  **Smoke Tests**: Funcionando (33.3% dos testes)
 -  **Testes Funcionais Automatizados**: Falha total por encoding
--  **Taxa de Sucesso Geral**: 33.3% (crítico)
+-  **Taxa de Sucesso Geral**: 33.3% (critico)
 
-#### **Solução Implementada**
+#### **Solucao Implementada**
 
-##### **1. Correção de Encoding nos Testes**
+##### **1. Correcao de Encoding nos Testes**
 ```python
-# ANTES (problemático):
+# ANTES (problematico):
 print("\U0001f680 Iniciando testes automatizados do sistema SSA...")
 
-# DEPOIS (compatível):
+# DEPOIS (compativel):
 print(" Iniciando testes automatizados do sistema SSA...")
 # OU melhor ainda:
 print("* Iniciando testes automatizados do sistema SSA...")
 ```
 
-##### **2. Configuração de Encoding Segura**
+##### **2. Configuracao de Encoding Segura**
 ```python
-# No início dos arquivos de teste:
+# No inicio dos arquivos de teste:
 import sys
 import locale
 
-# Força encoding UTF-8 se disponível
+# Forca encoding UTF-8 se disponivel
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 ```
 
-##### **3. Função Segura para Output**
+##### **3. Funcao Segura para Output**
 ```python
 def safe_print(message):
     """Print seguro que trata problemas de encoding."""
     try:
         print(message)
     except UnicodeEncodeError:
-        # Remove caracteres problemáticos
+        # Remove caracteres problematicos
         safe_message = message.encode('ascii', 'replace').decode('ascii')
         print(safe_message)
 ```
 
-#### **Regras de Codificação para Evitar Problema**
+#### **Regras de Codificacao para Evitar Problema**
 
 ##### **PROIBIDO em Outputs de Console**
 ```python
  print(" Texto com emoji")
  print(" Checkmark emoji") 
  print(" X emoji")
- print(" Gráfico emoji")
+ print(" Grafico emoji")
 ```
 
 ##### **PERMITIDO e Recomendado**
 ```python
  print("* Iniciando sistema...")
- print("[OK] Operação concluída")
+ print("[OK] Operacao concluida")
  print("[ERRO] Falha detectada")
  print(">>> Status do sistema")
 ```
 
-#### **Script de Correção para Arquivos Existentes**
+#### **Script de Correcao para Arquivos Existentes**
 ```bash
-# Encontrar arquivos com emojis problemáticos
+# Encontrar arquivos com emojis problematicos
 grep -r "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF]" tests/ scripts_*/ interface/
 
 # Substituir emojis comuns por caracteres seguros
@@ -749,7 +749,7 @@ sed -i 's//[OK]/g' tests/*.py
 sed -i 's//[ERRO]/g' tests/*.py
 ```
 
-#### **Configuração de Ambiente Recomendada**
+#### **Configuracao de Ambiente Recomendada**
 
 ##### **Windows (PowerShell)**
 ```powershell
@@ -758,14 +758,14 @@ sed -i 's//[ERRO]/g' tests/*.py
 $env:PYTHONIOENCODING = "utf-8"
 ```
 
-##### **Variáveis de Ambiente**
+##### **Variaveis de Ambiente**
 ```bash
 export PYTHONIOENCODING=utf-8
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 ```
 
-#### **Testes de Validação Pós-Correção**
+#### **Testes de Validacao Pos-Correcao**
 ```bash
 # Testar encoding em diferentes ambientes
 python -c "import sys; print(f'Encoding: {sys.stdout.encoding}')"

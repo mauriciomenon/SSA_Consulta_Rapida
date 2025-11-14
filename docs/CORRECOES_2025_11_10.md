@@ -204,7 +204,7 @@ Automated verification scripts are essential:
 
 ## Problemas Identificados e Corrigidos
 
-### 1. NameError: format_search_display não definido FAIL → OK
+### 1. NameError: format_search_display nao definido FAIL → OK
 
 **Sintoma**:
 ```python
@@ -212,9 +212,9 @@ NameError: name 'format_search_display' is not defined
   File "gui\mixins\filter_gui_ssa_mixin.py", line 1230
 ```
 
-**Causa**: Função definida em `gui/helpers/formatting_helpers.py` mas não importada no mixin.
+**Causa**: Funcao definida em `gui/helpers/formatting_helpers.py` mas nao importada no mixin.
 
-**Correção**:
+**Correcao**:
 ```python
 # gui/mixins/filter_gui_ssa_mixin.py (linha 43)
 from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
@@ -222,7 +222,7 @@ from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_sea
 
 ---
 
-### 2. NameError: GUI_MAIN_PREFERENCES não definido FAIL → OK
+### 2. NameError: GUI_MAIN_PREFERENCES nao definido FAIL → OK
 
 **Sintoma**:
 ```python
@@ -230,9 +230,9 @@ NameError: name 'GUI_MAIN_PREFERENCES' is not defined
   File "gui\mixins\filter_gui_ssa_mixin.py", line 84
 ```
 
-**Causa**: Variável global do módulo `gui_ssa.py` não acessível no escopo do mixin.
+**Causa**: Variavel global do modulo `gui_ssa.py` nao acessivel no escopo do mixin.
 
-**Correção** (2 ocorrências):
+**Correcao** (2 ocorrencias):
 ```python
 # Linhas 84-87 e 1155-1157
 from gui import gui_ssa
@@ -243,7 +243,7 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 
 ### 3. Callbacks de Progresso Desalinhados FAIL → OK
 
-**Problema**: Eventos incompatíveis entre `core/app_logic.py` e `RescanWorker`.
+**Problema**: Eventos incompativeis entre `core/app_logic.py` e `RescanWorker`.
 
 | Antes | Depois |
 |-------|--------|
@@ -252,21 +252,21 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 | - | `'file_error'` com `{filename, error}` |
 | `'finish'` | `'finish'` com `{total, processed, errors}` |
 
-**Impacto**: GUI agora mostra progresso real durante importação.
+**Impacto**: GUI agora mostra progresso real durante importacao.
 
 ---
 
 ### 4. Lock Tosco de Single-Instance FAIL → OK
 
 **Problema**: Socket TCP na porta 51234 causava:
-- Locks "fantasma" após crashes
-- Impossibilidade de abrir múltiplas janelas
-- Mensagens enganosas de "GUI já em execução"
+- Locks "fantasma" apos crashes
+- Impossibilidade de abrir multiplas janelas
+- Mensagens enganosas de "GUI ja em execucao"
 
-**Solução**: 
+**Solucao**: 
 - Removido completamente de `main.py`
-- SQLite já tem lock adequado (WAL + busy timeout)
-- Múltiplas instâncias agora permitidas
+- SQLite ja tem lock adequado (WAL + busy timeout)
+- Multiplas instancias agora permitidas
 
 ---
 
@@ -281,33 +281,33 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 ### GUI
 - `main.py` (-20 linhas)
   - Removido import `socket`
-  - Removido código de single-instance
+  - Removido codigo de single-instance
 
 - `gui/mixins/filter_gui_ssa_mixin.py` (+6/-2 linhas)
   - Import: `format_search_display`
   - Acesso via `gui_ssa.GUI_MAIN_PREFERENCES`
 
-### Verificação
+### Verificacao
 - NEW `verify_integrity.py` (novo)
-  - Verificação geral de integridade
+  - Verificacao geral de integridade
   - 7 categorias de testes
 
 - NEW `verify_mixin_imports.py` (novo)
   - Especializado para mixins
-  - 10 testes específicos
+  - 10 testes especificos
 
-### Documentação
+### Documentacao
 - NEW `docs/VERIFICACAO_INTEGRIDADE.md` (novo)
-  - 2500+ linhas de documentação técnica
-  - Tabelas de parâmetros
+  - 2500+ linhas de documentacao tecnica
+  - Tabelas de parametros
   - Diagrama de callbacks
 
 - `CHANGELOG.md` (atualizado)
-  - Seção [Unreleased] com detalhes
+  - Secao [Unreleased] com detalhes
 
 ---
 
-## Verificações Implementadas
+## Verificacoes Implementadas
 
 ### verify_integrity.py
 1. OK Imports sem ciclos circulares
@@ -317,19 +317,19 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 5. OK Assinaturas de `parse_search_terms`
 6. OK Assinaturas de `filter_dataframe`
 7. OK Assinaturas de `run_importer_logic`
-8. OK Métodos de mixins
+8. OK Metodos de mixins
 9. OK Acesso a `GUI_MAIN_PREFERENCES`
 
 ### verify_mixin_imports.py
 1. OK Import do mixin
-2. OK Funções helper
+2. OK Funcoes helper
 3. OK Constantes core
-4. OK Variáveis globais de módulo
+4. OK Variaveis globais de modulo
 5. OK Workers
 6. OK Widgets (opcionais)
-7. OK Funções core.app_logic
+7. OK Funcoes core.app_logic
 8. OK Theme helpers
-9. OK Métodos do mixin
+9. OK Metodos do mixin
 10. OK Acesso inline
 
 ---
@@ -337,62 +337,62 @@ gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
 ## Comandos de Teste
 
 ```powershell
-# Verificação de integridade geral
+# Verificacao de integridade geral
 python tests/verify_code_integrity.py
 
-# Verificação especializada de mixins
+# Verificacao especializada de mixins
 python tests/verify_mixin_imports.py
 
 # Teste da GUI
 python main.py --gui
 
-# Compilação
+# Compilacao
 python -m py_compile core/app_logic.py gui/mixins/filter_gui_ssa_mixin.py main.py
 ```
 
 ---
 
-## Estatísticas
+## Estatisticas
 
 - **Arquivos modificados**: 19
 - **Linhas adicionadas**: 837
 - **Linhas removidas**: 229
-- **Scripts de verificação**: 2 novos
+- **Scripts de verificacao**: 2 novos
 - **Taxa de sucesso dos testes**: 100%
 - **Tempo de build**: ~2s (sem erros)
 
 ---
 
-## Próximos Passos
+## Proximos Passos
 
 1. OK Commit realizado: `604bd50`
-2. NEXT Testar importação com arquivos reais
+2. NEXT Testar importacao com arquivos reais
 3. NEXT Validar progresso em tempo real
-4. NEXT Confirmar múltiplas instâncias da GUI
-5. NEXT Atualizar tag de versão se necessário
+4. NEXT Confirmar multiplas instancias da GUI
+5. NEXT Atualizar tag de versao se necessario
 
 ---
 
-## Lições Aprendidas
+## Licoes Aprendidas
 
 ### Problema dos Mixins
-Ao separar código em mixins, variáveis globais do módulo pai não são automaticamente acessíveis. Soluções:
+Ao separar codigo em mixins, variaveis globais do modulo pai nao sao automaticamente acessiveis. Solucoes:
 
-1. **Import explícito**: `from gui import gui_ssa`
-2. **Acesso via self**: Se a variável for um atributo da classe
-3. **Passar como parâmetro**: No construtor ou método
+1. **Import explicito**: `from gui import gui_ssa`
+2. **Acesso via self**: Se a variavel for um atributo da classe
+3. **Passar como parametro**: No construtor ou metodo
 
-### Callbacks Assíncronos
+### Callbacks Assincronos
 Eventos de callback devem ser:
 - **Documentados**: Tipo e estrutura de dados
 - **Sincronizados**: Mesmos nomes entre emissor e receptor
-- **Testados**: Verificar que todos os eventos são emitidos
+- **Testados**: Verificar que todos os eventos sao emitidos
 
-### Verificação Proativa
-Scripts de verificação automatizados são essenciais:
+### Verificacao Proativa
+Scripts de verificacao automatizados sao essenciais:
 - Detectam problemas antes do runtime
 - Documentam expectativas
-- Facilitam refatorações
+- Facilitam refatoracoes
 
 ---
 

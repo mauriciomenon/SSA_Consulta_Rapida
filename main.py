@@ -16,6 +16,20 @@ import sys
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
+# CRITICAL FIX: PyOxidizer monkey patch for pandas delvewheel
+# pandas._libs uses __file__ which is None in PyOxidizer causing crash
+# This must be BEFORE any imports that use pandas
+if getattr(sys, 'oxidized', False):
+    import builtins
+    _original_import = builtins.__import__
+    def _patched_import(name, *args, **kwargs):
+        module = _original_import(name, *args, **kwargs)
+        if not hasattr(module, '__file__') or module.__file__ is None:
+            # Set a dummy __file__ for modules that need it
+            module.__file__ = os.path.join(os.path.dirname(sys.executable), f"{name.replace('.', os.sep)}.py")
+        return module
+    builtins.__import__ = _patched_import
+
 logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
@@ -163,7 +177,27 @@ def _configure_logging(
 
 
 # Adiciona o diretorio raiz do projeto ao sys.path
-project_root = os.path.dirname(os.path.abspath(__file__))
+def _get_project_root():
+    """Retorna o diretorio raiz do projeto de forma robusta para diferentes builds."""
+    # PyOxidizer
+    if getattr(sys, 'oxidized', False):
+        return os.path.dirname(sys.executable)
+    # PyInstaller
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    # Nuitka
+    if '__compiled__' in globals():
+        return os.path.dirname(sys.executable)
+    # Desenvolvimento
+    try:
+        if __file__ is not None:
+            return os.path.dirname(os.path.abspath(__file__))
+        else:
+            return os.getcwd()
+    except (NameError, TypeError):
+        return os.getcwd()
+
+project_root = _get_project_root()
 sys.path.insert(0, project_root)
 
 def get_app_version():
@@ -254,7 +288,10 @@ def main(cli_args=None):
     
     APP_VERSION = get_app_version()
 
+    # Fix para PyOxidizer: sys.argv[0] pode ser None
+    prog_name = sys.argv[0] if sys.argv and sys.argv[0] else "SSA_Consulta_Rapida"
     parser = argparse.ArgumentParser(
+        prog=prog_name,
         description=f"Consulta Rapida de SSAs v{APP_VERSION}",
         formatter_class=SafeRawTextHelpFormatter,
         epilog="""

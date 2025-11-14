@@ -1,109 +1,109 @@
-# HISTÓRICO DE VERSÕES E RELEASES
+# HISTORICO DE VERSOES E RELEASES
 
-Este documento consolida informações de todas as versões e releases do SSA Consulta Rápida.
+Este documento consolida informacoes de todas as versoes e releases do SSA Consulta Rapida.
 
-## **VERSÃO ATUAL E ROADMAP**
+## **VERSAO ATUAL E ROADMAP**
 
-- **Versão Atual**: v3.10 (Setembro 2025)
-- **Versão em Desenvolvimento**: v3.0.7 (melhorias incrementais)
-- **Próxima Major**: v4.0 (planejada para 2026)
+- **Versao Atual**: v3.10 (Setembro 2025)
+- **Versao em Desenvolvimento**: v3.0.7 (melhorias incrementais)
+- **Proxima Major**: v4.0 (planejada para 2026)
 
 ---
 
 ## **LINHA DO TEMPO DE RELEASES**
 
-### **v3.10 (04/09/2025) - Consolidação Visual**
+### **v3.10 (04/09/2025) - Consolidacao Visual**
 **Status**:  Release Final
 - **Foco**: Melhorias visuais e estabilidade da GUI
 - **Principais Features**:
   - Painel "Filtros por Coluna" compacto
   - Estabilidade de larguras de colunas
-  - Sistema de temas (Gruvbox padrão)
-  - Dicas de busca visíveis
-  - CLI com banner único
+  - Sistema de temas (Gruvbox padrao)
+  - Dicas de busca visiveis
+  - CLI com banner unico
 
 ### **v3.0.7 (Meta) - Melhorias Incrementais**
 **Status**:  Em Desenvolvimento
-- **Foco**: Correções e otimizações
+- **Foco**: Correcoes e otimizacoes
 - **Principais Objetivos**:
-  - Isolamento completo de configurações
+  - Isolamento completo de configuracoes
   - Melhorias no sistema de banco de dados
-  - Otimizações de performance
+  - Otimizacoes de performance
 
 ### **v3.0.5 (25/08/2025) - Estabilidade e Polimento**
-**Status**:  Release Estável
+**Status**:  Release Estavel
 - **Foco**: Sistema CLI Enhanced e robustez
 - **Principais Features**:
   - CLI Enhanced System completo
-  - Sistema de larguras determinísticas
-  - Remoção de mensagens debug
-  - Banner e navegação aprimorados
+  - Sistema de larguras deterministicas
+  - Remocao de mensagens debug
+  - Banner e navegacao aprimorados
   - 67 testes automatizados passando
 
 ### **v3.0.3 (Meta) - Funcionalidades Core**
-**Status**:  Release Histórico
-- **Foco**: Implementação de funcionalidades essenciais
-- **Base**: Sistema de importação e consulta robusto
+**Status**:  Release Historico
+- **Foco**: Implementacao de funcionalidades essenciais
+- **Base**: Sistema de importacao e consulta robusto
 
-### **v3.0.2 (Meta) - Correções Críticas**
-**Status**:  Release Histórico
-- **Foco**: Correções de bugs críticos
-- **Base**: Sistema estável de banco de dados
+### **v3.0.2 (Meta) - Correcoes Criticas**
+**Status**:  Release Historico
+- **Foco**: Correcoes de bugs criticos
+- **Base**: Sistema estavel de banco de dados
 
-### **v3.0.1 (Meta) - Primeiro Release Estável**
-**Status**:  Release Histórico
-- **Foco**: Funcionalidade básica estável
+### **v3.0.1 (Meta) - Primeiro Release Estavel**
+**Status**:  Release Historico
+- **Foco**: Funcionalidade basica estavel
 - **Base**: Sistema funcional de consulta de SSAs
 
 ### **v3.0.0 (Meta) - Release Inicial**
-**Status**:  Release Histórico
-- **Foco**: Implementação inicial
-- **Base**: Sistema básico funcionando
+**Status**:  Release Historico
+- **Foco**: Implementacao inicial
+- **Base**: Sistema basico funcionando
 
 ---
 
-## **FEATURES POR VERSÃO**
+## **FEATURES POR VERSAO**
 
-### **Implementações da v3.0.5**
+### **Implementacoes da v3.0.5**
 
 #### **CLI Enhanced System**
-- **CLI Width Manager**: Sistema de larguras fixas idêntico ao GUI
-- **Enhanced Table Printer**: Renderização ASCII otimizada com word wrap
-- **CLI Enhancement Manager**: Gerenciamento de configurações das melhorias
+- **CLI Width Manager**: Sistema de larguras fixas identico ao GUI
+- **Enhanced Table Printer**: Renderizacao ASCII otimizada com word wrap
+- **CLI Enhancement Manager**: Gerenciamento de configuracoes das melhorias
 - **Comandos Novos**: status-cli, toggle-debug, enhanced-on/off
-- **Compatibilidade**: 100% retrocompatível
+- **Compatibilidade**: 100% retrocompativel
 
-#### **Melhorias Técnicas**
-- **Determinismo**: Larguras de coluna idênticas ao GUI
-- **Performance**: Cache inteligente para renderização
-- **Usabilidade**: Comandos intuitivos e fallback automático
-- **Configuração**: Sistema unificado com GUI
+#### **Melhorias Tecnicas**
+- **Determinismo**: Larguras de coluna identicas ao GUI
+- **Performance**: Cache inteligente para renderizacao
+- **Usabilidade**: Comandos intuitivos e fallback automatico
+- **Configuracao**: Sistema unificado com GUI
 
-### **Implementações da v3.10**
+### **Implementacoes da v3.10**
 
 #### **GUI Aprimorada**
-- **Filtros Compactos**: Painel reorganizado com labels próximos
-- **Estabilidade Visual**: Larguras não mudam em operações normais
-- **Sistema de Temas**: Gruvbox padrão, Tema Claro otimizado
-- **UX Melhorada**: Dicas de busca sempre visíveis
+- **Filtros Compactos**: Painel reorganizado com labels proximos
+- **Estabilidade Visual**: Larguras nao mudam em operacoes normais
+- **Sistema de Temas**: Gruvbox padrao, Tema Claro otimizado
+- **UX Melhorada**: Dicas de busca sempre visiveis
 
 #### **CLI Polido**
-- **Banner Único**: Sem duplicação de informações
+- **Banner Unico**: Sem duplicacao de informacoes
 - **Help Otimizado**: Guia sem bordas laterais
-- **Consistência**: Alinhamento com melhorias da GUI
+- **Consistencia**: Alinhamento com melhorias da GUI
 
 ---
 
-## **ARQUITETURA DE CONFIGURAÇÕES**
+## **ARQUITETURA DE CONFIGURACOES**
 
-### **Evolução do Sistema de Configurações**
+### **Evolucao do Sistema de Configuracoes**
 
-#### **v3.0.x - Sistema Compartilhado (Problemático)**
+#### **v3.0.x - Sistema Compartilhado (Problematico)**
 ```
 config/
 ├── default_settings.json        → CLI + GUI (conflitos)
 ├── column_mappings.json         → Compartilhado
-└── display_mappings.json        → CLI específico
+└── display_mappings.json        → CLI especifico
 ```
 
 #### **v3.0.5+ - Sistema Isolado (Atual)**
@@ -113,33 +113,33 @@ config/
 ├── gui_main_preferences.json    → GUI main.py (isolado)
 ├── default_settings.json        → CLI (inalterado)
 ├── column_mappings.json         → Base compartilhada
-└── display_mappings.json        → CLI específico
+└── display_mappings.json        → CLI especifico
 ```
 
-### **Benefícios da Arquitetura Atual**
+### **Beneficios da Arquitetura Atual**
 1. **Isolamento Completo**: Sem conflitos entre componentes
-2. **Flexibilidade**: Cada interface com suas configurações
-3. **Robustez**: Sistema de fallback automático
-4. **Manutenibilidade**: Configurações organizadas e documentadas
+2. **Flexibilidade**: Cada interface com suas configuracoes
+3. **Robustez**: Sistema de fallback automatico
+4. **Manutenibilidade**: Configuracoes organizadas e documentadas
 
 ---
 
 ## **TESTES E QUALIDADE**
 
-### **Cobertura de Testes por Versão**
+### **Cobertura de Testes por Versao**
 
 #### **v3.0.5 - 67 Testes Passando**
-- **Formatação**: tests/test_formatting.py, tests/test_cli_formatting.py
+- **Formatacao**: tests/test_formatting.py, tests/test_cli_formatting.py
 - **CLI**: tests/test_cli_commands.py, tests/test_table_printer.py
 - **GUI**: tests/test_gui_components.py
 - **Banco**: tests/test_database.py, tests/test_db_reset_and_upsert.py
-- **Exportação**: tests/test_exporter.py
+- **Exportacao**: tests/test_exporter.py
 - **Integridade**: tests/test_column_mappings_integrity.py
 
-#### **Sistema de Validação**
+#### **Sistema de Validacao**
 - **Testes Automatizados**: 67 testes cobrindo funcionalidades principais
-- **Smoke Tests**: Verificação básica de funcionamento
-- **Testes de Integração**: Workflow completo CLI/GUI
+- **Smoke Tests**: Verificacao basica de funcionamento
+- **Testes de Integracao**: Workflow completo CLI/GUI
 - **Testes de Edge Cases**: Larguras extremas, dados malformados
 
 ### **Problemas Conhecidos e Resolvidos**
@@ -147,67 +147,67 @@ config/
 #### **Problema de Encoding (v3.0.5)**
 ```
 PROBLEMA: UnicodeEncodeError com emojis em Windows (cp1252)
-SOLUÇÃO: Substituição de emojis por caracteres ASCII seguros
+SOLUCAO: Substituicao de emojis por caracteres ASCII seguros
 STATUS:  Resolvido
 ```
 
-#### **Conflitos de Configuração (v3.0.x)**
+#### **Conflitos de Configuracao (v3.0.x)**
 ```
-PROBLEMA: GUI e CLI compartilhando configurações
-SOLUÇÃO: Isolamento completo com arquivos específicos
+PROBLEMA: GUI e CLI compartilhando configuracoes
+SOLUCAO: Isolamento completo com arquivos especificos
 STATUS:  Resolvido na v3.0.5+
 ```
 
-#### **Duplicação de Colunas no Banco (Detectado)**
+#### **Duplicacao de Colunas no Banco (Detectado)**
 ```
 PROBLEMA: 7 grupos de colunas duplicadas no schema
-ANÁLISE: 4,196 registros duplicados (29.1%)
-STATUS:  Identificado, aguardando correção
+ANALISE: 4,196 registros duplicados (29.1%)
+STATUS:  Identificado, aguardando correcao
 ```
 
 ---
 
 ## **ROADMAP FUTURO**
 
-### **v3.0.7 (Próxima)**
-- **Prioridade ALTA**: Correção de duplicatas no banco
-- **Melhorias**: Sistema de verificação de integridade
-- **Otimizações**: Performance de importação
-- **Documentação**: Guias atualizados
+### **v3.0.7 (Proxima)**
+- **Prioridade ALTA**: Correcao de duplicatas no banco
+- **Melhorias**: Sistema de verificacao de integridade
+- **Otimizacoes**: Performance de importacao
+- **Documentacao**: Guias atualizados
 
 ### **v4.0 (Planejada)**
 - **Arquitetura**: Sistema de plugins
-- **Interface**: API REST para integração
+- **Interface**: API REST para integracao
 - **Web**: Interface web complementar
-- **Avançado**: IA para análise de dados
+- **Avancado**: IA para analise de dados
 
-### **Critérios para v4.0**
-1. **Estabilidade**: v3.x completamente estável
+### **Criterios para v4.0**
+1. **Estabilidade**: v3.x completamente estavel
 2. **Demanda**: Necessidade real de novas funcionalidades
 3. **Recursos**: Equipe/tempo para desenvolvimento major
-4. **Compatibilidade**: Migração suave da v3.x
+4. **Compatibilidade**: Migracao suave da v3.x
 
 ---
 
-## **LIÇÕES APRENDIDAS**
+## **LICOES APRENDIDAS**
 
 ### **Desenvolvimento**
-1. **Isolamento é Crítico**: Configurações compartilhadas causam conflitos
-2. **Testes Salvam Tempo**: 67 testes previnem regressões
-3. **Documentação é Essencial**: Rastreabilidade facilita manutenção
-4. **Performance Importa**: Otimizações fazem diferença real
+1. **Isolamento e Critico**: Configuracoes compartilhadas causam conflitos
+2. **Testes Salvam Tempo**: 67 testes previnem regressoes
+3. **Documentacao e Essencial**: Rastreabilidade facilita manutencao
+4. **Performance Importa**: Otimizacoes fazem diferenca real
 
 ### **Arquitetura**
-1. **Modularidade**: Componentes independentes são mais robustos
-2. **Configuração Flexível**: Cada interface precisa suas próprias configurações
+1. **Modularidade**: Componentes independentes sao mais robustos
+2. **Configuracao Flexivel**: Cada interface precisa suas proprias configuracoes
 3. **Backward Compatibility**: Manter compatibilidade reduz friction
 4. **Fallback Systems**: Sistemas de fallback previnem crashes
 
 ### **Qualidade**
-1. **Encoding Matters**: Considerar diferentes ambientes desde início
-2. **Database Integrity**: Verificações regulares previnem corrupção
-3. **User Experience**: Pequenos detalhes fazem grande diferença
-4. **Professional Polish**: Remoção de debug messages é essencial
+1. **Encoding Matters**: Considerar diferentes ambientes desde inicio
+2. **Database Integrity**: Verificacoes regulares previnem corrupcao
+3. **User Experience**: Pequenos detalhes fazem grande diferenca
+4. **Professional Polish**: Remocao de debug messages e essencial
 
-**Última Atualização**: Setembro 2025  
-**Próxima Revisão**: Com release da v3.0.7
+**Ultima Atualizacao**: Setembro 2025  
+**Proxima Revisao**: Com release da v3.0.7

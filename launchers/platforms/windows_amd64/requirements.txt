@@ -1,4 +1,4 @@
-# Requirements otimizados para Windows AMD64 (mínimos)
+# Requirements otimizados para Windows AMD64 (minimos)
 
 # Runtime
 pandas>=2.3.0
@@ -6,12 +6,12 @@ openpyxl>=3.1.5
 PyQt6>=6.9.0
 tabulate>=0.9.0
 
-# Build (sem compressão UPX)
+# Build (sem compressao UPX)
 pyinstaller>=6.14.2
 pillow>=10.4.0
 cairosvg>=2.7.1
 
-# Para compressão UPX opcional use também: requirements_windows_build.txt
+# Para compressao UPX opcional use tambem: requirements_windows_build.txt
 
-# Windows específico
+# Windows especifico
 pywin32>=306; platform_system=="Windows"

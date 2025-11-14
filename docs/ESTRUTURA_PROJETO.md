@@ -1,174 +1,174 @@
-# ESTRUTURA E ORGANIZAÇÃO DO PROJETO
+# ESTRUTURA E ORGANIZACAO DO PROJETO
 
-Este documento consolida toda a documentação sobre estrutura, organização e padrões do projeto SSA Consulta Rápida.
+Este documento consolida toda a documentacao sobre estrutura, organizacao e padroes do projeto SSA Consulta Rapida.
 
 ## **ESTRUTURA DO PROJETO OTIMIZADA**
 
-### **Visão Geral da Arquitetura**
+### **Visao Geral da Arquitetura**
 ```
 SSA_Consulta_Rapida/
 ├── main.py                          # Ponto de entrada principal
-├── requirements.txt                 # Dependências de produção
-├── pyproject.toml                   # Configuração do projeto
+├── requirements.txt                 # Dependencias de producao
+├── pyproject.toml                   # Configuracao do projeto
 ├── 
-├── core/                           # Lógica de negócio central
-│   ├── app_logic.py               # Orquestração principal
-│   ├── config_manager.py          # Gerenciamento de configurações
+├── core/                           # Logica de negocio central
+│   ├── app_logic.py               # Orquestracao principal
+│   ├── config_manager.py          # Gerenciamento de configuracoes
 │   ├── cache_manager.py           # Sistema de cache
 │   └── handler_base.py            # Classes base
 ├── 
 ├── armazenamento/                  # Camada de dados
-│   ├── database.py               # Interface padrão
-│   └── database_optimized.py     # Versão otimizada
+│   ├── database.py               # Interface padrao
+│   └── database_optimized.py     # Versao otimizada
 ├── 
-├── gui/                           # Interface gráfica
+├── gui/                           # Interface grafica
 │   ├── gui_ssa.py                # Interface principal
 │   ├── simple_width_manager.py   # Gerenciamento de larguras
-│   └── components/               # Componentes reutilizáveis
+│   └── components/               # Componentes reutilizaveis
 ├── 
 ├── interface/                     # Interface CLI
-│   └── cli_*.py                  # Módulos da linha de comando
+│   └── cli_*.py                  # Modulos da linha de comando
 ├── 
-├── utils/                        # Utilitários
-│   ├── helpers.py               # Funções auxiliares
-│   ├── validators.py            # Validações
+├── utils/                        # Utilitarios
+│   ├── helpers.py               # Funcoes auxiliares
+│   ├── validators.py            # Validacoes
 │   └── themes.py                # Temas da interface
 ├── 
-├── config/                       # Configurações
-│   ├── settings.json            # Configurações gerais
+├── config/                       # Configuracoes
+│   ├── settings.json            # Configuracoes gerais
 │   ├── column_mappings.json     # Mapeamento de colunas
-│   └── *_preferences.json       # Preferências por componente
+│   └── *_preferences.json       # Preferencias por componente
 ├── 
 ├── data/                         # Dados persistentes
 │   ├── ssas.db                  # Banco principal
-│   └── historico_backups/       # Backups automáticos
+│   └── historico_backups/       # Backups automaticos
 ├── 
 ├── launchers/                    # Sistema de build
 │   ├── build_multiplatform.py   # Build multiplataforma
 │   ├── platforms/               # Configs por plataforma
-│   └── dist/                    # Executáveis gerados
+│   └── dist/                    # Executaveis gerados
 ├── 
-├── docs/                        # Documentação
+├── docs/                        # Documentacao
 │   ├── CHECKLIST_MASTER.md      # Status e planejamento
-│   ├── ANALISES_TECNICAS.md     # Análises consolidadas
-│   ├── TROUBLESHOOTING.md       # Solução de problemas
-│   ├── RELATORIOS_DESENVOLVIMENTO.md # Relatórios
+│   ├── ANALISES_TECNICAS.md     # Analises consolidadas
+│   ├── TROUBLESHOOTING.md       # Solucao de problemas
+│   ├── RELATORIOS_DESENVOLVIMENTO.md # Relatorios
 │   └── GUIA_MIGRACAO_NOVA_INSTALACAO.md # Setup
 └── 
 └── tests/                       # Testes automatizados
-    ├── unit/                   # Testes unitários
-    ├── integration/            # Testes de integração
+    ├── unit/                   # Testes unitarios
+    ├── integration/            # Testes de integracao
     └── fixtures/               # Dados para testes
 ```
 
-### **Provisionamento Automático de Diretórios**
-O módulo `utils.setup_project_structure` garante, no início da execução, que diretórios fundamentais existam (ex.: `data/`, `data/historico_backups/`, `logs/`, `reports/`, `extracao/`, `exportacao/`).
+### **Provisionamento Automatico de Diretorios**
+O modulo `utils.setup_project_structure` garante, no inicio da execucao, que diretorios fundamentais existam (ex.: `data/`, `data/historico_backups/`, `logs/`, `reports/`, `extracao/`, `exportacao/`).
 
-Características:
-- Idempotente: múltiplas chamadas não recriam nem alteram existentes.
-- Log de nível INFO apenas quando algo novo é criado (silencioso em execuções subsequentes).
-- Extensível por variáveis de ambiente:
-    - `SSA_EXTRA_DIRS="dir1,dir2"` para acrescentar diretórios adicionais.
-    - `SSA_LEGACY_SETUP_MODULE=/caminho/legacy_setup.py` para mesclar diretórios definidos por `legacy_required_dirs()` (se disponível).
-- Teste de guarda: `tests/test_setup_project_structure.py` evita remoção acidental.
+Caracteristicas:
+- Idempotente: multiplas chamadas nao recriam nem alteram existentes.
+- Log de nivel INFO apenas quando algo novo e criado (silencioso em execucoes subsequentes).
+- Extensivel por variaveis de ambiente:
+    - `SSA_EXTRA_DIRS="dir1,dir2"` para acrescentar diretorios adicionais.
+    - `SSA_LEGACY_SETUP_MODULE=/caminho/legacy_setup.py` para mesclar diretorios definidos por `legacy_required_dirs()` (se disponivel).
+- Teste de guarda: `tests/test_setup_project_structure.py` evita remocao acidental.
 
-Uso isolado (diagnóstico):
+Uso isolado (diagnostico):
 ```bash
 python -c "from utils import setup_project_structure as s; print(s.setup_dirs())"
 ```
 
-### **PRINCÍPIOS ARQUITETURAIS**
+### **PRINCIPIOS ARQUITETURAIS**
 
-#### **1. Separação de Responsabilidades**
-- **core/**: Lógica de negócio pura, sem dependência de interface
-- **gui/**: Interface gráfica, depende apenas do core
+#### **1. Separacao de Responsabilidades**
+- **core/**: Logica de negocio pura, sem dependencia de interface
+- **gui/**: Interface grafica, depende apenas do core
 - **interface/**: CLI, depende apenas do core
-- **armazenamento/**: Persistência, interface bem definida
-- **utils/**: Funções auxiliares, sem dependências internas
+- **armazenamento/**: Persistencia, interface bem definida
+- **utils/**: Funcoes auxiliares, sem dependencias internas
 
-#### **2. Configuração Centralizada**
-- **config/**: Todos os arquivos de configuração
-- JSON para dados modificáveis
-- Código para lógica imutável
-- Versionamento de configurações
+#### **2. Configuracao Centralizada**
+- **config/**: Todos os arquivos de configuracao
+- JSON para dados modificaveis
+- Codigo para logica imutavel
+- Versionamento de configuracoes
 
 #### **3. Modularidade**
-- Cada módulo tem responsabilidade específica
-- Interfaces bem definidas entre módulos
-- Possibilidade de extensão sem modificação
+- Cada modulo tem responsabilidade especifica
+- Interfaces bem definidas entre modulos
+- Possibilidade de extensao sem modificacao
 
 ---
 
-## **ORGANIZAÇÃO DA DOCUMENTAÇÃO PROFISSIONAL**
+## **ORGANIZACAO DA DOCUMENTACAO PROFISSIONAL**
 
-### **ESTRUTURA HIERÁRQUICA**
+### **ESTRUTURA HIERARQUICA**
 
-#### **Nível 1 - Documentos Principais**
-1. **README.md** - Visão geral e quick start
+#### **Nivel 1 - Documentos Principais**
+1. **README.md** - Visao geral e quick start
 2. **GUIA_MIGRACAO_NOVA_INSTALACAO.md** - Setup completo
 3. **ESTRUTURA_PROJETO.md** - Este documento
-4. **TROUBLESHOOTING.md** - Solução de problemas
+4. **TROUBLESHOOTING.md** - Solucao de problemas
 
-#### **Nível 2 - Documentos Especializados**
+#### **Nivel 2 - Documentos Especializados**
 1. **CHECKLIST_MASTER.md** - Status e planejamento
-2. **ANALISES_TECNICAS.md** - Análises consolidadas
-3. **RELATORIOS_DESENVOLVIMENTO.md** - Histórico de desenvolvimento
+2. **ANALISES_TECNICAS.md** - Analises consolidadas
+3. **RELATORIOS_DESENVOLVIMENTO.md** - Historico de desenvolvimento
 4. **BUILD_SYSTEM.md** - Sistema de build
 
-#### **Nível 3 - Documentos de Referência**
-1. **REGRAS_DE_OURO.md** - Boas práticas
-2. **COMANDOS_RAPIDOS.md** - Referência rápida
+#### **Nivel 3 - Documentos de Referencia**
+1. **REGRAS_DE_OURO.md** - Boas praticas
+2. **COMANDOS_RAPIDOS.md** - Referencia rapida
 3. **GUIA_MODO_OPTIMIZED.md** - Performance
 4. **THEMING_AND_PACKAGING_PLAN.md** - Futuro
 
-### **PADRÕES DE DOCUMENTAÇÃO**
+### **PADROES DE DOCUMENTACAO**
 
-#### **Estrutura Padrão de Documentos**
+#### **Estrutura Padrao de Documentos**
 ```markdown
-# TÍTULO PRINCIPAL
+# TITULO PRINCIPAL
 
-Breve descrição do propósito do documento.
+Breve descricao do proposito do documento.
 
-## **SEÇÃO PRINCIPAL**
+## **SECAO PRINCIPAL**
 
-### **Subseção**
+### **Subsecao**
 
-Conteúdo organizado de forma hierárquica.
+Conteudo organizado de forma hierarquica.
 
-#### **Detalhes Específicos**
+#### **Detalhes Especificos**
 - Listas quando apropriado
-- Exemplos de código quando relevante
-- Comandos práticos
+- Exemplos de codigo quando relevante
+- Comandos praticos
 
-**Status**: Indicador de estado quando aplicável
+**Status**: Indicador de estado quando aplicavel
 ```
 
-#### **Convenções de Nomenclatura**
-- **MAIÚSCULAS** para documentos principais
-- **snake_case** para arquivos de código
+#### **Convencoes de Nomenclatura**
+- **MAIUSCULAS** para documentos principais
+- **snake_case** para arquivos de codigo
 - **kebab-case** para recursos web
 - **PascalCase** para classes Python
 
 #### **Linguagem e Tom**
-- **Profissional**: Sem gírias, emojis ou linguagem informal
-- **Técnico**: Preciso e específico
+- **Profissional**: Sem girias, emojis ou linguagem informal
+- **Tecnico**: Preciso e especifico
 - **Objetivo**: Direto ao ponto
 - **Consistente**: Mesma terminologia em todo projeto
 
 ---
 
-## **PADRÕES DE DESENVOLVIMENTO**
+## **PADROES DE DESENVOLVIMENTO**
 
-### **ESTRUTURA DE CÓDIGO**
+### **ESTRUTURA DE CODIGO**
 
 #### **Arquivos Python**
 ```python
 """
-Módulo: nome_do_modulo.py
-Propósito: Descrição breve da funcionalidade
+Modulo: nome_do_modulo.py
+Proposito: Descricao breve da funcionalidade
 """
 
-# Imports padrão
+# Imports padrao
 import os
 import sys
 
@@ -181,26 +181,26 @@ from core.app_logic import AppLogic
 from utils.helpers import Helper
 
 class NomeClasse:
-    """Classe para [propósito específico]."""
+    """Classe para [proposito especifico]."""
     
     def __init__(self):
-        """Inicialização da classe."""
+        """Inicializacao da classe."""
         pass
     
     def metodo_publico(self):
-        """Método público com docstring."""
+        """Metodo publico com docstring."""
         pass
     
     def _metodo_privado(self):
-        """Método privado com docstring."""
+        """Metodo privado com docstring."""
         pass
 ```
 
-#### **Configurações JSON**
+#### **Configuracoes JSON**
 ```json
 {
     "version": "3.10",
-    "description": "Configurações para [componente]",
+    "description": "Configuracoes para [componente]",
     "settings": {
         "opcao1": "valor1",
         "opcao2": 42,
@@ -213,39 +213,39 @@ class NomeClasse:
 }
 ```
 
-### **CONVENÇÕES DE NOMENCLATURA**
+### **CONVENCOES DE NOMENCLATURA**
 
-#### **Variáveis e Funções**
-- `snake_case` para funções e variáveis
+#### **Variaveis e Funcoes**
+- `snake_case` para funcoes e variaveis
 - `UPPER_SNAKE_CASE` para constantes
-- Nomes descritivos e específicos
-- Evitar abreviações desnecessárias
+- Nomes descritivos e especificos
+- Evitar abreviacoes desnecessarias
 
-#### **Classes e Módulos**
+#### **Classes e Modulos**
 - `PascalCase` para classes
-- `snake_case` para módulos
+- `snake_case` para modulos
 - Nomes que indicam responsabilidade clara
 - Sufixos descritivos (Manager, Handler, Provider)
 
-#### **Arquivos e Diretórios**
+#### **Arquivos e Diretorios**
 - `snake_case` para arquivos Python
 - `kebab-case` para outros arquivos
-- Diretórios em minúsculas
+- Diretorios em minusculas
 - Estrutura reflete arquitetura
 
-### **ORGANIZAÇÃO DE IMPORTS**
-1. **Bibliotecas padrão** do Python
+### **ORGANIZACAO DE IMPORTS**
+1. **Bibliotecas padrao** do Python
 2. **Bibliotecas de terceiros**
-3. **Módulos locais**
+3. **Modulos locais**
 4. Linha em branco entre cada grupo
-5. Ordenação alfabética dentro de cada grupo
+5. Ordenacao alfabetica dentro de cada grupo
 
 ### **TRATAMENTO DE ERROS**
 ```python
 def funcao_com_tratamento():
-    """Função com tratamento adequado de erros."""
+    """Funcao com tratamento adequado de erros."""
     try:
-        # Operação que pode falhar
+        # Operacao que pode falhar
         resultado = operacao_perigosa()
         return resultado
     except ValueError as e:
@@ -255,39 +255,39 @@ def funcao_com_tratamento():
         logger.error(f"Erro inesperado: {e}")
         raise
     finally:
-        # Limpeza necessária
+        # Limpeza necessaria
         cleanup()
 ```
 
 ---
 
-## **GESTÃO DE CONFIGURAÇÕES**
+## **GESTAO DE CONFIGURACOES**
 
-### **HIERARQUIA DE CONFIGURAÇÕES**
+### **HIERARQUIA DE CONFIGURACOES**
 
-#### **1. Configurações de Sistema (config/)**
-- `settings.json` - Configurações globais
+#### **1. Configuracoes de Sistema (config/)**
+- `settings.json` - Configuracoes globais
 - `column_mappings.json` - Mapeamento de colunas
-- `column_priority.json` - Prioridades de exibição
-- `display_mappings.json` - Formatação de exibição
+- `column_priority.json` - Prioridades de exibicao
+- `display_mappings.json` - Formatacao de exibicao
 
-#### **2. Configurações de Usuário**
-- `gui_main_preferences.json` - Preferências da GUI principal
-- `gui_poc_preferences.json` - Preferências da POC
+#### **2. Configuracoes de Usuario**
+- `gui_main_preferences.json` - Preferencias da GUI principal
+- `gui_poc_preferences.json` - Preferencias da POC
 - `cli_enhancements.json` - Melhorias do CLI
 
-#### **3. Configurações de Build**
+#### **3. Configuracoes de Build**
 - `launchers/platforms/*/build_config.json` - Por plataforma
 - `pyproject.toml` - Metadados do projeto
-- `requirements.txt` - Dependências
+- `requirements.txt` - Dependencias
 
-### **EXEMPLO DE CONFIGURAÇÃO ESTRUTURADA**
+### **EXEMPLO DE CONFIGURACAO ESTRUTURADA**
 ```json
 {
     "metadata": {
         "version": "3.10",
         "component": "gui_main",
-        "description": "Preferências da interface principal",
+        "description": "Preferencias da interface principal",
         "schema_version": "1.0"
     },
     "interface": {
@@ -321,108 +321,108 @@ def funcao_com_tratamento():
 ### **CICLO DE VIDA DE FEATURES**
 
 #### **1. Planejamento**
-- Análise de requisitos
-- Design da solução
-- Estimativa de esforço
-- Documentação inicial
+- Analise de requisitos
+- Design da solucao
+- Estimativa de esforco
+- Documentacao inicial
 
-#### **2. Implementação**
-- Desenvolvimento seguindo padrões
-- Testes unitários
-- Documentação atualizada
+#### **2. Implementacao**
+- Desenvolvimento seguindo padroes
+- Testes unitarios
+- Documentacao atualizada
 - Code review
 
-#### **3. Validação**
-- Testes de integração
+#### **3. Validacao**
+- Testes de integracao
 - Testes de performance
-- Validação de usuário
-- Documentação final
+- Validacao de usuario
+- Documentacao final
 
 #### **4. Deploy**
-- Build para múltiplas plataformas
+- Build para multiplas plataformas
 - Testes em ambiente real
 - Release notes
 - Monitoramento
 
 ### **PROCESSO DE RELEASE**
 
-#### **Preparação**
-1. Atualização de versão em `config/version.json`
-2. Atualização de `CHANGELOG.md`
-3. Build de todos os executáveis
+#### **Preparacao**
+1. Atualizacao de versao em `config/version.json`
+2. Atualizacao de `CHANGELOG.md`
+3. Build de todos os executaveis
 4. Testes finais em cada plataforma
 
-#### **Publicação**
-1. Tag no Git com versionamento semântico
+#### **Publicacao**
+1. Tag no Git com versionamento semantico
 2. Release no GitHub com assets
-3. Documentação atualizada
-4. Comunicação de mudanças
+3. Documentacao atualizada
+4. Comunicacao de mudancas
 
-#### **Pós-Release**
+#### **Pos-Release**
 1. Monitoramento de feedback
-2. Hotfixes se necessário
-3. Planejamento da próxima versão
-4. Lições aprendidas
+2. Hotfixes se necessario
+3. Planejamento da proxima versao
+4. Licoes aprendidas
 
 ---
 
-## **BOAS PRÁTICAS ESTABELECIDAS**
+## **BOAS PRATICAS ESTABELECIDAS**
 
-### **CÓDIGO**
+### **CODIGO**
 - Seguir PEP 8 para Python
-- Docstrings em todas as funções públicas
+- Docstrings em todas as funcoes publicas
 - Type hints quando apropriado
 - Tratamento adequado de erros
 - Logging estruturado
 
-### **DOCUMENTAÇÃO**
-- Manter atualizada com mudanças
-- Linguagem profissional e técnica
-- Exemplos práticos quando relevante
+### **DOCUMENTACAO**
+- Manter atualizada com mudancas
+- Linguagem profissional e tecnica
+- Exemplos praticos quando relevante
 - Estrutura consistente
-- Versionamento junto com código
+- Versionamento junto com codigo
 
-### **CONFIGURAÇÃO**
-- JSON para dados modificáveis
-- Validação de configurações
-- Valores padrão sensatos
-- Migração automática quando possível
-- Backup antes de mudanças
+### **CONFIGURACAO**
+- JSON para dados modificaveis
+- Validacao de configuracoes
+- Valores padrao sensatos
+- Migracao automatica quando possivel
+- Backup antes de mudancas
 
 ### **PERFORMANCE**
-- Profiling regular de código crítico
-- Otimização baseada em dados reais
+- Profiling regular de codigo critico
+- Otimizacao baseada em dados reais
 - Monitoramento de recursos
-- Escalabilidade considerada desde o início
-- Cache estratégico
+- Escalabilidade considerada desde o inicio
+- Cache estrategico
 
 ### **QUALIDADE**
 - Testes automatizados
-- Code review obrigatório
-- Análise estática de código
-- Monitoramento de métricas
-- Feedback contínuo
+- Code review obrigatorio
+- Analise estatica de codigo
+- Monitoramento de metricas
+- Feedback continuo
 
 ---
 
-## **EVOLUÇÃO FUTURA**
+## **EVOLUCAO FUTURA**
 
 ### **ARQUITETURA**
 - Manter modularidade
-- Considerar microserviços se necessário
-- API REST para integrações
+- Considerar microservicos se necessario
+- API REST para integracoes
 - Plugins para extensibilidade
 
-### **DOCUMENTAÇÃO**
-- Automatização de documentação
-- Wiki para conhecimento dinâmico
+### **DOCUMENTACAO**
+- Automatizacao de documentacao
+- Wiki para conhecimento dinamico
 - Tutoriais interativos
-- Documentação de API
+- Documentacao de API
 
 ### **PROCESSO**
 - CI/CD mais robusto
-- Automação de testes
+- Automacao de testes
 - Deploy automatizado
 - Monitoramento proativo
 
-**Status**: Estrutura estabilizada e pronta para crescimento sustentável.
+**Status**: Estrutura estabilizada e pronta para crescimento sustentavel.

@@ -10,15 +10,15 @@ launchers/
 ├── platforms/                  # Configuracoes por plataforma
 │   ├── windows_amd64/
 │   │   ├── venv/               # Ambiente virtual Windows
-│   │   ├── requirements.txt    # Deps específicas Windows
+│   │   ├── requirements.txt    # Deps especificas Windows
 │   │   └── build_config.json   # Config PyInstaller Windows
 │   ├── macos_arm64/
 │   │   ├── venv/               # Ambiente virtual macOS
-│   │   ├── requirements.txt    # Deps específicas macOS
+│   │   ├── requirements.txt    # Deps especificas macOS
 │   │   └── build_config.json   # Config PyInstaller macOS
 │   └── debian_amd64/
 │       ├── venv/               # Ambiente virtual Linux
-│       ├── requirements.txt    # Deps específicas Linux
+│       ├── requirements.txt    # Deps especificas Linux
 │       └── build_config.json   # Config PyInstaller Linux
 ├── dist/                       # Executaveis gerados
 │   ├── windows_amd64/
@@ -43,14 +43,14 @@ launchers/
 python launchers/build_multiplatform.py
 ```
 
-### Build específico por Plataforma
+### Build especifico por Plataforma
 ```bash
 python launchers/build_multiplatform.py --platform windows_amd64
 python launchers/build_multiplatform.py --platform macos_arm64
 python launchers/build_multiplatform.py --platform debian_amd64
 ```
 
-### Build Completo (Todas as plataformas compatíveis)
+### Build Completo (Todas as plataformas compativeis)
 ```bash
 python launchers/build_multiplatform.py --all
 ```
@@ -63,17 +63,17 @@ python launchers/build_multiplatform.py --debug          # Build com debug info
 python launchers/build_multiplatform.py --release        # Build para release com versionamento
 ```
 
-## configuração de Ambiente
+## configuracao de Ambiente
 
 ### Primeira Execucao
 O script automaticamente:
 1. Detecta a plataforma atual
-2. Cria ambiente virtual específico
-3. Instala dependências otimizadas
+2. Cria ambiente virtual especifico
+3. Instala dependencias otimizadas
 4. Configura PyInstaller
 5. Gera executaveis
 
-### dependências por Plataforma
+### dependencias por Plataforma
 
 **Windows AMD64:**
 - PyInstaller 6.0+
@@ -92,7 +92,7 @@ O script automaticamente:
 - PyQt6
 - Bibliotecas sistema (libGL, libX11)
 
-## otimizações de Tamanho
+## otimizacoes de Tamanho
 
 ### Tecnicas Aplicadas
 1. **Exclusao de modulos desnecessarios**: Remove bibliotecas nao utilizadas
@@ -145,7 +145,7 @@ Cada build gera um `release_manifest.json`:
 chmod +x launchers/build_multiplatform.py
 ```
 
-**dependências ausentes (Linux):**
+**dependencias ausentes (Linux):**
 ```bash
 sudo apt-get install python3-dev libgl1-mesa-dev libx11-dev
 ```
@@ -165,7 +165,7 @@ Remove todos os ambientes virtuais e builds anteriores.
 ## Integracao CI/CD
 
 ### GitHub Actions
-O script e compatível com workflows automatizados:
+O script e compativel com workflows automatizados:
 
 ```yaml
 - name: Build Executables

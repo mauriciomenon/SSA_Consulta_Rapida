@@ -7,10 +7,10 @@ ships with v3.11 and how you can resume work from another workstation.
 
 | Dev file | Source snapshot (header) | Production counterpart | Notes / Recommended usage |
 | --- | --- | --- | --- |
-| `core/app_logic_dev.py` | `core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Exceções, Logging)` | `core/app_logic.py` | Full snapshot of the pre-v3.11 CLI/GUI orchestration layer (≈1.8k LOC). Not referenced anywhere. Useful if you need to port behaviours that were removed/refactored in `core/app_logic.py`. Compare with `git diff core/app_logic_dev.py core/app_logic.py` before merging changes. |
+| `core/app_logic_dev.py` | `core/app_logic.py 20250725 103000 (v3.1 - Refatorado, Excecoes, Logging)` | `core/app_logic.py` | Full snapshot of the pre-v3.11 CLI/GUI orchestration layer (≈1.8k LOC). Not referenced anywhere. Useful if you need to port behaviours that were removed/refactored in `core/app_logic.py`. Compare with `git diff core/app_logic_dev.py core/app_logic.py` before merging changes. |
 | `core/config_manager_dev.py` | `core/config_manager.py 20250725 163000 (v2.1 - Melhorias de Erro, Logging)` | `core/config_manager.py` | Legacy configuration loader with simpler validation rules. Keeps the old default display mapping inline. Treat it as a reference when adjusting validation or backporting behaviour. |
 | `extracao/extractor_dev.py` | `extracao/extractor.py 20250725 101500 (v6.4 - Melhorias de Tipo, Sanitizacao, Logging)` | `extracao/extractor.py` | Older extractor that predates the latest sanitisation work. Handy for A/B testing column-mapping changes. Remember it still imports the live `core.config_manager`. |
-| `gui/gui_ssa_dev.py` | Minimal dev-only GUI stub (header comment) | `gui/gui_ssa.py` | Stand‑alone PyQt6 window to call the Itaipu API without touching the main GUI. No production imports refer to it; run with `python -m gui.gui_ssa_dev`. |
+| `gui/gui_ssa_dev.py` | Minimal dev-only GUI stub (header comment) | `gui/gui_ssa.py` | Stand‐alone PyQt6 window to call the Itaipu API without touching the main GUI. No production imports refer to it; run with `python -m gui.gui_ssa_dev`. |
 
 ## General guidance
 

@@ -3,9 +3,9 @@
 ##  **BUILD SYSTEM OTIMIZADO PARA v4.0.0**
 
 ###  **PERFORMANCE APRIMORADA NO BUILD:**
-- Sistema de logging robusto integrado nos executáveis
-- Cache inteligente para builds mais rápidos
-- Otimizações automáticas aplicadas por padrão
+- Sistema de logging robusto integrado nos executaveis
+- Cache inteligente para builds mais rapidos
+- Otimizacoes automaticas aplicadas por padrao
 
 ## ESTRUTURA CRIADA
 

@@ -1,0 +1,70 @@
+{
+	"essential": [
+		"numero_ssa",
+		"localizacao_codigo",
+		"setor_executor",
+		"situacao",
+		"descricao_ssa",
+		"data_cadastro",
+		"semana_cadastro",
+		"semana_programada",
+		"descricao_execucao"
+	],
+	"always_visible": [
+		"numero_ssa",
+		"localizacao_codigo",
+		"setor_executor",
+		"situacao"
+	],
+	"priority_order": [
+		"setor_emissor",
+		"derivada_de",
+		"data_limite",
+		"execucao_parcial",
+		"anomalia",
+		"sistema_origem",
+		"grau_prioridade_emissao",
+		"grau_prioridade_planejamento",
+		"solicitante",
+		"servico_origem",
+		"responsavel_programacao",
+		"responsavel_execucao",
+		"prazo_limite",
+		"tempo_disponivel",
+		"tempo_excedido",
+		"desde",
+		"tempo_total",
+		"desde_1",
+		"total_tempo_tpe_planejado",
+		"total_tempo_tex_planejado",
+		"total_tempo_tpo_planejado",
+		"total_horas_programadas",
+		"semana_executada",
+		"num_reprogramacoes",
+		"execucao_simples"
+	],
+	"short_labels": {
+		"numero_ssa": "Nº SSA",
+		"localizacao_codigo": "Loc.",
+		"setor_executor": "Exec.",
+		"situacao": "Sit.",
+		"descricao_ssa": "Desc.",
+		"data_cadastro": "Data Cad.",
+		"semana_cadastro": "Sem.Cad.",
+		"semana_programada": "Sem.Prog.",
+		"descricao_execucao": "Desc.Exec.",
+		"setor_emissor": "Emis.",
+		"solicitante": "Solicitante"
+	},
+	"fixed_widths": {
+		"numero_ssa": 9,
+		"localizacao_codigo": 10,
+		"setor_emissor": 6,
+		"setor_executor": 6,
+		"semana_cadastro": 8,
+		"data_cadastro": 12,
+		"derivada_de": 11,
+		"solicitante": 15
+	},
+	"hidden_by_default": []
+}

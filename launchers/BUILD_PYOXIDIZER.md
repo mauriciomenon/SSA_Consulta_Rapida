@@ -67,6 +67,22 @@ Nao editaveis, dentro do executavel:
 - shared/
 - Todas as libs Python (pandas, PyQt6, etc)
 
+## Correcoes Implementadas
+
+### Problema: "error: target install is not resolved"
+
+Faltava `resolve_targets()` no final de `pyoxidizer.bzl`. Corrigido.
+
+### Problema: Loop incorreto lendo arquivos fonte
+
+O loop estava chamando `read_package_root()` com parametros identicos. Corrigido para:
+```python
+exe.add_python_resources(exe.read_package_root(
+    path=".",
+    packages=["core", "gui", "armazenamento", "extracao", "utils", "interface", "exportacao", "shared"],
+))
+```
+
 ## Troubleshooting
 
 ### Erro: "Module not found"
@@ -91,3 +107,13 @@ Compile com `--release`:
 ```bash
 pyoxidizer build --release
 ```
+
+### Build muito lento (primeira vez)
+
+Normal. Primeira compilacao: 10-30 minutos.
+- Baixa Python 3.10.9 (~100MB)
+- Instala todas as dependencias
+- Baixa Rust toolchain (~200MB)
+- Compila tudo para nativo
+
+Builds seguintes: 2-5 minutos (incremental).

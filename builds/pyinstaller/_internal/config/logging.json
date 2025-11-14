@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "description": "Configuração do sistema de logging robusto do SSA Consulta Rápida",
+  "level": "INFO",
+  "console_level": "WARNING",
+  "file_level": "DEBUG",
+  "json_level": "INFO",
+  "max_file_size": 5242880,
+  "backup_count": 5,
+  "json_backup_count": 3,
+  "enable_console": true,
+  "enable_file": true,
+  "enable_json": true,
+  "enable_metrics": true,
+  "log_dir": "logs",
+  "filename": "ssa.log",
+  "json_filename": "ssa.json",
+  "format": "%(asctime)s - %(levelname)s - %(name)s - [%(component)s] - %(message)s",
+  "date_format": "%Y-%m-%d %H:%M:%S",
+  "components": {
+    "gui": "DEBUG",
+    "cli": "INFO",
+    "streamlit": "INFO", 
+    "database": "INFO",
+    "import": "DEBUG",
+    "cache": "DEBUG",
+    "performance": "INFO",
+    "error": "ERROR",
+    "warning": "WARNING"
+  },
+  "performance_tracking": {
+    "enable_filter_timing": true,
+    "enable_import_timing": true,
+    "enable_query_timing": true,
+    "enable_cache_metrics": true,
+    "max_samples": 1000
+  },
+  "output_options": {
+    "include_thread_info": true,
+    "include_process_info": false,
+    "include_memory_usage": false,
+    "timestamp_format": "iso"
+  }
+}

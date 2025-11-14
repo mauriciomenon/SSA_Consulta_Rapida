@@ -1,95 +1,95 @@
-#  Guia de Uso - Parâmetro --optimized
+#  Guia de Uso - Parametro --optimized
 
-##  O que é o modo `--optimized`?
+##  O que e o modo `--optimized`?
 
-O parâmetro `--optimized` ativa um sistema de importação de dados **até 90% mais rápido** que o método padrão. Foi criado especificamente para resolver problemas de lentidão na importação de arquivos Excel grandes.
+O parametro `--optimized` ativa um sistema de importacao de dados **ate 90% mais rapido** que o metodo padrao. Foi criado especificamente para resolver problemas de lentidao na importacao de arquivos Excel grandes.
 
 ##  Como funciona?
 
-### **Modo Padrão (sem --optimized):**
+### **Modo Padrao (sem --optimized):**
 - Insere registros **um por vez** no banco de dados
 - Executa uma consulta SQL para cada linha importada
-- Mais seguro para depuração, mas **muito lento** para grandes volumes
+- Mais seguro para depuracao, mas **muito lento** para grandes volumes
 - Pode travar o terminal com muitos arquivos
 
 ### **Modo Otimizado (com --optimized):**
 - Insere registros em **lotes grandes** (batch operations)
-- Configura SQLite para máxima performance (WAL mode, cache aumentado)
+- Configura SQLite para maxima performance (WAL mode, cache aumentado)
 - Processa dados de forma vetorizada usando pandas
-- **Até 90% mais rápido** que o modo padrão
+- **Ate 90% mais rapido** que o modo padrao
 
-##  Comparação de Performance:
+##  Comparacao de Performance:
 
-| Cenário | Modo Padrão | Modo Otimizado | Diferença |
+| Cenario | Modo Padrao | Modo Otimizado | Diferenca |
 |---------|-------------|----------------|-----------|
-| 1.000 registros | ~30 segundos | ~3 segundos | **90% mais rápido** |
-| 10.000 registros | ~5 minutos | ~30 segundos | **90% mais rápido** |
-| 50.000+ registros | Pode travar | ~2-3 minutos | **Viável** |
+| 1.000 registros | ~30 segundos | ~3 segundos | **90% mais rapido** |
+| 10.000 registros | ~5 minutos | ~30 segundos | **90% mais rapido** |
+| 50.000+ registros | Pode travar | ~2-3 minutos | **Viavel** |
 
 ##  Quando usar cada modo?
 
 ### **Use `--optimized` quando:**
 -  Importando grandes volumes de dados (1000+ registros)
--  A importação padrão está lenta ou travando
+-  A importacao padrao esta lenta ou travando
 -  Fazendo `--force-rescan` completo
--  Em ambiente de produção
+-  Em ambiente de producao
 
-### **Use o modo padrão quando:**
--  Depurando problemas de importação
+### **Use o modo padrao quando:**
+-  Depurando problemas de importacao
 -  Importando poucos arquivos novos
--  Testando mudanças no código
--  Primeira execução (para validar dados)
+-  Testando mudancas no codigo
+-  Primeira execucao (para validar dados)
 
 ##  Exemplos de Uso:
 
 ```bash
-# Importação otimizada - RECOMENDADO para uso normal
+# Importacao otimizada - RECOMENDADO para uso normal
 python main.py --optimized --force-rescan
 
-# Importação otimizada apenas de arquivos novos
+# Importacao otimizada apenas de arquivos novos
 python main.py --optimized --rescan
 
-# Importação padrão - apenas para depuração
+# Importacao padrao - apenas para depuracao
 python main.py --force-rescan
 
-# Modo gráfico com importação otimizada
+# Modo grafico com importacao otimizada
 python main.py --optimized --gui
 ```
 
-## ️ Detalhes Técnicos:
+##  Detalhes Tecnicos:
 
-### **Otimizações Implementadas:**
-1. **Batch Operations**: Insere múltiplos registros por transação
+### **Otimizacoes Implementadas:**
+1. **Batch Operations**: Insere multiplos registros por transacao
 2. **SQLite WAL Mode**: Permite leituras durante escritas
-3. **Cache Aumentado**: Mais memória para operações SQLite
-4. **Processamento Vetorizado**: Usa pandas para operações em massa
-5. **Monkey Patching**: Substitui funções temporariamente durante importação
+3. **Cache Aumentado**: Mais memoria para operacoes SQLite
+4. **Processamento Vetorizado**: Usa pandas para operacoes em massa
+5. **Monkey Patching**: Substitui funcoes temporariamente durante importacao
 
-### **Função Principal:**
+### **Funcao Principal:**
 - **Arquivo**: `armazenamento/database_optimized.py`
-- **Função**: `insert_dataframe_optimized()`
-- **Ativação**: `enable_optimized_import()` / `disable_optimized_import()`
+- **Funcao**: `insert_dataframe_optimized()`
+- **Ativacao**: `enable_optimized_import()` / `disable_optimized_import()`
 
-## ️ Segurança e Integridade:
+##  Seguranca e Integridade:
 
--  **Backups automáticos** antes de importações
--  **Validação de dados** mantida
--  **Rollback automático** em caso de erro
+-  **Backups automaticos** antes de importacoes
+-  **Validacao de dados** mantida
+-  **Rollback automatico** em caso de erro
 -  **Logs detalhados** de todo o processo
--  **Verificação de integridade** após importação
+-  **Verificacao de integridade** apos importacao
 
 ##  Notas Importantes:
 
 1. **Compatibilidade**: Funciona com todos os argumentos existentes (`--force-rescan`, `--gui`, etc.)
-2. **Transparência**: O usuário não precisa mudar nada no fluxo de trabalho
-3. **Reversível**: Sistema volta ao modo padrão automaticamente após uso
+2. **Transparencia**: O usuario nao precisa mudar nada no fluxo de trabalho
+3. **Reversivel**: Sistema volta ao modo padrao automaticamente apos uso
 4. **Monitoramento**: Use `monitor_importacao.py stats` para verificar resultados
 
 ---
 
 ##  Resumo Executivo:
 
-**Para uso diário**: `python main.py --optimized --force-rescan`
-**Para depuração**: `python main.py --force-rescan`
+**Para uso diario**: `python main.py --optimized --force-rescan`
+**Para depuracao**: `python main.py --force-rescan`
 
-O modo `--optimized` é a **versão recomendada** para uso em produção, oferecendo performance drasticamente superior sem comprometer a segurança dos dados.
+O modo `--optimized` e a **versao recomendada** para uso em producao, oferecendo performance drasticamente superior sem comprometer a seguranca dos dados.
