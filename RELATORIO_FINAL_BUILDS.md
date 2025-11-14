@@ -11,7 +11,7 @@
 Configurados, testados e validados 3 sistemas de build para gerar executaveis Windows standalone:
 
 - **PyInstaller 6.16.0**: FUNCIONAL 100% (RECOMENDADO PARA PRODUCAO)
-- **PyOxidizer 0.24.0**: FUNCIONAL 95% (bug menor versao 0.0.0)
+- **PyOxidizer 0.24.0**: FUNCIONAL 100% (CORRIGIDO)
 - **Nuitka 2.8.4**: FUNCIONAL 100% (MELHOR PERFORMANCE)
 
 Status: **TODOS OS 3 BUILDS COMPLETOS E TESTADOS**
@@ -28,7 +28,7 @@ Todos os executaveis estao organizados em: `builds/`
 
 **Tamanho Exe**: 30 MB
 
-**Tamanho Total**: 386 MB (exe + _internal/)
+**Tamanho Total**: 559 MB (exe + _internal/)
 
 **Tempo de Build**: 2 minutos
 
@@ -59,13 +59,13 @@ build_pyinstaller.bat
 
 ## 2. PYOXIDIZER - FUNCIONAL (OTIMIZADO)
 
-### Status: FUNCIONAL 95% (bug menor versao 0.0.0)
+### Status: FUNCIONAL 100%
 
 **Executavel**: `builds/pyoxidizer/SSA_Consulta_Rapida.exe`
 
 **Tamanho Exe**: 3.4 MB
 
-**Tamanho Total**: 350 MB (exe + lib/)
+**Tamanho Total**: 524 MB (exe + lib/)
 
 **Tempo de Build**: 3 minutos (primeira vez: 10-30 min download)
 
@@ -81,7 +81,6 @@ build_pyinstaller.bat
 - Mais complexo de configurar
 - Requer MSVC 2022 obrigatorio
 - Python 3.10 fixo (nao usa 3.13 do sistema)
-- Bug: versao exibe 0.0.0 (conhecido)
 - Debugging mais dificil
 
 **Comando de Build**:
@@ -90,13 +89,15 @@ build_pyoxidizer.bat
 ```
 
 **Correcoes Aplicadas**:
+- main.py linhas 19-31: Monkey patch para pandas __file__ None
+- main.py linhas 33-35: Supressao de FutureWarnings do pandas
 - main.py linhas 166-184: Funcao `_get_project_root()` para detectar PyOxidizer
 - main.py linhas 277-280: Fix sys.argv[0] None no ArgumentParser
 - pyoxidizer.bzl: Resources no filesystem-relative (nao in-memory)
 - build_pyoxidizer.bat: Configuracao automatica MSVC via vcvars64.bat
 
 **Testes Realizados**:
-- Versao: 0.0.0 (bug conhecido - codigo funciona)
+- Versao: 4.11.0 (OK - corrigido)
 - Help: Exibe ajuda completa (OK)
 - GUI: Interface abre normalmente (OK)
 - Performance: Startup 0.8s (3x mais rapido que PyInstaller)
@@ -363,7 +364,7 @@ Vantagens:
 
 ### Curto Prazo
 
-8. Corrigir bug de versao do PyOxidizer (0.0.0 -> 4.11.0)
+8. ✓ Corrigir bug de versao do PyOxidizer (0.0.0 -> 4.11.0) - COMPLETO
 9. Adicionar assinatura digital (code signing) aos 3 builds
 10. Criar instalador Windows (NSIS ou WiX) para PyInstaller build
 11. Automatizar builds em CI/CD (GitHub Actions)
@@ -427,12 +428,13 @@ rmdir /s /q build dist builds
    - Mais confiavel e testado
    - Facil debug e manutencao
    - Build rapido (2 min)
-   - Tamanho aceitavel (386 MB)
+   - Tamanho aceitavel (559 MB)
 
 2. **Distribuicao Otimizada**: PyOxidizer
-   - Menor tamanho (350 MB, 9% menor)
+   - Menor tamanho (524 MB, 6% menor)
    - Startup rapido (0.8s)
    - Build reproducivel
+   - Versao 4.11.0 funcionando corretamente
 
 3. **Performance Maxima**: Nuitka
    - Codigo C nativo
@@ -441,8 +443,10 @@ rmdir /s /q build dist builds
 
 **Tempo total investido**: ~6 horas (configuracao + troubleshooting + documentacao)
 
-**Problemas Resolvidos**: 7 erros criticos
-- PyOxidizer: __file__ None, sys.argv[0] None
+**Problemas Resolvidos**: 8 erros criticos
+- PyOxidizer: __file__ None, sys.argv[0] None, pandas __file__ crash
+- PyOxidizer: Versao exibindo 0.0.0 (agora mostra 4.11.0)
+- Pandas: FutureWarnings verbosos suprimidos
 - Nuitka: Conflito GCC MSYS2
 - MSVC: Configuracao ambiente
 - Antivirus: Interferencia em cache
