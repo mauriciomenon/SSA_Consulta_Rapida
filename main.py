@@ -30,6 +30,10 @@ if getattr(sys, 'oxidized', False):
         return module
     builtins.__import__ = _patched_import
 
+# Suppress pandas FutureWarnings about chained assignment
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
 _logging_configured = False
