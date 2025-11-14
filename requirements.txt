@@ -1,14 +1,14 @@
-# SSA Consulta Rápida - Dependências de Runtime (mínimas)
-# Mantém apenas o essencial para executar a aplicação.
+# SSA Consulta Rapida - Dependencias de Runtime (minimas)
+# Mantem apenas o essencial para executar a aplicacao.
 
-# Interface gráfica (GUI)
+# Interface grafica (GUI)
 PyQt6>=6.9.0
 
-# Manipulação de dados e Excel
+# Manipulacao de dados e Excel
 pandas>=2.3.0
 openpyxl>=3.1.5
 
-# Exibição em tabela no CLI
+# Exibicao em tabela no CLI
 tabulate>=0.9.0
 virtualenv==20.31.2
 wcwidth==0.2.13

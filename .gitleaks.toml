@@ -24,13 +24,13 @@ regex = "[A-Z0-9_]*API_KEY=.{8,}"
 secretGroup = 0
 
 [allowlist]
-# Diretórios de binários / builds e caches ignorados
+# Diretorios de binarios / builds e caches ignorados
 paths = [
   "launchers/",
   "dist/",
   "build/",
   "logs/",
-  "scripts/git_hooks/pre-commit.secret-scan.sh" # contém padrões de regex deliberadamente
+  "scripts/git_hooks/pre-commit.secret-scan.sh" # contem padroes de regex deliberadamente
 ]
 regexes = [
   "REDACTED_VALUE",

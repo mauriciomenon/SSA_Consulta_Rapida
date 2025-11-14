@@ -1,26 +1,26 @@
-# Guia Completo de Migração - SSA Consulta Rápida v3.0.6
+# Guia Completo de Migracao - SSA Consulta Rapida v3.0.6
 
-**Data de Criação:** 27 de Agosto de 2025  
-**Versão do Sistema:** v3.0.6 (Estável)  
-**Tipo:** Migração Completa para Nova Instalação  
+**Data de Criacao:** 27 de Agosto de 2025  
+**Versao do Sistema:** v3.0.6 (Estavel)  
+**Tipo:** Migracao Completa para Nova Instalacao  
 
 ---
 
-## ÍNDICE
+## INDICE
 
-1. [Pré-requisitos](#pré-requisitos)
-2. [Clonagem e Configuração](#clonagem-e-configuração)
+1. [Pre-requisitos](#pre-requisitos)
+2. [Clonagem e Configuracao](#clonagem-e-configuracao)
 3. [Estrutura do Projeto](#estrutura-do-projeto)
-4. [Configuração do Ambiente](#configuração-do-ambiente)
-5. [Verificação da Instalação](#verificação-da-instalação)
-6. [Importação de Dados](#importação-de-dados)
+4. [Configuracao do Ambiente](#configuracao-do-ambiente)
+5. [Verificacao da Instalacao](#verificacao-da-instalacao)
+6. [Importacao de Dados](#importacao-de-dados)
 7. [Testes do Sistema](#testes-do-sistema)
-8. [Solução de Problemas](#solução-de-problemas)
+8. [Solucao de Problemas](#solucao-de-problemas)
 9. [Arquivos Importantes](#arquivos-importantes)
 
 ---
 
-## PRÉ-REQUISITOS
+## PRE-REQUISITOS
 
 ### **Sistema Operacional**
 - Windows 10/11 (testado)
@@ -28,24 +28,24 @@
 - Git for Windows
 - PowerShell 5.1+ ou PowerShell Core
 
-### **Ferramentas Necessárias**
+### **Ferramentas Necessarias**
 ```powershell
-# Verificar versões instaladas
+# Verificar versoes instaladas
 python --version          # Deve ser 3.13+
-git --version             # Qualquer versão recente
-pip --version             # Incluído com Python
+git --version             # Qualquer versao recente
+pip --version             # Incluido com Python
 ```
 
 ---
 
-## CLONAGEM E CONFIGURAÇÃO
+## CLONAGEM E CONFIGURACAO
 
-### **Passo 1: Clonar o Repositório**
+### **Passo 1: Clonar o Repositorio**
 ```powershell
-# Navegar para o diretório desejado
+# Navegar para o diretorio desejado
 cd C:\Users\[SEU_USUARIO]\git
 
-# Clonar o repositório
+# Clonar o repositorio
 git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git
 
 # Entrar na pasta do projeto
@@ -54,9 +54,9 @@ cd SSA_Consulta_Rapida
 
 ### **Passo 2: Verificar Integridade**
 ```powershell
-# Verificar se está na branch correta
+# Verificar se esta na branch correta
 git branch -v
-# Deve mostrar: * main [commit_hash] [última mensagem]
+# Deve mostrar: * main [commit_hash] [ultima mensagem]
 
 # Verificar status
 git status
@@ -71,26 +71,26 @@ ls main.py, requirements.txt, README.md
 # Criar ambiente virtual
 python -m venv venv
 
-# Ativar ambiente (escolha um dos métodos)
-# Método 1 - PowerShell
+# Ativar ambiente (escolha um dos metodos)
+# Metodo 1 - PowerShell
 .\venv\Scripts\Activate.ps1
 
-# Método 2 - CMD/Batch
+# Metodo 2 - CMD/Batch
 .\venv\Scripts\activate.bat
 
-# Método 3 - Usar script incluído
+# Metodo 3 - Usar script incluido
 .\activate_env.ps1
 ```
 
-### **Passo 4: Instalar Dependências**
+### **Passo 4: Instalar Dependencias**
 ```powershell
 # Atualizar pip
 python -m pip install --upgrade pip
 
-# Instalar dependências do projeto
+# Instalar dependencias do projeto
 pip install -r requirements.txt
 
-# Verificar instalação
+# Verificar instalacao
 pip list
 ```
 
@@ -98,60 +98,60 @@ pip list
 
 ## ESTRUTURA DO PROJETO
 
-### **Arquivos de Configuração Essenciais**
+### **Arquivos de Configuracao Essenciais**
 ```
 SSA_Consulta_Rapida/
 ├── main.py                    # ← PONTO DE ENTRADA PRINCIPAL
-├── main_dev.py               # ← Versão de desenvolvimento
-├── requirements.txt          # ← Dependências Python
-├── README.md                 # ← Documentação principal
-├── GUIA_MODO_OPTIMIZED.md   # ← Guia de otimização
+├── main_dev.py               # ← Versao de desenvolvimento
+├── requirements.txt          # ← Dependencias Python
+├── README.md                 # ← Documentacao principal
+├── GUIA_MODO_OPTIMIZED.md   # ← Guia de otimizacao
 ├── config/
 │   ├── schema.sql            # ← Estrutura do banco
-│   └── gui_*.json           # ← Configurações da GUI
-├── core/                     # ← Lógica principal
-├── armazenamento/           # ← Gestão do banco de dados
+│   └── gui_*.json           # ← Configuracoes da GUI
+├── core/                     # ← Logica principal
+├── armazenamento/           # ← Gestao do banco de dados
 ├── interface/               # ← CLI e interfaces
-├── gui/                     # ← Interface gráfica
+├── gui/                     # ← Interface grafica
 ├── tests/                   # ← Todos os testes
-├── docs_entrada/            # ← Arquivos Excel (criar se não existir)
+├── docs_entrada/            # ← Arquivos Excel (criar se nao existir)
 └── data/                    # ← Banco de dados (criado automaticamente)
 ```
 
 ### **Pastas Criadas Automaticamente**
 ```
-data/                        # ← Criada na primeira execução
+data/                        # ← Criada na primeira execucao
 ├── ssas.db                  # ← Banco principal
 ├── file_cache.json         # ← Cache de arquivos
-└── historico_backups/      # ← Backups automáticos
+└── historico_backups/      # ← Backups automaticos
 ```
 
 ---
 
-## **CONFIGURAÇÃO DO AMBIENTE**
+## **CONFIGURACAO DO AMBIENTE**
 
-### **Passo 1: Ativação Automática do Ambiente**
+### **Passo 1: Ativacao Automatica do Ambiente**
 ```powershell
-# Usar o script incluído (RECOMENDADO)
+# Usar o script incluido (RECOMENDADO)
 .\activate_env.ps1
 
 # Ou criar um atalho personalizado
-# Editar activate_env.ps1 se necessário
+# Editar activate_env.ps1 se necessario
 ```
 
-### **Passo 2: Configurar PowerShell (se necessário)**
+### **Passo 2: Configurar PowerShell (se necessario)**
 ```powershell
-# Se houver erro de política de execução
+# Se houver erro de politica de execucao
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-# Verificar política atual
+# Verificar politica atual
 Get-ExecutionPolicy -List
 ```
 
-### **Passo 3: Verificar Configuração**
+### **Passo 3: Verificar Configuracao**
 ```powershell
-# Verificar se o ambiente está ativo
-python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NÃO ativo')"
+# Verificar se o ambiente esta ativo
+python -c "import sys; print('Ambiente ativo:' if 'venv' in sys.path[0] else 'Ambiente NAO ativo')"
 
 # Listar pacotes instalados
 pip list | findstr -i "pandas pyqt6 openpyxl"
@@ -159,19 +159,19 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 
 ---
 
-## VERIFICAÇÃO DA INSTALAÇÃO
+## VERIFICACAO DA INSTALACAO
 
 ### **Teste 1: Help do Sistema**
 ```powershell
 # Verificar help completo
 python main.py --help
 
-# Deve exibir help detalhado com todas as opções
+# Deve exibir help detalhado com todas as opcoes
 ```
 
-### **Teste 2: Verificação da Estrutura**
+### **Teste 2: Verificacao da Estrutura**
 ```powershell
-# Verificar módulos principais
+# Verificar modulos principais
 python -c "
 import sys, os
 sys.path.insert(0, '.')
@@ -179,13 +179,13 @@ try:
     from core import app_logic
     from armazenamento import database
     from interface import cli
-    print('Todos os módulos carregados com sucesso')
+    print('Todos os modulos carregados com sucesso')
 except ImportError as e:
     print(f'Erro ao importar: {e}')
 "
 ```
 
-### **Teste 3: Criação do Banco**
+### **Teste 3: Criacao do Banco**
 ```powershell
 # Criar estrutura do banco (sem dados)
 python main.py --reset-db
@@ -198,11 +198,11 @@ ls data\ssas.db
 
 ---
 
-## **IMPORTAÇÃO DE DADOS**
+## **IMPORTACAO DE DADOS**
 
-### **Comando Básico de Importação**
+### **Comando Basico de Importacao**
 ```powershell
-# Criar pasta se não existir
+# Criar pasta se nao existir
 mkdir docs_entrada -ErrorAction SilentlyContinue
 
 # Verificar estrutura da pasta
@@ -212,22 +212,22 @@ ls docs_entrada
 **Formatos de arquivo suportados:**
 - `.xlsx` (Excel 2007+)
 - `.xls` (Excel 97-2003)
-- Múltiplos arquivos
+- Multiplos arquivos
 - Diferentes estruturas de coluna
 
-### **Passo 2: Importação Inicial**
+### **Passo 2: Importacao Inicial**
 ```powershell
-# Importação padrão (primeira vez)
+# Importacao padrao (primeira vez)
 python main.py
 
-# Ou importação otimizada (recomendado para arquivos grandes)
+# Ou importacao otimizada (recomendado para arquivos grandes)
 python main.py --optimized
 
-# Ou forçar reimportação completa
+# Ou forcar reimportacao completa
 python main.py --force-rescan
 ```
 
-### **Passo 3: Verificar Importação**
+### **Passo 3: Verificar Importacao**
 ```powershell
 # Verificar tamanho do banco
 ls data\ssas.db | Format-Table Name, Length
@@ -251,7 +251,7 @@ python main.py
 # - Digite: sair
 ```
 
-### **Teste 2: Interface Gráfica**
+### **Teste 2: Interface Grafica**
 ```powershell
 # Testar GUI
 python main.py --gui
@@ -259,12 +259,12 @@ python main.py --gui
 # Verificar funcionalidades:
 # - Carregamento da tabela
 # - Filtros de busca
-# - Ordenação por colunas
+# - Ordenacao por colunas
 ```
 
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
-# Executar testes básicos
+# Executar testes basicos
 python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco
@@ -276,27 +276,27 @@ python tests\teste_sistema_completo.py
 
 ---
 
-## SOLUÇÃO DE PROBLEMAS
+## SOLUCAO DE PROBLEMAS
 
-### **Problema: Erro de Dependências**
+### **Problema: Erro de Dependencias**
 ```powershell
-# Reinstalar dependências
+# Reinstalar dependencias
 pip uninstall -r requirements.txt -y
 pip install -r requirements.txt
 ```
 
-### **Problema: Erro de Permissão no PowerShell**
+### **Problema: Erro de Permissao no PowerShell**
 ```powershell
-# Alterar política de execução
+# Alterar politica de execucao
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-### **Problema: Módulos Não Encontrados**
+### **Problema: Modulos Nao Encontrados**
 ```powershell
 # Verificar PYTHONPATH
 python -c "import sys; print('\n'.join(sys.path))"
 
-# Executar do diretório correto
+# Executar do diretorio correto
 cd SSA_Consulta_Rapida
 python main.py
 ```
@@ -313,12 +313,12 @@ del data\file_cache.json
 python main.py --force-rescan
 ```
 
-### **Problema: GUI Não Abre**
+### **Problema: GUI Nao Abre**
 ```powershell
 # Verificar PyQt6
 pip install --upgrade PyQt6
 
-# Testar importação
+# Testar importacao
 python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 ```
 
@@ -326,21 +326,21 @@ python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
 
 ##  **ARQUIVOS IMPORTANTES PARA LER**
 
-### **1. Documentação Principal**
+### **1. Documentacao Principal**
 ```powershell
 # Ler em ordem de prioridade:
-type README.md                           # ← Visão geral do projeto
-type GUIA_MODO_OPTIMIZED.md             # ← Otimizações de performance
-type CHANGELOG_IMPLEMENTACOES.md        # ← Histórico de mudanças
-type REGRAS_DE_OURO.md                  # ← Boas práticas
+type README.md                           # ← Visao geral do projeto
+type GUIA_MODO_OPTIMIZED.md             # ← Otimizacoes de performance
+type CHANGELOG_IMPLEMENTACOES.md        # ← Historico de mudancas
+type REGRAS_DE_OURO.md                  # ← Boas praticas
 ```
 
-### **2. Configurações e Schema**
+### **2. Configuracoes e Schema**
 ```powershell
 type config\schema.sql                   # ← Estrutura do banco
-type requirements.txt                    # ← Dependências Python
-type config\gui_main_preferences.json   # ← Configurações da GUI principal
-type config\gui_poc_preferences.json    # ← Configurações da GUI POC
+type requirements.txt                    # ← Dependencias Python
+type config\gui_main_preferences.json   # ← Configuracoes da GUI principal
+type config\gui_poc_preferences.json    # ← Configuracoes da GUI POC
 ```
 
 ### **3. Arquivos de Exemplo e Testes**
@@ -348,51 +348,51 @@ type config\gui_poc_preferences.json    # ← Configurações da GUI POC
 # Ver exemplos de uso
 ls tests\teste_*.py                      # ← Testes de exemplo
 type tests\main_test.py                  # ← Teste do main
-type tests\test_imports.py               # ← Teste de importação
+type tests\test_imports.py               # ← Teste de importacao
 ```
 
 ### **4. Scripts de Desenvolvimento**
 ```powershell
-type activate_env.ps1                    # ← Script de ativação
+type activate_env.ps1                    # ← Script de ativacao
 type activate_env.bat                    # ← Alternativa CMD
 ls scripts_desenvolvimento\              # ← Ferramentas de desenvolvimento
-ls utils\                               # ← Utilitários diversos
+ls utils\                               # ← Utilitarios diversos
 ```
 
 ---
 
-## **COMANDOS RÁPIDOS DE REFERÊNCIA**
+## **COMANDOS RAPIDOS DE REFERENCIA**
 
-### **Inicialização Diária**
+### **Inicializacao Diaria**
 ```powershell
-# Sequência completa de inicialização
+# Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
 .\activate_env.ps1
 python main.py
 ```
 
-### **Manutenção Semanal**
+### **Manutencao Semanal**
 ```powershell
-# Atualizar repositório
+# Atualizar repositorio
 git pull
 
 # Limpar dados antigos
 python main.py --clean-data
 
-# Teste rápido
+# Teste rapido
 python main.py --help
 ```
 
-### **Reimportação Completa**
+### **Reimportacao Completa**
 ```powershell
-# Quando houver mudanças significativas nos dados
+# Quando houver mudancas significativas nos dados
 python main.py --reset-db
 python main.py --optimized --force-rescan
 ```
 
 ---
 
-##  **SUPORTE E DOCUMENTAÇÃO**
+##  **SUPORTE E DOCUMENTACAO**
 
 ### **Logs do Sistema**
 ```powershell
@@ -404,15 +404,15 @@ type logs\ssa.log                       # ← Log principal
 ### **Arquivos de Estado**
 ```powershell
 type data\file_cache.json               # ← Estado dos arquivos
-ls data\historico_backups\              # ← Backups disponíveis
+ls data\historico_backups\              # ← Backups disponiveis
 ```
 
-### **Informações de Debug**
+### **Informacoes de Debug**
 ```powershell
 # Executar com log detalhado
 python main.py --log-level DEBUG
 
-# Verificar configuração do sistema
+# Verificar configuracao do sistema
 python -c "
 import sys, platform, sqlite3
 print(f'Python: {sys.version}')
@@ -427,27 +427,27 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ## **NOTAS IMPORTANTES**
 
-1. **Backup**: Sempre faça backup antes de usar em produção
+1. **Backup**: Sempre faca backup antes de usar em producao
 2. **Performance**: Use `--optimized` para arquivos grandes (>5MB)
-3. **GUI**: A interface gráfica requer PyQt6 funcionando
+3. **GUI**: A interface grafica requer PyQt6 funcionando
 
 ---
 
 ## CHECKLIST FINAL
 
-- [ ] Repositório clonado com sucesso
+- [ ] Repositorio clonado com sucesso
 - [ ] Ambiente virtual criado e ativado
-- [ ] Dependências instaladas
+- [ ] Dependencias instaladas
 - [ ] Help do sistema funcionando
 - [ ] Banco de dados criado
-- [ ] Importação de dados testada
+- [ ] Importacao de dados testada
 - [ ] CLI funcionando
-- [ ] GUI funcionando (se necessário)
-- [ ] Testes básicos executados
+- [ ] GUI funcionando (se necessario)
+- [ ] Testes basicos executados
 
-**Se todos os itens estão marcados, a migração foi bem-sucedida!**
+**Se todos os itens estao marcados, a migracao foi bem-sucedida!**
 
 ---
 
-*Última atualização: 27/08/2025 - v3.0.6*
-*Para dúvidas ou problemas, consulte o repositório no GitHub*
+*Ultima atualizacao: 27/08/2025 - v3.0.6*
+*Para duvidas ou problemas, consulte o repositorio no GitHub*

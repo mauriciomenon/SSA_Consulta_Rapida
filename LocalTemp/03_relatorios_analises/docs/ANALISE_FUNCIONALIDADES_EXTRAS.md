@@ -1,28 +1,28 @@
-#  ANÁLISE FUNCIONALIDADES EXTRAS - OTIMIZAÇÃO v3.10
+#  ANALISE FUNCIONALIDADES EXTRAS - OTIMIZACAO v3.10
 
 ##  ARQUIVOS COM FUNCIONALIDADES EXTRAS IDENTIFICADOS
 
 ###  **1. SCRIPTS DE IA (.github/scripts/)**
 **Arquivo:** `.github/scripts/ai_review.py`
-**Dependências:** `requests`, `openai`, `anthropic`, etc.
+**Dependencias:** `requests`, `openai`, `anthropic`, etc.
 **Status:** **EXTRA** - Apenas para CI/CD
-**Ação:** Manter separado do requirements principal
+**Acao:** Manter separado do requirements principal
 
-###  **2. SCRIPTS DE MANUTENÇÃO (scripts_manutencao/)**
-**Dependências encontradas:**
-- `pandas` (já está no core)
+###  **2. SCRIPTS DE MANUTENCAO (scripts_manutencao/)**
+**Dependencias encontradas:**
+- `pandas` (ja esta no core)
 - `sqlite3` (built-in Python)
 - `os`, `sys`, `datetime` (built-in)
 **Status:** **OK** - Usam apenas deps essenciais
 
-###  **3. EXPORTAÇÃO (exportacao/)**
+###  **3. EXPORTACAO (exportacao/)**
 **Arquivo:** `exportacao/exporter.py`
-**Dependências:** 
-- `pandas` (já está no core)
+**Dependencias:** 
+- `pandas` (ja esta no core)
 - `os`, `logging` (built-in)
 **Status:** **OK** - Funcionalidade core
 
-###  **4. UTILITÁRIOS (utils/)**
+###  **4. UTILITARIOS (utils/)**
 **Arquivos verificados:**
 - `utils/fallback/emergency_import.py` - Apenas `sqlite3`, `json` (built-in)
 - `themes.py` - Provavelmente apenas `PyQt6`
@@ -30,15 +30,15 @@
 **Status:** **OK** - Sem deps extras
 
 ###  **5. GUI (gui/)**
-**Dependências encontradas:**
-- `PyQt6` (já está no core)
-- `pandas` (já está no core)
+**Dependencias encontradas:**
+- `PyQt6` (ja esta no core)
+- `pandas` (ja esta no core)
 **Status:** **OK** - Funcionalidade core
 
-##  **DEPENDÊNCIAS EXTRAS REMOVÍVEIS**
+##  **DEPENDENCIAS EXTRAS REMOVIVEIS**
 
 ### **DESENVOLVIMENTO APENAS**
-Estas deps estão no requirements.txt mas NÃO são usadas no código principal:
+Estas deps estao no requirements.txt mas NAO sao usadas no codigo principal:
 
 #### **CI/CD e GitHub Actions:**
 ```txt
@@ -48,7 +48,7 @@ openai>=1.0.0
 anthropic>=0.x.x
 ```
 
-#### **Jupyter/Notebooks (não usado):**
+#### **Jupyter/Notebooks (nao usado):**
 ```txt
 jupyter>=1.0.0
 ipython>=8.0.0
@@ -57,7 +57,7 @@ jupyter-console>=6.0.0
 # + ~20 deps relacionadas
 ```
 
-#### **Poetry/Build (não usado em runtime):**
+#### **Poetry/Build (nao usado em runtime):**
 ```txt
 poetry>=1.5.0
 poetry-core>=1.6.0
@@ -75,19 +75,19 @@ pre_commit>=3.0.0
 # + ~15 deps relacionadas
 ```
 
-#### **IA/ML (não usado):**
+#### **IA/ML (nao usado):**
 ```txt
 langchain>=0.1.0
 google-generativeai>=0.x.x
 mistralai>=1.0.0
-numpy>=1.24.0  # (pandas já inclui)
-scipy>=1.10.0  # (não usado)
+numpy>=1.24.0  # (pandas ja inclui)
+scipy>=1.10.0  # (nao usado)
 # + ~30 deps relacionadas
 ```
 
 ## REQUIREMENTS FINAL OTIMIZADO
 
-### **requirements.txt (PRODUÇÃO)**
+### **requirements.txt (PRODUCAO)**
 ```txt
 # === CORE FUNCIONAL ===
 pandas>=2.0.0,<3.0.0
@@ -111,29 +111,29 @@ flake8>=6.0.0,<7.0.0
 requests>=2.31.0,<3.0.0
 ```
 
-##  **IMPACTO DA OTIMIZAÇÃO**
+##  **IMPACTO DA OTIMIZACAO**
 
 ### **ANTES:**
--  236 dependências
--  ~500MB instalação
-- ⏱️ ~5min install
+-  236 dependencias
+-  ~500MB instalacao
+- ⏱ ~5min install
 -  Conflitos frequentes
 
 ### **DEPOIS:**
--  5 dependências core
--  ~50MB instalação  
-- ⏱️ ~30s install
+-  5 dependencias core
+-  ~50MB instalacao  
+- ⏱ ~30s install
 -  Zero conflitos
 
-### **REDUÇÃO: 95% menos dependências!**
+### **REDUCAO: 95% menos dependencias!**
 
-##  **PRÓXIMAS AÇÕES**
+##  **PROXIMAS ACOES**
 
 1. **requirements_clean.txt criado**
 2. **Substituir requirements.txt**
 3. **Criar requirements_dev.txt**
 4. ⏳ **Testar build limpo**
-5. ⏳ **Atualizar documentação**
+5. ⏳ **Atualizar documentacao**
 
 ---
 

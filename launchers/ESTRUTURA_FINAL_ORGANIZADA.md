@@ -1,57 +1,57 @@
-# ESTRUTURA FINAL ORGANIZADA (VISÃO RÁPIDA)
+# ESTRUTURA FINAL ORGANIZADA (VISAO RAPIDA)
 
-Guia ultra-resumido para localizar rapidamente componentes e entender a responsabilidade de cada área. Leitura alvo < 60 segundos.
+Guia ultra-resumido para localizar rapidamente componentes e entender a responsabilidade de cada area. Leitura alvo < 60 segundos.
 
-## 1. Núcleos Principais
-| Área | Diretório / Arquivo | Responsabilidade | Observações |
+## 1. Nucleos Principais
+| Area | Diretorio / Arquivo | Responsabilidade | Observacoes |
 |------|---------------------|------------------|-------------|
-| Lógica Central | `core/app_logic.py` | Orquestra fluxo de atualização / consulta | Evitar acoplamento com GUI |
-| Cache | `core/cache_manager.py` | Estratégia de cache de consultas | Ajustar TTL futuro |
-| Banco (camada base) | `armazenamento/database.py` | Operações CRUD principais | Usar antes de otimizações |
-| Banco otimizado | `armazenamento/database_optimized.py` | Rotinas de carga / índices / tuning | Validar impacto antes de mudar |
-| Configurações | `config/*.json` | Mapeamentos e preferências persistidas | Adicionar validator (pendente) |
+| Logica Central | `core/app_logic.py` | Orquestra fluxo de atualizacao / consulta | Evitar acoplamento com GUI |
+| Cache | `core/cache_manager.py` | Estrategia de cache de consultas | Ajustar TTL futuro |
+| Banco (camada base) | `armazenamento/database.py` | Operacoes CRUD principais | Usar antes de otimizacoes |
+| Banco otimizado | `armazenamento/database_optimized.py` | Rotinas de carga / indices / tuning | Validar impacto antes de mudar |
+| Configuracoes | `config/*.json` | Mapeamentos e preferencias persistidas | Adicionar validator (pendente) |
 | GUI | `gui/` | Interface PyQt6 | Respeitar algoritmo de larguras |
-| CLI | `interface/` | Comandos e interação textual | Manter paridade funcional com GUI |
-| Scripts gerais | `scripts/` | Automação operacional | Não misturar manutenção |
-| Scripts manutenção | `scripts_manutencao/` | Correções, diagnóstico | Executar isoladamente |
+| CLI | `interface/` | Comandos e interacao textual | Manter paridade funcional com GUI |
+| Scripts gerais | `scripts/` | Automacao operacional | Nao misturar manutencao |
+| Scripts manutencao | `scripts_manutencao/` | Correcoes, diagnostico | Executar isoladamente |
 
 ## 2. Fluxo de Dados (Simplificado)
-Entrada → `extracao/` → Normalização → `core/app_logic.py` → Persistência (`armazenamento/`) → Cache (`core/cache_manager.py`) → Exposição (CLI `interface/` ou GUI `gui/`).
+Entrada → `extracao/` → Normalizacao → `core/app_logic.py` → Persistencia (`armazenamento/`) → Cache (`core/cache_manager.py`) → Exposicao (CLI `interface/` ou GUI `gui/`).
 
-## 3. Documentação Chave (Entrada Rápida)
+## 3. Documentacao Chave (Entrada Rapida)
 | Necessidade | Arquivo |
 |-------------|---------|
-| Visão global | `docs/RESUMO_ORGANIZACAO_FINAL.md` |
-| Navegação geral | `launchers/DOCUMENTACAO_CONSOLIDADA.md` |
+| Visao global | `docs/RESUMO_ORGANIZACAO_FINAL.md` |
+| Navegacao geral | `launchers/DOCUMENTACAO_CONSOLIDADA.md` |
 | Larguras GUI | `docs/ALGORITMO_LARGURAS_GUI_CRITICO.md` |
 | Onboarding dev | `docs/TEMPLATE_ONBOARDING_DESENVOLVEDORES.md` |
 | Status build | `launchers/STATUS_BUILD_v3.10.md` |
 | Testes baseline | `launchers/RELATORIO_TESTES_FINAL.md` |
-| Resumo versão | `launchers/RESUMO_FINAL_v3.10.md` |
+| Resumo versao | `launchers/RESUMO_FINAL_v3.10.md` |
 
-## 4. Padrões Essenciais
+## 4. Padroes Essenciais
 - Nomes: snake_case ASCII.
-- Sem lógica de banco na GUI.
+- Sem logica de banco na GUI.
 - Alterou mapeamento? Registrar e justificar.
-- Documento não pode ficar vazio (usar placeholder TODO claro se incompleto).
+- Documento nao pode ficar vazio (usar placeholder TODO claro se incompleto).
 
-## 5. Áreas Sensíveis (Revisão Obrigatória)
-| Área | Motivo | Requisito para Alterar |
+## 5. Areas Sensiveis (Revisao Obrigatoria)
+| Area | Motivo | Requisito para Alterar |
 |------|--------|------------------------|
-| `core/app_logic.py` | Impacta fluxo global | Análise de impacto |
-| `armazenamento/database_optimized.py` | Performance / índices | Medir antes/depois |
+| `core/app_logic.py` | Impacta fluxo global | Analise de impacto |
+| `armazenamento/database_optimized.py` | Performance / indices | Medir antes/depois |
 | `config/*.json` | Afeta comportamento | Validar com schema (quando existir) |
 | `gui/` largura | Usabilidade | Manter algoritmo documentado |
 
-## 6. Próximos Passos (Qualidade)
+## 6. Proximos Passos (Qualidade)
 1. Adicionar validator de JSON.
 2. Introduzir smoke CLI.
 3. Adicionar script de checagem de docs.
 4. Criar primeiros testes unit core.
 
-## 7. Estado Atual (Checklist Rápida)
-- [x] Documentação consolidada
-- [x] Padronização de nomes
+## 7. Estado Atual (Checklist Rapida)
+- [x] Documentacao consolidada
+- [x] Padronizacao de nomes
 - [x] Script limpeza emergencial
 - [ ] Validator config
 - [ ] Smoke CLI

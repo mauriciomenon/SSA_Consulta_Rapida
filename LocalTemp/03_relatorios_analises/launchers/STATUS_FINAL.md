@@ -1,63 +1,63 @@
 # STATUS FINAL – SNAPSHOT ATUAL DO PROJETO
 
-Documento de referência rápida sobre o estado presente de saúde, maturidade e
-pendências estratégicas. Serve como painel sintético para decisões imediatas
-antes de uma baseline/tag ou priorização de próximo ciclo.
+Documento de referencia rapida sobre o estado presente de saude, maturidade e
+pendencias estrategicas. Serve como painel sintetico para decisoes imediatas
+antes de uma baseline/tag ou priorizacao de proximo ciclo.
 
-Data de geração manual: 2025-09-12
+Data de geracao manual: 2025-09-12
 
 ---
 ## 1. Resumo Executivo
 | Aspecto | Estado | Nota |
 |---------|--------|------|
 | Funcionalidade Principal | Operacional | Fluxo base de consulta ativo |
-| Documentação | Elevada | Índice consolidado + relatórios completos |
+| Documentacao | Elevada | Indice consolidado + relatorios completos |
 | Scripts de Higiene | Presentes | cleanup_emergency / cleanup_repository / sanitize |
-| Governança de Versão | Parcial | Relatórios v3.0.7 e v3.10 prontos |
-| Automação de Qualidade | Em construção | Falta check_docs / validate_configs / smoke |
-| Testes Unitários | Ausente | Próxima fase após gates mínimos |
-| Performance | Parcial | Modo optimized existe; falta métrica formal |
-| Risco Técnico Global | Moderado | Reduzido após saneamento inicial |
+| Governanca de Versao | Parcial | Relatorios v3.0.7 e v3.10 prontos |
+| Automacao de Qualidade | Em construcao | Falta check_docs / validate_configs / smoke |
+| Testes Unitarios | Ausente | Proxima fase apos gates minimos |
+| Performance | Parcial | Modo optimized existe; falta metrica formal |
+| Risco Tecnico Global | Moderado | Reduzido apos saneamento inicial |
 
 ---
-## 2. Métricas Sintéticas (Heurísticas Atuais)
-| Métrica | Valor Aproximado | Objetivo Meta |
+## 2. Metricas Sinteticas (Heuristicas Atuais)
+| Metrica | Valor Aproximado | Objetivo Meta |
 |---------|------------------|---------------|
-| Nº docs vazios | 0 | Manter 0 |
+| No docs vazios | 0 | Manter 0 |
 | Scripts qualidade implementados | 3 | 6 (curto prazo) |
 | Cobertura testes | <5% | 20% (fase inicial) |
-| Backups ativos (após retenção) | <=5 alvo | 5 |
-| Diretórios __pycache__ | >0 (removíveis) | 0 pós limpeza |
+| Backups ativos (apos retencao) | <=5 alvo | 5 |
+| Diretorios __pycache__ | >0 (removiveis) | 0 pos limpeza |
 | Warnings sanitize | Baixo | 0 |
 
 ---
 ## 3. Riscos Ativos
-| Risco | Prob. | Impacto | Classificação | Mitigação Planejada |
+| Risco | Prob. | Impacto | Classificacao | Mitigacao Planejada |
 |-------|-------|---------|--------------|---------------------|
-| Ausência de testes unitários | Alta | Alto | Crítico | Implementar pacote inicial pytest |
-| Falta de gates automáticos | Média | Alto | Alto | check_docs / validate_configs / smoke CLI |
-| Divergência performance real | Média | Médio | Médio | Benchmark leve pós baseline |
-| Acúmulo silencioso de backup | Baixa | Médio | Baixo | Reforçar uso cleanup_repository |
-| Mudanças não rastreadas em config | Média | Médio | Médio | validate_configs + diff versionado |
+| Ausencia de testes unitarios | Alta | Alto | Critico | Implementar pacote inicial pytest |
+| Falta de gates automaticos | Media | Alto | Alto | check_docs / validate_configs / smoke CLI |
+| Divergencia performance real | Media | Medio | Medio | Benchmark leve pos baseline |
+| Acumulo silencioso de backup | Baixa | Medio | Baixo | Reforcar uso cleanup_repository |
+| Mudancas nao rastreadas em config | Media | Medio | Medio | validate_configs + diff versionado |
 
 ---
-## 4. Pendências Imediatas (Top 8)
-| # | Item | Tipo | Urgência | Observação |
+## 4. Pendencias Imediatas (Top 8)
+| # | Item | Tipo | Urgencia | Observacao |
 |---|------|------|---------|------------|
-| 1 | check_docs.py | Gate qualitativo | Alta | Evita regressão documental |
+| 1 | check_docs.py | Gate qualitativo | Alta | Evita regressao documental |
 | 2 | validate_configs.py | Gate estrutural | Alta | Previne erro silencioso runtime |
-| 3 | Smoke CLI | Teste | Alta | Confirma execução básica |
-| 4 | Checklist Tag Baseline | Governança | Alta | Formaliza corte de estado |
-| 5 | Smoke DB mínimo | Teste | Média | Garante estrutura principal |
-| 6 | Estrutura inicial pytest | Teste | Média | Base para unit core |
-| 7 | Métrica performance simples | Observabilidade | Média | Evita regressão piorando tempo |
-| 8 | Integração sanitize em CI | Qualidade | Média | Fechar laço de naming |
+| 3 | Smoke CLI | Teste | Alta | Confirma execucao basica |
+| 4 | Checklist Tag Baseline | Governanca | Alta | Formaliza corte de estado |
+| 5 | Smoke DB minimo | Teste | Media | Garante estrutura principal |
+| 6 | Estrutura inicial pytest | Teste | Media | Base para unit core |
+| 7 | Metrica performance simples | Observabilidade | Media | Evita regressao piorando tempo |
+| 8 | Integracao sanitize em CI | Qualidade | Media | Fechar laco de naming |
 
 ---
 ## 5. Mapa de Scripts de Suporte
 | Script | Categoria | Dry-run | JSON Output | Status |
 |--------|-----------|---------|-------------|--------|
-| cleanup_emergency.py | Higiene | Sim | Não | OK |
+| cleanup_emergency.py | Higiene | Sim | Nao | OK |
 | cleanup_repository.py | Higiene | Sim | Sim | OK |
 | sanitize_project.py | Auditoria | Sim | Sim | OK |
 | check_docs.py | Qualidade | (Planejado) | (Planejado) | Pendente |
@@ -65,63 +65,63 @@ Data de geração manual: 2025-09-12
 | smoke_cli (script/test) | Teste | n/a | (Planejado) | Pendente |
 
 ---
-## 6. Estado de Governança de Documentação
-| Elemento | Situação |
+## 6. Estado de Governanca de Documentacao
+| Elemento | Situacao |
 |----------|----------|
-| Índice consolidado | Atualizado |
-| Relatórios versão | 3.0.7 + 3.10 presentes |
-| Blueprint automações | SISTEMA_AUTOMATIZADO_FINAL documentado |
-| Diretrizes manutenção | README_DOCS completo |
+| Indice consolidado | Atualizado |
+| Relatorios versao | 3.0.7 + 3.10 presentes |
+| Blueprint automacoes | SISTEMA_AUTOMATIZADO_FINAL documentado |
+| Diretrizes manutencao | README_DOCS completo |
 | Gaps conhecidos | Nenhum arquivo vazio remanescente |
 
 ---
-## 7. Próximos Passos Curto Prazo
+## 7. Proximos Passos Curto Prazo
 1. Implementar `scripts/check_docs.py`.
 2. Implementar `scripts/validate_configs.py`.
-3. Adicionar teste smoke CLI (mínimo help + exit 0).
+3. Adicionar teste smoke CLI (minimo help + exit 0).
 4. Validar limpeza (rodar sanitize + cleanup dry-run no pipeline).
 5. Formalizar checklist `BASELINE_TAG.md` (novo arquivo futuro).
 6. Criar branch e preparar tag (ex: `baseline_pre_tests`).
-7. Iniciar estrutura de testes unitários (core / armazenamento).
+7. Iniciar estrutura de testes unitarios (core / armazenamento).
 
 ---
-## 8. Evolução Planejada (Resumo)
-| Fase | Conteúdo Principal | Resultado |
+## 8. Evolucao Planejada (Resumo)
+| Fase | Conteudo Principal | Resultado |
 |------|-------------------|-----------|
-| F1 | Gates básicos (docs/config/smoke) | Mínimo sustentável |
-| F2 | Testes unitários + sanitize hard gate | Confiança maior |
-| F3 | Métricas performance + build artefatos | Observabilidade |
-| F4 | Cobertura / qualidade avançada | Robustez |
+| F1 | Gates basicos (docs/config/smoke) | Minimo sustentavel |
+| F2 | Testes unitarios + sanitize hard gate | Confianca maior |
+| F3 | Metricas performance + build artefatos | Observabilidade |
+| F4 | Cobertura / qualidade avancada | Robustez |
 
 ---
 ## 9. Indicadores de Maturidade (Snapshot)
-| Domínio | Nível (1-5) | Observação |
+| Dominio | Nivel (1-5) | Observacao |
 |---------|-------------|------------|
-| Documentação | 4 | Completa + governança |
-| Automação Higiene | 4 | Scripts consolidados |
-| Automação Qualidade | 2 | Gates ainda não implementados |
+| Documentacao | 4 | Completa + governanca |
+| Automacao Higiene | 4 | Scripts consolidados |
+| Automacao Qualidade | 2 | Gates ainda nao implementados |
 | Testes | 1 | Ausentes (planejados) |
-| Build/Distribuição | 2 | Blueprint sem execução automatizada |
-| Observabilidade | 1 | Métricas não instrumentadas |
-| Performance | 2 | Modo optimized sem baseline numérica |
+| Build/Distribuicao | 2 | Blueprint sem execucao automatizada |
+| Observabilidade | 1 | Metricas nao instrumentadas |
+| Performance | 2 | Modo optimized sem baseline numerica |
 
 ---
 ## 10. Anexos Relacionados
 | Documento | Finalidade |
 |-----------|-----------|
-| `launchers/STATUS_BUILD_v3.10.md` | Estado build versão |
-| `launchers/RELATORIO_TESTES_FINAL.md` | Estratégia testes |
+| `launchers/STATUS_BUILD_v3.10.md` | Estado build versao |
+| `launchers/RELATORIO_TESTES_FINAL.md` | Estrategia testes |
 | `launchers/RESUMO_FINAL_v3.10.md` | Resumo executivo |
-| `launchers/RELATORIO_FINAL_v3.0.7.md` | Histórico comparativo |
-| `launchers/SISTEMA_AUTOMATIZADO_FINAL.md` | Blueprint automações |
+| `launchers/RELATORIO_FINAL_v3.0.7.md` | Historico comparativo |
+| `launchers/SISTEMA_AUTOMATIZADO_FINAL.md` | Blueprint automacoes |
 | `launchers/README_BUILD_AUTOMATIZADO.md` | Pipeline proposto |
 
 ---
 ## 11. Nota Final
-Este status deve ser reavaliado após implantação dos três primeiros gates de
-qualidade e antes da criação da tag baseline formal. Manter alinhamento entre
+Este status deve ser reavaliado apos implantacao dos tres primeiros gates de
+qualidade e antes da criacao da tag baseline formal. Manter alinhamento entre
 este snapshot e `SISTEMA_AUTOMATIZADO_FINAL.md`.
 
 ---
-Versão documento: 1.0 (2025-09-12)
+Versao documento: 1.0 (2025-09-12)
 

@@ -1,34 +1,34 @@
-#  ANÁLISE DE REQUIREMENTS - OTIMIZAÇÃO v3.10
+#  ANALISE DE REQUIREMENTS - OTIMIZACAO v3.10
 
-**Situação Atual:** 236 dependências → **6 dependências essenciais**
+**Situacao Atual:** 236 dependencias → **6 dependencias essenciais**
 
 ##  COMPARATIVO
 
 ### ANTES (requirements.txt)
-- **Total:** 236 dependências
-- **Tamanho estimado:** ~500MB+ instalação
+- **Total:** 236 dependencias
+- **Tamanho estimado:** ~500MB+ instalacao
 - **Inclui:** Jupyter, Poetry, AI libs, desenvolvimento
 
 ### DEPOIS (requirements_clean.txt)  
-- **Total:** 6 dependências essenciais
-- **Tamanho estimado:** ~50MB instalação
-- **Inclui:** Apenas o necessário para produção
+- **Total:** 6 dependencias essenciais
+- **Tamanho estimado:** ~50MB instalacao
+- **Inclui:** Apenas o necessario para producao
 
-##  DEPENDÊNCIAS ESSENCIAIS MANTIDAS
+##  DEPENDENCIAS ESSENCIAIS MANTIDAS
 
 ```txt
-pandas>=2.0.0,<3.0.0          # Core - manipulação Excel
+pandas>=2.0.0,<3.0.0          # Core - manipulacao Excel
 openpyxl>=3.1.0,<4.0.0        # Core - leitura .xlsx
 PyQt6>=6.6.0,<7.0.0          # Core - GUI
 python-dateutil>=2.8.0,<3.0.0  # Util - parsing datas
-tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
+tabulate>=0.9.0,<1.0.0         # Util - formatacao CLI
 ```
 
-## DEPENDÊNCIAS REMOVIDAS (desnecessárias)
+## DEPENDENCIAS REMOVIDAS (desnecessarias)
 
-###  IA/ML (não usadas no projeto)
+###  IA/ML (nao usadas no projeto)
 - langchain, openai, google-ai, mistralai
-- numpy, scipy (pandas já inclui numpy)
+- numpy, scipy (pandas ja inclui numpy)
 
 ###  Jupyter (desenvolvimento)
 - jupyter, ipython, nbconvert, etc.
@@ -40,7 +40,7 @@ tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 ###  Build/Deploy
 - pyinstaller, build, setuptools
 
-###  Web/HTTP (não usado)
+###  Web/HTTP (nao usado)
 - aiohttp, httpx, requests
 
 ## TESTES DE FUNCIONAMENTO
@@ -50,14 +50,14 @@ tabulate>=0.9.0,<1.0.0         # Util - formatação CLI
 python3 -c "import main, pandas, PyQt6; print('OK')"
 ```
 
-##  AÇÕES RECOMENDADAS
+##  ACOES RECOMENDADAS
 
 ### **IMEDIATO:**
 1. **Backup atual:** `cp requirements.txt requirements_full_backup.txt`
 2. **Substituir:** `mv requirements_clean.txt requirements.txt`
 3. **Testar:** Verificar se tudo funciona
 
-### **VALIDAÇÃO:**
+### **VALIDACAO:**
 ```bash
 # Criar ambiente limpo para testar
 python3 -m venv test_env
@@ -66,14 +66,14 @@ pip install -r requirements.txt
 python main.py --help
 ```
 
-##  BENEFÍCIOS DA OTIMIZAÇÃO
+##  BENEFICIOS DA OTIMIZACAO
 
-**Instalação 90% menor**  
-**Deploy mais rápido**  
-**Menos conflitos de versão**  
+**Instalacao 90% menor**  
+**Deploy mais rapido**  
+**Menos conflitos de versao**  
 **Ambiente mais limpo**  
-**Builds mais rápidos**
+**Builds mais rapidos**
 
 ---
 
-** RESULTADO: De 236 → 6 dependências mantendo 100% da funcionalidade!**
+** RESULTADO: De 236 → 6 dependencias mantendo 100% da funcionalidade!**

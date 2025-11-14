@@ -2,7 +2,7 @@
 -- Schema do banco de dados para o projeto SSA_Consulta_Rapida
 
 CREATE TABLE IF NOT EXISTS ssas (
-    -- Chave primária
+    -- Chave primaria
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
     -- Identificadores e Status
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     situacao TEXT,
     derivada_de TEXT,
 
-    -- Localização
+    -- Localizacao
     localizacao_codigo TEXT,
     descricao_localizacao TEXT,
     equipamento TEXT,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     semana_cadastro INTEGER, -- Tipo INTEGER conforme tratamento no extractor
     data_cadastro TEXT,      -- Armazenada como TEXT no formato DD/MM/AAAA HH:MM:SS
 
-    -- Descrições
+    -- Descricoes
     descricao_ssa TEXT,
     descricao_execucao TEXT,
 
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS ssas (
     responsavel_programacao TEXT,
     responsavel_execucao TEXT,
 
-    -- Serviços e Origem
+    -- Servicos e Origem
     servico_origem TEXT,
     sistema_origem TEXT,
     arquivo_origem TEXT,
@@ -39,10 +39,10 @@ CREATE TABLE IF NOT EXISTS ssas (
     grau_prioridade_emissao TEXT,
     grau_prioridade_planejamento TEXT,
 
-    -- Flags e Características
+    -- Flags e Caracteristicas
     execucao_simples TEXT,
 
-    -- Programação
+    -- Programacao
     semana_programada INTEGER, -- Tipo INTEGER
 
     -- Prazos e Tempo
@@ -58,12 +58,12 @@ CREATE TABLE IF NOT EXISTS ssas (
     total_tempo_tpo_planejado TEXT,
     total_horas_programadas TEXT,
 
-    -- Execução
+    -- Execucao
     semana_executada INTEGER, -- Tipo INTEGER
     num_reprogramacoes INTEGER, -- Tipo INTEGER
     execucao_parcial TEXT,
     anomalia TEXT
-    -- Adicione outras colunas conforme necessário, baseando-se nos seus arquivos e mapeamentos
+    -- Adicione outras colunas conforme necessario, baseando-se nos seus arquivos e mapeamentos
 );
 
 -- Indices podem ser adicionados para melhorar a performance de buscas

@@ -1,23 +1,23 @@
-#  REGRAS DE OURO - SSA Consulta Rápida
+#  REGRAS DE OURO - SSA Consulta Rapida
 
-##  NUNCA FAÇA
+##  NUNCA FACA
 - Execute scripts na raiz sem ler ESTRUTURA_PROJETO.md
 - Modifique core/, armazenamento/, extracao/ sem backup
 - Delete data/ssas.db
-- Execute múltiplos scripts de correção juntos
+- Execute multiplos scripts de correcao juntos
 - Modifique main.py sem testar
 
-##  SEMPRE FAÇA
+##  SEMPRE FACA
 - Leia ESTRUTURA_PROJETO.md primeiro
-- Faça backup antes de mudanças críticas
+- Faca backup antes de mudancas criticas
 - Use scripts_desenvolvimento/ para testes
-- Use scripts_manutencao/ para correções
-- Documente mudanças importantes
+- Use scripts_manutencao/ para correcoes
+- Documente mudancas importantes
 
 ##  PRIORIDADE ATUAL
-1. Corrigir erros de importação (11 arquivos falhando)
+1. Corrigir erros de importacao (11 arquivos falhando)
 2. Estabilizar banco de dados
-3. Limpar arquivos desnecessários
+3. Limpar arquivos desnecessarios
 
 ##  ARQUIVOS IMPORTANTES
 - ESTRUTURA_PROJETO.md (este documento completo)
@@ -27,14 +27,14 @@
 
 ##  COMANDOS SEGUROS
 ```bash
-# Diagnóstico
+# Diagnostico
 python scripts_desenvolvimento/simple_test.py
 
-# Verificação
+# Verificacao
 python scripts_manutencao/verificar_integridade.py
 
 # Uso normal
 python main.py
 ```
 
-**Criado em 26/08/2025 - Mantenha sempre visível**
+**Criado em 26/08/2025 - Mantenha sempre visivel**

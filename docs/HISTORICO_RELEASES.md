@@ -1,104 +1,104 @@
-# HISTÓRICO DE RELEASES
+# HISTORICO DE RELEASES
 
-Este documento consolida todas as notas de lançamento e atualizações do projeto SSA Consulta Rápida.
+Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
 ## **RELEASE v3.11 - CURRENT RELEASE**
 
-**Data de Lançamento**: Outubro 2025  
+**Data de Lancamento**: Outubro 2025  
 **Tipo**: Major Update focado em usabilidade  
-**Status**: Estável
+**Status**: Estavel
 
 ### **Principais Funcionalidades**
 
-#### ** Experiência CLI mais ágil**
-- Mostra apenas a primeira página por padrão; comando `m`/`mais` avança sem perder o prompt
+#### ** Experiencia CLI mais agil**
+- Mostra apenas a primeira pagina por padrao; comando `m`/`mais` avanca sem perder o prompt
 - `m z` percorre todo o resultado sem bloquear a entrada
 - Prompt atualizado com atalhos claros e resumo de filtros ativos
 
 #### ** Sintaxe OU/OR unificada**
 - CLI, GUI e Streamlit compartilham o mesmo parser (`OU`/`OR`, negativos, regex)
-- Ajuda revisada elimina a notação `v` e destaca exemplos práticos
-- Perfil "Executor ou Emissor" mantém chips sincronizados em tempo real
+- Ajuda revisada elimina a notacao `v` e destaca exemplos praticos
+- Perfil "Executor ou Emissor" mantem chips sincronizados em tempo real
 
 #### ** Temas adicionais e contraste aprimorado**
 - Tema "Escala de cinza" substitui o antigo claro com ajustes finos
-- Novos perfis Windows 7, KDE e GNOME (Adwaita) disponíveis na GUI
-- Ajustes automáticos de contraste para macOS quando necessário
+- Novos perfis Windows 7, KDE e GNOME (Adwaita) disponiveis na GUI
+- Ajustes automaticos de contraste para macOS quando necessario
 
 #### ** Dashboard Streamlit atualizado**
 - `python main.py --streamlit` (ou `--web`) inicia o painel em background
-- Barra lateral com ajuda rápida e resumo dos filtros aplicados
+- Barra lateral com ajuda rapida e resumo dos filtros aplicados
 - Download de CSV preservado e consulta opcional da API Itaipu
 
 ## **RELEASE v3.10**
 
-**Data de Lançamento**: Agosto 2025  
-**Tipo**: Major Update focado em build/distribuição  
-**Status**: Estável
+**Data de Lancamento**: Agosto 2025  
+**Tipo**: Major Update focado em build/distribuicao  
+**Status**: Estavel
 
 ### **Principais Funcionalidades**
 
-#### ** Novidades Críticas**
-- **Sistema de Build Multi-Plataforma**: Construção automática para Windows, macOS e Linux
+#### ** Novidades Criticas**
+- **Sistema de Build Multi-Plataforma**: Construcao automatica para Windows, macOS e Linux
 - **Modo Optimized**: Performance 3-5x melhor para arquivos grandes
 - **CLI Enhanced**: Interface de linha de comando completa e intuitiva
-- **Cache Inteligente**: Gestão automática de cache para consultas frequentes
+- **Cache Inteligente**: Gestao automatica de cache para consultas frequentes
 
-#### **️ Melhorias Técnicas**
-- **Arquitetura Modular**: Separação clara entre core, GUI e CLI
-- **Configuração Externa**: 100% das configurações externalizadas em JSON
-- **Lazy Loading**: Carregamento sob demanda na interface gráfica
-- **Memory Management**: Gestão otimizada de memória
+#### ** Melhorias Tecnicas**
+- **Arquitetura Modular**: Separacao clara entre core, GUI e CLI
+- **Configuracao Externa**: 100% das configuracoes externalizadas em JSON
+- **Lazy Loading**: Carregamento sob demanda na interface grafica
+- **Memory Management**: Gestao otimizada de memoria
 
-#### ** Correções Críticas**
-- **SSA Truncation Bug**: Corrigido problema que truncava números SSA válidos
-- **Column Mapping**: Sistema robusto de detecção automática de colunas
-- **GUI Width Management**: Persistência de larguras de colunas entre sessões
-- **Thread Safety**: Eliminação de race conditions em operações multi-thread
+#### ** Correcoes Criticas**
+- **SSA Truncation Bug**: Corrigido problema que truncava numeros SSA validos
+- **Column Mapping**: Sistema robusto de deteccao automatica de colunas
+- **GUI Width Management**: Persistencia de larguras de colunas entre sessoes
+- **Thread Safety**: Eliminacao de race conditions em operacoes multi-thread
 
 ### **Componentes Principais**
 
 #### **Core System**
 ```
 core/
-├── app_logic.py           # Coordenação de importação/atualização
+├── app_logic.py           # Coordenacao de importacao/atualizacao
 ├── cache_manager.py       # Sistema de cache inteligente
-├── config_manager.py      # Gestão centralizada de configurações
-└── configuration_manager.py  # Configurações avançadas
+├── config_manager.py      # Gestao centralizada de configuracoes
+└── configuration_manager.py  # Configuracoes avancadas
 ```
 
 #### **Interface Dupla**
 ```
 interface/
-├── cli_main.py           # CLI principal com paginação
-├── cli_enhanced.py       # Funcionalidades avançadas CLI
-└── cli_utils.py          # Utilitários CLI
+├── cli_main.py           # CLI principal com paginacao
+├── cli_enhanced.py       # Funcionalidades avancadas CLI
+└── cli_utils.py          # Utilitarios CLI
 
 gui/
 ├── gui_ssa_main.py       # Interface principal
 ├── (removido) gui_ssa_poc.py        # Interface alternativa obsoleta
-├── simple_width_manager.py  # Gestão de larguras
-└── gui_utils.py          # Utilitários GUI
+├── simple_width_manager.py  # Gestao de larguras
+└── gui_utils.py          # Utilitarios GUI
 ```
 
 #### **Sistema de Dados**
 ```
 armazenamento/
-├── database.py           # Operações SQLite padrão
-└── database_optimized.py # Operações otimizadas para grandes volumes
+├── database.py           # Operacoes SQLite padrao
+└── database_optimized.py # Operacoes otimizadas para grandes volumes
 
 extracao/
 └── extractor.py          # Processamento Excel com pandas
 ```
 
-### **Requisitos Técnicos**
+### **Requisitos Tecnicos**
 
 #### **Python**
-- **Versão Mínima**: Python 3.13+
+- **Versao Minima**: Python 3.13+
 - **Ambiente**: Virtual environment recomendado
-- **Gestão**: pyenv para múltiplas versões
+- **Gestao**: pyenv para multiplas versoes
 
-#### **Dependências Core**
+#### **Dependencias Core**
 ```json
 {
     "PyQt6": ">=6.6.0",
@@ -109,20 +109,20 @@ extracao/
 }
 ```
 
-#### **Dependências Opcionais**
+#### **Dependencias Opcionais**
 ```json
 {
-    "numba": ">=0.58.0",    # Aceleração numérica
-    "pyinstaller": ">=6.0", # Build de executáveis
+    "numba": ">=0.58.0",    # Aceleracao numerica
+    "pyinstaller": ">=6.0", # Build de executaveis
     "pytest": ">=7.0.0"     # Testes automatizados
 }
 ```
 
-### **Comandos de Instalação**
+### **Comandos de Instalacao**
 
 #### **Setup Completo**
 ```bash
-# Clone do repositório
+# Clone do repositorio
 git clone https://github.com/username/SSA_Consulta_Rapida.git
 cd SSA_Consulta_Rapida
 
@@ -131,14 +131,14 @@ python -m venv venv
 source venv/bin/activate  # macOS/Linux
 # ou venv\Scripts\activate  # Windows
 
-# Instalação de dependências
+# Instalacao de dependencias
 pip install -r requirements.txt
 
-# Verificação da instalação
+# Verificacao da instalacao
 python main.py --status
 ```
 
-#### **Uso Básico**
+#### **Uso Basico**
 ```bash
 # CLI - Lista todas as SSAs
 python main.py --list
@@ -146,10 +146,10 @@ python main.py --list
 # CLI - Busca por termo
 python main.py --search "termo"
 
-# CLI - Importação
+# CLI - Importacao
 python main.py --import arquivo.xlsx
 
-# GUI - Interface gráfica
+# GUI - Interface grafica
 python main.py --gui
 
 # Modo optimizado para arquivos grandes
@@ -158,47 +158,47 @@ python main.py --import arquivo.xlsx --optimized
 
 ### **Performance Benchmarks**
 
-#### **Importação de Dados**
+#### **Importacao de Dados**
 - **Arquivo Pequeno** (<1MB): ~2 segundos
-- **Arquivo Médio** (1-5MB): ~8 segundos
+- **Arquivo Medio** (1-5MB): ~8 segundos
 - **Arquivo Grande** (>5MB): ~30 segundos (modo optimized)
 
-#### **Interface Gráfica**
-- **Inicialização**: <3 segundos
+#### **Interface Grafica**
+- **Inicializacao**: <3 segundos
 - **Carregamento de Dados**: <1 segundo (primeiros 1000 registros)
 - **Busca/Filtro**: <500ms
 
-#### **Uso de Memória**
-- **Base**: ~50MB (aplicação vazia)
+#### **Uso de Memoria**
+- **Base**: ~50MB (aplicacao vazia)
 - **Com Dados** (10k registros): ~150MB
-- **Modo Optimized**: 60% menos uso de memória
+- **Modo Optimized**: 60% menos uso de memoria
 
 ---
 
 ## **RELEASE v3.0.6 - STABLE FOUNDATION**
 
-**Data de Lançamento**: Julho 2025  
+**Data de Lancamento**: Julho 2025  
 **Tipo**: Stability Release  
 **Status**: LTS (Long Term Support)
 
 ### **Principais Conquistas**
 
-#### **️ Arquitetura Sólida**
-- **Database Layer**: SQLite com operações UPSERT otimizadas
-- **Configuration System**: JSON-based com validação automática
+#### ** Arquitetura Solida**
+- **Database Layer**: SQLite com operacoes UPSERT otimizadas
+- **Configuration System**: JSON-based com validacao automatica
 - **Error Handling**: Sistema robusto de tratamento de erros
-- **Logging System**: Logging estruturado com níveis configuráveis
+- **Logging System**: Logging estruturado com niveis configuraveis
 
 #### ** Sistema de Dados**
 - **Excel Processing**: Suporte completo para formatos .xlsx e .xls
-- **Column Mapping**: Detecção automática de esquemas de colunas
-- **Data Validation**: Validação de integridade de dados
-- **Backup System**: Backup automático antes de operações críticas
+- **Column Mapping**: Deteccao automatica de esquemas de colunas
+- **Data Validation**: Validacao de integridade de dados
+- **Backup System**: Backup automatico antes de operacoes criticas
 
-#### **️ Interface Unificada**
-- **CLI Foundation**: Interface de linha de comando básica mas funcional
-- **GUI Core**: Interface gráfica PyQt6 com recursos essenciais
-- **Configuration UI**: Interface para gestão de configurações
+#### ** Interface Unificada**
+- **CLI Foundation**: Interface de linha de comando basica mas funcional
+- **GUI Core**: Interface grafica PyQt6 com recursos essenciais
+- **Configuration UI**: Interface para gestao de configuracoes
 - **Help System**: Sistema de ajuda integrado
 
 ### **Tecnologias Estabilizadas**
@@ -212,32 +212,32 @@ Database: SQLite3
 Data Processing: pandas + openpyxl
 ```
 
-#### **Padrões Arquiteturais**
-- **MVC Pattern**: Separação clara de Model, View, Controller
-- **Repository Pattern**: Abstração de acesso a dados
-- **Configuration Pattern**: Configuração externa e flexível
-- **Factory Pattern**: Criação de objetos através de factories
+#### **Padroes Arquiteturais**
+- **MVC Pattern**: Separacao clara de Model, View, Controller
+- **Repository Pattern**: Abstracao de acesso a dados
+- **Configuration Pattern**: Configuracao externa e flexivel
+- **Factory Pattern**: Criacao de objetos atraves de factories
 
 ### **Funcionalidades Core**
 
-#### **Importação de Dados**
+#### **Importacao de Dados**
 ```python
-# Suporte a múltiplos formatos
+# Suporte a multiplos formatos
 supported_formats = ['.xlsx', '.xls', '.csv']
 
-# Detecção automática de encoding
+# Deteccao automatica de encoding
 auto_encoding_detection = True
 
-# Validação de esquema
+# Validacao de esquema
 schema_validation = True
 
 # Progress tracking
 progress_reporting = True
 ```
 
-#### **Gestão de SSAs**
+#### **Gestao de SSAs**
 ```python
-# Operações CRUD completas
+# Operacoes CRUD completas
 operations = [
     'create_ssa',
     'read_ssa', 
@@ -246,7 +246,7 @@ operations = [
     'bulk_operations'
 ]
 
-# Filtros avançados
+# Filtros avancados
 filters = [
     'by_status',
     'by_date_range',
@@ -255,17 +255,17 @@ filters = [
 ]
 ```
 
-#### **Exportação de Relatórios**
+#### **Exportacao de Relatorios**
 ```python
 # Formatos suportados
 export_formats = [
-    'excel',    # .xlsx com formatação
+    'excel',    # .xlsx com formatacao
     'csv',      # Compatibilidade universal
     'json',     # Dados estruturados
-    'txt'       # Relatórios simples
+    'txt'       # Relatorios simples
 ]
 
-# Templates personalizáveis
+# Templates personalizaveis
 template_support = True
 custom_formatting = True
 ```
@@ -273,16 +273,16 @@ custom_formatting = True
 ### **Qualidade e Testes**
 
 #### **Cobertura de Testes**
-- **Unit Tests**: 85% cobertura do código core
+- **Unit Tests**: 85% cobertura do codigo core
 - **Integration Tests**: Todos os fluxos principais
 - **Performance Tests**: Benchmarks automatizados
-- **Regression Tests**: Prevenção de bugs conhecidos
+- **Regression Tests**: Prevencao de bugs conhecidos
 
-#### **Padrões de Código**
-- **Type Hints**: 100% do código tipado
-- **Docstrings**: Documentação completa
+#### **Padroes de Codigo**
+- **Type Hints**: 100% do codigo tipado
+- **Docstrings**: Documentacao completa
 - **Code Style**: Seguindo PEP 8
-- **Error Handling**: Exceções específicas e informativas
+- **Error Handling**: Excecoes especificas e informativas
 
 ---
 
@@ -291,45 +291,45 @@ custom_formatting = True
 ### **v3.0.5 - Performance Focus**
 **Data**: Junho 2025
 
-#### **Otimizações Implementadas**
-- **Database Indexing**: Índices estratégicos para consultas frequentes
-- **Memory Optimization**: Redução de 40% no uso de memória
-- **Startup Performance**: 50% mais rápido para inicializar
+#### **Otimizacoes Implementadas**
+- **Database Indexing**: Indices estrategicos para consultas frequentes
+- **Memory Optimization**: Reducao de 40% no uso de memoria
+- **Startup Performance**: 50% mais rapido para inicializar
 - **File Processing**: Processamento em chunks para arquivos grandes
 
 ### **v3.0.4 - UI/UX Improvements**
 **Data**: Maio 2025
 
 #### **Melhorias de Interface**
-- **Responsive Design**: Interface adaptável a diferentes resoluções
-- **Theme Support**: Suporte básico a temas claros/escuros
-- **Keyboard Shortcuts**: Atalhos de teclado para operações frequentes
-- **Status Bar**: Barra de status com informações úteis
+- **Responsive Design**: Interface adaptavel a diferentes resolucoes
+- **Theme Support**: Suporte basico a temas claros/escuros
+- **Keyboard Shortcuts**: Atalhos de teclado para operacoes frequentes
+- **Status Bar**: Barra de status com informacoes uteis
 
 ### **v3.0.3 - Data Reliability**
 **Data**: Abril 2025
 
 #### **Robustez de Dados**
-- **Backup System**: Backup automático antes de importações
-- **Data Validation**: Validação rigorosa de dados de entrada
-- **Error Recovery**: Recuperação automática de falhas de importação
-- **Audit Trail**: Rastreamento de todas as modificações
+- **Backup System**: Backup automatico antes de importacoes
+- **Data Validation**: Validacao rigorosa de dados de entrada
+- **Error Recovery**: Recuperacao automatica de falhas de importacao
+- **Audit Trail**: Rastreamento de todas as modificacoes
 
 ### **v3.0.2 - Configuration Management**
-**Data**: Março 2025
+**Data**: Marco 2025
 
-#### **Sistema de Configuração**
-- **External Config**: Todas as configurações externalizadas
-- **Environment Support**: Suporte a múltiplos ambientes
-- **Configuration UI**: Interface para gestão de configurações
-- **Validation System**: Validação de configurações
+#### **Sistema de Configuracao**
+- **External Config**: Todas as configuracoes externalizadas
+- **Environment Support**: Suporte a multiplos ambientes
+- **Configuration UI**: Interface para gestao de configuracoes
+- **Validation System**: Validacao de configuracoes
 
 ### **v3.0.1 - Bug Fixes**
 **Data**: Fevereiro 2025
 
-#### **Correções Críticas**
-- **Memory Leaks**: Eliminação de vazamentos de memória
-- **Thread Safety**: Correção de problemas de concorrência
+#### **Correcoes Criticas**
+- **Memory Leaks**: Eliminacao de vazamentos de memoria
+- **Thread Safety**: Correcao de problemas de concorrencia
 - **File Handling**: Melhoria no tratamento de arquivos
 - **Error Messages**: Mensagens de erro mais informativas
 
@@ -338,51 +338,51 @@ custom_formatting = True
 
 #### **Arquitetura Inicial**
 - **Core Framework**: Estrutura base do projeto
-- **Database Layer**: Camada de persistência SQLite
-- **Basic GUI**: Interface gráfica funcional
-- **Import System**: Sistema básico de importação
+- **Database Layer**: Camada de persistencia SQLite
+- **Basic GUI**: Interface grafica funcional
+- **Import System**: Sistema basico de importacao
 
 ---
 
 ## **ROADMAP FUTURO**
 
-### **v3.11 - Próximo Release** (Planejado)
+### **v3.11 - Proximo Release** (Planejado)
 
 #### **Funcionalidades Planejadas**
 - **Web Interface**: Interface web complementar
-- **API REST**: API para integração externa
-- **Advanced Analytics**: Análises estatísticas avançadas
-- **Multi-User Support**: Suporte a múltiplos usuários
+- **API REST**: API para integracao externa
+- **Advanced Analytics**: Analises estatisticas avancadas
+- **Multi-User Support**: Suporte a multiplos usuarios
 
-#### **Melhorias Técnicas**
-- **Docker Support**: Containerização da aplicação
-- **Cloud Integration**: Integração com serviços em nuvem
-- **Advanced Caching**: Sistema de cache distribuído
-- **Real-time Updates**: Atualizações em tempo real
+#### **Melhorias Tecnicas**
+- **Docker Support**: Containerizacao da aplicacao
+- **Cloud Integration**: Integracao com servicos em nuvem
+- **Advanced Caching**: Sistema de cache distribuido
+- **Real-time Updates**: Atualizacoes em tempo real
 
 ### **v4.0 - Major Rewrite** (Futuro)
 
 #### **Arquitetura Nova**
-- **Microservices**: Divisão em microserviços
-- **Modern Stack**: Migração para tecnologias mais modernas
+- **Microservices**: Divisao em microservicos
+- **Modern Stack**: Migracao para tecnologias mais modernas
 - **Scalability**: Suporte a grandes volumes de dados
 - **Enterprise Features**: Funcionalidades empresariais
 
 ---
 
-## **SUPORTE E MANUTENÇÃO**
+## **SUPORTE E MANUTENCAO**
 
-### **Política de Suporte**
-- **v3.10**: Suporte ativo até v4.0
-- **v3.0.6**: LTS - Suporte até 2026
-- **Versões anteriores**: Suporte limitado
+### **Politica de Suporte**
+- **v3.10**: Suporte ativo ate v4.0
+- **v3.0.6**: LTS - Suporte ate 2026
+- **Versoes anteriores**: Suporte limitado
 
 ### **Canais de Suporte**
-- **Issues GitHub**: Reportar bugs e sugestões
-- **Documentation**: Documentação técnica completa
-- **Scripts**: Scripts de manutenção e diagnóstico
+- **Issues GitHub**: Reportar bugs e sugestoes
+- **Documentation**: Documentacao tecnica completa
+- **Scripts**: Scripts de manutencao e diagnostico
 
-### **Atualização Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versão mais recente estável (v3.10).
+### **Atualizacao Recomendada**
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v3.10).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.

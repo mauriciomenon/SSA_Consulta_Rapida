@@ -1,6 +1,6 @@
-#  Comandos Rápidos - SSA Consulta Rápida v3.10
+#  Comandos Rapidos - SSA Consulta Rapida v3.10
 
-## INICIALIZAÇÃO RÁPIDA
+## INICIALIZACAO RAPIDA
 ```powershell
 # Clonar projeto
 git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git
@@ -11,10 +11,10 @@ python -m venv venv
 .\activate_env.ps1
 pip install -r requirements.txt
 
-# Verificar instalação
+# Verificar instalacao
 .\verificar_instalacao.ps1
 
-# Primeira execução
+# Primeira execucao
 python main.py --reset-db
 python main.py
 ```
@@ -27,7 +27,7 @@ python main.py --help
 # CLI Interativo
 python main.py
 
-# Interface Gráfica
+# Interface Grafica
 python main.py --gui
 
 # Modo Otimizado
@@ -41,31 +41,31 @@ python main.py --reset-db
 ```
 
 ## GUI – Filtros (TL;DR)
-- Separe termos por vírgula: `foo, bar`
-- Modos: contém (`foo`), começa (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
-- Por coluna: clique direito no cabeçalho e use o painel à direita; botões Aplicar/Limpar não alteram as larguras da tabela
+- Separe termos por virgula: `foo, bar`
+- Modos: contem (`foo`), comeca (`^foo`), termina (`foo$`), igual (`=foo`), regex (`~padrao`), excluir (`!termo`)
+- Por coluna: clique direito no cabecalho e use o painel a direita; botoes Aplicar/Limpar nao alteram as larguras da tabela
 
 ## Temas (GUI)
-- Claro, Escuro e Gruvbox. No Claro, caixas "Semana" e "Status" têm contraste reforçado.
+- Claro, Escuro e Gruvbox. No Claro, caixas "Semana" e "Status" tem contraste reforcado.
 
-## RECUPERAÇÃO RÁPIDA (SAFE MODE)
+## RECUPERACAO RAPIDA (SAFE MODE)
 ```powershell
-# 1) Criar checkpoint/restauração (stash + pacote de recuperação)
+# 1) Criar checkpoint/restauracao (stash + pacote de recuperacao)
 pwsh -File scripts_manutencao/quick_recovery.ps1 -Action checkpoint -Message "WIP rapida"
 
-# 2) Após reboot (ou em caso de dúvida), listar/aplicar stash
+# 2) Apos reboot (ou em caso de duvida), listar/aplicar stash
 pwsh -File scripts_manutencao/quick_recovery.ps1 -Action restore
 git stash pop
 
-# 3) Alternativa: aplicar patch salvo (se necessário)
+# 3) Alternativa: aplicar patch salvo (se necessario)
 pwsh -File scripts_manutencao/quick_recovery.ps1 -Action apply-patch -PatchPath docs_saida/SESSION_RECOVERY_YYYYMMDD_HHMMSS/uncommitted.patch
 
-# 4) Banco mínimo sem pandas (modo emergência)
-python utils/fallback/emergency_import.py       # cria data\ssas.db mínimo (SQLite puro)
+# 4) Banco minimo sem pandas (modo emergencia)
+python utils/fallback/emergency_import.py       # cria data\ssas.db minimo (SQLite puro)
 python main_simple.py            # CLI simplificada operando sobre ssa_table
 ```
 
-## MANUTENÇÃO
+## MANUTENCAO
 ```powershell
 # Verificar status
 git status
@@ -83,19 +83,19 @@ type logs\ssa.log
 
 ## TESTES
 ```powershell
-# Teste rápido
+# Teste rapido
 python -c "from core import app_logic; print(' OK')"
 
 # Testes automatizados
 python -m pytest tests\ -v
 
-# Teste específico
+# Teste especifico
 python tests\test_imports.py
 ```
 
-## SOLUÇÃO DE PROBLEMAS
+## SOLUCAO DE PROBLEMAS
 ```powershell
-# Reinstalar dependências
+# Reinstalar dependencias
 pip install -r requirements.txt --force-reinstall
 
 # Reset de ambiente
@@ -105,6 +105,6 @@ python -m venv venv
 .\activate_env.ps1
 pip install -r requirements.txt
 
-# Permissões PowerShell
+# Permissoes PowerShell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```

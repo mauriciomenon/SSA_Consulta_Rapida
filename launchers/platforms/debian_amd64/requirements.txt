@@ -1,4 +1,4 @@
-# Requirements otimizados para Debian AMD64 (mínimos)
+# Requirements otimizados para Debian AMD64 (minimos)
 
 # Runtime
 pandas>=2.3.0
@@ -11,8 +11,8 @@ pyinstaller>=6.14.2
 pillow>=10.4.0
 cairosvg>=2.7.1
 
-# Linux específico para AppImage
+# Linux especifico para AppImage
 patchelf>=0.17.0; platform_system=="Linux"
 
-# Linux específico para AppImage
+# Linux especifico para AppImage
 patchelf>=0.17.0; platform_system=="Linux"

@@ -1,31 +1,31 @@
-# Plano de Modularização – Importador (Fase 2)
+# Plano de Modularizacao – Importador (Fase 2)
 
-Objetivo: reduzir acoplamento e facilitar testes unitários isolados do pipeline
-`import_excel_robust`, permitindo reutilização de partes (ex.: limpeza de numero_ssa,
-parsing de datas, coalescência) em outros fluxos (CLI / GUI) sem duplicação.
+Objetivo: reduzir acoplamento e facilitar testes unitarios isolados do pipeline
+`import_excel_robust`, permitindo reutilizacao de partes (ex.: limpeza de numero_ssa,
+parsing de datas, coalescencia) em outros fluxos (CLI / GUI) sem duplicacao.
 
 ## Problemas Atuais
-- Função monolítica com múltiplas responsabilidades (IO Excel, mapeamento, coalescência,
-  normalização, parsing de datas, deduplicação, estatísticas e persistência de relatório).
-- Dificuldade para injetar políticas (ex.: regras alternativas de filtro) sem editar a função.
+- Funcao monolitica com multiplas responsabilidades (IO Excel, mapeamento, coalescencia,
+  normalizacao, parsing de datas, deduplicacao, estatisticas e persistencia de relatorio).
+- Dificuldade para injetar politicas (ex.: regras alternativas de filtro) sem editar a funcao.
 - Testes focam no output final; granularidade limitada (falta cobertura direcionada a cada etapa).
 
 ## Metas de Fase 2
-1. Extrair etapas em funções puras / idempotentes.
-2. Introduzir contêiner de contexto (dataclass) para acumular estatísticas incrementalmente.
-3. Separar política de deduplicação e política de filtragem em objetos ou funções plugáveis.
-4. Preparar pontos de extensão para: auditoria, coleta de métricas de performance, e hooks.
+1. Extrair etapas em funcoes puras / idempotentes.
+2. Introduzir conteiner de contexto (dataclass) para acumular estatisticas incrementalmente.
+3. Separar politica de deduplicacao e politica de filtragem em objetos ou funcoes plugaveis.
+4. Preparar pontos de extensao para: auditoria, coleta de metricas de performance, e hooks.
 
-## Proposta de Pacotes / Módulos
+## Proposta de Pacotes / Modulos
 ```
 utils/importer/
   __init__.py
   reader.py               # Carrega Excel → DataFrame bruto
-  header_mapping.py       # Canonicalização + construção de grupos + promoção explicita
-  coalesce.py             # Lógica de coalescência de colunas
-  numero_ssa_clean.py     # Função limpa série (wrapper atual + heurísticas de float)
-  dates.py                # Parsing e normalização de colunas de data
-  deduplicate.py          # Estratégia (default: ordena por data_cadastro desc, drop dup)
+  header_mapping.py       # Canonicalizacao + construcao de grupos + promocao explicita
+  coalesce.py             # Logica de coalescencia de colunas
+  numero_ssa_clean.py     # Funcao limpa serie (wrapper atual + heuristicas de float)
+  dates.py                # Parsing e normalizacao de colunas de data
+  deduplicate.py          # Estrategia (default: ordena por data_cadastro desc, drop dup)
   filter_rows.py          # Filtros de invalidez (numero_ssa vazio, etc.)
   stats.py                # Dataclass ImportStats + merge incremental
   pipeline.py             # Orquestrador (substitui import_excel_robust), monta etapas
@@ -44,43 +44,43 @@ utils/importer/
 
 Cada etapa retorna (df, stats) ou atualiza stats in-place. Orquestrador gerenciaria o early-return em caso de erro de IO.
 
-## Políticas Plugáveis
-- Numero SSA Policy: (strict) atual, futura (leniente para migração) selecionável por env (`SSA_NUMERO_SSA_POLICY=strict|legacy`).
+## Politicas Plugaveis
+- Numero SSA Policy: (strict) atual, futura (leniente para migracao) selecionavel por env (`SSA_NUMERO_SSA_POLICY=strict|legacy`).
 - Deduplicate Policy: default vs. custom sort key (ex: prioridade de coluna alternativa se `data_cadastro` ausente).
-- Filter Policy: remove vs. marca (flag nos stats e deixa linha para canais de diagnóstico).
+- Filter Policy: remove vs. marca (flag nos stats e deixa linha para canais de diagnostico).
 
-## Estatísticas Incrementais
-`ImportStats` pode ganhar métodos:
+## Estatisticas Incrementais
+`ImportStats` pode ganhar metodos:
 ```python
 def record_header_mapping(self, original_cols, mapped_cols, merged): ...
 def record_numero_ssa(self, total, invalid): ...
 def record_dates(self, column, failures): ...
 ```
-Permitindo validar em testes unitários cada etapa isoladamente.
+Permitindo validar em testes unitarios cada etapa isoladamente.
 
-## Benefícios Esperados
-- Aumento de cobertura unitária sem dependência de escrita/leitura de Excel para cada aspecto.
-- Redução de risco em futuras mudanças de normalização.
-- Facilidade de ligar/alterar política via env sem alterar corpo principal.
+## Beneficios Esperados
+- Aumento de cobertura unitaria sem dependencia de escrita/leitura de Excel para cada aspecto.
+- Reducao de risco em futuras mudancas de normalizacao.
+- Facilidade de ligar/alterar politica via env sem alterar corpo principal.
 
-## Migração Gradual
-Fase 2 não remove `import_excel_robust` imediatamente; ela passa a ser um thin wrapper que chama `pipeline.run(...)`. Tests existentes continuam verdes e novos testes de unidade surgem para módulos.
+## Migracao Gradual
+Fase 2 nao remove `import_excel_robust` imediatamente; ela passa a ser um thin wrapper que chama `pipeline.run(...)`. Tests existentes continuam verdes e novos testes de unidade surgem para modulos.
 
-## Riscos / Mitigações
-- Risco: Over-engineering para escopo atual. Mitigação: limitar interface pública a `pipeline.run` e manter módulos focados (sem classe complexa).
-- Risco: Duplicação transitória. Mitigação: mover código copiando e depois remover blocos originais após garantir paridade via testes.
+## Riscos / Mitigacoes
+- Risco: Over-engineering para escopo atual. Mitigacao: limitar interface publica a `pipeline.run` e manter modulos focados (sem classe complexa).
+- Risco: Duplicacao transitoria. Mitigacao: mover codigo copiando e depois remover blocos originais apos garantir paridade via testes.
 
-## Próximos Passos (Implementação)
-1. Criar diretório `utils/importer/` com `stats.py` (mover ImportStats), `numero_ssa_clean.py` (mover função adaptada), `dates.py` (extrair loop de datas).
-2. Escrever testes unitários curtos para cada módulo (ex.: `tests/importer/test_dates.py`).
+## Proximos Passos (Implementacao)
+1. Criar diretorio `utils/importer/` com `stats.py` (mover ImportStats), `numero_ssa_clean.py` (mover funcao adaptada), `dates.py` (extrair loop de datas).
+2. Escrever testes unitarios curtos para cada modulo (ex.: `tests/importer/test_dates.py`).
 3. Implementar `pipeline.py` e alterar `import_excel_robust` para delegar.
-4. Deprecar gradualmente código inline removido do arquivo monolítico.
-5. Atualizar documentação (`GUIA_MODO_OPTIMIZED.md` / novo README de importador).
+4. Deprecar gradualmente codigo inline removido do arquivo monolitico.
+5. Atualizar documentacao (`GUIA_MODO_OPTIMIZED.md` / novo README de importador).
 
-## Critério de Conclusão Fase 2
+## Criterio de Conclusao Fase 2
 - Todos os testes atuais + novos modulares passando.
-- Redução de complexidade cognitiva de `robust_importer.py` (>40% LOC movidos).
-- Estatísticas invariantes comparado à versão pré-refator (snapshot de JSON igual salvo por fixture).
+- Reducao de complexidade cognitiva de `robust_importer.py` (>40% LOC movidos).
+- Estatisticas invariantes comparado a versao pre-refator (snapshot de JSON igual salvo por fixture).
 
 --
 Documento criado em Fase 2 planejamento inicial.

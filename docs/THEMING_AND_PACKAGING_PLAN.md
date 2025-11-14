@@ -1,47 +1,47 @@
-# Temas, Ícone e Empacotamento – Plano de Implementação
+# Temas, Icone e Empacotamento – Plano de Implementacao
 
-Este documento descreve as mudanças propostas (e sua justificativa) antes da criação de uma release maior.
+Este documento descreve as mudancas propostas (e sua justificativa) antes da criacao de uma release maior.
 
 ## Objetivos
-- Alternância de temas em tempo de execução: `Claro`, `Escuro` e `Gruvbox/Vim Dark` (inspiração VS Code: vim-theme e gruvbox).
-- Ícone amigável para a aplicação (GUI) e futuros binários.
-- Evitar que a janela de console apareça quando a GUI for aberta (wrapper dedicado, sem alterar a CLI atual).
-- Preparar terreno para empacotamento enxuto (PyInstaller) – sem incluir pacotes desnecessários.
+- Alternancia de temas em tempo de execucao: `Claro`, `Escuro` e `Gruvbox/Vim Dark` (inspiracao VS Code: vim-theme e gruvbox).
+- Icone amigavel para a aplicacao (GUI) e futuros binarios.
+- Evitar que a janela de console apareca quando a GUI for aberta (wrapper dedicado, sem alterar a CLI atual).
+- Preparar terreno para empacotamento enxuto (PyInstaller) – sem incluir pacotes desnecessarios.
 
 ## Escopo (iterativo, seguro)
 1. Adicionar suporte a temas na GUI:
-   - Novo utilitário `utils/themes.py` com paletas (Claro, Escuro, Gruvbox).
-   - Botão/menú “Tema” na barra superior (GUI), persistência em `config/gui_main_preferences.json`.
-   - Aplicar paleta e pequenos ajustes de stylesheet (cabeçalho, foco, seleção).
+   - Novo utilitario `utils/themes.py` com paletas (Claro, Escuro, Gruvbox).
+   - Botao/menu “Tema” na barra superior (GUI), persistencia em `config/gui_main_preferences.json`.
+   - Aplicar paleta e pequenos ajustes de stylesheet (cabecalho, foco, selecao).
 
-2. Ícone da aplicação:
+2. Icone da aplicacao:
    - Arquivo `resources/app_icon.svg` simples (livre) para testes.
    - `setWindowIcon` na GUI.
 
 3. Wrapper para abrir a GUI sem console no Windows:
    - Arquivo `launchers/gui_launcher.pyw` (usa `pythonw.exe`) → abre a GUI diretamente.
-   - Não altera a CLI nem `main.py`; documentação indica “duplo clique” no `.pyw`/atalho.
+   - Nao altera a CLI nem `main.py`; documentacao indica “duplo clique” no `.pyw`/atalho.
 
-4. Documentação e notas:
-   - Este arquivo (plano de execução).
-   - Atualização futura do README/RELEASE NOTES após testes.
+4. Documentacao e notas:
+   - Este arquivo (plano de execucao).
+   - Atualizacao futura do README/RELEASE NOTES apos testes.
 
 ## Fora de escopo (etapa seguinte)
-- Empacotamento completo (PyInstaller + instalador). Será aberto em PR próprio após validação dos temas e do wrapper.
-- Separação de documentação “limbo” em repositório privado (requer lista aprovada).
+- Empacotamento completo (PyInstaller + instalador). Sera aberto em PR proprio apos validacao dos temas e do wrapper.
+- Separacao de documentacao “limbo” em repositorio privado (requer lista aprovada).
 
-## Riscos e mitigação
-- Drifts visuais por tema: preservar cabeçalho sem negrito; testar contraste em tabela e painéis.
-- Persistência de tema: fallback robusto para `Escuro` se a chave não existir.
+## Riscos e mitigacao
+- Drifts visuais por tema: preservar cabecalho sem negrito; testar contraste em tabela e paineis.
+- Persistencia de tema: fallback robusto para `Escuro` se a chave nao existir.
 
 ## Testes manuais sugeridos
-- Alternar temas durante execução; persistir, fechar e reabrir.
-- Conferir contraste de cabeçalhos, seleção, filtros por coluna.
-- Verificar no tema Claro: caixa "Semana Atual" e "Status" com fundo cinza (#f3f3f3) e borda (#bdbdbd) visíveis.
+- Alternar temas durante execucao; persistir, fechar e reabrir.
+- Conferir contraste de cabecalhos, selecao, filtros por coluna.
+- Verificar no tema Claro: caixa "Semana Atual" e "Status" com fundo cinza (#f3f3f3) e borda (#bdbdbd) visiveis.
 - Abrir `launchers/gui_launcher.pyw` no Windows (sem console).
 
-## Próximos passos
-- Implementar utilitário de tema + menu de tema na GUI (commit 1).
-- Adicionar ícone (commit 2).
+## Proximos passos
+- Implementar utilitario de tema + menu de tema na GUI (commit 1).
+- Adicionar icone (commit 2).
 - Adicionar `gui_launcher.pyw` e doc curta (commit 3).
 - Depois: README/RELEASE NOTES + PR de empacotamento.

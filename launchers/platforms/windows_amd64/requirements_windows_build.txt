@@ -1,5 +1,5 @@
-# Dependências adicionais para build/empacotamento Windows com compressão UPX
-# Instale ALÉM de requirements.txt quando quiser reduzir tamanho dos executáveis.
+# Dependencias adicionais para build/empacotamento Windows com compressao UPX
+# Instale ALEM de requirements.txt quando quiser reduzir tamanho dos executaveis.
 
-# Compactação (opcional)
+# Compactacao (opcional)
 upx4py>=0.1.0

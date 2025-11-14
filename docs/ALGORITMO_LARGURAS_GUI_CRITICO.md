@@ -1,34 +1,34 @@
-# ALGORITMO DE GERENCIAMENTO DE LARGURAS NA GUI (CRÍTICO)
+# ALGORITMO DE GERENCIAMENTO DE LARGURAS NA GUI (CRITICO)
 
-Este documento descreve a lógica para cálculo, persistência e ajuste dinâmico das larguras de colunas / controles críticos na interface (PyQt6).
+Este documento descreve a logica para calculo, persistencia e ajuste dinamico das larguras de colunas / controles criticos na interface (PyQt6).
 
 ## Objetivos
 - Manter legibilidade sem scroll horizontal excessivo.
 - Evitar recalcular larguras a cada repintura pesada.
-- Preservar preferências do usuário entre sessões.
-- Ajustar de forma estável quando colunas aparecem/desaparecem.
+- Preservar preferencias do usuario entre sessoes.
+- Ajustar de forma estavel quando colunas aparecem/desaparecem.
 
 ## Fontes de Dados para Largura
-| Fonte | Papel | Observações |
+| Fonte | Papel | Observacoes |
 |-------|------|-------------|
-| Medição inicial (QHeaderView) | Base bruta | Primeira fotografia após model set. |
-| Heurística mínima | Evita colunas “colapsadas” | Ex.: 48 px textos curtos. |
-| Prioridade de coluna (`config/column_priority.json`) | Ordenação de preservação | Colunas de prioridade alta nunca ficam < min_base. |
-| Histórico persistido (`gui_main_preferences.json`) | Preferência do usuário | Aplicado após primeira medição. |
-| Redução proporcional | Encaixar dentro do viewport | Distribui corte mantendo proporções. |
+| Medicao inicial (QHeaderView) | Base bruta | Primeira fotografia apos model set. |
+| Heuristica minima | Evita colunas “colapsadas” | Ex.: 48 px textos curtos. |
+| Prioridade de coluna (`config/column_priority.json`) | Ordenacao de preservacao | Colunas de prioridade alta nunca ficam < min_base. |
+| Historico persistido (`gui_main_preferences.json`) | Preferencia do usuario | Aplicado apos primeira medicao. |
+| Reducao proporcional | Encaixar dentro do viewport | Distribui corte mantendo proporcoes. |
 
-## Pipeline de Cálculo
+## Pipeline de Calculo
 1. Carregar prioridades e limites (min, max) de config.
-2. Capturar larguras medidas pelo Qt após `model.reset()`.
-3. Aplicar overrides do histórico (se existir chave exata de layout).
-4. Garantir mínimo absoluto.
-5. Calcular soma; se > largura disponível do viewport → entrar em modo compressão.
-6. Compressão: iterar colunas em ordem inversa de prioridade aplicando fator de redução.
-7. Ajustar última coluna para absorver diferença residual (erro de arredondamento).
+2. Capturar larguras medidas pelo Qt apos `model.reset()`.
+3. Aplicar overrides do historico (se existir chave exata de layout).
+4. Garantir minimo absoluto.
+5. Calcular soma; se > largura disponivel do viewport → entrar em modo compressao.
+6. Compressao: iterar colunas em ordem inversa de prioridade aplicando fator de reducao.
+7. Ajustar ultima coluna para absorver diferenca residual (erro de arredondamento).
 8. Persistir resultado final.
 
-## Compressão Proporcional
-Pseudo‑código simplificado:
+## Compressao Proporcional
+Pseudo‐codigo simplificado:
 ```python
 def distribuir(larguras, limite, prioridades):
 	total = sum(larguras)
@@ -46,7 +46,7 @@ def distribuir(larguras, limite, prioridades):
 		larguras[idx] -= corte
 		excesso -= corte
 	if excesso > 0:
-		# fallback: distribuir ainda igualmente sobre todas acima do mínimo
+		# fallback: distribuir ainda igualmente sobre todas acima do minimo
 		vivos = [i for i,l in enumerate(larguras) if l > largura_min_coluna(i)]
 		while excesso > 0 and vivos:
 			quota = max(1, excesso // len(vivos))
@@ -62,37 +62,37 @@ def distribuir(larguras, limite, prioridades):
 	return larguras
 ```
 
-## Persistência
-- Chave de layout pode incluir: versão schema, modo (optimized/on-demand), conjunto de colunas ativo.
+## Persistencia
+- Chave de layout pode incluir: versao schema, modo (optimized/on-demand), conjunto de colunas ativo.
 - Arquivo JSON atual: `config/gui_main_preferences.json` (ou equivalente se renomeado).
-- Atualização somente quando diferença > delta mínimo (ex.: 3 px) para reduzir IO.
+- Atualizacao somente quando diferenca > delta minimo (ex.: 3 px) para reduzir IO.
 
 ## Eventos que Disparam Recalculo
-| Evento | Ação |
+| Evento | Acao |
 |--------|------|
-| Importação completa | Recalcular tudo (modelo novo). |
-| Alteração de preferência de usuário (mostrar/ocultar colunas) | Reavaliar + compressão. |
-| Resize da janela principal | Ajuste leve (sem re‑medição base). |
-| Mudança de fonte (DPI scaling) | Recalcular base + persistir. |
+| Importacao completa | Recalcular tudo (modelo novo). |
+| Alteracao de preferencia de usuario (mostrar/ocultar colunas) | Reavaliar + compressao. |
+| Resize da janela principal | Ajuste leve (sem re‐medicao base). |
+| Mudanca de fonte (DPI scaling) | Recalcular base + persistir. |
 
-## Métricas Possíveis
-- Tempo de cálculo (< 10 ms alvo em dataset médio).
-- Número de recompressões por minuto.
-- Porcentagem média de corte aplicado vs largura original.
+## Metricas Possiveis
+- Tempo de calculo (< 10 ms alvo em dataset medio).
+- Numero de recompressoes por minuto.
+- Porcentagem media de corte aplicado vs largura original.
 
 ## Riscos / Edge Cases
-| Caso | Mitigação |
+| Caso | Mitigacao |
 |------|-----------|
-| Todas colunas precisam corte e atingem mínimo | Permitir scroll horizontal residual. |
-| Coluna crítica perde legibilidade | Impedir reduzir abaixo `priority_min_override`. |
-| Fontes grandes (acessibilidade) explodem layout | Ajustar fator de compressão inicial mais agressivo. |
-| Persistência corrompida | Validar JSON; fallback para medição base. |
+| Todas colunas precisam corte e atingem minimo | Permitir scroll horizontal residual. |
+| Coluna critica perde legibilidade | Impedir reduzir abaixo `priority_min_override`. |
+| Fontes grandes (acessibilidade) explodem layout | Ajustar fator de compressao inicial mais agressivo. |
+| Persistencia corrompida | Validar JSON; fallback para medicao base. |
 
-## Próximos Aperfeiçoamentos
+## Proximos Aperfeicoamentos
 - Introduzir cache de larguras por perfil de uso (ex.: operador vs auditor).
-- Benchmarks automáticos de tempo de aplicação do layout.
-- Heurística que detecta colunas numéricas vs texto para mínimos diferenciados.
+- Benchmarks automaticos de tempo de aplicacao do layout.
+- Heuristica que detecta colunas numericas vs texto para minimos diferenciados.
 
 ## Status
-Documento criado para substituir arquivo vazio e registrar a lógica esperada. Revisar quando implementação for ajustada.
+Documento criado para substituir arquivo vazio e registrar a logica esperada. Revisar quando implementacao for ajustada.
 
