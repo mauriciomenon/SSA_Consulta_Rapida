@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script de teste completo para builds v3.10
-Testa CLI, GUI e detecta problemas
-"""
+"""Teste completo dos executaveis gerados pelo build multiplataforma."""
 
 import os
 import sys
@@ -10,6 +7,11 @@ import subprocess
 import json
 import time
 from pathlib import Path
+
+from version_info import REPO_ROOT, get_current_version
+
+APP_VERSION = get_current_version()
+DIST_DIR = REPO_ROOT / "launchers" / "dist"
 
 def log(msg, level="INFO"):
     """Log formatado"""
@@ -57,17 +59,17 @@ def test_build_system():
 
     # Verificar arquivos essenciais
     essential_files = [
-        "launchers/build_multiplatform.py",
-        "launchers/cli_entry.py",
-        "launchers/gui_entry.py",
-        f"launchers/platforms/{platform}/build_config.json",
-        f"launchers/platforms/{platform}/requirements.txt"
+        REPO_ROOT / "launchers" / "build_multiplatform.py",
+        REPO_ROOT / "launchers" / "cli_entry.py",
+        REPO_ROOT / "launchers" / "gui_entry.py",
+        REPO_ROOT / "launchers" / "platforms" / platform / "build_config.json",
+        REPO_ROOT / "launchers" / "platforms" / platform / "requirements.txt",
     ]
 
     missing_files = []
     for file in essential_files:
-        if not os.path.exists(file):
-            missing_files.append(file)
+        if not file.exists():
+            missing_files.append(str(file))
 
     if missing_files:
         log(f"ERRO: Arquivos essenciais faltando: {missing_files}", "ERROR")
@@ -95,9 +97,10 @@ def test_cli_build():
 
     # Verificar executável
     platform = detect_platform()
-    cli_path = f"launchers/dist/{platform}/SSA_CLI_v3.10_{platform}/SSA_CLI_v3.10_{platform}"
+    cli_dir = DIST_DIR / platform / f"SSA_CLI_v{APP_VERSION}_{platform}"
+    cli_path = cli_dir / f"SSA_CLI_v{APP_VERSION}_{platform}"
 
-    if not os.path.exists(cli_path):
+    if not cli_path.exists():
         log(f"ERRO: Executável CLI não encontrado em {cli_path}", "ERROR")
         return False
 
@@ -135,11 +138,19 @@ def test_gui_build():
     platform = detect_platform()
 
     if platform == "macos_arm64":
-        gui_path = f"launchers/dist/{platform}/SSA_GUI_v3.10_{platform}.app/Contents/MacOS/SSA_GUI_v3.10_{platform}"
+        gui_path = (
+            DIST_DIR
+            / platform
+            / f"SSA_GUI_v{APP_VERSION}_{platform}.app"
+            / "Contents"
+            / "MacOS"
+            / f"SSA_GUI_v{APP_VERSION}_{platform}"
+        )
     else:
-        gui_path = f"launchers/dist/{platform}/SSA_GUI_v3.10_{platform}/SSA_GUI_v3.10_{platform}"
+        gui_dir = DIST_DIR / platform / f"SSA_GUI_v{APP_VERSION}_{platform}"
+        gui_path = gui_dir / f"SSA_GUI_v{APP_VERSION}_{platform}"
 
-    if not os.path.exists(gui_path):
+    if not gui_path.exists():
         log(f"ERRO: Executável GUI não encontrado em {gui_path}", "ERROR")
         return False
 
@@ -147,20 +158,25 @@ def test_gui_build():
 
     # Testar importação (sem abrir janela)
     log("Testando imports da GUI...")
-    test_script = f'''
-import sys
-sys.path.insert(0, "/Users/menon/git/SSA_Consulta_Rapida")
-try:
-    from gui.gui_ssa import SSAMainWindow
-    print("✅ Import GUI principal OK")
-except Exception as e:
-    print(f"❌ Erro import GUI: {{e}}")
-    sys.exit(1)
-'''
-
-    success, stdout, stderr = run_command(f'python -c "{test_script}"')
-    if not success:
-        log(f"ERRO: Imports da GUI falharam: {stderr}", "ERROR")
+    script_lines = [
+        "import sys",
+        f"sys.path.insert(0, {repr(str(REPO_ROOT))})",
+        "try:",
+        "    from gui.gui_ssa import SSAMainWindow",
+        "    print('✅ Import GUI principal OK')",
+        "except Exception as e:",
+        "    print(f'❌ Erro import GUI: {e}')",
+        "    raise",
+    ]
+    script = "\n".join(script_lines)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        log(f"ERRO: Imports da GUI falharam: {result.stderr or result.stdout}", "ERROR")
         return False
 
     log("✅ Imports da GUI funcionam")
@@ -217,15 +233,17 @@ def generate_test_report():
     report["tests"]["gui_build"] = test_gui_build()
 
     # Informações de build
-    if os.path.exists(f"launchers/dist/{platform}/build_manifest.json"):
-        with open(f"launchers/dist/{platform}/build_manifest.json", 'r') as f:
+    manifest_path = DIST_DIR / platform / "build_manifest.json"
+    if manifest_path.exists():
+        with manifest_path.open('r', encoding='utf-8') as f:
             report["build_info"] = json.load(f)
 
     # Salvar relatório
-    os.makedirs("launchers/test_reports", exist_ok=True)
-    report_file = f"launchers/test_reports/test_report_{platform}_{int(time.time())}.json"
+    reports_dir = REPO_ROOT / "launchers" / "test_reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_file = reports_dir / f"test_report_{platform}_{int(time.time())}.json"
 
-    with open(report_file, 'w') as f:
+    with report_file.open('w', encoding='utf-8') as f:
         json.dump(report, f, indent=2)
 
     log(f"Relatório salvo: {report_file}")
@@ -248,9 +266,9 @@ def generate_test_report():
 
 def main():
     """Executa todos os testes"""
-    log("INICIANDO TESTES COMPLETOS v3.10")
+    log(f"INICIANDO TESTES COMPLETOS v{APP_VERSION}")
 
-    if not os.path.exists("launchers/build_multiplatform.py"):
+    if not (REPO_ROOT / "launchers" / "build_multiplatform.py").exists():
         log("ERRO: Execute no diretório raiz do projeto", "ERROR")
         sys.exit(1)
 
