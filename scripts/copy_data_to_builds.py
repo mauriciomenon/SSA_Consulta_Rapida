@@ -19,7 +19,13 @@ from pathlib import Path
 import sys
 
 
-def copy_data_to_build(build_dir: Path, verbose: bool = True):
+def copy_data_to_build(
+    build_dir: Path,
+    verbose: bool = True,
+    db_path: Path | None = None,
+    docs_dir: Path | None = None,
+    max_excel_files: int | None = None,
+):
     """Copia database e Excel samples para diretorio de build."""
     if not build_dir.exists():
         print(f"❌ Build nao encontrado: {build_dir}")
@@ -27,8 +33,13 @@ def copy_data_to_build(build_dir: Path, verbose: bool = True):
 
     success = True
 
+    # Defaults
+    db_path = db_path or Path("data/ssas.db")
+    docs_dir = docs_dir or Path("docs_entrada")
+    max_excel_files = 3 if max_excel_files is None else max_excel_files
+
     # 1. Copiar database principal
-    source_db = Path("data/ssas.db")
+    source_db = db_path
     if source_db.exists():
         target_data_dir = build_dir / "data"
         target_data_dir.mkdir(exist_ok=True)
@@ -49,7 +60,7 @@ def copy_data_to_build(build_dir: Path, verbose: bool = True):
             print(f"⚠️  DB nao encontrado: {source_db}")
 
     # 2. Copiar Excel samples (até 3 mais recentes)
-    docs_entrada = Path("docs_entrada")
+    docs_entrada = docs_dir
     if docs_entrada.exists():
         target_docs = build_dir / "docs_entrada"
         target_docs.mkdir(exist_ok=True)
@@ -61,9 +72,9 @@ def copy_data_to_build(build_dir: Path, verbose: bool = True):
             reverse=True
         )
 
-        # Copiar ate 3 arquivos mais recentes
+        # Copiar ate N arquivos mais recentes
         copied_count = 0
-        max_files = 3
+        max_files = max_excel_files
 
         if verbose and excel_files:
             print(f"📋 Copiando Excel samples (maximo {max_files}):")
@@ -104,6 +115,22 @@ def main():
         help="Copiar para todos os builds existentes"
     )
     parser.add_argument(
+        "--db-path",
+        default="data/ssas.db",
+        help="Caminho para o arquivo do banco de dados (default: data/ssas.db)"
+    )
+    parser.add_argument(
+        "--docs-dir",
+        default="docs_entrada",
+        help="Diretorio de entrada de documentos Excel (default: docs_entrada)"
+    )
+    parser.add_argument(
+        "--max-excels",
+        type=int,
+        default=3,
+        help="Quantidade maxima de arquivos Excel para copiar (default: 3)"
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Modo silencioso (menos output)"
@@ -136,7 +163,13 @@ def main():
                 if verbose:
                     print(f"\n🔧 Build: {build_system.upper()}")
                     print("-" * 60)
-                success = copy_data_to_build(build_dir, verbose)
+                success = copy_data_to_build(
+                    build_dir,
+                    verbose,
+                    db_path=Path(args.db_path),
+                    docs_dir=Path(args.docs_dir),
+                    max_excel_files=args.max_excels,
+                )
                 overall_success = overall_success and success
             else:
                 if verbose:
@@ -148,7 +181,13 @@ def main():
             print(f"Copiando dados para build: {args.build_system.upper()}")
             print("=" * 60)
             print()
-        overall_success = copy_data_to_build(build_dir, verbose)
+        overall_success = copy_data_to_build(
+            build_dir,
+            verbose,
+            db_path=Path(args.db_path),
+            docs_dir=Path(args.docs_dir),
+            max_excel_files=args.max_excels,
+        )
 
     if verbose:
         print()
