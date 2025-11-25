@@ -2,7 +2,7 @@
 REM Build script usando PyInstaller
 
 echo Iniciando build com PyInstaller...
-echo Previsão: 2-5 minutos.
+echo Previsao: 2-5 minutos.
 echo.
 
 REM Limpar build anterior se existir
@@ -35,7 +35,7 @@ if %ERRORLEVEL% EQU 0 (
     echo === COPIANDO PARA BUILDS/PYINSTALLER ===
     if exist builds\pyinstaller rmdir /s /q builds\pyinstaller
     mkdir builds\pyinstaller
-    xcopy /E /I /Y dist\SSA_Consulta_Rapida builds\pyinstaller
+    xcopy /E /I /Y dist\SSA_Consulta_Rapida\* builds\pyinstaller\
     echo Copiado para: builds\pyinstaller
     echo.
     echo === COPIANDO DADOS (DB E EXCEL) ===

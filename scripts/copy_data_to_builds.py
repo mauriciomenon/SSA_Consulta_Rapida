@@ -33,14 +33,24 @@ def copy_data_to_build(
 
     success = True
 
-    # Defaults
-    db_path = db_path or Path("data/ssas.db")
-    docs_dir = docs_dir or Path("docs_entrada")
+    # Diretorio base do projeto (independente do cwd)
+    base_dir = Path(__file__).resolve().parents[1]
+
+    # Defaults (relativos ao base_dir)
+    db_path = db_path or (base_dir / "data" / "ssas.db")
+    docs_dir = docs_dir or (base_dir / "docs_entrada")
     max_excel_files = 3 if max_excel_files is None else max_excel_files
 
     # 1. Copiar database principal
     source_db = db_path
     if source_db.exists():
+        # Safety check: skip large databases to avoid distributing sensitive data
+        db_size_mb = source_db.stat().st_size / (1024 * 1024)
+        if db_size_mb > 100:
+            if verbose:
+                print(f"⚠️  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
+            return False
+
         target_data_dir = build_dir / "data"
         target_data_dir.mkdir(exist_ok=True)
         target_db = target_data_dir / "ssas.db"
@@ -171,9 +181,8 @@ def main():
                     max_excel_files=args.max_excels,
                 )
                 overall_success = overall_success and success
-            else:
-                if verbose:
-                    print(f"\n⏭️  Pulando {build_system} (build nao encontrado)")
+            elif verbose:
+                print(f"\n⏭️  Pulando {build_system} (build nao encontrado)")
     else:
         build_dir = build_dirs[args.build_system]
         if verbose:
