@@ -142,6 +142,7 @@ def insert_dataframe_optimized(
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
                 safe_chunksize = sqlite_safe_chunksize(len(no_ssa.columns))
+                # method='multi' ignora chunksize; usar chunksize seguro
                 no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                 total_inserted += len(no_ssa)
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
@@ -206,6 +207,7 @@ def insert_dataframe_optimized(
                     insert_df = pd.DataFrame(to_insert)
                     # Calcula chunksize dinamico centralizado para evitar limite de variaveis
                     safe_chunksize = sqlite_safe_chunksize(len(insert_df.columns))
+                    # method='multi' ignora chunksize; usar chunksize seguro
                     insert_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                     total_inserted += len(insert_df)
                     logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
@@ -228,6 +230,7 @@ def insert_dataframe_optimized(
                         conn.execute(delete_query, chunk_ssas)
 
                     # Inserir versões atualizadas com chunk size dinâmico centralizado
+                    # method='multi' ignora chunksize; usar chunksize seguro
                     update_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
                     logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
