@@ -319,8 +319,10 @@ docs_saida/temp_*
 exportacao/temp_*
 
 # === BUILDS E DISTRIBUICAO ===
-# Artefatos empacotados locais
-builds/**/*.zip
+# Builds directory
+builds/
+# Packaged distributions
+dist_packages/*.zip
 # Builds automaticos
 launchers/dist/
 launchers/dist_simple/
@@ -379,3 +381,10 @@ temp_claude.txt
 WARP.md
 temp/PR_REPORT.md
 temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

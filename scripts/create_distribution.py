@@ -81,7 +81,12 @@ def get_version() -> str:
         with open(VERSION_FILE, 'r', encoding='utf-8') as f:
             return f.read().strip()
     except Exception:
-        return "4.11.0"
+        try:
+            with open(PROJECT_ROOT / "config" / "version.json", 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return str(data.get('version_short') or data.get('version') or '0.0.0')
+        except Exception:
+            return "0.0.0"
 
 
 def create_user_structure(target_dir: Path):

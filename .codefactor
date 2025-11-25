@@ -1,0 +1,9 @@
+languages:
+  Python: true
+
+exclude:
+  - "tests/**"
+  - "build/**"
+  - "builds/**"
+  - "dist/**"
+  - "**/__pycache__/**"

@@ -1,0 +1,15 @@
+engines:
+  pylint:
+    enabled: true
+  bandit:
+    enabled: true
+  prospector:
+    enabled: true
+
+exclude_paths:
+  - "tests/**"
+  - "build/**"
+  - "builds/**"
+  - "dist/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"

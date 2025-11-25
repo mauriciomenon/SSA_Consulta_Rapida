@@ -29,6 +29,22 @@ from .schema_manager import ensure_columns_exist
 logger = logging.getLogger(__name__)
 
 
+# ===== SQLITE LIMITS AND CHUNK HELPERS =====
+SQLITE_MAX_VARIABLES = 999
+SQLITE_SAFETY_EXTRA_COLUMNS = 1
+SQLITE_DEFAULT_CHUNK_CAP = 500
+
+
+def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
+    """Compute a safe chunksize for SQLite to avoid the 999 variables limit.
+
+    Uses a small safety margin by adding SQLITE_SAFETY_EXTRA_COLUMNS to the
+    column count and caps the chunk size to avoid overly large batches.
+    """
+    per_row_vars = max(1, num_columns + SQLITE_SAFETY_EXTRA_COLUMNS)
+    return min(cap, max(1, SQLITE_MAX_VARIABLES // per_row_vars))
+
+
 def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
@@ -125,7 +141,9 @@ def insert_dataframe_optimized(
 
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
-                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, method='multi')
+                safe_chunksize = sqlite_safe_chunksize(len(no_ssa.columns))
+                # method='multi' ignora chunksize; usar chunksize seguro
+                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                 total_inserted += len(no_ssa)
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
@@ -187,11 +205,10 @@ def insert_dataframe_optimized(
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
                     insert_df = pd.DataFrame(to_insert)
-                    # Calcula chunksize dinamico para evitar "too many SQL variables"
-                    # SQLite tem limite de ~999 variaveis. Com 82 colunas: 999/82 = ~12 linhas seguras
-                    num_cols = len(insert_df.columns)
-                    safe_chunksize = max(1, 999 // (num_cols + 1))  # +1 margem de seguranca
-                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=safe_chunksize)
+                    # Calcula chunksize dinamico centralizado para evitar limite de variaveis
+                    safe_chunksize = sqlite_safe_chunksize(len(insert_df.columns))
+                    # method='multi' ignora chunksize; usar chunksize seguro
+                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                     total_inserted += len(insert_df)
                     logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
 
@@ -199,10 +216,8 @@ def insert_dataframe_optimized(
                 if to_update:
                     update_df = pd.DataFrame(to_update)
 
-                    # 🔧 FIX: Processar em chunks para evitar "too many SQL variables"
-                    # SQLite tem limite padrão de 999 variáveis por query
-                    # Cálculo dinâmico: 999 variáveis ÷ 35 colunas ≈ 28 linhas por chunk
-                    CHUNK_SIZE = min(500, max(1, 999 // len(update_df.columns)))  # Chunk size adaptável
+                    # Processar em chunks seguros para SQLite (centralizado)
+                    CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
                     logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
                     ssa_list = list(update_df['numero_ssa'])
                     
@@ -214,8 +229,9 @@ def insert_dataframe_optimized(
                         )
                         conn.execute(delete_query, chunk_ssas)
 
-                    # Inserir versões atualizadas com chunk size dinâmico
-                    update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=CHUNK_SIZE)
+                    # Inserir versões atualizadas com chunk size dinâmico centralizado
+                    # method='multi' ignora chunksize; usar chunksize seguro
+                    update_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
                     logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
 

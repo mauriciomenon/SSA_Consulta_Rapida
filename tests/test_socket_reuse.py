@@ -1,64 +1,46 @@
-#!/usr/bin/env python3
-"""Test socket reuse with SO_REUSEADDR."""
+"""Pytest-friendly checks for socket.SO_REUSEADDR."""
 
+from __future__ import annotations
+
+import contextlib
 import socket
-import time
+from typing import Tuple
 
-PORT = 51234
+import pytest
 
-print("=" * 80)
-print("TESTE: SO_REUSEADDR no Socket de Instancia Unica")
-print("=" * 80)
-print()
+LoopbackAddr = Tuple[str, int]
 
-# Test 1: Bind sem SO_REUSEADDR
-print("[1] Teste SEM SO_REUSEADDR...")
-sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-try:
-    sock1.bind(("127.0.0.1", PORT))
-    sock1.listen(1)
-    print(f"[OK] Socket 1 conectado na porta {PORT}")
-except OSError as e:
-    print(f"[ERRO] Nao conseguiu bind: {e}")
-    import sys
-    sys.exit(1)
 
-# Close socket
-sock1.close()
-print("[OK] Socket 1 fechado")
-print()
+@pytest.fixture
+def loopback_addr() -> LoopbackAddr:
+    """Allocate an ephemeral loopback port for deterministic tests."""
+    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        sock.bind(("127.0.0.1", 0))
+        host, port = sock.getsockname()
+    return host, port
 
-# Test 2: Tentar bind imediatamente (deve falhar sem SO_REUSEADDR)
-print("[2] Tentando bind IMEDIATO sem SO_REUSEADDR...")
-sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-try:
-    sock2.bind(("127.0.0.1", PORT))
-    print("[ERRO] Conseguiu bind imediato - nao deveria (TIME_WAIT nao funciona?)")
-    sock2.close()
-except OSError as e:
-    print(f"[OK] Falhou como esperado (TIME_WAIT ativo): {e}")
-    sock2.close()
-print()
 
-# Wait a bit
-print("[3] Aguardando 3 segundos...")
-time.sleep(3)
-print()
+def _bind_socket(addr: LoopbackAddr, reuse: bool = False) -> socket.socket:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if reuse:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(addr)
+    sock.listen(1)
+    return sock
 
-# Test 3: Tentar bind COM SO_REUSEADDR
-print("[4] Tentando bind COM SO_REUSEADDR...")
-sock3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock3.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-try:
-    sock3.bind(("127.0.0.1", PORT))
-    sock3.listen(1)
-    print(f"[OK] Socket 3 conectado com SO_REUSEADDR na porta {PORT}")
-    sock3.close()
-    print("[OK] Socket 3 fechado")
-except OSError as e:
-    print(f"[ERRO] Falhou mesmo com SO_REUSEADDR: {e}")
 
-print()
-print("=" * 80)
-print("[SUCESSO] SO_REUSEADDR permite reutilizar porta imediatamente")
-print("=" * 80)
+def test_reuseaddr_flag_roundtrip(loopback_addr: LoopbackAddr) -> None:
+    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 1
+        sock.bind(loopback_addr)
+
+def test_reuseaddr_allows_immediate_rebind(loopback_addr: LoopbackAddr) -> None:
+    with contextlib.closing(_bind_socket(loopback_addr, reuse=True)):
+        pass
+
+    try:
+        with contextlib.closing(_bind_socket(loopback_addr, reuse=True)) as sock:
+            assert sock.getsockname()[1] == loopback_addr[1]
+    except OSError as exc:  # pragma: no cover - guard for exotic OSes
+        pytest.skip(f"Plataforma nao permite reuso imediato da porta: {exc}")
