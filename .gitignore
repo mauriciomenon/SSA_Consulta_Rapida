@@ -319,8 +319,10 @@ docs_saida/temp_*
 exportacao/temp_*
 
 # === BUILDS E DISTRIBUICAO ===
-# Artefatos empacotados locais
-builds/**/*.zip
+# Builds directory
+builds/
+# Packaged distributions
+dist_packages/*.zip
 # Builds automaticos
 launchers/dist/
 launchers/dist_simple/

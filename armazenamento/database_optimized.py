@@ -189,9 +189,10 @@ def insert_dataframe_optimized(
                     insert_df = pd.DataFrame(to_insert)
                     # Calcula chunksize dinamico para evitar "too many SQL variables"
                     # SQLite tem limite de ~999 variaveis. Com 82 colunas: 999/82 = ~12 linhas seguras
+                    # CRITICAL: method='multi' IGNORA chunksize - removido
                     num_cols = len(insert_df.columns)
                     safe_chunksize = max(1, 999 // (num_cols + 1))  # +1 margem de seguranca
-                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=safe_chunksize)
+                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                     total_inserted += len(insert_df)
                     logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
 
@@ -215,7 +216,8 @@ def insert_dataframe_optimized(
                         conn.execute(delete_query, chunk_ssas)
 
                     # Inserir versões atualizadas com chunk size dinâmico
-                    update_df.to_sql(table_name, conn, if_exists='append', index=False, method='multi', chunksize=CHUNK_SIZE)
+                    # CRITICAL: method='multi' IGNORA chunksize - removido
+                    update_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
                     logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
 

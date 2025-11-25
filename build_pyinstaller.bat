@@ -2,7 +2,7 @@
 REM Build script usando PyInstaller
 
 echo Iniciando build com PyInstaller...
-echo Isso vai demorar 2-5 minutos.
+echo Previsão: 2-5 minutos.
 echo.
 
 REM Limpar build anterior se existir
@@ -31,6 +31,15 @@ echo.
 if %ERRORLEVEL% EQU 0 (
     echo Build concluido com sucesso!
     echo Executavel em: dist\SSA_Consulta_Rapida\SSA_Consulta_Rapida.exe
+    echo.
+    echo === COPIANDO PARA BUILDS/PYINSTALLER ===
+    if exist builds\pyinstaller rmdir /s /q builds\pyinstaller
+    mkdir builds\pyinstaller
+    xcopy /E /I /Y dist\SSA_Consulta_Rapida builds\pyinstaller
+    echo Copiado para: builds\pyinstaller
+    echo.
+    echo === COPIANDO DADOS (DB E EXCEL) ===
+    python scripts\copy_data_to_builds.py --build-system pyinstaller
 ) else (
     echo Build falhou com erro %ERRORLEVEL%
 )
