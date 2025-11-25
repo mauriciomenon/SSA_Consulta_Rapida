@@ -153,11 +153,14 @@ def main():
 
     verbose = not args.quiet
 
-    # Mapeamento de build system para diretorio
+    # Diretorio base do projeto (independente do cwd)
+    base_dir = Path(__file__).resolve().parents[1]
+
+    # Mapeamento de build system para diretorio (ancorado ao base_dir)
     build_dirs = {
-        "pyinstaller": Path("builds/pyinstaller"),
-        "pyoxidizer": Path("builds/pyoxidizer"),
-        "nuitka": Path("builds/nuitka"),
+        "pyinstaller": base_dir / "builds" / "pyinstaller",
+        "pyoxidizer": base_dir / "builds" / "pyoxidizer",
+        "nuitka": base_dir / "builds" / "nuitka",
     }
 
     overall_success = True
