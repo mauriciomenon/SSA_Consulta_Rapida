@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Build SIMPLIFICADO v3.10 - FUNCIONANDO
-Sem complexidades desnecessarias
+Build simplificado para gerar executaveis locais.
 IMPORTANTE: Este script usa dist_simple que e temporario e NAO deve ir para o git!
 """
 
@@ -12,9 +11,13 @@ import shutil
 import atexit
 from pathlib import Path
 
+from version_info import REPO_ROOT, get_current_version
+
+APP_VERSION = get_current_version()
+
 def cleanup_dist_simple():
     """Funcao para limpar dist_simple ao sair"""
-    dist_dir = Path(__file__).parent.parent / 'launchers' / 'dist_simple'
+    dist_dir = REPO_ROOT / 'launchers' / 'dist_simple'
     if dist_dir.exists():
         try:
             shutil.rmtree(dist_dir)
@@ -23,14 +26,14 @@ def cleanup_dist_simple():
             print(f"⚠️  Erro na limpeza: {e}")
 
 def main():
-    print("=== SSA Consulta Rapida v3.10 - Build Simples ===")
+    print(f"=== SSA Consulta Rapida v{APP_VERSION} - Build Simples ===")
     print("⚠️  AVISO: dist_simple é temporário e será limpo automaticamente!")
 
     # Registrar limpeza automática
     atexit.register(cleanup_dist_simple)
 
     # Diretórios
-    base_dir = Path(__file__).parent.parent
+    base_dir = REPO_ROOT
     dist_dir = base_dir / 'launchers' / 'dist_simple'
 
     # Limpar build anterior
@@ -46,7 +49,7 @@ def main():
         'pyinstaller',
         '--onedir',
         '--console',
-        '--name', 'SSA_CLI_v3.10_SIMPLES',
+        '--name', f'SSA_CLI_v{APP_VERSION}_SIMPLES',
         '--distpath', str(dist_dir),
         '--workpath', str(dist_dir / 'temp'),
         '--specpath', str(dist_dir),
@@ -67,7 +70,7 @@ def main():
         print("✅ Build CLI concluído com sucesso!")
 
         # Testar executável
-        exe_path = dist_dir / 'SSA_CLI_v3.10_SIMPLES' / 'SSA_CLI_v3.10_SIMPLES'
+        exe_path = dist_dir / f'SSA_CLI_v{APP_VERSION}_SIMPLES' / f'SSA_CLI_v{APP_VERSION}_SIMPLES'
         if exe_path.exists():
             print(f"✅ Executável gerado: {exe_path}")
 

@@ -1,6 +1,19 @@
-# SSA Consulta Rapida v4.10.0
+# SSA Consulta Rapida v4.12.0
 
-Release 4.10.0 formaliza correcao dos problemas de filtros e aplicacao de temas observados na serie 4.0. Todo o texto abaixo permanece para historico. As instrucoes principais seguem em portugues sem acentos.
+Release 4.12.0 consolida a limpeza documental e garante que README, changelog completo e prioridade de colunas estejam sincronizados com os testes automatizados. Esta versao tambem atualiza os metadados de versao, reafirma o escopo de logging robusto e mantem o historico completo das correcões anteriores.
+
+## Release v4.12.0 (2025-12)
+
+### Destaques
+- README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
+- Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
+- Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.12.0 com foco em limpeza documental e paridade de testes.
+
+### Resultados esperados
+- Pipelines de qualidade deixam de falhar por falta de seções obrigatorias no README.
+- Testes `test_docs_and_priority.py` voltam a passar com o changelog reconstruido.
+- Repositorio mais enxuto, sem documentos vazios que confundiam revisores.
 
 ## Release v4.10.0 (2025-11)
 
@@ -244,7 +257,7 @@ Links uteis:
 - Python 3.13+
 - Windows (testado) ou ambiente compativel com PyQt6
 
-## Instalacao
+## Instalação
 ```pwsh
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
