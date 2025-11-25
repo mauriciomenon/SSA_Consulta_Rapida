@@ -48,7 +48,7 @@ def copy_data_to_build(build_dir: Path, verbose: bool = True):
         if verbose:
             print(f"⚠️  DB nao encontrado: {source_db}")
 
-    # 2. Copiar Excel samples (2 mais recentes de cada tipo)
+    # 2. Copiar Excel samples (até 3 mais recentes)
     docs_entrada = Path("docs_entrada")
     if docs_entrada.exists():
         target_docs = build_dir / "docs_entrada"
