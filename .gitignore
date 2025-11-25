@@ -381,3 +381,10 @@ temp_claude.txt
 WARP.md
 temp/PR_REPORT.md
 temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

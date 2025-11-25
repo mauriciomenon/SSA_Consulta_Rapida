@@ -1,13 +1,5 @@
-"""
-Sistema de temas para a interface PyQt6 do SSA Consulta Rapida.
-
-Define paletas de cores e roles para multiplos temas visuais, incluindo
-temas claros, escuros e populares como Dracula, Gruvbox, Tokyo Night, etc.
-"""
-
 from PyQt6.QtGui import QPalette, QColor
 
-# Definicao de roles (papeis) de cores para cada tema
 THEME_ROLES: dict[str, dict[str, str]] = {
     "grayscale": {
         # Accents
@@ -280,7 +272,6 @@ THEME_ROLES: dict[str, dict[str, str]] = {
     },
 }
 
-# Tema padrao usado como fallback quando roles especificos nao estao definidos
 THEME_ROLES_DEFAULT = {
     "accent": "#4a90e2",
     "accent_soft": "#9ec5ff",
@@ -306,16 +297,6 @@ THEME_ROLES_DEFAULT = {
 
 
 def get_theme_roles(name: str) -> dict[str, str]:
-    """
-    Retorna os roles (papeis) de cores para um tema especifico.
-
-    Args:
-        name: Nome do tema (ex: 'dark', 'gruvbox', 'dracula')
-
-    Returns:
-        Dicionario com os roles de cores, usando THEME_ROLES_DEFAULT
-        como base e sobrescrevendo com roles especificos do tema.
-    """
     normalized = normalize_theme(name)
     roles = THEME_ROLES_DEFAULT.copy()
     specific = THEME_ROLES.get(normalized)
@@ -325,16 +306,6 @@ def get_theme_roles(name: str) -> dict[str, str]:
 
 
 def get_palette(name: str) -> QPalette:
-    """
-    Cria uma paleta QPalette completa para um tema especifico.
-
-    Args:
-        name: Nome do tema (ex: 'dark', 'grayscale', 'tokyo-night')
-
-    Returns:
-        QPalette configurada com as cores do tema selecionado.
-        Usa tema 'dark' como fallback se o tema nao for encontrado.
-    """
     key = (name or "dark").lower()
     pal = QPalette()
 
@@ -536,18 +507,6 @@ def get_palette(name: str) -> QPalette:
 
 
 def normalize_theme(name: str) -> str:
-    """
-    Normaliza nomes de temas para suas formas canonicas.
-
-    Permite aliases e variacoes de nomes (ex: 'win7' -> 'windows7',
-    'escala de cinza' -> 'grayscale').
-
-    Args:
-        name: Nome do tema (pode ser alias ou variacao)
-
-    Returns:
-        Nome canonico do tema, ou 'dark' se nao reconhecido.
-    """
     name = (name or "dark").lower()
     if name in ("grayscale", "light", "claro", "escala de cinza", "escala_de_cinza"):
         return "grayscale"
@@ -572,6 +531,11 @@ def normalize_theme(name: str) -> str:
     if name in ("catppuccin", "catppuccin-mocha", "catppuccin mocha"):
         return "catppuccin"
     return "dark"
+
+
+
+
+
 
 
 

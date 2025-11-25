@@ -11,7 +11,8 @@ import sys
 if getattr(sys, 'frozen', False):
     # Executavel PyInstaller - buscar na raiz dos dados empacotados
     if hasattr(sys, '_MEIPASS'):
-        app_dir = sys._MEIPASS
+        # PyInstaller - usar diretorio do executavel, NAO _MEIPASS (pasta temporaria)
+        app_dir = os.path.dirname(os.path.abspath(sys.executable))
     else:
         app_dir = os.path.dirname(sys.executable)
 else:

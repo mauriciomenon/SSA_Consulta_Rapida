@@ -186,9 +186,11 @@ def _get_project_root():
     # PyOxidizer
     if getattr(sys, 'oxidized', False):
         return os.path.dirname(sys.executable)
-    # PyInstaller
+    # PyInstaller - CRITICAL FIX FOR ONEDRIVE/NETWORK PATHS
+    # sys._MEIPASS eh pasta temporaria interna - NAO USAR
+    # Precisamos do diretorio onde o usuario colocou o .exe
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return sys._MEIPASS
+        return os.path.dirname(os.path.abspath(sys.executable))
     # Nuitka
     if '__compiled__' in globals():
         return os.path.dirname(sys.executable)
