@@ -92,7 +92,47 @@ ssa_env__init_pyenv() {
     return 1
   fi
   export PYENV_SHELL=sh
-  eval "$(pyenv init -)" >/dev/null 2>&1 || true
+
+  # Detect pyenv-win (Windows) vs regular pyenv
+  local pyenv_root
+  if [[ -n "${PYENV_ROOT:-}" ]]; then
+    pyenv_root="$PYENV_ROOT"
+  else
+    # Try multiple locations (Unix and Windows)
+    local home_dir="${HOME:-${USERPROFILE:-}}"
+    if [[ -z "$home_dir" && -n "${HOMEDRIVE:-}" && -n "${HOMEPATH:-}" ]]; then
+      home_dir="${HOMEDRIVE}${HOMEPATH}"
+    fi
+    # Convert Windows path to Unix-style if needed
+    if [[ "$home_dir" =~ ^[A-Za-z]: ]]; then
+      home_dir=$(cygpath -u "$home_dir" 2>/dev/null || echo "$home_dir")
+    fi
+    if [[ -d "$home_dir/.pyenv/pyenv-win" ]]; then
+      pyenv_root="$home_dir/.pyenv/pyenv-win"
+    elif [[ -d "$home_dir/.pyenv" ]]; then
+      pyenv_root="$home_dir/.pyenv"
+    fi
+  fi
+
+  # Try to run pyenv init (works on Unix, fails on pyenv-win)
+  if eval "$(pyenv init -)" >/dev/null 2>&1; then
+    # Regular pyenv - init worked
+    :
+  elif [[ -n "$pyenv_root" && -d "$pyenv_root/shims" ]]; then
+    # pyenv-win or init failed - manually prepend shims to PATH
+    # Ensure Unix-style paths for bash compatibility
+    local shims_path="$pyenv_root/shims"
+    local bin_path="$pyenv_root/bin"
+    # Convert Windows paths to Unix-style if needed
+    if [[ "$shims_path" =~ ^[A-Za-z]:[/\\] ]]; then
+      shims_path=$(cygpath -u "$shims_path" 2>/dev/null || echo "$shims_path" | sed -E 's|^([A-Za-z]):|/\L\1|; s|\\|/|g')
+    fi
+    if [[ "$bin_path" =~ ^[A-Za-z]:[/\\] ]]; then
+      bin_path=$(cygpath -u "$bin_path" 2>/dev/null || echo "$bin_path" | sed -E 's|^([A-Za-z]):|/\L\1|; s|\\|/|g')
+    fi
+    export PATH="$shims_path:$bin_path:$PATH"
+  fi
+
   local has_virtualenv=0
   if pyenv commands 2>/dev/null | grep -qx 'virtualenv'; then
     eval "$(pyenv virtualenv-init -)" >/dev/null 2>&1 || true
@@ -135,6 +175,8 @@ ssa_env__ensure_pyenv_env() {
       ssa_env__log "error: pyenv shell $version failed"
       return 1
     fi
+    # For pyenv-win compatibility: explicitly set PYENV_VERSION
+    export PYENV_VERSION="$version"
     SSA_ENV_SOURCE="pyenv"
   fi
   export SSA_ENV_SOURCE
