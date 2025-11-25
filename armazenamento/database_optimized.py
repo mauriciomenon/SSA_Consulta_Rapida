@@ -107,7 +107,7 @@ def insert_dataframe_optimized(
             conn.execute("PRAGMA cache_size=10000")        # Cache maior = menos I/O
             conn.execute("PRAGMA temp_store=MEMORY")       # Operações temporárias em RAM
             conn.execute("PRAGMA mmap_size=268435456")     # Memory-mapped I/O (256MB)
-            
+
             # LOG: Verificar configurações aplicadas
             cur = conn.cursor()
             cur.execute("PRAGMA journal_mode")
@@ -169,12 +169,12 @@ def insert_dataframe_optimized(
                         conn,
                     )
                 lookup_time = time.time() - lookup_start
-                
+
                 # Criar dicionário para lookup O(1) em vez de O(n) por linha
                 existing_dict = {}
                 if not existing_ssas_df.empty:
                     existing_dict = dict(zip(existing_ssas_df['numero_ssa'], existing_ssas_df['data_cadastro']))
-                
+
                 logger.info(f"🔍 Lookup de SSAs existentes: {len(existing_ssas_df)} encontrados em {lookup_time:.3f}s")
 
                 # Classificar registros em lotes
@@ -220,7 +220,7 @@ def insert_dataframe_optimized(
                     CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
                     logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
                     ssa_list = list(update_df['numero_ssa'])
-                    
+
                     for i in range(0, len(ssa_list), CHUNK_SIZE):
                         chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
                         ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
