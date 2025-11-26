@@ -175,7 +175,11 @@ def insert_dataframe_optimized(
                 if not existing_ssas_df.empty:
                     existing_dict = dict(zip(existing_ssas_df['numero_ssa'], existing_ssas_df['data_cadastro']))
 
-                    logger.info(f"🔍 Lookup de SSAs existentes: {len(existing_ssas_df)} encontrados em {lookup_time:.3f}s")
+                logger.info(
+                    "Lookup de SSAs existentes: %s encontrados em %.3fs",
+                    len(existing_ssas_df),
+                    lookup_time,
+                )
 
                 # Classificar registros em lotes
                 to_insert = []
