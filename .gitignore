@@ -387,3 +387,10 @@ temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
 
 #Ignore vscode AI rules
 .github\instructions\codacy.instructions.md
+
+# VS Code backup local (contem configs pessoais do usuario)
+vscode_bkp/
+
+# LLM provider configs (contem API keys em alguns casos)
+config/llm_providers/*.json
+!config/llm_providers/README.md
