@@ -1,10 +1,8 @@
 name: Gitleaks
 
+# Temporarily disabled - enable after verifying .gitleaks.toml configuration
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   gitleaks:

@@ -1,10 +1,9 @@
 name: Snyk Security
 
+# Disabled until SNYK_TOKEN is configured in repository secrets
+# To enable: Settings > Secrets and variables > Actions > New repository secret
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   security:
