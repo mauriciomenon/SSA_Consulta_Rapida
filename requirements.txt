@@ -16,7 +16,7 @@ webcolors==25.10.0
 webencodings==0.5.1
 websocket-client==1.8.0
 websockets==15.0.1
-widgetsnbextension==4.0.14
+widgetsnbextension==4.0.15
 win32-setctime==1.1.0; sys_platform == 'win32'
 yarl==1.20.1
 zstandard==0.25.0
