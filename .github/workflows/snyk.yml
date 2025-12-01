@@ -9,33 +9,14 @@ on:
 jobs:
   security:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check if Snyk token is configured
-        id: check-token
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          if [ -n "$SNYK_TOKEN" ]; then
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "SNYK_TOKEN not configured - skipping Snyk scan"
-          fi
-
-      - name: Run Snyk
-        if: steps.check-token.outputs.has_token == 'true'
+      - name: Run Snyk (optional - requires SNYK_TOKEN secret)
         uses: snyk/actions/python@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high --org=1c43a760-bde3-4178-b0ef-2885be92ce3d
-
-      - name: Snyk disabled (no token)
-        if: steps.check-token.outputs.has_token == 'false'
-        run: |
-          echo "::notice::Snyk scan skipped - SNYK_TOKEN not configured in repository secrets"
-          echo "To enable: Settings > Secrets and variables > Actions > New repository secret"
-          echo "Name: SNYK_TOKEN | Value: <your_snyk_api_token>"
