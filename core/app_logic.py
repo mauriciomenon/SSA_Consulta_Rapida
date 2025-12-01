@@ -12,15 +12,18 @@ import sys
 import logging
 import pandas as pd
 import re
+from pathlib import Path
 from typing import List, Dict, Any, Callable, Optional
 
 # Adiciona o diretorio raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root_path = Path(project_root)
 sys.path.insert(0, project_root)
 
 from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
@@ -71,6 +74,25 @@ class DatabaseSpaceError(DatabaseError):
 class DataValidationError(ImporterError):
     """Erro de validacao de dados antes da insercao."""
     pass
+
+
+def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
+    """Normaliza e valida caminhos sensiveis antes da importacao."""
+    docs_dir_path = ensure_path_is_allowed(
+        docs_dir,
+        purpose="docs_dir",
+        base=project_root_path,
+        must_exist=True,
+        expect_directory=True,
+    )
+    db_path_path = ensure_path_is_allowed(
+        db_path,
+        purpose="db_path",
+        base=project_root_path,
+        must_exist=False,
+        expect_directory=False,
+    )
+    return docs_dir_path, db_path_path
 
 
 # --- Funcoes Auxiliares Refatoradas ---
@@ -278,10 +300,41 @@ def run_importer_logic(
     logger.info("=== Iniciando processo de importacao ===")
 
     # --- Configuracao de Caminhos ---
-    docs_dir = os.path.join(project_root, docs_dir)
-    data_dir = os.path.join(project_root, data_dir)
-    db_path = os.path.join(data_dir, db_name)
-    cache_file = os.path.join(data_dir, 'file_cache.json')
+    try:
+        docs_dir_path = ensure_path_is_allowed(
+            docs_dir,
+            purpose="docs_dir",
+            base=project_root_path,
+            must_exist=True,
+            expect_directory=True,
+        )
+        data_dir_path = ensure_path_is_allowed(
+            data_dir,
+            purpose="data_dir",
+            base=project_root_path,
+            must_exist=False,
+            expect_directory=True,
+        )
+    except PathSafetyError as e:
+        logger.error(f"Caminho bloqueado na importacao: {e}")
+        raise
+
+    try:
+        db_path_obj = ensure_path_is_allowed(
+            os.path.join(str(data_dir_path), db_name),
+            purpose="db_path",
+            base=project_root_path,
+            must_exist=False,
+            expect_directory=False,
+        )
+    except PathSafetyError as e:
+        logger.error(f"Caminho de DB bloqueado: {e}")
+        raise
+
+    db_path = str(db_path_obj)
+    cache_file = os.path.join(str(data_dir_path), 'file_cache.json')
+    docs_dir = str(docs_dir_path)
+    data_dir = str(data_dir_path)
 
     try:
         # --- 0. Verificar e reparar integridade do banco de dados ---
@@ -708,17 +761,19 @@ def import_files_to_database(
         bool: True se importacao foi bem-sucedida
     """
     try:
+        safe_docs_dir, safe_db_path = _resolve_import_targets(docs_dir, db_path)
+
         # Extrair diretorio e nome do banco
-        data_dir = os.path.dirname(db_path)
-        db_name = os.path.basename(db_path)
+        data_dir = safe_db_path.parent
+        db_name = safe_db_path.name
 
         # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
 
         # Executar logica de importacao
         success = run_importer_logic(
-            docs_dir=docs_dir,
-            data_dir=data_dir,
+            docs_dir=str(safe_docs_dir),
+            data_dir=str(data_dir),
             db_name=db_name,
             table_name="ssa_table",
             force_import=force_import
@@ -726,6 +781,11 @@ def import_files_to_database(
 
         return success
 
+    except PathSafetyError as e:
+        logger.error(f"Caminho rejeitado na importacao: {e}")
+        if raise_on_error:
+            raise
+        return False
     except Exception as e:
         logger.error(f"Erro na importacao de arquivos: {e}")
         if raise_on_error:
@@ -748,8 +808,20 @@ def get_filtered_data(
         DataFrame com dados filtrados
     """
     try:
+        safe_db_path = ensure_path_is_allowed(
+            db_path,
+            purpose="db_path",
+            base=project_root_path,
+            must_exist=False,
+            expect_directory=False,
+        )
+    except PathSafetyError as e:
+        logger.error(f"Caminho rejeitado ao acessar banco: {e}")
+        return pd.DataFrame()
+
+    try:
         # Conectar ao banco e obter dados
-        with database.get_db_connection(db_path) as conn:
+        with database.get_db_connection(str(safe_db_path)) as conn:
             query = "SELECT * FROM ssas"
             df = pd.read_sql_query(query, conn)
 

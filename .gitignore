@@ -399,3 +399,6 @@ vscode_bkp/
 # LLM provider configs (contem API keys em alguns casos)
 config/llm_providers/*.json
 !config/llm_providers/README.md
+
+
+.kluster
