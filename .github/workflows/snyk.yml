@@ -1,18 +1,18 @@
 name: Snyk Security
 
+# Disabled until SNYK_TOKEN is configured in repository secrets
+# To enable: Settings > Secrets and variables > Actions > New repository secret
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   security:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Snyk
+      - name: Run Snyk (optional - requires SNYK_TOKEN secret)
         uses: snyk/actions/python@master
         continue-on-error: true
         env:
