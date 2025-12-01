@@ -386,7 +386,12 @@ temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
 
 
 #Ignore vscode AI rules
-.github\instructions\codacy.instructions.md
+.github/instructions/codacy.instructions.md
+.github/instructions/kluster-code-verify.instructions.md
+
+# Code quality tools (local cache)
+.codacy/
+.trunk/
 
 # VS Code backup local (contem configs pessoais do usuario)
 vscode_bkp/
