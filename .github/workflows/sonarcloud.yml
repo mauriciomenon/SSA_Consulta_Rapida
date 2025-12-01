@@ -14,8 +14,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check if SonarCloud token is configured
+        id: check-token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "SONAR_TOKEN not configured - skipping SonarCloud scan"
+          fi
+
       - name: SonarCloud Scan
+        if: steps.check-token.outputs.has_token == 'true'
         uses: SonarSource/sonarcloud-github-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: SonarCloud disabled (no token)
+        if: steps.check-token.outputs.has_token == 'false'
+        run: |
+          echo "::notice::SonarCloud scan skipped - SONAR_TOKEN not configured in repository secrets"
+          echo "To enable: Settings > Secrets and variables > Actions > New repository secret"
+          echo "Name: SONAR_TOKEN | Value: <your_sonarcloud_token>"
