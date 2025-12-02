@@ -406,3 +406,8 @@ config/llm_providers/*.json
 =======
 >>>>>>> 524021e0dc2d9dbf9e46376a482ca1a9dc9fc36e
 .kluster
+
+# Configurações de IA/MCP (evitar tarefas automáticas)
+.vscode/tasks.json
+scripts/sync_mcp_config.ps1
+config/mcp-*.json
