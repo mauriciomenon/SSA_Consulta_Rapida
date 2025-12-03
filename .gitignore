@@ -241,7 +241,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Ignorar arquivos temporários do Excel (arquivos de trava) na pasta docs
+# Ignorar arquivos temporarios do Excel (arquivos de trava) na pasta docs
 docs/~$*.xlsx
 
 # -- SSA local ignores --
@@ -425,7 +425,7 @@ config/llm_providers/*.json
 
 .kluster
 
-# Configurações de IA/MCP (evitar tarefas automáticas)
+# Configuracoes de IA/MCP (evitar tarefas automaticas)
 .vscode/tasks.json
 scripts/sync_mcp_config.ps1
 config/mcp-*.json
