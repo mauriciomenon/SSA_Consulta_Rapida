@@ -434,3 +434,10 @@ config/mcp-*.json
 
 
 .github/instructions/kluster-code-verify.instructions.md
+
+
+# Ignore insiders AI rules
+.github/instructions/codacy.instructions.md
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
