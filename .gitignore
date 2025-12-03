@@ -396,6 +396,16 @@ temp/PR_REPORT.md
 temp/PLANO_*.md
 launchers/PLANO_*.md
 launchers/test_reports/
+
+# Launchers: obsolete/temp files patterns
+launchers/cleanup*.py
+launchers/ARQUIVOS_NAO_COMMITTAR.md
+launchers/BASELINE_*.md
+launchers/DOCUMENTACAO_*.md
+launchers/ESTRUTURA_*.md
+launchers/GESTAO_*.md
+launchers/GUIA_PRIVACIDADE*.md
+launchers/SISTEMA_*.md
 # AI/Copilot instructions (all)
 .github/instructions/
 
@@ -419,3 +429,6 @@ config/llm_providers/*.json
 .vscode/tasks.json
 scripts/sync_mcp_config.ps1
 config/mcp-*.json
+
+
+.github/instructions/kluster-code-verify.instructions.md
