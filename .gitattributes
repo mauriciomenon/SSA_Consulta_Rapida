@@ -1,3 +1,0 @@
-.envrc text eol=lf
-*.sh text eol=lf
-activate_repo.ps1 text eol=crlf
