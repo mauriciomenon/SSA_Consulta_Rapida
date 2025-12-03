@@ -319,10 +319,14 @@ docs_saida/temp_*
 exportacao/temp_*
 
 # === BUILDS E DISTRIBUICAO ===
-# Builds directory
-builds/
-# Packaged distributions
-dist_packages/*.zip
+# Builds directory (keep empty folder with .gitkeep)
+builds/*
+!builds/.gitkeep
+
+# Packaged distributions (keep empty folder with .gitkeep)
+dist_packages/*
+!dist_packages/.gitkeep
+
 # Builds automaticos
 launchers/dist/
 launchers/dist_simple/
@@ -381,17 +385,14 @@ temp_claude.txt
 WARP.md
 temp/PR_REPORT.md
 temp/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md
-# Snyk Security Extension - AI Rules (auto-generated)
-.github/instructions/snyk_rules.instructions.md
+# AI/Copilot instructions (all)
+.github/instructions/
 
-
-#Ignore vscode AI rules
-.github/instructions/codacy.instructions.md
-.github/instructions/kluster-code-verify.instructions.md
-
-# Code quality tools (local cache)
+# Code quality tools (local cache and configs)
 .codacy/
 .trunk/
+mypy.ini
+pyrightconfig.json
 
 # VS Code backup local (contem configs pessoais do usuario)
 vscode_bkp/
@@ -401,10 +402,6 @@ config/llm_providers/*.json
 !config/llm_providers/README.md
 
 
-<<<<<<< HEAD
-.github/instructions/kluster-code-verify.instructions.md
-=======
->>>>>>> 524021e0dc2d9dbf9e46376a482ca1a9dc9fc36e
 .kluster
 
 # Configurações de IA/MCP (evitar tarefas automáticas)
