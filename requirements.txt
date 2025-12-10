@@ -13,6 +13,9 @@ tabulate>=0.9.0
 virtualenv==20.35.4
 wcwidth==0.2.14
 webcolors==25.10.0
+
+# Changelog:
+# [2025-12-05] - Otimização de requirements: mantido como está (já otimizado)
 webencodings==0.5.1
 websocket-client==1.9.0
 websockets==15.0.1

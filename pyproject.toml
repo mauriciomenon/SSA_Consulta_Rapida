@@ -16,3 +16,6 @@ markers = [
 line-length = 100
 target-version = ["py313"]
 skip-string-normalization = true
+
+# Changelog:
+# [2025-12-05] - Otimização de requirements: mantido como está (não afetado)
