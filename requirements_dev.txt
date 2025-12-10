@@ -8,3 +8,6 @@ black>=23.0.0
 mypy>=1.4.0
 pytest-cov>=7.0.0
 pre-commit>=3.5.0
+
+# Changelog:
+# [2025-12-05] - Otimização de requirements: mantido como está (já otimizado)

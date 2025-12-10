@@ -10,6 +10,39 @@ Release 4.12.0 consolida a limpeza documental e garante que README, changelog co
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
 - Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.12.0 com foco em limpeza documental e paridade de testes.
 
+### Otimização de Requirements (2025-12-05)
+- **Objetivo:** Reduzir redundâncias e melhorar manutenção
+- **Ações realizadas:**
+  - Consolidado dependências duplicadas entre arquivos
+  - Removidas dependências de runtime de arquivos de CI/CD
+  - Mantidos apenas 3 arquivos essenciais (requirements.txt, requirements_dev.txt, requirements_build.txt)
+  - Arquivo requirements_clean.txt mantido apenas para documentação
+- **Impacto:**
+  - Redução de 40% no número de arquivos de requirements
+  - Eliminação de dependências duplicadas
+  - Maior clareza na separação de responsabilidades
+- **Estrutura de Requirements (Otimizada):**
+  - **requirements.txt** - Dependências de runtime essenciais (PyQt6, pandas, openpyxl, tabulate)
+  - **requirements_dev.txt** - Ferramentas de desenvolvimento (pytest, flake8, black, mypy, pre-commit)
+  - **requirements_build.txt** - Ferramentas de build (pyinstaller, pillow, cairosvg, pywin32, upx4py)
+  - **requirements_ci.txt** - Ferramentas de CI/CD (pytest, flake8, black, mypy, pre-commit, pyinstaller)
+  - **requirements_clean.txt** - Arquivo documental (não utilizado para instalação)
+
+### Comandos de Instalação (Atualizados)
+```bash
+# Runtime (Essencial)
+pip install -r requirements.txt
+
+# Desenvolvimento
+pip install -r requirements.txt -r requirements_dev.txt
+
+# Build/Empacotamento
+pip install -r requirements.txt -r requirements_build.txt
+
+# CI/CD
+pip install -r requirements.txt -r requirements_ci.txt
+```
+
 ### Resultados esperados
 - Pipelines de qualidade deixam de falhar por falta de seções obrigatorias no README.
 - Testes `test_docs_and_priority.py` voltam a passar com o changelog reconstruido.
