@@ -1,13 +1,13 @@
 # Dependencias de desenvolvimento (minimas)
 # Instale junto com requirements.txt para desenvolvimento local
 
-pytest>=7.0.0
-flake8>=6.0.0
-isort>=5.12.0
-black>=23.0.0
-mypy>=1.4.0
-pytest-cov>=7.0.0
-pre-commit>=3.5.0
+pytest>=8.3.3
+flake8>=7.1.1
+isort>=5.13.2
+black>=24.8.0
+mypy>=1.11.2
+pytest-cov>=5.0.0
+pre-commit>=4.0.1
 
 # Changelog:
-# [2025-12-05] - Otimização de requirements: mantido como está (já otimizado)
+# [2025-12-10] - Atualizado para versoes com security patches

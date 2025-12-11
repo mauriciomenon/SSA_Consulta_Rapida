@@ -6,7 +6,7 @@ cd "$PROJECT_ROOT"
 
 VENV_NAME=$(cat .python-version 2>/dev/null || true)
 if [[ -z "${VENV_NAME:-}" ]]; then
-  echo "[info] .python-version não encontrado; usarei nome padrão ssa_consulta_rapida_py313"
+  echo "[info] .python-version nao encontrado; usarei nome padrao ssa_consulta_rapida_py313"
   VENV_NAME="ssa_consulta_rapida_py313"
 fi
 
@@ -30,7 +30,7 @@ ensure_build_deps() {
   case "$OS" in
     debian)
       if have_cmd apt; then
-        echo "[info] Instalando dependências de build para pyenv (sudo pode ser solicitado)"
+        echo "[info] Instalando dependencias de build para pyenv (sudo pode ser solicitado)"
         sudo apt update -y
         sudo apt install -y build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
           libsqlite3-dev curl llvm tk-dev libncursesw5-dev xz-utils libffi-dev liblzma-dev ca-certificates
@@ -41,7 +41,7 @@ ensure_build_deps() {
         echo "[info] Instalando ferramentas via Homebrew (pyenv, pyenv-virtualenv, direnv)"
         brew install pyenv pyenv-virtualenv direnv || true
       else
-        echo "[aviso] Homebrew não encontrado. Instale Homebrew ou pyenv manualmente: https://github.com/pyenv/pyenv"
+        echo "[aviso] Homebrew nao encontrado. Instale Homebrew ou pyenv manualmente: https://github.com/pyenv/pyenv"
       fi
       ;;
     *) ;;
@@ -53,7 +53,7 @@ ensure_pyenv() {
     echo "[ok] pyenv encontrado"
     return
   fi
-  echo "[info] Instalando pyenv (método oficial)"
+  echo "[info] Instalando pyenv (metodo oficial)"
   # Instala o pyenv + plugins (pyenv-virtualenv) via instalador oficial
   curl -fsSL https://pyenv.run | bash
   export PATH="$HOME/.pyenv/bin:$PATH"
@@ -91,7 +91,7 @@ init_pyenv_shell() {
 
 create_virtualenv_if_missing() {
   if ! have_cmd pyenv; then
-    echo "[aviso] pyenv não disponível; criando fallback .venv com python do sistema"
+    echo "[aviso] pyenv nao disponivel; criando fallback .venv com python do sistema"
     python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install -U pip
@@ -101,13 +101,13 @@ create_virtualenv_if_missing() {
   fi
 
   if pyenv virtualenvs --bare | grep -qx "$VENV_NAME"; then
-    echo "[ok] Virtualenv pyenv '$VENV_NAME' já existe"
+    echo "[ok] Virtualenv pyenv '$VENV_NAME' ja existe"
   else
     echo "[info] Criando virtualenv pyenv '$VENV_NAME'"
-    # Descobre a última 3.13.x disponível
+    # Descobre a ultima 3.13.x disponivel
     PY_VER=$(pyenv install -l | sed -n 's/^  \(3\.13\.[0-9]\+\)$/\1/p' | tail -1)
     if [[ -z "${PY_VER:-}" ]]; then
-      echo "[erro] Não foi possível descobrir versão 3.13.x no pyenv. Verifique a instalação do pyenv."
+      echo "[erro] Nao foi possivel descobrir versao 3.13.x no pyenv. Verifique a instalacao do pyenv."
       exit 1
     fi
     pyenv install -s "$PY_VER"
@@ -122,7 +122,7 @@ create_virtualenv_if_missing() {
 
 configure_direnv_hint() {
   if have_cmd direnv; then
-    echo "[dica] Rode 'direnv allow' na raiz do projeto para ativação automática."
+    echo "[dica] Rode 'direnv allow' na raiz do projeto para ativacao automatica."
   fi
 }
 

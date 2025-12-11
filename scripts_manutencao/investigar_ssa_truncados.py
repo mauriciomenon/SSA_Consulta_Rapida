@@ -5,12 +5,14 @@ Investigar por que SSAs estão truncados - análise dos arquivos originais
 
 import os
 import sys
-import pandas as pd
 from pathlib import Path
 
-# Configurar ambiente
-sys.path.append(os.getcwd())
-os.chdir(r"c:\Users\menon\git\SSA_Consulta_Rapida")
+import pandas as pd
+
+# Configurar ambiente - Usar caminho relativo para ser multiplataforma
+project_root = Path(__file__).parent.parent
+os.chdir(project_root)
+sys.path.insert(0, str(project_root))
 
 def investigar_ssa_truncados():
     """Investigar por que SSAs chegam truncados no banco."""

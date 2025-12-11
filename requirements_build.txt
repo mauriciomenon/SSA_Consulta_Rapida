@@ -1,15 +1,15 @@
 # Dependencias de build (minimas)
 # Use juntamente com requirements.txt quando for empacotar
 
-pyinstaller>=6.14.2
-pillow>=10.4.0
-cairosvg>=2.7.1
+pyinstaller>=6.15.0
+pillow>=11.0.0
+cairosvg>=2.8.0
 
 # Especificos por plataforma
-pywin32>=306; platform_system=="Windows"
+pywin32>=307; platform_system=="Windows"
 upx4py>=0.1.0; platform_system=="Windows"
 
 # Changelog:
-# [2025-12-05] - Otimização de requirements: mantido como está (já otimizado)
-dmgbuild>=1.4.0; platform_system=="Darwin"
-patchelf>=0.17.0; platform_system=="Linux"
+# [2025-12-10] - Atualizado para versoes com security patches
+dmgbuild>=1.6.0; platform_system=="Darwin"
+patchelf>=0.18.0; platform_system=="Linux"

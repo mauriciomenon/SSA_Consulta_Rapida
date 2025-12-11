@@ -3,9 +3,11 @@
 Debug dos arquivos que falham na importação
 """
 
-import pandas as pd
 import os
 from pathlib import Path
+
+import pandas as pd
+
 
 def investigar_arquivos_problematicos():
     """Investigar arquivos Excel que falham na importação."""
@@ -53,5 +55,6 @@ def investigar_arquivos_problematicos():
             print(f"\n❌ Arquivo não encontrado: {arquivo}")
 
 if __name__ == "__main__":
-    os.chdir(r"c:\Users\menon\git\SSA_Consulta_Rapida")
+    project_root = Path(__file__).parent.parent
+    os.chdir(project_root)
     investigar_arquivos_problematicos()

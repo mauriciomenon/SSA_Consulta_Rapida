@@ -291,7 +291,7 @@ def main(cli_args=None):
         logger.debug("Permissoes do arquivo extractor.py (raiz): %s", oct(os.stat(extractor_root).st_mode))
     if os.path.exists(extractor_core):
         logger.debug("Permissoes do arquivo extractor.py (core): %s", oct(os.stat(extractor_core).st_mode))
-    
+
     APP_VERSION = get_app_version()
 
     # Fix para PyOxidizer: sys.argv[0] pode ser None
@@ -326,10 +326,10 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''Reimporta todos os arquivos Excel ignorando o cache.
 
-         DIFERENCAS 
-         --force-rescan: Nome atual, recomendado                  
+         DIFERENCAS
+         --force-rescan: Nome atual, recomendado
          --rescan:       Alias para compatibilidade (mesmo efeito)
-        
+
 
         COMPORTAMENTO:
          Ignora arquivo de controle de importacao (.last_import)
@@ -345,12 +345,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''DEPRECATED: Modo otimizado agora e PADRAO. Use --standard para modo legado.
 
-         AVISO: MODO OTIMIZADO JA E PADRAO 
-         Esta flag nao e mais necessaria - modo otimizado        
-         e ativado automaticamente para melhor performance.      
-                                                                  
-         Use --standard se precisar do modo legado por           
-         compatibilidade ou debugging especifico.                
+         AVISO: MODO OTIMIZADO JA E PADRAO
+         Esta flag nao e mais necessaria - modo otimizado
+         e ativado automaticamente para melhor performance.
+
+         Use --standard se precisar do modo legado por
+         compatibilidade ou debugging especifico.
         '''
     )
 
@@ -359,19 +359,19 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         action='store_true',
         help='''Ativa modo LEGADO/PADRAO (mais lento, melhor para debugging).
 
-         MODO LEGADO/DEBUG 
-         CARACTERISTICAS                                          
-            Operacoes linha por linha (mais lento)              
-            Logs mais detalhados para debugging                 
-            Verificacoes adicionais de integridade              
-            Melhor para analise de problemas                    
-                                                                  
-         QUANDO USAR                                              
-            Debugging de problemas de importacao                
-            Analise detalhada de erros                          
-            Compatibilidade com sistemas antigos               
-            Desenvolvimento e testes                            
-        
+         MODO LEGADO/DEBUG
+         CARACTERISTICAS
+            Operacoes linha por linha (mais lento)
+            Logs mais detalhados para debugging
+            Verificacoes adicionais de integridade
+            Melhor para analise de problemas
+
+         QUANDO USAR
+            Debugging de problemas de importacao
+            Analise detalhada de erros
+            Compatibilidade com sistemas antigos
+            Desenvolvimento e testes
+
 
         AVISO: Ate 90% mais lento que o modo padrao otimizado.
 
@@ -511,39 +511,39 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         # Imports dinamicos para evitar problemas
         try:
             logger.debug("Tentando importar modulos...")
-            
+
             # Testar importacao individualmente
             try:
                 from core.app_logic import run_importer_logic
                 logger.debug("Importacao de core.app_logic bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar core.app_logic: %s", e)
-                
+
             try:
                 from core.config_manager import ensure_default_settings
                 logger.debug("Importacao de core.config_manager bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar core.config_manager: %s", e)
-                
+
             try:
                 from interface.cli import start_cli_loop
                 logger.debug("Importacao de interface.cli bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar interface.cli: %s", e)
-                
+
             try:
                 from utils import setup_project_structure
                 logger.debug("Importacao de utils.setup_project_structure bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar utils.setup_project_structure: %s", e)
-                
+
             # Tentar importar todos juntos
             from core.app_logic import run_importer_logic
             from core.config_manager import ensure_default_settings
             from interface.cli import start_cli_loop
             from utils import setup_project_structure
             logger.debug("Todas as importacoes bem sucedidas")
-            
+
         except ImportError as e:
             logger.error("Falha critica nas importacoes: %s", e)
             print(f" Aviso: Alguns modulos nao puderam ser carregados: {e}")
@@ -586,7 +586,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         core_dir = os.path.join(project_root, 'core')
         armazenamento_dir = os.path.join(core_dir, 'armazenamento')
         extracao_dir = os.path.join(core_dir, 'extracao')
-        
+
         logger.debug("Verificando diretorios...")
         logger.debug("data_dir existe: %s", os.path.exists(data_dir))
         logger.debug("docs_dir existe: %s", os.path.exists(docs_dir))
@@ -594,7 +594,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         logger.debug("core_dir existe: %s", os.path.exists(core_dir))
         logger.debug("armazenamento_dir existe: %s", os.path.exists(armazenamento_dir))
         logger.debug("extracao_dir existe: %s", os.path.exists(extracao_dir))
-        
+
         # Listar arquivos nos diretorios importantes
         if os.path.exists(data_dir):
             logger.debug("Arquivos em data/: %s", os.listdir(data_dir))
@@ -608,31 +608,31 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             logger.debug("Arquivos em core/armazenamento/: %s", os.listdir(armazenamento_dir))
         if os.path.exists(extracao_dir):
             logger.debug("Arquivos em core/extracao/: %s", os.listdir(extracao_dir))
-        
+
         # Verificar arquivos especificos que causam problemas
         database_py = os.path.join(armazenamento_dir, 'database.py')
         extractor_py = os.path.join(extracao_dir, 'extractor.py')
-        
+
         logger.debug("database.py existe: %s", os.path.exists(database_py))
         logger.debug("extractor.py existe: %s", os.path.exists(extractor_py))
-        
+
         # Verificar arquivos alternativos
         database_optimized = os.path.join(armazenamento_dir, 'database_optimized.py')
         logger.debug("database_optimized.py existe: %s", os.path.exists(database_optimized))
-        
+
         # Verificar arquivos de init nos diretorios
         armazenamento_init = os.path.join(armazenamento_dir, '__init__.py')
         extracao_init = os.path.join(extracao_dir, '__init__.py')
-        
+
         logger.debug("armazenamento/__init__.py existe: %s", os.path.exists(armazenamento_init))
         logger.debug("extracao/__init__.py existe: %s", os.path.exists(extracao_init))
-        
+
         # Verificar variaveis de ambiente importantes
         logger.debug("Variaveis de ambiente:")
         logger.debug("SSA_DB_PATH: %s", os.environ.get('SSA_DB_PATH'))
         logger.debug("SSA_TABLE_NAME: %s", os.environ.get('SSA_TABLE_NAME'))
         logger.debug("PYTHONPATH: %s", os.environ.get('PYTHONPATH'))
-        
+
         setup_project_structure.setup_dirs()
         logger.info("Estrutura de pastas verificada.")
         logger.debug("Preparacao do ambiente concluida com sucesso.")
@@ -666,10 +666,10 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         # --- 3. Importacao de Dados (fluxo normal) ---
         # Determina se a reimportacao e forcada e se deve usar versao otimizada
         force_import = args.force_rescan
-        
+
         # MUDANCA: Modo otimizado agora e PADRAO (exceto se --standard for usado)
         use_optimized = not args.standard
-        
+
         # Aviso de depreciacao se --optimized for usado
         if args.optimized:
             logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
@@ -678,7 +678,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         if use_optimized:
             logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
             logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
-            
+
             # Testar caminho absoluto
             import sys
             import os
@@ -686,47 +686,47 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
             logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
             logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
-            
+
             logger.debug("Verificando disponibilidade do modo otimizado...")
-            
+
             # Verificar se o arquivo existe
             import os
             optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
             logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
             logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
-            
+
             if os.path.exists(optimized_file_path):
                 file_stat = os.stat(optimized_file_path)
                 logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
                 logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
-                
+
                 armazenamento_path = os.path.join(current_project_root, 'armazenamento')
                 logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
-                
+
                 if os.path.exists(armazenamento_path):
                     logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
-            
+
             try:
                 # Tentar importar o modulo completo primeiro
                 logger.debug("Tentando importar armazenamento.database_optimized...")
                 import armazenamento.database_optimized
                 logger.debug("Importacao do modulo completo bem-sucedida")
-                
+
                 # Verificar se a funcao existe no modulo
                 logger.debug("Verificando se enable_optimized_import existe no modulo...")
                 if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
                     logger.debug("Funcao enable_optimized_import encontrada")
-                    
+
                     from armazenamento.database_optimized import enable_optimized_import
                     logger.debug("Importacao de enable_optimized_import bem-sucedida")
-                    
+
                     enable_optimized_import()
                     logger.debug("enable_optimized_import() executado com sucesso")
                 else:
                     logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
                     logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
                     use_optimized = False
-                    
+
             except ImportError as e:
                 logger.error("Falha ao importar enable_optimized_import: %s", e)
                 logger.debug("Tipo do erro: %s", type(e).__name__)
@@ -821,7 +821,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
             try:
                 # Permite multiplas janelas da GUI
-                # O SQLite tem seus proprios mecanismos de lock para prevenir corrupcao
+                # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
                 window.show()  # type: ignore[attr-defined]

@@ -3,9 +3,11 @@
 Debug: Como os números SSA estão chegando do Excel
 """
 
-import pandas as pd
 import os
 from pathlib import Path
+
+import pandas as pd
+
 
 def debug_ssa_extraction():
     """Debug da extração de SSA do Excel."""
@@ -68,5 +70,6 @@ def debug_ssa_extraction():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    os.chdir(r"c:\Users\menon\git\SSA_Consulta_Rapida")
+    project_root = Path(__file__).parent.parent
+    os.chdir(project_root)
     debug_ssa_extraction()

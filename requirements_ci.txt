@@ -1,11 +1,11 @@
 # Dependencias de CI/CD (sem runtime)
-pytest>=7.4.0
-flake8>=6.0.0
-isort>=5.12.0
-black>=23.0.0
-mypy>=1.5.0
-pytest-cov>=4.0.0
-pre-commit>=3.3.0
+pytest>=8.3.3
+flake8>=7.1.1
+isort>=5.13.2
+black>=24.8.0
+mypy>=1.11.2
+pytest-cov>=5.0.0
+pre-commit>=4.0.1
 
 # Changelog:
-# [2025-12-05] - Otimização de requirements: removidas dependências de runtime
+# [2025-12-10] - Alinhado com dev para consistencia. Mesmo set de ferramentas CI/dev.
