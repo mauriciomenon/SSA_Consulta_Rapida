@@ -2,8 +2,8 @@
 set -euo pipefail
 # Script de lint desativado (Ruff removido). Mantido apenas placeholder.
 # Uso atual:
-#   ./scripts/lint.sh            # informa que lint está desativado
-#   ./scripts/lint.sh fix        # apenas roda black se disponível
+#   ./scripts/lint.sh            # informa que lint esta desativado
+#   ./scripts/lint.sh fix        # apenas roda black se disponivel
 
 PROJECT_ROOT="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 cd "$PROJECT_ROOT"
@@ -15,7 +15,7 @@ if [[ "$mode" == "fix" ]]; then
   if command -v black >/dev/null 2>&1; then
     black . || true
   else
-    echo "[lint] Black não instalado; nada a fazer." >&2
+    echo "[lint] Black nao instalado; nada a fazer." >&2
   fi
   exit 0
 fi

@@ -6,7 +6,7 @@ HOOK_SRC_DIR="$REPO_ROOT/scripts/git_hooks"
 HOOK_DST_DIR="$REPO_ROOT/.git/hooks"
 
 if [[ ! -d $HOOK_SRC_DIR ]]; then
-  echo "[install-hooks] Diretório $HOOK_SRC_DIR não encontrado." >&2
+  echo "[install-hooks] Diretorio $HOOK_SRC_DIR nao encontrado." >&2
   exit 1
 fi
 
@@ -31,4 +31,4 @@ for f in "$HOOK_SRC_DIR"/*; do
   install_hook "$f"
 done
 
-echo "[install-hooks] Concluído. Teste: git commit --allow-empty -m 'hook test'"
+echo "[install-hooks] Concluido. Teste: git commit --allow-empty -m 'hook test'"

@@ -13,7 +13,7 @@ GATES_ARGS=${GATES_ARGS:-}
 PY=${PYTHON:-python}
 
 if ! command -v "$PY" >/dev/null 2>&1; then
-  echo "Python não encontrado" >&2
+  echo "Python nao encontrado" >&2
   exit 2
 fi
 
