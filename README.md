@@ -315,6 +315,8 @@ Usage after cloning:
 
 Tip: The repository contains a `.gitattributes` entry that enforces LF for `.envrc` and shell scripts so `direnv` will not fail due to CRLF. If you prefer `direnv`, WSL is the recommended environment for evaluating `.envrc`.
 
+**Windows + direnv (scoop):** se `direnv exec` não achar o binário, aponte `DIRENV_BIN` para o caminho retornado por `where direnv` (converta para formato WSL com `cygpath -u` se estiver dentro do bash). Evite hardcode de usuário/caminho; ajuste também `XDG_*` se necessário. Em caso de dúvida, ative o ambiente manualmente com `.venv\\Scripts\\Activate.ps1`.
+
 
 Para build Windows com compressao UPX (reducao de tamanho), instale tambem:
 ```pwsh
