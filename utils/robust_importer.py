@@ -513,7 +513,7 @@ def import_excel_robust(
     try:
         os.makedirs("reports", exist_ok=True)
         # Enriquecimento leve: adicionar timestamp e versão de schema se disponível.
-        from datetime import datetime
+        from datetime import datetime, timezone
         schema_version = None
         try:
             with open("config/version.json", encoding="utf-8") as vf:  # reutiliza caso exista
@@ -522,7 +522,9 @@ def import_excel_robust(
         except Exception:  # pragma: no cover
             pass
         enriched = dict(stats_dict)
-        enriched["generated_at_utc"] = datetime.utcnow().isoformat() + "Z"
+        enriched["generated_at_utc"] = (
+            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        )
         if schema_version:
             enriched["schema_version"] = schema_version
         with open(os.path.join("reports", "last_import_stats.json"), "w", encoding="utf-8") as fh:
