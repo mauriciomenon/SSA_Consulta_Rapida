@@ -18,7 +18,7 @@ import logging.handlers
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional, Any, Union
 from collections import deque
@@ -80,14 +80,15 @@ class PerformanceMetrics:
         """Retorna estatísticas atuais das métricas."""
         with self._lock:
             stats = {}
-            
+
             # Estatísticas de tempo
             for key in ['filter_times', 'import_times', 'query_times']:
                 times = list(self._metrics[key])
                 if times:
+                    avg = round(sum(times) / len(times), 6)
                     stats[key] = {
                         'count': len(times),
-                        'avg': sum(times) / len(times),
+                        'avg': avg,
                         'min': min(times),
                         'max': max(times),
                         'last': times[-1] if times else 0
@@ -124,7 +125,7 @@ class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Formata record como JSON estruturado."""
         log_obj = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'timestamp': datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             'level': record.levelname,
             'logger': record.name,
             'message': record.getMessage(),
@@ -229,10 +230,10 @@ class RobustLogger:
     
     def _load_config(self, config_path: Optional[str]) -> Dict:
         """Carrega configuração do logging."""
-        default_config = {
+        base_config = {
             "version": "1.0",
             "level": "INFO",
-            "console_level": "WARNING", 
+            "console_level": "WARNING",
             "file_level": "DEBUG",
             "json_level": "INFO",
             "max_file_size": 5242880,  # 5MB
@@ -249,23 +250,55 @@ class RobustLogger:
             "date_format": "%Y-%m-%d %H:%M:%S",
             "components": {
                 "gui": "DEBUG",
-                "cli": "INFO", 
+                "cli": "INFO",
                 "streamlit": "INFO",
-                "database": "INFO",
+                "database": "WARNING",
                 "import": "DEBUG",
-                "cache": "DEBUG"
-            }
+                "cache": "DEBUG",
+                "main": "INFO",
+            },
         }
-        
-        if config_path and os.path.exists(config_path):
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    loaded_config = json.load(f)
-                    default_config.update(loaded_config)
-            except (json.JSONDecodeError, OSError) as e:
-                print(f"Erro ao carregar config de logging: {e}. Usando padrão.")
-        
-        return default_config
+
+        if not (config_path and os.path.exists(config_path)):
+            return base_config
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                loaded_config = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Erro ao carregar config de logging: {e}. Usando padrão.")
+            return base_config
+
+        # Configuração estruturada (logging/paths) ou chave/valor plana.
+        if "logging" in loaded_config:
+            logging_cfg = loaded_config.get("logging", {})
+            handlers = logging_cfg.get("handlers", {})
+
+            base_config["level"] = logging_cfg.get("level", base_config["level"])
+            base_config["format"] = logging_cfg.get("format", base_config["format"])
+            base_config["components"].update(logging_cfg.get("components", {}))
+
+            base_config["console_level"] = handlers.get("console", {}).get("level", base_config["console_level"])
+            base_config["file_level"] = handlers.get("file", {}).get("level", base_config["file_level"])
+            json_handler = handlers.get("json", {})
+            base_config["json_level"] = json_handler.get("level", base_config["json_level"])
+            if "include_metrics" in json_handler:
+                base_config["enable_metrics"] = json_handler["include_metrics"]
+
+        else:
+            # Fallback: sobrescreve chaves conhecidas diretamente
+            for key in base_config.keys():
+                if key in loaded_config:
+                    base_config[key] = loaded_config[key]
+            if "components" in loaded_config and isinstance(loaded_config["components"], dict):
+                base_config["components"].update(loaded_config["components"])
+
+        if "paths" in loaded_config and isinstance(loaded_config["paths"], dict):
+            log_dir_cfg = loaded_config["paths"].get("logs_dir")
+            if log_dir_cfg:
+                base_config["log_dir"] = log_dir_cfg
+
+        return base_config
     
     def _setup_root_logger(self):
         """Configura o logger raiz."""
@@ -415,7 +448,7 @@ class RobustLogger:
     def export_logs_report(self, output_path: str):
         """Exporta relatório de logs e métricas."""
         report = {
-            'generated_at': datetime.utcnow().isoformat(),
+            'generated_at': datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             'config': self.config,
             'metrics': self.get_metrics_summary(),
             'log_files': {

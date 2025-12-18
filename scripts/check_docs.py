@@ -45,7 +45,7 @@ PLACEHOLDER_PATTERNS = [
     r"lorem ipsum",
     r"conteúdo pendente",
 ]
-IGNORE_DIRS = {".git", "__pycache__", "build", "dist", "data", "venv", ".tox", ".mypy_cache"}
+IGNORE_DIRS = {".git", "__pycache__", "build", "dist", "data", "venv", ".tox", ".mypy_cache", ".trunk"}
 IGNORE_FILES_PREFIX = {"README_BUILD_AUTOMATIZADO.md": 0}  # exemplo se quisermos regras especiais futuras
 MARKDOWN_EXT = ".md"
 
@@ -119,7 +119,7 @@ def has_placeholder(lines: Sequence[str]) -> Optional[str]:
 def evaluate_file(path: Path, min_lines: int, min_nonempty: int) -> Optional[DocIssue]:
     lines = read_file_lines(path)
     rel = path.relative_to(REPO_ROOT)
-    rel_str = str(rel)
+    rel_str = rel.as_posix()
     if rel_str in ALLOW_EMPTY_FILES:
         # Explicitamente ignorado
         if not lines or all(not ln.strip() for ln in lines):

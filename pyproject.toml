@@ -10,6 +10,8 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "performance: marks performance / import throughput tests",
+    "smoke: marca smoke tests rapidos",
+    "stress: marca testes de stress"
 ]
 
 [tool.black]
