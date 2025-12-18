@@ -15,11 +15,29 @@ import sys
 import os
 import traceback
 import pandas as pd
+import pytest
 
 # Adiciona o diretorio raiz ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+
+@pytest.fixture(scope="module")
+def window():
+    """Instancia janela principal em ambiente headless e garante descarte."""
+    from PyQt6.QtWidgets import QApplication
+    from gui.gui_ssa import SSAMainWindow
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    w = SSAMainWindow()
+    try:
+        yield w
+    finally:
+        try:
+            w.close()
+        except Exception:
+            pass
 
 def print_test(name):
     print(f"\n[TEST] {name}")

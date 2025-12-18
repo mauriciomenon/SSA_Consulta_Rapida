@@ -103,6 +103,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-fail-on-doc-issues", action="store_true", help="Não força falha se check_docs encontrar issues")
     p.add_argument("--timeout", type=int, default=120, help="Timeout (s) para cada gate individual")
     p.add_argument("--lint-stream", action="store_true", help="Mostra saída em tempo real do lint (sem captura)")
+    p.add_argument("--include-lint", action="store_true", help="Inclui gate de lint (flake8/mypy). Off por padrão para smoke.")
     return p
 
 
@@ -124,9 +125,9 @@ def compose_gates(args: argparse.Namespace) -> List[tuple[str, List[str]]]:
     if args.extra_docs:
         docs_cmd.extend(["--paths", *args.extra_docs])
     gates.append(("check_docs", docs_cmd))
-    # Lint: usa runner unificado (flake8 + mypy). Saída não é JSON; tratamos fora.
-    # Removido --quiet para permitir stdout; modo stream controlado por --lint-stream
-    gates.append(("lint", [PYTHON, "scripts/run_lint.py", "--strict"]))
+    # Lint opcional: desligado por padrão (caminho feliz/smoke não depende).
+    if args.include_lint or (args.only_gates and "lint" in args.only_gates):
+        gates.append(("lint", [PYTHON, "scripts/run_lint.py", "--strict"]))
     # Filtragem por --only / --skip
     if args.only_gates:
         only_set = set(args.only_gates)

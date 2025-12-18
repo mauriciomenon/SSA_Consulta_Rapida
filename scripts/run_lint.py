@@ -46,7 +46,8 @@ def main() -> int:
     targets = args.files or ["."]
 
     # Base flake8 command (config via .flake8)
-    flake_cmd = [sys.executable, "-m", "flake8", *targets]
+    exclude = ".git,__pycache__,.venv,.direnv,.trunk"
+    flake_cmd = [sys.executable, "-m", "flake8", f"--exclude={exclude}", *targets]
     if quiet:
         # Remove flags de detalhamento adicionadas em .flake8 via env override
         pass

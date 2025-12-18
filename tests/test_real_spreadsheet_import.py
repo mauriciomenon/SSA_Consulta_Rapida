@@ -1,5 +1,7 @@
 from pathlib import Path
+import gc
 import sqlite3
+import time
 import pandas as pd
 import pytest
 
@@ -95,7 +97,23 @@ def test_recreate_db_then_import(sample_excel_file: Path, temp_db_path: Path):
     assert _count_rows(temp_db_path) == 2
     # Simulate recreation: delete DB file
     if temp_db_path.exists():
-        temp_db_path.unlink()
+        last_exc: Exception | None = None
+        for _ in range(50):
+            try:
+                temp_db_path.unlink()
+                last_exc = None
+                break
+            except PermissionError as exc:
+                last_exc = exc
+                try:
+                    with sqlite3.connect(temp_db_path) as conn:
+                        conn.close()
+                except Exception:
+                    pass
+                gc.collect()
+                time.sleep(0.2)
+        if last_exc:
+            raise last_exc
     assert not temp_db_path.exists()
     # Import again (should recreate schema internally)
     df2, _ = import_excel_robust(str(sample_excel_file))
