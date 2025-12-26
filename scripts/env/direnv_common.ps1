@@ -171,18 +171,21 @@ function ssa_env__ensure_pyenv_env {
             return $false
         }
     } else {
-        # Use pyenv shell
+        # Use pyenv local instead of shell to avoid session pollution
         try {
-            pyenv shell $version 2>$null
+            pyenv local $version 2>$null
             if ($LASTEXITCODE -eq 0) {
-                $env:PYENV_VERSION = $version
-                $env:SSA_ENV_SOURCE = "pyenv"
+                # Ensure no session override remains
+                try { pyenv shell --unset 2>$null } catch {}
+                Remove-Item Env:PYENV_VERSION -ErrorAction SilentlyContinue
+                # Let pyenv manage version via .python-version
+                $env:SSA_ENV_SOURCE = "pyenv-local"
             } else {
-                ssa_env__log "error: pyenv shell $version failed"
+                ssa_env__log "error: pyenv local $version failed"
                 return $false
             }
         } catch {
-            ssa_env__log "error: pyenv shell $version failed"
+            ssa_env__log "error: pyenv local $version failed"
             return $false
         }
     }
@@ -264,10 +267,10 @@ function ssa_env__print_summary {
     $sourceNote = $env:SSA_ENV_SOURCE
     if ($env:SSA_ENV_SOURCE -eq "pyenv-virtualenv") {
         $sourceNote = "pyenv-virtualenv:$($env:SSA_ENV_PYENV_NAME)"
+    } elseif ($env:SSA_ENV_SOURCE -eq "pyenv-local") {
+        $sourceNote = "pyenv-local:$($env:SSA_ENV_PY_VERSION)"
     } elseif ($env:SSA_ENV_SOURCE -eq "venv") {
         $sourceNote = "venv:$($env:SSA_ENV_VENV_DIR)"
-    } elseif ($env:SSA_ENV_SOURCE -eq "pyenv") {
-        $sourceNote = "pyenv:$($env:SSA_ENV_PY_VERSION)"
     }
     
     ssa_env__log "python $pyVersion ($($env:SSA_ENV_VARIANT) via $sourceNote)"

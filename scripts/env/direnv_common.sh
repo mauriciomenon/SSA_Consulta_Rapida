@@ -171,13 +171,16 @@ ssa_env__ensure_pyenv_env() {
     fi
     SSA_ENV_SOURCE="pyenv-virtualenv"
   else
-    if ! pyenv shell "$version" >/dev/null 2>&1; then
-      ssa_env__log "error: pyenv shell $version failed"
+    # Use pyenv local instead of shell to avoid session pollution
+    if ! pyenv local "$version" >/dev/null 2>&1; then
+      ssa_env__log "error: pyenv local $version failed"
       return 1
     fi
-    # For pyenv-win compatibility: explicitly set PYENV_VERSION
-    export PYENV_VERSION="$version"
-    SSA_ENV_SOURCE="pyenv"
+    # Ensure no session override remains
+    pyenv shell --unset >/dev/null 2>&1 || true
+    unset PYENV_VERSION
+    # Let pyenv manage version via .python-version
+    SSA_ENV_SOURCE="pyenv-local"
   fi
   export SSA_ENV_SOURCE
   return 0
@@ -234,10 +237,10 @@ ssa_env__print_summary() {
   local source_note="$SSA_ENV_SOURCE"
   if [[ "$SSA_ENV_SOURCE" == "pyenv-virtualenv" ]]; then
     source_note="$SSA_ENV_SOURCE:$SSA_ENV_PYENV_NAME"
+  elif [[ "$SSA_ENV_SOURCE" == "pyenv-local" ]]; then
+    source_note="$SSA_ENV_SOURCE:$SSA_ENV_PY_VERSION"
   elif [[ "$SSA_ENV_SOURCE" == "venv" ]]; then
     source_note="$SSA_ENV_SOURCE:$SSA_ENV_VENV_DIR"
-  elif [[ "$SSA_ENV_SOURCE" == "pyenv" ]]; then
-    source_note="$SSA_ENV_SOURCE:$SSA_ENV_PY_VERSION"
   fi
   ssa_env__log "python ${py_version:-unknown} ($SSA_ENV_VARIANT via ${source_note:-unknown})"
   if [[ "$SSA_ENV_VARIANT" == "free-threaded" && "$SSA_ENV_SOURCE" != "pyenv-virtualenv" ]]; then
