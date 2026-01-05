@@ -41,21 +41,34 @@ def main():
         logf.write(header)
         logf.flush()
         try:
-            proc = subprocess.run(cmd, stdout=logf, stderr=subprocess.STDOUT, timeout=args.timeout)
-            logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
-            print(f"pytest finished with exit code {proc.returncode}; log: {logpath}")
-            return proc.returncode
-        except subprocess.TimeoutExpired as e:
-            logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
-            logf.write("Partial output (if any):\n")
-            if e.output:
+            proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            try:
+                proc.wait(timeout=args.timeout)
+                logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
+                print(f"pytest finished with exit code {proc.returncode}; log: {logpath}")
+                return proc.returncode
+            except subprocess.TimeoutExpired:
+                # Timeout: attempt to kill process tree
                 try:
-                    logf.write(e.output.decode('utf-8', errors='replace'))
+                    if os.name == 'nt':
+                        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    else:
+                        try:
+                            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                        except Exception:
+                            proc.kill()
                 except Exception:
-                    logf.write(str(e.output))
-            logf.write("\n=== End of partial output ===\n")
-            print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
-            return 124
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+
+                logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
+                print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
+                return 124
+        except Exception as e:
+            logf.write(f"\n=== ERROR: {e} ===\n")
+            raise
 
 
 if __name__ == "__main__":
