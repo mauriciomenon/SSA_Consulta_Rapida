@@ -78,7 +78,7 @@ def ensure_path_is_allowed(
     if raw_path is None:
         raise PathSafetyError(f"{purpose}: caminho vazio nao permitido")
 
-    candidate = Path(raw_path).expanduser()
+    candidate = Path(raw_path).expanduser()  # type: ignore[arg-type]
     if base and not candidate.is_absolute():
         candidate = (base / candidate).resolve()
     else:
