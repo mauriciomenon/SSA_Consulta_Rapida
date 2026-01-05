@@ -14,29 +14,19 @@ def test_gui_configuration():
 
     # 1. Verificar se o arquivo JSON existe
     config_path = Path("config/gui_poc_preferences.json")
-    if not config_path.exists():
-        print("❌ Arquivo de configuração não encontrado!")
-        return False
-
+    assert config_path.exists(), "Arquivo de configuração não encontrado!"
     print(f"✅ Arquivo de configuração encontrado: {config_path}")
 
     # 2. Tentar carregar o JSON
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        print("✅ JSON carregado com sucesso!")
-    except Exception as e:
-        print(f"❌ Erro ao carregar JSON: {e}")
-        return False
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    print("✅ JSON carregado com sucesso!")
 
     # 3. Verificar estrutura básica
     required_keys = ['display_columns', 'hidden_columns', 'column_display_names', 'column_widths']
     for key in required_keys:
-        if key in config:
-            print(f"✅ Chave '{key}' encontrada")
-        else:
-            print(f"❌ Chave '{key}' ausente!")
-            return False
+        assert key in config, f"Chave '{key}' ausente!"
+        print(f"✅ Chave '{key}' encontrada")
 
     # 4. Verificar se colunas críticas estão presentes
     display_columns = config.get('display_columns', [])
@@ -69,25 +59,19 @@ def test_gui_configuration():
 
     # 7. Testar importação da GUI
     print(f"\n🖥️ Testando Importação GUI Principal:")
-    try:
-        from gui.gui_ssa import GUI_MAIN_PREFERENCES
-        print("✅ GUI Principal importada com sucesso!")
-        loaded_display = GUI_MAIN_PREFERENCES.get('display_columns', [])
-        if 'numero_ssa' in loaded_display:
-            print("✅ Campo numero_ssa presente")
-        else:
-            print("⚠️ numero_ssa ausente nas preferências")
-    except Exception as e:
-        print(f"❌ Erro ao importar GUI Principal: {e}")
-        return False
+    from gui.gui_ssa import GUI_MAIN_PREFERENCES
+    print("✅ GUI Principal importada com sucesso!")
+    loaded_display = GUI_MAIN_PREFERENCES.get('display_columns', [])
+    if 'numero_ssa' in loaded_display:
+        print("✅ Campo numero_ssa presente")
+    else:
+        print("⚠️ numero_ssa ausente nas preferências")
 
     print("\n" + "=" * 50)
     print("🎉 TESTE CONCLUÍDO COM SUCESSO!")
     print("💡 O sistema de configuração JSON está funcionando perfeitamente.")
     print("📋 Todos os campos críticos estão configurados.")
     print("🔧 As preferências da GUI estão separadas do CLI.")
-
-    return True
 
 if __name__ == "__main__":
     test_gui_configuration()

@@ -103,7 +103,7 @@ def test_v_character():
         print("SOME TESTS FAILED - v character being processed incorrectly!")
     print("="*60)
 
-    return all_passed
+    assert all_passed, "v character not preserved correctly in some tests"
 
 def test_no_logical_operators():
     """Test that logical operators are NOT processed."""
@@ -168,14 +168,23 @@ def test_no_logical_operators():
         print("SOME TESTS FAILED - Logical operators being processed!")
     print("="*60)
 
-    return all_passed
+    assert all_passed, "Logical operators not ignored correctly in some tests"
 
 if __name__ == '__main__':
     print("\nSearch Logic v Character Test")
     print("Verifying fix for intermittent v character disappearing bug\n")
 
-    test1_passed = test_v_character()
-    test2_passed = test_no_logical_operators()
+    try:
+        test_v_character()
+        test1_passed = True
+    except AssertionError:
+        test1_passed = False
+
+    try:
+        test_no_logical_operators()
+        test2_passed = True
+    except AssertionError:
+        test2_passed = False
 
     print("\n" + "="*60)
     print("FINAL RESULTS")

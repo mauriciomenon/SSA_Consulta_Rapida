@@ -1,6 +1,6 @@
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra --strict-markers --ignore=tests/legacy_tests"
+addopts = "-ra --strict-markers --ignore=tests/legacy_tests -p no:pylama"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]

@@ -10,6 +10,7 @@ a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 import os
 import sys
 import logging
+import json
 import pandas as pd
 import re
 from pathlib import Path
@@ -33,46 +34,55 @@ logger = logging.getLogger(__name__)
 
 class ImporterError(Exception):
     """Excecao base para erros no processo de importacao."""
+
     pass
 
 
 class CacheError(ImporterError):
     """Erro relacionado ao sistema de cache."""
+
     pass
 
 
 class ExtractionError(ImporterError):
     """Erro durante a extracao de dados de um arquivo."""
+
     pass
 
 
 class DatabaseError(ImporterError):
     """Erro durante operacoes no banco de dados."""
+
     pass
 
 
 class DatabaseConnectionError(DatabaseError):
     """Erro de conexao com o banco de dados."""
+
     pass
 
 
 class DatabaseCorruptionError(DatabaseError):
     """Erro indicando corrupcao no banco de dados."""
+
     pass
 
 
 class DatabaseSchemaError(DatabaseError):
     """Erro relacionado ao schema do banco de dados."""
+
     pass
 
 
 class DatabaseSpaceError(DatabaseError):
     """Erro de espaco insuficiente em disco."""
+
     pass
 
 
 class DataValidationError(ImporterError):
     """Erro de validacao de dados antes da insercao."""
+
     pass
 
 
@@ -97,7 +107,10 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
 
 # --- Funcoes Auxiliares Refatoradas ---
 
-def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) -> List[str]:
+
+def _get_files_to_process(
+    docs_dir: str, cache_file: str, force_import: bool
+) -> List[str]:
     """
     Determina quais arquivos precisam ser processados.
 
@@ -114,19 +127,25 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
     """
     try:
         if force_import:
-            logger.info("Modo 'force_import' ativado. Todos os arquivos serao reprocessados.")
+            logger.info(
+                "Modo 'force_import' ativado. Todos os arquivos serao reprocessados."
+            )
             all_files = caching.get_all_xlsx_files(docs_dir)
             return all_files
 
         # Verifica se o cache existe
         if not os.path.exists(cache_file):
-            logger.info("Arquivo de cache nao encontrado. Todos os arquivos serao processados.")
+            logger.info(
+                "Arquivo de cache nao encontrado. Todos os arquivos serao processados."
+            )
             all_files = caching.get_all_xlsx_files(docs_dir)
             return all_files
 
         # Compara arquivos usando o cache
         files_to_process = caching.get_files_to_process(docs_dir, cache_file)
-        logger.debug(f"Arquivos identificados para processamento: {len(files_to_process)}")
+        logger.debug(
+            f"Arquivos identificados para processamento: {len(files_to_process)}"
+        )
         return files_to_process
 
     except Exception as e:
@@ -134,7 +153,9 @@ def _get_files_to_process(docs_dir: str, cache_file: str, force_import: bool) ->
         raise CacheError(f"Falha na verificacao de arquivos: {e}") from e
 
 
-def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[bool, int]:
+def _import_single_file(
+    file_path: str, db_path: str, table_name: str
+) -> tuple[bool, int]:
     """
     Importa um unico arquivo Excel para o banco de dados.
 
@@ -157,22 +178,28 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[
             df = df.copy()
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
-            validation_report = database.validate_dataframe_before_insert(df, table_name)
+            validation_report = database.validate_dataframe_before_insert(
+                df, table_name
+            )
 
-            for violation in validation_report.get('violations', []):
-                rule = violation.get('rule')
-                count = violation.get('count')
-                severity = violation.get('severity', 'warning')
-                sample = violation.get('sample_ssa') or []
+            for violation in validation_report.get("violations", []):
+                rule = violation.get("rule")
+                count = violation.get("count")
+                severity = violation.get("severity", "warning")
+                sample = violation.get("sample_ssa") or []
                 sample_txt = f" (ex.: {', '.join(sample)})" if sample else ""
                 message = f"Regra {rule} atingiu {count} linha(s){sample_txt}"
-                if severity == 'error':
-                    logger.error("Validacao - %s: %s", os.path.basename(file_path), message)
+                if severity == "error":
+                    logger.error(
+                        "Validacao - %s: %s", os.path.basename(file_path), message
+                    )
                 else:
-                    logger.warning("Validacao - %s: %s", os.path.basename(file_path), message)
+                    logger.warning(
+                        "Validacao - %s: %s", os.path.basename(file_path), message
+                    )
 
-            invalid_by_column = validation_report.get('invalid_by_column', {})
-            critical_columns = {'numero_ssa', 'data_cadastro'}
+            invalid_by_column = validation_report.get("invalid_by_column", {})
+            critical_columns = {"numero_ssa", "data_cadastro"}
             rows_to_drop: set[int] = set()
             for column, indices in invalid_by_column.items():
                 if column in critical_columns:
@@ -181,8 +208,8 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[
             if rows_to_drop:
                 bad_subset = df.loc[list(rows_to_drop)].copy()
                 sample_ssas = (
-                    bad_subset['numero_ssa'].astype(str).head(5).tolist()
-                    if 'numero_ssa' in bad_subset.columns
+                    bad_subset["numero_ssa"].astype(str).head(5).tolist()
+                    if "numero_ssa" in bad_subset.columns
                     else [str(idx) for idx in list(rows_to_drop)[:5]]
                 )
                 logger.error(
@@ -201,9 +228,11 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[
                 return False, 0
 
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
-            if not validation_report['is_valid']:
-                critical_issues = validation_report['issues']
-                logger.error(f"Dados com problemas criticos em '{file_path}': {critical_issues}")
+            if not validation_report["is_valid"]:
+                critical_issues = validation_report["issues"]
+                logger.error(
+                    f"Dados com problemas criticos em '{file_path}': {critical_issues}"
+                )
 
                 # Para problemas criticos de validacao, pode escolher:
                 # Opcao 1: Falhar imediatamente
@@ -218,22 +247,30 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[
                 )
 
             # Garante coluna de rastreio de origem no banco
-            database.ensure_column_exists(db_path, table_name, 'arquivo_origem', 'TEXT')
-            if 'arquivo_origem' not in df.columns:
-                df['arquivo_origem'] = os.path.basename(file_path)
+            database.ensure_column_exists(db_path, table_name, "arquivo_origem", "TEXT")
+            if "arquivo_origem" not in df.columns:
+                df["arquivo_origem"] = os.path.basename(file_path)
             else:
-                df['arquivo_origem'] = df['arquivo_origem'].fillna(os.path.basename(file_path))
+                df["arquivo_origem"] = df["arquivo_origem"].fillna(
+                    os.path.basename(file_path)
+                )
 
             # Conta registros antes de inserir
             record_count = len(df)
-            
+
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
-            success = database.insert_dataframe_with_smart_upsert(df, db_path, table_name)
+            success = database.insert_dataframe_with_smart_upsert(
+                df, db_path, table_name
+            )
             if success:
-                logger.info(f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas).")
+                logger.info(
+                    f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas)."
+                )
                 return True, record_count
             else:
-                logger.error(f"Falha ao inserir dados de '{file_path}' no banco de dados.")
+                logger.error(
+                    f"Falha ao inserir dados de '{file_path}' no banco de dados."
+                )
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
             logger.warning(f"Nenhum dado valido extraido de '{file_path}'. Pulando.")
@@ -247,9 +284,7 @@ def _import_single_file(file_path: str, db_path: str, table_name: str) -> tuple[
 
 
 def _update_cache_after_import(
-    processed_files: List[str],
-    cache_file: str,
-    docs_dir: str
+    processed_files: List[str], cache_file: str, docs_dir: str
 ) -> None:
     """
     Atualiza o arquivo de cache apos uma importacao bem-sucedida.
@@ -276,12 +311,12 @@ def _update_cache_after_import(
 
 
 def run_importer_logic(
-    docs_dir: str = 'docs_entrada',
-    data_dir: str = 'data',
-    db_name: str = 'ssas.db',
-    table_name: str = 'ssa_table',
+    docs_dir: str = "docs_entrada",
+    data_dir: str = "data",
+    db_name: str = "ssas.db",
+    table_name: str = "ssa_table",
     force_import: bool = False,
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> bool:
     """
     Executa a logica principal de importacao de dados.
@@ -332,7 +367,7 @@ def run_importer_logic(
         raise
 
     db_path = str(db_path_obj)
-    cache_file = os.path.join(str(data_dir_path), 'file_cache.json')
+    cache_file = os.path.join(str(data_dir_path), "file_cache.json")
     docs_dir = str(docs_dir_path)
     data_dir = str(data_dir_path)
 
@@ -345,29 +380,34 @@ def run_importer_logic(
 
         # Verificar e reparar banco se necessario
         if not database.repair_database_if_needed(db_path, table_name=table_name):
-            logger.error("Falha critica: nao foi possivel garantir integridade do banco de dados")
+            logger.error(
+                "Falha critica: nao foi possivel garantir integridade do banco de dados"
+            )
             raise DatabaseCorruptionError("Banco de dados inacessivel ou corrompido")
 
         # Verificacao adicional de integridade
         integrity_report = database.verify_database_integrity(db_path, table_name)
-        if not integrity_report['is_valid']:
+        if not integrity_report["is_valid"]:
             # Classificar tipo de erro baseado no relatorio
-            issues = integrity_report['issues']
+            issues = integrity_report["issues"]
 
-            if not integrity_report['database_accessible']:
+            if not integrity_report["database_accessible"]:
                 raise DatabaseConnectionError(f"Banco de dados inacessivel: {issues}")
-            elif not integrity_report['table_exists'] or not integrity_report['schema_valid']:
+            elif (
+                not integrity_report["table_exists"]
+                or not integrity_report["schema_valid"]
+            ):
                 raise DatabaseSchemaError(f"Problemas de schema: {issues}")
-            elif not integrity_report['data_consistent']:
+            elif not integrity_report["data_consistent"]:
                 raise DatabaseCorruptionError(f"Dados corrompidos: {issues}")
-            elif not integrity_report['disk_space_sufficient']:
+            elif not integrity_report["disk_space_sufficient"]:
                 raise DatabaseSpaceError(f"Espaco em disco insuficiente: {issues}")
             else:
                 raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
         # Log de avisos se houver
-        if integrity_report['warnings']:
-            for warning in integrity_report['warnings']:
+        if integrity_report["warnings"]:
+            for warning in integrity_report["warnings"]:
                 logger.warning(f"Aviso do banco: {warning}")
 
         logger.info(" Integridade do banco de dados verificada")
@@ -377,20 +417,26 @@ def run_importer_logic(
         total_files = len(files_to_process)
         if progress_callback:
             try:
-                progress_callback('start', {'total': total_files})
+                progress_callback("start", {"total": total_files})
             except Exception as e:
                 logger.debug(f"Progress callback failed: {e}")
 
         if not files_to_process:
-            logger.info("Nenhum arquivo novo ou modificado encontrado para processamento.")
+            logger.info(
+                "Nenhum arquivo novo ou modificado encontrado para processamento."
+            )
             if progress_callback:
                 try:
-                    progress_callback('finish', {'total': 0, 'processed': 0, 'errors': []})
+                    progress_callback(
+                        "finish", {"total": 0, "processed": 0, "errors": []}
+                    )
                 except Exception as e:
                     logger.debug(f"Progress callback failed: {e}")
             return False
 
-        logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para importacao.")
+        logger.info(
+            f"{len(files_to_process)} arquivo(s) identificado(s) para importacao."
+        )
 
         # --- 2. Processar cada arquivo ---
         successfully_processed_files = []
@@ -399,41 +445,54 @@ def run_importer_logic(
         try:
             for index, file_path in enumerate(files_to_process):
                 base_name = os.path.basename(file_path)
-                
+
                 # Notify file start
                 if progress_callback:
                     try:
-                        progress_callback('file_start', {
-                            'current': index + 1,
-                            'total': total_files,
-                            'filename': base_name
-                        })
+                        progress_callback(
+                            "file_start",
+                            {
+                                "current": index + 1,
+                                "total": total_files,
+                                "filename": base_name,
+                            },
+                        )
                     except Exception as e:
                         logger.debug(f"Progress callback failed during file_start: {e}")
 
-                if base_name.startswith('~$'):
+                if base_name.startswith("~$"):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
                     continue
                 try:
-                    success, record_count = _import_single_file(file_path, db_path, table_name)
+                    success, record_count = _import_single_file(
+                        file_path, db_path, table_name
+                    )
                     if success:
                         successfully_processed_files.append(file_path)
                         # Notify file success
                         if progress_callback:
                             try:
-                                progress_callback('file_success', {
-                                    'filename': base_name,
-                                    'records': record_count
-                                })
+                                progress_callback(
+                                    "file_success",
+                                    {"filename": base_name, "records": record_count},
+                                )
                             except Exception as e:
-                                logger.debug(f"Progress callback failed during file_success: {e}")
+                                logger.debug(
+                                    f"Progress callback failed during file_success: {e}"
+                                )
                 except DatabaseConnectionError as e:
-                    logger.error(f"Erro de conexao com banco ao processar '{file_path}': {e}")
-                    logger.error("Interrompendo processamento devido a falha de conexao")
-                    critical_errors.append(('connection', file_path, str(e)))
+                    logger.error(
+                        f"Erro de conexao com banco ao processar '{file_path}': {e}"
+                    )
+                    logger.error(
+                        "Interrompendo processamento devido a falha de conexao"
+                    )
+                    critical_errors.append(("connection", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     break
@@ -442,23 +501,33 @@ def run_importer_logic(
                     logger.info("Tentando reparo automatico do banco...")
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
-                    if database.repair_database_if_needed(db_path, table_name=table_name):
+                    if database.repair_database_if_needed(
+                        db_path, table_name=table_name
+                    ):
                         logger.info("Reparo bem-sucedido, continuando processamento...")
-                        critical_errors.append(('corruption_repaired', file_path, str(e)))
+                        critical_errors.append(
+                            ("corruption_repaired", file_path, str(e))
+                        )
                         continue
                     else:
                         logger.error("Falha no reparo automatico")
-                        critical_errors.append(('corruption_failed', file_path, str(e)))
+                        critical_errors.append(("corruption_failed", file_path, str(e)))
                         break
                 except DatabaseSpaceError as e:
-                    logger.error(f"Espaco em disco insuficiente ao processar '{file_path}': {e}")
-                    critical_errors.append(('space', file_path, str(e)))
+                    logger.error(
+                        f"Espaco em disco insuficiente ao processar '{file_path}': {e}"
+                    )
+                    critical_errors.append(("space", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     break
@@ -467,73 +536,100 @@ def run_importer_logic(
                     logger.info("Tentando recriacao do schema...")
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     if database.initialize_database(db_path):
                         logger.info("Schema recriado, continuando processamento...")
-                        critical_errors.append(('schema_repaired', file_path, str(e)))
+                        critical_errors.append(("schema_repaired", file_path, str(e)))
                         continue
                     else:
                         logger.error("Falha na recriacao do schema")
-                        critical_errors.append(('schema_failed', file_path, str(e)))
+                        critical_errors.append(("schema_failed", file_path, str(e)))
                         break
                 except DataValidationError as e:
-                    logger.warning(f"Dados invalidos em '{file_path}': {e}. Pulando arquivo...")
-                    critical_errors.append(('validation', file_path, str(e)))
+                    logger.warning(
+                        f"Dados invalidos em '{file_path}': {e}. Pulando arquivo..."
+                    )
+                    critical_errors.append(("validation", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     continue
                 except ExtractionError as e:
-                    logger.warning(f"Erro de extracao em '{file_path}': {e}. Pulando arquivo...")
-                    critical_errors.append(('extraction', file_path, str(e)))
+                    logger.warning(
+                        f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
+                    )
+                    critical_errors.append(("extraction", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     continue
                 except DatabaseError as e:
-                    logger.error(f"Erro de banco ao processar '{file_path}': {e}. Continuando...")
-                    critical_errors.append(('database_generic', file_path, str(e)))
+                    logger.error(
+                        f"Erro de banco ao processar '{file_path}': {e}. Continuando..."
+                    )
+                    critical_errors.append(("database_generic", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     continue
                 except Exception as e:
-                    logger.error(f"Erro inesperado ao processar '{file_path}': {e}. Continuando...")
-                    critical_errors.append(('unexpected', file_path, str(e)))
+                    logger.error(
+                        f"Erro inesperado ao processar '{file_path}': {e}. Continuando..."
+                    )
+                    critical_errors.append(("unexpected", file_path, str(e)))
                     if progress_callback:
                         try:
-                            progress_callback('file_error', {'filename': base_name, 'error': str(e)})
+                            progress_callback(
+                                "file_error", {"filename": base_name, "error": str(e)}
+                            )
                         except Exception:
                             pass
                     continue
         finally:
             if progress_callback:
                 try:
-                    progress_callback('finish', {
-                        'total': total_files,
-                        'processed': len(successfully_processed_files),
-                        'errors': critical_errors
-                    })
+                    progress_callback(
+                        "finish",
+                        {
+                            "total": total_files,
+                            "processed": len(successfully_processed_files),
+                            "errors": critical_errors,
+                        },
+                    )
                 except Exception as e:
                     logger.debug(f"Progress callback failed at finish: {e}")
 
         # Log de resumo de erros
         if critical_errors:
-            logger.warning(f"Processamento concluido com {len(critical_errors)} erro(s):")
+            logger.warning(
+                f"Processamento concluido com {len(critical_errors)} erro(s):"
+            )
             for error_type, file_path, message in critical_errors:
-                logger.warning(f"  - {error_type}: {os.path.basename(file_path)} -> {message}")
+                logger.warning(
+                    f"  - {error_type}: {os.path.basename(file_path)} -> {message}"
+                )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
-            _update_cache_after_import(successfully_processed_files, cache_file, docs_dir)
+            _update_cache_after_import(
+                successfully_processed_files, cache_file, docs_dir
+            )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
             return True
         else:
@@ -544,16 +640,82 @@ def run_importer_logic(
         # Re-levanta excecoes personalizadas
         raise
     except Exception as e:
-        logger.critical(f"Erro inesperado no processo de importacao: {e}", exc_info=True)
+        logger.critical(
+            f"Erro inesperado no processo de importacao: {e}", exc_info=True
+        )
         raise ImporterError("Erro critico no processo de importacao.") from e
+
+
+def get_filter_alias_map() -> Dict[str, Any]:
+    """
+    Carrega mapeamento de aliases para filtros, consistente com GUI.
+    Busca em config/filter_aliases.json para sincronização entre interfaces.
+
+    Returns:
+        Dicionário com aliases globais e por coluna
+    """
+    try:
+        import os
+
+        # Resolve config path relative to repository root
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
+
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def apply_filter_aliases(search_terms: List[str]) -> List[str]:
+    """
+    Aplica aliases de filtro aos termos de busca para consistência entre interfaces.
+
+    Args:
+        search_terms: Lista de termos brutos
+
+    Returns:
+        Lista de termos com aliases aplicados
+    """
+    if not search_terms:
+        return search_terms
+
+    alias_map = get_filter_alias_map()
+    global_aliases = alias_map.get("_global", {})
+
+    if not isinstance(global_aliases, dict):
+        global_aliases = {}
+
+    mapped_terms = []
+    for term in search_terms:
+        if isinstance(term, str):
+            key = term.strip().casefold()
+            # Busca alias global (case-insensitive)
+            mapped = None
+            for alias_key, alias_value in global_aliases.items():
+                if alias_key.casefold() == key:
+                    mapped = alias_value
+                    break
+            mapped_terms.append(mapped if mapped else term)
+        else:
+            mapped_terms.append(term)
+
+    return mapped_terms
 
 
 def parse_search_terms(
     search_terms: List[str],
-    default_mode: str = 'contains',
+    default_mode: str = "contains",
 ) -> List[Dict[str, Any]]:
     """
     Converte termos brutos em uma estrutura padronizada com modo e polaridade.
+
+    APLICA ALIASES: Termos são normalizados usando config/filter_aliases.json
+    para consistência entre GUI e CLI.
 
     SIMPLIFIED: No logical operators (OU/OR/AND/E) - ONLY commas separate terms.
     - General search: all terms are required (AND logic implicit, all group=0)
@@ -567,14 +729,17 @@ def parse_search_terms(
     - regex: ~foo.*bar
     Negativo: prefixar ! (ou -) antes do termo (ex.: !^adm, !=fechado, !$2025, !~regex)
     """
+    # APLICA ALIASES PRIMEIRO para consistência com GUI
+    search_terms = apply_filter_aliases(search_terms)
+
     parsed: List[Dict[str, Any]] = []
     if not search_terms:
         return parsed
     if not isinstance(search_terms, list):
         return parsed
 
-    allowed_modes = {'contains', 'prefix', 'suffix', 'exact', 'regex'}
-    fallback_mode = default_mode if default_mode in allowed_modes else 'contains'
+    allowed_modes = {"contains", "prefix", "suffix", "exact", "regex"}
+    fallback_mode = default_mode if default_mode in allowed_modes else "contains"
 
     # Simplified: process all terms directly, all with group=0 (AND logic)
     for raw in search_terms:
@@ -584,48 +749,52 @@ def parse_search_terms(
         if not t:
             continue
         negative = False
-        if (t.startswith('!') or t.startswith('-')) and len(t) > 1:
+        if (t.startswith("!") or t.startswith("-")) and len(t) > 1:
             negative = True
             t = t[1:]
         mode = fallback_mode
         value = t
-        if t.startswith('~') and len(t) > 1:
-            mode = 'regex'
+        if t.startswith("~") and len(t) > 1:
+            mode = "regex"
             value = t[1:]
-        elif t.startswith('=') and len(t) > 1:
-            mode = 'exact'
+        elif t.startswith("=") and len(t) > 1:
+            mode = "exact"
             value = t[1:]
-        elif t.startswith('$') and len(t) > 1:
-            mode = 'suffix'
+        elif t.startswith("$") and len(t) > 1:
+            mode = "suffix"
             value = t[1:]
-        elif fallback_mode != 'regex' and t.startswith('^') and len(t) > 1:
-            mode = 'prefix'
+        elif fallback_mode != "regex" and t.startswith("^") and len(t) > 1:
+            mode = "prefix"
             value = t[1:]
-        elif fallback_mode != 'regex' and t.endswith('$') and len(t) > 1:
-            mode = 'suffix'
+        elif fallback_mode != "regex" and t.endswith("$") and len(t) > 1:
+            mode = "suffix"
             value = t[:-1]
-        parsed.append({
-            'raw': raw,
-            'mode': mode,
-            'value': value,
-            'negative': negative,
-            'group': 0,  # All terms in same group (AND logic)
-        })
+        parsed.append(
+            {
+                "raw": raw,
+                "mode": mode,
+                "value": value,
+                "negative": negative,
+                "group": 0,  # All terms in same group (AND logic)
+            }
+        )
     return parsed
 
 
-def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optional[list] = None) -> pd.DataFrame:
+def filter_dataframe(
+    df: pd.DataFrame, search_terms: list, search_columns: Optional[list] = None
+) -> pd.DataFrame:
     """
     Filtra um DataFrame com base em uma lista de termos de busca (strings) ou
-    termos ja parseados por parse_search_terms(). 
+    termos ja parseados por parse_search_terms().
 
      OTIMIZACAO: Agora permite especificar colunas de busca para melhor performance.
 
     Args:
         df: DataFrame para filtrar
         search_terms: Lista de termos de busca ou termos parseados
-        search_columns: Lista de colunas especificas para buscar. Se None, busca em 
-                       colunas prioritarias: ['numero_ssa', 'situacao', 'setor_executor', 
+        search_columns: Lista de colunas especificas para buscar. Se None, busca em
+                       colunas prioritarias: ['numero_ssa', 'situacao', 'setor_executor',
                        'setor_emissor', 'descricao_servico']
 
     Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
@@ -639,16 +808,23 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
         # Colunas mais frequentemente pesquisadas (ordem por relevancia)
         # Inclui campos de descricao utilizados na GUI: descricao_ssa e descricao_execucao
         priority_columns = [
-            'numero_ssa', 'situacao', 'setor_executor', 'setor_emissor',
-            'descricao_ssa', 'descricao_execucao', 'descricao_servico', 'observacao',
-            'prazo_limite_str', 'data_cadastro_str'
+            "numero_ssa",
+            "situacao",
+            "setor_executor",
+            "setor_emissor",
+            "descricao_ssa",
+            "descricao_execucao",
+            "descricao_servico",
+            "observacao",
+            "prazo_limite_str",
+            "data_cadastro_str",
         ]
         # Filtrar apenas colunas que existem no DataFrame
         search_columns = [col for col in priority_columns if col in df.columns]
-        
+
         # Se nenhuma coluna prioritaria existe, usar todas as de texto como fallback
         if not search_columns:
-            search_columns = df.select_dtypes(include=['object']).columns.tolist()
+            search_columns = df.select_dtypes(include=["object"]).columns.tolist()
 
     # Criar DataFrame base apenas com colunas de busca
     available_search_cols = [col for col in search_columns if col in df.columns]
@@ -656,12 +832,19 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
         logger.warning("Nenhuma coluna de busca valida encontrada")
         return df
 
-    base_str_df = df[available_search_cols].select_dtypes(include=['object']).fillna('').astype(str)
+    base_str_df = (
+        df[available_search_cols]
+        .select_dtypes(include=["object"])
+        .fillna("")
+        .astype(str)
+    )
     if base_str_df.shape[1] == 0:
         # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
         return df.iloc[0:0]
-        
-    logger.debug(f" Buscando em {len(base_str_df.columns)} colunas: {list(base_str_df.columns)}")
+
+    logger.debug(
+        f" Buscando em {len(base_str_df.columns)} colunas: {list(base_str_df.columns)}"
+    )
 
     # Permite tanto termos brutos (str) quanto parseados (dict)
     if search_terms and isinstance(search_terms[0], dict):
@@ -672,7 +855,7 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
     # Agrupa termos por disjuncao (OR). Cada grupo e uma conjuncao interna (AND).
     grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
     for term in terms:
-        group_idx = term.get('group')
+        group_idx = term.get("group")
         if group_idx is None:
             group_idx = 0
         grouped_terms.setdefault(int(group_idx), []).append(term)
@@ -683,27 +866,27 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
     # Cache de patterns: pre-compila patterns para evitar re.escape repetido
     pattern_cache = {}
     for term in terms:
-        mode = term.get('mode', 'contains')
-        value = term.get('value', '') or ''
+        mode = term.get("mode", "contains")
+        value = term.get("value", "") or ""
         cache_key = (mode, value)
 
         if cache_key not in pattern_cache:
-            if mode == 'contains':
+            if mode == "contains":
                 pattern_cache[cache_key] = (value, False)
-            elif mode == 'prefix':
+            elif mode == "prefix":
                 pattern_cache[cache_key] = (f"^{re.escape(value)}", True)
-            elif mode == 'suffix':
+            elif mode == "suffix":
                 pattern_cache[cache_key] = (f"{re.escape(value)}$", True)
-            elif mode == 'exact':
+            elif mode == "exact":
                 pattern_cache[cache_key] = (f"^{re.escape(value)}$", True)
-            elif mode == 'regex':
+            elif mode == "regex":
                 pattern_cache[cache_key] = (value, True)
             else:
                 pattern_cache[cache_key] = (value, False)
 
     def _mask_for_term(term: Dict[str, Any]) -> pd.Series:
-        mode = term.get('mode', 'contains')
-        value = term.get('value', '') or ''
+        mode = term.get("mode", "contains")
+        value = term.get("value", "") or ""
         cache_key = (mode, value)
 
         pattern, use_regex = pattern_cache.get(cache_key, (value, False))
@@ -713,7 +896,7 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
                 lambda col: col.str.contains(pattern, case=False, na=False, regex=regex)
             ).any(axis=1)
 
-        if mode == 'regex':
+        if mode == "regex":
             try:
                 return _contains(pattern, regex=True)
             except re.error:
@@ -727,8 +910,8 @@ def filter_dataframe(df: pd.DataFrame, search_terms: list, search_columns: Optio
         if not group_terms:
             continue
         group_mask = pd.Series(True, index=df.index)
-        positives = [t for t in group_terms if not t.get('negative')]
-        negatives = [t for t in group_terms if t.get('negative')]
+        positives = [t for t in group_terms if not t.get("negative")]
+        negatives = [t for t in group_terms if t.get("negative")]
 
         for term in positives:
             group_mask = group_mask & _mask_for_term(term)
@@ -776,7 +959,7 @@ def import_files_to_database(
             data_dir=str(data_dir),
             db_name=db_name,
             table_name="ssa_table",
-            force_import=force_import
+            force_import=force_import,
         )
 
         return success
@@ -830,7 +1013,11 @@ def get_filtered_data(
             for column, value in filters.items():
                 if column in df.columns and value is not None:
                     # Aplicar filtro case-insensitive
-                    df = df[df[column].astype(str).str.contains(str(value), case=False, na=False)]
+                    df = df[
+                        df[column]
+                        .astype(str)
+                        .str.contains(str(value), case=False, na=False)
+                    ]
 
         return df
 
