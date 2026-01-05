@@ -10,7 +10,9 @@ This shows output live (for interactive debugging) and also saves it to
 """
 
 import argparse
+import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -26,9 +28,26 @@ def ensure_log_path(logpath: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", required=True)
-    parser.add_argument("--timeout", type=int, default=10)
+    parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--log", default=None)
+    parser.add_argument("--fallback-tee", action="store_true", help="If streaming fails, print instruction for tee fallback")
     args = parser.parse_args()
+
+    # Try to read workspace settings for defaults
+    ws_settings = {}
+    try:
+        ws_path = os.path.join(os.getcwd(), ".vscode", "settings.json")
+        if os.path.exists(ws_path):
+            with open(ws_path, "r", encoding="utf-8") as wf:
+                ws_settings = json.load(wf)
+    except Exception:
+        ws_settings = {}
+
+    if args.timeout is None:
+        args.timeout = int(ws_settings.get("pytestWrapper", {}).get("timeout", 10))
+
+    fallback_to_tee = bool(ws_settings.get("pytestWrapper", {}).get("fallbackToTee", False) or args.fallback_tee)
+    kill_tree_default = bool(ws_settings.get("pytestWrapper", {}).get("killProcessTree", True))
 
     logdir = os.path.join(os.getcwd(), "local_ai_private")
     logpath = args.log or os.path.join(logdir, "pytest_terminal_integration_stream.log")
@@ -39,7 +58,11 @@ def main():
     header = f"=== pytest streaming run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
 
     start = time.time()
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # Start process in a new process group on Unix so we can kill the group; on Windows we'll use taskkill
+    if os.name == 'nt':
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    else:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, preexec_fn=os.setsid)
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as f:
         f.write(header)
@@ -60,11 +83,31 @@ def main():
 
                 # Timeout check
                 if time.time() - start > args.timeout:
-                    p.kill()
-                    msg = f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was killed ===\n"
+                    # Attempt graceful shutdown of process tree
+                    try:
+                        if os.name == 'nt' and kill_tree_default:
+                            # Use taskkill to kill process tree on Windows
+                            subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        else:
+                            # Unix: kill process group
+                            try:
+                                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                            except Exception:
+                                p.kill()
+                    except Exception:
+                        try:
+                            p.kill()
+                        except Exception:
+                            pass
+
+                    msg = f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
                     print(msg)
                     f.write(msg)
                     f.flush()
+
+                    if fallback_to_tee:
+                        print("Fallback: to stream+log use (PowerShell):\npython -m pytest tests/test_terminal_integration.py 2>&1 | Tee-Object -FilePath local_ai_private\pytest_terminal_integration.log")
+
                     return 124
 
             ret = p.wait()
