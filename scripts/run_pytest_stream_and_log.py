@@ -87,7 +87,23 @@ def main():
                     try:
                         if os.name == 'nt' and kill_tree_default:
                             # Use taskkill to kill process tree on Windows
-                            subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            res = subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            if res.returncode != 0:
+                                # fallback to PowerShell Stop-Process
+                                pwsh = shutil.which("pwsh") or shutil.which("powershell")
+                                if pwsh:
+                                    try:
+                                        subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", f"Stop-Process -Id {p.pid} -Force -ErrorAction SilentlyContinue"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                    except Exception:
+                                        try:
+                                            p.kill()
+                                        except Exception:
+                                            pass
+                                else:
+                                    try:
+                                        p.kill()
+                                    except Exception:
+                                        pass
                         else:
                             # Unix: kill process group
                             try:

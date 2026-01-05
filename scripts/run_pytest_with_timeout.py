@@ -51,7 +51,23 @@ def main():
                 # Timeout: attempt to kill process tree
                 try:
                     if os.name == 'nt':
-                        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        res = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        if res.returncode != 0:
+                            # fallback to PowerShell Stop-Process if taskkill is not available/succeeds
+                            pwsh = shutil.which("pwsh") or shutil.which("powershell")
+                            if pwsh:
+                                try:
+                                    subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", f"Stop-Process -Id {proc.pid} -Force -ErrorAction SilentlyContinue"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                except Exception:
+                                    try:
+                                        proc.kill()
+                                    except Exception:
+                                        pass
+                            else:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
                     else:
                         try:
                             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
