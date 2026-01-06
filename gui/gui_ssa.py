@@ -123,7 +123,7 @@ try:
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
     QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QDialog, QDialogButtonBox,
-        QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox
+        QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
     from PyQt6.QtGui import QAction, QFont
@@ -186,6 +186,11 @@ except ImportError as exc:
 
     class QGridLayout(QVBoxLayout):
         pass
+    class QTabWidget:
+        def __init__(self, *a, **k):
+            self.currentChanged = _Sig()
+        def addTab(self, *a, **k):
+            pass
     class QLabel:
         def __init__(self, *a, **k):
             pass
@@ -475,6 +480,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     Inherits from FilterGUISSAMixin for filter-related methods.
     """
+    TAB_WIDGET_ATTRS = (
+        "search_label",
+        "search_input",
+        "search_button",
+        "clear_filter_button",
+        "column_selector",
+        "search_help",
+        "paginator",
+        "profile_selector",
+        "persistent_filters_layout",
+        "filter_tags_widget",
+        "filter_tags_layout",
+        "exclude_ste_checkbox",
+        "col_filter_indicator",
+        "filters_summary_frame",
+        "filters_summary_label",
+        "clear_all_filters_btn",
+        "table_widget",
+        "details_group",
+        "details_text",
+        "col_filters_group",
+        "col_filters_hint",
+        "col_filters_scroll",
+        "col_filters_container",
+        "col_filters_list_layout",
+        "add_column_filter_btn",
+        "clear_all_btn",
+    )
     def _get_theme_catalog(self):
         light_themes = [
             ("Claro", 'claro'),
@@ -704,316 +737,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         toolbar_layout.addWidget(theme_button)
 
         main_layout.addLayout(toolbar_layout)
-
-        # Margem superior da faixa de pesquisa (simetrica com base)
-        main_layout.addSpacing(6)
-
-        # --- Barra de Pesquisa e Filtros (grupos esquerda/direita) ---
-        search_row = QHBoxLayout()
-        search_row.setContentsMargins(0, 0, 0, 0)
-        search_row.setSpacing(6)
-
-        left = QHBoxLayout()
-        left.setContentsMargins(0, 0, 0, 0)
-        self.search_label = QLabel("Pesquisa Geral:")
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Separe por virgulas (condicao E: todos os termos obrigatorios); ! exclui")
-        self.search_input.setToolTip(
-            "Condicao E: Todos os termos separados por virgula devem estar presentes.\n\n"
-            "Modos por termo: \n"
-            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
-        )
-        self.search_input.setMinimumWidth(425)  # +~25% para mais conforto
-        self.search_input.setMaximumWidth(950)
-        try:
-            self.search_input.setMinimumHeight(26)
-        except Exception:
-            pass
-        self.search_input.returnPressed.connect(self.initiate_filtering)
-        self.search_button = QPushButton("Aplicar")
-        self.search_button.clicked.connect(self.initiate_filtering)
-        self.clear_filter_button = QPushButton("Limpar Filtro")
-        self.clear_filter_button.clicked.connect(self.clear_filter)
-        self.clear_filter_button.setEnabled(False)
-        left.addWidget(self.search_label)
-        left.addWidget(self.search_input)
-        left.addWidget(self.search_button)
-        left.addWidget(self.clear_filter_button)
-
-        right = QHBoxLayout()
-        right.setContentsMargins(0, 0, 0, 0)
-        self.column_selector = ColumnSelector(
-            self.display_map,
-            self.visible_columns,
-            default_columns=self.default_columns,
-            available_columns=list(self.display_map.keys()),
-            info_font=self._info_font,
-        )
-        self.column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(self.column_selector)
-
-        search_row.addLayout(left)
-        # Espaçador expansável garante que o grupo da direita encoste no limite direito
-        search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(right)
-        main_layout.addLayout(search_row)
-
-        # Ajuda compacta do filtro global (linha curta abaixo da pesquisa)
-        help_line = QHBoxLayout()
-        help_line.setContentsMargins(0, 0, 0, 0)
-        # Texto direto e visivel; etiqueta se expande ate o fim da linha
-        self.search_help = QLabel(
-            "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
-        )
-        self.search_help.setWordWrap(False)
-        try:
-            self.search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        except Exception:
-            pass
-        self.search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
-        help_line.addWidget(self.search_help)
-        main_layout.addLayout(help_line)
-        # Espaco para destacar a faixa de pesquisa (simetrico com o topo)
-        main_layout.addSpacing(6)
-
-        # --- Paginador e Filtros Persistentes ---
-        pagination_filters_layout = QHBoxLayout()
-        pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Paginador
-        self.paginator = DataPaginator(self.df_para_tabela)
-        self.paginator.page_changed.connect(self.display_current_page)
-        pagination_filters_layout.addWidget(self.paginator)
-
-        # Perfil de filtro por setor
-        profile_layout = QHBoxLayout()
-        profile_layout.setContentsMargins(0, 0, 0, 0)
-        profile_layout.setSpacing(4)
-        profile_label = QLabel("Perfil de filtro:")
-        self.profile_selector = QComboBox()
-        try:
-            self.profile_selector.setMinimumWidth(150)
-            self.profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        except Exception:
-            pass
-        self.profile_selector.addItem("Personalizado", None)
-        for profile_name in self.filter_profiles.keys():
-            self.profile_selector.addItem(profile_name, profile_name)
-        self.profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(profile_label)
-        profile_layout.addWidget(self.profile_selector)
-        pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(profile_layout)
-
-        # Espaçamento entre paginador e filtros
-        pagination_filters_layout.addSpacing(12)
-
-        # Area de filtros persistentes
-        self.persistent_filters_layout = QHBoxLayout()
-        self.persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        save_filter_button = QPushButton("Salvar Filtro")
-        save_filter_button.setMaximumWidth(100)
-        save_filter_button.setToolTip("Salvar filtro atual como persistente")
-        save_filter_button.clicked.connect(self.save_current_filter)
-        self.persistent_filters_layout.addWidget(save_filter_button)
-
-        self.exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
-        self.exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
-        try:
-            self.exclude_ste_checkbox.setChecked(False)
-        except Exception:
-            pass
-        try:
-            self.exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
-        except Exception:
-            pass
-        self.persistent_filters_layout.addWidget(self.exclude_ste_checkbox)
-
-        # Container para tags de filtros
-        self.filter_tags_widget = QWidget()
-        self.filter_tags_layout = QHBoxLayout(self.filter_tags_widget)
-        self.filter_tags_layout.setContentsMargins(0, 0, 0, 0)
-        self.filter_tags_layout.setSpacing(5)
-        self.persistent_filters_layout.addWidget(self.filter_tags_widget)
-
-        pagination_filters_layout.addLayout(self.persistent_filters_layout)
-        pagination_filters_layout.addStretch()
-        # Indicador de filtros por coluna (ao lado de "Salvar Filtro")
-        self.col_filter_indicator = QLabel("Filtros por coluna: Não ativo")
-        try:
-            if self._info_font is not None:
-                self.col_filter_indicator.setFont(QFont(self._info_font))
-        except Exception:
-            pass
-        self.col_filter_indicator.setToolTip(
-            "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
-            "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
-        )
-        pagination_filters_layout.addWidget(self.col_filter_indicator)
-
-        main_layout.addLayout(pagination_filters_layout)
-
-        # Linha de resumo de filtros aplicados (Geral + Colunas)
-        try:
-            self.filters_summary_frame = QFrame()
-            self.filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
-            summary_layout = QHBoxLayout(self.filters_summary_frame)
-            summary_layout.setContentsMargins(6,4,6,4)
-            summary_layout.setSpacing(8)
-            self.filters_summary_label = QLabel("Nenhum filtro ativo")
-            if self._info_font is not None:
-                try:
-                    self.filters_summary_label.setFont(QFont(self._info_font))
-                except Exception:
-                    pass
-            self.clear_all_filters_btn = QPushButton("Limpar todos os filtros")
-            self.clear_all_filters_btn.setMaximumWidth(200)
-            self.clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
-            try:
-                self.clear_all_filters_btn.setStyleSheet(self._week_label_style)
-            except Exception:
-                pass
-            summary_layout.addWidget(self.clear_all_filters_btn, 0)
-            summary_layout.addWidget(self.filters_summary_label, 1)
-            main_layout.addWidget(self.filters_summary_frame)
-            # Sempre visível; o texto é atualizado conforme filtros
-            self.filters_summary_frame.setVisible(True)
-        except Exception:
-            pass
-
-        # Restaura page size se configurado
-        if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
-            self.paginator.page_size_spinbox.setValue(self._restored_page_size)
-        # Persiste alterações do page size
-        self.paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
-
-        # --- Tabela de Dados ---
-        self.table_widget = QTableWidget()
-        self.table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        # Começa como Interativo; apos preencher a pagina, aplicamos larguras fixas para estabilidade
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_widget.verticalHeader().setVisible(False)
-
-        # CORRECAO v3.0.5: Performance otimizada - removido word wrap global e resize automatico
-        # Word wrap causa lentidção extrema em grandes datasets
-        # self.table_widget.setWordWrap(True)  # ÔåÉ REMOVIDO - causava travamentos
-
-        # Altura fixa otimizada ao inves de resize automatico
-        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        self.table_widget.verticalHeader().setDefaultSectionSize(24)  # Altura fixa otimizada
-
-        # Conecta clique duplo para mostrar detalhes (placeholder)
-        self.table_widget.doubleClicked.connect(self.on_table_double_click)
-        # Atualiza painel de detalhes quando a seleçção muda
-        self.table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-        # Salva largura quando usuãrio redimensionar uma coluna
-        self.table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
-
-        # Ordenaçção por clique no cabeçalho + menu de filtro por coluna
-        try:
-            header = self.table_widget.horizontalHeader()
-            header.setSectionsClickable(True)
-            header.setSortIndicatorShown(True)
-            # Evita colunas com largura zero em cenários headless/CI
-            try:
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
-            except Exception:
-                pass
-            # Fonte do cabeçalho nunca em negrito (evita ocupar mais espaço)
-            try:
-                f = header.font()
-                f.setBold(False)
-                header.setFont(f)
-                header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-            except Exception:
-                pass
-            header.sectionClicked.connect(self.on_header_clicked)
-            header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            header.customContextMenuRequested.connect(self.show_header_context_menu)
-            # Filtro de eventos garante menu mesmo em temas/estilos que suprimem o sinal
-            header.installEventFilter(self)
-        except Exception:
-            pass
-
-        # Habilita menu de contexto
-        self.table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table_widget.customContextMenuRequested.connect(self.show_context_menu)
-
-        main_layout.addWidget(self.table_widget)
-
-        # --- Painel de Detalhes + Painel de Filtros por Coluna (com rodape fixo) ---
-        bottom_layout = QHBoxLayout()
-
-        # Detalhes (maior)
-        self.details_group = QGroupBox("Detalhes da SSA Selecionada")
-        details_layout = QVBoxLayout(self.details_group)
-        details_layout.setContentsMargins(2, 2, 2, 2)  # Reduzido de 5 para 2
-        details_layout.setSpacing(2)  # Reduzido de 3 para 2
-        self.details_text = QTextEdit()
-        try:
-            self.details_text.setFrameShape(QFrame.Shape.NoFrame)
-        except Exception:
-            pass
-        try:
-            self.details_text.viewport().setAutoFillBackground(False)
-        except Exception:
-            pass
-        self.details_text.setReadOnly(True)
-        details_layout.addWidget(self.details_text)
-        bottom_layout.addWidget(self.details_group, 5)
-        
-
-        # Filtros por Coluna com lista rolavel + rodape fixo
-        self.col_filters_group = QGroupBox("Filtros por Coluna")
-        col_filters_outer = QVBoxLayout(self.col_filters_group)
-        from PyQt6.QtWidgets import QScrollArea
-        self.col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
-        try:
-            self.col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
-        except Exception:
-            pass
-        col_filters_outer.addWidget(self.col_filters_hint)
-        self.col_filters_scroll = QScrollArea()
-        self.col_filters_scroll.setWidgetResizable(True)
-        self.col_filters_container = QWidget()
-        self.col_filters_list_layout = QVBoxLayout(self.col_filters_container)
-        self.col_filters_scroll.setWidget(self.col_filters_container)
-        col_filters_outer.addWidget(self.col_filters_scroll, 1)
-        # Rodape fixo
-        footer = QHBoxLayout()
-        footer.addStretch()
-        self.add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
-        self.add_column_filter_btn.setMaximumWidth(260)
-        self.add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
-        self.add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
-        footer.addWidget(self.add_column_filter_btn)
-        footer.addSpacing(8)
-        self.clear_all_btn = QPushButton("Limpar todos filtros de colunas")
-        self.clear_all_btn.setMaximumWidth(260)
-        self.clear_all_btn.clicked.connect(self._clear_all_column_filters)
-        footer.addWidget(self.clear_all_btn)
-        footer.addStretch()
-        col_filters_outer.addLayout(footer)
-
-        # Constrói painel inicial de filtros por coluna
-        try:
-            self._build_column_filters_panel()
-        except Exception:
-            pass
-
-        # Coluna da direita: apenas grupo de filtros por coluna (resumo duplicado removido)
-        right_col_widget = QWidget()
-        right_col = QVBoxLayout(right_col_widget)
-        right_col.setContentsMargins(0,0,0,0)
-        right_col.addWidget(self.col_filters_group)
-        bottom_layout.addWidget(right_col_widget, 5)
-
-        # Respiro antes do bloco inferior
-        main_layout.addSpacing(12)
-        main_layout.addLayout(bottom_layout)
+        self.main_tabs = QTabWidget()
+        tab_main = QWidget()
+        ctx_main = self._build_tab_content(tab_main)
+        self.main_tabs.addTab(tab_main, "SSAs")
+        tab_filters = QWidget()
+        ctx_filters = self._build_tab_content(tab_filters)
+        self.main_tabs.addTab(tab_filters, "Filtros")
+        self._tab_contexts = [ctx_main, ctx_filters]
+        main_layout.addWidget(self.main_tabs)
+        self.main_tabs.currentChanged.connect(self._on_tab_changed)
+        self._bind_tab_context(ctx_main)
 
         # --- Conecta Workers / Flags ---
         # Threads iniciadas sob demanda
@@ -1024,14 +758,424 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Em ambiente de testes (pytest), force modo síncrono para previsibilidade
         if not self._sync_filtering and os.environ.get("PYTEST_CURRENT_TEST"):
             self._sync_filtering = True
-        
-        # Conecta debounce automático ao digitar
-        self.search_input.textChanged.connect(self._on_search_text_changed)
-        
+
         # Configura cache size da configuração
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         cache_size = gui_settings.get("filter_cache_size", 50)
         FilterWorker._cache = FilterCache(max_size=cache_size)
+
+    def _build_tab_content(self, page: QWidget) -> dict:
+        tab_layout = QVBoxLayout(page)
+        ctx = {}
+
+        # Top spacing for search row
+        tab_layout.addSpacing(6)
+
+        # Search row
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(6)
+
+        left = QHBoxLayout()
+        left.setContentsMargins(0, 0, 0, 0)
+        search_label = QLabel("Pesquisa Geral:")
+        search_input = QLineEdit()
+        search_input.setPlaceholderText("Separe por virgulas (condicao E: todos os termos obrigatorios); ! exclui")
+        search_input.setToolTip(
+            "Condicao E: Todos os termos separados por virgula devem estar presentes.\n\n"
+            "Modos por termo: \n"
+            "- contem (padrao): foo\n- comeca com: ^foo\n- termina com: foo$\n- igual: =foo\n- regex: ~foo.*bar\n- negativos: prefixe ! (ex.: !^adm, !$2025)"
+        )
+        search_input.setMinimumWidth(425)
+        search_input.setMaximumWidth(950)
+        try:
+            search_input.setMinimumHeight(26)
+        except Exception:
+            pass
+        search_input.returnPressed.connect(self.initiate_filtering)
+        search_input.textChanged.connect(self._on_search_text_changed)
+        search_button = QPushButton("Aplicar")
+        search_button.clicked.connect(self.initiate_filtering)
+        clear_filter_button = QPushButton("Limpar Filtro")
+        clear_filter_button.clicked.connect(self.clear_filter)
+        clear_filter_button.setEnabled(False)
+        left.addWidget(search_label)
+        left.addWidget(search_input)
+        left.addWidget(search_button)
+        left.addWidget(clear_filter_button)
+
+        right = QHBoxLayout()
+        right.setContentsMargins(0, 0, 0, 0)
+        column_selector = ColumnSelector(
+            self.display_map,
+            self.visible_columns,
+            default_columns=self.default_columns,
+            available_columns=list(self.display_map.keys()),
+            info_font=self._info_font,
+        )
+        column_selector.columns_changed.connect(self.on_columns_changed)
+        right.addWidget(column_selector)
+
+        search_row.addLayout(left)
+        search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        search_row.addLayout(right)
+        tab_layout.addLayout(search_row)
+
+        help_line = QHBoxLayout()
+        help_line.setContentsMargins(0, 0, 0, 0)
+        search_help = QLabel(
+            "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
+        )
+        search_help.setWordWrap(False)
+        try:
+            search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        except Exception:
+            pass
+        search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
+        help_line.addWidget(search_help)
+        tab_layout.addLayout(help_line)
+        tab_layout.addSpacing(6)
+
+        # Pagination and persistent filters
+        pagination_filters_layout = QHBoxLayout()
+        pagination_filters_layout.setContentsMargins(0, 0, 0, 0)
+
+        paginator = DataPaginator(self.df_para_tabela)
+        paginator.page_changed.connect(self.display_current_page)
+        pagination_filters_layout.addWidget(paginator)
+
+        profile_layout = QHBoxLayout()
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        profile_layout.setSpacing(4)
+        profile_label = QLabel("Perfil de filtro:")
+        profile_selector = QComboBox()
+        try:
+            profile_selector.setMinimumWidth(150)
+            profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        except Exception:
+            pass
+        profile_selector.addItem("Personalizado", None)
+        for profile_name in self.filter_profiles.keys():
+            profile_selector.addItem(profile_name, profile_name)
+        profile_selector.currentIndexChanged.connect(self.on_profile_changed)
+        profile_layout.addWidget(profile_label)
+        profile_layout.addWidget(profile_selector)
+        pagination_filters_layout.addSpacing(12)
+        pagination_filters_layout.addLayout(profile_layout)
+
+        pagination_filters_layout.addSpacing(12)
+
+        persistent_filters_layout = QHBoxLayout()
+        persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
+
+        save_filter_button = QPushButton("Salvar Filtro")
+        save_filter_button.setMaximumWidth(100)
+        save_filter_button.setToolTip("Salvar filtro atual como persistente")
+        save_filter_button.clicked.connect(self.save_current_filter)
+        persistent_filters_layout.addWidget(save_filter_button)
+
+        exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
+        exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
+        try:
+            exclude_ste_checkbox.setChecked(False)
+        except Exception:
+            pass
+        try:
+            exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
+        except Exception:
+            pass
+        persistent_filters_layout.addWidget(exclude_ste_checkbox)
+
+        filter_tags_widget = QWidget()
+        filter_tags_layout = QHBoxLayout(filter_tags_widget)
+        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
+        filter_tags_layout.setSpacing(5)
+        persistent_filters_layout.addWidget(filter_tags_widget)
+
+        pagination_filters_layout.addLayout(persistent_filters_layout)
+        pagination_filters_layout.addStretch()
+
+        col_filter_indicator = QLabel("Filtros por coluna: Não ativo")
+        try:
+            if self._info_font is not None:
+                col_filter_indicator.setFont(QFont(self._info_font))
+        except Exception:
+            pass
+        col_filter_indicator.setToolTip(
+            "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
+            "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
+        )
+        pagination_filters_layout.addWidget(col_filter_indicator)
+
+        tab_layout.addLayout(pagination_filters_layout)
+
+        filters_summary_frame = None
+        filters_summary_label = None
+        clear_all_filters_btn = None
+        try:
+            filters_summary_frame = QFrame()
+            filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
+            summary_layout = QHBoxLayout(filters_summary_frame)
+            summary_layout.setContentsMargins(6, 4, 6, 4)
+            summary_layout.setSpacing(8)
+            filters_summary_label = QLabel("Nenhum filtro ativo")
+            if self._info_font is not None:
+                try:
+                    filters_summary_label.setFont(QFont(self._info_font))
+                except Exception:
+                    pass
+            clear_all_filters_btn = QPushButton("Limpar todos os filtros")
+            clear_all_filters_btn.setMaximumWidth(200)
+            clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
+            try:
+                clear_all_filters_btn.setStyleSheet(self._week_label_style)
+            except Exception:
+                pass
+            summary_layout.addWidget(clear_all_filters_btn, 0)
+            summary_layout.addWidget(filters_summary_label, 1)
+            tab_layout.addWidget(filters_summary_frame)
+            filters_summary_frame.setVisible(True)
+        except Exception:
+            pass
+
+        if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
+            try:
+                paginator.page_size_spinbox.setValue(self._restored_page_size)
+            except Exception:
+                pass
+        try:
+            paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
+        except Exception:
+            pass
+
+        # Table
+        table_widget = QTableWidget()
+        table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        table_widget.verticalHeader().setVisible(False)
+        table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        table_widget.verticalHeader().setDefaultSectionSize(24)
+
+        table_widget.doubleClicked.connect(self.on_table_double_click)
+        table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
+        table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
+
+        try:
+            header = table_widget.horizontalHeader()
+            header.setSectionsClickable(True)
+            header.setSortIndicatorShown(True)
+            try:
+                header.setMinimumSectionSize(80)
+                header.setDefaultSectionSize(100)
+            except Exception:
+                pass
+            try:
+                f = header.font()
+                f.setBold(False)
+                header.setFont(f)
+                header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+            except Exception:
+                pass
+            header.sectionClicked.connect(self.on_header_clicked)
+            header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            header.customContextMenuRequested.connect(self.show_header_context_menu)
+            header.installEventFilter(self)
+        except Exception:
+            pass
+
+        table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table_widget.customContextMenuRequested.connect(self.show_context_menu)
+
+        tab_layout.addWidget(table_widget)
+
+        # Details + column filters
+        bottom_layout = QHBoxLayout()
+        details_group = QGroupBox("Detalhes da SSA Selecionada")
+        details_layout = QVBoxLayout(details_group)
+        details_layout.setContentsMargins(2, 2, 2, 2)
+        details_layout.setSpacing(2)
+        details_text = QTextEdit()
+        try:
+            details_text.setFrameShape(QFrame.Shape.NoFrame)
+        except Exception:
+            pass
+        try:
+            details_text.viewport().setAutoFillBackground(False)
+        except Exception:
+            pass
+        details_text.setReadOnly(True)
+        details_layout.addWidget(details_text)
+        bottom_layout.addWidget(details_group, 5)
+
+        col_filters_group = QGroupBox("Filtros por Coluna")
+        col_filters_outer = QVBoxLayout(col_filters_group)
+        from PyQt6.QtWidgets import QScrollArea
+        col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
+        try:
+            col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
+        except Exception:
+            pass
+        col_filters_outer.addWidget(col_filters_hint)
+        col_filters_scroll = QScrollArea()
+        col_filters_scroll.setWidgetResizable(True)
+        col_filters_container = QWidget()
+        col_filters_list_layout = QVBoxLayout(col_filters_container)
+        col_filters_scroll.setWidget(col_filters_container)
+        col_filters_outer.addWidget(col_filters_scroll, 1)
+        footer = QHBoxLayout()
+        footer.addStretch()
+        add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
+        add_column_filter_btn.setMaximumWidth(260)
+        add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
+        add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
+        footer.addWidget(add_column_filter_btn)
+        footer.addSpacing(8)
+        clear_all_btn = QPushButton("Limpar todos filtros de colunas")
+        clear_all_btn.setMaximumWidth(260)
+        clear_all_btn.clicked.connect(self._clear_all_column_filters)
+        footer.addWidget(clear_all_btn)
+        footer.addStretch()
+        col_filters_outer.addLayout(footer)
+
+        right_col_widget = QWidget()
+        right_col = QVBoxLayout(right_col_widget)
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.addWidget(col_filters_group)
+        bottom_layout.addWidget(right_col_widget, 5)
+
+        tab_layout.addSpacing(12)
+        tab_layout.addLayout(bottom_layout)
+
+        ctx.update(
+            {
+                "search_label": search_label,
+                "search_input": search_input,
+                "search_button": search_button,
+                "clear_filter_button": clear_filter_button,
+                "column_selector": column_selector,
+                "search_help": search_help,
+                "paginator": paginator,
+                "profile_selector": profile_selector,
+                "persistent_filters_layout": persistent_filters_layout,
+                "filter_tags_widget": filter_tags_widget,
+                "filter_tags_layout": filter_tags_layout,
+                "exclude_ste_checkbox": exclude_ste_checkbox,
+                "col_filter_indicator": col_filter_indicator,
+                "filters_summary_frame": filters_summary_frame,
+                "filters_summary_label": filters_summary_label,
+                "clear_all_filters_btn": clear_all_filters_btn,
+                "table_widget": table_widget,
+                "details_group": details_group,
+                "details_text": details_text,
+                "col_filters_group": col_filters_group,
+                "col_filters_hint": col_filters_hint,
+                "col_filters_scroll": col_filters_scroll,
+                "col_filters_container": col_filters_container,
+                "col_filters_list_layout": col_filters_list_layout,
+                "add_column_filter_btn": add_column_filter_btn,
+                "clear_all_btn": clear_all_btn,
+            }
+        )
+        return ctx
+
+    def _bind_tab_context(self, ctx: dict) -> None:
+        previous_text = None
+        if hasattr(self, "search_input") and self.search_input is not None:
+            try:
+                previous_text = self.search_input.text()
+            except Exception:
+                previous_text = None
+
+        for name in self.TAB_WIDGET_ATTRS:
+            if name in ctx:
+                setattr(self, name, ctx[name])
+
+        if previous_text is not None:
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.setText(previous_text)
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception:
+                    pass
+        try:
+            active_text = self.search_input.text().strip()
+            self.clear_filter_button.setEnabled(bool(active_text))
+        except Exception:
+            pass
+
+        try:
+            self.exclude_ste_checkbox.blockSignals(True)
+            self.exclude_ste_checkbox.setChecked(bool(getattr(self, "_exclude_ste_sca", False)))
+        except Exception:
+            pass
+        finally:
+            try:
+                self.exclude_ste_checkbox.blockSignals(False)
+            except Exception:
+                pass
+
+        try:
+            if self.current_filter_profile:
+                idx = self.profile_selector.findData(self.current_filter_profile)
+            else:
+                idx = 0
+            if idx >= 0:
+                self.profile_selector.blockSignals(True)
+                self.profile_selector.setCurrentIndex(idx)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.profile_selector.blockSignals(False)
+            except Exception:
+                pass
+
+        try:
+            self.column_selector.set_selected_columns(self.visible_columns)
+        except Exception:
+            pass
+
+        try:
+            self.paginator.set_dataframe(self.df_exibido)
+        except Exception:
+            pass
+        try:
+            self._build_column_filters_panel()
+        except Exception:
+            pass
+        try:
+            self._update_col_filter_indicator()
+        except Exception:
+            pass
+        try:
+            self._update_filters_summary()
+        except Exception:
+            pass
+        try:
+            self.update_filter_tags()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_current_theme", None):
+                self.apply_theme(self._current_theme)
+        except Exception:
+            pass
+        try:
+            current_page = max(1, getattr(self.paginator, "current_page", 1))
+            self.display_current_page(current_page)
+        except Exception:
+            pass
+
+    def _on_tab_changed(self, index: int) -> None:
+        if not hasattr(self, "_tab_contexts"):
+            return
+        if index < 0 or index >= len(self._tab_contexts):
+            return
+        ctx = self._tab_contexts[index]
+        self._bind_tab_context(ctx)
 
     def load_data(self):
         if not os.path.exists(DB_PATH):
@@ -1420,43 +1564,64 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pal = get_palette(normalized)
             self.setPalette(pal)
 
-        # ============================================================
-        # SECTION 2: Application-Wide Widget Settings
-        # ============================================================
-        # Set central widget background and table header styling
-        # Ensure central widget background matches the palette to avoid white boxes
-        try:
-            central = self.centralWidget()
-            if central is not None:
-                try:
-                    central.setStyleSheet("")
-                except Exception:
-                    pass
-                existing = central.styleSheet() or ""
-                start = existing.find("/* SSA_MAIN_BG_START */")
-                if start != -1:
-                    end = existing.find("/* SSA_MAIN_BG_END */", start)
-                    if end != -1:
-                        end += len("/* SSA_MAIN_BG_END */")
-                        existing = (existing[:start] + existing[end:]).rstrip()
+            # ============================================================
+            # SECTION 2: Application-Wide Widget Settings
+            # ============================================================
+            # Set central widget background and table header styling
+            # Ensure central widget background matches the palette to avoid white boxes
+            try:
+                central = self.centralWidget()
+                if central is not None:
+                    try:
+                        central.setStyleSheet("")
+                    except Exception:
+                        pass
+                    existing = central.styleSheet() or ""
+                    start = existing.find("/* SSA_MAIN_BG_START */")
+                    if start != -1:
+                        end = existing.find("/* SSA_MAIN_BG_END */", start)
+                        if end != -1:
+                            end += len("/* SSA_MAIN_BG_END */")
+                            existing = (existing[:start] + existing[end:]).rstrip()
+                        else:
+                            existing = existing[:start].rstrip()
+                    normalized_name = normalize_theme(normalized)
+                    if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
+                        bg = pal.window().color().name()
+                        block = build_central_widget_qss(bg)
+                        new_css = existing
+                        if new_css:
+                            if not new_css.endswith("\n"):
+                                new_css += "\n"
+                            new_css += block
+                        else:
+                            new_css = block
+                        central.setStyleSheet(new_css)
                     else:
-                        existing = existing[:start].rstrip()
-                normalized_name = normalize_theme(normalized)
-                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
-                    bg = pal.window().color().name()
-                    block = build_central_widget_qss(bg)
-                    new_css = existing
-                    if new_css:
-                        if not new_css.endswith("\n"):
-                            new_css += "\n"
-                        new_css += block
-                    else:
-                        new_css = block
-                    central.setStyleSheet(new_css)
-                else:
-                    central.setStyleSheet(existing)
-        except Exception:
-            pass
+                        central.setStyleSheet(existing)
+            except Exception:
+                pass
+            try:
+                if hasattr(self, "main_tabs") and self.main_tabs is not None:
+                    tab_bg = pal.color(_QPal.ColorRole.Window).name()
+                    tab_text = pal.color(_QPal.ColorRole.WindowText).name()
+                    tab_mid = pal.color(_QPal.ColorRole.Mid).name()
+                    tab_css = (
+                        "QTabWidget::pane {"
+                        f" border:1px solid {tab_mid};"
+                        f" background: {tab_bg};"
+                        " }"
+                        "QTabBar::tab {"
+                        f" color: {tab_text};"
+                        " padding:4px 10px;"
+                        " }"
+                        "QTabBar::tab:selected {"
+                        f" background: {tab_bg};"
+                        " }"
+                    )
+                    self.main_tabs.setStyleSheet(tab_css)
+            except Exception:
+                pass
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
@@ -1805,7 +1970,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 ),
             )
 
-        # Aplica formataçção compartilhada para exibiçção (datas, numeros, SSA, nulls)
+        # Single display-formatting entrypoint for GUI table rendering.
+        # Keep format_dataframe_for_display here to avoid scattered per-cell rules.
         # OTIMIZACAO: Cache formatacao para evitar reformatar dados inalterados
         display_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)) + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else ''))
 
@@ -2172,6 +2338,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None):
         """Formata dados da SSA como HTML com highlight opcional."""
+        # Single display-formatting entrypoint for details panel; keep format_cell here.
         # HTML is required here to keep search hit highlighting in the details panel.
         import html as html_module
 
