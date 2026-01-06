@@ -43,6 +43,12 @@ class ColumnSelector(QWidget):
         self.manage_button = QPushButton("Colunas visiveis...")
         self.manage_button.setToolTip("Configurar colunas rapidas (marcar, ordenar e restaurar padrao)")
         self.manage_button.clicked.connect(self.open_dialog)
+        try:
+            fm = self.manage_button.fontMetrics()
+            text_width = fm.horizontalAdvance(self.manage_button.text())
+            self.manage_button.setMinimumWidth(text_width + 40)
+        except Exception:
+            pass
         layout.addWidget(self.manage_button)
 
         self.summary_label = QLabel()
