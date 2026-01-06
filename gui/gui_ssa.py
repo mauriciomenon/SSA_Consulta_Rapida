@@ -1216,28 +1216,72 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             pass
-        theme_options = [
-            ("Escala de cinza", 'grayscale'),
-            ("Escuro", 'dark'),
-            ("Gruvbox", 'gruvbox'),
-            ("Dracula", 'dracula'),
-            ("Solarized Dark", 'solarized-dark'),
+        light_themes = [
+            ("Claro", 'claro'),
+            ("Mint Light", 'mint-light'),
+            ("Paper", 'paper'),
             ("Solarized Light", 'solarized-light'),
-            ("Tokyo Night", 'tokyo-night'),
-            ("Catppuccin (Mocha)", 'catppuccin'),
-            ("Nord", 'nord'),
             ("Windows 7", 'windows7'),
-            ("GNOME (Claro)", 'claro'),
         ]
-        for label, key in theme_options:
-            act = menu.addAction(label)
-            if act is not None:  # defesa para analise estatica
-                trigger = getattr(act, "triggered", None)
-                if trigger is not None:
+        dark_themes = [
+            ("Catppuccin (Mocha)", 'catppuccin'),
+            ("Dark", 'dark'),
+            ("Dracula", 'dracula'),
+            ("Grayscale", 'grayscale'),
+            ("Gruvbox", 'gruvbox'),
+            ("Nord", 'nord'),
+            ("Solarized Dark", 'solarized-dark'),
+            ("Tokyo Night", 'tokyo-night'),
+        ]
+
+        def _add_label(text: str):
+            try:
+                from PyQt6.QtWidgets import QWidgetAction
+                label = QLabel(text)
+                try:
+                    from PyQt6.QtGui import QPalette as _QPal
+                    pal = menu.palette()
+                    label_color = pal.color(_QPal.ColorRole.Mid).name()
+                    label.setStyleSheet(
+                        f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
+                    )
+                except Exception:
+                    pass
+                action = QWidgetAction(menu)
+                action.setDefaultWidget(label)
+                menu.addAction(action)
+            except Exception:
+                act = menu.addAction(text)
+                if act is not None:
                     try:
-                        trigger.connect(partial(self.apply_theme, key))
+                        act.setEnabled(False)
                     except Exception:
                         pass
+
+        def _add_group(items):
+            for label, key in items:
+                act = menu.addAction(label)
+                if act is not None:
+                    trigger = getattr(act, "triggered", None)
+                    if trigger is not None:
+                        try:
+                            trigger.connect(partial(self.apply_theme, key))
+                        except Exception:
+                            pass
+
+        _add_label("Light")
+        _add_group(sorted(light_themes, key=lambda item: item[0].lower()))
+        menu.addSeparator()
+        _add_label("Dark")
+        _add_group(sorted(dark_themes, key=lambda item: item[0].lower()))
+
+        try:
+            labels = [name for name, _ in light_themes + dark_themes]
+            fm = menu.fontMetrics()
+            widest = max(fm.horizontalAdvance(lbl) for lbl in labels)
+            menu.setMinimumWidth(widest + 48)
+        except Exception:
+            pass
         btn = self.sender()
         try:
             if btn is not None:
@@ -1263,27 +1307,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             from PyQt6.QtWidgets import QApplication, QStyleFactory
             app = QApplication.instance()
-            if normalized == 'grayscale':
-                # Usa a paleta padrão sem depender de QStyleFactory
-                if app is not None and hasattr(app, 'style'):
-                    style_obj = app.style()
-                    palette_factory = getattr(style_obj, 'standardPalette', None)
-                    try:
-                        pal = palette_factory() if callable(palette_factory) else get_palette(normalized)
-                    except Exception:  # noqa: BLE001
-                        pal = get_palette(normalized)
-                else:
-                    pal = get_palette(normalized)
-            else:
-                pal = get_palette(normalized)
+            pal = get_palette(normalized)
             # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
-            # Ao usar temas personalizados (não-sistema), force "Fusion" para melhor consistência.
+            # Para consistencia, force "Fusion" em todos os temas.
             try:
                 if app is not None:
-                    if normalized not in {'grayscale', 'windows7', 'gnome'}:
-                        styles = QStyleFactory.keys()
-                        if styles and 'Fusion' in styles:
-                            app.setStyle('Fusion')
+                    styles = QStyleFactory.keys()
+                    if styles and 'Fusion' in styles:
+                        app.setStyle('Fusion')
             except Exception:
                 pass
             # Aplica paleta no aplicativo inteiro para garantir consistência
@@ -1293,14 +1324,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     app.setStyleSheet("")
                     block = build_global_widget_qss(pal)
-                    if normalized == 'grayscale':
-                        sel_bg = pal.color(_QPal.ColorRole.Highlight).name()
-                        sel_fg = pal.color(_QPal.ColorRole.HighlightedText).name()
-                        block += (
-                            "\nQAbstractItemView::item:selected { background-color: " + sel_bg + "; color: " + sel_fg + "; }\n"
-                            "QLineEdit, QTextEdit, QTextBrowser, QPlainTextEdit { selection-background-color: " + sel_bg + "; selection-color: " + sel_fg + "; }\n"
-                            "QMenu::item:selected { background-color: " + sel_bg + "; color: " + sel_fg + "; }\n"
-                        )
                     app.setStyleSheet(block)
                 except Exception:
                     pass
@@ -1332,7 +1355,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     else:
                         existing = existing[:start].rstrip()
                 normalized_name = normalize_theme(normalized)
-                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
+                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
                     bg = pal.window().color().name()
                     block = build_central_widget_qss(bg)
                     new_css = existing
@@ -1352,18 +1375,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
         except Exception:
             pass
-        try:
-            if hasattr(self, 'table_widget'):
-                if normalized == 'grayscale':
-                    sel_bg = pal.color(_QPal.ColorRole.Highlight).name()
-                    sel_fg = pal.color(_QPal.ColorRole.HighlightedText).name()
-                    self.table_widget.setStyleSheet(
-                        "QTableWidget::item:selected{background:" + sel_bg + "; color:" + sel_fg + ";}"
-                    )
-                else:
-                    self.table_widget.setStyleSheet("")
-        except Exception:
-            pass
 
         # ============================================================
         # SECTION 3: Extract Theme Color Roles
@@ -1372,7 +1383,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # These variables are used in subsequent sections
         self._current_theme = normalized
         try:
-            light_themes = {'windows7', 'gnome', 'solarized-light'}
+            light_themes = {'windows7', 'claro', 'solarized-light', 'mint-light', 'paper'}
             selector = getattr(self, 'column_selector', None)
             pal_active = self.palette()
             from PyQt6.QtGui import QPalette as _QPal
