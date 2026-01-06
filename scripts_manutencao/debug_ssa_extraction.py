@@ -19,10 +19,10 @@ def debug_ssa_extraction():
     arquivo_teste = docs_entrada / "Todas as SSAs - 15-08-2025_0431PM.xlsx"
 
     if not arquivo_teste.exists():
-        print(f"❌ Arquivo não encontrado: {arquivo_teste}")
+        print(f"ERR Arquivo não encontrado: {arquivo_teste}")
         return
 
-    print(f"📄 Testando: {arquivo_teste.name}")
+    print(f"FILE Testando: {arquivo_teste.name}")
 
     try:
         # 1. Ler sem qualquer processamento
@@ -65,7 +65,7 @@ def debug_ssa_extraction():
                 print(f"     [{i+1}] {val} (tipo: {type(val)})")
 
     except Exception as e:
-        print(f"❌ ERRO: {e}")
+        print(f"ERR ERRO: {e}")
         import traceback
         traceback.print_exc()
 

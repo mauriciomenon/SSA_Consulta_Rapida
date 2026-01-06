@@ -79,13 +79,13 @@ class CLIEnhancementManager:
     def get_status_report(self) -> str:
         """Retorna relatório do status das melhorias."""
         status = []
-        status.append("📊 STATUS DAS MELHORIAS CLI")
+        status.append("INFO STATUS DAS MELHORIAS CLI")
         status.append("=" * 40)
 
-        enhanced = "✅ ATIVO" if self.is_enhanced_printer_enabled() else "❌ INATIVO"
+        enhanced = "OK ATIVO" if self.is_enhanced_printer_enabled() else "ERR INATIVO"
         status.append(f"Enhanced Table Printer: {enhanced}")
 
-        unified = "✅ ATIVO" if self.is_unified_config_enabled() else "❌ INATIVO"
+        unified = "OK ATIVO" if self.is_unified_config_enabled() else "ERR INATIVO"
         status.append(f"Configuração Unificada: {unified}")
 
         debug = "[OK] ATIVO" if self.is_debug_enabled() else "[X] INATIVO"

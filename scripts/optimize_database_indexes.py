@@ -9,10 +9,10 @@ def check_database_indexes():
     db_path = "data/ssas.db"
     
     if not os.path.exists(db_path):
-        print("❌ Banco de dados não encontrado em:", db_path)
+        print("ERR Banco de dados não encontrado em:", db_path)
         return
     
-    print("🔍 Verificando índices no banco de dados...")
+    print("INFO Verificando índices no banco de dados...")
     print("=" * 50)
     
     with sqlite3.connect(db_path) as conn:
@@ -27,11 +27,11 @@ def check_database_indexes():
         indexes = cursor.fetchall()
         
         if indexes:
-            print("📊 Índices existentes:")
+            print("INFO Índices existentes:")
             for name, sql in indexes:
-                print(f"  ✓ {name}")
+                print(f"   {name}")
         else:
-            print("⚠️  Nenhum índice customizado encontrado")
+            print("WARN  Nenhum índice customizado encontrado")
         
         # Verificar tabelas
         cursor = conn.execute("""
@@ -42,28 +42,28 @@ def check_database_indexes():
         """)
         
         tables = [row[0] for row in cursor.fetchall()]
-        print(f"\n📋 Tabelas disponíveis: {', '.join(tables)}")
+        print(f"\nINFO Tabelas disponíveis: {', '.join(tables)}")
         
         # Verificar contagem de registros
         if 'ssas' in tables:
             cursor = conn.execute("SELECT COUNT(*) FROM ssas")
             count = cursor.fetchone()[0]
-            print(f"📈 Total de registros na tabela 'ssas': {count:,}")
+            print(f"STAT Total de registros na tabela 'ssas': {count:,}")
         
         if 'ssa_table' in tables:
             cursor = conn.execute("SELECT COUNT(*) FROM ssa_table")
             count = cursor.fetchone()[0]
-            print(f"📈 Total de registros na tabela 'ssa_table': {count:,}")
+            print(f"STAT Total de registros na tabela 'ssa_table': {count:,}")
 
 def add_performance_indexes():
     """Adiciona índices adicionais para melhor performance."""
     db_path = "data/ssas.db"
     
     if not os.path.exists(db_path):
-        print("❌ Banco de dados não encontrado")
+        print("ERR Banco de dados não encontrado")
         return
     
-    print("\n🚀 Adicionando índices de performance...")
+    print("\nSTART Adicionando índices de performance...")
     
     # Índices adicionais baseados na análise de uso (na tabela base ssa_table)
     additional_indexes = [
@@ -85,25 +85,25 @@ def add_performance_indexes():
         for index_name, sql in additional_indexes:
             try:
                 conn.execute(sql)
-                print(f"  ✅ Criado/verificado: {index_name}")
+                print(f"  OK Criado/verificado: {index_name}")
                 created_count += 1
             except Exception as e:
-                print(f"  ❌ Erro ao criar {index_name}: {e}")
+                print(f"  ERR Erro ao criar {index_name}: {e}")
         
         # Commit das mudanças
         conn.commit()
     
-    print(f"\n✅ Processo concluído: {created_count} índices processados")
+    print(f"\nOK Processo concluído: {created_count} índices processados")
     
 def analyze_query_performance():
     """Analisa performance de queries comuns."""
     db_path = "data/ssas.db"
     
     if not os.path.exists(db_path):
-        print("❌ Banco de dados não encontrado")
+        print("ERR Banco de dados não encontrado")
         return
         
-    print("\n📊 Analisando performance de queries...")
+    print("\nINFO Analisando performance de queries...")
     
     test_queries = [
         ("Busca por número SSA", "SELECT * FROM ssas WHERE numero_ssa = '2025001' LIMIT 1"),
@@ -123,13 +123,13 @@ def analyze_query_performance():
                 cursor = conn.execute(explain_query)
                 plan = cursor.fetchall()
                 
-                print(f"\n🔍 {desc}:")
+                print(f"\nINFO {desc}:")
                 for row in plan:
                     # SQLite EXPLAIN QUERY PLAN retorna: selectid, order, from, detail
                     print(f"   {row[3]}")
                     
             except Exception as e:
-                print(f"   ❌ Erro: {e}")
+                print(f"   ERR Erro: {e}")
 
 if __name__ == "__main__":
     check_database_indexes()

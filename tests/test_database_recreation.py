@@ -37,11 +37,11 @@ class DatabaseRecreationTester:
             self.backup_path = os.path.join(self.test_dir, "backup_ssas.db")
             self.new_db_path = os.path.join(self.test_dir, "new_ssas.db")
 
-            print(f"📁 Ambiente de teste criado: {self.test_dir}")
+            print(f"DIR Ambiente de teste criado: {self.test_dir}")
             return True
 
         except Exception as e:
-            print(f"❌ Erro ao configurar ambiente: {e}")
+            print(f"ERR Erro ao configurar ambiente: {e}")
             return False
 
     def cleanup(self):
@@ -49,13 +49,13 @@ class DatabaseRecreationTester:
         if self.test_dir and os.path.exists(self.test_dir):
             try:
                 shutil.rmtree(self.test_dir)
-                print("🧹 Ambiente de teste limpo")
+                print("CLEAN Ambiente de teste limpo")
             except Exception as e:
-                print(f"⚠️ Erro ao limpar ambiente: {e}")
+                print(f"WARN Erro ao limpar ambiente: {e}")
 
     def test_backup_creation(self) -> dict:
         """Testa criação de backup do banco original."""
-        print("💾 Testando criação de backup...")
+        print(" Testando criação de backup...")
 
         start_time = datetime.now()
 
@@ -114,9 +114,9 @@ class DatabaseRecreationTester:
             }
 
             if success:
-                print(f"  ✅ Backup criado: {record_count:,} registros ({duration:.2f}s)")
+                print(f"  OK Backup criado: {record_count:,} registros ({duration:.2f}s)")
             else:
-                print(f"  ❌ Falha na criação do backup")
+                print(f"  ERR Falha na criação do backup")
 
             return result
 
@@ -131,7 +131,7 @@ class DatabaseRecreationTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na criação do backup: {e}")
+            print(f"  ERR Erro na criação do backup: {e}")
             return result
 
     def test_clean_database_creation(self) -> dict:
@@ -202,9 +202,9 @@ class DatabaseRecreationTester:
             }
 
             if success:
-                print(f"  ✅ Banco limpo criado: {len(columns)} colunas ({duration:.2f}s)")
+                print(f"  OK Banco limpo criado: {len(columns)} colunas ({duration:.2f}s)")
             else:
-                print(f"  ❌ Falha na criação do banco limpo")
+                print(f"  ERR Falha na criação do banco limpo")
 
             return result
 
@@ -219,12 +219,12 @@ class DatabaseRecreationTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na criação do banco limpo: {e}")
+            print(f"  ERR Erro na criação do banco limpo: {e}")
             return result
 
     def test_data_reimport(self) -> dict:
         """Testa reimportação de dados do backup."""
-        print("📥 Testando reimportação de dados...")
+        print("IN Testando reimportação de dados...")
 
         start_time = datetime.now()
 
@@ -258,7 +258,7 @@ class DatabaseRecreationTester:
                     }
             else:
                 # Se não há arquivos, copiar dados diretamente do backup
-                print("  📂 Copiando dados diretamente do backup...")
+                print("  IN Copiando dados diretamente do backup...")
 
                 with sqlite3.connect(self.backup_path) as backup_conn:
                     with sqlite3.connect(self.new_db_path) as new_conn:
@@ -314,9 +314,9 @@ class DatabaseRecreationTester:
             }
 
             if success:
-                print(f"  ✅ Dados reimportados: {new_record_count:,} registros ({recovery_rate:.1%} recuperação)")
+                print(f"  OK Dados reimportados: {new_record_count:,} registros ({recovery_rate:.1%} recuperação)")
             else:
-                print(f"  ❌ Falha na reimportação: {recovery_rate:.1%} recuperação")
+                print(f"  ERR Falha na reimportação: {recovery_rate:.1%} recuperação")
 
             return result
 
@@ -331,12 +331,12 @@ class DatabaseRecreationTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na reimportação: {e}")
+            print(f"  ERR Erro na reimportação: {e}")
             return result
 
     def test_database_integrity_after_recreation(self) -> dict:
         """Testa integridade do banco após recriação."""
-        print("🔍 Testando integridade após recriação...")
+        print("INFO Testando integridade após recriação...")
 
         start_time = datetime.now()
 
@@ -394,9 +394,9 @@ class DatabaseRecreationTester:
             }
 
             if success:
-                print(f"  ✅ Integridade verificada: score {integrity_score:.1%}")
+                print(f"  OK Integridade verificada: score {integrity_score:.1%}")
             else:
-                print(f"  ❌ Problemas de integridade detectados")
+                print(f"  ERR Problemas de integridade detectados")
 
             return result
 
@@ -411,12 +411,12 @@ class DatabaseRecreationTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na verificação de integridade: {e}")
+            print(f"  ERR Erro na verificação de integridade: {e}")
             return result
 
     def test_performance_comparison(self) -> dict:
         """Compara performance entre banco original e recriado."""
-        print("⚡ Testando performance comparativa...")
+        print("PERF Testando performance comparativa...")
 
         start_time = datetime.now()
 
@@ -476,9 +476,9 @@ class DatabaseRecreationTester:
             }
 
             if performance_acceptable:
-                print(f"  ✅ Performance aceitável: {performance_ratio:.2f}x")
+                print(f"  OK Performance aceitável: {performance_ratio:.2f}x")
             else:
-                print(f"  ⚠️ Performance degradada: {performance_ratio:.2f}x")
+                print(f"  WARN Performance degradada: {performance_ratio:.2f}x")
 
             return result
 
@@ -493,12 +493,12 @@ class DatabaseRecreationTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na comparação de performance: {e}")
+            print(f"  ERR Erro na comparação de performance: {e}")
             return result
 
     def run_complete_recreation_test(self) -> dict:
         """Executa teste completo de recriação do banco."""
-        print("🚀 TESTE COMPLETO DE RECRIAÇÃO DO BANCO DE DADOS")
+        print("START TESTE COMPLETO DE RECRIAÇÃO DO BANCO DE DADOS")
         print("=" * 60)
 
         if not self.setup_test_environment():
@@ -529,7 +529,7 @@ class DatabaseRecreationTester:
 
                 # Se um teste crítico falhar, parar
                 if not result.get('success', False) and test_func.__name__ in ['test_backup_creation', 'test_clean_database_creation']:
-                    print(f"\n❌ Teste crítico falhou: {test_func.__name__}")
+                    print(f"\nERR Teste crítico falhou: {test_func.__name__}")
                     break
 
             total_end_time = datetime.now()
@@ -556,13 +556,13 @@ class DatabaseRecreationTester:
 
             # Mostrar resultado final
             print("\n" + "=" * 60)
-            print("📊 RESULTADO FINAL DA RECRIAÇÃO:")
+            print("INFO RESULTADO FINAL DA RECRIAÇÃO:")
             print(f"   Testes Executados: {total_tests}")
             print(f"   Testes Bem-sucedidos: {successful_tests}")
             print(f"   Taxa de Sucesso: {success_rate:.1%}")
             print(f"   Duração Total: {total_duration:.2f}s")
 
-            status = "✅ RECRIAÇÃO APROVADA" if overall_success else "❌ RECRIAÇÃO COM PROBLEMAS"
+            status = "OK RECRIAÇÃO APROVADA" if overall_success else "ERR RECRIAÇÃO COM PROBLEMAS"
             print(f"   Status: {status}")
 
             return final_result
@@ -580,7 +580,7 @@ class DatabaseRecreationTester:
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
         success = test_result.get('success', False)
-        status_icon = "✅" if success else "❌"
+        status_icon = "OK" if success else "ERR"
 
         content = f"""# Relatório de Teste - Recriação Completa do Banco de Dados
 
@@ -596,11 +596,11 @@ class DatabaseRecreationTester:
 
 ## Processo de Recriação Testado
 
-1. **Backup do Banco Original** 📋
+1. **Backup do Banco Original** INFO
 2. **Criação de Banco Limpo** 🆕
-3. **Reimportação de Dados** 📥
-4. **Verificação de Integridade** 🔍
-5. **Comparação de Performance** ⚡
+3. **Reimportação de Dados** IN
+4. **Verificação de Integridade** INFO
+5. **Comparação de Performance** PERF
 
 ## Resultados Detalhados
 
@@ -610,7 +610,7 @@ class DatabaseRecreationTester:
             test_name = result.get('test_name', 'Teste Desconhecido')
             success = result.get('success', False)
             duration = result.get('duration_seconds', 0)
-            status_icon = "✅" if success else "❌"
+            status_icon = "OK" if success else "ERR"
 
             content += f"### {test_name.replace('_', ' ').title()} {status_icon}\n\n"
             content += f"**Duração:** {duration:.2f}s\n\n"
@@ -666,15 +666,15 @@ class DatabaseRecreationTester:
 """
 
         if success:
-            content += """### ✅ Recriação Aprovada
+            content += """### OK Recriação Aprovada
 
 O processo de recriação do banco de dados foi bem-sucedido:
 
-- **Backup criado com segurança** ✅
-- **Novo banco inicializado corretamente** ✅
-- **Dados reimportados com alta fidelidade** ✅
-- **Integridade mantida** ✅
-- **Performance aceitável** ✅
+- **Backup criado com segurança** OK
+- **Novo banco inicializado corretamente** OK
+- **Dados reimportados com alta fidelidade** OK
+- **Integridade mantida** OK
+- **Performance aceitável** OK
 
 **Recomendações:**
 - O sistema pode ser usado para recriação em produção
@@ -691,17 +691,17 @@ O processo de recriação do banco de dados foi bem-sucedido:
 6. Reativar sistema
 """
         else:
-            content += """### ❌ Recriação Requer Atenção
+            content += """### ERR Recriação Requer Atenção
 
 Alguns problemas foram identificados no processo:
 
 **Ações Necessárias:**
-1. 🔍 Investigar falhas específicas nos testes
-2. 🛠️ Corrigir problemas identificados
-3. 🧪 Re-executar testes após correções
-4. 📋 Validar processo manualmente
+1. INFO Investigar falhas específicas nos testes
+2. FIX Corrigir problemas identificados
+3. TEST Re-executar testes após correções
+4. INFO Validar processo manualmente
 
-**⚠️ NÃO recomendado executar recriação em produção até resolver todos os problemas.**
+**WARN NÃO recomendado executar recriação em produção até resolver todos os problemas.**
 
 **Checklist de Verificação:**
 - [ ] Backup está sendo criado corretamente?
@@ -744,7 +744,7 @@ Alguns problemas foram identificados no processo:
 
 def main():
     """Função principal para executar teste de recriação."""
-    print("🚀 TESTE DE RECRIAÇÃO COMPLETA DO BANCO DE DADOS")
+    print("START TESTE DE RECRIAÇÃO COMPLETA DO BANCO DE DADOS")
     print("=" * 70)
 
     tester = DatabaseRecreationTester()
@@ -755,7 +755,7 @@ def main():
     # Gerar relatório
     report_file = tester.generate_recreation_report(test_result)
 
-    print(f"\n📄 Relatório detalhado salvo em: {report_file}")
+    print(f"\nFILE Relatório detalhado salvo em: {report_file}")
     print("=" * 70)
 
     return 0 if test_result.get('success', False) else 1

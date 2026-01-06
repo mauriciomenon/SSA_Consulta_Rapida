@@ -33,10 +33,10 @@ def investigar_ssa_truncados():
     for arquivo in arquivos_teste:
         arquivo_path = docs_entrada / arquivo
         if arquivo_path.exists():
-            print(f"\n📄 ANALISANDO: {arquivo}")
+            print(f"\nFILE ANALISANDO: {arquivo}")
             try:
                 # Ler com header=0 e header=1 para comparar
-                print("   🔍 Header=0 (primeira linha):")
+                print("   INFO Header=0 (primeira linha):")
                 df0 = pd.read_excel(arquivo_path, header=0, nrows=3)
                 cols_relevantes = [col for col in df0.columns if 'ssa' in str(col).lower() or 'número' in str(col).lower()]
                 print(f"      Colunas SSA: {cols_relevantes}")
@@ -45,7 +45,7 @@ def investigar_ssa_truncados():
                     amostras = df0[col_ssa].dropna().head(3).tolist()
                     print(f"      Amostras: {amostras}")
 
-                print("   🔍 Header=1 (segunda linha):")
+                print("   INFO Header=1 (segunda linha):")
                 df1 = pd.read_excel(arquivo_path, header=1, nrows=3)
                 cols_relevantes = [col for col in df1.columns if 'ssa' in str(col).lower() or 'número' in str(col).lower()]
                 print(f"      Colunas SSA: {cols_relevantes}")
@@ -63,12 +63,12 @@ def investigar_ssa_truncados():
                             print(f"         [{i+1}] {amostra} -> {type(amostra)}")
 
             except Exception as e:
-                print(f"   ❌ ERRO: {e}")
+                print(f"   ERR ERRO: {e}")
         else:
-            print(f"\n❌ Arquivo não encontrado: {arquivo}")
+            print(f"\nERR Arquivo não encontrado: {arquivo}")
 
     # 2. Verificar o mapeamento de colunas
-    print(f"\n📋 VERIFICANDO MAPEAMENTO DE COLUNAS:")
+    print(f"\nINFO VERIFICANDO MAPEAMENTO DE COLUNAS:")
     try:
         with open("config/column_mappings.json", "r", encoding="utf-8") as f:
             import json
@@ -77,13 +77,13 @@ def investigar_ssa_truncados():
         if "numero_ssa" in mappings:
             print(f"   Mapeamento numero_ssa: {mappings['numero_ssa']}")
         else:
-            print(f"   ❌ 'numero_ssa' não encontrado no mapeamento")
+            print(f"   ERR 'numero_ssa' não encontrado no mapeamento")
 
     except Exception as e:
-        print(f"   ❌ Erro ao ler mapeamentos: {e}")
+        print(f"   ERR Erro ao ler mapeamentos: {e}")
 
     print(f"\n{'='*50}")
-    print(f"🎯 OBJETIVO DA INVESTIGAÇÃO:")
+    print(f"DONE OBJETIVO DA INVESTIGAÇÃO:")
     print(f"   • Determinar se Excel tem 7 ou 9 dígitos")
     print(f"   • Verificar se problema é na importação")
     print(f"   • Corrigir processo para preservar 9 dígitos")

@@ -84,8 +84,8 @@ if __name__ == '__main__':
     try:
         test_existing_database()
         test_data_validation()
-        print("\n✓ Testes concluídos com sucesso!")
+        print("\n Testes concluídos com sucesso!")
     except Exception as e:
-        print(f"\n✗ Erro durante os testes: {e}")
+        print(f"\n Erro durante os testes: {e}")
         import traceback
         traceback.print_exc()

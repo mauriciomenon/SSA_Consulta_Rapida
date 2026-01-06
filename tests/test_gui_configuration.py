@@ -150,7 +150,7 @@ class TestGUIConfiguration(unittest.TestCase):
 def print_test_summary():
     """Imprime um resumo visual dos testes"""
     print("\n" + "="*60)
-    print("🔧 TESTE DO SISTEMA DE CONFIGURAÇÃO GUI POC")
+    print("FIX TESTE DO SISTEMA DE CONFIGURAÇÃO GUI POC")
     print("="*60)
 
     config_path = Path("config/gui_poc_preferences.json")
@@ -159,19 +159,19 @@ def print_test_summary():
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
-        print(f"📋 Arquivo de configuração: {config_path}")
-        print(f"📊 Colunas para exibir: {len(config.get('display_columns', []))}")
-        print(f"🙈 Colunas ocultas: {len(config.get('hidden_columns', []))}")
-        print(f"📏 Larguras configuradas: {len(config.get('column_widths', {}))}")
-        print(f"🏷️ Nomes alternativos: {len(config.get('column_display_names', {}))}")
-        print(f"📌 Versão: {config.get('version', 'N/A')}")
+        print(f"INFO Arquivo de configuração: {config_path}")
+        print(f"INFO Colunas para exibir: {len(config.get('display_columns', []))}")
+        print(f"NOTE Colunas ocultas: {len(config.get('hidden_columns', []))}")
+        print(f"NOTE Larguras configuradas: {len(config.get('column_widths', {}))}")
+        print(f"NOTE Nomes alternativos: {len(config.get('column_display_names', {}))}")
+        print(f"NOTE Versão: {config.get('version', 'N/A')}")
 
         critical_columns = ['numero_ssa', 'cadastro', 'prioridade']
         display_columns = config.get('display_columns', [])
 
-        print(f"\n✅ Colunas críticas presentes:")
+        print(f"\nOK Colunas críticas presentes:")
         for col in critical_columns:
-            status = "✅" if col in display_columns else "❌"
+            status = "OK" if col in display_columns else "ERR"
             print(f"   {status} {col}")
 
     print("="*60)

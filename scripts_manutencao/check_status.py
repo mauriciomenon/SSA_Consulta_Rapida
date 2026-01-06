@@ -16,8 +16,8 @@ def main():
     # Contar registros únicos
     unique = c.execute("SELECT COUNT(DISTINCT numero_ssa) FROM ssas").fetchone()[0]
 
-    print(f"📊 Total de registros no banco: {total}")
-    print(f"🔍 Registros únicos por numero_ssa: {unique}")
+    print(f"INFO Total de registros no banco: {total}")
+    print(f"INFO Registros únicos por numero_ssa: {unique}")
 
     # Verificar duplicatas
     duplicates = c.execute('''
@@ -27,22 +27,22 @@ def main():
         HAVING COUNT(*) > 1
     ''').fetchall()
 
-    print(f"⚠️  Duplicatas encontradas: {len(duplicates)}")
+    print(f"WARN  Duplicatas encontradas: {len(duplicates)}")
 
     if duplicates:
-        print("❌ AINDA EXISTEM DUPLICATAS!")
+        print("ERR AINDA EXISTEM DUPLICATAS!")
         print("Primeiras 5 duplicatas:")
         for i, (ssa, count) in enumerate(duplicates[:5]):
             print(f"  {ssa}: {count} registros")
     else:
-        print("✅ NENHUMA DUPLICATA ENCONTRADA!")
-        print("🎉 SISTEMA FUNCIONANDO CORRETAMENTE!")
+        print("OK NENHUMA DUPLICATA ENCONTRADA!")
+        print("OK SISTEMA FUNCIONANDO CORRETAMENTE!")
 
     # Status final
     if total == unique:
-        print(f"\n🟢 STATUS: SUCESSO - {total} registros únicos mantidos")
+        print(f"\n STATUS: SUCESSO - {total} registros únicos mantidos")
     else:
-        print(f"\n🔴 STATUS: PROBLEMA - {total - unique} duplicatas ainda existem")
+        print(f"\n STATUS: PROBLEMA - {total - unique} duplicatas ainda existem")
 
     conn.close()
 

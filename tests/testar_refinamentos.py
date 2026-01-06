@@ -16,7 +16,7 @@ if project_dir not in sys.path:
 
 def teste_performance_cli():
     """Testa a performance das otimizações do CLI."""
-    print("🧪 TESTE DE PERFORMANCE - CLI")
+    print("TEST TESTE DE PERFORMANCE - CLI")
     print("-" * 40)
 
     try:
@@ -63,18 +63,18 @@ def teste_performance_cli():
         print(f"  Primeira execução: {first_time:.4f}s")
         print(f"  Segunda execução (cache): {cached_time:.4f}s")
         print(f"  Melhoria: {speedup:.1f}x mais rápido")
-        print(f"  Cache funcionando: {'✅' if len(cache) > 0 else '❌'}")
+        print(f"  Cache funcionando: {'OK' if len(cache) > 0 else 'ERR'}")
         print()
 
         return speedup > 2.0  # Espera pelo menos 2x mais rápido
 
     except Exception as e:
-        print(f"  ❌ Erro no teste CLI: {e}")
+        print(f"  ERR Erro no teste CLI: {e}")
         return False
 
 def teste_otimizacoes_gui():
     """Testa as otimizações da GUI (sem interface gráfica)."""
-    print("🧪 TESTE DE OTIMIZAÇÕES - GUI")
+    print("TEST TESTE DE OTIMIZAÇÕES - GUI")
     print("-" * 40)
 
     try:
@@ -102,18 +102,18 @@ def teste_otimizacoes_gui():
         print(f"  Operação original (1000x): {original_time:.4f}s")
         print(f"  Operação otimizada (1000x): {optimized_time:.4f}s")
         print(f"  Melhoria: {speedup:.1f}x mais rápido")
-        print(f"  Otimização efetiva: {'✅' if speedup > 1.2 else '❌'}")
+        print(f"  Otimização efetiva: {'OK' if speedup > 1.2 else 'ERR'}")
         print()
 
         return speedup > 1.2
 
     except Exception as e:
-        print(f"  ❌ Erro no teste GUI: {e}")
+        print(f"  ERR Erro no teste GUI: {e}")
         return False
 
 def teste_configuracoes():
     """Testa se as configurações estão consistentes."""
-    print("🧪 TESTE DE CONFIGURAÇÕES")
+    print("TEST TESTE DE CONFIGURAÇÕES")
     print("-" * 40)
 
     try:
@@ -132,23 +132,23 @@ def teste_configuracoes():
                 try:
                     with open(config_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    print(f"  ✅ {config_file}: Válido ({len(data)} entradas)")
+                    print(f"  OK {config_file}: Válido ({len(data)} entradas)")
                 except json.JSONDecodeError as e:
-                    print(f"  ❌ {config_file}: JSON inválido - {e}")
+                    print(f"  ERR {config_file}: JSON inválido - {e}")
                     all_valid = False
             else:
-                print(f"  ⚠️  {config_file}: Arquivo não encontrado")
+                print(f"  WARN  {config_file}: Arquivo não encontrado")
 
         print()
         return all_valid
 
     except Exception as e:
-        print(f"  ❌ Erro no teste de configurações: {e}")
+        print(f"  ERR Erro no teste de configurações: {e}")
         return False
 
 def main():
     """Executa todos os testes de refinamento."""
-    print("🔧 VALIDAÇÃO DOS REFINAMENTOS")
+    print("FIX VALIDAÇÃO DOS REFINAMENTOS")
     print("=" * 50)
     print()
 
@@ -168,18 +168,18 @@ def main():
     results.append(teste_configuracoes())
 
     # Sumário
-    print("📊 RESUMO DOS TESTES")
+    print("INFO RESUMO DOS TESTES")
     print("-" * 40)
     passed = sum(results)
     total = len(results)
 
     print(f"  Testes aprovados: {passed}/{total}")
     if passed == total:
-        print("  🎉 TODOS OS REFINAMENTOS FUNCIONANDO!")
+        print("  OK TODOS OS REFINAMENTOS FUNCIONANDO!")
     elif passed >= total * 0.8:
-        print("  ✅ Maioria dos refinamentos funcionando")
+        print("  OK Maioria dos refinamentos funcionando")
     else:
-        print("  ⚠️  Refinamentos precisam de ajustes")
+        print("  WARN  Refinamentos precisam de ajustes")
 
     print()
     print(f"  Status final: {'SUCESSO' if passed == total else 'PARCIAL' if passed > 0 else 'FALHA'}")

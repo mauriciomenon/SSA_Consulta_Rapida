@@ -17,7 +17,7 @@ def analisar_implementacoes_misturadas():
     warnings = []
     frankenstein_code = []
 
-    print("🧬 ANÁLISE DE CÓDIGO FRANKENSTEIN")
+    print(" ANÁLISE DE CÓDIGO FRANKENSTEIN")
     print("=" * 50)
     print()
 
@@ -27,7 +27,7 @@ def analisar_implementacoes_misturadas():
         with open(gui_path, 'r', encoding='utf-8') as f:
             gui_content = f.read()
 
-        print("🔍 ANALISANDO GUI...")
+        print("INFO ANALISANDO GUI...")
 
         # Detectar múltiplas estratégias de largura
         width_strategies = {
@@ -41,7 +41,7 @@ def analisar_implementacoes_misturadas():
 
         active_strategies = [k for k, v in width_strategies.items() if v > 0]
         if len(active_strategies) > 3:
-            frankenstein_code.append(f"🧬 GUI: {len(active_strategies)} estratégias de largura diferentes ({', '.join(active_strategies)})")
+            frankenstein_code.append(f" GUI: {len(active_strategies)} estratégias de largura diferentes ({', '.join(active_strategies)})")
 
         # Detectar múltiplos sistemas de cache
         cache_systems = {
@@ -53,7 +53,7 @@ def analisar_implementacoes_misturadas():
 
         cache_count = sum(1 for v in cache_systems.values() if v > 0)
         if cache_count > 2:
-            frankenstein_code.append(f"🧬 GUI: {cache_count} sistemas de cache independentes")
+            frankenstein_code.append(f" GUI: {cache_count} sistemas de cache independentes")
 
         # Detectar configurações misturadas
         config_sources = {
@@ -65,7 +65,7 @@ def analisar_implementacoes_misturadas():
 
         config_mix = sum(1 for v in config_sources.values() if v > 0)
         if config_mix > 2:
-            frankenstein_code.append(f"🧬 GUI: {config_mix} fontes de configuração misturadas")
+            frankenstein_code.append(f" GUI: {config_mix} fontes de configuração misturadas")
 
     # 2. Analisar CLI - Implementações inconsistentes
     cli_path = os.path.join('interface', 'cli.py')
@@ -73,7 +73,7 @@ def analisar_implementacoes_misturadas():
         with open(cli_path, 'r', encoding='utf-8') as f:
             cli_content = f.read()
 
-        print("🔍 ANALISANDO CLI...")
+        print("INFO ANALISANDO CLI...")
 
         # Detectar handlers com assinaturas inconsistentes
         handler_patterns = re.findall(r'def (_handle_\w+)\(([^)]+)\):', cli_content)
@@ -86,7 +86,7 @@ def analisar_implementacoes_misturadas():
             min_params = min(param_counts.values())
             max_params = max(param_counts.values())
             if max_params - min_params > 2:
-                frankenstein_code.append(f"🧬 CLI: Handlers inconsistentes ({min_params}-{max_params} parâmetros)")
+                frankenstein_code.append(f" CLI: Handlers inconsistentes ({min_params}-{max_params} parâmetros)")
 
         # Detectar imports desnecessários ou duplicados
         imports = re.findall(r'^(from .+ import .+|import .+)$', cli_content, re.MULTILINE)
@@ -104,7 +104,7 @@ def analisar_implementacoes_misturadas():
             import_modules.add(module)
 
         if duplicate_imports:
-            frankenstein_code.append(f"🧬 CLI: Imports duplicados/redundantes ({len(duplicate_imports)})")
+            frankenstein_code.append(f" CLI: Imports duplicados/redundantes ({len(duplicate_imports)})")
 
     # 3. Analisar configurações - Estruturas inconsistentes
     config_files = [
@@ -115,7 +115,7 @@ def analisar_implementacoes_misturadas():
         'config/default_settings.json'
     ]
 
-    print("🔍 ANALISANDO CONFIGURAÇÕES...")
+    print("INFO ANALISANDO CONFIGURAÇÕES...")
 
     config_structures = {}
     for config_file in config_files:
@@ -141,14 +141,14 @@ def analisar_implementacoes_misturadas():
 
     duplicate_keys = {k: v for k, v in all_keys.items() if len(v) > 1}
     if duplicate_keys:
-        frankenstein_code.append(f"🧬 CONFIG: {len(duplicate_keys)} chaves duplicadas entre arquivos")
+        frankenstein_code.append(f" CONFIG: {len(duplicate_keys)} chaves duplicadas entre arquivos")
 
     return frankenstein_code, issues, warnings
 
 def analisar_funcoes_redundantes():
     """Identifica funções duplicadas ou muito similares."""
 
-    print("🔍 ANALISANDO FUNÇÕES REDUNDANTES...")
+    print("INFO ANALISANDO FUNÇÕES REDUNDANTES...")
     redundant_functions = []
 
     # Mapear todas as funções
@@ -178,14 +178,14 @@ def analisar_funcoes_redundantes():
     # Identificar funções duplicadas
     for func, files in function_signatures.items():
         if len(files) > 1:
-            redundant_functions.append(f"🔄 Função '{func}' em: {', '.join(files)}")
+            redundant_functions.append(f"RUN Função '{func}' em: {', '.join(files)}")
 
     return redundant_functions
 
 def analisar_padroes_inconsistentes():
     """Identifica padrões de código inconsistentes."""
 
-    print("🔍 ANALISANDO PADRÕES INCONSISTENTES...")
+    print("INFO ANALISANDO PADRÕES INCONSISTENTES...")
     inconsistencies = []
 
     # Analisar nomenclatura de variáveis
@@ -225,14 +225,14 @@ def analisar_padroes_inconsistentes():
                         common_concept_different_names.append(f"{gui_var} vs {cli_var}")
 
             if common_concept_different_names:
-                inconsistencies.append(f"🔀 {pattern_name}: nomenclatura inconsistente ({len(common_concept_different_names)} casos)")
+                inconsistencies.append(f" {pattern_name}: nomenclatura inconsistente ({len(common_concept_different_names)} casos)")
 
     return inconsistencies
 
 def analisar_arquitetura_mista():
     """Identifica mistura de padrões arquiteturais."""
 
-    print("🔍 ANALISANDO ARQUITETURA MISTA...")
+    print("INFO ANALISANDO ARQUITETURA MISTA...")
     architectural_issues = []
 
     # Verificar se há mistura de padrões
@@ -251,14 +251,14 @@ def analisar_arquitetura_mista():
 
         active_paradigms = [k for k, v in paradigms.items() if v > 5]
         if len(active_paradigms) > 2:
-            architectural_issues.append(f"🏗️ Mistura de paradigmas: {', '.join(active_paradigms)}")
+            architectural_issues.append(f"️ Mistura de paradigmas: {', '.join(active_paradigms)}")
 
         # Detectar dependências circulares potenciais
         imports = re.findall(r'from (\w+(?:\.\w+)*) import', gui_content)
         local_imports = [imp for imp in imports if not imp.startswith(('sys', 'os', 'json', 'pd', 'Qt'))]
 
         if len(local_imports) > 10:
-            architectural_issues.append(f"🔄 Muitas dependências locais ({len(local_imports)})")
+            architectural_issues.append(f"RUN Muitas dependências locais ({len(local_imports)})")
 
     return architectural_issues
 
@@ -267,39 +267,39 @@ def sugerir_refatoracoes():
 
     refactorings = [
         {
-            'categoria': '🧬 Eliminação de Frankenstein',
+            'categoria': ' Eliminação de Frankenstein',
             'sugestões': [
-                '🎯 Unificar estratégias de largura em uma única classe WidthManager',
-                '🎯 Consolidar sistemas de cache em CacheManager unificado',
-                '🎯 Criar ConfigurationManager central para todas as configurações',
-                '🎯 Padronizar assinaturas de handlers em interface comum'
+                'DONE Unificar estratégias de largura em uma única classe WidthManager',
+                'DONE Consolidar sistemas de cache em CacheManager unificado',
+                'DONE Criar ConfigurationManager central para todas as configurações',
+                'DONE Padronizar assinaturas de handlers em interface comum'
             ]
         },
         {
-            'categoria': '🔄 Eliminação de Redundância',
+            'categoria': 'RUN Eliminação de Redundância',
             'sugestões': [
-                '♻️ Criar classe base HandlerBase para handlers CLI',
-                '♻️ Extrair funções comuns para módulo utils.common',
-                '♻️ Unificar nomenclatura de variáveis entre GUI e CLI',
-                '♻️ Consolidar imports duplicados em __init__.py'
+                '️ Criar classe base HandlerBase para handlers CLI',
+                '️ Extrair funções comuns para módulo utils.common',
+                '️ Unificar nomenclatura de variáveis entre GUI e CLI',
+                '️ Consolidar imports duplicados em __init__.py'
             ]
         },
         {
-            'categoria': '🏗️ Melhoria Arquitetural',
+            'categoria': '️ Melhoria Arquitetural',
             'sugestões': [
-                '🏛️ Implementar padrão Strategy para algoritmos de largura',
-                '🏛️ Aplicar padrão Observer para eventos de resize',
-                '🏛️ Usar padrão Factory para criação de handlers',
-                '🏛️ Implementar padrão Command para operações de filtro'
+                '️ Implementar padrão Strategy para algoritmos de largura',
+                '️ Aplicar padrão Observer para eventos de resize',
+                '️ Usar padrão Factory para criação de handlers',
+                '️ Implementar padrão Command para operações de filtro'
             ]
         },
         {
-            'categoria': '🧹 Limpeza de Código',
+            'categoria': 'CLEAN Limpeza de Código',
             'sugestões': [
-                '🗑️ Remover código morto e funções não utilizadas',
-                '🗑️ Eliminar imports desnecessários com autoflake',
-                '🗑️ Padronizar docstrings com formato consistente',
-                '🗑️ Aplicar formatação consistente com black/isort'
+                '️ Remover código morto e funções não utilizadas',
+                '️ Eliminar imports desnecessários com autoflake',
+                '️ Padronizar docstrings com formato consistente',
+                '️ Aplicar formatação consistente com black/isort'
             ]
         }
     ]
@@ -308,7 +308,7 @@ def sugerir_refatoracoes():
 
 def main():
     """Executa análise completa de código frankenstein."""
-    print("🧬 DETECTOR DE CÓDIGO FRANKENSTEIN")
+    print(" DETECTOR DE CÓDIGO FRANKENSTEIN")
     print("=" * 55)
     print()
 
@@ -328,41 +328,41 @@ def main():
     refactorings = sugerir_refatoracoes()
 
     print()
-    print("🧬 CÓDIGO FRANKENSTEIN DETECTADO:")
+    print(" CÓDIGO FRANKENSTEIN DETECTADO:")
     if frankenstein_code:
         for item in frankenstein_code:
             print(f"  {item}")
     else:
-        print("  ✅ Nenhum código frankenstein óbvio detectado")
+        print("  OK Nenhum código frankenstein óbvio detectado")
     print()
 
-    print("🔄 FUNÇÕES REDUNDANTES:")
+    print("RUN FUNÇÕES REDUNDANTES:")
     if redundant_functions:
         for item in redundant_functions:
             print(f"  {item}")
     else:
-        print("  ✅ Nenhuma redundância óbvia detectada")
+        print("  OK Nenhuma redundância óbvia detectada")
     print()
 
-    print("🔀 PADRÕES INCONSISTENTES:")
+    print(" PADRÕES INCONSISTENTES:")
     if inconsistencies:
         for item in inconsistencies:
             print(f"  {item}")
     else:
-        print("  ✅ Padrões relativamente consistentes")
+        print("  OK Padrões relativamente consistentes")
     print()
 
-    print("🏗️ PROBLEMAS ARQUITETURAIS:")
+    print("️ PROBLEMAS ARQUITETURAIS:")
     if architectural_issues:
         for item in architectural_issues:
             print(f"  {item}")
     else:
-        print("  ✅ Arquitetura relativamente limpa")
+        print("  OK Arquitetura relativamente limpa")
     print()
 
-    print("🛠️ REFATORAÇÕES SUGERIDAS:")
+    print("FIX REFATORAÇÕES SUGERIDAS:")
     for refactoring in refactorings:
-        print(f"\n📂 {refactoring['categoria']}:")
+        print(f"\nIN {refactoring['categoria']}:")
         for sugestao in refactoring['sugestões']:
             print(f"  {sugestao}")
 
@@ -374,16 +374,16 @@ def main():
                    len(inconsistencies) + len(architectural_issues))
 
     if total_issues == 0:
-        print("🎉 CÓDIGO RELATIVAMENTE LIMPO!")
+        print("OK CÓDIGO RELATIVAMENTE LIMPO!")
         severity = "LIMPO"
     elif total_issues <= 5:
-        print(f"⚠️ ALGUMAS MELHORIAS NECESSÁRIAS ({total_issues} pontos)")
+        print(f"WARN ALGUMAS MELHORIAS NECESSÁRIAS ({total_issues} pontos)")
         severity = "MELHORIAS"
     elif total_issues <= 10:
-        print(f"🧬 CÓDIGO FRANKENSTEIN MODERADO ({total_issues} pontos)")
+        print(f" CÓDIGO FRANKENSTEIN MODERADO ({total_issues} pontos)")
         severity = "FRANKENSTEIN"
     else:
-        print(f"🚨 CÓDIGO FRANKENSTEIN SEVERO ({total_issues} pontos)")
+        print(f" CÓDIGO FRANKENSTEIN SEVERO ({total_issues} pontos)")
         severity = "SEVERO"
 
     print(f"Recomendação: {'Refatoração necessária' if total_issues > 5 else 'Melhorias pontuais'}")

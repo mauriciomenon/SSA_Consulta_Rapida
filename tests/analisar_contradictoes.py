@@ -25,20 +25,20 @@ def analisar_contradictoes():
         # Verificar implementações duplicadas
         if gui_content.count('_compute_gui_column_widths') > 3:
             count = gui_content.count('_compute_gui_column_widths')
-            warnings.append(f"⚠️  GUI: Muitas chamadas para _compute_gui_column_widths ({count})")
+            warnings.append(f"WARN  GUI: Muitas chamadas para _compute_gui_column_widths ({count})")
 
         # Verificar cache inconsistente
         if '_widths_computed_for_df_hash' in gui_content and '_gui_column_pixel_widths' in gui_content:
-            improvements.append("✨ GUI: Pode unificar sistemas de cache de larguras")
+            improvements.append(" GUI: Pode unificar sistemas de cache de larguras")
 
         # Verificar configurações misturadas
         if 'GUI_MAIN_PREFERENCES' in gui_content and '_cached_default_mode' in gui_content:
-            improvements.append("✨ GUI: Revisar uso misto de configurações globais e cache local")
+            improvements.append(" GUI: Revisar uso misto de configurações globais e cache local")
 
         # Verificar formatação duplicada
         if gui_content.count('format_dataframe_for_display') > 1:
             if '_formatted_df_cache' not in gui_content:
-                issues.append("❌ GUI: format_dataframe_for_display chamado múltiplas vezes sem cache universal")
+                issues.append("ERR GUI: format_dataframe_for_display chamado múltiplas vezes sem cache universal")
 
     # 2. Analisar CLI
     cli_path = os.path.join('interface', 'cli.py')
@@ -49,18 +49,18 @@ def analisar_contradictoes():
         # Verificar importações desnecessárias
         imports = re.findall(r'^from .* import .*', cli_content, re.MULTILINE)
         if len(imports) > 15:
-            warnings.append(f"⚠️  CLI: Muitas importações ({len(imports)}) - pode ser otimizado")
+            warnings.append(f"WARN  CLI: Muitas importações ({len(imports)}) - pode ser otimizado")
 
         # Verificar handlers inconsistentes
         handlers_with_cache = cli_content.count('print_cache')
         handlers_without_cache = cli_content.count('pretty_print_df(') - cli_content.count('_cached_pretty_print_df')
         if handlers_without_cache > 0:
-            issues.append(f"❌ CLI: {handlers_without_cache} handlers ainda usando pretty_print_df sem cache")
+            issues.append(f"ERR CLI: {handlers_without_cache} handlers ainda usando pretty_print_df sem cache")
 
         # Verificar parsing duplicado
         if cli_content.count('parse_search_terms') > 5:
             count = cli_content.count('parse_search_terms')
-            warnings.append(f"⚠️  CLI: Muitas chamadas parse_search_terms ({count}) - verificar cache")
+            warnings.append(f"WARN  CLI: Muitas chamadas parse_search_terms ({count}) - verificar cache")
 
     # 3. Analisar configurações
     config_files = [
@@ -76,7 +76,7 @@ def analisar_contradictoes():
                 with open(config_file, 'r', encoding='utf-8') as f:
                     configs_data[config_file] = json.load(f)
             except Exception:
-                issues.append(f"❌ CONFIG: Erro ao ler {config_file}")
+                issues.append(f"ERR CONFIG: Erro ao ler {config_file}")
 
     # Verificar duplicação de configurações
     if 'config/gui_main_preferences.json' in configs_data and 'config/display_mappings.json' in configs_data:
@@ -85,7 +85,7 @@ def analisar_contradictoes():
         if gui_display and direct_display:
             common_keys = set(gui_display.keys()) & set(direct_display.keys())
             if common_keys:
-                issues.append(f"❌ CONFIG: Duplicação em display_mappings ({len(common_keys)} chaves)")
+                issues.append(f"ERR CONFIG: Duplicação em display_mappings ({len(common_keys)} chaves)")
 
     # 4. Verificar consistência de larguras
     if 'config/gui_main_preferences.json' in configs_data:
@@ -96,9 +96,9 @@ def analisar_contradictoes():
             for col, width in column_widths.items():
                 if isinstance(width, (int, float)):
                     if width < 20:
-                        warnings.append(f"⚠️  CONFIG: Largura muito pequena para '{col}': {width}px")
+                        warnings.append(f"WARN  CONFIG: Largura muito pequena para '{col}': {width}px")
                     elif width > 500:
-                        warnings.append(f"⚠️  CONFIG: Largura muito grande para '{col}': {width}px")
+                        warnings.append(f"WARN  CONFIG: Largura muito grande para '{col}': {width}px")
 
     # 5. Verificar algoritmos conflitantes
     if os.path.exists(gui_path):
@@ -108,7 +108,7 @@ def analisar_contradictoes():
         fixed_widths = gui_content.count('fixed_widths')
 
         if best_fit_mentions > 0 and fixed_widths > 0:
-            improvements.append("✨ GUI: Múltiplas estratégias de largura (best-fit + fixed) - pode ser unificado")
+            improvements.append(" GUI: Múltiplas estratégias de largura (best-fit + fixed) - pode ser unificado")
 
     return issues, warnings, improvements
 
@@ -126,12 +126,12 @@ def analisar_performance():
         # Loops potencialmente custosos
         for_loops = len(re.findall(r'for .* in .*\.columns', content))
         if for_loops > 3:
-            performance_issues.append(f"🐌 GUI: {for_loops} loops sobre colunas - pode ser otimizado")
+            performance_issues.append(f" GUI: {for_loops} loops sobre colunas - pode ser otimizado")
 
         # Operações DataFrame custosas
         sort_operations = content.count('.sort_values')
         if sort_operations > 2:
-            performance_issues.append(f"🐌 GUI: {sort_operations} operações de sort - verificar necessidade")
+            performance_issues.append(f" GUI: {sort_operations} operações de sort - verificar necessidade")
 
     # Verificar CLI
     cli_path = os.path.join('interface', 'cli.py')
@@ -142,7 +142,7 @@ def analisar_performance():
         # I/O desnecessário
         file_operations = content.count('open(') + content.count('load_')
         if file_operations > 10:
-            performance_issues.append(f"🐌 CLI: {file_operations} operações de I/O - verificar cache")
+            performance_issues.append(f" CLI: {file_operations} operações de I/O - verificar cache")
 
     return performance_issues
 
@@ -155,9 +155,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Arquitetura',
         'sugestões': [
-            '🏗️  Unificar sistemas de cache em módulo dedicado',
-            '🏗️  Centralizar configurações em manager único',
-            '🏗️  Padronizar interface de handlers entre GUI e CLI'
+            '️  Unificar sistemas de cache em módulo dedicado',
+            '️  Centralizar configurações em manager único',
+            '️  Padronizar interface de handlers entre GUI e CLI'
         ]
     })
 
@@ -165,9 +165,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Performance',
         'sugestões': [
-            '⚡ Implementar lazy loading para configurações pesadas',
-            '⚡ Adicionar throttling para eventos de resize',
-            '⚡ Otimizar loops sobre DataFrames grandes'
+            'PERF Implementar lazy loading para configurações pesadas',
+            'PERF Adicionar throttling para eventos de resize',
+            'PERF Otimizar loops sobre DataFrames grandes'
         ]
     })
 
@@ -175,9 +175,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Código',
         'sugestões': [
-            '🧹 Remover imports não utilizados',
-            '🧹 Consolidar funções similares entre GUI e CLI',
-            '🧹 Padronizar nomenclatura de variáveis de cache'
+            'CLEAN Remover imports não utilizados',
+            'CLEAN Consolidar funções similares entre GUI e CLI',
+            'CLEAN Padronizar nomenclatura de variáveis de cache'
         ]
     })
 
@@ -185,9 +185,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Configuração',
         'sugestões': [
-            '⚙️  Eliminar duplicações entre arquivos de config',
-            '⚙️  Validar consistência de larguras de colunas',
-            '⚙️  Implementar fallbacks robustos para configs'
+            '️  Eliminar duplicações entre arquivos de config',
+            '️  Validar consistência de larguras de colunas',
+            '️  Implementar fallbacks robustos para configs'
         ]
     })
 
@@ -195,7 +195,7 @@ def sugerir_refinamentos():
 
 def main():
     """Função principal do analisador."""
-    print("🔍 ANALISADOR DE CONTRADIÇÕES E REFINAMENTOS")
+    print("INFO ANALISADOR DE CONTRADIÇÕES E REFINAMENTOS")
     print("=" * 55)
     print()
 
@@ -213,41 +213,41 @@ def main():
     refinements = sugerir_refinamentos()
 
     # Exibir resultados
-    print("❌ PROBLEMAS IDENTIFICADOS:")
+    print("ERR PROBLEMAS IDENTIFICADOS:")
     if issues:
         for issue in issues:
             print(f"  {issue}")
     else:
-        print("  ✅ Nenhum problema crítico encontrado")
+        print("  OK Nenhum problema crítico encontrado")
     print()
 
-    print("⚠️  AVISOS E ATENÇÕES:")
+    print("WARN  AVISOS E ATENÇÕES:")
     if warnings:
         for warning in warnings:
             print(f"  {warning}")
     else:
-        print("  ✅ Nenhum aviso significativo")
+        print("  OK Nenhum aviso significativo")
     print()
 
-    print("🐌 POSSÍVEIS GARGALOS DE PERFORMANCE:")
+    print(" POSSÍVEIS GARGALOS DE PERFORMANCE:")
     if performance_issues:
         for perf in performance_issues:
             print(f"  {perf}")
     else:
-        print("  ✅ Nenhum gargalo óbvio identificado")
+        print("  OK Nenhum gargalo óbvio identificado")
     print()
 
-    print("✨ OPORTUNIDADES DE MELHORIA:")
+    print(" OPORTUNIDADES DE MELHORIA:")
     if improvements:
         for improvement in improvements:
             print(f"  {improvement}")
     else:
-        print("  ✅ Código bem otimizado")
+        print("  OK Código bem otimizado")
     print()
 
-    print("🛠️  SUGESTÕES DE REFINAMENTO:")
+    print("FIX  SUGESTÕES DE REFINAMENTO:")
     for refinement in refinements:
-        print(f"\n📂 {refinement['categoria']}:")
+        print(f"\nIN {refinement['categoria']}:")
         for sugestao in refinement['sugestões']:
             print(f"  {sugestao}")
 
@@ -257,11 +257,11 @@ def main():
     # Resumo
     total_issues = len(issues) + len(warnings) + len(performance_issues)
     if total_issues == 0:
-        print("🎉 CÓDIGO EM EXCELENTE ESTADO PARA REFINAMENTOS!")
+        print("OK CÓDIGO EM EXCELENTE ESTADO PARA REFINAMENTOS!")
     elif total_issues <= 5:
-        print(f"✅ CÓDIGO EM BOM ESTADO ({total_issues} pontos para refinar)")
+        print(f"OK CÓDIGO EM BOM ESTADO ({total_issues} pontos para refinar)")
     else:
-        print(f"⚠️  CÓDIGO PRECISA DE ATENÇÃO ({total_issues} pontos identificados)")
+        print(f"WARN  CÓDIGO PRECISA DE ATENÇÃO ({total_issues} pontos identificados)")
 
     return total_issues == 0
 

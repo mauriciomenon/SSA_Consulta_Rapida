@@ -50,7 +50,7 @@ def test_single_file():
         success = insert_data_in_database(df, 'ssa_data.db', 'ssa_table')
 
         if success:
-            print("✅ Inserção bem-sucedida!")
+            print("OK Inserção bem-sucedida!")
 
             # Verificar resultado
             import sqlite3
@@ -60,7 +60,7 @@ def test_single_file():
                 count = cursor.fetchone()[0]
                 print(f"Total de registros inseridos: {count}")
         else:
-            print("❌ Falha na inserção")
+            print("ERR Falha na inserção")
 
     except Exception as e:
         print(f"Erro: {e}")

@@ -39,19 +39,19 @@ class ExcelImportTester:
             # Inicializar banco com schema
             schema_path = "config/schema.sql"
             if not os.path.exists(schema_path):
-                print(f"❌ Schema não encontrado: {schema_path}")
+                print(f"ERR Schema não encontrado: {schema_path}")
                 return False
 
             success = initialize_database(self.test_db_path, schema_path)
             if success:
-                print(f"✅ Banco de teste criado: {self.test_db_path}")
+                print(f"OK Banco de teste criado: {self.test_db_path}")
                 return True
             else:
-                print("❌ Falha ao inicializar banco de teste")
+                print("ERR Falha ao inicializar banco de teste")
                 return False
 
         except Exception as e:
-            print(f"❌ Erro ao configurar banco de teste: {e}")
+            print(f"ERR Erro ao configurar banco de teste: {e}")
             return False
 
     def cleanup(self):
@@ -59,14 +59,14 @@ class ExcelImportTester:
         if self.temp_dir and os.path.exists(self.temp_dir):
             try:
                 shutil.rmtree(self.temp_dir)
-                print("🧹 Arquivos temporários limpos")
+                print("CLEAN Arquivos temporários limpos")
             except Exception as e:
-                print(f"⚠️ Erro ao limpar arquivos temporários: {e}")
+                print(f"WARN Erro ao limpar arquivos temporários: {e}")
 
     def test_individual_file_extraction(self, file_path: str) -> dict:
         """Testa extração de um arquivo específico."""
         file_name = os.path.basename(file_path)
-        print(f"🔍 Testando extração: {file_name}")
+        print(f"INFO Testando extração: {file_name}")
 
         start_time = datetime.now()
 
@@ -105,7 +105,7 @@ class ExcelImportTester:
                     'extraction_rate_rows_per_sec': row_count / duration if duration > 0 else 0
                 }
 
-                print(f"  ✅ Sucesso: {row_count} linhas, {len(columns)} colunas ({duration:.2f}s)")
+                print(f"  OK Sucesso: {row_count} linhas, {len(columns)} colunas ({duration:.2f}s)")
                 return result
 
             else:
@@ -118,7 +118,7 @@ class ExcelImportTester:
                     'file_size_mb': os.path.getsize(file_path) / 1024 / 1024
                 }
 
-                print(f"  ❌ Falhou: DataFrame vazio")
+                print(f"  ERR Falhou: DataFrame vazio")
                 return result
 
         except Exception as e:
@@ -134,13 +134,13 @@ class ExcelImportTester:
                 'file_size_mb': os.path.getsize(file_path) / 1024 / 1024 if os.path.exists(file_path) else 0
             }
 
-            print(f"  ❌ Erro: {str(e)}")
+            print(f"  ERR Erro: {str(e)}")
             return result
 
     def test_file_import_to_database(self, file_path: str) -> dict:
         """Testa importação de arquivo para banco de dados."""
         file_name = os.path.basename(file_path)
-        print(f"💾 Testando importação para BD: {file_name}")
+        print(f" Testando importação para BD: {file_name}")
 
         start_time = datetime.now()
 
@@ -190,9 +190,9 @@ class ExcelImportTester:
             }
 
             if result['success']:
-                print(f"  ✅ Importado: +{records_added} registros ({duration:.2f}s)")
+                print(f"  OK Importado: +{records_added} registros ({duration:.2f}s)")
             else:
-                print(f"  ❌ Falha na importação ({duration:.2f}s)")
+                print(f"  ERR Falha na importação ({duration:.2f}s)")
 
             # Limpar arquivo temporário
             shutil.rmtree(temp_single_file_dir, ignore_errors=True)
@@ -211,12 +211,12 @@ class ExcelImportTester:
                 'error': str(e)
             }
 
-            print(f"  ❌ Erro na importação: {str(e)}")
+            print(f"  ERR Erro na importação: {str(e)}")
             return result
 
     def test_all_excel_files(self) -> dict:
         """Testa todos os arquivos Excel na pasta docs_entrada."""
-        print("🚀 Iniciando teste de TODOS os arquivos Excel...")
+        print("START Iniciando teste de TODOS os arquivos Excel...")
         print("=" * 60)
 
         if not os.path.exists(self.docs_entrada_dir):
@@ -238,7 +238,7 @@ class ExcelImportTester:
                 'error': f'Nenhum arquivo Excel encontrado em {self.docs_entrada_dir}'
             }
 
-        print(f"📂 Encontrados {len(excel_files)} arquivos Excel para testar")
+        print(f"IN Encontrados {len(excel_files)} arquivos Excel para testar")
         print("-" * 60)
 
         # Configurar banco de teste
@@ -256,7 +256,7 @@ class ExcelImportTester:
 
             # Testar cada arquivo
             for i, file_path in enumerate(excel_files, 1):
-                print(f"\n📄 [{i}/{len(excel_files)}] Processando arquivo...")
+                print(f"\nFILE [{i}/{len(excel_files)}] Processando arquivo...")
 
                 # Teste 1: Extração
                 extraction_result = self.test_individual_file_extraction(file_path)
@@ -343,7 +343,7 @@ class ExcelImportTester:
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
         success = test_result.get('success', False)
-        status_icon = "✅" if success else "❌"
+        status_icon = "OK" if success else "ERR"
 
         content = f"""# Relatório de Teste - Importação de Arquivos Excel
 
@@ -399,7 +399,7 @@ class ExcelImportTester:
 """
 
         for result in test_result.get('extraction_results', []):
-            status = "✅" if result.get('success', False) else "❌"
+            status = "OK" if result.get('success', False) else "ERR"
             file_name = result.get('file_name', 'N/A')
             rows = result.get('row_count', 0)
             cols = result.get('column_count', 0)
@@ -417,7 +417,7 @@ class ExcelImportTester:
 """
 
         for result in test_result.get('import_results', []):
-            status = "✅" if result.get('success', False) else "❌"
+            status = "OK" if result.get('success', False) else "ERR"
             file_name = result.get('file_name', 'N/A')
             records = result.get('records_added', 0)
             duration = result.get('duration_seconds', 0)
@@ -453,7 +453,7 @@ class ExcelImportTester:
             content += "\n"
 
         if not failed_extractions and not failed_imports:
-            content += "✅ Nenhum problema crítico identificado!\n\n"
+            content += "OK Nenhum problema crítico identificado!\n\n"
 
         content += """## Recomendações
 
@@ -461,7 +461,7 @@ class ExcelImportTester:
 
         if success:
             content += """
-### ✅ Teste Aprovado
+### OK Teste Aprovado
 
 O sistema demonstrou capacidade adequada para importar arquivos Excel:
 
@@ -476,7 +476,7 @@ O sistema demonstrou capacidade adequada para importar arquivos Excel:
 """
         else:
             content += """
-### ❌ Teste Requer Atenção
+### ERR Teste Requer Atenção
 
 Alguns problemas foram identificados na importação:
 
@@ -508,7 +508,7 @@ Alguns problemas foram identificados na importação:
 
 def main():
     """Função principal para executar testes de importação Excel."""
-    print("🚀 TESTE ABRANGENTE DE IMPORTAÇÃO DE ARQUIVOS EXCEL")
+    print("START TESTE ABRANGENTE DE IMPORTAÇÃO DE ARQUIVOS EXCEL")
     print("=" * 60)
 
     tester = ExcelImportTester()
@@ -518,15 +518,15 @@ def main():
 
     # Mostrar resultado resumido
     print("\n" + "=" * 60)
-    print("📊 RESULTADO FINAL:")
+    print("INFO RESULTADO FINAL:")
 
     if test_result.get('success', False):
-        print("✅ TESTE APROVADO - Sistema pode importar arquivos Excel")
+        print("OK TESTE APROVADO - Sistema pode importar arquivos Excel")
     else:
         if 'error' in test_result:
-            print(f"❌ ERRO: {test_result['error']}")
+            print(f"ERR ERRO: {test_result['error']}")
         else:
-            print("❌ TESTE COM PROBLEMAS - Verificar arquivos que falharam")
+            print("ERR TESTE COM PROBLEMAS - Verificar arquivos que falharam")
 
     if 'total_files' in test_result:
         print(f"   Arquivos Testados: {test_result['total_files']}")
@@ -537,7 +537,7 @@ def main():
     # Gerar relatório detalhado
     if 'total_files' in test_result:
         report_file = tester.generate_detailed_report(test_result)
-        print(f"\n📄 Relatório detalhado salvo em: {report_file}")
+        print(f"\nFILE Relatório detalhado salvo em: {report_file}")
 
     print("=" * 60)
 

@@ -10,7 +10,7 @@ def simple_cli():
     db_path = 'data/ssas.db'
 
     if not os.path.exists(db_path):
-        print("❌ Banco de dados não encontrado. Execute emergency_import.py primeiro.")
+        print("ERR Banco de dados não encontrado. Execute emergency_import.py primeiro.")
         return
 
     conn = sqlite3.connect(db_path)

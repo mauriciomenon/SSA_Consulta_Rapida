@@ -12,14 +12,14 @@ def limpar_banco():
         # Fazer backup se banco existir
         if db_path.exists():
             shutil.copy2(db_path, backup_path)
-            print(f'✅ Backup criado: {backup_path}')
+            print(f'OK Backup criado: {backup_path}')
 
         # Limpar tabela
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT COUNT(*) FROM ssas')
             count_before = cursor.fetchone()[0]
-            print(f'📊 Registros antes da limpeza: {count_before:,}')
+            print(f'INFO Registros antes da limpeza: {count_before:,}')
 
             cursor.execute('DELETE FROM ssas')
             cursor.execute('VACUUM')  # Otimizar o banco
@@ -27,11 +27,11 @@ def limpar_banco():
 
             cursor.execute('SELECT COUNT(*) FROM ssas')
             count_after = cursor.fetchone()[0]
-            print(f'📊 Registros após limpeza: {count_after:,}')
-            print('✅ Banco limpo com sucesso!')
+            print(f'INFO Registros após limpeza: {count_after:,}')
+            print('OK Banco limpo com sucesso!')
 
     except Exception as e:
-        print(f'❌ Erro ao limpar banco: {e}')
+        print(f'ERR Erro ao limpar banco: {e}')
         return False
 
     return True

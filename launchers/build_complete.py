@@ -54,13 +54,13 @@ def main():
     try:
         if args.cleanup_only:
             # Apenas limpeza
-            print("🧹 Executando limpeza completa...")
+            print("CLEAN Executando limpeza completa...")
             cmd = [sys.executable, str(build_script), '--cleanup-online']
             result = subprocess.run(cmd, cwd=str(base_dir))
             return result.returncode
 
         # Build completo
-        print("🚀 Iniciando build completo...")
+        print("START Iniciando build completo...")
 
         cmd = [
             sys.executable, str(build_script),
@@ -80,17 +80,17 @@ def main():
         result = subprocess.run(cmd, cwd=str(base_dir))
 
         if result.returncode == 0:
-            print("✅ Build completo concluido com sucesso!")
+            print("OK Build completo concluido com sucesso!")
         else:
-            print("❌ Build falhou")
+            print("ERR Build falhou")
 
         return result.returncode
 
     except KeyboardInterrupt:
-        print("\n⚠️  Build interrompido pelo usuario")
+        print("\nWARN  Build interrompido pelo usuario")
         return 1
     except Exception as e:
-        print(f"❌ Erro: {e}")
+        print(f"ERR Erro: {e}")
         return 1
 
 if __name__ == '__main__':

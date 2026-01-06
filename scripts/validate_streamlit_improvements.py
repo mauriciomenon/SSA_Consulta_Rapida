@@ -135,7 +135,7 @@ def create_test_dataframe(size=2000):
 
 def test_streamlit_cache_performance():
     """Testa performance do cache com cenários realísticos."""
-    print("🧪 Teste 1: Performance do Cache Streamlit")
+    print("TEST Teste 1: Performance do Cache Streamlit")
     
     df = create_test_dataframe(2000)
     cache = SimpleFilterCache(max_size=20)
@@ -149,8 +149,8 @@ def test_streamlit_cache_performance():
         ("ASE", ["ASE"], ["IEE1"], ["IEE3"])
     ]
     
-    print(f"   📊 Dataset: {len(df)} registros")
-    print("   🔄 Primeira execução (cache misses):")
+    print(f"   INFO Dataset: {len(df)} registros")
+    print("   RUN Primeira execução (cache misses):")
     
     miss_times = []
     for search, situacoes, executores, emissores in filter_scenarios:
@@ -162,7 +162,7 @@ def test_streamlit_cache_performance():
         description = f"{search or 'filtros'}"
         print(f"     {description:15} → {elapsed*1000:6.1f}ms ({len(result)} resultados)")
     
-    print("\n   ⚡ Segunda execução (cache hits):")
+    print("\n   PERF Segunda execução (cache hits):")
     
     hit_times = []
     for search, situacoes, executores, emissores in filter_scenarios:
@@ -181,19 +181,19 @@ def test_streamlit_cache_performance():
     
     stats = cache.get_stats()
     
-    print(f"\n   📈 Resultados:")
+    print(f"\n   STAT Resultados:")
     print(f"     • Tempo médio (miss): {avg_miss*1000:.1f}ms")
     print(f"     • Tempo médio (hit): {avg_hit*1000:.2f}ms")
     print(f"     • Speedup: {speedup:.0f}x")
     print(f"     • Cache stats: {stats}")
-    print("   ✅ Performance: EXCELENTE\n")
+    print("   OK Performance: EXCELENTE\n")
     
     return speedup, stats
 
 
 def test_cache_with_different_datasets():
     """Testa cache com diferentes tamanhos de dataset."""
-    print("📈 Teste 2: Cache com Datasets Variados")
+    print("STAT Teste 2: Cache com Datasets Variados")
     
     cache = SimpleFilterCache(max_size=10)
     dataset_sizes = [500, 1000, 2000, 5000]
@@ -219,13 +219,13 @@ def test_cache_with_different_datasets():
         print(f"   {size:4d} registros │ Miss: {miss_time*1000:6.1f}ms │ Hit: {hit_time*1000:6.2f}ms │ Speedup: {speedup:6.0f}x")
     
     final_stats = cache.get_stats()
-    print(f"\n   📊 Cache final: {final_stats}")
-    print("   ✅ Scaling testado com sucesso\n")
+    print(f"\n   INFO Cache final: {final_stats}")
+    print("   OK Scaling testado com sucesso\n")
 
 
 def test_filter_complexity():
     """Testa diferentes tipos de filtros."""
-    print("🔍 Teste 3: Complexidade de Filtros")
+    print("INFO Teste 3: Complexidade de Filtros")
     
     df = create_test_dataframe(1500)
     cache = SimpleFilterCache()
@@ -258,13 +258,13 @@ def test_filter_complexity():
         print(f"   Filtro {i}: {len(result1):4d} resultados │ {first_time*1000:5.1f}ms → {second_time*1000:5.2f}ms")
     
     stats = cache.get_stats()
-    print(f"\n   📊 Performance: Hit rate {stats['hit_rate']:.1f}%")
-    print("   ✅ Filtros complexos: OK\n")
+    print(f"\n   INFO Performance: Hit rate {stats['hit_rate']:.1f}%")
+    print("   OK Filtros complexos: OK\n")
 
 
 def main():
     """Executa validação completa das melhorias Streamlit."""
-    print("🎯 SSA Consulta Rápida - Validação das Melhorias Streamlit")
+    print("DONE SSA Consulta Rápida - Validação das Melhorias Streamlit")
     print("=" * 65)
     print()
     
@@ -273,11 +273,11 @@ def main():
         test_cache_with_different_datasets()
         test_filter_complexity()
         
-        print("🏁 RESUMO DA VALIDAÇÃO")
+        print(" RESUMO DA VALIDAÇÃO")
         print("=" * 50)
-        print("✅ Todas as funcionalidades validadas com sucesso!")
+        print("OK Todas as funcionalidades validadas com sucesso!")
         print()
-        print("🚀 Melhorias implementadas:")
+        print("START Melhorias implementadas:")
         print(f"   • Cache de filtros: {speedup:.0f}x mais rápido")
         print(f"   • Hit rate: {cache_stats['hit_rate']:.1f}%")
         print("   • Progress bars para importação")
@@ -286,7 +286,7 @@ def main():
         print("   • Múltiplos formatos de exportação")
         print("   • Interface responsiva e otimizada")
         print()
-        print("📊 Funcionalidades técnicas:")
+        print("INFO Funcionalidades técnicas:")
         print("   • Cache LRU com TTL configurável")
         print("   • Métricas em tempo real")
         print("   • Auto-limpeza de cache após importação")
@@ -294,10 +294,10 @@ def main():
         print("   • Exportação Excel com formatação")
         print("   • Indicadores de status no header")
         print()
-        print("🎉 Interface Streamlit otimizada e pronta para uso!")
+        print("OK Interface Streamlit otimizada e pronta para uso!")
         
     except Exception as e:
-        print(f"❌ Erro durante validação: {e}")
+        print(f"ERR Erro durante validação: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

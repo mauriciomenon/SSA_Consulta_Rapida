@@ -13,7 +13,7 @@ columns = [col[1] for col in cursor.fetchall()]
 print('Verificação das novas colunas:')
 for coluna in colunas_novas:
     existe = coluna in columns
-    status = "✅ EXISTE" if existe else "❌ FALTA"
+    status = "OK EXISTE" if existe else "ERR FALTA"
     print(f'  {coluna}: {status}')
 
 conn.close()

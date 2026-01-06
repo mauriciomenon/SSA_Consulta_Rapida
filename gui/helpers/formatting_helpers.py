@@ -3,8 +3,6 @@
 
 import re
 import html
-import math
-import pandas as pd
 
 
 def normalize_chunk_for_parse(chunk: str) -> list[str]:
@@ -51,46 +49,6 @@ def format_search_display(chunks: list[list[str]]) -> str:
     return ""
 
 
-def format_value_for_display(value, col=None):
-    """
-    Format value removing NaN/None/nan and applying column-specific formatting.
-
-    Args:
-        value: Value to format
-        col: Optional column name for specific formatting
-
-    Returns:
-        Formatted string, empty if null
-    """
-    # Remove null values
-    if pd.isna(value) or value is None:
-        return ""
-
-    # Convert to string
-    text = str(value)
-
-    # Remove variations of nan/none
-    if text.lower() in ('nan', 'none', 'nat', '<na>'):
-        return ""
-
-    # Colunas de semana: sempre inteiro (sem .0)
-    if col and col.lower().startswith('semana'):
-        try:
-            num = float(text)
-            if math.isnan(num):
-                return ""
-            return str(int(round(num)))
-        except (ValueError, TypeError):
-            return text.strip()
-
-    # Column-specific formatting
-    if col == 'numero_ssa':
-        try:
-            return str(int(float(text)))
-        except (ValueError, TypeError):
-            return text
-
-    return text.strip()
 
 
 def highlight_text(text: str, terms: list[str],

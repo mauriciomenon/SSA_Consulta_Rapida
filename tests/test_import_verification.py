@@ -31,7 +31,7 @@ def test_import_few_files():
     
     # Apenas 3 primeiros
     test_files = files[:3]
-    print(f"📁 Testando com {len(test_files)} arquivos (de {len(files)} disponíveis)")
+    print(f"DIR Testando com {len(test_files)} arquivos (de {len(files)} disponíveis)")
     
     # Criar diretório temporário com cópias dos arquivos
     temp_dir = tempfile.mkdtemp(prefix="test_import_verify_")
@@ -48,10 +48,10 @@ def test_import_few_files():
             print(f"  Copiado: {f}")
         
         # Executar importação
-        print("🔄 Iniciando importação...")
+        print("RUN Iniciando importação...")
         success = import_files_to_database(temp_docs, db_path, force_import=True)
         assert success, "Falha na importação"
-        print("✅ Importação concluída")
+        print("OK Importação concluída")
         
         # Verificar banco - tabela é 'numero_ssa' não 'ssas'
         with get_db_connection(db_path) as conn:
@@ -62,11 +62,11 @@ def test_import_few_files():
             
             cursor = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
             total = cursor.fetchone()[0]
-            print(f"📊 Total de registros: {total}")
+            print(f"INFO Total de registros: {total}")
             
             cursor = conn.execute(f"SELECT COUNT(DISTINCT numero_ssa) FROM {table_name} WHERE numero_ssa IS NOT NULL")
             unique = cursor.fetchone()[0]
-            print(f"🔢 SSAs únicas: {unique}")
+            print(f" SSAs únicas: {unique}")
         
         assert total > 0, "Nenhum registro no banco"
         
@@ -102,7 +102,7 @@ def test_upsert_logic_limited():
     test_file = files[0]
     file_path = os.path.join(docs_dir, test_file)
     
-    print(f"🔍 Testando upsert com: {test_file}")
+    print(f"INFO Testando upsert com: {test_file}")
     
     # Criar banco temporário
     temp_dir = tempfile.mkdtemp(prefix="test_upsert_")
@@ -148,7 +148,7 @@ def test_upsert_logic_limited():
         
         # Upsert não deve duplicar
         assert count2 == count1, f"Upsert criou duplicatas: {count1} -> {count2}"
-        print("✅ Upsert funcionando corretamente")
+        print("OK Upsert funcionando corretamente")
         
     finally:
         # Forçar garbage collection para liberar handles
