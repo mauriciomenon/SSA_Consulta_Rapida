@@ -93,12 +93,22 @@ Em caso de duvida, tratar o conteudo como temporario e armazenar em `local_ai_pr
 
 ## Release v4.0.3 (2025-11)
 
-### Filter Corrections Release
+Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo tecnica.
 - Fixed filter behavior from release 4.x series
 - GUI filter logic stabilized
 - Column filters working correctly
 - Test suite updated and passing
 
+- **Non-destructive wrappers (v2)**: added under `scripts/` as `run_pytest_with_timeout_v2.py` and `run_pytest_stream_and_log_v2.py`. They are additive (do not replace existing scripts) and contain improved Windows/Unix process-tree termination fallbacks and stable imports.
+- **pwsh detection helper**: `scripts/pwsh_discovery.py` centralizes discovery of `pwsh`/`powershell` executables across common paths, PATH, and workspace `.vscode` settings.
+- **Logs and local docs**: runtime logs and detailed usage notes live in `local_ai_private/` (this directory is gitignored). See `local_ai_private/pytest_instructions.md` for examples and troubleshooting.
+- **Usage examples**:
+	- Run with a 10s timeout and write log:
+		python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
+	- Stream live output and save log:
+		python scripts/run_pytest_stream_and_log_v2.py --test tests/test_terminal_integration.py --timeout 10
+
+If streaming is not available in your shell, the instructions file shows a PowerShell `Tee-Object` alternative to both print and save output.
 ## Previous Release v4.0.0 (2025-09) - Performance Improvements
 
 ###  **GANHOS DE PERFORMANCE MENSURADOS:**
