@@ -438,10 +438,14 @@ DETAIL_DISPLAY_OVERRIDES = {
     'responsavel_programacao': 'Responsavel pela Programacao',
     'responsavel_execucao': 'Responsavel pela Execucao',
     'semana_programada': 'Semana Programada',
+    'semana_executada': 'Semana Executada',
     'prazo_limite': 'Prazo Limite',
     'tempo_disponivel': 'Tempo Disponivel',
     'data_limite': 'Data Limite',
     'tempo_excedido': 'Tempo Excedido',
+    'total_tempo_tex_executada': 'Tempo Total (TEX)',
+    'total_tempo_tpe_executada': 'Tempo Total (TPE)',
+    'total_tempo_tpo_executada': 'Tempo Total (TPO)',
     'numero_ssa': 'Numero da SSA',
     'descricao_execucao': 'Descricao da Execucao',
     'status_execucao_prazo': 'Situacao do Prazo',
@@ -1442,7 +1446,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         " }"
                     )
 
-            group_css = build_group_box_qss(panel_text, panel_border)
+            group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
 
             if hasattr(self, 'details_group'):
                 if normalized in light_themes:
