@@ -58,7 +58,7 @@ def build_central_widget_qss(bg_color: str) -> str:
     )
 
 
-def build_group_box_qss(panel_text: str, panel_border: str) -> str:
+def build_group_box_qss(panel_text: str, panel_border: str, panel_bg: str) -> str:
     """
     Build QSS for QGroupBox styling.
 
@@ -68,15 +68,21 @@ def build_group_box_qss(panel_text: str, panel_border: str) -> str:
     Args:
         panel_text: Hex color for text (e.g., '#e0e0e0')
         panel_border: Hex color for border (e.g., '#555555')
+        panel_bg: Hex color for background (e.g., '#2a2a2a')
 
     Returns:
         QSS string for QGroupBox
     """
     return (
         "QGroupBox {"
-        f" color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 6px;"
+        f" color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 10px;"
         " }"
-        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding:0 3px; }"
+        "QGroupBox::title {"
+        " subcontrol-origin: margin;"
+        " subcontrol-position: top left;"
+        f" background-color: {panel_bg};"
+        " left: 8px; padding:0 6px;"
+        " }"
     )
 
 

@@ -3,6 +3,7 @@
 
 import re
 import html
+import math
 import pandas as pd
 
 
@@ -71,6 +72,16 @@ def format_value_for_display(value, col=None):
     # Remove variations of nan/none
     if text.lower() in ('nan', 'none', 'nat', '<na>'):
         return ""
+
+    # Colunas de semana: sempre inteiro (sem .0)
+    if col and col.lower().startswith('semana'):
+        try:
+            num = float(text)
+            if math.isnan(num):
+                return ""
+            return str(int(round(num)))
+        except (ValueError, TypeError):
+            return text.strip()
 
     # Column-specific formatting
     if col == 'numero_ssa':
