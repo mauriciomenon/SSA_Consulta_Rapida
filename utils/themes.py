@@ -11,30 +11,30 @@ from PyQt6.QtGui import QPalette, QColor
 THEME_ROLES: dict[str, dict[str, str]] = {
     "grayscale": {
         # Accents
-        "accent": "#0a84ff",
-        "accent_soft": "#4b5563",
+        "accent": "#e6e6e6",
+        "accent_soft": "#cfd3d6",
         # Text
-        "label_color": "#1c1c1c",
-        "support_text_color": "#4b5563",
-        "indicator_text_color": "#1c1c1c",
-        "summary_text_color": "#1c1c1c",
+        "label_color": "#f0f0f0",
+        "support_text_color": "#cdd0d4",
+        "indicator_text_color": "#f0f0f0",
+        "summary_text_color": "#f0f0f0",
         # Panels & Frames
-        "panel_bg": "#ffffff",
-        "panel_text": "#1c1c1c",
-        "panel_border": "#d7d9db",
-        "summary_frame_bg": "#ffffff",
-        "summary_frame_border": "#d7d9db",
+        "panel_bg": "#2b2e33",
+        "panel_text": "#f0f0f0",
+        "panel_border": "#4a4d52",
+        "summary_frame_bg": "#31343a",
+        "summary_frame_border": "#4a4d52",
         # Inputs
-        "input_bg": "#ffffff",
-        "input_text": "#1c1c1c",
-        "input_border": "#c7c9cc",
-        "input_border_focus": "#0a84ff",
-        "input_placeholder": "#6e6e6e",
+        "input_bg": "#2f3238",
+        "input_text": "#f0f0f0",
+        "input_border": "#4a4d52",
+        "input_border_focus": "#e6e6e6",
+        "input_placeholder": "#9aa0aa",
         # Tags
         "tag_normal_bg": "transparent",
-        "tag_border": "#909090",
-        "tag_hover": "#f0f7ff",
-        "tag_pressed": "#d9ecff",
+        "tag_border": "#6b6e74",
+        "tag_hover": "#2f3238",
+        "tag_pressed": "#3a3d44",
     },
     "windows7": {
         "accent": "#2b6cc0",
@@ -103,8 +103,8 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "tag_pressed": "#504945",
     },
     "dark": {
-        "accent": "#4a90e2",
-        "accent_soft": "#9ec5ff",
+        "accent": "#7a7a7a",
+        "accent_soft": "#9c9c9c",
         "label_color": "#f0f0f0",
         "support_text_color": "#c2c2c2",
         "indicator_text_color": "#c2c2c2",
@@ -124,56 +124,12 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "tag_hover": "#333333",
         "tag_pressed": "#3f3f3f",
     },
-    "kde": {
-        "accent": "#3daee9",
-        "accent_soft": "#8fd0ff",
-        "label_color": "#eff0f1",
-        "support_text_color": "#b8c6d0",
-        "indicator_text_color": "#b8c6d0",
-        "summary_text_color": "#eff0f1",
-        "panel_bg": "#31363b",
-        "panel_text": "#eff0f1",
-        "panel_border": "#3daee9",
-        "summary_frame_bg": "#31363b",
-        "summary_frame_border": "#3daee9",
-        "input_bg": "#2f343f",
-        "input_text": "#eff0f1",
-        "input_border": "#3f4754",
-        "input_border_focus": "#3daee9",
-        "input_placeholder": "#8fa1b3",
-        "tag_normal_bg": "transparent",
-        "tag_border": "#3f4754",
-        "tag_hover": "#31363b",
-        "tag_pressed": "#31363b",
-    },
-    "one-dark": {
-        "accent": "#61afef",
-        "accent_soft": "#98c379",
-        "label_color": "#abb2bf",
-        "support_text_color": "#98c379",
-        "indicator_text_color": "#98c379",
-        "summary_text_color": "#abb2bf",
-        "panel_bg": "#2c313a",
-        "panel_text": "#abb2bf",
-        "panel_border": "#3e4451",
-        "summary_frame_bg": "#2c313a",
-        "summary_frame_border": "#3e4451",
-        "input_bg": "#2c313a",
-        "input_text": "#abb2bf",
-        "input_border": "#3e4451",
-        "input_border_focus": "#61afef",
-        "input_placeholder": "#5c6370",
-        "tag_normal_bg": "transparent",
-        "tag_border": "#3e4451",
-        "tag_hover": "#2c313a",
-        "tag_pressed": "#2c313a",
-    },
     "dracula": {
         "accent": "#bd93f9",
-        "accent_soft": "#8be9fd",
+        "accent_soft": "#c7b3ff",
         "label_color": "#f8f8f2",
-        "support_text_color": "#8be9fd",
-        "indicator_text_color": "#8be9fd",
+        "support_text_color": "#bcb0ff",
+        "indicator_text_color": "#bcb0ff",
         "summary_text_color": "#f8f8f2",
         "panel_bg": "#303446",
         "panel_text": "#f8f8f2",
@@ -184,7 +140,7 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "input_text": "#f8f8f2",
         "input_border": "#6272a4",
         "input_border_focus": "#bd93f9",
-        "input_placeholder": "#7082b6",
+        "input_placeholder": "#9ea3d1",
         "tag_normal_bg": "transparent",
         "tag_border": "#6272a4",
         "tag_hover": "#303446",
@@ -236,10 +192,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
     },
     "tokyo-night": {
         "accent": "#7aa2f7",
-        "accent_soft": "#7dcfff",
+        "accent_soft": "#9fb4ff",
         "label_color": "#c0caf5",
-        "support_text_color": "#7dcfff",
-        "indicator_text_color": "#7dcfff",
+        "support_text_color": "#9aa5d0",
+        "indicator_text_color": "#9aa5d0",
         "summary_text_color": "#c0caf5",
         "panel_bg": "#1f2335",
         "panel_text": "#c0caf5",
@@ -250,7 +206,7 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "input_text": "#c0caf5",
         "input_border": "#394260",
         "input_border_focus": "#7aa2f7",
-        "input_placeholder": "#565f89",
+        "input_placeholder": "#6d7595",
         "tag_normal_bg": "transparent",
         "tag_border": "#394260",
         "tag_hover": "#1f2335",
@@ -258,10 +214,10 @@ THEME_ROLES: dict[str, dict[str, str]] = {
     },
     "catppuccin": {
         "accent": "#cba6f7",
-        "accent_soft": "#f5c2e7",
+        "accent_soft": "#f2d0ff",
         "label_color": "#f2cdcd",
-        "support_text_color": "#f5c2e7",
-        "indicator_text_color": "#f5c2e7",
+        "support_text_color": "#e8d7ff",
+        "indicator_text_color": "#e8d7ff",
         "summary_text_color": "#f5e0dc",
         "panel_bg": "#1e1e2e",
         "panel_text": "#f5e0dc",
@@ -277,6 +233,28 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "tag_border": "#45475a",
         "tag_hover": "#1e1e2e",
         "tag_pressed": "#1e1e2e",
+    },
+    "nord": {
+        "accent": "#88c0d0",
+        "accent_soft": "#81a1c1",
+        "label_color": "#e5e9f0",
+        "support_text_color": "#d8dee9",
+        "indicator_text_color": "#c1d0e0",
+        "summary_text_color": "#e5e9f0",
+        "panel_bg": "#2e3440",
+        "panel_text": "#e5e9f0",
+        "panel_border": "#4c566a",
+        "summary_frame_bg": "#303747",
+        "summary_frame_border": "#4c566a",
+        "input_bg": "#3b4252",
+        "input_text": "#e5e9f0",
+        "input_border": "#4c566a",
+        "input_border_focus": "#88c0d0",
+        "input_placeholder": "#8b9bb1",
+        "tag_normal_bg": "transparent",
+        "tag_border": "#4c566a",
+        "tag_hover": "#3b4252",
+        "tag_pressed": "#3b4252",
     },
 }
 
@@ -339,20 +317,20 @@ def get_palette(name: str) -> QPalette:
     pal = QPalette()
 
     if key in {"grayscale", "light", "escala de cinza", "escala_de_cinza"}:
-        pal.setColor(QPalette.ColorRole.Window, QColor("#f2f2f2"))
-        pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
-        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#e6e6e6"))
-        pal.setColor(QPalette.ColorRole.Text, QColor("#1c1c1c"))
-        pal.setColor(QPalette.ColorRole.WindowText, QColor("#1c1c1c"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#d9d9d9"))
-        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#1c1c1c"))
-        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#fffcd6"))
-        pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#202020"))
-        pal.setColor(QPalette.ColorRole.Highlight, QColor("#0a84ff"))
-        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#0a84ff"))
-        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#5c5ce0"))
-        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#6e6e6e"))
+        pal.setColor(QPalette.ColorRole.Window, QColor("#2b2e33"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#2f3238"))
+        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#31343a"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#f0f0f0"))
+        pal.setColor(QPalette.ColorRole.WindowText, QColor("#f0f0f0"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#3a3d44"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#f0f0f0"))
+        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#3a3d44"))
+        pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#f0f0f0"))
+        pal.setColor(QPalette.ColorRole.Highlight, QColor("#e6e6e6"))
+        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#1c1c1c"))
+        pal.setColor(QPalette.ColorRole.Link, QColor("#cfd3d6"))
+        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#b5bcc4"))
+        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#9aa0aa"))
         return pal
 
     if key in {"windows7", "win7"}:
@@ -370,23 +348,6 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.Link, QColor("#2b6cc0"))
         pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#4b76c2"))
         pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#5d6f89"))
-        return pal
-
-    if key in {"kde", "plasma"}:
-        pal.setColor(QPalette.ColorRole.Window, QColor("#31363b"))
-        pal.setColor(QPalette.ColorRole.Base, QColor("#232629"))
-        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#2f343f"))
-        pal.setColor(QPalette.ColorRole.Text, QColor("#eff0f1"))
-        pal.setColor(QPalette.ColorRole.WindowText, QColor("#eff0f1"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#3b4045"))
-        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#eff0f1"))
-        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#40464d"))
-        pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#eff0f1"))
-        pal.setColor(QPalette.ColorRole.Highlight, QColor("#3daee9"))
-        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#232629"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#3daee9"))
-        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#a96eb7"))
-        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#9fb2bf"))
         return pal
 
     if key in {"gnome", "adwaita"}:
@@ -421,23 +382,6 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#bdae93"))
         return pal
 
-    # One Dark Pro
-    if key in {"one-dark", "onedark", "one dark"}:
-        pal.setColor(QPalette.ColorRole.Window, QColor("#282c34"))
-        pal.setColor(QPalette.ColorRole.Base, QColor("#1f2329"))
-        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#2c313c"))
-        pal.setColor(QPalette.ColorRole.Text, QColor("#abb2bf"))
-        pal.setColor(QPalette.ColorRole.WindowText, QColor("#abb2bf"))
-        pal.setColor(QPalette.ColorRole.Button, QColor("#2c313c"))
-        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#d7dae0"))
-        pal.setColor(QPalette.ColorRole.ToolTipBase, QColor("#2c313c"))
-        pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#d7dae0"))
-        pal.setColor(QPalette.ColorRole.Highlight, QColor("#61afef"))
-        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#1f2329"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#61afef"))
-        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#c678dd"))
-        return pal
-
     # Dracula
     if key in {"dracula"}:
         pal.setColor(QPalette.ColorRole.Window, QColor("#282a36"))
@@ -451,7 +395,7 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.ToolTipText, QColor("#f8f8f2"))
         pal.setColor(QPalette.ColorRole.Highlight, QColor("#bd93f9"))
         pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#282a36"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#8be9fd"))
+        pal.setColor(QPalette.ColorRole.Link, QColor("#bd93f9"))
         pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#ff79c6"))
         return pal
 
@@ -498,9 +442,9 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.ButtonText, QColor("#c0caf5"))
         pal.setColor(QPalette.ColorRole.Highlight, QColor("#7aa2f7"))
         pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#16161e"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#7dcfff"))
-        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#bb9af7"))
-        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#565f89"))
+        pal.setColor(QPalette.ColorRole.Link, QColor("#9fb4ff"))
+        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#9aa5d0"))
+        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#6d7595"))
         return pal
 
     # Catppuccin Mocha
@@ -512,11 +456,27 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.WindowText, QColor("#cdd6f4"))
         pal.setColor(QPalette.ColorRole.Button, QColor("#313244"))
         pal.setColor(QPalette.ColorRole.ButtonText, QColor("#cdd6f4"))
-        pal.setColor(QPalette.ColorRole.Highlight, QColor("#89b4fa"))
-        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#181825"))
-        pal.setColor(QPalette.ColorRole.Link, QColor("#74c7ec"))
-        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#b4befe"))
+        pal.setColor(QPalette.ColorRole.Highlight, QColor("#cba6f7"))
+        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#1e1e2e"))
+        pal.setColor(QPalette.ColorRole.Link, QColor("#cba6f7"))
+        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#f2d0ff"))
         pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#9399b2"))
+        return pal
+
+    # Nord
+    if key in {"nord"}:
+        pal.setColor(QPalette.ColorRole.Window, QColor("#2e3440"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#3b4252"))
+        pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#434c5e"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#e5e9f0"))
+        pal.setColor(QPalette.ColorRole.WindowText, QColor("#e5e9f0"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#3b4252"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#e5e9f0"))
+        pal.setColor(QPalette.ColorRole.Highlight, QColor("#88c0d0"))
+        pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#2e3440"))
+        pal.setColor(QPalette.ColorRole.Link, QColor("#88c0d0"))
+        pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#81a1c1"))
+        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#8b9bb1"))
         return pal
 
     # dark padrão (fallback)
@@ -527,10 +487,10 @@ def get_palette(name: str) -> QPalette:
     pal.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
     pal.setColor(QPalette.ColorRole.Button, QColor("#2a2a2a"))
     pal.setColor(QPalette.ColorRole.ButtonText, QColor("#e0e0e0"))
-    pal.setColor(QPalette.ColorRole.Highlight, QColor("#4a90e2"))
-    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#1e1e1e"))
-    pal.setColor(QPalette.ColorRole.Link, QColor("#76baff"))
-    pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#b58ae5"))
+    pal.setColor(QPalette.ColorRole.Highlight, QColor("#5a5a5a"))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#f0f0f0"))
+    pal.setColor(QPalette.ColorRole.Link, QColor("#7a7a7a"))
+    pal.setColor(QPalette.ColorRole.LinkVisited, QColor("#9c9c9c"))
     pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#9e9e9e"))
     return pal
 
@@ -549,18 +509,14 @@ def normalize_theme(name: str) -> str:
         Nome canonico do tema, ou 'dark' se nao reconhecido.
     """
     name = (name or "dark").lower()
-    if name in ("grayscale", "light", "claro", "escala de cinza", "escala_de_cinza"):
+    if name in ("grayscale", "light", "escala de cinza", "escala_de_cinza"):
         return "grayscale"
     if name in ("windows7", "win7", "windows 7"):
         return "windows7"
-    if name in ("kde", "plasma"):
-        return "kde"
-    if name in ("gnome", "adwaita"):
+    if name in ("gnome", "adwaita", "claro"):
         return "gnome"
     if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"):
         return "gruvbox"
-    if name in ("one-dark", "onedark", "one dark"):
-        return "one-dark"
     if name in ("dracula",):
         return "dracula"
     if name in ("solarized-dark", "solarized dark"):
@@ -571,6 +527,8 @@ def normalize_theme(name: str) -> str:
         return "tokyo-night"
     if name in ("catppuccin", "catppuccin-mocha", "catppuccin mocha"):
         return "catppuccin"
+    if name in ("nord",):
+        return "nord"
     return "dark"
 
 
