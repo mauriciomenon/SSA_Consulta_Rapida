@@ -543,6 +543,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._column_filter_labels = {}
         self._pending_filter_focus = None
         self._current_theme = None
+        self._highlight_bg_color = HIGHLIGHT_BACKGROUND_COLOR
+        self._highlight_text_color = None
+        self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
         self._df_last_search_filtered = pd.DataFrame()
 
         self._initialize_profile_filter_placeholders()
@@ -1213,29 +1216,72 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             pass
-        theme_options = [
-            ("Escala de cinza", 'grayscale'),
-            ("Escuro", 'dark'),
-            ("Gruvbox", 'gruvbox'),
-            ("One Dark Pro", 'one-dark'),
-            ("Dracula", 'dracula'),
-            ("Solarized Dark", 'solarized-dark'),
+        light_themes = [
+            ("Claro", 'claro'),
+            ("Mint Light", 'mint-light'),
+            ("Paper", 'paper'),
             ("Solarized Light", 'solarized-light'),
-            ("Tokyo Night", 'tokyo-night'),
-            ("Catppuccin (Mocha)", 'catppuccin'),
             ("Windows 7", 'windows7'),
-            ("KDE", 'kde'),
-            ("GNOME", 'gnome'),
         ]
-        for label, key in theme_options:
-            act = menu.addAction(label)
-            if act is not None:  # defesa para analise estatica
-                trigger = getattr(act, "triggered", None)
-                if trigger is not None:
+        dark_themes = [
+            ("Catppuccin (Mocha)", 'catppuccin'),
+            ("Dark", 'dark'),
+            ("Dracula", 'dracula'),
+            ("Grayscale", 'grayscale'),
+            ("Gruvbox", 'gruvbox'),
+            ("Nord", 'nord'),
+            ("Solarized Dark", 'solarized-dark'),
+            ("Tokyo Night", 'tokyo-night'),
+        ]
+
+        def _add_label(text: str):
+            try:
+                from PyQt6.QtWidgets import QWidgetAction
+                label = QLabel(text)
+                try:
+                    from PyQt6.QtGui import QPalette as _QPal
+                    pal = menu.palette()
+                    label_color = pal.color(_QPal.ColorRole.Mid).name()
+                    label.setStyleSheet(
+                        f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
+                    )
+                except Exception:
+                    pass
+                action = QWidgetAction(menu)
+                action.setDefaultWidget(label)
+                menu.addAction(action)
+            except Exception:
+                act = menu.addAction(text)
+                if act is not None:
                     try:
-                        trigger.connect(partial(self.apply_theme, key))
+                        act.setEnabled(False)
                     except Exception:
                         pass
+
+        def _add_group(items):
+            for label, key in items:
+                act = menu.addAction(label)
+                if act is not None:
+                    trigger = getattr(act, "triggered", None)
+                    if trigger is not None:
+                        try:
+                            trigger.connect(partial(self.apply_theme, key))
+                        except Exception:
+                            pass
+
+        _add_label("Light")
+        _add_group(sorted(light_themes, key=lambda item: item[0].lower()))
+        menu.addSeparator()
+        _add_label("Dark")
+        _add_group(sorted(dark_themes, key=lambda item: item[0].lower()))
+
+        try:
+            labels = [name for name, _ in light_themes + dark_themes]
+            fm = menu.fontMetrics()
+            widest = max(fm.horizontalAdvance(lbl) for lbl in labels)
+            menu.setMinimumWidth(widest + 48)
+        except Exception:
+            pass
         btn = self.sender()
         try:
             if btn is not None:
@@ -1261,27 +1307,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             from PyQt6.QtWidgets import QApplication, QStyleFactory
             app = QApplication.instance()
-            if normalized == 'grayscale':
-                # Usa a paleta padrão sem depender de QStyleFactory
-                if app is not None and hasattr(app, 'style'):
-                    style_obj = app.style()
-                    palette_factory = getattr(style_obj, 'standardPalette', None)
-                    try:
-                        pal = palette_factory() if callable(palette_factory) else get_palette(normalized)
-                    except Exception:  # noqa: BLE001
-                        pal = get_palette(normalized)
-                else:
-                    pal = get_palette(normalized)
-            else:
-                pal = get_palette(normalized)
+            pal = get_palette(normalized)
             # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
-            # Ao usar temas personalizados (não-sistema), force "Fusion" para melhor consistência.
+            # Para consistencia, force "Fusion" em todos os temas.
             try:
                 if app is not None:
-                    if normalized not in {'grayscale', 'windows7', 'gnome'}:
-                        styles = QStyleFactory.keys()
-                        if styles and 'Fusion' in styles:
-                            app.setStyle('Fusion')
+                    styles = QStyleFactory.keys()
+                    if styles and 'Fusion' in styles:
+                        app.setStyle('Fusion')
             except Exception:
                 pass
             # Aplica paleta no aplicativo inteiro para garantir consistência
@@ -1289,16 +1322,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 app.setPalette(pal)
                 # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
                 try:
+                    app.setStyleSheet("")
                     block = build_global_widget_qss(pal)
-                    existing_qss = app.styleSheet() or ""
-                    start = existing_qss.find("/* SSA_THEME_QSS_START */")
-                    end = existing_qss.find("/* SSA_THEME_QSS_END */")
-                    if start != -1 and end != -1 and end > start:
-                        end += len("/* SSA_THEME_QSS_END */")
-                        new_qss = existing_qss[:start] + block + existing_qss[end:]
-                    else:
-                        new_qss = existing_qss + ("\n" if existing_qss else "") + block
-                    app.setStyleSheet(new_qss)
+                    app.setStyleSheet(block)
                 except Exception:
                     pass
             # Garante também na janela atual
@@ -1315,6 +1341,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             central = self.centralWidget()
             if central is not None:
+                try:
+                    central.setStyleSheet("")
+                except Exception:
+                    pass
                 existing = central.styleSheet() or ""
                 start = existing.find("/* SSA_MAIN_BG_START */")
                 if start != -1:
@@ -1325,7 +1355,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     else:
                         existing = existing[:start].rstrip()
                 normalized_name = normalize_theme(normalized)
-                if normalized_name in {'gruvbox', 'dark', 'kde', 'one-dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin'}:
+                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
                     bg = pal.window().color().name()
                     block = build_central_widget_qss(bg)
                     new_css = existing
@@ -1353,7 +1383,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # These variables are used in subsequent sections
         self._current_theme = normalized
         try:
-            light_themes = {'grayscale', 'windows7', 'gnome', 'solarized-light'}
+            light_themes = {'windows7', 'claro', 'solarized-light', 'mint-light', 'paper'}
             selector = getattr(self, 'column_selector', None)
             pal_active = self.palette()
             from PyQt6.QtGui import QPalette as _QPal
@@ -1378,6 +1408,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
             panel_text = roles.get('panel_text', txt)
             panel_border = roles.get('panel_border', input_border)
+            try:
+                highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
+            except Exception:
+                highlight_fg = None
+            self._highlight_bg_color = high or HIGHLIGHT_BACKGROUND_COLOR
+            self._highlight_text_color = highlight_fg or None
+            self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
 
             # ============================================================
             # SECTION 4: Search Bar Components
@@ -1503,6 +1540,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         self._apply_macos_contrast(normalized)
+        try:
+            self.update_details_from_selection()
+        except Exception:
+            pass
 
     def _apply_macos_contrast(self, theme_name: str):
         if sys.platform != 'darwin':
@@ -1977,6 +2018,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Delegate to helper function."""
         return format_value_for_display(value, col)
 
+    def _normalize_highlight_term(self, term):
+        """Remove modos e negacoes para uso no highlight."""
+        if term is None:
+            return ""
+        cleaned = str(term).strip()
+        if not cleaned:
+            return ""
+        if cleaned.startswith('!') or cleaned.startswith('-'):
+            cleaned = cleaned[1:]
+        if cleaned.startswith('~') or cleaned.startswith('=') or cleaned.startswith('^'):
+            cleaned = cleaned[1:]
+        if cleaned.endswith('$'):
+            cleaned = cleaned[:-1]
+        return cleaned.strip()
+
     def _get_current_search_terms(self):
         """Retorna lista de termos de busca atuais."""
         search_text = self.search_input.text().strip()
@@ -1984,37 +2040,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return []
         # Split por virgulas
         terms = [term.strip() for term in search_text.split(',') if term.strip()]
-        # Remove prefixos de modo (^, $, =, ~, !)
         clean_terms = []
         for term in terms:
-            # Remove negativos
-            if term.startswith('!') or term.startswith('-'):
-                term = term[1:]
-            # Remove modos
-            if term.startswith('~'):
-                term = term[1:]
-            elif term.startswith('='):
-                term = term[1:]
-            elif term.startswith('^'):
-                term = term[1:]
-            elif term.endswith('$'):
-                term = term[:-1]
-            if term:
-                clean_terms.append(term)
+            normalized = self._normalize_highlight_term(term)
+            if normalized:
+                clean_terms.append(normalized)
         return clean_terms
+
+    def _collect_highlight_terms(self):
+        """Combina termos da busca geral e filtros de coluna para realce."""
+        aggregated = []
+        seen = set()
+        for term in self._get_current_search_terms():
+            if term and term not in seen:
+                aggregated.append(term)
+                seen.add(term)
+        for raw in getattr(self, '_active_column_filters', {}).values():
+            if not raw:
+                continue
+            normalized_raw = str(raw).replace(';', ',')
+            tokens = [tok.strip() for tok in normalized_raw.split(',') if tok.strip()]
+            for tok in tokens:
+                normalized = self._normalize_highlight_term(tok)
+                if normalized and normalized not in seen:
+                    aggregated.append(normalized)
+                    seen.add(normalized)
+        return aggregated
 
     def _highlight_text(self, text, terms):
         """Delegate to helper function."""
-        return highlight_text(text, terms, HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT)
+        bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
+        fg = getattr(self, '_highlight_text_color', None)
+        weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
+        return highlight_text(text, terms, bg, weight, fg)
 
     def _format_details_html(self, series, highlight_search_terms=False):
         """Formata dados da SSA como HTML com highlight opcional."""
         import html as html_module
 
         # Obtem termos de busca se necessario
-        search_terms = self._get_current_search_terms() if highlight_search_terms else []
+        search_terms = (
+            self._collect_highlight_terms() if highlight_search_terms else []
+        )
 
-        html_lines = [f'<html><body style="font-family: monospace; font-size: {DETAILS_DIALOG_FONT_SIZE}pt;">']
+        try:
+            from PyQt6.QtGui import QPalette as _QPal
+            text_color = self.palette().color(_QPal.ColorRole.WindowText).name()
+        except Exception:
+            text_color = "#000000"
+
+        html_lines = [f'<html><body style="font-family: monospace; font-size: {DETAILS_DIALOG_FONT_SIZE}pt; color: {text_color};">']
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
         # Ordenar campos: prioridade primeiro, depois alfabetico
@@ -2122,7 +2197,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Usa dados originais (nao formatados) para detalhes
         series = self.df_exibido.iloc[int(original_index)]
 
-        # Ordenar campos: prioridade primeiro, depois alfabetico
+        try:
+            html_content = self._format_details_html(series, highlight_search_terms=True)
+            self.details_text.setHtml(html_content)
+            return
+        except Exception:
+            pass
+
+        # Fallback para texto simples se HTML nao estiver disponivel
         def field_sort_key(item):
             col, _ = item
             try:
@@ -2131,24 +2213,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return (1, col)
 
         sorted_items = sorted(series.items(), key=field_sort_key)
-
-        # Constroi texto formatado sem NaN/None
         lines = []
         for col, value in sorted_items:
-            # Formata valor
             formatted_value = self._format_value_for_display(value, col)
-
-            # Pula campos vazios
             if not formatted_value:
                 continue
-
-            # Nome de exibicao
             display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-
             lines.append(f"{display_name}: {formatted_value}")
-
         details_str = "\n".join(lines)
-        self.details_text.setPlainText(details_str)
+        try:
+            self.details_text.setPlainText(details_str)
+        except Exception:
+            pass
 
     def show_context_menu(self, position):
         """Mostra menu de contexto na tabela."""
