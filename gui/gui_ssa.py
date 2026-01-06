@@ -1227,7 +1227,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ("Catppuccin (Mocha)", 'catppuccin'),
             ("Nord", 'nord'),
             ("Windows 7", 'windows7'),
-            ("Claro", 'claro'),
+            ("GNOME (Claro)", 'claro'),
         ]
         for label, key in theme_options:
             act = menu.addAction(label)
