@@ -509,8 +509,7 @@ def normalize_theme(name: str) -> str:
         Nome canonico do tema, ou 'dark' se nao reconhecido.
     """
     name = (name or "dark").lower()
-    if name in ("grayscale", "light", "escala de cinza", "escala_de_cinza"):
-        return "grayscale"
+    if name in ("grayscale", "escala de cinza", "escala_de_cinza"):
     if name in ("windows7", "win7", "windows 7"):
         return "windows7"
     if name in ("gnome", "adwaita", "claro"):
