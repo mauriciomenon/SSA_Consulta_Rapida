@@ -19,6 +19,7 @@ import logging
 import re
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
+from shared.date_utils import parse_any_date
 
 # Lazy imports from database.py to avoid circular dependency (see line 303)
 
@@ -54,7 +55,10 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
         def _parse(dt):  # evita E731 lambda
             if dt in (None, '') or (isinstance(dt, float) and pd.isna(dt)):
                 return None
-            return pd.to_datetime(dt, errors='coerce')
+            parsed = parse_any_date(dt)
+            if parsed is None:
+                return None
+            return pd.to_datetime(parsed, errors='coerce', format="%Y-%m-%d %H:%M:%S")
 
         e_dt = _parse(existing_date)
         n_dt = _parse(new_date)

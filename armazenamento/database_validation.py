@@ -6,6 +6,7 @@ import logging
 import pandas as pd  # type: ignore[import-not-found]
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
+from shared.date_utils import parse_any_date
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +112,8 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
         for col in date_cols:
             try:
                 series = df[col]
-                iso_mask = series.astype(str).str.match(r'^\d{4}-\d{2}-\d{2}')
-                parsed = pd.Series(pd.NaT, index=series.index, dtype='datetime64[ns]')
-                if iso_mask.any():
-                    parsed.loc[iso_mask] = pd.to_datetime(series.loc[iso_mask], errors='coerce', dayfirst=False)
-                if (~iso_mask).any():
-                    parsed.loc[~iso_mask] = pd.to_datetime(series.loc[~iso_mask], errors='coerce', dayfirst=True)
+                parsed_text = series.apply(parse_any_date)
+                parsed = pd.to_datetime(parsed_text, errors='coerce', format="%Y-%m-%d %H:%M:%S")
                 invalid_mask = parsed.isna() & series.notna() & (series != '')
                 invalid_dates = invalid_mask.sum()
                 if invalid_dates:

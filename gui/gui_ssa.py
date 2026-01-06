@@ -78,7 +78,8 @@ def load_gui_main_preferences():
         },
         "gui_settings": {
             "page_size": 50, "auto_load": False, "debounce_delay": 250,
-            "default_filter_mode": "contains", "show_progress_bar": True
+            "default_filter_mode": "contains", "show_progress_bar": True,
+            "theme": "gruvbox", "theme_default": None
         },
         "version": "1.0.0"
     }
@@ -474,6 +475,49 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     Inherits from FilterGUISSAMixin for filter-related methods.
     """
+    def _get_theme_catalog(self):
+        light_themes = [
+            ("Claro", 'claro'),
+            ("Mint Light", 'mint-light'),
+            ("Paper", 'paper'),
+            ("Solarized Light", 'solarized-light'),
+            ("Windows 7", 'windows7'),
+        ]
+        dark_themes = [
+            ("Catppuccin (Mocha)", 'catppuccin'),
+            ("Dark", 'dark'),
+            ("Dracula", 'dracula'),
+            ("Grayscale", 'grayscale'),
+            ("Gruvbox", 'gruvbox'),
+            ("Nord", 'nord'),
+            ("Solarized Dark", 'solarized-dark'),
+            ("Tokyo Night", 'tokyo-night'),
+        ]
+        return light_themes, dark_themes
+
+    def _get_theme_keys(self):
+        light_themes, dark_themes = self._get_theme_catalog()
+        return {key for _, key in light_themes + dark_themes}
+
+    def _persist_gui_preferences(self):
+        try:
+            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
+                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _resolve_startup_theme(self):
+        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+        theme_default = gui_settings.get("theme_default")
+        last_theme = gui_settings.get("theme")
+        theme_keys = self._get_theme_keys()
+        for candidate in (theme_default, last_theme, "gruvbox"):
+            if isinstance(candidate, str) and candidate.strip():
+                normalized = normalize_theme(candidate)
+                if normalized in theme_keys:
+                    return normalized
+        return "gruvbox"
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Consulta Rapida de SSAs")
@@ -571,13 +615,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Carrega filtros apos a GUI estar configurada
         self.load_persistent_filters()
-        # Aplica o tema preferido (padrao: claro) antes do auto-load
-        preferred_theme = gui_settings.get("theme", "light")
+        # Aplica o tema preferido antes do auto-load
+        preferred_theme = self._resolve_startup_theme()
         self.apply_theme(preferred_theme)
         try:
             GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = preferred_theme
-            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+            self._persist_gui_preferences()
         except Exception:
             pass
         # Aplica perfil inicial de filtros por setor
@@ -625,9 +668,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             week_str = "-"
         self.week_label = QLabel(f"Semana Atual: {week_str}")
         # Destaque visual em caixa
-        self.week_label.setStyleSheet(
+        self._week_label_style = (
             "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
+        self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual (nção clicãvel)")
         toolbar_layout.addSpacing(6)
         toolbar_layout.addWidget(self.week_label)
@@ -826,8 +870,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             self.clear_all_filters_btn.setMaximumWidth(200)
             self.clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
-            summary_layout.addWidget(self.filters_summary_label, 1)
+            try:
+                self.clear_all_filters_btn.setStyleSheet(self._week_label_style)
+            except Exception:
+                pass
             summary_layout.addWidget(self.clear_all_filters_btn, 0)
+            summary_layout.addWidget(self.filters_summary_label, 1)
             main_layout.addWidget(self.filters_summary_frame)
             # Sempre visível; o texto é atualizado conforme filtros
             self.filters_summary_frame.setVisible(True)
@@ -1192,7 +1240,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
     def toggle_theme_menu(self):
-        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtWidgets import QMenu, QWidgetAction, QCheckBox
         from functools import partial
         menu = QMenu(self)
         # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
@@ -1220,32 +1268,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             pass
-        light_themes = [
-            ("Claro", 'claro'),
-            ("Mint Light", 'mint-light'),
-            ("Paper", 'paper'),
-            ("Solarized Light", 'solarized-light'),
-            ("Windows 7", 'windows7'),
-        ]
-        dark_themes = [
-            ("Catppuccin (Mocha)", 'catppuccin'),
-            ("Dark", 'dark'),
-            ("Dracula", 'dracula'),
-            ("Grayscale", 'grayscale'),
-            ("Gruvbox", 'gruvbox'),
-            ("Nord", 'nord'),
-            ("Solarized Dark", 'solarized-dark'),
-            ("Tokyo Night", 'tokyo-night'),
-        ]
+        light_themes, dark_themes = self._get_theme_catalog()
+        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
+        theme_default = gui_settings.get("theme_default")
+        current_theme = normalize_theme(getattr(self, "_current_theme", "") or theme_default or "gruvbox")
+        roles = get_theme_roles(current_theme)
+        try:
+            from PyQt6.QtGui import QPalette as _QPal
+            pal = menu.palette()
+            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
+            win = pal.color(_QPal.ColorRole.Window).name()
+        except Exception:
+            wtxt = "#ffffff"
+            win = "#000000"
+        support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
+        if support_color.lower() == win.lower():
+            support_color = wtxt
+
+        try:
+            check_action = QWidgetAction(menu)
+            check_widget = QCheckBox("Usar tema atual como padrao")
+            check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
+            try:
+                check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
+            except Exception:
+                pass
+            def _toggle_default(checked):
+                gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+                if checked:
+                    active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
+                    gui_settings["theme_default"] = active_theme
+                else:
+                    gui_settings.pop("theme_default", None)
+                self._persist_gui_preferences()
+            check_widget.toggled.connect(_toggle_default)
+            check_action.setDefaultWidget(check_widget)
+            menu.addAction(check_action)
+        except Exception:
+            default_action = menu.addAction("Usar tema atual como padrao")
+            if default_action is not None:
+                try:
+                    default_action.setCheckable(True)
+                    default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
+                    def _toggle_default_action(checked):
+                        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+                        if checked:
+                            active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
+                            gui_settings["theme_default"] = active_theme
+                        else:
+                            gui_settings.pop("theme_default", None)
+                        self._persist_gui_preferences()
+                    default_action.triggered.connect(_toggle_default_action)
+                except Exception:
+                    pass
+        menu.addSeparator()
 
         def _add_label(text: str):
             try:
                 from PyQt6.QtWidgets import QWidgetAction
                 label = QLabel(text)
                 try:
-                    from PyQt6.QtGui import QPalette as _QPal
-                    pal = menu.palette()
-                    label_color = pal.color(_QPal.ColorRole.Mid).name()
+                    label_color = support_color
                     label.setStyleSheet(
                         f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
                     )
@@ -1437,6 +1520,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # ============================================================
             # Style the SSA details text widget and its group box
             if hasattr(self, 'details_text'):
+                if hasattr(self, 'details_group'):
+                    try:
+                        base_font = self.details_group.font()
+                        small_font = QFont(base_font)
+                        size = small_font.pointSizeF()
+                        if size <= 0:
+                            size = float(small_font.pointSize())
+                        if size > 0:
+                            small_font.setPointSizeF(max(size - 1.5, 1.0))
+                        self.details_text.setFont(small_font)
+                    except Exception:
+                        pass
                 if normalized in light_themes:
                     self.details_text.setStyleSheet('')
                 else:
@@ -1468,21 +1563,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 7: Status and Week Labels
             # ============================================================
             # Style the week indicator and status bar label
+            highlight_style = (
+                f"font-weight:600; color:{accent}; background:{panel_bg}; "
+                f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
+            )
+            self._week_label_style = highlight_style
             if hasattr(self, 'week_label'):
-                if normalized in light_themes:
-                    self.week_label.setStyleSheet('')
-                else:
-                    self.week_label.setStyleSheet(
-                        f"font-weight:600; color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-                    )
+                self.week_label.setStyleSheet(highlight_style)
 
             if hasattr(self, 'status_label'):
-                if normalized in light_themes:
-                    self.status_label.setStyleSheet('')
-                else:
-                    self.status_label.setStyleSheet(
-                        f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-                    )
+                self.status_label.setStyleSheet(
+                    f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
+                )
 
             # ============================================================
             # SECTION 8: Support Text and Indicators
@@ -1513,6 +1605,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
                     " }"
                 )
+            if hasattr(self, 'clear_all_filters_btn'):
+                self.clear_all_filters_btn.setStyleSheet(highlight_style)
+            if hasattr(self, 'clear_all_btn'):
+                self.clear_all_btn.setStyleSheet(highlight_style)
 
             # ============================================================
             # SECTION 10: Column Selector and Hints
@@ -2074,9 +2170,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
         return highlight_text(text, terms, bg, weight, fg)
 
-    def _format_details_html(self, series, highlight_search_terms=False):
+    def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None):
         """Formata dados da SSA como HTML com highlight opcional."""
+        # HTML is required here to keep search hit highlighting in the details panel.
         import html as html_module
+
+        if font_size_pt is None:
+            font_size_pt = DETAILS_DIALOG_FONT_SIZE
 
         # Obtem termos de busca se necessario
         search_terms = (
@@ -2089,7 +2189,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             text_color = "#000000"
 
-        html_lines = [f'<html><body style="font-family: monospace; font-size: {DETAILS_DIALOG_FONT_SIZE}pt; color: {text_color};">']
+        html_lines = [f'<html><body style="font-family: monospace; font-size: {font_size_pt}pt; color: {text_color};">']
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
         # Ordenar campos: prioridade primeiro, depois alfabetico
@@ -2198,7 +2298,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         series = self.df_exibido.iloc[int(original_index)]
 
         try:
-            html_content = self._format_details_html(series, highlight_search_terms=True)
+            font_size_pt = None
+            if hasattr(self, 'details_group'):
+                try:
+                    base_font = self.details_group.font()
+                    size = base_font.pointSizeF()
+                    if size <= 0:
+                        size = float(base_font.pointSize())
+                    if size > 0:
+                        # HTML content sets its own font-size; adjust here to keep details smaller.
+                        font_size_pt = max(size - 1.0, 8.0)
+                except Exception:
+                    font_size_pt = None
+            html_content = self._format_details_html(
+                series,
+                highlight_search_terms=True,
+                font_size_pt=font_size_pt,
+            )
             self.details_text.setHtml(html_content)
             return
         except Exception:
