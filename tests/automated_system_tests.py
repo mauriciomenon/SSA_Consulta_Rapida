@@ -591,12 +591,12 @@ class AutomatedSystemTester:
 
             # Executar testes
             for test_name, test_func in tests_to_run:
-                print(f"\n🔍 Executando: {test_name}...")
+                print(f"\nINFO Executando: {test_name}...")
 
                 test_result = test_func()
                 self.test_results.append(test_result)
 
-                status = "✅ PASSOU" if test_result.success else "❌ FALHOU"
+                status = "OK PASSOU" if test_result.success else "ERR FALHOU"
                 duration = f"{test_result.duration.total_seconds():.2f}s" if test_result.duration else "N/A"
 
                 print(f"   {status} ({duration})")
@@ -621,14 +621,14 @@ class AutomatedSystemTester:
 
             # Resultado final
             print("\n" + "=" * 60)
-            print("📊 RESULTADO FINAL DOS TESTES:")
+            print("INFO RESULTADO FINAL DOS TESTES:")
             print(f"   Total de Testes: {total_tests}")
             print(f"   Testes Bem-sucedidos: {successful_tests}")
             print(f"   Taxa de Sucesso: {success_rate:.1%}")
             print(f"   Duração Total: {total_duration.total_seconds():.2f}s")
 
             overall_success = success_rate >= 0.75  # 75% dos testes devem passar
-            status_final = "✅ SISTEMA APROVADO" if overall_success else "❌ SISTEMA COM PROBLEMAS"
+            status_final = "OK SISTEMA APROVADO" if overall_success else "ERR SISTEMA COM PROBLEMAS"
             print(f"   Status: {status_final}")
 
             return {
@@ -655,7 +655,7 @@ class AutomatedSystemTester:
         # Criar diretório se não existir
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
-        status_icon = "✅" if test_summary.get('success', False) else "❌"
+        status_icon = "OK" if test_summary.get('success', False) else "ERR"
 
         content = f"""# Relatório de Testes Automatizados - Sistema SSA
 
@@ -674,7 +674,7 @@ class AutomatedSystemTester:
 """
 
         for test_result in test_summary.get('test_results', []):
-            status = "✅ PASSOU" if test_result.get('success', False) else "❌ FALHOU"
+            status = "OK PASSOU" if test_result.get('success', False) else "ERR FALHOU"
             duration = test_result.get('duration_seconds', 0)
 
             content += f"### {test_result.get('test_name', 'Teste Desconhecido')} {status}\n\n"
@@ -698,14 +698,14 @@ class AutomatedSystemTester:
 O sistema SSA Consulta Rápida foi submetido a {test_summary.get('total_tests', 0)} testes automatizados abrangentes,
 cobrindo todas as principais funcionalidades:
 
-- ✅ Criação e inicialização do banco de dados
-- ✅ Extração de dados de arquivos Excel
-- ✅ Processo completo de importação
-- ✅ Funcionalidades da interface CLI
-- ✅ Inicialização da interface GUI
-- ✅ Sistema de filtragem de dados
-- ✅ Integridade do banco de dados
-- ✅ Configurações do sistema
+- OK Criação e inicialização do banco de dados
+- OK Extração de dados de arquivos Excel
+- OK Processo completo de importação
+- OK Funcionalidades da interface CLI
+- OK Inicialização da interface GUI
+- OK Sistema de filtragem de dados
+- OK Integridade do banco de dados
+- OK Configurações do sistema
 
 ### Recomendações
 
@@ -713,7 +713,7 @@ cobrindo todas as principais funcionalidades:
 
         if test_summary.get('success', False):
             content += """
-**Status: SISTEMA APROVADO** ✅
+**Status: SISTEMA APROVADO** OK
 
 O sistema passou em todos os testes críticos e está funcionando corretamente.
 Todas as interfaces (CLI, GUI) estão operacionais e o banco de dados está íntegro.
@@ -725,7 +725,7 @@ Todas as interfaces (CLI, GUI) estão operacionais e o banco de dados está ínt
 """
         else:
             content += """
-**Status: SISTEMA COM PROBLEMAS** ❌
+**Status: SISTEMA COM PROBLEMAS** ERR
 
 Alguns testes falharam. Revisar os erros acima e corrigir antes do uso em produção.
 
@@ -743,7 +743,7 @@ Alguns testes falharam. Revisar os erros acima e corrigir antes do uso em produ�
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(content)
 
-        print(f"\n📄 Relatório salvo em: {output_file}")
+        print(f"\nFILE Relatório salvo em: {output_file}")
         return output_file
 
 

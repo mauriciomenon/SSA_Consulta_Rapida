@@ -6,12 +6,12 @@ def analyze_database_integrity():
 
     conn = sqlite3.connect('data/ssas.db')
 
-    print("🔍 ANÁLISE DE INTEGRIDADE DO BANCO DE DADOS")
+    print("INFO ANÁLISE DE INTEGRIDADE DO BANCO DE DADOS")
     print("=" * 60)
 
     # 1. Estatísticas básicas
     total_records = pd.read_sql_query("SELECT COUNT(*) as total FROM ssas", conn).iloc[0]['total']
-    print(f"\n📊 Total de registros: {total_records:,}")
+    print(f"\nINFO Total de registros: {total_records:,}")
 
     # 2. Verificar duplicatas por numero_ssa
     duplicates_query = """
@@ -26,7 +26,7 @@ def analyze_database_integrity():
 
     duplicates = pd.read_sql_query(duplicates_query, conn)
     if len(duplicates) > 0:
-        print(f"\n❌ DUPLICATAS ENCONTRADAS:")
+        print(f"\nERR DUPLICATAS ENCONTRADAS:")
         print(f"   {len(duplicates)} números de SSA duplicados")
         print("   Top 10 mais duplicados:")
         for _, row in duplicates.head().iterrows():
@@ -41,12 +41,12 @@ def analyze_database_integrity():
                 HAVING COUNT(*) > 1
             )
         """, conn).iloc[0]['total_extra']
-        print(f"   🗑️ Total de registros duplicados para remoção: {total_duplicated:,}")
+        print(f"   ️ Total de registros duplicados para remoção: {total_duplicated:,}")
     else:
-        print("\n✅ Nenhuma duplicata encontrada por numero_ssa")
+        print("\nOK Nenhuma duplicata encontrada por numero_ssa")
 
     # 3. Verificar campos vazios críticos
-    print(f"\n📋 VERIFICAÇÃO DE CAMPOS OBRIGATÓRIOS:")
+    print(f"\nINFO VERIFICAÇÃO DE CAMPOS OBRIGATÓRIOS:")
 
     critical_fields = [
         'numero_ssa', 'situacao_ssa', 'descricao_da_ssa',
@@ -62,9 +62,9 @@ def analyze_database_integrity():
 
         if empty_count > 0:
             percentage = (empty_count / total_records) * 100
-            print(f"   ❌ {field}: {empty_count:,} vazios ({percentage:.1f}%)")
+            print(f"   ERR {field}: {empty_count:,} vazios ({percentage:.1f}%)")
         else:
-            print(f"   ✅ {field}: Todos preenchidos")
+            print(f"   OK {field}: Todos preenchidos")
 
     # 4. Verificar registros completamente vazios
     empty_records = pd.read_sql_query("""
@@ -75,7 +75,7 @@ def analyze_database_integrity():
     """, conn).iloc[0]['count']
 
     if empty_records > 0:
-        print(f"\n🗑️ REGISTROS VAZIOS: {empty_records:,} registros sem dados essenciais")
+        print(f"\n️ REGISTROS VAZIOS: {empty_records:,} registros sem dados essenciais")
 
     # 5. Análise de qualidade por data de importação (se existir campo)
     try:
@@ -89,16 +89,16 @@ def analyze_database_integrity():
         """, conn)
 
         if len(import_dates) > 0:
-            print(f"\n📅 IMPORTAÇÕES RECENTES:")
+            print(f"\n IMPORTAÇÕES RECENTES:")
             for _, row in import_dates.iterrows():
                 print(f"   {row['date']}: {row['count']:,} registros")
     except:
-        print(f"\n⚠️ Campo data_importacao não encontrado")
+        print(f"\nWARN Campo data_importacao não encontrado")
 
     conn.close()
 
     # 6. Recomendações
-    print(f"\n🔧 RECOMENDAÇÕES:")
+    print(f"\nFIX RECOMENDAÇÕES:")
     if len(duplicates) > 0:
         print(f"   1. Remover {total_duplicated:,} registros duplicados")
     print(f"   2. Implementar verificação de duplicatas antes da inserção")
@@ -115,4 +115,4 @@ def analyze_database_integrity():
 if __name__ == "__main__":
     result = analyze_database_integrity()
     print(f"\n" + "=" * 60)
-    print("✅ Análise concluída!")
+    print("OK Análise concluída!")

@@ -105,7 +105,7 @@ def load_gui_main_preferences():
 # Carrega as configurações globalmente
 GUI_MAIN_PREFERENCES = load_gui_main_preferences()
 
-from utils.formatting import format_dataframe_for_display  # noqa: E402
+from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
 
 # (mantido acima)
 
@@ -133,7 +133,7 @@ try:
     from gui.widgets import ColumnManagerDialog, ColumnSelector, DataPaginator, FilterHelpDialog  # noqa: E402
     from gui.helpers import (  # noqa: E402
         build_global_widget_qss, build_central_widget_qss, build_group_box_qss, build_line_edit_qss,
-        normalize_chunk_for_parse, format_search_display, format_value_for_display, highlight_text
+        normalize_chunk_for_parse, format_search_display, highlight_text
     )
     # Import mixins for code organization
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
@@ -2018,10 +2018,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Evita quebrar a GUI por falhas de IO
             pass
 
-    def _format_value_for_display(self, value, col=None):
-        """Delegate to helper function."""
-        return format_value_for_display(value, col)
-
     def _normalize_highlight_term(self, term):
         """Remove modos e negacoes para uso no highlight."""
         if term is None:
@@ -2108,7 +2104,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         for col, value in sorted_items:
             # Formata valor
-            formatted_value = self._format_value_for_display(value, col)
+            formatted_value = format_cell(value, col)
 
             # Pula campos vazios
             if not formatted_value:
@@ -2219,7 +2215,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
         lines = []
         for col, value in sorted_items:
-            formatted_value = self._format_value_for_display(value, col)
+            formatted_value = format_cell(value, col)
             if not formatted_value:
                 continue
             display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))

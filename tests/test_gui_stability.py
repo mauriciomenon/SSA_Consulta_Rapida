@@ -80,7 +80,7 @@ class TestGUIStability(unittest.TestCase):
 
     def test_filtro_travamento_svp(self):
         """Testa especificamente o filtro 'svp' que causava travamento."""
-        print("\n🧪 Testando filtro 'svp' que causava travamento...")
+        print("\nTEST Testando filtro 'svp' que causava travamento...")
 
         start_time = time.time()
 
@@ -98,7 +98,7 @@ class TestGUIStability(unittest.TestCase):
 
         # Verifica se não travou (resposta em menos de 2 segundos)
         self.assertLess(response_time, 2.0, f"Filtro 'svp' demorou {response_time:.2f}s - possível travamento")
-        print(f"✅ Filtro 'svp' processado em {response_time:.3f}s")
+        print(f"OK Filtro 'svp' processado em {response_time:.3f}s")
 
     def test_filtros_problematicos(self):
         """Testa filtros que podem causar problemas."""
@@ -107,7 +107,7 @@ class TestGUIStability(unittest.TestCase):
             "!", "!!!", "", "   ", ",,,", "mel,svp,g076"
         ]
 
-        print(f"\n🧪 Testando {len(filtros_teste)} filtros potencialmente problemáticos...")
+        print(f"\nTEST Testando {len(filtros_teste)} filtros potencialmente problemáticos...")
 
         for filtro in filtros_teste:
             with self.subTest(filtro=filtro):
@@ -124,11 +124,11 @@ class TestGUIStability(unittest.TestCase):
                 # Verifica se não travou
                 self.assertLess(response_time, 2.0,
                                f"Filtro '{filtro}' demorou {response_time:.2f}s - possível travamento")
-                print(f"  ✅ '{filtro}': {response_time:.3f}s")
+                print(f"  OK '{filtro}': {response_time:.3f}s")
 
     def test_carregamento_dados_grandes(self):
         """Testa performance com datasets grandes."""
-        print("\n🧪 Testando performance com dataset grande...")
+        print("\nTEST Testando performance com dataset grande...")
 
         # Cria dataset grande (1000 registros)
         large_data = pd.concat([self.mock_data] * 200, ignore_index=True)
@@ -147,11 +147,11 @@ class TestGUIStability(unittest.TestCase):
 
         # Verifica se carregou em tempo aceitável
         self.assertLess(load_time, 5.0, f"Carregamento de {len(large_data)} registros demorou {load_time:.2f}s")
-        print(f"✅ Dataset de {len(large_data)} registros carregado em {load_time:.3f}s")
+        print(f"OK Dataset de {len(large_data)} registros carregado em {load_time:.3f}s")
 
     def test_colunas_obrigatorias(self):
         """Verifica se as colunas obrigatórias estão sendo exibidas."""
-        print("\n🧪 Testando exibição de colunas obrigatórias...")
+        print("\nTEST Testando exibição de colunas obrigatórias...")
 
         # Força exibição dos dados
         self.window.display_data(self.window.df_exibido)
@@ -169,11 +169,11 @@ class TestGUIStability(unittest.TestCase):
         colunas_obrigatorias = ['Número SSA', 'Cadastro', 'Descrição Execução']
         for coluna in colunas_obrigatorias:
             self.assertIn(coluna, headers, f"Coluna obrigatória '{coluna}' não encontrada. Headers: {headers}")
-            print(f"  ✅ Coluna '{coluna}' presente")
+            print(f"  OK Coluna '{coluna}' presente")
 
     def test_menu_contexto(self):
         """Testa o menu de contexto sem travamento."""
-        print("\n🧪 Testando menu de contexto...")
+        print("\nTEST Testando menu de contexto...")
 
         # Força exibição dos dados
         self.window.display_data(self.window.df_exibido)
@@ -190,7 +190,7 @@ class TestGUIStability(unittest.TestCase):
                     # Testa os métodos relacionados ao menu
                     self.window.copy_cell_value(item)
                     self.window.copy_row_data(0)
-                    print("✅ Funções do menu de contexto funcionaram")
+                    print("OK Funções do menu de contexto funcionaram")
                 except Exception as e:
                     self.fail(f"Erro nas funções do menu: {e}")
 
@@ -198,11 +198,11 @@ class TestGUIStability(unittest.TestCase):
         menu_time = end_time - start_time
 
         self.assertLess(menu_time, 1.0, f"Operações do menu demoraram {menu_time:.2f}s")
-        print(f"✅ Operações do menu executadas em {menu_time:.3f}s")
+        print(f"OK Operações do menu executadas em {menu_time:.3f}s")
 
     def test_responsividade_ui(self):
         """Testa se a UI mantém responsividade durante operações."""
-        print("\n🧪 Testando responsividade da interface...")
+        print("\nTEST Testando responsividade da interface...")
 
         start_time = time.time()
         iterations = 0
@@ -219,13 +219,13 @@ class TestGUIStability(unittest.TestCase):
 
         # Verifica se conseguiu processar um número razoável de iterações
         self.assertGreater(iterations, 10, f"UI travou - apenas {iterations} iterações em {total_time:.2f}s")
-        print(f"✅ UI responsiva: {iterations} iterações em {total_time:.3f}s")
+        print(f"OK UI responsiva: {iterations} iterações em {total_time:.3f}s")
 
 
 def run_stability_tests():
     """Executa todos os testes de estabilidade."""
     print("=" * 60)
-    print("🔧 TESTES DE ESTABILIDADE DA GUI SSA POC")
+    print("FIX TESTES DE ESTABILIDADE DA GUI SSA POC")
     print("=" * 60)
     print("Objetivo: Monitorar travamentos e performance conforme solicitado")
     print("Data: 2025-08-18")
@@ -238,12 +238,12 @@ def run_stability_tests():
 
     print("\n" + "=" * 60)
     if result.wasSuccessful():
-        print("🎉 TODOS OS TESTES DE ESTABILIDADE PASSARAM!")
-        print("✅ GUI está estável e sem travamentos detectados")
+        print("OK TODOS OS TESTES DE ESTABILIDADE PASSARAM!")
+        print("OK GUI está estável e sem travamentos detectados")
     else:
-        print("⚠️  ALGUNS TESTES FALHARAM!")
-        print(f"❌ Falhas: {len(result.failures)}")
-        print(f"❌ Erros: {len(result.errors)}")
+        print("WARN  ALGUNS TESTES FALHARAM!")
+        print(f"ERR Falhas: {len(result.failures)}")
+        print(f"ERR Erros: {len(result.errors)}")
     print("=" * 60)
 
     return result.wasSuccessful()

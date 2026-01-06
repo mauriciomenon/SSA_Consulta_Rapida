@@ -5,13 +5,13 @@ from datetime import datetime
 def emergency_cleanup():
     """Limpeza emergencial para remover duplicatas massivas"""
 
-    print("🚨 LIMPEZA EMERGENCIAL DO BANCO DE DADOS")
+    print(" LIMPEZA EMERGENCIAL DO BANCO DE DADOS")
     print("=" * 60)
 
     # Backup adicional de segurança
     backup_name = f"data/ssas_emergency_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
     os.system(f'copy "data\\ssas.db" "{backup_name}"')
-    print(f"✅ Backup criado: {backup_name}")
+    print(f"OK Backup criado: {backup_name}")
 
     conn = sqlite3.connect('data/ssas.db')
     cursor = conn.cursor()
@@ -23,13 +23,13 @@ def emergency_cleanup():
     cursor.execute("SELECT COUNT(DISTINCT numero_ssa) FROM ssas WHERE numero_ssa IS NOT NULL AND numero_ssa != ''")
     unique_ssas = cursor.fetchone()[0]
 
-    print(f"\n📊 ESTADO ATUAL:")
+    print(f"\nINFO ESTADO ATUAL:")
     print(f"   Total de registros: {total_before:,}")
     print(f"   SSAs únicas: {unique_ssas:,}")
     print(f"   Duplicatas: {total_before - unique_ssas:,}")
 
     # 2. Criar tabela temporária com dados únicos
-    print(f"\n🔧 INICIANDO LIMPEZA...")
+    print(f"\nFIX INICIANDO LIMPEZA...")
 
     cursor.execute("""
     CREATE TABLE ssas_clean AS
@@ -55,8 +55,8 @@ def emergency_cleanup():
     cursor.execute('SELECT COUNT(*) FROM ssas_clean')
     total_clean = cursor.fetchone()[0]
 
-    print(f"   ✅ Tabela limpa criada: {total_clean:,} registros")
-    print(f"   🗑️ Removidos: {total_before - total_clean:,} duplicatas")
+    print(f"   OK Tabela limpa criada: {total_clean:,} registros")
+    print(f"   ️ Removidos: {total_before - total_clean:,} duplicatas")
 
     # 5. Substituir tabela original
     cursor.execute('DROP TABLE ssas')
@@ -79,7 +79,7 @@ def emergency_cleanup():
     conn.commit()
     conn.close()
 
-    print(f"\n✅ LIMPEZA CONCLUÍDA:")
+    print(f"\nOK LIMPEZA CONCLUÍDA:")
     print(f"   Registros antes: {total_before:,}")
     print(f"   Registros depois: {total_after:,}")
     print(f"   Removidos: {total_before - total_after:,}")
@@ -101,11 +101,11 @@ def emergency_cleanup():
 
     remaining_dupes = cursor.fetchall()
     if remaining_dupes:
-        print(f"\n⚠️ AINDA EXISTEM DUPLICATAS:")
+        print(f"\nWARN AINDA EXISTEM DUPLICATAS:")
         for ssa, count in remaining_dupes:
             print(f"   SSA {ssa}: {count} cópias")
     else:
-        print(f"\n✅ NENHUMA DUPLICATA RESTANTE")
+        print(f"\nOK NENHUMA DUPLICATA RESTANTE")
 
     conn.close()
 
@@ -114,5 +114,5 @@ def emergency_cleanup():
 if __name__ == "__main__":
     before, after = emergency_cleanup()
     print(f"\n" + "=" * 60)
-    print(f"🎯 EMERGÊNCIA RESOLVIDA: {before - after:,} duplicatas removidas!")
-    print("🔧 Próximo passo: Corrigir o código de importação para evitar futuras duplicatas.")
+    print(f"DONE EMERGÊNCIA RESOLVIDA: {before - after:,} duplicatas removidas!")
+    print("FIX Próximo passo: Corrigir o código de importação para evitar futuras duplicatas.")

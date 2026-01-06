@@ -36,7 +36,7 @@ def _check_executable(exe_path: Path, name: str) -> bool:
     print(f"\n=== Testando {name} ===")
     print(f"Path: {exe_path}")
     if not exe_path.exists():
-        print(f"⚠️ Executavel nao encontrado: {exe_path}")
+        print(f"WARN Executavel nao encontrado: {exe_path}")
         return False
     # Verificar tipo (best-effort)
     try:
@@ -64,10 +64,10 @@ def _check_executable(exe_path: Path, name: str) -> bool:
             return True
         return False
     except subprocess.TimeoutExpired:
-        print("⚠️ Timeout - assumindo OK (pode estar aguardando input)")
+        print("WARN Timeout - assumindo OK (pode estar aguardando input)")
         return True
     except Exception as e:
-        print(f"❌ Erro ao executar: {e}")
+        print(f"ERR Erro ao executar: {e}")
         return False
 
 # --- Tests --------------------------------------------------------------------
@@ -93,12 +93,12 @@ def main():  # pragma: no cover
         results.append((n, _check_executable(p, n)))
     print("\n=== RESUMO ===")
     for n, r in results:
-        print(f"{n}: {'✅ OK' if r else '❌ ERRO'}")
+        print(f"{n}: {'OK OK' if r else 'ERR ERRO'}")
     ok_any = any(r for _, r in results)
     if ok_any:
-        print("\n🎯 Pelo menos um executavel funcionando!")
+        print("\nDONE Pelo menos um executavel funcionando!")
         return 0
-    print("\n❌ Nenhum executavel funcionando!")
+    print("\nERR Nenhum executavel funcionando!")
     return 1
 
 if __name__ == '__main__':  # pragma: no cover

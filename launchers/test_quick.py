@@ -29,19 +29,19 @@ def test_existing_executables():
     log(f"Verificando CLI: {cli_path}")
 
     if cli_path.exists():
-        log("✅ CLI encontrado")
+        log("OK CLI encontrado")
         # Testar execução
         try:
             result = subprocess.run([str(cli_path), "--help"],
                                   capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                log("✅ CLI executa corretamente")
+                log("OK CLI executa corretamente")
             else:
-                log(f"❌ CLI erro: {result.stderr}")
+                log(f"ERR CLI erro: {result.stderr}")
         except Exception as e:
-            log(f"❌ CLI erro execução: {e}")
+            log(f"ERR CLI erro execução: {e}")
     else:
-        log("❌ CLI não encontrado")
+        log("ERR CLI não encontrado")
 
     # Verificar GUI
     gui_path = (
@@ -54,22 +54,22 @@ def test_existing_executables():
     log(f"Verificando GUI: {gui_path}")
 
     if gui_path.exists():
-        log("✅ GUI encontrada")
+        log("OK GUI encontrada")
         # Testar se não dá erro de import
         try:
             result = subprocess.run([str(gui_path)],
                                   capture_output=True, text=True, timeout=2)
             # Se não deu erro de módulo, está funcionando
             if "No module named" not in result.stderr:
-                log("✅ GUI imports OK")
+                log("OK GUI imports OK")
             else:
-                log(f"❌ GUI erro módulo: {result.stderr}")
+                log(f"ERR GUI erro módulo: {result.stderr}")
         except subprocess.TimeoutExpired:
-            log("✅ GUI iniciou (timeout normal para GUI)")
+            log("OK GUI iniciou (timeout normal para GUI)")
         except Exception as e:
-            log(f"❌ GUI erro: {e}")
+            log(f"ERR GUI erro: {e}")
     else:
-        log("❌ GUI não encontrada")
+        log("ERR GUI não encontrada")
 
 def test_imports():
     """Testa imports críticos"""
@@ -78,7 +78,7 @@ def test_imports():
     # PoC GUI removida – somente verifica GUI principal se ainda existir
     try:
         from gui.gui_ssa import SSAMainWindow  # type: ignore
-        log(f"✅ GUI principal importa OK (classe: {SSAMainWindow.__name__})")
+        log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
     except Exception as e:  # pragma: no cover - diagnóstico
         log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")
 
@@ -89,9 +89,9 @@ def list_dist_contents():
     dist_path = DIST_BASE / "macos_arm64"
     if dist_path.exists():
         for item in dist_path.iterdir():
-            log(f"📁 {item.name}")
+            log(f"DIR {item.name}")
     else:
-        log("❌ Pasta dist não existe")
+        log("ERR Pasta dist não existe")
 
 def main():
     log(f"TESTE RÁPIDO v{APP_VERSION}")

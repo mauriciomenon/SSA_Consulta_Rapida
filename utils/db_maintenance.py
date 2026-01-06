@@ -282,8 +282,8 @@ class DatabaseAnalyzer:
             for col in columns:
                 is_primary_with_data = col['is_primary'] and col['count'] > 0
                 status = (
-                    "✅ Primária (com dados)" if is_primary_with_data
-                    else "❌ Legado (vazia/poucos dados)"
+                    "OK Primária (com dados)" if is_primary_with_data
+                    else "ERR Legado (vazia/poucos dados)"
                 )
                 content += (
                     f"| {col['name']} | {col['type']} | {col['count']} | {status} |\n"

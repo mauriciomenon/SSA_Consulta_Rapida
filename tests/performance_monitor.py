@@ -67,12 +67,12 @@ class PerformanceMonitor:
 
     def signal_handler(self, signum, frame):
         """Handler para parada limpa do programa."""
-        print("\n\n🛑 Parando monitor...")
+        print("\n\n Parando monitor...")
         self.stop_monitoring()
 
     def start_monitoring(self, interval_ms=5000):
         """Inicia o monitoramento."""
-        print("🚀 Iniciando Monitor de Performance da GUI SSA PoC")
+        print("START Iniciando Monitor de Performance da GUI SSA PoC")
         print("=" * 60)
         print(f"Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Intervalo de teste: {interval_ms/1000:.1f}s")
@@ -104,7 +104,7 @@ class PerformanceMonitor:
 
         filter_text = self.test_filters[self.current_filter_index]
 
-        print(f"🔍 Testando filtro #{self.stats['filtros_testados']+1}: '{filter_text}'", end=" ")
+        print(f"INFO Testando filtro #{self.stats['filtros_testados']+1}: '{filter_text}'", end=" ")
 
         start_time = time.time()
 
@@ -128,16 +128,16 @@ class PerformanceMonitor:
             # Detecta possível travamento
             if duration > 3.0:
                 self.stats['travamentos_detectados'] += 1
-                print(f"⚠️  TRAVAMENTO DETECTADO! ({duration:.2f}s)")
+                print(f"WARN  TRAVAMENTO DETECTADO! ({duration:.2f}s)")
                 self.log_issue(filter_text, duration, "TRAVAMENTO")
             elif duration > 1.0:
-                print(f"⚡ Lento ({duration:.2f}s)")
+                print(f"PERF Lento ({duration:.2f}s)")
                 self.log_issue(filter_text, duration, "LENTO")
             else:
-                print(f"✅ OK ({duration:.3f}s)")
+                print(f"OK OK ({duration:.3f}s)")
 
         except Exception as e:
-            print(f"❌ ERRO: {e}")
+            print(f"ERR ERRO: {e}")
             self.log_issue(filter_text, 0, f"ERRO: {e}")
 
         self.current_filter_index += 1
@@ -164,7 +164,7 @@ class PerformanceMonitor:
         tempo_decorrido = (datetime.now() - self.stats['inicio']).total_seconds()
 
         print("\n" + "-" * 50)
-        print("📊 ESTATÍSTICAS ATUAIS")
+        print("INFO ESTATÍSTICAS ATUAIS")
         print(f"   Filtros testados: {self.stats['filtros_testados']}")
         print(f"   Tempo médio: {tempo_medio:.3f}s")
         print(f"   Tempo mínimo: {self.stats['tempo_min']:.3f}s")
@@ -176,17 +176,17 @@ class PerformanceMonitor:
     def print_final_stats(self):
         """Imprime estatísticas finais."""
         print("\n" + "=" * 60)
-        print("📈 RELATÓRIO FINAL DE PERFORMANCE")
+        print("STAT RELATÓRIO FINAL DE PERFORMANCE")
         print("=" * 60)
 
         if self.stats['filtros_testados'] == 0:
-            print("❌ Nenhum teste foi executado.")
+            print("ERR Nenhum teste foi executado.")
             return
 
         tempo_medio = self.stats['tempo_total'] / self.stats['filtros_testados']
         tempo_decorrido = (datetime.now() - self.stats['inicio']).total_seconds()
 
-        print("📊 Resumo dos Testes:")
+        print("INFO Resumo dos Testes:")
         print(f"   • Total de filtros testados: {self.stats['filtros_testados']}")
         print(f"   • Tempo médio de resposta: {tempo_medio:.3f}s")
         print(f"   • Tempo mínimo: {self.stats['tempo_min']:.3f}s")
@@ -195,24 +195,24 @@ class PerformanceMonitor:
         print(f"   • Taxa de travamento: {(self.stats['travamentos_detectados']/self.stats['filtros_testados']*100):.1f}%")
         print(f"   • Tempo total de monitoramento: {tempo_decorrido/60:.1f} min")
 
-        print("\n🎯 Avaliação de Performance:")
+        print("\nDONE Avaliação de Performance:")
         if tempo_medio < 0.5:
-            print("   ✅ EXCELENTE - Resposta muito rápida")
+            print("   OK EXCELENTE - Resposta muito rápida")
         elif tempo_medio < 1.0:
-            print("   ✅ BOA - Resposta aceitável")
+            print("   OK BOA - Resposta aceitável")
         elif tempo_medio < 2.0:
-            print("   ⚠️  REGULAR - Resposta lenta")
+            print("   WARN  REGULAR - Resposta lenta")
         else:
-            print("   ❌ RUIM - Resposta muito lenta")
+            print("   ERR RUIM - Resposta muito lenta")
 
         if self.stats['travamentos_detectados'] == 0:
-            print("   ✅ ESTÁVEL - Nenhum travamento detectado")
+            print("   OK ESTÁVEL - Nenhum travamento detectado")
         elif self.stats['travamentos_detectados'] < 3:
-            print("   ⚠️  INSTÁVEL - Poucos travamentos detectados")
+            print("   WARN  INSTÁVEL - Poucos travamentos detectados")
         else:
-            print("   ❌ MUITO INSTÁVEL - Muitos travamentos detectados")
+            print("   ERR MUITO INSTÁVEL - Muitos travamentos detectados")
 
-        print("\n💡 Recomendações:")
+        print("\nTIP Recomendações:")
         if tempo_medio > 1.0:
             print("   • Otimizar algoritmos de filtro")
             print("   • Implementar cache para buscas frequentes")
@@ -247,7 +247,7 @@ def main():
         try:
             interval = int(sys.argv[1]) * 1000
         except ValueError:
-            print("⚠️  Intervalo inválido, usando 3 segundos")
+            print("WARN  Intervalo inválido, usando 3 segundos")
 
     monitor.start_monitoring(interval)
 

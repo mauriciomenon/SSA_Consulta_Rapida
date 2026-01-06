@@ -32,20 +32,20 @@ def test_import_all_files():
     assert os.path.exists(docs_dir), f"Diretório {docs_dir} não encontrado"
 
     files = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
-    print(f"📁 Encontrados {len(files)} arquivos Excel para importação")
+    print(f"DIR Encontrados {len(files)} arquivos Excel para importação")
 
     # Fazer backup do banco atual se existir
     if os.path.exists(db_path):
         backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         import shutil
         shutil.copy2(db_path, backup_path)
-        print(f"💾 Backup criado em: {backup_path}")
+        print(f" Backup criado em: {backup_path}")
 
     # Executar importação
-    print("🔄 Iniciando importação...")
+    print("RUN Iniciando importação...")
     success = import_files_to_database(docs_dir, db_path, force_import=True)
     assert success, "Falha na importação"
-    print("✅ Importação concluída com sucesso")
+    print("OK Importação concluída com sucesso")
 
 def analyze_database_content():
     """Analisa o conteúdo do banco após importação."""
@@ -58,12 +58,12 @@ def analyze_database_content():
             # Contar total de registros
             cursor = conn.execute("SELECT COUNT(*) FROM ssas")
             total_records = cursor.fetchone()[0]
-            print(f"📊 Total de registros: {total_records}")
+            print(f"INFO Total de registros: {total_records}")
 
             # Contar SSAs únicas
             cursor = conn.execute("SELECT COUNT(DISTINCT numero_ssa) FROM ssas WHERE numero_ssa IS NOT NULL")
             unique_ssas = cursor.fetchone()[0]
-            print(f"🔢 SSAs únicas: {unique_ssas}")
+            print(f" SSAs únicas: {unique_ssas}")
 
             # Verificar duplicatas
             cursor = conn.execute("""
@@ -78,17 +78,17 @@ def analyze_database_content():
             duplicates = cursor.fetchall()
 
             if duplicates:
-                print(f"⚠️  SSAs duplicadas encontradas: {len(duplicates)} diferentes")
+                print(f"WARN  SSAs duplicadas encontradas: {len(duplicates)} diferentes")
                 print("Top 10 SSAs com mais duplicatas:")
                 for ssa, count in duplicates[:5]:
                     print(f"  SSA {ssa}: {count} registros")
             else:
-                print("✅ Nenhuma SSA duplicada encontrada")
+                print("OK Nenhuma SSA duplicada encontrada")
 
             # Verificar colunas principais
             cursor = conn.execute("PRAGMA table_info(ssas)")
             columns = [row[1] for row in cursor.fetchall()]
-            print(f"📋 Colunas no banco: {len(columns)}")
+            print(f"INFO Colunas no banco: {len(columns)}")
 
             # Verificar dados mais recentes
             cursor = conn.execute("""
@@ -102,7 +102,7 @@ def analyze_database_content():
             recent_dates = cursor.fetchall()
 
             if recent_dates:
-                print("📅 Datas mais recentes no banco:")
+                print(" Datas mais recentes no banco:")
                 for date, count in recent_dates:
                     print(f"  {date}: {count} registros")
 
@@ -118,12 +118,12 @@ def analyze_database_content():
             situations = cursor.fetchall()
 
             if situations:
-                print("📈 Distribuição por situação:")
+                print("STAT Distribuição por situação:")
                 for situation, count in situations:
                     print(f"  {situation}: {count} registros")
 
     except Exception as e:
-        print(f"❌ Erro ao analisar banco: {e}")
+        print(f"ERR Erro ao analisar banco: {e}")
         return False
 
     return True
@@ -148,12 +148,12 @@ def test_upsert_logic():
 
         assert sample_ssas, "Nenhuma SSA encontrada para teste"
 
-        print(f"🔍 Testando com {len(sample_ssas)} SSAs de exemplo:")
+        print(f"INFO Testando com {len(sample_ssas)} SSAs de exemplo:")
         for ssa, date, situation in sample_ssas:
             print(f"  SSA {ssa}: {date} - {situation}")
 
         # Verificar comportamento ao processar o mesmo arquivo duas vezes
-        print("\n🔄 Testando reprocessamento do último arquivo...")
+        print("\nRUN Testando reprocessamento do último arquivo...")
 
         docs_dir = "docs_entrada"
         files = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
@@ -162,7 +162,7 @@ def test_upsert_logic():
             latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(docs_dir, f)))
             file_path = os.path.join(docs_dir, latest_file)
 
-            print(f"📄 Reprocessando: {latest_file}")
+            print(f"FILE Reprocessando: {latest_file}")
 
             # Contar registros antes
             with get_db_connection(db_path) as conn:
@@ -182,16 +182,16 @@ def test_upsert_logic():
                     cursor = conn.execute("SELECT COUNT(*) FROM ssas")
                     count_after = cursor.fetchone()[0]
 
-                print(f"📊 Registros antes: {count_before}")
-                print(f"📊 Registros depois: {count_after}")
-                print(f"📊 Diferença: {count_after - count_before}")
+                print(f"INFO Registros antes: {count_before}")
+                print(f"INFO Registros depois: {count_after}")
+                print(f"INFO Diferença: {count_after - count_before}")
 
                 if count_after == count_before:
-                    print("✅ Upsert funcionando corretamente - nenhum registro duplicado")
+                    print("OK Upsert funcionando corretamente - nenhum registro duplicado")
                 elif count_after > count_before:
                     print(f"ℹ️  {count_after - count_before} novos registros adicionados")
                 else:
-                    print("⚠️  Registros foram removidos - comportamento inesperado")
+                    print("WARN  Registros foram removidos - comportamento inesperado")
 
                 assert success, "Falha no upsert"
             else:
@@ -208,23 +208,23 @@ def verify_column_mapping():
     files = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
 
     if not files:
-        print("❌ Nenhum arquivo encontrado")
+        print("ERR Nenhum arquivo encontrado")
         return False
 
     # Pegar o primeiro arquivo
     sample_file = os.path.join(docs_dir, files[0])
-    print(f"📄 Analisando arquivo: {files[0]}")
+    print(f"FILE Analisando arquivo: {files[0]}")
 
     try:
         # Extrair dados do arquivo
         df = extract_data_from_excel(sample_file)
 
         if df is None or df.empty:
-            print("❌ Falha ao extrair dados")
+            print("ERR Falha ao extrair dados")
             return False
 
-        print(f"📊 Dados extraídos: {len(df)} linhas, {len(df.columns)} colunas")
-        print("📋 Colunas encontradas:")
+        print(f"INFO Dados extraídos: {len(df)} linhas, {len(df.columns)} colunas")
+        print("INFO Colunas encontradas:")
         for i, col in enumerate(df.columns):
             sample_values = df[col].dropna().head(3).tolist()
             print(f"  {i+1:2}. {col}")
@@ -237,7 +237,7 @@ def verify_column_mapping():
             cursor = conn.execute("PRAGMA table_info(ssas)")
             db_columns = [row[1] for row in cursor.fetchall()]
 
-        print(f"\n📋 Colunas no banco: {len(db_columns)}")
+        print(f"\nINFO Colunas no banco: {len(db_columns)}")
         for i, col in enumerate(db_columns):
             print(f"  {i+1:2}. {col}")
 
@@ -246,35 +246,35 @@ def verify_column_mapping():
         missing_in_db = set(df.columns) - set(db_columns)
 
         if missing_in_file:
-            print(f"\n⚠️  Colunas no banco mas não no arquivo: {missing_in_file}")
+            print(f"\nWARN  Colunas no banco mas não no arquivo: {missing_in_file}")
 
         if missing_in_db:
-            print(f"\n⚠️  Colunas no arquivo mas não no banco: {missing_in_db}")
+            print(f"\nWARN  Colunas no arquivo mas não no banco: {missing_in_db}")
 
         if not missing_in_file and not missing_in_db:
-            print("✅ Todas as colunas estão mapeadas corretamente")
+            print("OK Todas as colunas estão mapeadas corretamente")
 
         return True
 
     except Exception as e:
-        print(f"❌ Erro na verificação de colunas: {e}")
+        print(f"ERR Erro na verificação de colunas: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 def main():
     """Executa todos os testes."""
-    print("🚀 INICIANDO VERIFICAÇÃO COMPLETA DA IMPORTAÇÃO")
+    print("START INICIANDO VERIFICAÇÃO COMPLETA DA IMPORTAÇÃO")
     print("=" * 60)
 
     try:
         # 1. Verificar integridade do banco
-        print("🔍 Verificando integridade do banco...")
+        print("INFO Verificando integridade do banco...")
         integrity_report = verify_database_integrity("data/ssas.db")
         if integrity_report['is_valid']:
-            print("✅ Banco íntegro")
+            print("OK Banco íntegro")
         else:
-            print("⚠️  Problemas no banco:", integrity_report['issues'])
+            print("WARN  Problemas no banco:", integrity_report['issues'])
 
         # 2. Testar importação
         import_success = test_import_all_files()
@@ -290,10 +290,10 @@ def main():
         verify_column_mapping()
 
         print("\n" + "=" * 60)
-        print("✅ VERIFICAÇÃO COMPLETA CONCLUÍDA")
+        print("OK VERIFICAÇÃO COMPLETA CONCLUÍDA")
 
     except Exception as e:
-        print(f"\n❌ ERRO CRÍTICO: {e}")
+        print(f"\nERR ERRO CRÍTICO: {e}")
         import traceback
         traceback.print_exc()
 

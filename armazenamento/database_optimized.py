@@ -101,7 +101,7 @@ def insert_dataframe_optimized(
 
         with get_db_connection(db_path) as conn:
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
-            logger.info("🔧 APLICANDO OTIMIZAÇÕES SQLITE")
+            logger.info("FIX APLICANDO OTIMIZAÇÕES SQLITE")
             conn.execute("PRAGMA journal_mode=WAL")        # Permite leituras concorrentes
             conn.execute("PRAGMA synchronous=NORMAL")      # Balanço entre segurança e velocidade
             conn.execute("PRAGMA cache_size=10000")        # Cache maior = menos I/O
@@ -114,7 +114,7 @@ def insert_dataframe_optimized(
             journal_mode = cur.fetchone()[0]
             cur.execute("PRAGMA cache_size")
             cache_size = cur.fetchone()[0]
-            logger.info(f"✅ Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}")
+            logger.info(f"OK Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}")
 
             # Criar índice temporário se não existir
             try:

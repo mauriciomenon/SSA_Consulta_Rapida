@@ -83,7 +83,7 @@ class PerformanceTester:
 
     def test_database_query_performance(self) -> Dict:
         """Testa performance de consultas ao banco."""
-        print("🔍 Testando performance de consultas ao banco...")
+        print("INFO Testando performance de consultas ao banco...")
 
         queries = [
             ("SELECT COUNT(*) FROM ssas", "count_all"),
@@ -131,7 +131,7 @@ class PerformanceTester:
 
     def test_concurrent_access(self, num_threads: int = 5) -> Dict:
         """Testa acesso concurrent ao banco."""
-        print(f"🔀 Testando acesso concorrente ({num_threads} threads)...")
+        print(f" Testando acesso concorrente ({num_threads} threads)...")
 
         def worker_query(thread_id: int) -> Dict:
             """Função executada por cada thread."""
@@ -194,7 +194,7 @@ class PerformanceTester:
 
     def test_large_filter_performance(self) -> Dict:
         """Testa performance de filtros com grandes volumes de dados."""
-        print("📊 Testando performance de filtros com grandes volumes...")
+        print("INFO Testando performance de filtros com grandes volumes...")
 
         filter_tests = [
             ({'situacao': 'EM EXECUÇÃO'}, 'filter_by_situacao'),
@@ -244,7 +244,7 @@ class PerformanceTester:
 
     def test_file_extraction_performance(self) -> Dict:
         """Testa performance de extração de arquivos Excel."""
-        print("📂 Testando performance de extração de arquivos...")
+        print("IN Testando performance de extração de arquivos...")
 
         docs_entrada = "docs_entrada"
         if not os.path.exists(docs_entrada):
@@ -310,7 +310,7 @@ class PerformanceTester:
 
     def test_memory_usage_patterns(self) -> Dict:
         """Testa padrões de uso de memória."""
-        print("💾 Testando padrões de uso de memória...")
+        print(" Testando padrões de uso de memória...")
 
         memory_tests = []
 
@@ -385,7 +385,7 @@ class PerformanceTester:
 
     def run_all_performance_tests(self) -> Dict:
         """Executa todos os testes de performance."""
-        print("🚀 Iniciando testes de performance do sistema SSA...")
+        print("START Iniciando testes de performance do sistema SSA...")
         print("=" * 60)
 
         start_time = time.time()
@@ -420,7 +420,7 @@ class PerformanceTester:
         successful_tests = sum(1 for result in test_results if result.get('success', True))
 
         print("=" * 60)
-        print("📊 RESULTADO DOS TESTES DE PERFORMANCE:")
+        print("INFO RESULTADO DOS TESTES DE PERFORMANCE:")
         print(f"   Total de Testes: {len(test_results)}")
         print(f"   Testes Bem-sucedidos: {successful_tests}")
         print(f"   Duração Total: {total_time:.2f}s")
@@ -448,7 +448,7 @@ def main():
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
-    print(f"\n📄 Resultados salvos em: {output_file}")
+    print(f"\nFILE Resultados salvos em: {output_file}")
 
     return 0
 

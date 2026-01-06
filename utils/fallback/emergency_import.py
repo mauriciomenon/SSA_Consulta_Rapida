@@ -114,7 +114,7 @@ if __name__ == "__main__":
     print("Importação de emergência iniciada...")
     success = emergency_import()
     if success:
-        print("✓ Banco de dados criado com dados de teste")
-        print("✓ Agora você pode testar o CLI e GUI")
+        print(" Banco de dados criado com dados de teste")
+        print(" Agora você pode testar o CLI e GUI")
     else:
-        print("✗ Falha na criação do banco de dados")
+        print(" Falha na criação do banco de dados")

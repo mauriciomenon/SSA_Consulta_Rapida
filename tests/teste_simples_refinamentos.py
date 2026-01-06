@@ -11,7 +11,7 @@ import json
 
 def teste_cache_operacoes():
     """Testa se as operações de cache estão funcionando."""
-    print("🧪 TESTE DE CACHE DE OPERAÇÕES")
+    print("TEST TESTE DE CACHE DE OPERAÇÕES")
     print("-" * 40)
 
     # Simula o cache de sets de colunas da GUI
@@ -48,14 +48,14 @@ def teste_cache_operacoes():
     print(f"  Com cache (1000x): {time_with_cache:.4f}s")
     print(f"  Melhoria: {improvement:.1f}x mais rápido")
     print(f"  Cache criado: {len(cache)} entradas")
-    print(f"  Status: {'✅ OTIMIZADO' if improvement > 1.5 else '⚠️ POUCA MELHORIA'}")
+    print(f"  Status: {'OK OTIMIZADO' if improvement > 1.5 else 'WARN POUCA MELHORIA'}")
     print()
 
     return improvement > 1.5
 
 def teste_configuracoes_json():
     """Testa a integridade das configurações JSON."""
-    print("🧪 TESTE DE CONFIGURAÇÕES JSON")
+    print("TEST TESTE DE CONFIGURAÇÕES JSON")
     print("-" * 40)
 
     config_files = {
@@ -80,30 +80,30 @@ def teste_configuracoes_json():
                 missing_keys = [key for key in required_keys if key not in data]
 
                 if missing_keys:
-                    print(f"  ⚠️  {config_file}: {entries} entradas, faltam: {missing_keys}")
+                    print(f"  WARN  {config_file}: {entries} entradas, faltam: {missing_keys}")
                     all_valid = False
                 else:
-                    print(f"  ✅ {config_file}: {entries} entradas válidas")
+                    print(f"  OK {config_file}: {entries} entradas válidas")
 
             except json.JSONDecodeError as e:
-                print(f"  ❌ {config_file}: JSON inválido - {e}")
+                print(f"  ERR {config_file}: JSON inválido - {e}")
                 all_valid = False
             except Exception as e:
-                print(f"  ❌ {config_file}: Erro - {e}")
+                print(f"  ERR {config_file}: Erro - {e}")
                 all_valid = False
         else:
-            print(f"  ⚠️  {config_file}: Arquivo não encontrado")
+            print(f"  WARN  {config_file}: Arquivo não encontrado")
             all_valid = False
 
     print(f"  Total de configurações: {total_entries}")
-    print(f"  Status: {'✅ TODAS VÁLIDAS' if all_valid else '⚠️ PROBLEMAS ENCONTRADOS'}")
+    print(f"  Status: {'OK TODAS VÁLIDAS' if all_valid else 'WARN PROBLEMAS ENCONTRADOS'}")
     print()
 
     return all_valid
 
 def teste_estrutura_arquivos():
     """Testa se os arquivos refinados existem e têm o tamanho esperado."""
-    print("🧪 TESTE DE ESTRUTURA DE ARQUIVOS")
+    print("TEST TESTE DE ESTRUTURA DE ARQUIVOS")
     print("-" * 40)
 
     arquivos_importantes = {
@@ -120,22 +120,22 @@ def teste_estrutura_arquivos():
         if os.path.exists(arquivo):
             size = os.path.getsize(arquivo)
             if size >= min_size:
-                print(f"  ✅ {arquivo}: {size:,} bytes")
+                print(f"  OK {arquivo}: {size:,} bytes")
             else:
-                print(f"  ⚠️  {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})")
+                print(f"  WARN  {arquivo}: {size:,} bytes (menor que esperado: {min_size:,})")
                 all_present = False
         else:
-            print(f"  ❌ {arquivo}: Não encontrado")
+            print(f"  ERR {arquivo}: Não encontrado")
             all_present = False
 
-    print(f"  Status: {'✅ ESTRUTURA OK' if all_present else '⚠️ ARQUIVOS FALTANDO/PEQUENOS'}")
+    print(f"  Status: {'OK ESTRUTURA OK' if all_present else 'WARN ARQUIVOS FALTANDO/PEQUENOS'}")
     print()
 
     return all_present
 
 def teste_hash_tracking():
     """Testa o sistema de hash tracking implementado."""
-    print("🧪 TESTE DE HASH TRACKING")
+    print("TEST TESTE DE HASH TRACKING")
     print("-" * 40)
 
     # Simula o sistema de hash tracking
@@ -165,14 +165,14 @@ def teste_hash_tracking():
     print(f"  Cache misses: {cache_misses}")
     print(f"  Taxa de acerto: {cache_hit_rate:.1f}%")
     print(f"  Entries no cache: {len(computed_widths)}")
-    print(f"  Status: {'✅ CACHE EFICIENTE' if cache_hit_rate >= 50 else '⚠️ CACHE POUCO EFICIENTE'}")
+    print(f"  Status: {'OK CACHE EFICIENTE' if cache_hit_rate >= 50 else 'WARN CACHE POUCO EFICIENTE'}")
     print()
 
     return cache_hit_rate >= 50
 
 def main():
     """Executa todos os testes simples."""
-    print("🔧 VALIDAÇÃO SIMPLES DOS REFINAMENTOS")
+    print("FIX VALIDAÇÃO SIMPLES DOS REFINAMENTOS")
     print("=" * 50)
     print()
 
@@ -193,7 +193,7 @@ def main():
     results.append(teste_hash_tracking())
 
     # Sumário
-    print("📊 RESUMO DOS TESTES")
+    print("INFO RESUMO DOS TESTES")
     print("-" * 40)
     passed = sum(results)
     total = len(results)
@@ -201,16 +201,16 @@ def main():
     print(f"  Testes aprovados: {passed}/{total}")
 
     if passed == total:
-        print("  🎉 TODOS OS REFINAMENTOS VALIDADOS!")
+        print("  OK TODOS OS REFINAMENTOS VALIDADOS!")
         status = "EXCELENTE"
     elif passed >= total * 0.75:
-        print("  ✅ Maioria dos refinamentos funcionando")
+        print("  OK Maioria dos refinamentos funcionando")
         status = "BOM"
     elif passed >= total * 0.5:
-        print("  ⚠️  Refinamentos parcialmente funcionando")
+        print("  WARN  Refinamentos parcialmente funcionando")
         status = "PARCIAL"
     else:
-        print("  ❌ Refinamentos precisam de correções")
+        print("  ERR Refinamentos precisam de correções")
         status = "NECESSITA CORREÇÃO"
 
     print()

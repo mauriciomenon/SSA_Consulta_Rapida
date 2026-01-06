@@ -28,7 +28,7 @@ def copy_data_to_build(
 ):
     """Copia database e Excel samples para diretorio de build."""
     if not build_dir.exists():
-        print(f"❌ Build nao encontrado: {build_dir}")
+        print(f"ERR Build nao encontrado: {build_dir}")
         return False
 
     success = True
@@ -48,7 +48,7 @@ def copy_data_to_build(
         db_size_mb = source_db.stat().st_size / (1024 * 1024)
         if db_size_mb > 100:
             if verbose:
-                print(f"⚠️  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
+                print(f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
             return False
 
         target_data_dir = build_dir / "data"
@@ -56,18 +56,18 @@ def copy_data_to_build(
         target_db = target_data_dir / "ssas.db"
 
         if verbose:
-            print(f"📦 Copiando DB: {source_db} -> {target_db}")
+            print(f"PKG Copiando DB: {source_db} -> {target_db}")
         try:
             shutil.copy2(source_db, target_db)
             size_mb = target_db.stat().st_size / (1024 * 1024)
             if verbose:
-                print(f"   ✓ DB copiado ({size_mb:.1f} MB)")
+                print(f"    DB copiado ({size_mb:.1f} MB)")
         except Exception as e:
-            print(f"   ❌ Erro ao copiar DB: {e}")
+            print(f"   ERR Erro ao copiar DB: {e}")
             success = False
     else:
         if verbose:
-            print(f"⚠️  DB nao encontrado: {source_db}")
+            print(f"WARN  DB nao encontrado: {source_db}")
 
     # 2. Copiar Excel samples (até 3 mais recentes)
     docs_entrada = docs_dir
@@ -87,7 +87,7 @@ def copy_data_to_build(
         max_files = max_excel_files
 
         if verbose and excel_files:
-            print(f"📋 Copiando Excel samples (maximo {max_files}):")
+            print(f"INFO Copiando Excel samples (maximo {max_files}):")
 
         for excel_file in excel_files[:max_files]:
             target_excel = target_docs / excel_file.name
@@ -95,17 +95,17 @@ def copy_data_to_build(
                 shutil.copy2(excel_file, target_excel)
                 size_kb = target_excel.stat().st_size / 1024
                 if verbose:
-                    print(f"   ✓ {excel_file.name} ({size_kb:.0f} KB)")
+                    print(f"    {excel_file.name} ({size_kb:.0f} KB)")
                 copied_count += 1
             except Exception as e:
-                print(f"   ❌ Erro ao copiar {excel_file.name}: {e}")
+                print(f"   ERR Erro ao copiar {excel_file.name}: {e}")
                 success = False
 
         if verbose and copied_count > 0:
             print(f"   Total: {copied_count} arquivo(s) Excel copiado(s)")
     else:
         if verbose:
-            print(f"⚠️  Diretorio docs_entrada nao encontrado")
+            print(f"WARN  Diretorio docs_entrada nao encontrado")
 
     return success
 
@@ -174,7 +174,7 @@ def main():
         for build_system, build_dir in build_dirs.items():
             if build_dir.exists():
                 if verbose:
-                    print(f"\n🔧 Build: {build_system.upper()}")
+                    print(f"\nFIX Build: {build_system.upper()}")
                     print("-" * 60)
                 success = copy_data_to_build(
                     build_dir,
@@ -205,9 +205,9 @@ def main():
         print()
         print("=" * 60)
         if overall_success:
-            print("✅ Copia concluida com sucesso!")
+            print("OK Copia concluida com sucesso!")
         else:
-            print("⚠️  Copia concluida com alguns erros")
+            print("WARN  Copia concluida com alguns erros")
         print("=" * 60)
 
     return 0 if overall_success else 1

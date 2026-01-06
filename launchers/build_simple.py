@@ -21,13 +21,13 @@ def cleanup_dist_simple():
     if dist_dir.exists():
         try:
             shutil.rmtree(dist_dir)
-            print(f"🧹 Limpeza automática: {dist_dir} removido")
+            print(f"CLEAN Limpeza automática: {dist_dir} removido")
         except Exception as e:
-            print(f"⚠️  Erro na limpeza: {e}")
+            print(f"WARN  Erro na limpeza: {e}")
 
 def main():
     print(f"=== SSA Consulta Rapida v{APP_VERSION} - Build Simples ===")
-    print("⚠️  AVISO: dist_simple é temporário e será limpo automaticamente!")
+    print("WARN  AVISO: dist_simple é temporário e será limpo automaticamente!")
 
     # Registrar limpeza automática
     atexit.register(cleanup_dist_simple)
@@ -67,36 +67,36 @@ def main():
 
     try:
         result = subprocess.run(cmd_cli, cwd=base_dir, check=True, capture_output=True, text=True)
-        print("✅ Build CLI concluído com sucesso!")
+        print("OK Build CLI concluído com sucesso!")
 
         # Testar executável
         exe_path = dist_dir / f'SSA_CLI_v{APP_VERSION}_SIMPLES' / f'SSA_CLI_v{APP_VERSION}_SIMPLES'
         if exe_path.exists():
-            print(f"✅ Executável gerado: {exe_path}")
+            print(f"OK Executável gerado: {exe_path}")
 
             # Teste básico
             test_cmd = [str(exe_path), '--help']
             test_result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=10)
 
             if test_result.returncode == 0:
-                print("✅ Executável testado e FUNCIONANDO!")
+                print("OK Executável testado e FUNCIONANDO!")
                 print(f"Tamanho: {exe_path.parent.stat().st_size / (1024*1024):.1f}M")
             else:
-                print(f"❌ Teste falhou: {test_result.stderr}")
+                print(f"ERR Teste falhou: {test_result.stderr}")
         else:
-            print(f"❌ Executável não encontrado em: {exe_path}")
+            print(f"ERR Executável não encontrado em: {exe_path}")
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erro no build: {e}")
+        print(f"ERR Erro no build: {e}")
         print(f"STDOUT: {e.stdout}")
         print(f"STDERR: {e.stderr}")
         return 1
     except Exception as e:
-        print(f"❌ Erro inesperado: {e}")
+        print(f"ERR Erro inesperado: {e}")
         return 1
 
-    print("\\n🎯 BUILD SIMPLES COMPLETADO!")
-    print("🧹 dist_simple será limpo automaticamente ao sair")
+    print("\\nDONE BUILD SIMPLES COMPLETADO!")
+    print("CLEAN dist_simple será limpo automaticamente ao sair")
     return 0
 
 if __name__ == '__main__':

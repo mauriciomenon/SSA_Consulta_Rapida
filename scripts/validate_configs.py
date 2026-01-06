@@ -284,7 +284,7 @@ def summarize(issues: List[Issue]) -> Dict[str, int]:
 
 def render_text(issues: List[Issue], counts: Dict[str, int]) -> str:
     if not issues:
-        return "✔ Nenhum problema encontrado."
+        return " Nenhum problema encontrado."
     # Sort by severity then file
     order = {"fatal": 0, "error": 1, "warn": 2}
     issues_sorted = sorted(issues, key=lambda x: (order.get(x.level, 99), x.file, x.rule))

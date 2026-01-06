@@ -28,31 +28,31 @@ def investigar_arquivos_problematicos():
     for arquivo in problematicos:
         arquivo_path = docs_entrada / arquivo
         if arquivo_path.exists():
-            print(f"\n📄 Investigando: {arquivo}")
+            print(f"\nFILE Investigando: {arquivo}")
             try:
                 # Ler apenas as primeiras linhas para ver a estrutura
                 df = pd.read_excel(arquivo_path, header=1, nrows=3)
-                print(f"  ✅ Leitura OK: {len(df)} linhas de exemplo")
-                print(f"  📋 Colunas ({len(df.columns)}): {list(df.columns)[:5]}...")
+                print(f"  OK Leitura OK: {len(df)} linhas de exemplo")
+                print(f"  INFO Colunas ({len(df.columns)}): {list(df.columns)[:5]}...")
 
                 # Verificar se há problemas de index
                 if df.index.duplicated().any():
-                    print(f"  ⚠️  PROBLEMA: Índices duplicados detectados")
+                    print(f"  WARN  PROBLEMA: Índices duplicados detectados")
                     duplicados = df.index.duplicated().sum()
                     print(f"     Total de duplicados: {duplicados}")
 
                 # Verificar tamanho total
                 df_full = pd.read_excel(arquivo_path, header=1)
-                print(f"  📊 Tamanho total: {len(df_full)} linhas")
+                print(f"  INFO Tamanho total: {len(df_full)} linhas")
 
                 if df_full.index.duplicated().any():
-                    print(f"  🚨 CONFIRMADO: Arquivo tem índices duplicados")
+                    print(f"   CONFIRMADO: Arquivo tem índices duplicados")
                     print(f"     Duplicados: {df_full.index.duplicated().sum()}")
 
             except Exception as e:
-                print(f"  ❌ ERRO ao ler arquivo: {e}")
+                print(f"  ERR ERRO ao ler arquivo: {e}")
         else:
-            print(f"\n❌ Arquivo não encontrado: {arquivo}")
+            print(f"\nERR Arquivo não encontrado: {arquivo}")
 
 if __name__ == "__main__":
     project_root = Path(__file__).parent.parent
