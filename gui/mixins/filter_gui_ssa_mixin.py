@@ -836,11 +836,20 @@ class FilterGUISSAMixin:
 
 
     def _update_col_filter_indicator(self):
-        # Ativo quando existe ao menos um termo não vazio em filtros por coluna
+        if not hasattr(self, 'col_filter_indicator'):
+            return
+        try:
+            if not self.col_filter_indicator.isVisible():
+                return
+        except Exception:
+            pass
+        # Ativo quando existe ao menos um termo nao vazio em filtros por coluna
         active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
-        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Não ativo"
-        if hasattr(self, 'col_filter_indicator'):
+        txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
+        try:
             self.col_filter_indicator.setText(txt)
+        except Exception:
+            pass
 
 
     def show_filter_help(self):

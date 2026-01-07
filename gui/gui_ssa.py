@@ -641,6 +641,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "filters_summary_frame",
         "filters_summary_label",
         "clear_all_filters_btn",
+        "export_list_btn",
         "table_widget",
         "details_group",
         "details_text",
@@ -1024,8 +1025,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         search_row.addLayout(right)
         tab_layout.addLayout(search_row)
 
-        help_line = QHBoxLayout()
-        help_line.setContentsMargins(0, 0, 0, 0)
         search_help = QLabel(
             "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
         )
@@ -1035,9 +1034,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
-        help_line.addWidget(search_help)
-        tab_layout.addLayout(help_line)
-        tab_layout.addSpacing(6)
+        try:
+            search_help.setVisible(False)
+        except Exception:
+            pass
+        tab_layout.addSpacing(4)
 
         # Pagination and persistent filters
         pagination_filters_layout = QHBoxLayout()
@@ -1098,7 +1099,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         pagination_filters_layout.addLayout(persistent_filters_layout)
         pagination_filters_layout.addStretch()
 
-        col_filter_indicator = QLabel("Filtros por coluna: Não ativo")
+        col_filter_indicator = QLabel("")
         try:
             if self._info_font is not None:
                 col_filter_indicator.setFont(QFont(self._info_font))
@@ -1108,13 +1109,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
             "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
         )
-        pagination_filters_layout.addWidget(col_filter_indicator)
+        try:
+            col_filter_indicator.setVisible(False)
+        except Exception:
+            pass
 
         tab_layout.addLayout(pagination_filters_layout)
 
         filters_summary_frame = None
         filters_summary_label = None
         clear_all_filters_btn = None
+        export_list_btn = None
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
@@ -1134,7 +1139,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
             except Exception:
                 pass
+            export_list_btn = QPushButton("Exportar lista")
+            export_list_btn.setMaximumWidth(160)
+            export_list_btn.setToolTip("Exportar lista atual para arquivo txt")
+            export_list_btn.clicked.connect(self._export_current_list_txt)
+            try:
+                export_list_btn.setStyleSheet(self._week_label_style)
+            except Exception:
+                pass
             summary_layout.addWidget(clear_all_filters_btn, 0)
+            summary_layout.addWidget(export_list_btn, 0)
             summary_layout.addWidget(filters_summary_label, 1)
             tab_layout.addWidget(filters_summary_frame)
             filters_summary_frame.setVisible(True)
@@ -1273,6 +1287,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "filters_summary_frame": filters_summary_frame,
                 "filters_summary_label": filters_summary_label,
                 "clear_all_filters_btn": clear_all_filters_btn,
+                "export_list_btn": export_list_btn,
                 "table_widget": table_widget,
                 "details_group": details_group,
                 "details_text": details_text,
@@ -1283,6 +1298,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "col_filters_list_layout": col_filters_list_layout,
                 "add_column_filter_btn": add_column_filter_btn,
                 "clear_all_btn": clear_all_btn,
+                "tab_kind": tab_kind,
             }
         )
         if tab_kind == "filters":
@@ -1316,8 +1332,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+        tab_kind = ctx.get("tab_kind")
         try:
-            if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+            if tab_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
                 if getattr(self, "_adv_options_dirty", False):
                     self._refresh_advanced_filter_options()
                     self._adv_options_dirty = False
@@ -1361,11 +1378,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            self._build_column_filters_panel()
+            if tab_kind != "filters":
+                self._build_column_filters_panel()
         except Exception:
             pass
         try:
-            self._update_col_filter_indicator()
+            if tab_kind != "filters":
+                self._update_col_filter_indicator()
         except Exception:
             pass
         try:
@@ -1377,13 +1396,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            if getattr(self, "_current_theme", None):
-                self.apply_theme(self._current_theme)
+            current_theme = getattr(self, "_current_theme", None)
+            if current_theme and ctx.get("_theme_name") != current_theme:
+                self.apply_theme(current_theme)
+                ctx["_theme_name"] = current_theme
         except Exception:
             pass
         try:
             current_page = max(1, getattr(self.paginator, "current_page", 1))
-            self.display_current_page(current_page)
+            render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
+            if ctx.get("_last_render_key") != render_key:
+                ctx["_last_render_key"] = render_key
+                self.display_current_page(current_page)
         except Exception:
             pass
 
@@ -1940,6 +1964,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+    def _has_active_advanced_filters(self, data: dict) -> bool:
+        if not isinstance(data, dict) or not data:
+            return False
+        list_keys = (
+            "setor_executor",
+            "setor_emissor",
+            "divisao",
+            "situacao",
+            "solicitante",
+            "responsavel_programacao",
+            "responsavel_execucao",
+            "responsavel_emissor",
+        )
+        for key in list_keys:
+            if data.get(key):
+                return True
+        if data.get("ano_emissao") or data.get("ano_execucao"):
+            return True
+        if data.get("semana_emissao_inicio") is not None or data.get("semana_emissao_fim") is not None:
+            return True
+        if data.get("semana_execucao_inicio") is not None or data.get("semana_execucao_fim") is not None:
+            return True
+        if data.get("derivada_has") or data.get("derivada_all_ste") or data.get("derivada_is"):
+            return True
+        if data.get("derivada_origem"):
+            return True
+        if data.get("macro_filter"):
+            return True
+        return False
+
     def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         data = {}
         try:
@@ -2083,7 +2137,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._advanced_filters = data
         if store_only:
             return
-        self._advanced_filters_active = True
+        self._advanced_filters_active = self._has_active_advanced_filters(data)
         try:
             self._refresh_after_filter_change()
         except Exception:
@@ -2518,15 +2572,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivada_origem = (filters.get("derivada_origem") or "").strip()
 
         if "derivada_de" in df.columns:
-            series_derivada = df["derivada_de"].astype(str).str.strip()
-            has_derivada = series_derivada.ne("") & series_derivada.ne("nan")
+            series_derivada = df["derivada_de"].apply(self._normalize_ssa_value)
+            has_derivada = series_derivada.ne("")
             if derivada_is:
                 mask &= has_derivada
             if derivada_origem:
                 try:
-                    mask &= series_derivada.str.casefold().eq(str(derivada_origem).casefold())
+                    origem_norm = self._normalize_ssa_value(derivada_origem)
+                    if origem_norm:
+                        mask &= series_derivada.eq(origem_norm)
                 except Exception:
-                    mask &= series_derivada.eq(derivada_origem)
+                    pass
             if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
                 try:
                     origins = set(series_derivada[has_derivada].unique())
@@ -2535,7 +2591,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if derivada_all_ste and "situacao" in df.columns:
                     try:
                         derived = df[has_derivada].copy()
-                        grouped = derived.groupby("derivada_de")["situacao"].apply(
+                        derived["_derivada_norm"] = series_derivada[has_derivada].values
+                        grouped = derived.groupby("_derivada_norm")["situacao"].apply(
                             lambda s: s.astype(str).str.upper().eq("STE").all()
                         )
                         origins = set(grouped[grouped].index.astype(str).tolist())
@@ -2543,8 +2600,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         origins = set()
                 if origins:
                     try:
-                        origin_norm = {str(o).casefold() for o in origins}
-                        mask &= df["numero_ssa"].astype(str).str.casefold().isin(origin_norm)
+                        origin_norm = {str(o) for o in origins if str(o).strip()}
+                        numero_norm = df["numero_ssa"].apply(self._normalize_ssa_value)
+                        mask &= numero_norm.isin(origin_norm)
                     except Exception:
                         pass
                 else:
@@ -3196,6 +3254,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
             if hasattr(self, 'clear_all_filters_btn'):
                 self.clear_all_filters_btn.setStyleSheet(highlight_style)
+            if hasattr(self, 'export_list_btn'):
+                self.export_list_btn.setStyleSheet(highlight_style)
             if hasattr(self, 'clear_all_btn'):
                 self.clear_all_btn.setStyleSheet(highlight_style)
 
@@ -3902,6 +3962,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             return None
 
+    def _normalize_ssa_value(self, value):
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        lowered = text.casefold()
+        if lowered in ("nan", "none", "nat"):
+            return ""
+        try:
+            digits = re.sub(r"\D", "", text)
+        except Exception:
+            digits = ""
+        if digits:
+            return digits
+        return lowered
+
     def update_details_from_selection(self):
         """Atualiza o painel de detalhes com base na linha selecionada."""
         if self.table_widget.rowCount() == 0:
@@ -3967,28 +4042,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return []
         if "derivada_de" not in self.df_completo.columns or "numero_ssa" not in self.df_completo.columns:
             return []
-        num = str(numero_ssa or "").strip()
-        if not num:
+        num_norm = self._normalize_ssa_value(numero_ssa)
+        if not num_norm:
             return []
         try:
-            series = self.df_completo["derivada_de"].astype(str).str.strip().str.casefold()
-            mask = series.eq(num.casefold())
-            derived = self.df_completo.loc[mask, "numero_ssa"].astype(str).tolist()
-            return [d for d in derived if str(d).strip()]
+            series_norm = self.df_completo["derivada_de"].apply(self._normalize_ssa_value)
+            mask = series_norm.eq(num_norm)
+            derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
+            derived = []
+            for value in derived_raw:
+                formatted = format_cell(value, "numero_ssa")
+                if formatted:
+                    derived.append(formatted)
+            return derived
         except Exception:
             return []
 
     def _jump_to_ssa(self, numero_ssa):
-        num = str(numero_ssa or "").strip()
-        if not num:
+        num_norm = self._normalize_ssa_value(numero_ssa)
+        if not num_norm:
             return
         try:
             df_reset = self.df_exibido.reset_index(drop=True)
             if "numero_ssa" not in df_reset.columns:
                 return
-            mask = df_reset["numero_ssa"].astype(str).str.casefold().eq(num.casefold())
+            series_norm = df_reset["numero_ssa"].apply(self._normalize_ssa_value)
+            mask = series_norm.eq(num_norm)
             if not mask.any():
-                self.search_input.setText(f"={num}")
+                self.search_input.setText(f"={num_norm}")
                 self.initiate_filtering()
                 return
             pos = int(mask[mask].index[0])
@@ -4008,11 +4089,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
     def _filter_by_derivadas(self, numero_ssa):
-        num = str(numero_ssa or "").strip()
-        if not num:
+        num_norm = self._normalize_ssa_value(numero_ssa)
+        if not num_norm:
             return
-        self._last_derivada_origem = num
-        self._active_column_filters["derivada_de"] = num
+        self._last_derivada_origem = num_norm
+        self._active_column_filters["derivada_de"] = num_norm
         try:
             self._build_column_filters_panel()
         except Exception:
