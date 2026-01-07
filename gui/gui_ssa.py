@@ -24,6 +24,7 @@ import subprocess
 import re
 import logging
 from collections import OrderedDict
+from time import perf_counter
 
 
 try:
@@ -126,7 +127,7 @@ try:
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
         QScrollArea, QToolButton, QWidgetAction
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint
     from PyQt6.QtGui import QAction, QFont
 
     # Import workers, cache, widgets, and helpers from separate modules
@@ -176,6 +177,16 @@ except ImportError as exc:
 
         def setBold(self, *a, **k):
             pass
+    class QPoint:
+        def __init__(self, x=0, y=0):
+            self._x = x
+            self._y = y
+        def x(self):
+            return self._x
+        def y(self):
+            return self._y
+        def setY(self, y):
+            self._y = y
     class QApplication:
         def __init__(self, *a, **k): pass
         def exec(self): return 0
@@ -642,6 +653,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "filters_summary_label",
         "clear_all_filters_btn",
         "export_list_btn",
+        "undo_filter_btn",
         "table_widget",
         "details_group",
         "details_text",
@@ -669,16 +681,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "adv_status_menu",
         "adv_status_checks",
         "adv_status_exclude",
-        "adv_year_emissao",
-        "adv_year_emissao_exclude",
-        "adv_year_execucao",
-        "adv_year_execucao_exclude",
+        "adv_year_emissao_button",
+        "adv_year_emissao_menu",
+        "adv_year_emissao_checks",
+        "adv_year_execucao_button",
+        "adv_year_execucao_menu",
+        "adv_year_execucao_checks",
         "adv_week_emissao_start",
         "adv_week_emissao_end",
         "adv_week_emissao_exclude",
         "adv_week_execucao_start",
         "adv_week_execucao_end",
         "adv_week_execucao_exclude",
+        "adv_prioridade_emissao_button",
+        "adv_prioridade_emissao_menu",
+        "adv_prioridade_emissao_checks",
+        "adv_prioridade_planejamento_button",
+        "adv_prioridade_planejamento_menu",
+        "adv_prioridade_planejamento_checks",
         "adv_derivada_has",
         "adv_derivada_all_ste",
         "adv_derivada_is",
@@ -708,7 +728,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     )
     def _get_theme_catalog(self):
         light_themes = [
-            ("Claro", 'claro'),
+            ("Classico", 'classico'),
             ("Mint Light", 'mint-light'),
             ("Paper", 'paper'),
             ("Solarized Light", 'solarized-light'),
@@ -1085,6 +1105,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
+            exclude_ste_checkbox.setVisible(False)
+        except Exception:
+            pass
+        try:
             exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
         except Exception:
             pass
@@ -1120,6 +1144,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filters_summary_label = None
         clear_all_filters_btn = None
         export_list_btn = None
+        undo_filter_btn = None
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
@@ -1147,11 +1172,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 export_list_btn.setStyleSheet(self._week_label_style)
             except Exception:
                 pass
+            undo_filter_btn = QPushButton("Undo")
+            undo_filter_btn.setMaximumWidth(160)
+            undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
+            undo_filter_btn.clicked.connect(self._restore_last_filter_state)
+            try:
+                undo_filter_btn.setStyleSheet(self._week_label_style)
+            except Exception:
+                pass
             summary_layout.addWidget(clear_all_filters_btn, 0)
             summary_layout.addWidget(export_list_btn, 0)
+            summary_layout.addWidget(undo_filter_btn, 0)
             summary_layout.addWidget(filters_summary_label, 1)
             tab_layout.addWidget(filters_summary_frame)
             filters_summary_frame.setVisible(True)
+            try:
+                self._update_undo_button_state()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -1212,7 +1250,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         details_layout = QVBoxLayout(details_group)
         details_layout.setContentsMargins(2, 2, 2, 2)
         details_layout.setSpacing(2)
-        details_text = QTextEdit()
+        details_text = QTextBrowser()
         try:
             details_text.setFrameShape(QFrame.Shape.NoFrame)
         except Exception:
@@ -1222,6 +1260,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         details_text.setReadOnly(True)
+        try:
+            details_text.setOpenExternalLinks(False)
+            details_text.anchorClicked.connect(self._on_details_anchor_clicked)
+        except Exception:
+            pass
         details_layout.addWidget(details_text)
         bottom_layout.addWidget(details_group, 5)
 
@@ -1288,6 +1331,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "filters_summary_label": filters_summary_label,
                 "clear_all_filters_btn": clear_all_filters_btn,
                 "export_list_btn": export_list_btn,
+                "undo_filter_btn": undo_filter_btn,
                 "table_widget": table_widget,
                 "details_group": details_group,
                 "details_text": details_text,
@@ -1306,51 +1350,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ctx
 
     def _bind_tab_context(self, ctx: dict) -> None:
-        previous_text = None
-        if hasattr(self, "search_input") and self.search_input is not None:
-            try:
-                previous_text = self.search_input.text()
-            except Exception:
-                previous_text = None
-
+        self._current_tab_kind = ctx.get("tab_kind")
         for name in self.TAB_WIDGET_ATTRS:
             if name in ctx:
                 setattr(self, name, ctx[name])
-
-        if previous_text is not None:
-            try:
-                self.search_input.blockSignals(True)
-                self.search_input.setText(previous_text)
-            finally:
-                try:
-                    self.search_input.blockSignals(False)
-                except Exception:
-                    pass
         try:
             active_text = self.search_input.text().strip()
             self.clear_filter_button.setEnabled(bool(active_text))
         except Exception:
             pass
+        try:
+            if ctx.get("tab_kind") == "filters":
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.clear_filter_button.setEnabled(False)
+        except Exception:
+            pass
+        finally:
+            try:
+                if ctx.get("tab_kind") == "filters":
+                    self.search_input.blockSignals(False)
+            except Exception:
+                pass
 
         tab_kind = ctx.get("tab_kind")
         try:
             if tab_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
                 if getattr(self, "_adv_options_dirty", False):
-                    self._refresh_advanced_filter_options()
-                    self._adv_options_dirty = False
+                    self._schedule_adv_options_refresh()
         except Exception:
             pass
 
         try:
-            self.exclude_ste_checkbox.blockSignals(True)
-            self.exclude_ste_checkbox.setChecked(bool(getattr(self, "_exclude_ste_sca", False)))
+            if hasattr(self, "exclude_ste_checkbox") and not self.exclude_ste_checkbox.isVisible():
+                self._exclude_ste_sca = False
         except Exception:
             pass
-        finally:
-            try:
-                self.exclude_ste_checkbox.blockSignals(False)
-            except Exception:
-                pass
 
         try:
             if self.current_filter_profile:
@@ -1374,7 +1409,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
         try:
-            self.paginator.set_dataframe(self.df_exibido)
+            df_id = id(self.df_exibido)
+            if ctx.get("_paginator_df_id") != df_id:
+                self.paginator.set_dataframe(self.df_exibido)
+                ctx["_paginator_df_id"] = df_id
         except Exception:
             pass
         try:
@@ -1392,7 +1430,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            self.update_filter_tags()
+            self._update_undo_button_state()
+        except Exception:
+            pass
+        try:
+            if tab_kind != "filters":
+                self.update_filter_tags()
         except Exception:
             pass
         try:
@@ -1411,6 +1454,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+    def _schedule_adv_options_refresh(self):
+        if getattr(self, "_adv_options_scheduled", False):
+            return
+        self._adv_options_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_adv_options_refresh)
+        except Exception:
+            self._adv_options_scheduled = False
+            try:
+                self._run_adv_options_refresh()
+            except Exception:
+                pass
+
+    def _run_adv_options_refresh(self):
+        self._adv_options_scheduled = False
+        if getattr(self, "_current_tab_kind", None) != "filters":
+            return
+        if not getattr(self, "_adv_options_dirty", False):
+            return
+        try:
+            self._refresh_advanced_filter_options()
+            self._adv_options_dirty = False
+        except Exception:
+            pass
+
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
             return
@@ -1422,20 +1490,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
         box = QGroupBox(title)
         layout = QHBoxLayout(box)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
         button = QToolButton()
         button.setText(placeholder)
-        try:
-            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        except Exception:
-            pass
         menu = QMenu(button)
         try:
-            menu.setMaximumHeight(320)
+            menu.setMaximumHeight(360)
         except Exception:
             pass
-        button.setMenu(menu)
+        self._attach_multiselect_menu(button, menu)
         button.setToolTip(placeholder)
         try:
             button.setMinimumWidth(140)
@@ -1444,134 +1508,333 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude = None
         if with_exclude:
             exclude = QCheckBox("Diferente")
+            try:
+                exclude.setVisible(False)
+            except Exception:
+                pass
         layout.addWidget(button, 1)
-        if exclude is not None:
-            layout.addWidget(exclude)
         return box, button, menu, exclude
 
-    def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar"):
+    def _attach_multiselect_menu(self, button, menu):
+        if button is None or menu is None:
+            return
+        def _show_menu():
+            try:
+                menu_size = menu.sizeHint()
+            except Exception:
+                menu_size = None
+            try:
+                pos = button.mapToGlobal(button.rect().bottomLeft())
+                if menu_size is not None:
+                    y = pos.y() - int(menu_size.height())
+                    if y < 0:
+                        y = pos.y()
+                    pos = QPoint(pos.x(), y)
+                menu.exec(pos)
+                return
+            except Exception:
+                pass
+            try:
+                menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+            except Exception:
+                pass
+        try:
+            button.clicked.connect(_show_menu)
+        except Exception:
+            pass
+
+    def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar", exclude_checks=None):
         if button is None:
             return
         selected = []
         for cb in checks or []:
             try:
                 if cb.isChecked():
-                    selected.append(cb.text())
+                    value = self._checkbox_value(cb)
+                    if value:
+                        selected.append(value)
+            except Exception:
+                pass
+        excluded = []
+        for cb in exclude_checks or []:
+            try:
+                if cb.isChecked():
+                    value = self._checkbox_value(cb)
+                    if value:
+                        excluded.append(value)
             except Exception:
                 pass
         total = len(checks or [])
         if total == 0:
             text = "Sem dados"
-        elif not selected:
+        elif not selected and not excluded:
             text = placeholder
-        elif len(selected) == total:
+        elif len(selected) == total and not excluded:
             text = "Todos"
+        elif selected and excluded:
+            text = f"{len(selected)} inc, {len(excluded)} dif"
+        elif selected:
+            text = f"{len(selected)} incluir"
+        elif excluded:
+            text = f"{len(excluded)} diferente"
         else:
             text = f"{len(selected)} selecionados"
         try:
             button.setText(text)
-            button.setToolTip(", ".join(selected) if selected else placeholder)
+            if selected or excluded:
+                button.setToolTip(
+                    "Incluir: " + ", ".join(selected) + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
+                )
+            else:
+                button.setToolTip(placeholder)
         except Exception:
             pass
 
-    def _rebuild_multiselect_menu(self, button, menu, values, selected_set, on_toggle=None):
+    def _rebuild_multiselect_menu(
+        self,
+        button,
+        menu,
+        values,
+        selected_set,
+        on_toggle=None,
+        on_apply=None,
+        exclude_selected_set=None,
+        on_exclude_toggle=None,
+    ):
         try:
             menu.clear()
         except Exception:
             pass
         selected_norm = {str(v).casefold() for v in (selected_set or [])}
+        exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
         checks = []
-        for val in values:
-            cb = QCheckBox(val)
+        exclude_checks = []
+        try:
+            min_width = max(220, int(getattr(button, "width", lambda: 0)() or 0))
+            menu.setMinimumWidth(min_width)
+        except Exception:
+            pass
+        if exclude_selected_set is not None:
+            header = QWidget()
+            header_layout = QHBoxLayout(header)
+            header_layout.setContentsMargins(6, 2, 6, 2)
+            header_layout.setSpacing(8)
+            header_layout.addWidget(QLabel(""), 1)
+            label_inc = QLabel("Conter")
+            label_exc = QLabel("Diferente")
             try:
-                cb.setChecked(str(val).casefold() in selected_norm)
+                label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception:
                 pass
-            if on_toggle is not None:
+            header_layout.addWidget(label_inc)
+            header_layout.addWidget(label_exc)
+            header_act = QWidgetAction(menu)
+            header_act.setDefaultWidget(header)
+            try:
+                menu.addAction(header_act)
+            except Exception:
+                pass
+        for val in values:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(6, 2, 6, 2)
+            row_layout.setSpacing(8)
+            label = QLabel(str(val))
+            include_cb = QCheckBox()
+            exclude_cb = QCheckBox() if exclude_selected_set is not None else None
+            try:
+                include_cb.setProperty("value", str(val))
+            except Exception:
+                pass
+            if exclude_cb is not None:
                 try:
-                    cb.toggled.connect(on_toggle)
+                    exclude_cb.setProperty("value", str(val))
                 except Exception:
                     pass
+            try:
+                self._style_menu_checkbox(include_cb, button)
+            except Exception:
+                pass
+            if exclude_cb is not None:
+                try:
+                    self._style_menu_checkbox(exclude_cb, button)
+                except Exception:
+                    pass
+            try:
+                include_cb.setChecked(str(val).casefold() in selected_norm)
+            except Exception:
+                pass
+            if exclude_cb is not None:
+                try:
+                    exclude_cb.setChecked(str(val).casefold() in exclude_norm)
+                except Exception:
+                    pass
+            row_layout.addWidget(label, 1)
+            row_layout.addWidget(include_cb)
+            if exclude_cb is not None:
+                row_layout.addWidget(exclude_cb)
             act = QWidgetAction(menu)
-            act.setDefaultWidget(cb)
+            act.setDefaultWidget(row)
             try:
                 menu.addAction(act)
             except Exception:
                 pass
-            checks.append(cb)
-        self._update_multiselect_button(button, checks)
-        return checks
+            checks.append(include_cb)
+            if exclude_cb is not None:
+                exclude_checks.append(exclude_cb)
+            if exclude_cb is not None:
+                def _toggle_include(checked, other=exclude_cb):
+                    if checked and other.isChecked():
+                        other.setChecked(False)
+                def _toggle_exclude(checked, other=include_cb):
+                    if checked and other.isChecked():
+                        other.setChecked(False)
+                try:
+                    include_cb.toggled.connect(_toggle_include)
+                    exclude_cb.toggled.connect(_toggle_exclude)
+                except Exception:
+                    pass
+            if on_toggle is not None:
+                try:
+                    include_cb.toggled.connect(on_toggle)
+                except Exception:
+                    pass
+            if exclude_cb is not None and on_exclude_toggle is not None:
+                try:
+                    exclude_cb.toggled.connect(on_exclude_toggle)
+                except Exception:
+                    pass
+        if on_apply is not None:
+            try:
+                menu.addSeparator()
+            except Exception:
+                pass
+            ok_btn = QPushButton("OK")
+            ok_btn.setFixedWidth(60)
+            ok_btn.setToolTip("Aplicar selecao e fechar")
+            try:
+                ok_btn.clicked.connect(menu.close)
+            except Exception:
+                pass
+            try:
+                ok_btn.clicked.connect(on_apply)
+            except Exception:
+                pass
+            ok_row = QWidget()
+            ok_layout = QHBoxLayout(ok_row)
+            ok_layout.setContentsMargins(6, 2, 6, 6)
+            ok_layout.addStretch()
+            ok_layout.addWidget(ok_btn)
+            ok_layout.addStretch()
+            ok_act = QWidgetAction(menu)
+            ok_act.setDefaultWidget(ok_row)
+            try:
+                menu.addAction(ok_act)
+            except Exception:
+                pass
+        self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
+        if exclude_selected_set is not None:
+            return checks, exclude_checks
+        return checks, []
 
-    def _sync_multiselect_checks(self, button, checks, selected):
+    def _checkbox_value(self, checkbox) -> str:
+        try:
+            text = checkbox.text()
+            if text:
+                return text
+        except Exception:
+            pass
+        try:
+            value = checkbox.property("value")
+            if value is not None:
+                return str(value)
+        except Exception:
+            pass
+        return ""
+
+    def _style_menu_checkbox(self, checkbox, base_widget=None):
+        if checkbox is None:
+            return
+        try:
+            from PyQt6.QtGui import QPalette as _QPal
+            pal = (base_widget or checkbox).palette()
+            border = pal.color(_QPal.ColorRole.Mid).name()
+            bg = pal.color(_QPal.ColorRole.Base).name()
+            accent = pal.color(_QPal.ColorRole.Highlight).name()
+            checkbox.setStyleSheet(
+                "QCheckBox::indicator {"
+                f" width:14px; height:14px; border:1px solid {border}; background:{bg};"
+                " }"
+                "QCheckBox::indicator:checked {"
+                f" border:1px solid {border}; background:{accent};"
+                " }"
+            )
+        except Exception:
+            pass
+
+    def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None, exclude_selected=None):
         selected_set = {str(v).casefold() for v in (selected or [])}
         for cb in checks or []:
             try:
-                cb.setChecked(cb.text().casefold() in selected_set)
+                cb.setChecked(self._checkbox_value(cb).casefold() in selected_set)
             except Exception:
                 pass
-        self._update_multiselect_button(button, checks)
+        exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
+        for cb in exclude_checks or []:
+            try:
+                cb.setChecked(self._checkbox_value(cb).casefold() in exclude_set)
+            except Exception:
+                pass
+        self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
 
     def _build_advanced_filters_panel(self):
         group = QGroupBox("Filtros Avancados")
         outer = QVBoxLayout(group)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(6)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(4)
 
         exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Area Executora")
         emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Area Emissora")
         div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
         status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
+        macro_box = QGroupBox("Macros de filtros")
+        macro_layout = QHBoxLayout(macro_box)
+        macro_layout.setContentsMargins(4, 4, 4, 4)
         macro_combo = QComboBox()
         macro_combo.addItem("Nenhum", None)
         macro_combo.addItem("SSAs para baixar", "ssas_para_baixar")
         macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
-        try:
-            status_layout = status_box.layout()
-            if status_layout is not None:
-                status_layout.addSpacing(6)
-                status_layout.addWidget(QLabel("Macro:"))
-                status_layout.addWidget(macro_combo)
-        except Exception:
-            pass
+        macro_layout.addWidget(macro_combo)
 
-        year_emissao_box = QGroupBox("Ano Emissao")
-        year_emissao_layout = QHBoxLayout(year_emissao_box)
-        year_emissao_layout.setContentsMargins(6, 6, 6, 6)
-        year_emissao = QComboBox()
-        year_emissao.addItem("Qualquer", None)
-        year_emissao_exclude = QCheckBox("Diferente")
-        year_emissao_layout.addWidget(year_emissao, 1)
-        year_emissao_layout.addWidget(year_emissao_exclude)
-
-        year_execucao_box = QGroupBox("Ano Execucao")
-        year_execucao_layout = QHBoxLayout(year_execucao_box)
-        year_execucao_layout.setContentsMargins(6, 6, 6, 6)
-        year_execucao = QComboBox()
-        year_execucao.addItem("Qualquer", None)
-        year_execucao_exclude = QCheckBox("Diferente")
-        year_execucao_layout.addWidget(year_execucao, 1)
-        year_execucao_layout.addWidget(year_execucao_exclude)
+        year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box(
+            "Ano Emissao", with_exclude=False
+        )
+        year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box(
+            "Ano Execucao", with_exclude=False
+        )
 
         top_grid = QGridLayout()
         top_grid.setContentsMargins(0, 0, 0, 0)
-        top_grid.setSpacing(6)
+        top_grid.setSpacing(4)
         top_grid.addWidget(exec_box, 0, 0)
         top_grid.addWidget(emis_box, 0, 1)
         top_grid.addWidget(year_emissao_box, 0, 2)
         top_grid.addWidget(year_execucao_box, 0, 3)
         top_grid.addWidget(div_box, 1, 0)
-        top_grid.addWidget(status_box, 1, 1, 1, 3)
+        top_grid.addWidget(status_box, 1, 1)
+        top_grid.addWidget(macro_box, 1, 2, 1, 2)
         top_grid.setColumnStretch(0, 1)
         top_grid.setColumnStretch(1, 1)
         top_grid.setColumnStretch(2, 1)
         top_grid.setColumnStretch(3, 1)
 
-        week_box = QGroupBox("Ano/Semana (YYYYWW)")
+        week_box = QGroupBox("Ano/Semana")
         week_layout = QVBoxLayout(week_box)
-        week_layout.setContentsMargins(6, 6, 6, 6)
-        week_layout.setSpacing(6)
+        week_layout.setContentsMargins(4, 4, 4, 4)
+        week_layout.setSpacing(4)
         week_emissao_row = QHBoxLayout()
-        week_emissao_row.setSpacing(6)
+        week_emissao_row.setSpacing(4)
         week_emissao_label = QLabel("Emissao:")
         week_emissao_start = QLineEdit()
         week_emissao_start.setPlaceholderText("Inicio")
@@ -1584,7 +1847,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         week_emissao_row.addWidget(week_emissao_exclude)
         week_layout.addLayout(week_emissao_row)
         week_exec_row = QHBoxLayout()
-        week_exec_row.setSpacing(6)
+        week_exec_row.setSpacing(4)
         week_exec_label = QLabel("Execucao:")
         week_exec_start = QLineEdit()
         week_exec_start.setPlaceholderText("Inicio")
@@ -1597,13 +1860,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         week_exec_row.addWidget(week_exec_exclude)
         week_layout.addLayout(week_exec_row)
 
+        prio_box = QGroupBox("Prioridade")
+        prio_grid = QGridLayout(prio_box)
+        prio_grid.setContentsMargins(4, 4, 4, 4)
+        prio_grid.setSpacing(4)
+        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio Emissao")
+        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio Planejamento")
+        prio_grid.addWidget(prio_emis_box, 0, 0)
+        prio_grid.addWidget(prio_plan_box, 0, 1)
+        prio_grid.setColumnStretch(0, 1)
+        prio_grid.setColumnStretch(1, 1)
+
         deriv_box = QGroupBox("Derivadas")
         deriv_layout = QHBoxLayout(deriv_box)
-        deriv_layout.setContentsMargins(6, 6, 6, 6)
-        deriv_layout.setSpacing(8)
+        deriv_layout.setContentsMargins(4, 4, 4, 4)
+        deriv_layout.setSpacing(4)
         deriv_has = QCheckBox("Possui SSA derivada")
         deriv_all_ste = QCheckBox("Derivadas em STE")
-        deriv_is = QCheckBox("E SSA derivada")
+        deriv_is = QCheckBox("SSA derivada")
         deriv_origem_label = QLabel("SSA origem:")
         deriv_origem_input = QLineEdit()
         deriv_origem_input.setPlaceholderText("Origem")
@@ -1625,8 +1899,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         resp_box = QGroupBox("Responsaveis")
         resp_grid = QGridLayout(resp_box)
-        resp_grid.setContentsMargins(6, 6, 6, 6)
-        resp_grid.setSpacing(6)
+        resp_grid.setContentsMargins(4, 4, 4, 4)
+        resp_grid.setSpacing(4)
         sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
         prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Programacao")
         exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Execucao")
@@ -1656,7 +1930,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         buttons_row.addStretch()
 
         outer.addLayout(top_grid)
-        outer.addWidget(week_box)
+        week_prio_row = QHBoxLayout()
+        week_prio_row.addWidget(week_box, 2)
+        week_prio_row.addWidget(prio_box, 1)
+        outer.addLayout(week_prio_row)
         outer.addWidget(deriv_box)
         outer.addWidget(resp_box)
         outer.addLayout(buttons_row)
@@ -1679,16 +1956,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_status_menu": status_menu,
             "adv_status_checks": [],
             "adv_status_exclude": status_exclude,
-            "adv_year_emissao": year_emissao,
-            "adv_year_emissao_exclude": year_emissao_exclude,
-            "adv_year_execucao": year_execucao,
-            "adv_year_execucao_exclude": year_execucao_exclude,
+            "adv_year_emissao_button": year_emissao_button,
+            "adv_year_emissao_menu": year_emissao_menu,
+            "adv_year_emissao_checks": [],
+            "adv_year_execucao_button": year_execucao_button,
+            "adv_year_execucao_menu": year_execucao_menu,
+            "adv_year_execucao_checks": [],
             "adv_week_emissao_start": week_emissao_start,
             "adv_week_emissao_end": week_emissao_end,
             "adv_week_emissao_exclude": week_emissao_exclude,
             "adv_week_execucao_start": week_exec_start,
             "adv_week_execucao_end": week_exec_end,
             "adv_week_execucao_exclude": week_exec_exclude,
+            "adv_prioridade_emissao_button": prio_emis_button,
+            "adv_prioridade_emissao_menu": prio_emis_menu,
+            "adv_prioridade_emissao_checks": [],
+            "adv_prioridade_planejamento_button": prio_plan_button,
+            "adv_prioridade_planejamento_menu": prio_plan_menu,
+            "adv_prioridade_planejamento_checks": [],
             "adv_derivada_has": deriv_has,
             "adv_derivada_all_ste": deriv_all_ste,
             "adv_derivada_is": deriv_is,
@@ -1761,14 +2046,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
             try:
-                if hasattr(self, "adv_status_exclude"):
-                    self.adv_status_exclude.setChecked(True)
-            except Exception:
-                pass
-            try:
                 self._sync_multiselect_checks(
                     getattr(self, "adv_status_button", None),
                     getattr(self, "adv_status_checks", None),
+                    [],
+                    getattr(self, "adv_status_exclude_checks", None),
                     ["STE", "SCA"],
                 )
             except Exception:
@@ -1788,15 +2070,57 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            self._update_multiselect_button(self.adv_executor_button, self.adv_executor_checks)
+            self._update_multiselect_button(
+                self.adv_executor_button,
+                self.adv_executor_checks,
+                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
+            )
         except Exception:
             pass
         try:
-            self._update_multiselect_button(self.adv_emissor_button, self.adv_emissor_checks)
+            self._update_multiselect_button(
+                self.adv_emissor_button,
+                self.adv_emissor_checks,
+                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
+            )
         except Exception:
             pass
         try:
-            self._update_multiselect_button(self.adv_divisao_button, self.adv_divisao_checks)
+            self._update_multiselect_button(
+                self.adv_divisao_button,
+                self.adv_divisao_checks,
+                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
+            )
+        except Exception:
+            pass
+        try:
+            self._refresh_responsavel_options()
+        except Exception:
+            pass
+
+    def _on_adv_sector_exclude_changed(self, *_):
+        try:
+            self._update_multiselect_button(
+                self.adv_executor_button,
+                self.adv_executor_checks,
+                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
+            )
+        except Exception:
+            pass
+        try:
+            self._update_multiselect_button(
+                self.adv_emissor_button,
+                self.adv_emissor_checks,
+                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
+            )
+        except Exception:
+            pass
+        try:
+            self._update_multiselect_button(
+                self.adv_divisao_button,
+                self.adv_divisao_checks,
+                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
+            )
         except Exception:
             pass
         try:
@@ -1842,7 +2166,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
         emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
         div_values = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-        has_sector = bool(exec_values or emis_values or div_values)
+        exec_excluded = self._get_checked_values(getattr(self, "adv_executor_exclude_checks", None))
+        emis_excluded = self._get_checked_values(getattr(self, "adv_emissor_exclude_checks", None))
+        div_excluded = self._get_checked_values(getattr(self, "adv_divisao_exclude_checks", None))
+        has_sector = bool(exec_values or emis_values or div_values or exec_excluded or emis_excluded or div_excluded)
+        apply_cb = lambda: self._apply_advanced_filters_from_ui()
 
         def _set_enabled(widget, enabled):
             if widget is None:
@@ -1866,42 +2194,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected_exec = set(exec_values)
         selected_emis = set(emis_values)
         selected_div = set(div_values)
+        selected_exec_excluded = set(exec_excluded)
+        selected_emis_excluded = set(emis_excluded)
+        selected_div_excluded = set(div_excluded)
         div_setores = self._collect_divisao_setores(selected_div)
+        div_setores_excluded = self._collect_divisao_setores(selected_div_excluded)
         filters = self._advanced_filters or {}
-        exec_exclude = bool(filters.get("setor_executor_exclude"))
-        emis_exclude = bool(filters.get("setor_emissor_exclude"))
-        div_exclude = bool(filters.get("divisao_exclude"))
-        try:
-            exec_exclude = bool(getattr(self, "adv_executor_exclude", None).isChecked())
-        except Exception:
-            pass
-        try:
-            emis_exclude = bool(getattr(self, "adv_emissor_exclude", None).isChecked())
-        except Exception:
-            pass
-        try:
-            div_exclude = bool(getattr(self, "adv_divisao_exclude", None).isChecked())
-        except Exception:
-            pass
 
         def _apply_sector_subset(frame):
             subset = frame
             if exec_col in subset.columns:
                 allowed = set(selected_exec) | set(div_setores)
-                excluded = set()
-                if exec_exclude:
-                    excluded |= set(selected_exec)
-                if div_exclude:
-                    excluded |= set(div_setores)
+                excluded = set(selected_exec_excluded) | set(div_setores_excluded)
                 if allowed:
                     subset = subset[subset[exec_col].astype(str).isin(allowed)]
                 if excluded:
                     subset = subset[~subset[exec_col].astype(str).isin(excluded)]
             if emis_col in subset.columns and selected_emis:
-                if emis_exclude:
-                    subset = subset[~subset[emis_col].astype(str).isin(selected_emis)]
-                else:
-                    subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
+                subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
+            if emis_col in subset.columns and selected_emis_excluded:
+                subset = subset[~subset[emis_col].astype(str).isin(selected_emis_excluded)]
             return subset
 
         if has_sector:
@@ -1926,6 +2238,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             button = getattr(self, f"{prefix}_button", None)
             menu = getattr(self, f"{prefix}_menu", None)
             checks_attr = f"{prefix}_checks"
+            exclude_checks_attr = f"{prefix}_exclude_checks"
             exclude = getattr(self, f"{prefix}_exclude", None)
             col_exists = col in self.df_completo.columns
             _set_visible(box, col_exists)
@@ -1933,26 +2246,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 _set_enabled(button, False)
                 _set_enabled(exclude, False)
                 setattr(self, checks_attr, [])
+                setattr(self, exclude_checks_attr, [])
                 continue
             if not has_sector:
                 _set_enabled(button, False)
                 _set_enabled(exclude, False)
-                setattr(self, checks_attr, self._rebuild_multiselect_menu(button, menu, [], set()))
+                include_checks, exclude_checks = self._rebuild_multiselect_menu(
+                    button,
+                    menu,
+                    [],
+                    set(),
+                    None,
+                    apply_cb,
+                    set(),
+                    None,
+                )
+                setattr(self, checks_attr, include_checks)
+                setattr(self, exclude_checks_attr, exclude_checks)
                 continue
             values = _unique_sorted(col)
             _set_enabled(button, True)
             _set_enabled(exclude, True)
             selected = set((self._advanced_filters or {}).get(col) or [])
-            checks = self._rebuild_multiselect_menu(
+            excluded = set((self._advanced_filters or {}).get(f"{col}_exclude_values") or [])
+            include_checks, exclude_checks = self._rebuild_multiselect_menu(
                 button,
                 menu,
                 values,
                 selected,
-                lambda *_: self._update_multiselect_button(button, getattr(self, checks_attr, [])),
+                lambda *_: self._update_multiselect_button(
+                    button,
+                    getattr(self, checks_attr, []),
+                    exclude_checks=getattr(self, exclude_checks_attr, None),
+                ),
+                apply_cb,
+                excluded,
+                lambda *_: self._update_multiselect_button(
+                    button,
+                    getattr(self, checks_attr, []),
+                    exclude_checks=getattr(self, exclude_checks_attr, None),
+                ),
             )
-            setattr(self, checks_attr, checks)
+            setattr(self, checks_attr, include_checks)
+            setattr(self, exclude_checks_attr, exclude_checks)
 
     def _clear_advanced_filters(self):
+        try:
+            self._store_last_filter_state()
+        except Exception:
+            pass
         self._advanced_filters = {}
         self._advanced_filters_active = False
         try:
@@ -1980,7 +2322,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         for key in list_keys:
             if data.get(key):
                 return True
+        exclude_list_keys = (
+            "setor_executor_exclude_values",
+            "setor_emissor_exclude_values",
+            "divisao_exclude_values",
+            "situacao_exclude_values",
+            "solicitante_exclude_values",
+            "responsavel_programacao_exclude_values",
+            "responsavel_execucao_exclude_values",
+            "responsavel_emissor_exclude_values",
+            "prioridade_emissao_exclude_values",
+            "prioridade_planejamento_exclude_values",
+        )
+        for key in exclude_list_keys:
+            if data.get(key):
+                return True
         if data.get("ano_emissao") or data.get("ano_execucao"):
+            return True
+        if data.get("ano_emissao_values") or data.get("ano_execucao_values"):
+            return True
+        if data.get("ano_emissao_exclude_values") or data.get("ano_execucao_exclude_values"):
+            return True
+        if data.get("prioridade_emissao_values") or data.get("prioridade_planejamento_values"):
             return True
         if data.get("semana_emissao_inicio") is not None or data.get("semana_emissao_fim") is not None:
             return True
@@ -1995,55 +2358,76 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return False
 
     def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+        if not store_only:
+            try:
+                self._store_last_filter_state()
+            except Exception:
+                pass
         data = {}
         try:
             data["setor_executor"] = self._get_checked_values(getattr(self, "adv_executor_checks", None))
         except Exception:
             data["setor_executor"] = []
         try:
-            data["setor_executor_exclude"] = bool(getattr(self, "adv_executor_exclude", None).isChecked())
+            data["setor_executor_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_executor_exclude_checks", None)
+            )
         except Exception:
-            data["setor_executor_exclude"] = False
+            data["setor_executor_exclude_values"] = []
         try:
             data["setor_emissor"] = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
         except Exception:
             data["setor_emissor"] = []
         try:
-            data["setor_emissor_exclude"] = bool(getattr(self, "adv_emissor_exclude", None).isChecked())
+            data["setor_emissor_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_emissor_exclude_checks", None)
+            )
         except Exception:
-            data["setor_emissor_exclude"] = False
+            data["setor_emissor_exclude_values"] = []
         try:
             data["divisao"] = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
         except Exception:
             data["divisao"] = []
         try:
-            data["divisao_exclude"] = bool(getattr(self, "adv_divisao_exclude", None).isChecked())
+            data["divisao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_divisao_exclude_checks", None)
+            )
         except Exception:
-            data["divisao_exclude"] = False
+            data["divisao_exclude_values"] = []
         try:
             data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
         except Exception:
             data["situacao"] = []
         try:
-            data["situacao_exclude"] = bool(getattr(self, "adv_status_exclude", None).isChecked())
+            data["situacao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_status_exclude_checks", None)
+            )
         except Exception:
-            data["situacao_exclude"] = False
+            data["situacao_exclude_values"] = []
         try:
-            data["ano_emissao"] = self.adv_year_emissao.currentData()
+            data["ano_emissao_values"] = self._get_checked_values(
+                getattr(self, "adv_year_emissao_checks", None)
+            )
         except Exception:
-            data["ano_emissao"] = None
+            data["ano_emissao_values"] = []
         try:
-            data["ano_emissao_exclude"] = bool(getattr(self, "adv_year_emissao_exclude", None).isChecked())
+            data["ano_emissao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_year_emissao_exclude_checks", None)
+            )
         except Exception:
-            data["ano_emissao_exclude"] = False
+            data["ano_emissao_exclude_values"] = []
         try:
-            data["ano_execucao"] = self.adv_year_execucao.currentData()
+            data["ano_execucao_values"] = self._get_checked_values(
+                getattr(self, "adv_year_execucao_checks", None)
+            )
         except Exception:
-            data["ano_execucao"] = None
+            data["ano_execucao_values"] = []
         try:
-            data["ano_execucao_exclude"] = bool(getattr(self, "adv_year_execucao_exclude", None).isChecked())
+            data["ano_execucao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_year_execucao_exclude_checks", None)
+            )
         except Exception:
-            data["ano_execucao_exclude"] = False
+            data["ano_execucao_exclude_values"] = []
         try:
             data["semana_emissao_inicio"] = self._parse_week(self.adv_week_emissao_start.text())
             data["semana_emissao_fim"] = self._parse_week(self.adv_week_emissao_end.text())
@@ -2090,9 +2474,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["solicitante"] = []
         try:
-            data["solicitante_exclude"] = bool(getattr(self, "adv_responsavel_solicitante_exclude", None).isChecked())
+            data["solicitante_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_solicitante_exclude_checks", None)
+            )
         except Exception:
-            data["solicitante_exclude"] = False
+            data["solicitante_exclude_values"] = []
         try:
             data["responsavel_programacao"] = self._get_checked_values(
                 getattr(self, "adv_responsavel_programacao_checks", None)
@@ -2100,11 +2486,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["responsavel_programacao"] = []
         try:
-            data["responsavel_programacao_exclude"] = bool(
-                getattr(self, "adv_responsavel_programacao_exclude", None).isChecked()
+            data["responsavel_programacao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_programacao_exclude_checks", None)
             )
         except Exception:
-            data["responsavel_programacao_exclude"] = False
+            data["responsavel_programacao_exclude_values"] = []
         try:
             data["responsavel_execucao"] = self._get_checked_values(
                 getattr(self, "adv_responsavel_execucao_checks", None)
@@ -2112,11 +2498,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["responsavel_execucao"] = []
         try:
-            data["responsavel_execucao_exclude"] = bool(
-                getattr(self, "adv_responsavel_execucao_exclude", None).isChecked()
+            data["responsavel_execucao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_execucao_exclude_checks", None)
             )
         except Exception:
-            data["responsavel_execucao_exclude"] = False
+            data["responsavel_execucao_exclude_values"] = []
         try:
             data["responsavel_emissor"] = self._get_checked_values(
                 getattr(self, "adv_responsavel_emissor_checks", None)
@@ -2124,11 +2510,35 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["responsavel_emissor"] = []
         try:
-            data["responsavel_emissor_exclude"] = bool(
-                getattr(self, "adv_responsavel_emissor_exclude", None).isChecked()
+            data["responsavel_emissor_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_emissor_exclude_checks", None)
             )
         except Exception:
-            data["responsavel_emissor_exclude"] = False
+            data["responsavel_emissor_exclude_values"] = []
+        try:
+            data["prioridade_emissao_values"] = self._get_checked_values(
+                getattr(self, "adv_prioridade_emissao_checks", None)
+            )
+        except Exception:
+            data["prioridade_emissao_values"] = []
+        try:
+            data["prioridade_emissao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_prioridade_emissao_exclude_checks", None)
+            )
+        except Exception:
+            data["prioridade_emissao_exclude_values"] = []
+        try:
+            data["prioridade_planejamento_values"] = self._get_checked_values(
+                getattr(self, "adv_prioridade_planejamento_checks", None)
+            )
+        except Exception:
+            data["prioridade_planejamento_values"] = []
+        try:
+            data["prioridade_planejamento_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_prioridade_planejamento_exclude_checks", None)
+            )
+        except Exception:
+            data["prioridade_planejamento_exclude_values"] = []
         try:
             data["macro_filter"] = self.adv_macro_combo.currentData()
         except Exception:
@@ -2161,7 +2571,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for child in source:
                 try:
                     if child.isChecked():
-                        values.append(child.text())
+                        value = self._checkbox_value(child)
+                        if value:
+                            values.append(value)
                 except Exception:
                     pass
             return values
@@ -2173,7 +2585,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for child in children:
                 try:
                     if child.isChecked():
-                        values.append(child.text())
+                        value = self._checkbox_value(child)
+                        if value:
+                            values.append(value)
                 except Exception:
                     pass
         return values
@@ -2184,68 +2598,102 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             getattr(self, "adv_executor_button", None),
             getattr(self, "adv_executor_checks", None),
             data.get("setor_executor"),
+            getattr(self, "adv_executor_exclude_checks", None),
+            data.get("setor_executor_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_emissor_button", None),
             getattr(self, "adv_emissor_checks", None),
             data.get("setor_emissor"),
+            getattr(self, "adv_emissor_exclude_checks", None),
+            data.get("setor_emissor_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_divisao_button", None),
             getattr(self, "adv_divisao_checks", None),
             data.get("divisao"),
+            getattr(self, "adv_divisao_exclude_checks", None),
+            data.get("divisao_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_status_button", None),
             getattr(self, "adv_status_checks", None),
             data.get("situacao"),
+            getattr(self, "adv_status_exclude_checks", None),
+            data.get("situacao_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_responsavel_solicitante_button", None),
             getattr(self, "adv_responsavel_solicitante_checks", None),
             data.get("solicitante"),
+            getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
+            data.get("solicitante_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_responsavel_programacao_button", None),
             getattr(self, "adv_responsavel_programacao_checks", None),
             data.get("responsavel_programacao"),
+            getattr(self, "adv_responsavel_programacao_exclude_checks", None),
+            data.get("responsavel_programacao_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_responsavel_execucao_button", None),
             getattr(self, "adv_responsavel_execucao_checks", None),
             data.get("responsavel_execucao"),
+            getattr(self, "adv_responsavel_execucao_exclude_checks", None),
+            data.get("responsavel_execucao_exclude_values"),
         )
         self._sync_multiselect_checks(
             getattr(self, "adv_responsavel_emissor_button", None),
             getattr(self, "adv_responsavel_emissor_checks", None),
             data.get("responsavel_emissor"),
+            getattr(self, "adv_responsavel_emissor_exclude_checks", None),
+            data.get("responsavel_emissor_exclude_values"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_prioridade_emissao_button", None),
+            getattr(self, "adv_prioridade_emissao_checks", None),
+            data.get("prioridade_emissao_values"),
+            getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+            data.get("prioridade_emissao_exclude_values"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_prioridade_planejamento_button", None),
+            getattr(self, "adv_prioridade_planejamento_checks", None),
+            data.get("prioridade_planejamento_values"),
+            getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
+            data.get("prioridade_planejamento_exclude_values"),
         )
         try:
-            if hasattr(self, "adv_executor_exclude"):
-                self.adv_executor_exclude.setChecked(bool(data.get("setor_executor_exclude")))
-            if hasattr(self, "adv_emissor_exclude"):
-                self.adv_emissor_exclude.setChecked(bool(data.get("setor_emissor_exclude")))
-            if hasattr(self, "adv_divisao_exclude"):
-                self.adv_divisao_exclude.setChecked(bool(data.get("divisao_exclude")))
-            if hasattr(self, "adv_status_exclude"):
-                self.adv_status_exclude.setChecked(bool(data.get("situacao_exclude")))
+            emissao_values = data.get("ano_emissao_values")
+            emissao_exclude = data.get("ano_emissao_exclude_values")
+            if emissao_values is None and data.get("ano_emissao") is not None:
+                emissao_values = [data.get("ano_emissao")]
+            if emissao_exclude is None and data.get("ano_emissao_exclude") and data.get("ano_emissao") is not None:
+                emissao_exclude = [data.get("ano_emissao")]
+            self._sync_multiselect_checks(
+                getattr(self, "adv_year_emissao_button", None),
+                getattr(self, "adv_year_emissao_checks", None),
+                emissao_values,
+                getattr(self, "adv_year_emissao_exclude_checks", None),
+                emissao_exclude,
+            )
         except Exception:
             pass
         try:
-            idx = self.adv_year_emissao.findData(data.get("ano_emissao"))
-            self.adv_year_emissao.setCurrentIndex(max(0, idx))
-        except Exception:
-            pass
-        try:
-            idx = self.adv_year_execucao.findData(data.get("ano_execucao"))
-            self.adv_year_execucao.setCurrentIndex(max(0, idx))
-        except Exception:
-            pass
-        try:
-            if hasattr(self, "adv_year_emissao_exclude"):
-                self.adv_year_emissao_exclude.setChecked(bool(data.get("ano_emissao_exclude")))
-            if hasattr(self, "adv_year_execucao_exclude"):
-                self.adv_year_execucao_exclude.setChecked(bool(data.get("ano_execucao_exclude")))
+            execucao_values = data.get("ano_execucao_values")
+            execucao_exclude = data.get("ano_execucao_exclude_values")
+            if execucao_values is None and data.get("ano_execucao") is not None:
+                execucao_values = [data.get("ano_execucao")]
+            if execucao_exclude is None and data.get("ano_execucao_exclude") and data.get("ano_execucao") is not None:
+                execucao_exclude = [data.get("ano_execucao")]
+            self._sync_multiselect_checks(
+                getattr(self, "adv_year_execucao_button", None),
+                getattr(self, "adv_year_execucao_checks", None),
+                execucao_values,
+                getattr(self, "adv_year_execucao_exclude_checks", None),
+                execucao_exclude,
+            )
         except Exception:
             pass
         try:
@@ -2282,17 +2730,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            if hasattr(self, "adv_responsavel_solicitante_exclude"):
-                self.adv_responsavel_solicitante_exclude.setChecked(bool(data.get("solicitante_exclude")))
-            if hasattr(self, "adv_responsavel_programacao_exclude"):
-                self.adv_responsavel_programacao_exclude.setChecked(bool(data.get("responsavel_programacao_exclude")))
-            if hasattr(self, "adv_responsavel_execucao_exclude"):
-                self.adv_responsavel_execucao_exclude.setChecked(bool(data.get("responsavel_execucao_exclude")))
-            if hasattr(self, "adv_responsavel_emissor_exclude"):
-                self.adv_responsavel_emissor_exclude.setChecked(bool(data.get("responsavel_emissor_exclude")))
-        except Exception:
-            pass
-        try:
             if hasattr(self, "adv_macro_combo"):
                 self.adv_macro_combo.blockSignals(True)
                 idx = self.adv_macro_combo.findData(data.get("macro_filter"))
@@ -2313,8 +2750,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _refresh_advanced_filter_options(self):
         if self.df_completo is None or self.df_completo.empty:
             return
+        start = perf_counter()
         df = self.df_completo
         filters = self._advanced_filters or {}
+        apply_cb = lambda: self._apply_advanced_filters_from_ui()
+        cache = getattr(self, "_adv_values_cache", None)
+        df_id = id(df)
 
         def _unique_sorted(col):
             try:
@@ -2334,104 +2775,242 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return (9, text)
             return sorted(set(values), key=_key)
 
-        exec_vals = _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
-        emis_vals = _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
-        status_vals = _unique_sorted("situacao") if "situacao" in df.columns else []
         def _div_key(val):
             text = str(val).upper()
             if text == "SMIN":
                 return (0, text)
             return (1, text)
-        divisao_vals = sorted(DIVISAO_SETORES.keys(), key=_div_key)
+
+        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
+            cache = {"df_id": df_id}
+            cache["exec_vals"] = (
+                _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
+            )
+            cache["emis_vals"] = (
+                _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
+            )
+            cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
+            cache["divisao_vals"] = sorted(DIVISAO_SETORES.keys(), key=_div_key)
+
+            def _collect_years_from_dates(series):
+                try:
+                    from shared.date_utils import parse_any_date
+                    parsed = series.apply(parse_any_date)
+                    ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+                    years = ts.dt.year.dropna().astype(int).tolist()
+                    return sorted(set(years))
+                except Exception:
+                    return []
+
+            def _collect_years_from_weeks(series):
+                try:
+                    nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
+                    years = (nums // 100).tolist()
+                    return sorted(set(years))
+                except Exception:
+                    return []
+
+            emissao_years = []
+            if "data_cadastro" in df.columns:
+                emissao_years = _collect_years_from_dates(df["data_cadastro"])
+            elif "semana_cadastro" in df.columns:
+                emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
+
+            execucao_years = []
+            if "semana_executada" in df.columns:
+                execucao_years = _collect_years_from_weeks(df["semana_executada"])
+
+            cache["emissao_years"] = emissao_years
+            cache["execucao_years"] = execucao_years
+            cache["prio_emissao_vals"] = (
+                _unique_sorted("grau_prioridade_emissao") if "grau_prioridade_emissao" in df.columns else []
+            )
+            cache["prio_planejamento_vals"] = (
+                _unique_sorted("grau_prioridade_planejamento") if "grau_prioridade_planejamento" in df.columns else []
+            )
+            self._adv_values_cache = cache
+
+        exec_vals = cache.get("exec_vals", [])
+        emis_vals = cache.get("emis_vals", [])
+        status_vals = cache.get("status_vals", [])
+        divisao_vals = cache.get("divisao_vals", [])
+        emissao_years = cache.get("emissao_years", [])
+        execucao_years = cache.get("execucao_years", [])
+        prio_emissao_vals = cache.get("prio_emissao_vals", [])
+        prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
 
         if hasattr(self, "adv_executor_menu"):
-            self.adv_executor_checks = self._rebuild_multiselect_menu(
+            exec_include, exec_exclude = self._rebuild_multiselect_menu(
                 self.adv_executor_button,
                 self.adv_executor_menu,
                 exec_vals,
                 set(filters.get("setor_executor") or []),
                 self._on_adv_sector_selection_changed,
+                apply_cb,
+                set(filters.get("setor_executor_exclude_values") or []),
+                self._on_adv_sector_exclude_changed,
             )
+            self.adv_executor_checks = exec_include
+            self.adv_executor_exclude_checks = exec_exclude
         if hasattr(self, "adv_emissor_menu"):
-            self.adv_emissor_checks = self._rebuild_multiselect_menu(
+            emis_include, emis_exclude = self._rebuild_multiselect_menu(
                 self.adv_emissor_button,
                 self.adv_emissor_menu,
                 emis_vals,
                 set(filters.get("setor_emissor") or []),
                 self._on_adv_sector_selection_changed,
+                apply_cb,
+                set(filters.get("setor_emissor_exclude_values") or []),
+                self._on_adv_sector_exclude_changed,
             )
+            self.adv_emissor_checks = emis_include
+            self.adv_emissor_exclude_checks = emis_exclude
         if hasattr(self, "adv_divisao_menu"):
-            self.adv_divisao_checks = self._rebuild_multiselect_menu(
+            div_include, div_exclude = self._rebuild_multiselect_menu(
                 self.adv_divisao_button,
                 self.adv_divisao_menu,
                 divisao_vals,
                 set(filters.get("divisao") or []),
                 self._on_adv_sector_selection_changed,
+                apply_cb,
+                set(filters.get("divisao_exclude_values") or []),
+                self._on_adv_sector_exclude_changed,
             )
+            self.adv_divisao_checks = div_include
+            self.adv_divisao_exclude_checks = div_exclude
         if hasattr(self, "adv_status_menu"):
-            self.adv_status_checks = self._rebuild_multiselect_menu(
+            status_include, status_exclude = self._rebuild_multiselect_menu(
                 self.adv_status_button,
                 self.adv_status_menu,
                 status_vals,
                 set(filters.get("situacao") or []),
-                lambda *_: self._update_multiselect_button(self.adv_status_button, self.adv_status_checks),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_status_button,
+                    getattr(self, "adv_status_checks", None),
+                    exclude_checks=getattr(self, "adv_status_exclude_checks", None),
+                ),
+                apply_cb,
+                set(filters.get("situacao_exclude_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_status_button,
+                    getattr(self, "adv_status_checks", None),
+                    exclude_checks=getattr(self, "adv_status_exclude_checks", None),
+                ),
             )
+            self.adv_status_checks = status_include
+            self.adv_status_exclude_checks = status_exclude
 
-        def _collect_years_from_dates(series):
-            try:
-                from shared.date_utils import parse_any_date
-                parsed = series.apply(parse_any_date)
-                ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
-                years = ts.dt.year.dropna().astype(int).tolist()
-                return sorted(set(years))
-            except Exception:
-                return []
+        if hasattr(self, "adv_year_emissao_menu"):
+            inc_vals = filters.get("ano_emissao_values")
+            exc_vals = filters.get("ano_emissao_exclude_values")
+            if inc_vals is None and filters.get("ano_emissao") is not None:
+                inc_vals = [filters.get("ano_emissao")]
+            if exc_vals is None and filters.get("ano_emissao_exclude") and filters.get("ano_emissao") is not None:
+                exc_vals = [filters.get("ano_emissao")]
+            year_values = [str(y) for y in emissao_years]
+            inc_set = {str(v) for v in (inc_vals or [])}
+            exc_set = {str(v) for v in (exc_vals or [])}
+            year_include, year_exclude = self._rebuild_multiselect_menu(
+                self.adv_year_emissao_button,
+                self.adv_year_emissao_menu,
+                year_values,
+                inc_set,
+                lambda *_: self._update_multiselect_button(
+                    self.adv_year_emissao_button,
+                    getattr(self, "adv_year_emissao_checks", None),
+                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
+                ),
+                apply_cb,
+                exc_set,
+                lambda *_: self._update_multiselect_button(
+                    self.adv_year_emissao_button,
+                    getattr(self, "adv_year_emissao_checks", None),
+                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
+                ),
+            )
+            self.adv_year_emissao_checks = year_include
+            self.adv_year_emissao_exclude_checks = year_exclude
+        if hasattr(self, "adv_year_execucao_menu"):
+            inc_vals = filters.get("ano_execucao_values")
+            exc_vals = filters.get("ano_execucao_exclude_values")
+            if inc_vals is None and filters.get("ano_execucao") is not None:
+                inc_vals = [filters.get("ano_execucao")]
+            if exc_vals is None and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
+                exc_vals = [filters.get("ano_execucao")]
+            year_values = [str(y) for y in execucao_years]
+            inc_set = {str(v) for v in (inc_vals or [])}
+            exc_set = {str(v) for v in (exc_vals or [])}
+            year_include, year_exclude = self._rebuild_multiselect_menu(
+                self.adv_year_execucao_button,
+                self.adv_year_execucao_menu,
+                year_values,
+                inc_set,
+                lambda *_: self._update_multiselect_button(
+                    self.adv_year_execucao_button,
+                    getattr(self, "adv_year_execucao_checks", None),
+                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
+                ),
+                apply_cb,
+                exc_set,
+                lambda *_: self._update_multiselect_button(
+                    self.adv_year_execucao_button,
+                    getattr(self, "adv_year_execucao_checks", None),
+                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
+                ),
+            )
+            self.adv_year_execucao_checks = year_include
+            self.adv_year_execucao_exclude_checks = year_exclude
 
-        def _collect_years_from_weeks(series):
-            try:
-                nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
-                years = (nums // 100).tolist()
-                return sorted(set(years))
-            except Exception:
-                return []
-
-        emissao_years = []
-        if "data_cadastro" in df.columns:
-            emissao_years = _collect_years_from_dates(df["data_cadastro"])
-        elif "semana_cadastro" in df.columns:
-            emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
-
-        execucao_years = []
-        if "semana_executada" in df.columns:
-            execucao_years = _collect_years_from_weeks(df["semana_executada"])
-
-        if hasattr(self, "adv_year_emissao"):
-            try:
-                self.adv_year_emissao.blockSignals(True)
-                self.adv_year_emissao.clear()
-                self.adv_year_emissao.addItem("Qualquer", None)
-                for year in emissao_years:
-                    self.adv_year_emissao.addItem(str(year), year)
-            finally:
-                try:
-                    self.adv_year_emissao.blockSignals(False)
-                except Exception:
-                    pass
-        if hasattr(self, "adv_year_execucao"):
-            try:
-                self.adv_year_execucao.blockSignals(True)
-                self.adv_year_execucao.clear()
-                self.adv_year_execucao.addItem("Qualquer", None)
-                for year in execucao_years:
-                    self.adv_year_execucao.addItem(str(year), year)
-            finally:
-                try:
-                    self.adv_year_execucao.blockSignals(False)
-                except Exception:
-                    pass
+        if hasattr(self, "adv_prioridade_emissao_menu"):
+            prio_include, prio_exclude = self._rebuild_multiselect_menu(
+                self.adv_prioridade_emissao_button,
+                self.adv_prioridade_emissao_menu,
+                prio_emissao_vals,
+                set(filters.get("prioridade_emissao_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_prioridade_emissao_button,
+                    getattr(self, "adv_prioridade_emissao_checks", None),
+                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+                ),
+                apply_cb,
+                set(filters.get("prioridade_emissao_exclude_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_prioridade_emissao_button,
+                    getattr(self, "adv_prioridade_emissao_checks", None),
+                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+                ),
+            )
+            self.adv_prioridade_emissao_checks = prio_include
+            self.adv_prioridade_emissao_exclude_checks = prio_exclude
+        if hasattr(self, "adv_prioridade_planejamento_menu"):
+            prio_include, prio_exclude = self._rebuild_multiselect_menu(
+                self.adv_prioridade_planejamento_button,
+                self.adv_prioridade_planejamento_menu,
+                prio_planejamento_vals,
+                set(filters.get("prioridade_planejamento_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_prioridade_planejamento_button,
+                    getattr(self, "adv_prioridade_planejamento_checks", None),
+                    exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
+                ),
+                apply_cb,
+                set(filters.get("prioridade_planejamento_exclude_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    self.adv_prioridade_planejamento_button,
+                    getattr(self, "adv_prioridade_planejamento_checks", None),
+                    exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
+                ),
+            )
+            self.adv_prioridade_planejamento_checks = prio_include
+            self.adv_prioridade_planejamento_exclude_checks = prio_exclude
 
         self._refresh_responsavel_options()
         self._sync_advanced_filter_ui()
+        try:
+            elapsed_ms = (perf_counter() - start) * 1000.0
+            logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
+        except Exception:
+            pass
 
     def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
         if df is None or df.empty:
@@ -2443,35 +3022,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return df
         mask = pd.Series(True, index=df.index)
 
-        def _apply_in(col, values, exclude=False):
+        def _apply_in(col, values, exclude_values=None):
             nonlocal mask
-            if not values or col not in df.columns:
+            if col not in df.columns:
                 return
             try:
                 series = df[col].astype(str)
-                values_norm = {str(v).casefold() for v in values}
                 series_norm = series.str.casefold()
-                if exclude:
-                    mask &= ~series_norm.isin(values_norm)
-                else:
+                if values:
+                    values_norm = {str(v).casefold() for v in values}
                     mask &= series_norm.isin(values_norm)
+                if exclude_values:
+                    exclude_norm = {str(v).casefold() for v in exclude_values}
+                    mask &= ~series_norm.isin(exclude_norm)
             except Exception:
                 pass
 
         exec_values = filters.get("setor_executor") or []
         emis_values = filters.get("setor_emissor") or []
         div_values = filters.get("divisao") or []
-        exec_exclude = bool(filters.get("setor_executor_exclude"))
-        emis_exclude = bool(filters.get("setor_emissor_exclude"))
-        div_exclude = bool(filters.get("divisao_exclude"))
+        exec_excluded = filters.get("setor_executor_exclude_values") or []
+        emis_excluded = filters.get("setor_emissor_exclude_values") or []
+        div_excluded = filters.get("divisao_exclude_values") or []
 
         if "setor_executor" in df.columns:
             allowed = set(exec_values) | self._collect_divisao_setores(div_values)
-            excluded = set()
-            if exec_exclude:
-                excluded |= set(exec_values)
-            if div_exclude:
-                excluded |= self._collect_divisao_setores(div_values)
+            excluded = set(exec_excluded) | self._collect_divisao_setores(div_excluded)
             try:
                 series = df["setor_executor"].astype(str)
                 series_norm = series.str.casefold()
@@ -2484,60 +3060,97 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
 
-        _apply_in("setor_emissor", emis_values, emis_exclude)
+        _apply_in("setor_emissor", emis_values, emis_excluded)
 
         situacao_vals = filters.get("situacao") or []
-        situacao_exclude = bool(filters.get("situacao_exclude"))
-        _apply_in("situacao", situacao_vals, situacao_exclude)
+        situacao_excluded = filters.get("situacao_exclude_values") or []
+        _apply_in("situacao", situacao_vals, situacao_excluded)
 
-        _apply_in("solicitante", filters.get("solicitante") or [], bool(filters.get("solicitante_exclude")))
+        _apply_in(
+            "solicitante",
+            filters.get("solicitante") or [],
+            filters.get("solicitante_exclude_values") or [],
+        )
         _apply_in(
             "responsavel_programacao",
             filters.get("responsavel_programacao") or [],
-            bool(filters.get("responsavel_programacao_exclude")),
+            filters.get("responsavel_programacao_exclude_values") or [],
         )
         _apply_in(
             "responsavel_execucao",
             filters.get("responsavel_execucao") or [],
-            bool(filters.get("responsavel_execucao_exclude")),
+            filters.get("responsavel_execucao_exclude_values") or [],
         )
         _apply_in(
             "responsavel_emissor",
             filters.get("responsavel_emissor") or [],
-            bool(filters.get("responsavel_emissor_exclude")),
+            filters.get("responsavel_emissor_exclude_values") or [],
+        )
+        _apply_in(
+            "grau_prioridade_emissao",
+            filters.get("prioridade_emissao_values") or [],
+            filters.get("prioridade_emissao_exclude_values") or [],
+        )
+        _apply_in(
+            "grau_prioridade_planejamento",
+            filters.get("prioridade_planejamento_values") or [],
+            filters.get("prioridade_planejamento_exclude_values") or [],
         )
 
-        ano_emissao = filters.get("ano_emissao")
-        ano_emissao_exclude = bool(filters.get("ano_emissao_exclude"))
-        if ano_emissao:
+        def _to_int_set(values):
+            result = set()
+            for raw in values or []:
+                text = str(raw).strip()
+                if text.isdigit():
+                    result.add(int(text))
+            return result
+
+        emissao_inc = _to_int_set(filters.get("ano_emissao_values") or [])
+        emissao_exc = _to_int_set(filters.get("ano_emissao_exclude_values") or [])
+        if not emissao_inc and filters.get("ano_emissao") is not None:
+            emissao_inc = _to_int_set([filters.get("ano_emissao")])
+        if not emissao_exc and filters.get("ano_emissao_exclude") and filters.get("ano_emissao") is not None:
+            emissao_exc = _to_int_set([filters.get("ano_emissao")])
+
+        if emissao_inc or emissao_exc:
             if "data_cadastro" in df.columns:
                 try:
                     from shared.date_utils import parse_any_date
                     parsed = df["data_cadastro"].apply(parse_any_date)
                     ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
-                    if ano_emissao_exclude:
-                        mask &= ~ts.dt.year.eq(int(ano_emissao))
-                    else:
-                        mask &= ts.dt.year.eq(int(ano_emissao))
+                    years = ts.dt.year
+                    if emissao_inc:
+                        mask &= years.isin(emissao_inc)
+                    if emissao_exc:
+                        mask &= ~years.isin(emissao_exc)
                 except Exception:
                     pass
             elif "semana_cadastro" in df.columns:
                 try:
-                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").dropna().astype(int)
-                    years = nums // 100
-                    target = years.reindex(df.index).fillna(-1).eq(int(ano_emissao))
-                    mask &= ~target if ano_emissao_exclude else target
+                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").astype("Int64")
+                    years = (nums // 100).astype("Int64")
+                    if emissao_inc:
+                        mask &= years.isin(emissao_inc)
+                    if emissao_exc:
+                        mask &= ~years.isin(emissao_exc)
                 except Exception:
                     pass
 
-        ano_execucao = filters.get("ano_execucao")
-        ano_execucao_exclude = bool(filters.get("ano_execucao_exclude"))
-        if ano_execucao and "semana_executada" in df.columns:
+        execucao_inc = _to_int_set(filters.get("ano_execucao_values") or [])
+        execucao_exc = _to_int_set(filters.get("ano_execucao_exclude_values") or [])
+        if not execucao_inc and filters.get("ano_execucao") is not None:
+            execucao_inc = _to_int_set([filters.get("ano_execucao")])
+        if not execucao_exc and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
+            execucao_exc = _to_int_set([filters.get("ano_execucao")])
+
+        if "semana_executada" in df.columns and (execucao_inc or execucao_exc):
             try:
-                nums = pd.to_numeric(df["semana_executada"], errors="coerce").dropna().astype(int)
-                years = nums // 100
-                target = years.reindex(df.index).fillna(-1).eq(int(ano_execucao))
-                mask &= ~target if ano_execucao_exclude else target
+                nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype("Int64")
+                years = (nums // 100).astype("Int64")
+                if execucao_inc:
+                    mask &= years.isin(execucao_inc)
+                if execucao_exc:
+                    mask &= ~years.isin(execucao_exc)
             except Exception:
                 pass
 
@@ -2635,6 +3248,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def on_data_loaded(self, df: pd.DataFrame):
         self.df_completo = df.copy()
         self._adv_options_dirty = True
+        self._adv_values_cache = None
         # Inicialmente, exibimos todos os dados
         base = df.copy()
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
@@ -3071,7 +3685,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # These variables are used in subsequent sections
         self._current_theme = normalized
         try:
-            light_themes = {'windows7', 'claro', 'solarized-light', 'mint-light', 'paper'}
+            light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
             selector = getattr(self, 'column_selector', None)
             pal_active = self.palette()
             from PyQt6.QtGui import QPalette as _QPal
@@ -3128,6 +3742,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "adv_emissor_button",
                 "adv_divisao_button",
                 "adv_status_button",
+                "adv_year_emissao_button",
+                "adv_year_execucao_button",
+                "adv_prioridade_emissao_button",
+                "adv_prioridade_planejamento_button",
                 "adv_responsavel_solicitante_button",
                 "adv_responsavel_programacao_button",
                 "adv_responsavel_execucao_button",
@@ -3222,6 +3840,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.status_label.setStyleSheet(
                     f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
                 )
+            if hasattr(self, 'main_tabs'):
+                tab_css = (
+                    "QTabBar::tab { padding:4px 10px; }"
+                    f"QTabBar::tab:selected {{ color:{txt}; border-bottom:2px solid {accent};"
+                    f" border-top:1px solid {panel_border}; border-left:1px solid {panel_border};"
+                    f" border-right:1px solid {panel_border}; margin-bottom:-1px; }}"
+                    f"QTabBar::tab:!selected {{ color:{txt}; }}"
+                )
+                self.main_tabs.setStyleSheet(tab_css)
 
             # ============================================================
             # SECTION 8: Support Text and Indicators
@@ -3256,6 +3883,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.clear_all_filters_btn.setStyleSheet(highlight_style)
             if hasattr(self, 'export_list_btn'):
                 self.export_list_btn.setStyleSheet(highlight_style)
+            if hasattr(self, 'undo_filter_btn'):
+                self.undo_filter_btn.setStyleSheet(highlight_style)
             if hasattr(self, 'clear_all_btn'):
                 self.clear_all_btn.setStyleSheet(highlight_style)
 
@@ -3820,7 +4449,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
         return highlight_text(text, terms, bg, weight, fg)
 
-    def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None):
+    def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
         """Formata dados da SSA como HTML com highlight opcional."""
         # Single display-formatting entrypoint for details panel; keep format_cell here.
         # HTML is required here to keep search hit highlighting in the details panel.
@@ -3879,15 +4508,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
 
         try:
+            derivada_origem = format_cell(series.get("derivada_de"), "derivada_de")
+        except Exception:
+            derivada_origem = ""
+        if derivada_origem:
+            if linkify:
+                href = self._normalize_ssa_value(derivada_origem)
+                display = html_module.escape(derivada_origem)
+                origem_text = f'<a href="ssa://{href}">{display}</a>'
+            elif highlight_search_terms and search_terms:
+                origem_text = self._highlight_text(derivada_origem, search_terms)
+            else:
+                origem_text = html_module.escape(derivada_origem)
+            html_lines.append(
+                f'<tr>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">SSA origem:</td>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{origem_text}</td>'
+                f'</tr>'
+            )
+        try:
             derived_list = self._get_derivadas_for_ssa(series.get("numero_ssa"))
         except Exception:
             derived_list = []
         if derived_list:
-            derived_text = ", ".join(derived_list)
-            if highlight_search_terms and search_terms:
-                derived_text = self._highlight_text(derived_text, search_terms)
+            if linkify:
+                items = []
+                for item in derived_list:
+                    href = self._normalize_ssa_value(item)
+                    display = html_module.escape(item)
+                    items.append(f'<a href="ssa://{href}">{display}</a>')
+                derived_text = ", ".join(items)
             else:
-                derived_text = html_module.escape(derived_text)
+                derived_text = ", ".join(derived_list)
+                if highlight_search_terms and search_terms:
+                    derived_text = self._highlight_text(derived_text, search_terms)
+                else:
+                    derived_text = html_module.escape(derived_text)
             label = f"SSAs derivadas ({len(derived_list)})"
             html_lines.append(
                 f'<tr>'
@@ -3926,7 +4582,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         text_browser.setOpenExternalLinks(False)
 
         # Formata conteudo
-        html_content = self._format_details_html(series, highlight_search_terms=True)
+        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=False)
         text_browser.setHtml(html_content)
 
         layout.addWidget(text_browser)
@@ -4009,6 +4665,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 series,
                 highlight_search_terms=True,
                 font_size_pt=font_size_pt,
+                linkify=True,
             )
             self.details_text.setHtml(html_content)
             return
@@ -4087,6 +4744,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
         except Exception:
             pass
+
+    def _on_details_anchor_clicked(self, url):
+        try:
+            href = url.toString()
+        except Exception:
+            return
+        if not href:
+            return
+        if href.startswith("ssa://"):
+            target = href[len("ssa://"):]
+        elif href.startswith("ssa:"):
+            target = href[len("ssa:"):]
+        else:
+            return
+        target = target.strip().lstrip("/")
+        if target:
+            self._jump_to_ssa(target)
 
     def _filter_by_derivadas(self, numero_ssa):
         num_norm = self._normalize_ssa_value(numero_ssa)

@@ -10,6 +10,7 @@ Padrao de nomenclatura: funcao_pai_mixin.py
 
 # Imports necessarios
 import logging
+import copy
 import os
 import json
 import re
@@ -63,6 +64,8 @@ class FilterGUISSAMixin:
         if self.df_completo.empty:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
             return
+
+        self._store_last_filter_state()
 
         search_text = self.search_input.text().strip()
         raw_chunks = self._split_search_expression(search_text) if search_text else []
@@ -235,6 +238,7 @@ class FilterGUISSAMixin:
 
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
+        self._store_last_filter_state()
         try:
             self.search_input.blockSignals(True)
             self.search_input.clear()
@@ -458,6 +462,7 @@ class FilterGUISSAMixin:
                 def _inner():
                     # Simplified: use text directly (comma-separated terms = OR logic)
                     new_text = str(tb.text()).strip()
+                    self._store_last_filter_state()
                     self._active_column_filters[c] = new_text
                     self._sync_or_group_values(c, new_text)
                     self._mark_profile_as_custom()
@@ -572,6 +577,7 @@ class FilterGUISSAMixin:
                     return
             except Exception:
                 pass
+            self._store_last_filter_state()
             if col_name in self._column_to_or_group:
                 self._sync_or_group_values(col_name, "")
             elif col_name in self._active_column_filters:
@@ -583,6 +589,7 @@ class FilterGUISSAMixin:
 
     def _clear_all_column_filters(self):
         if self._active_column_filters:
+            self._store_last_filter_state()
             for group in getattr(self, '_column_or_groups', []):
                 group['values'] = []
                 for col in group.get('columns', []):
@@ -603,6 +610,7 @@ class FilterGUISSAMixin:
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
+        self._store_last_filter_state()
         self._exclude_ste_sca = bool(checked)
         self._mark_profile_as_custom()
         self._refresh_after_filter_change()
@@ -610,6 +618,7 @@ class FilterGUISSAMixin:
 
     def _clear_all_filters_global(self):
         """Limpa todos os filtros: busca geral + filtros de coluna"""
+        self._store_last_filter_state()
         # Limpar filtro de busca geral
         self.search_input.clear()
         self._df_last_search_filtered = pd.DataFrame()
@@ -646,9 +655,11 @@ class FilterGUISSAMixin:
         """Atualiza o resumo de filtros ativos na interface"""
         # Coleta filtros ativos
         active_filters = []
+        tab_kind = getattr(self, "_current_tab_kind", None)
+        show_basic = tab_kind != "filters"
 
         # Filtro de busca geral
-        if hasattr(self, 'search_input') and self.search_input.text().strip():
+        if show_basic and hasattr(self, 'search_input') and self.search_input.text().strip():
             active_filters.append(f"Busca: '{self.search_input.text().strip()}'")
 
         def _display_name(col: str) -> str:
@@ -664,11 +675,11 @@ class FilterGUISSAMixin:
 
         # Filtro OU dedicado (exibição)
         or_text = str(getattr(self, '_dedicated_or_text', '') or '').strip()
-        if or_text:
+        if show_basic and or_text:
             active_filters.append(f"Filtro OU: {self._format_column_filter_display_value(or_text)}")
 
         # Filtros de coluna (exibição)
-        if hasattr(self, '_active_column_filters') and self._active_column_filters:
+        if show_basic and hasattr(self, '_active_column_filters') and self._active_column_filters:
             processed_groups = set()
             for group in getattr(self, '_column_or_groups', []):
                 if not group.get('values'):
@@ -694,7 +705,7 @@ class FilterGUISSAMixin:
 
         adv = getattr(self, "_advanced_filters", None) or {}
         adv_active = bool(getattr(self, "_advanced_filters_active", False))
-        def _add_adv(label, values, exclude=False):
+        def _add_adv(label, values, op: str | None = None):
             if not values:
                 return
             if isinstance(values, list):
@@ -703,23 +714,10 @@ class FilterGUISSAMixin:
                 txt = str(values).strip()
             if not txt:
                 return
-            prefix = "!=" if exclude else ""
-            active_filters.append(f"{label}: {prefix}{txt}")
-
-        if adv_active:
-            _add_adv("Executor", adv.get("setor_executor"), adv.get("setor_executor_exclude"))
-            _add_adv("Emissor", adv.get("setor_emissor"), adv.get("setor_emissor_exclude"))
-            _add_adv("Divisao", adv.get("divisao"), adv.get("divisao_exclude"))
-            _add_adv("Situacao", adv.get("situacao"), adv.get("situacao_exclude"))
-            _add_adv("Solicitante", adv.get("solicitante"), adv.get("solicitante_exclude"))
-            _add_adv("Resp Programacao", adv.get("responsavel_programacao"), adv.get("responsavel_programacao_exclude"))
-            _add_adv("Resp Execucao", adv.get("responsavel_execucao"), adv.get("responsavel_execucao_exclude"))
-            _add_adv("Resp Emissao", adv.get("responsavel_emissor"), adv.get("responsavel_emissor_exclude"))
-
-            if adv.get("ano_emissao") is not None:
-                _add_adv("Ano Emissao", [adv.get("ano_emissao")], adv.get("ano_emissao_exclude"))
-            if adv.get("ano_execucao") is not None:
-                _add_adv("Ano Execucao", [adv.get("ano_execucao")], adv.get("ano_execucao_exclude"))
+            if op:
+                active_filters.append(f"{label} {op} {txt}")
+            else:
+                active_filters.append(f"{label}: {txt}")
 
         def _fmt_week_range(start, end):
             if start is None and end is None:
@@ -730,19 +728,63 @@ class FilterGUISSAMixin:
                 return f">= {start}"
             return f"{start}-{end}"
 
+        if adv_active:
+            _add_adv("Executor", adv.get("setor_executor"))
+            _add_adv("Executor", adv.get("setor_executor_exclude_values"), "!=")
+            _add_adv("Emissor", adv.get("setor_emissor"))
+            _add_adv("Emissor", adv.get("setor_emissor_exclude_values"), "!=")
+            _add_adv("Divisao", adv.get("divisao"))
+            _add_adv("Divisao", adv.get("divisao_exclude_values"), "!=")
+            _add_adv("Situacao", adv.get("situacao"))
+            _add_adv("Situacao", adv.get("situacao_exclude_values"), "!=")
+            _add_adv("Solicitante", adv.get("solicitante"))
+            _add_adv("Solicitante", adv.get("solicitante_exclude_values"), "!=")
+            _add_adv("Resp Programacao", adv.get("responsavel_programacao"))
+            _add_adv("Resp Programacao", adv.get("responsavel_programacao_exclude_values"), "!=")
+            _add_adv("Resp Execucao", adv.get("responsavel_execucao"))
+            _add_adv("Resp Execucao", adv.get("responsavel_execucao_exclude_values"), "!=")
+            _add_adv("Resp Emissao", adv.get("responsavel_emissor"))
+            _add_adv("Resp Emissao", adv.get("responsavel_emissor_exclude_values"), "!=")
+            _add_adv("Prio Emissao", adv.get("prioridade_emissao_values"))
+            _add_adv("Prio Emissao", adv.get("prioridade_emissao_exclude_values"), "!=")
+            _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_values"))
+            _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_exclude_values"), "!=")
+
+            ano_emissao_vals = adv.get("ano_emissao_values")
+            ano_emissao_exc = adv.get("ano_emissao_exclude_values")
+            if ano_emissao_vals is None and adv.get("ano_emissao") is not None:
+                ano_emissao_vals = [adv.get("ano_emissao")]
+            if ano_emissao_exc is None and adv.get("ano_emissao_exclude") and adv.get("ano_emissao") is not None:
+                ano_emissao_exc = [adv.get("ano_emissao")]
+            _add_adv("Ano Emissao", ano_emissao_vals)
+            _add_adv("Ano Emissao", ano_emissao_exc, "!=")
+
+            ano_execucao_vals = adv.get("ano_execucao_values")
+            ano_execucao_exc = adv.get("ano_execucao_exclude_values")
+            if ano_execucao_vals is None and adv.get("ano_execucao") is not None:
+                ano_execucao_vals = [adv.get("ano_execucao")]
+            if ano_execucao_exc is None and adv.get("ano_execucao_exclude") and adv.get("ano_execucao") is not None:
+                ano_execucao_exc = [adv.get("ano_execucao")]
+            _add_adv("Ano Execucao", ano_execucao_vals)
+            _add_adv("Ano Execucao", ano_execucao_exc, "!=")
+
             em_range = _fmt_week_range(adv.get("semana_emissao_inicio"), adv.get("semana_emissao_fim"))
             if em_range:
-                _add_adv("Semana Emissao", [em_range], adv.get("semana_emissao_exclude"))
+                label = "Semana Emissao"
+                op = "!=" if adv.get("semana_emissao_exclude") else None
+                _add_adv(label, [em_range], op)
             ex_range = _fmt_week_range(adv.get("semana_execucao_inicio"), adv.get("semana_execucao_fim"))
             if ex_range:
-                _add_adv("Semana Execucao", [ex_range], adv.get("semana_execucao_exclude"))
+                label = "Semana Execucao"
+                op = "!=" if adv.get("semana_execucao_exclude") else None
+                _add_adv(label, [ex_range], op)
 
             if adv.get("derivada_has"):
                 active_filters.append("Possui derivada")
             if adv.get("derivada_all_ste"):
                 active_filters.append("Derivadas em STE")
             if adv.get("derivada_is"):
-                active_filters.append("E derivada")
+                active_filters.append("SSA derivada")
             if adv.get("derivada_origem"):
                 active_filters.append(f"Origem: {adv.get('derivada_origem')}")
             if adv.get("macro_filter"):
@@ -750,8 +792,8 @@ class FilterGUISSAMixin:
                 macro_label = "SSAs para baixar" if macro_val == "ssas_para_baixar" else str(macro_val)
                 active_filters.append(f"Macro: {macro_label}")
 
-        if getattr(self, '_exclude_ste_sca', False):
-            active_filters.append("situacao≠{STE,SCA}")
+        if show_basic and getattr(self, '_exclude_ste_sca', False):
+            active_filters.append("situacao!=STE/SCA")
 
         # Monta texto do resumo
         if active_filters:
@@ -990,6 +1032,138 @@ class FilterGUISSAMixin:
         self._update_col_filter_indicator()
         try:
             self._update_filters_summary()
+        except Exception:
+            pass
+
+
+    def _snapshot_filter_state(self) -> dict:
+        try:
+            search_text = self.search_input.text()
+        except Exception:
+            search_text = ""
+        try:
+            active_filters = OrderedDict(self._active_column_filters or {})
+        except Exception:
+            active_filters = OrderedDict()
+        groups_snapshot = []
+        for group in getattr(self, '_column_or_groups', []) or []:
+            groups_snapshot.append({
+                'columns': tuple(group.get('columns', ())),
+                'values': list(group.get('values', ())),
+            })
+        try:
+            df_last = self._df_last_search_filtered.copy()
+        except Exception:
+            df_last = pd.DataFrame()
+        return {
+            "search_text": search_text,
+            "pending_search_display": getattr(self, "_pending_search_display", None),
+            "active_column_filters": active_filters,
+            "column_or_groups": groups_snapshot,
+            "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
+            "advanced_filters": copy.deepcopy(getattr(self, "_advanced_filters", None) or {}),
+            "advanced_filters_active": bool(getattr(self, "_advanced_filters_active", False)),
+            "df_last_search_filtered": df_last,
+            "current_filter_profile": getattr(self, "current_filter_profile", None),
+            "profile_base_filters": copy.deepcopy(getattr(self, "_profile_base_filters", {}) or {}),
+            "hidden_column_filter_lines": set(getattr(self, "_hidden_column_filter_lines", set())),
+            "dedicated_or_text": str(getattr(self, "_dedicated_or_text", "")),
+        }
+
+
+    def _store_last_filter_state(self) -> None:
+        if getattr(self, "_restoring_filter_state", False):
+            return
+        try:
+            self._last_filter_state = self._snapshot_filter_state()
+        except Exception:
+            self._last_filter_state = None
+        self._update_undo_button_state()
+
+
+    def _restore_last_filter_state(self) -> None:
+        state = getattr(self, "_last_filter_state", None)
+        if not state:
+            return
+        self._restoring_filter_state = True
+        try:
+            self._last_filter_state = None
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.setText(state.get("search_text", "") or "")
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception:
+                    pass
+            self._pending_search_display = state.get("pending_search_display")
+            self._active_column_filters = OrderedDict(state.get("active_column_filters") or {})
+            self._reset_or_groups()
+            for group in state.get("column_or_groups") or []:
+                self._register_or_group(list(group.get("columns") or []), list(group.get("values") or []))
+            self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
+            try:
+                self.exclude_ste_checkbox.blockSignals(True)
+                self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
+            except Exception:
+                pass
+            finally:
+                try:
+                    self.exclude_ste_checkbox.blockSignals(False)
+                except Exception:
+                    pass
+            self._advanced_filters = state.get("advanced_filters") or {}
+            self._advanced_filters_active = bool(state.get("advanced_filters_active"))
+            df_last = state.get("df_last_search_filtered")
+            if isinstance(df_last, pd.DataFrame):
+                self._df_last_search_filtered = df_last
+            else:
+                self._df_last_search_filtered = pd.DataFrame()
+            self.current_filter_profile = state.get("current_filter_profile")
+            self._profile_base_filters = state.get("profile_base_filters") or {}
+            self._hidden_column_filter_lines = set(state.get("hidden_column_filter_lines") or set())
+            self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
+            try:
+                self._sync_advanced_filter_ui()
+            except Exception:
+                pass
+            self._build_column_filters_panel()
+            self._refresh_after_filter_change()
+            try:
+                self.update_filter_tags()
+            except Exception:
+                pass
+            try:
+                self._update_filters_summary()
+            except Exception:
+                pass
+            try:
+                has_terms = bool(self.search_input.text().strip() or any(str(v).strip() for v in self._active_column_filters.values()))
+                self.clear_filter_button.setEnabled(has_terms)
+            except Exception:
+                pass
+            selector = getattr(self, 'profile_selector', None)
+            if selector is not None:
+                idx = selector.findData(self.current_filter_profile) if self.current_filter_profile else selector.findData(None)
+                if idx >= 0:
+                    self._profile_lock = True
+                    try:
+                        selector.setCurrentIndex(idx)
+                    finally:
+                        self._profile_lock = False
+        finally:
+            self._restoring_filter_state = False
+            self._update_undo_button_state()
+
+
+    def _update_undo_button_state(self) -> None:
+        btn = getattr(self, "undo_filter_btn", None)
+        if btn is None:
+            return
+        try:
+            btn.setEnabled(bool(getattr(self, "_last_filter_state", None)))
+        except Exception:
+            pass
         except Exception:
             pass
 
@@ -1233,6 +1407,7 @@ class FilterGUISSAMixin:
         selector = getattr(self, 'profile_selector', None)
         if selector is None:
             return
+        self._store_last_filter_state()
         profile_name = selector.itemData(index)
         if profile_name:
             self._apply_filter_profile(profile_name, update_selector=False)
