@@ -692,6 +692,64 @@ class FilterGUISSAMixin:
                     continue
                 active_filters.append(f"{_display_name(col_name)}: {normalized_value}")
 
+        adv = getattr(self, "_advanced_filters", None) or {}
+        adv_active = bool(getattr(self, "_advanced_filters_active", False))
+        def _add_adv(label, values, exclude=False):
+            if not values:
+                return
+            if isinstance(values, list):
+                txt = ", ".join(str(v) for v in values if str(v).strip())
+            else:
+                txt = str(values).strip()
+            if not txt:
+                return
+            prefix = "!=" if exclude else ""
+            active_filters.append(f"{label}: {prefix}{txt}")
+
+        if adv_active:
+            _add_adv("Executor", adv.get("setor_executor"), adv.get("setor_executor_exclude"))
+            _add_adv("Emissor", adv.get("setor_emissor"), adv.get("setor_emissor_exclude"))
+            _add_adv("Divisao", adv.get("divisao"), adv.get("divisao_exclude"))
+            _add_adv("Situacao", adv.get("situacao"), adv.get("situacao_exclude"))
+            _add_adv("Solicitante", adv.get("solicitante"), adv.get("solicitante_exclude"))
+            _add_adv("Resp Programacao", adv.get("responsavel_programacao"), adv.get("responsavel_programacao_exclude"))
+            _add_adv("Resp Execucao", adv.get("responsavel_execucao"), adv.get("responsavel_execucao_exclude"))
+            _add_adv("Resp Emissao", adv.get("responsavel_emissor"), adv.get("responsavel_emissor_exclude"))
+
+            if adv.get("ano_emissao") is not None:
+                _add_adv("Ano Emissao", [adv.get("ano_emissao")], adv.get("ano_emissao_exclude"))
+            if adv.get("ano_execucao") is not None:
+                _add_adv("Ano Execucao", [adv.get("ano_execucao")], adv.get("ano_execucao_exclude"))
+
+        def _fmt_week_range(start, end):
+            if start is None and end is None:
+                return None
+            if start is None:
+                return f"<= {end}"
+            if end is None:
+                return f">= {start}"
+            return f"{start}-{end}"
+
+            em_range = _fmt_week_range(adv.get("semana_emissao_inicio"), adv.get("semana_emissao_fim"))
+            if em_range:
+                _add_adv("Semana Emissao", [em_range], adv.get("semana_emissao_exclude"))
+            ex_range = _fmt_week_range(adv.get("semana_execucao_inicio"), adv.get("semana_execucao_fim"))
+            if ex_range:
+                _add_adv("Semana Execucao", [ex_range], adv.get("semana_execucao_exclude"))
+
+            if adv.get("derivada_has"):
+                active_filters.append("Possui derivada")
+            if adv.get("derivada_all_ste"):
+                active_filters.append("Derivadas em STE")
+            if adv.get("derivada_is"):
+                active_filters.append("E derivada")
+            if adv.get("derivada_origem"):
+                active_filters.append(f"Origem: {adv.get('derivada_origem')}")
+            if adv.get("macro_filter"):
+                macro_val = adv.get("macro_filter")
+                macro_label = "SSAs para baixar" if macro_val == "ssas_para_baixar" else str(macro_val)
+                active_filters.append(f"Macro: {macro_label}")
+
         if getattr(self, '_exclude_ste_sca', False):
             active_filters.append("situacao≠{STE,SCA}")
 
@@ -900,7 +958,13 @@ class FilterGUISSAMixin:
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         base = self._df_last_search_filtered if not self._df_last_search_filtered.empty else self.df_completo
-        filtered = self._apply_column_filters(base)
+        filtered = base
+        if hasattr(self, "_apply_advanced_filters"):
+            try:
+                filtered = self._apply_advanced_filters(filtered)
+            except Exception:
+                pass
+        filtered = self._apply_column_filters(filtered)
         if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
             try:
                 mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
