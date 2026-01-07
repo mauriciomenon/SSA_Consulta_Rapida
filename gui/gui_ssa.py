@@ -119,11 +119,12 @@ from armazenamento.database import query_db  # noqa: E402
 QT_AVAILABLE = True
 try:
     from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
     QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QDialog, QDialogButtonBox,
-        QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget
+        QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
+        QScrollArea, QToolButton, QWidgetAction
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
     from PyQt6.QtGui import QAction, QFont
@@ -150,7 +151,8 @@ except ImportError as exc:
     def pyqtSignal(*a, **k):
         return _Sig()
     class QWidget:
-        pass
+        def findChildren(self, *a, **k):
+            return []
 
     class QMainWindow:
         pass
@@ -191,6 +193,8 @@ except ImportError as exc:
             self.currentChanged = _Sig()
         def addTab(self, *a, **k):
             pass
+        def setStyleSheet(self, *a, **k):
+            pass
     class QLabel:
         def __init__(self, *a, **k):
             pass
@@ -201,9 +205,35 @@ except ImportError as exc:
             return _Sig()
     class QLineEdit:
         def __init__(self, *a, **k):
-            pass
+            self._text = ""
+            self.returnPressed = _Sig()
+            self.textChanged = _Sig()
         def text(self):
-            return ""
+            return self._text
+        def setText(self, value):
+            self._text = "" if value is None else str(value)
+        def clear(self):
+            self._text = ""
+        def setPlaceholderText(self, *a, **k):
+            pass
+        def setToolTip(self, *a, **k):
+            pass
+        def setMinimumWidth(self, *a, **k):
+            pass
+        def setMaximumWidth(self, *a, **k):
+            pass
+        def setMinimumHeight(self, *a, **k):
+            pass
+        def setSizePolicy(self, *a, **k):
+            pass
+        def blockSignals(self, *a, **k):
+            pass
+        def hasFocus(self):
+            return False
+        def setEnabled(self, *a, **k):
+            pass
+        def setStyleSheet(self, *a, **k):
+            pass
     class QTableWidget:
         pass
 
@@ -225,6 +255,7 @@ except ImportError as exc:
         def __init__(self):
             self._items = []
             self._data = []
+            self._current_index = 0
             self.currentIndexChanged = _Sig()
 
         def addItems(self, items):
@@ -248,9 +279,23 @@ except ImportError as exc:
             pass
 
         def currentIndex(self):
-            return 0
+            return self._current_index
 
         def setCurrentIndex(self, *a, **k):
+            try:
+                self._current_index = int(a[0])
+            except Exception:
+                self._current_index = 0
+
+        def currentData(self):
+            return self.itemData(self._current_index)
+
+        def clear(self):
+            self._items = []
+            self._data = []
+            self._current_index = 0
+
+        def blockSignals(self, *a, **k):
             pass
 
         def itemData(self, index):
@@ -271,13 +316,99 @@ except ImportError as exc:
         NoEditTriggers = 0
 
     class QMenu:
-        pass
+        def __init__(self, *a, **k):
+            self._actions = []
+        def addAction(self, action):
+            self._actions.append(action)
+            return action
+        def addSeparator(self):
+            return None
+        def clear(self):
+            self._actions = []
+        def exec(self, *a, **k):
+            pass
+        def setPalette(self, *a, **k):
+            pass
+        def setStyleSheet(self, *a, **k):
+            pass
+        def setAttribute(self, *a, **k):
+            pass
+        def setMaximumHeight(self, *a, **k):
+            pass
+
+    class QWidgetAction:
+        def __init__(self, *a, **k):
+            self._widget = None
+        def setDefaultWidget(self, widget):
+            self._widget = widget
+
+    class QToolButton:
+        class ToolButtonPopupMode:
+            InstantPopup = 0
+        def __init__(self, *a, **k):
+            self._menu = None
+            self._text = ""
+        def setText(self, text):
+            self._text = text
+        def text(self):
+            return self._text
+        def setMenu(self, menu):
+            self._menu = menu
+        def setPopupMode(self, *a, **k):
+            pass
+        def showMenu(self):
+            pass
+        def setToolTip(self, *a, **k):
+            pass
+        def setMinimumWidth(self, *a, **k):
+            pass
+        def setSizePolicy(self, *a, **k):
+            pass
+        def setEnabled(self, *a, **k):
+            pass
+        def setStyleSheet(self, *a, **k):
+            pass
 
     class QGroupBox:
-        pass
+        def setVisible(self, *a, **k):
+            pass
+        def setEnabled(self, *a, **k):
+            pass
 
     class QTextEdit:
-        pass
+        def __init__(self, *a, **k):
+            pass
+        def setReadOnly(self, *a, **k):
+            pass
+        def setFrameShape(self, *a, **k):
+            pass
+        def viewport(self):
+            class _Viewport:
+                def setAutoFillBackground(self, *a, **k):
+                    pass
+            return _Viewport()
+        def clear(self):
+            pass
+        def setHtml(self, *a, **k):
+            pass
+        def setPlainText(self, *a, **k):
+            pass
+        def setFont(self, *a, **k):
+            pass
+        def setStyleSheet(self, *a, **k):
+            pass
+
+    class QTextBrowser(QTextEdit):
+        def setOpenExternalLinks(self, *a, **k):
+            pass
+
+    class QScrollArea:
+        def __init__(self, *a, **k):
+            pass
+        def setWidgetResizable(self, *a, **k):
+            pass
+        def setWidget(self, *a, **k):
+            pass
 
     class QFileDialog:
         pass
@@ -377,6 +508,7 @@ except ImportError as exc:
     class QCheckBox:
         def __init__(self, *a, **k):
             self._checked = False
+            self._text = a[0] if a else ""
             self.toggled = _Sig()
 
         def isChecked(self):
@@ -386,6 +518,11 @@ except ImportError as exc:
             self._checked = bool(val)
 
         def setToolTip(self, *a, **k):
+            pass
+
+        def text(self):
+            return self._text
+        def setEnabled(self, *a, **k):
             pass
 
     class QItemSelectionModel:
@@ -416,6 +553,13 @@ DETAILS_DIALOG_MIN_WIDTH = 700  # px
 DETAILS_DIALOG_MIN_HEIGHT = 500  # px
 HIGHLIGHT_BACKGROUND_COLOR = 'yellow'
 HIGHLIGHT_FONT_WEIGHT = 'bold'
+
+DIVISAO_SETORES = {
+    "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
+    "SMIN": ["IEE1", "IEE2", "IEE3", "IEE4"],
+    "SMIL": ["ILA1", "ILA2", "ILA3", "ILA4"],
+    "SMMG": ["MEG1", "MEG2", "MEG3", "MEG4"],
+}
 
 # Prioridade de campos para ordenacao em detalhes
 DETAIL_FIELD_PRIORITY = [
@@ -507,6 +651,59 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "col_filters_list_layout",
         "add_column_filter_btn",
         "clear_all_btn",
+        "adv_filters_group",
+        "adv_executor_button",
+        "adv_executor_menu",
+        "adv_executor_checks",
+        "adv_executor_exclude",
+        "adv_emissor_button",
+        "adv_emissor_menu",
+        "adv_emissor_checks",
+        "adv_emissor_exclude",
+        "adv_divisao_button",
+        "adv_divisao_menu",
+        "adv_divisao_checks",
+        "adv_divisao_exclude",
+        "adv_status_button",
+        "adv_status_menu",
+        "adv_status_checks",
+        "adv_status_exclude",
+        "adv_year_emissao",
+        "adv_year_emissao_exclude",
+        "adv_year_execucao",
+        "adv_year_execucao_exclude",
+        "adv_week_emissao_start",
+        "adv_week_emissao_end",
+        "adv_week_emissao_exclude",
+        "adv_week_execucao_start",
+        "adv_week_execucao_end",
+        "adv_week_execucao_exclude",
+        "adv_derivada_has",
+        "adv_derivada_all_ste",
+        "adv_derivada_is",
+        "adv_derivada_origem",
+        "adv_macro_combo",
+        "adv_responsavel_solicitante_button",
+        "adv_responsavel_solicitante_menu",
+        "adv_responsavel_solicitante_checks",
+        "adv_responsavel_solicitante_exclude",
+        "adv_responsavel_solicitante_box",
+        "adv_responsavel_programacao_button",
+        "adv_responsavel_programacao_menu",
+        "adv_responsavel_programacao_checks",
+        "adv_responsavel_programacao_exclude",
+        "adv_responsavel_programacao_box",
+        "adv_responsavel_execucao_button",
+        "adv_responsavel_execucao_menu",
+        "adv_responsavel_execucao_checks",
+        "adv_responsavel_execucao_exclude",
+        "adv_responsavel_execucao_box",
+        "adv_responsavel_emissor_button",
+        "adv_responsavel_emissor_menu",
+        "adv_responsavel_emissor_checks",
+        "adv_responsavel_emissor_exclude",
+        "adv_responsavel_emissor_box",
+        "adv_save_defaults_btn",
     )
     def _get_theme_catalog(self):
         light_themes = [
@@ -628,6 +825,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._highlight_text_color = None
         self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
         self._df_last_search_filtered = pd.DataFrame()
+        adv_default = gui_settings.get("advanced_filters_default")
+        self._advanced_filters = dict(adv_default) if isinstance(adv_default, dict) else {}
+        self._advanced_filters_active = False
+        self._adv_options_dirty = True
+        self._last_derivada_origem = None
+        self._adv_sector_syncing = False
 
         self._initialize_profile_filter_placeholders()
 
@@ -739,10 +942,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_layout.addLayout(toolbar_layout)
         self.main_tabs = QTabWidget()
         tab_main = QWidget()
-        ctx_main = self._build_tab_content(tab_main)
+        ctx_main = self._build_tab_content(tab_main, "main")
         self.main_tabs.addTab(tab_main, "SSAs")
         tab_filters = QWidget()
-        ctx_filters = self._build_tab_content(tab_filters)
+        ctx_filters = self._build_tab_content(tab_filters, "filters")
         self.main_tabs.addTab(tab_filters, "Filtros")
         self._tab_contexts = [ctx_main, ctx_filters]
         main_layout.addWidget(self.main_tabs)
@@ -764,7 +967,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cache_size = gui_settings.get("filter_cache_size", 50)
         FilterWorker._cache = FilterCache(max_size=cache_size)
 
-    def _build_tab_content(self, page: QWidget) -> dict:
+    def _build_tab_content(self, page: QWidget, tab_kind: str = "main") -> dict:
         tab_layout = QVBoxLayout(page)
         ctx = {}
 
@@ -1010,7 +1213,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(col_filters_group)
-        from PyQt6.QtWidgets import QScrollArea
         col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
         try:
             col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
@@ -1041,7 +1243,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         right_col_widget = QWidget()
         right_col = QVBoxLayout(right_col_widget)
         right_col.setContentsMargins(0, 0, 0, 0)
-        right_col.addWidget(col_filters_group)
+        if tab_kind == "filters":
+            adv_group, adv_ctx = self._build_advanced_filters_panel()
+            right_col.addWidget(adv_group, 1)
+            col_filters_group.setVisible(False)
+            right_col.addWidget(col_filters_group)
+        else:
+            right_col.addWidget(col_filters_group)
         bottom_layout.addWidget(right_col_widget, 5)
 
         tab_layout.addSpacing(12)
@@ -1077,6 +1285,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "clear_all_btn": clear_all_btn,
             }
         )
+        if tab_kind == "filters":
+            ctx.update(adv_ctx)
         return ctx
 
     def _bind_tab_context(self, ctx: dict) -> None:
@@ -1103,6 +1313,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             active_text = self.search_input.text().strip()
             self.clear_filter_button.setEnabled(bool(active_text))
+        except Exception:
+            pass
+
+        try:
+        if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+            if getattr(self, "_adv_options_dirty", False):
+                self._refresh_advanced_filter_options()
+                self._adv_options_dirty = False
         except Exception:
             pass
 
@@ -1177,6 +1395,1165 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
 
+    def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
+        box = QGroupBox(title)
+        layout = QHBoxLayout(box)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+        button = QToolButton()
+        button.setText(placeholder)
+        try:
+            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        except Exception:
+            pass
+        menu = QMenu(button)
+        try:
+            menu.setMaximumHeight(320)
+        except Exception:
+            pass
+        button.setMenu(menu)
+        button.setToolTip(placeholder)
+        try:
+            button.setMinimumWidth(140)
+        except Exception:
+            pass
+        exclude = None
+        if with_exclude:
+            exclude = QCheckBox("Diferente")
+        layout.addWidget(button, 1)
+        if exclude is not None:
+            layout.addWidget(exclude)
+        return box, button, menu, exclude
+
+    def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar"):
+        if button is None:
+            return
+        selected = []
+        for cb in checks or []:
+            try:
+                if cb.isChecked():
+                    selected.append(cb.text())
+            except Exception:
+                pass
+        total = len(checks or [])
+        if total == 0:
+            text = "Sem dados"
+        elif not selected:
+            text = placeholder
+        elif len(selected) == total:
+            text = "Todos"
+        else:
+            text = f"{len(selected)} selecionados"
+        try:
+            button.setText(text)
+            button.setToolTip(", ".join(selected) if selected else placeholder)
+        except Exception:
+            pass
+
+    def _rebuild_multiselect_menu(self, button, menu, values, selected_set, on_toggle=None):
+        try:
+            menu.clear()
+        except Exception:
+            pass
+        selected_norm = {str(v).casefold() for v in (selected_set or [])}
+        checks = []
+        for val in values:
+            cb = QCheckBox(val)
+            try:
+                cb.setChecked(str(val).casefold() in selected_norm)
+            except Exception:
+                pass
+            if on_toggle is not None:
+                try:
+                    cb.toggled.connect(on_toggle)
+                except Exception:
+                    pass
+            act = QWidgetAction(menu)
+            act.setDefaultWidget(cb)
+            try:
+                menu.addAction(act)
+            except Exception:
+                pass
+            checks.append(cb)
+        self._update_multiselect_button(button, checks)
+        return checks
+
+    def _sync_multiselect_checks(self, button, checks, selected):
+        selected_set = {str(v).casefold() for v in (selected or [])}
+        for cb in checks or []:
+            try:
+                cb.setChecked(cb.text().casefold() in selected_set)
+            except Exception:
+                pass
+        self._update_multiselect_button(button, checks)
+
+    def _build_advanced_filters_panel(self):
+        group = QGroupBox("Filtros Avancados")
+        outer = QVBoxLayout(group)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(6)
+
+        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Area Executora")
+        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Area Emissora")
+        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
+        status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
+        macro_combo = QComboBox()
+        macro_combo.addItem("Nenhum", None)
+        macro_combo.addItem("SSAs para baixar", "ssas_para_baixar")
+        macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
+        try:
+            status_layout = status_box.layout()
+            if status_layout is not None:
+                status_layout.addSpacing(6)
+                status_layout.addWidget(QLabel("Macro:"))
+                status_layout.addWidget(macro_combo)
+        except Exception:
+            pass
+
+        year_emissao_box = QGroupBox("Ano Emissao")
+        year_emissao_layout = QHBoxLayout(year_emissao_box)
+        year_emissao_layout.setContentsMargins(6, 6, 6, 6)
+        year_emissao = QComboBox()
+        year_emissao.addItem("Qualquer", None)
+        year_emissao_exclude = QCheckBox("Diferente")
+        year_emissao_layout.addWidget(year_emissao, 1)
+        year_emissao_layout.addWidget(year_emissao_exclude)
+
+        year_execucao_box = QGroupBox("Ano Execucao")
+        year_execucao_layout = QHBoxLayout(year_execucao_box)
+        year_execucao_layout.setContentsMargins(6, 6, 6, 6)
+        year_execucao = QComboBox()
+        year_execucao.addItem("Qualquer", None)
+        year_execucao_exclude = QCheckBox("Diferente")
+        year_execucao_layout.addWidget(year_execucao, 1)
+        year_execucao_layout.addWidget(year_execucao_exclude)
+
+        top_grid = QGridLayout()
+        top_grid.setContentsMargins(0, 0, 0, 0)
+        top_grid.setSpacing(6)
+        top_grid.addWidget(exec_box, 0, 0)
+        top_grid.addWidget(emis_box, 0, 1)
+        top_grid.addWidget(year_emissao_box, 0, 2)
+        top_grid.addWidget(year_execucao_box, 0, 3)
+        top_grid.addWidget(div_box, 1, 0)
+        top_grid.addWidget(status_box, 1, 1, 1, 3)
+        top_grid.setColumnStretch(0, 1)
+        top_grid.setColumnStretch(1, 1)
+        top_grid.setColumnStretch(2, 1)
+        top_grid.setColumnStretch(3, 1)
+
+        week_box = QGroupBox("Ano/Semana (YYYYWW)")
+        week_layout = QVBoxLayout(week_box)
+        week_layout.setContentsMargins(6, 6, 6, 6)
+        week_layout.setSpacing(6)
+        week_emissao_row = QHBoxLayout()
+        week_emissao_row.setSpacing(6)
+        week_emissao_label = QLabel("Emissao:")
+        week_emissao_start = QLineEdit()
+        week_emissao_start.setPlaceholderText("Inicio")
+        week_emissao_end = QLineEdit()
+        week_emissao_end.setPlaceholderText("Fim")
+        week_emissao_exclude = QCheckBox("Diferente")
+        week_emissao_row.addWidget(week_emissao_label)
+        week_emissao_row.addWidget(week_emissao_start)
+        week_emissao_row.addWidget(week_emissao_end)
+        week_emissao_row.addWidget(week_emissao_exclude)
+        week_layout.addLayout(week_emissao_row)
+        week_exec_row = QHBoxLayout()
+        week_exec_row.setSpacing(6)
+        week_exec_label = QLabel("Execucao:")
+        week_exec_start = QLineEdit()
+        week_exec_start.setPlaceholderText("Inicio")
+        week_exec_end = QLineEdit()
+        week_exec_end.setPlaceholderText("Fim")
+        week_exec_exclude = QCheckBox("Diferente")
+        week_exec_row.addWidget(week_exec_label)
+        week_exec_row.addWidget(week_exec_start)
+        week_exec_row.addWidget(week_exec_end)
+        week_exec_row.addWidget(week_exec_exclude)
+        week_layout.addLayout(week_exec_row)
+
+        deriv_box = QGroupBox("Derivadas")
+        deriv_layout = QHBoxLayout(deriv_box)
+        deriv_layout.setContentsMargins(6, 6, 6, 6)
+        deriv_layout.setSpacing(8)
+        deriv_has = QCheckBox("Possui SSA derivada")
+        deriv_all_ste = QCheckBox("Derivadas em STE")
+        deriv_is = QCheckBox("E SSA derivada")
+        deriv_origem_label = QLabel("SSA origem:")
+        deriv_origem_input = QLineEdit()
+        deriv_origem_input.setPlaceholderText("Origem")
+        deriv_origem_input.setEnabled(False)
+        try:
+            deriv_is.toggled.connect(lambda checked: self._on_derivada_is_toggled(checked))
+        except Exception:
+            pass
+        try:
+            deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
+        except Exception:
+            pass
+        deriv_layout.addWidget(deriv_has)
+        deriv_layout.addWidget(deriv_all_ste)
+        deriv_layout.addWidget(deriv_is)
+        deriv_layout.addStretch()
+        deriv_layout.addWidget(deriv_origem_label)
+        deriv_layout.addWidget(deriv_origem_input)
+
+        resp_box = QGroupBox("Responsaveis")
+        resp_grid = QGridLayout(resp_box)
+        resp_grid.setContentsMargins(6, 6, 6, 6)
+        resp_grid.setSpacing(6)
+        sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
+        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Programacao")
+        exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Execucao")
+        emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emissao")
+        resp_grid.addWidget(sol_box, 0, 0)
+        resp_grid.addWidget(prog_box, 0, 1)
+        resp_grid.addWidget(exec_resp_box, 0, 2)
+        resp_grid.addWidget(emis_resp_box, 0, 3)
+        resp_grid.setColumnStretch(0, 1)
+        resp_grid.setColumnStretch(1, 1)
+        resp_grid.setColumnStretch(2, 1)
+        resp_grid.setColumnStretch(3, 1)
+
+        buttons_row = QHBoxLayout()
+        buttons_row.addStretch()
+        apply_btn = QPushButton("Aplicar filtros avancados")
+        clear_btn = QPushButton("Limpar filtros avancados")
+        save_defaults_btn = QPushButton("Salvar filtros avancados como padrao")
+        apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
+        clear_btn.clicked.connect(self._clear_advanced_filters)
+        save_defaults_btn.clicked.connect(self._save_advanced_filters_default)
+        buttons_row.addWidget(apply_btn)
+        buttons_row.addSpacing(8)
+        buttons_row.addWidget(clear_btn)
+        buttons_row.addSpacing(8)
+        buttons_row.addWidget(save_defaults_btn)
+        buttons_row.addStretch()
+
+        outer.addLayout(top_grid)
+        outer.addWidget(week_box)
+        outer.addWidget(deriv_box)
+        outer.addWidget(resp_box)
+        outer.addLayout(buttons_row)
+
+        ctx = {
+            "adv_filters_group": group,
+            "adv_executor_button": exec_button,
+            "adv_executor_menu": exec_menu,
+            "adv_executor_checks": [],
+            "adv_executor_exclude": exec_exclude,
+            "adv_emissor_button": emis_button,
+            "adv_emissor_menu": emis_menu,
+            "adv_emissor_checks": [],
+            "adv_emissor_exclude": emis_exclude,
+            "adv_divisao_button": div_button,
+            "adv_divisao_menu": div_menu,
+            "adv_divisao_checks": [],
+            "adv_divisao_exclude": div_exclude,
+            "adv_status_button": status_button,
+            "adv_status_menu": status_menu,
+            "adv_status_checks": [],
+            "adv_status_exclude": status_exclude,
+            "adv_year_emissao": year_emissao,
+            "adv_year_emissao_exclude": year_emissao_exclude,
+            "adv_year_execucao": year_execucao,
+            "adv_year_execucao_exclude": year_execucao_exclude,
+            "adv_week_emissao_start": week_emissao_start,
+            "adv_week_emissao_end": week_emissao_end,
+            "adv_week_emissao_exclude": week_emissao_exclude,
+            "adv_week_execucao_start": week_exec_start,
+            "adv_week_execucao_end": week_exec_end,
+            "adv_week_execucao_exclude": week_exec_exclude,
+            "adv_derivada_has": deriv_has,
+            "adv_derivada_all_ste": deriv_all_ste,
+            "adv_derivada_is": deriv_is,
+            "adv_derivada_origem": deriv_origem_input,
+            "adv_responsavel_solicitante_button": sol_button,
+            "adv_responsavel_solicitante_menu": sol_menu,
+            "adv_responsavel_solicitante_checks": [],
+            "adv_responsavel_solicitante_exclude": sol_exclude,
+            "adv_responsavel_solicitante_box": sol_box,
+            "adv_responsavel_programacao_button": prog_button,
+            "adv_responsavel_programacao_menu": prog_menu,
+            "adv_responsavel_programacao_checks": [],
+            "adv_responsavel_programacao_exclude": prog_exclude,
+            "adv_responsavel_programacao_box": prog_box,
+            "adv_responsavel_execucao_button": exec_resp_button,
+            "adv_responsavel_execucao_menu": exec_resp_menu,
+            "adv_responsavel_execucao_checks": [],
+            "adv_responsavel_execucao_exclude": exec_resp_exclude,
+            "adv_responsavel_execucao_box": exec_resp_box,
+            "adv_responsavel_emissor_button": emis_resp_button,
+            "adv_responsavel_emissor_menu": emis_resp_menu,
+            "adv_responsavel_emissor_checks": [],
+            "adv_responsavel_emissor_exclude": emis_resp_exclude,
+            "adv_responsavel_emissor_box": emis_resp_box,
+            "adv_macro_combo": macro_combo,
+            "adv_save_defaults_btn": save_defaults_btn,
+        }
+        return group, ctx
+
+    def _on_derivada_is_toggled(self, checked: bool):
+        widget = getattr(self, "adv_derivada_origem", None)
+        if widget is None:
+            return
+        try:
+            widget.setEnabled(bool(checked))
+            if not checked:
+                widget.clear()
+        except Exception:
+            pass
+
+    def _on_derivada_all_ste_toggled(self, checked: bool):
+        if not checked:
+            return
+        try:
+            if hasattr(self, "adv_derivada_has"):
+                self.adv_derivada_has.setChecked(True)
+        except Exception:
+            pass
+
+    def _save_advanced_filters_default(self):
+        self._apply_advanced_filters_from_ui(store_only=True)
+        try:
+            gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+            gui_settings["advanced_filters_default"] = dict(self._advanced_filters or {})
+            self._persist_gui_preferences()
+        except Exception:
+            pass
+
+    def _on_macro_filter_changed(self):
+        try:
+            choice = self.adv_macro_combo.currentData()
+        except Exception:
+            choice = None
+        if choice == "ssas_para_baixar":
+            try:
+                if hasattr(self, "adv_derivada_has"):
+                    self.adv_derivada_has.setChecked(True)
+                if hasattr(self, "adv_derivada_all_ste"):
+                    self.adv_derivada_all_ste.setChecked(True)
+            except Exception:
+                pass
+            try:
+                if hasattr(self, "adv_status_exclude"):
+                    self.adv_status_exclude.setChecked(True)
+            except Exception:
+                pass
+            try:
+                self._sync_multiselect_checks(
+                    getattr(self, "adv_status_button", None),
+                    getattr(self, "adv_status_checks", None),
+                    ["STE", "SCA"],
+                )
+            except Exception:
+                pass
+            try:
+                if hasattr(self, "adv_executor_button"):
+                    self.adv_executor_button.showMenu()
+            except Exception:
+                pass
+        self._apply_advanced_filters_from_ui()
+
+    def _on_adv_sector_selection_changed(self, *_):
+        if getattr(self, "_adv_sector_syncing", False):
+            return
+        try:
+            self._apply_divisao_to_setor_checks()
+        except Exception:
+            pass
+        try:
+            self._update_multiselect_button(self.adv_executor_button, self.adv_executor_checks)
+        except Exception:
+            pass
+        try:
+            self._update_multiselect_button(self.adv_emissor_button, self.adv_emissor_checks)
+        except Exception:
+            pass
+        try:
+            self._update_multiselect_button(self.adv_divisao_button, self.adv_divisao_checks)
+        except Exception:
+            pass
+        try:
+            self._refresh_responsavel_options()
+        except Exception:
+            pass
+
+    def _collect_divisao_setores(self, divisao_values):
+        setores = set()
+        for div in divisao_values or []:
+            try:
+                setores.update(DIVISAO_SETORES.get(str(div), []))
+            except Exception:
+                pass
+        return setores
+
+    def _apply_divisao_to_setor_checks(self):
+        selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
+        setores = self._collect_divisao_setores(selected_div)
+        if not setores:
+            return
+        setores_norm = {str(s).casefold() for s in setores}
+        self._adv_sector_syncing = True
+        try:
+            for cb in getattr(self, "adv_executor_checks", None) or []:
+                try:
+                    if cb.text().casefold() in setores_norm:
+                        cb.setChecked(True)
+                except Exception:
+                    pass
+            for cb in getattr(self, "adv_emissor_checks", None) or []:
+                try:
+                    if cb.text().casefold() in setores_norm:
+                        cb.setChecked(True)
+                except Exception:
+                    pass
+        finally:
+            self._adv_sector_syncing = False
+
+    def _refresh_responsavel_options(self):
+        if self.df_completo is None or self.df_completo.empty:
+            return
+        exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
+        emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
+        div_values = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
+        has_sector = bool(exec_values or emis_values or div_values)
+
+        def _set_enabled(widget, enabled):
+            if widget is None:
+                return
+            try:
+                widget.setEnabled(bool(enabled))
+            except Exception:
+                pass
+
+        def _set_visible(widget, visible):
+            if widget is None:
+                return
+            try:
+                widget.setVisible(bool(visible))
+            except Exception:
+                pass
+
+        df = self.df_completo
+        exec_col = "setor_executor"
+        emis_col = "setor_emissor"
+        selected_exec = set(exec_values)
+        selected_emis = set(emis_values)
+        selected_div = set(div_values)
+        div_setores = self._collect_divisao_setores(selected_div)
+        filters = self._advanced_filters or {}
+        exec_exclude = bool(filters.get("setor_executor_exclude"))
+        emis_exclude = bool(filters.get("setor_emissor_exclude"))
+        div_exclude = bool(filters.get("divisao_exclude"))
+        try:
+            exec_exclude = bool(getattr(self, "adv_executor_exclude", None).isChecked())
+        except Exception:
+            pass
+        try:
+            emis_exclude = bool(getattr(self, "adv_emissor_exclude", None).isChecked())
+        except Exception:
+            pass
+        try:
+            div_exclude = bool(getattr(self, "adv_divisao_exclude", None).isChecked())
+        except Exception:
+            pass
+
+        def _apply_sector_subset(frame):
+            subset = frame
+            if exec_col in subset.columns:
+                allowed = set(selected_exec) | set(div_setores)
+                excluded = set()
+                if exec_exclude:
+                    excluded |= set(selected_exec)
+                if div_exclude:
+                    excluded |= set(div_setores)
+                if allowed:
+                    subset = subset[subset[exec_col].astype(str).isin(allowed)]
+                if excluded:
+                    subset = subset[~subset[exec_col].astype(str).isin(excluded)]
+            if emis_col in subset.columns and selected_emis:
+                if emis_exclude:
+                    subset = subset[~subset[emis_col].astype(str).isin(selected_emis)]
+                else:
+                    subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
+            return subset
+
+        if has_sector:
+            df = _apply_sector_subset(df)
+
+        def _unique_sorted(col):
+            try:
+                vals = df[col].dropna().astype(str).str.strip()
+                vals = vals[vals != ""]
+                return sorted(set(vals), key=lambda v: v.casefold())
+            except Exception:
+                return []
+
+        resp_cols = [
+            ("solicitante", "adv_responsavel_solicitante"),
+            ("responsavel_programacao", "adv_responsavel_programacao"),
+            ("responsavel_execucao", "adv_responsavel_execucao"),
+            ("responsavel_emissor", "adv_responsavel_emissor"),
+        ]
+        for col, prefix in resp_cols:
+            box = getattr(self, f"{prefix}_box", None)
+            button = getattr(self, f"{prefix}_button", None)
+            menu = getattr(self, f"{prefix}_menu", None)
+            checks_attr = f"{prefix}_checks"
+            exclude = getattr(self, f"{prefix}_exclude", None)
+            col_exists = col in self.df_completo.columns
+            _set_visible(box, col_exists)
+            if not col_exists:
+                _set_enabled(button, False)
+                _set_enabled(exclude, False)
+                setattr(self, checks_attr, [])
+                continue
+            if not has_sector:
+                _set_enabled(button, False)
+                _set_enabled(exclude, False)
+                setattr(self, checks_attr, self._rebuild_multiselect_menu(button, menu, [], set()))
+                continue
+            values = _unique_sorted(col)
+            _set_enabled(button, True)
+            _set_enabled(exclude, True)
+            selected = set((self._advanced_filters or {}).get(col) or [])
+            checks = self._rebuild_multiselect_menu(
+                button,
+                menu,
+                values,
+                selected,
+                lambda *_: self._update_multiselect_button(button, getattr(self, checks_attr, [])),
+            )
+            setattr(self, checks_attr, checks)
+
+    def _clear_advanced_filters(self):
+        self._advanced_filters = {}
+        self._advanced_filters_active = False
+        try:
+            self._sync_advanced_filter_ui()
+        except Exception:
+            pass
+        try:
+            self._refresh_after_filter_change()
+        except Exception:
+            pass
+
+    def _apply_advanced_filters_from_ui(self, store_only: bool = False):
+        data = {}
+        try:
+            data["setor_executor"] = self._get_checked_values(getattr(self, "adv_executor_checks", None))
+        except Exception:
+            data["setor_executor"] = []
+        try:
+            data["setor_executor_exclude"] = bool(getattr(self, "adv_executor_exclude", None).isChecked())
+        except Exception:
+            data["setor_executor_exclude"] = False
+        try:
+            data["setor_emissor"] = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
+        except Exception:
+            data["setor_emissor"] = []
+        try:
+            data["setor_emissor_exclude"] = bool(getattr(self, "adv_emissor_exclude", None).isChecked())
+        except Exception:
+            data["setor_emissor_exclude"] = False
+        try:
+            data["divisao"] = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
+        except Exception:
+            data["divisao"] = []
+        try:
+            data["divisao_exclude"] = bool(getattr(self, "adv_divisao_exclude", None).isChecked())
+        except Exception:
+            data["divisao_exclude"] = False
+        try:
+            data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
+        except Exception:
+            data["situacao"] = []
+        try:
+            data["situacao_exclude"] = bool(getattr(self, "adv_status_exclude", None).isChecked())
+        except Exception:
+            data["situacao_exclude"] = False
+        try:
+            data["ano_emissao"] = self.adv_year_emissao.currentData()
+        except Exception:
+            data["ano_emissao"] = None
+        try:
+            data["ano_emissao_exclude"] = bool(getattr(self, "adv_year_emissao_exclude", None).isChecked())
+        except Exception:
+            data["ano_emissao_exclude"] = False
+        try:
+            data["ano_execucao"] = self.adv_year_execucao.currentData()
+        except Exception:
+            data["ano_execucao"] = None
+        try:
+            data["ano_execucao_exclude"] = bool(getattr(self, "adv_year_execucao_exclude", None).isChecked())
+        except Exception:
+            data["ano_execucao_exclude"] = False
+        try:
+            data["semana_emissao_inicio"] = self._parse_week(self.adv_week_emissao_start.text())
+            data["semana_emissao_fim"] = self._parse_week(self.adv_week_emissao_end.text())
+        except Exception:
+            data["semana_emissao_inicio"] = None
+            data["semana_emissao_fim"] = None
+        try:
+            data["semana_execucao_inicio"] = self._parse_week(self.adv_week_execucao_start.text())
+            data["semana_execucao_fim"] = self._parse_week(self.adv_week_execucao_end.text())
+        except Exception:
+            data["semana_execucao_inicio"] = None
+            data["semana_execucao_fim"] = None
+        try:
+            data["semana_emissao_exclude"] = bool(getattr(self, "adv_week_emissao_exclude", None).isChecked())
+        except Exception:
+            data["semana_emissao_exclude"] = False
+        try:
+            data["semana_execucao_exclude"] = bool(getattr(self, "adv_week_execucao_exclude", None).isChecked())
+        except Exception:
+            data["semana_execucao_exclude"] = False
+        try:
+            data["derivada_has"] = bool(getattr(self, "adv_derivada_has", None).isChecked())
+        except Exception:
+            data["derivada_has"] = False
+        try:
+            data["derivada_all_ste"] = bool(getattr(self, "adv_derivada_all_ste", None).isChecked())
+        except Exception:
+            data["derivada_all_ste"] = False
+        if data.get("derivada_all_ste"):
+            data["derivada_has"] = True
+        try:
+            data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
+        except Exception:
+            data["derivada_is"] = False
+        try:
+            origem = self.adv_derivada_origem.text().strip()
+            data["derivada_origem"] = origem or None
+            if not data.get("derivada_is"):
+                data["derivada_origem"] = None
+        except Exception:
+            data["derivada_origem"] = None
+        try:
+            data["solicitante"] = self._get_checked_values(getattr(self, "adv_responsavel_solicitante_checks", None))
+        except Exception:
+            data["solicitante"] = []
+        try:
+            data["solicitante_exclude"] = bool(getattr(self, "adv_responsavel_solicitante_exclude", None).isChecked())
+        except Exception:
+            data["solicitante_exclude"] = False
+        try:
+            data["responsavel_programacao"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_programacao_checks", None)
+            )
+        except Exception:
+            data["responsavel_programacao"] = []
+        try:
+            data["responsavel_programacao_exclude"] = bool(
+                getattr(self, "adv_responsavel_programacao_exclude", None).isChecked()
+            )
+        except Exception:
+            data["responsavel_programacao_exclude"] = False
+        try:
+            data["responsavel_execucao"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_execucao_checks", None)
+            )
+        except Exception:
+            data["responsavel_execucao"] = []
+        try:
+            data["responsavel_execucao_exclude"] = bool(
+                getattr(self, "adv_responsavel_execucao_exclude", None).isChecked()
+            )
+        except Exception:
+            data["responsavel_execucao_exclude"] = False
+        try:
+            data["responsavel_emissor"] = self._get_checked_values(
+                getattr(self, "adv_responsavel_emissor_checks", None)
+            )
+        except Exception:
+            data["responsavel_emissor"] = []
+        try:
+            data["responsavel_emissor_exclude"] = bool(
+                getattr(self, "adv_responsavel_emissor_exclude", None).isChecked()
+            )
+        except Exception:
+            data["responsavel_emissor_exclude"] = False
+        try:
+            data["macro_filter"] = self.adv_macro_combo.currentData()
+        except Exception:
+            data["macro_filter"] = None
+
+        self._advanced_filters = data
+        if store_only:
+            return
+        self._advanced_filters_active = True
+        try:
+            self._refresh_after_filter_change()
+        except Exception:
+            pass
+
+    def _parse_week(self, raw: str):
+        s = str(raw or "").strip()
+        if not s:
+            return None
+        if not s.isdigit():
+            return None
+        if len(s) != 6:
+            return None
+        return int(s)
+
+    def _get_checked_values(self, source):
+        values = []
+        if source is None:
+            return values
+        if isinstance(source, list):
+            for child in source:
+                try:
+                    if child.isChecked():
+                        values.append(child.text())
+                except Exception:
+                    pass
+            return values
+        if hasattr(source, "findChildren"):
+            try:
+                children = source.findChildren(QCheckBox)
+            except Exception:
+                children = []
+            for child in children:
+                try:
+                    if child.isChecked():
+                        values.append(child.text())
+                except Exception:
+                    pass
+        return values
+
+    def _sync_advanced_filter_ui(self):
+        data = self._advanced_filters or {}
+        self._sync_multiselect_checks(
+            getattr(self, "adv_executor_button", None),
+            getattr(self, "adv_executor_checks", None),
+            data.get("setor_executor"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_emissor_button", None),
+            getattr(self, "adv_emissor_checks", None),
+            data.get("setor_emissor"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_divisao_button", None),
+            getattr(self, "adv_divisao_checks", None),
+            data.get("divisao"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_status_button", None),
+            getattr(self, "adv_status_checks", None),
+            data.get("situacao"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_responsavel_solicitante_button", None),
+            getattr(self, "adv_responsavel_solicitante_checks", None),
+            data.get("solicitante"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_responsavel_programacao_button", None),
+            getattr(self, "adv_responsavel_programacao_checks", None),
+            data.get("responsavel_programacao"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_responsavel_execucao_button", None),
+            getattr(self, "adv_responsavel_execucao_checks", None),
+            data.get("responsavel_execucao"),
+        )
+        self._sync_multiselect_checks(
+            getattr(self, "adv_responsavel_emissor_button", None),
+            getattr(self, "adv_responsavel_emissor_checks", None),
+            data.get("responsavel_emissor"),
+        )
+        try:
+            if hasattr(self, "adv_executor_exclude"):
+                self.adv_executor_exclude.setChecked(bool(data.get("setor_executor_exclude")))
+            if hasattr(self, "adv_emissor_exclude"):
+                self.adv_emissor_exclude.setChecked(bool(data.get("setor_emissor_exclude")))
+            if hasattr(self, "adv_divisao_exclude"):
+                self.adv_divisao_exclude.setChecked(bool(data.get("divisao_exclude")))
+            if hasattr(self, "adv_status_exclude"):
+                self.adv_status_exclude.setChecked(bool(data.get("situacao_exclude")))
+        except Exception:
+            pass
+        try:
+            idx = self.adv_year_emissao.findData(data.get("ano_emissao"))
+            self.adv_year_emissao.setCurrentIndex(max(0, idx))
+        except Exception:
+            pass
+        try:
+            idx = self.adv_year_execucao.findData(data.get("ano_execucao"))
+            self.adv_year_execucao.setCurrentIndex(max(0, idx))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_year_emissao_exclude"):
+                self.adv_year_emissao_exclude.setChecked(bool(data.get("ano_emissao_exclude")))
+            if hasattr(self, "adv_year_execucao_exclude"):
+                self.adv_year_execucao_exclude.setChecked(bool(data.get("ano_execucao_exclude")))
+        except Exception:
+            pass
+        try:
+            self.adv_week_emissao_start.setText("" if data.get("semana_emissao_inicio") is None else str(data.get("semana_emissao_inicio")))
+            self.adv_week_emissao_end.setText("" if data.get("semana_emissao_fim") is None else str(data.get("semana_emissao_fim")))
+            self.adv_week_execucao_start.setText("" if data.get("semana_execucao_inicio") is None else str(data.get("semana_execucao_inicio")))
+            self.adv_week_execucao_end.setText("" if data.get("semana_execucao_fim") is None else str(data.get("semana_execucao_fim")))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_week_emissao_exclude"):
+                self.adv_week_emissao_exclude.setChecked(bool(data.get("semana_emissao_exclude")))
+            if hasattr(self, "adv_week_execucao_exclude"):
+                self.adv_week_execucao_exclude.setChecked(bool(data.get("semana_execucao_exclude")))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_derivada_has"):
+                if data.get("derivada_all_ste"):
+                    self.adv_derivada_has.setChecked(True)
+                else:
+                    self.adv_derivada_has.setChecked(bool(data.get("derivada_has")))
+            if hasattr(self, "adv_derivada_all_ste"):
+                self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
+            if hasattr(self, "adv_derivada_is"):
+                self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_derivada_origem"):
+                value = data.get("derivada_origem") or ""
+                self.adv_derivada_origem.setText(str(value))
+                self._on_derivada_is_toggled(bool(data.get("derivada_is")))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_responsavel_solicitante_exclude"):
+                self.adv_responsavel_solicitante_exclude.setChecked(bool(data.get("solicitante_exclude")))
+            if hasattr(self, "adv_responsavel_programacao_exclude"):
+                self.adv_responsavel_programacao_exclude.setChecked(bool(data.get("responsavel_programacao_exclude")))
+            if hasattr(self, "adv_responsavel_execucao_exclude"):
+                self.adv_responsavel_execucao_exclude.setChecked(bool(data.get("responsavel_execucao_exclude")))
+            if hasattr(self, "adv_responsavel_emissor_exclude"):
+                self.adv_responsavel_emissor_exclude.setChecked(bool(data.get("responsavel_emissor_exclude")))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "adv_macro_combo"):
+                self.adv_macro_combo.blockSignals(True)
+                idx = self.adv_macro_combo.findData(data.get("macro_filter"))
+                self.adv_macro_combo.setCurrentIndex(max(0, idx))
+        except Exception:
+            pass
+        finally:
+            try:
+                if hasattr(self, "adv_macro_combo"):
+                    self.adv_macro_combo.blockSignals(False)
+            except Exception:
+                pass
+        try:
+            self._apply_divisao_to_setor_checks()
+        except Exception:
+            pass
+
+    def _refresh_advanced_filter_options(self):
+        if self.df_completo is None or self.df_completo.empty:
+            return
+        df = self.df_completo
+        filters = self._advanced_filters or {}
+
+        def _unique_sorted(col):
+            try:
+                vals = df[col].dropna().astype(str).str.strip()
+                vals = vals[vals != ""]
+                return sorted(set(vals), key=lambda v: v.casefold())
+            except Exception:
+                return []
+
+        def _sort_sector_values(values):
+            order = {"IEE": 0, "ILA": 1, "MEG": 2, "MEL": 3}
+            def _key(val):
+                text = str(val).upper()
+                for prefix, idx in order.items():
+                    if text.startswith(prefix):
+                        return (idx, text)
+                return (9, text)
+            return sorted(set(values), key=_key)
+
+        exec_vals = _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
+        emis_vals = _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
+        status_vals = _unique_sorted("situacao") if "situacao" in df.columns else []
+        def _div_key(val):
+            text = str(val).upper()
+            if text == "SMIN":
+                return (0, text)
+            return (1, text)
+        divisao_vals = sorted(DIVISAO_SETORES.keys(), key=_div_key)
+
+        if hasattr(self, "adv_executor_menu"):
+            self.adv_executor_checks = self._rebuild_multiselect_menu(
+                self.adv_executor_button,
+                self.adv_executor_menu,
+                exec_vals,
+                set(filters.get("setor_executor") or []),
+                self._on_adv_sector_selection_changed,
+            )
+        if hasattr(self, "adv_emissor_menu"):
+            self.adv_emissor_checks = self._rebuild_multiselect_menu(
+                self.adv_emissor_button,
+                self.adv_emissor_menu,
+                emis_vals,
+                set(filters.get("setor_emissor") or []),
+                self._on_adv_sector_selection_changed,
+            )
+        if hasattr(self, "adv_divisao_menu"):
+            self.adv_divisao_checks = self._rebuild_multiselect_menu(
+                self.adv_divisao_button,
+                self.adv_divisao_menu,
+                divisao_vals,
+                set(filters.get("divisao") or []),
+                self._on_adv_sector_selection_changed,
+            )
+        if hasattr(self, "adv_status_menu"):
+            self.adv_status_checks = self._rebuild_multiselect_menu(
+                self.adv_status_button,
+                self.adv_status_menu,
+                status_vals,
+                set(filters.get("situacao") or []),
+                lambda *_: self._update_multiselect_button(self.adv_status_button, self.adv_status_checks),
+            )
+
+        def _collect_years_from_dates(series):
+            try:
+                from shared.date_utils import parse_any_date
+                parsed = series.apply(parse_any_date)
+                ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+                years = ts.dt.year.dropna().astype(int).tolist()
+                return sorted(set(years))
+            except Exception:
+                return []
+
+        def _collect_years_from_weeks(series):
+            try:
+                nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
+                years = (nums // 100).tolist()
+                return sorted(set(years))
+            except Exception:
+                return []
+
+        emissao_years = []
+        if "data_cadastro" in df.columns:
+            emissao_years = _collect_years_from_dates(df["data_cadastro"])
+        elif "semana_cadastro" in df.columns:
+            emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
+
+        execucao_years = []
+        if "semana_executada" in df.columns:
+            execucao_years = _collect_years_from_weeks(df["semana_executada"])
+
+        if hasattr(self, "adv_year_emissao"):
+            try:
+                self.adv_year_emissao.blockSignals(True)
+                self.adv_year_emissao.clear()
+                self.adv_year_emissao.addItem("Qualquer", None)
+                for year in emissao_years:
+                    self.adv_year_emissao.addItem(str(year), year)
+            finally:
+                try:
+                    self.adv_year_emissao.blockSignals(False)
+                except Exception:
+                    pass
+        if hasattr(self, "adv_year_execucao"):
+            try:
+                self.adv_year_execucao.blockSignals(True)
+                self.adv_year_execucao.clear()
+                self.adv_year_execucao.addItem("Qualquer", None)
+                for year in execucao_years:
+                    self.adv_year_execucao.addItem(str(year), year)
+            finally:
+                try:
+                    self.adv_year_execucao.blockSignals(False)
+                except Exception:
+                    pass
+
+        self._refresh_responsavel_options()
+        self._sync_advanced_filter_ui()
+
+    def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            return df
+        filters = self._advanced_filters or {}
+        if not filters:
+            return df
+        if not getattr(self, "_advanced_filters_active", False):
+            return df
+        mask = pd.Series(True, index=df.index)
+
+        def _apply_in(col, values, exclude=False):
+            nonlocal mask
+            if not values or col not in df.columns:
+                return
+            try:
+                series = df[col].astype(str)
+                values_norm = {str(v).casefold() for v in values}
+                series_norm = series.str.casefold()
+                if exclude:
+                    mask &= ~series_norm.isin(values_norm)
+                else:
+                    mask &= series_norm.isin(values_norm)
+            except Exception:
+                pass
+
+        exec_values = filters.get("setor_executor") or []
+        emis_values = filters.get("setor_emissor") or []
+        div_values = filters.get("divisao") or []
+        exec_exclude = bool(filters.get("setor_executor_exclude"))
+        emis_exclude = bool(filters.get("setor_emissor_exclude"))
+        div_exclude = bool(filters.get("divisao_exclude"))
+
+        if "setor_executor" in df.columns:
+            allowed = set(exec_values) | self._collect_divisao_setores(div_values)
+            excluded = set()
+            if exec_exclude:
+                excluded |= set(exec_values)
+            if div_exclude:
+                excluded |= self._collect_divisao_setores(div_values)
+            try:
+                series = df["setor_executor"].astype(str)
+                series_norm = series.str.casefold()
+                allowed_norm = {str(v).casefold() for v in allowed}
+                excluded_norm = {str(v).casefold() for v in excluded}
+                if allowed_norm:
+                    mask &= series_norm.isin(allowed_norm)
+                if excluded_norm:
+                    mask &= ~series_norm.isin(excluded_norm)
+            except Exception:
+                pass
+
+        _apply_in("setor_emissor", emis_values, emis_exclude)
+
+        situacao_vals = filters.get("situacao") or []
+        situacao_exclude = bool(filters.get("situacao_exclude"))
+        _apply_in("situacao", situacao_vals, situacao_exclude)
+
+        _apply_in("solicitante", filters.get("solicitante") or [], bool(filters.get("solicitante_exclude")))
+        _apply_in(
+            "responsavel_programacao",
+            filters.get("responsavel_programacao") or [],
+            bool(filters.get("responsavel_programacao_exclude")),
+        )
+        _apply_in(
+            "responsavel_execucao",
+            filters.get("responsavel_execucao") or [],
+            bool(filters.get("responsavel_execucao_exclude")),
+        )
+        _apply_in(
+            "responsavel_emissor",
+            filters.get("responsavel_emissor") or [],
+            bool(filters.get("responsavel_emissor_exclude")),
+        )
+
+        ano_emissao = filters.get("ano_emissao")
+        ano_emissao_exclude = bool(filters.get("ano_emissao_exclude"))
+        if ano_emissao:
+            if "data_cadastro" in df.columns:
+                try:
+                    from shared.date_utils import parse_any_date
+                    parsed = df["data_cadastro"].apply(parse_any_date)
+                    ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+                    if ano_emissao_exclude:
+                        mask &= ~ts.dt.year.eq(int(ano_emissao))
+                    else:
+                        mask &= ts.dt.year.eq(int(ano_emissao))
+                except Exception:
+                    pass
+            elif "semana_cadastro" in df.columns:
+                try:
+                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").dropna().astype(int)
+                    years = nums // 100
+                    target = years.reindex(df.index).fillna(-1).eq(int(ano_emissao))
+                    mask &= ~target if ano_emissao_exclude else target
+                except Exception:
+                    pass
+
+        ano_execucao = filters.get("ano_execucao")
+        ano_execucao_exclude = bool(filters.get("ano_execucao_exclude"))
+        if ano_execucao and "semana_executada" in df.columns:
+            try:
+                nums = pd.to_numeric(df["semana_executada"], errors="coerce").dropna().astype(int)
+                years = nums // 100
+                target = years.reindex(df.index).fillna(-1).eq(int(ano_execucao))
+                mask &= ~target if ano_execucao_exclude else target
+            except Exception:
+                pass
+
+        def _apply_week_range(col, start_key, end_key, exclude_key):
+            nonlocal mask
+            if col not in df.columns:
+                return
+            start = filters.get(start_key)
+            end = filters.get(end_key)
+            if start is None and end is None:
+                return
+            try:
+                nums = pd.to_numeric(df[col], errors="coerce")
+                range_mask = pd.Series(True, index=df.index)
+                if start is not None:
+                    range_mask &= nums.ge(int(start))
+                if end is not None:
+                    range_mask &= nums.le(int(end))
+                if filters.get(exclude_key):
+                    mask &= ~range_mask
+                else:
+                    mask &= range_mask
+            except Exception:
+                pass
+
+        _apply_week_range("semana_cadastro", "semana_emissao_inicio", "semana_emissao_fim", "semana_emissao_exclude")
+        _apply_week_range("semana_executada", "semana_execucao_inicio", "semana_execucao_fim", "semana_execucao_exclude")
+
+        derivada_has = bool(filters.get("derivada_has"))
+        derivada_all_ste = bool(filters.get("derivada_all_ste"))
+        derivada_is = bool(filters.get("derivada_is"))
+        derivada_origem = (filters.get("derivada_origem") or "").strip()
+
+        if "derivada_de" in df.columns:
+            series_derivada = df["derivada_de"].astype(str).str.strip()
+            has_derivada = series_derivada.ne("") & series_derivada.ne("nan")
+            if derivada_is:
+                mask &= has_derivada
+            if derivada_origem:
+                try:
+                    mask &= series_derivada.str.casefold().eq(str(derivada_origem).casefold())
+                except Exception:
+                    mask &= series_derivada.eq(derivada_origem)
+            if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
+                try:
+                    origins = set(series_derivada[has_derivada].unique())
+                except Exception:
+                    origins = set()
+                if derivada_all_ste and "situacao" in df.columns:
+                    try:
+                        derived = df[has_derivada].copy()
+                        grouped = derived.groupby("derivada_de")["situacao"].apply(
+                            lambda s: s.astype(str).str.upper().eq("STE").all()
+                        )
+                        origins = set(grouped[grouped].index.astype(str).tolist())
+                    except Exception:
+                        origins = set()
+                if origins:
+                    try:
+                        origin_norm = {str(o).casefold() for o in origins}
+                        mask &= df["numero_ssa"].astype(str).str.casefold().isin(origin_norm)
+                    except Exception:
+                        pass
+                else:
+                    mask &= False
+
+        if mask.all():
+            return df
+        return df[mask]
+
     def load_data(self):
         if not os.path.exists(DB_PATH):
             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
@@ -1199,6 +2576,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def on_data_loaded(self, df: pd.DataFrame):
         self.df_completo = df.copy()
+        self._adv_options_dirty = True
         # Inicialmente, exibimos todos os dados
         base = df.copy()
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
@@ -1680,6 +3058,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
                 )
 
+            tool_btn_css = (
+                "QToolButton {"
+                f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
+                " border-radius:4px; padding:2px 6px; }"
+                "QToolButton:pressed {"
+                f" background: {accent_soft}; }}"
+            )
+            adv_buttons = [
+                "adv_executor_button",
+                "adv_emissor_button",
+                "adv_divisao_button",
+                "adv_status_button",
+                "adv_responsavel_solicitante_button",
+                "adv_responsavel_programacao_button",
+                "adv_responsavel_execucao_button",
+                "adv_responsavel_emissor_button",
+            ]
+            for name in adv_buttons:
+                btn = getattr(self, name, None)
+                if btn is not None:
+                    try:
+                        btn.setStyleSheet(tool_btn_css)
+                    except Exception:
+                        pass
+            adv_line_edits = [
+                "adv_week_emissao_start",
+                "adv_week_emissao_end",
+                "adv_week_execucao_start",
+                "adv_week_execucao_end",
+                "adv_derivada_origem",
+            ]
+            for name in adv_line_edits:
+                widget = getattr(self, name, None)
+                if widget is not None:
+                    try:
+                        widget.setStyleSheet(
+                            build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
+                        )
+                    except Exception:
+                        pass
+
             # ============================================================
             # SECTION 5: Details Panel
             # ============================================================
@@ -1723,6 +3142,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.col_filters_group.setStyleSheet('')
                 else:
                     self.col_filters_group.setStyleSheet(group_css)
+            if hasattr(self, 'adv_filters_group'):
+                if normalized in light_themes:
+                    self.adv_filters_group.setStyleSheet('')
+                else:
+                    self.adv_filters_group.setStyleSheet(group_css)
 
             # ============================================================
             # SECTION 7: Status and Week Labels
@@ -2394,6 +3818,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 f'</tr>'
             )
 
+        try:
+            derived_list = self._get_derivadas_for_ssa(series.get("numero_ssa"))
+        except Exception:
+            derived_list = []
+        if derived_list:
+            derived_text = ", ".join(derived_list)
+            if highlight_search_terms and search_terms:
+                derived_text = self._highlight_text(derived_text, search_terms)
+            else:
+                derived_text = html_module.escape(derived_text)
+            label = f"SSAs derivadas ({len(derived_list)})"
+            html_lines.append(
+                f'<tr>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(label)}:</td>'
+                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{derived_text}</td>'
+                f'</tr>'
+            )
+
         html_lines.append('</table></body></html>')
         return '\n'.join(html_lines)
 
@@ -2442,6 +3884,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # O tamanho da pãgina fica configurado no arquivo gui_main_preferences.json
         pass
 
+    def _get_series_from_row(self, row: int):
+        try:
+            index_item = self.table_widget.item(row, 0)
+        except Exception:
+            return None
+        if not index_item:
+            return None
+        try:
+            original_index = index_item.data(Qt.ItemDataRole.UserRole)
+        except Exception:
+            original_index = None
+        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
+            return None
+        try:
+            return self.df_exibido.iloc[int(original_index)]
+        except Exception:
+            return None
+
     def update_details_from_selection(self):
         """Atualiza o painel de detalhes com base na linha selecionada."""
         if self.table_widget.rowCount() == 0:
@@ -2452,17 +3912,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.details_text.clear()
             return
         row = selected_rows[0].row()
-        index_item = self.table_widget.item(row, 0)
-        if not index_item:
+        series = self._get_series_from_row(row)
+        if series is None:
             self.details_text.clear()
             return
-        original_index = index_item.data(Qt.ItemDataRole.UserRole)
-        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
-            self.details_text.clear()
-            return
-
-        # Usa dados originais (nao formatados) para detalhes
-        series = self.df_exibido.iloc[int(original_index)]
 
         try:
             font_size_pt = None
@@ -2509,6 +3962,75 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+    def _get_derivadas_for_ssa(self, numero_ssa):
+        if self.df_completo is None or self.df_completo.empty:
+            return []
+        if "derivada_de" not in self.df_completo.columns or "numero_ssa" not in self.df_completo.columns:
+            return []
+        num = str(numero_ssa or "").strip()
+        if not num:
+            return []
+        try:
+            series = self.df_completo["derivada_de"].astype(str).str.strip().str.casefold()
+            mask = series.eq(num.casefold())
+            derived = self.df_completo.loc[mask, "numero_ssa"].astype(str).tolist()
+            return [d for d in derived if str(d).strip()]
+        except Exception:
+            return []
+
+    def _jump_to_ssa(self, numero_ssa):
+        num = str(numero_ssa or "").strip()
+        if not num:
+            return
+        try:
+            df_reset = self.df_exibido.reset_index(drop=True)
+            if "numero_ssa" not in df_reset.columns:
+                return
+            mask = df_reset["numero_ssa"].astype(str).str.casefold().eq(num.casefold())
+            if not mask.any():
+                self.search_input.setText(f"={num}")
+                self.initiate_filtering()
+                return
+            pos = int(mask[mask].index[0])
+            page_size = int(getattr(self.paginator, "page_size", 50))
+            page = int(pos // page_size + 1)
+            try:
+                self.paginator.current_page = page
+            except Exception:
+                pass
+            self.display_current_page(page)
+            row_in_page = int(pos % page_size)
+            try:
+                self.table_widget.selectRow(row_in_page)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _filter_by_derivadas(self, numero_ssa):
+        num = str(numero_ssa or "").strip()
+        if not num:
+            return
+        self._last_derivada_origem = num
+        self._active_column_filters["derivada_de"] = num
+        try:
+            self._build_column_filters_panel()
+        except Exception:
+            pass
+        self._refresh_after_filter_change()
+
+    def _clear_derivadas_filter(self):
+        if "derivada_de" in self._active_column_filters:
+            self._active_column_filters.pop("derivada_de", None)
+        try:
+            self._build_column_filters_panel()
+        except Exception:
+            pass
+        self._refresh_after_filter_change()
+        if self._last_derivada_origem:
+            self._jump_to_ssa(self._last_derivada_origem)
+            self._last_derivada_origem = None
+
     def show_context_menu(self, position):
         """Mostra menu de contexto na tabela."""
         if self.table_widget.itemAt(position):
@@ -2523,10 +4045,40 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             copy_row_action.triggered.connect(self.copy_row_data)
             menu.addAction(copy_row_action)
 
+            export_action = QAction("Exportar lista (txt)", self)
+            export_action.triggered.connect(self._export_current_list_txt)
+            menu.addAction(export_action)
+
             menu.addSeparator()
 
-            # Ações para colunas
             current_item = self.table_widget.itemAt(position)
+            row_series = None
+            if current_item:
+                try:
+                    row_series = self._get_series_from_row(current_item.row())
+                except Exception:
+                    row_series = None
+
+            if row_series is not None:
+                numero_ssa = str(row_series.get("numero_ssa", "")).strip()
+                derivada_de = str(row_series.get("derivada_de", "")).strip()
+                derived_list = self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
+                if derivada_de:
+                    origem_action = QAction("Ir para SSA origem", self)
+                    origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))
+                    menu.addAction(origem_action)
+                if derived_list:
+                    label = f"Mostrar derivadas ({len(derived_list)})"
+                    derivadas_action = QAction(label, self)
+                    derivadas_action.triggered.connect(lambda: self._filter_by_derivadas(numero_ssa))
+                    menu.addAction(derivadas_action)
+                if self._last_derivada_origem:
+                    voltar_action = QAction("Voltar SSA origem", self)
+                    voltar_action.triggered.connect(self._clear_derivadas_filter)
+                    menu.addAction(voltar_action)
+                menu.addSeparator()
+
+            # Acoes para colunas
             if current_item:
                 column = current_item.column()
                 if column > 0:  # Nção permitir remover a coluna de ándice
@@ -2560,6 +4112,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             clipboard = QApplication.clipboard()
             clipboard.setText("\t".join(row_data))
+
+    def _export_current_list_txt(self):
+        if self.df_exibido is None or self.df_exibido.empty:
+            QMessageBox.information(self, "Aviso", "Nenhum dado para exportar.")
+            return
+        try:
+            path, _ = QFileDialog.getSaveFileName(self, "Exportar lista", "", "Text Files (*.txt)")
+        except Exception:
+            path = ""
+        if not path:
+            return
+        cols = [col for col in self.visible_columns if col in self.df_exibido.columns]
+        if not cols:
+            cols = list(self.df_exibido.columns)
+        export_df = self.df_exibido[cols].copy()
+        try:
+            export_df = format_dataframe_for_display(export_df)
+        except Exception:
+            pass
+        try:
+            export_df.to_csv(path, sep="\t", index=False)
+        except Exception:
+            QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
 
     def remove_column_by_index(self, column_index):
         """Remove uma coluna especáfica baseada no ándice."""
