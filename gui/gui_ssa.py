@@ -1317,10 +1317,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
         try:
-        if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
-            if getattr(self, "_adv_options_dirty", False):
-                self._refresh_advanced_filter_options()
-                self._adv_options_dirty = False
+            if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+                if getattr(self, "_adv_options_dirty", False):
+                    self._refresh_advanced_filter_options()
+                    self._adv_options_dirty = False
         except Exception:
             pass
 
