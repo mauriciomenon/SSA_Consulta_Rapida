@@ -59,7 +59,7 @@ THEME_ROLES: dict[str, dict[str, str]] = {
         "tag_hover": "#f0f7ff",
         "tag_pressed": "#d9ecff",
     },
-    "claro": {
+    "classico": {
         "accent": "#3584e4",
         "accent_soft": "#5a96e9",
         "label_color": "#2e3436",
@@ -358,7 +358,7 @@ def get_palette(name: str) -> QPalette:
         QPalette configurada com as cores do tema selecionado.
         Usa tema 'dark' como fallback se o tema nao for encontrado.
     """
-    key = (name or "dark").lower()
+    key = normalize_theme(name)
     pal = QPalette()
 
     if key in {"grayscale", "escala de cinza", "escala_de_cinza"}:
@@ -395,7 +395,7 @@ def get_palette(name: str) -> QPalette:
         pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#5d6f89"))
         return pal
 
-    if key in {"claro", "gnome", "adwaita"}:
+    if key in {"classico"}:
         pal.setColor(QPalette.ColorRole.Window, QColor("#f7f6f5"))
         pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
         pal.setColor(QPalette.ColorRole.AlternateBase, QColor("#f0efed"))
@@ -591,8 +591,8 @@ def normalize_theme(name: str) -> str:
         return "grayscale"
     if name in ("windows7", "win7", "windows 7"):
         return "windows7"
-    if name in ("claro", "gnome", "adwaita"):
-        return "claro"
+    if name in ("classico", "claro", "gnome", "adwaita"):
+        return "classico"
     if name in ("gruvbox", "vim", "vim-dark", "vim dark", "vim hard"):
         return "gruvbox"
     if name in ("dracula",):
