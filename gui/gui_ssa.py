@@ -757,8 +757,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Falha ao persistir preferencias GUI: %s", e)
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
@@ -2244,8 +2244,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
             gui_settings["advanced_filters_default"] = dict(self._advanced_filters or {})
             self._persist_gui_preferences()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Falha ao salvar filtros avancados default: %s", e)
 
     def _on_macro_filter_changed(self):
         try:
@@ -3718,8 +3718,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
                 by=['__is_ste','__ssa'], ascending=[True, False], na_position='last'
             ).drop(columns=['__is_ste','__ssa'])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
         self.df_exibido = base
         self._df_last_search_filtered = df.copy()
         self._widths_computed_for_df_hash = None
@@ -3727,8 +3727,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._refresh_after_filter_change()
         try:
             self._refresh_advanced_filter_options()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
         profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
 
@@ -5346,11 +5346,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         export_df = self.df_exibido[cols].copy()
         try:
             export_df = format_dataframe_for_display(export_df)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Falha ao formatar dataframe para exportacao: %s", e)
         try:
             export_df.to_csv(path, sep="\t", index=False)
-        except Exception:
+        except Exception as e:
+            logger.error("Falha ao exportar lista para arquivo: %s", e)
             QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
 
     def remove_column_by_index(self, column_index):
