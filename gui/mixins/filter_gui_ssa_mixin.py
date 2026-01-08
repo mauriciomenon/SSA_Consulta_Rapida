@@ -785,8 +785,6 @@ class FilterGUISSAMixin:
                 active_filters.append("Derivadas em STE")
             if adv.get("derivada_is"):
                 active_filters.append("SSA derivada")
-            if adv.get("derivada_origem"):
-                active_filters.append(f"Origem: {adv.get('derivada_origem')}")
             if adv.get("macro_filter"):
                 macro_val = adv.get("macro_filter")
                 macro_label = "SSAs para baixar" if macro_val == "ssas_para_baixar" else str(macro_val)

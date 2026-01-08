@@ -571,6 +571,7 @@ DIVISAO_SETORES = {
     "SMIL": ["ILA1", "ILA2", "ILA3", "ILA4"],
     "SMMG": ["MEG1", "MEG2", "MEG3", "MEG4"],
 }
+SECTOR_TO_DIV = {sec: div for div, secs in DIVISAO_SETORES.items() for sec in secs}
 
 # Prioridade de campos para ordenacao em detalhes
 DETAIL_FIELD_PRIORITY = [
@@ -588,9 +589,11 @@ DETAIL_DISPLAY_OVERRIDES = {
     'situacao': 'Situacao',
     'semana_cadastro': 'Semana de Cadastro',
     'data_cadastro': 'Data de Cadastro',
+    'loc': 'Localizacao',
     'descricao_ssa': 'Descricao da SSA',
     'setor_executor': 'Setor Executor',
     'setor_emissor': 'Setor Emissor',
+    'responsavel_emissor': 'Responsavel Emissor',
     'solicitante': 'Solicitante',
     'servico_origem': 'Servico de Origem',
     'grau_prioridade_emissao': 'Grau de Prioridade (Emissao)',
@@ -598,6 +601,7 @@ DETAIL_DISPLAY_OVERRIDES = {
     'execucao_simples': 'Execucao Simples',
     'responsavel_programacao': 'Responsavel pela Programacao',
     'responsavel_execucao': 'Responsavel pela Execucao',
+    'num_reprogramacoes': 'Reprogramacoes',
     'semana_programada': 'Semana Programada',
     'semana_executada': 'Semana Executada',
     'prazo_limite': 'Prazo Limite',
@@ -702,7 +706,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "adv_derivada_has",
         "adv_derivada_all_ste",
         "adv_derivada_is",
-        "adv_derivada_origem",
         "adv_macro_combo",
         "adv_responsavel_solicitante_button",
         "adv_responsavel_solicitante_menu",
@@ -1490,8 +1493,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
         box = QGroupBox(title)
         layout = QHBoxLayout(box)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(2)
         button = QToolButton()
         button.setText(placeholder)
         menu = QMenu(button)
@@ -1503,6 +1506,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         button.setToolTip(placeholder)
         try:
             button.setMinimumWidth(140)
+        except Exception:
+            pass
+        try:
+            box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         except Exception:
             pass
         exclude = None
@@ -1520,22 +1527,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         def _show_menu():
             try:
-                menu_size = menu.sizeHint()
-            except Exception:
-                menu_size = None
-            try:
-                pos = button.mapToGlobal(button.rect().bottomLeft())
-                if menu_size is not None:
-                    y = pos.y() - int(menu_size.height())
-                    if y < 0:
-                        y = pos.y()
-                    pos = QPoint(pos.x(), y)
+                rect = button.rect()
+                pos = button.mapToGlobal(rect.bottomLeft())
+                try:
+                    menu_size = menu.sizeHint()
+                    screen = QApplication.primaryScreen().geometry()
+                    if menu_size and screen and pos.y() + menu_size.height() > screen.bottom():
+                        pos = button.mapToGlobal(rect.topLeft())
+                        pos.setY(pos.y() - menu_size.height())
+                except Exception:
+                    pass
                 menu.exec(pos)
                 return
-            except Exception:
-                pass
-            try:
-                menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
             except Exception:
                 pass
         try:
@@ -1610,46 +1613,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         checks = []
         exclude_checks = []
         try:
-            min_width = max(220, int(getattr(button, "width", lambda: 0)() or 0))
+            try:
+                max_label_len = max((len(str(v)) for v in values), default=4)
+            except Exception:
+                max_label_len = 4
+            computed = max_label_len * 8 + 70
+            min_width = max(int(getattr(button, "width", lambda: 0)() or 0), min(360, max(160, computed)))
             menu.setMinimumWidth(min_width)
         except Exception:
             pass
+
+        container = QWidget()
+        grid = QGridLayout(container)
+        grid.setContentsMargins(6, 4, 6, 4)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(2)
+        try:
+            grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        except Exception:
+            pass
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
+        row_idx = 0
+
         if exclude_selected_set is not None:
-            header = QWidget()
-            header_layout = QHBoxLayout(header)
-            header_layout.setContentsMargins(6, 2, 6, 2)
-            header_layout.setSpacing(8)
-            header_layout.addWidget(QLabel(""), 1)
-            label_inc = QLabel("Conter")
-            label_exc = QLabel("Diferente")
+            label_inc = QLabel("==")
+            label_exc = QLabel("!=")
             try:
                 label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception:
                 pass
-            header_layout.addWidget(label_inc)
-            header_layout.addWidget(label_exc)
-            header_act = QWidgetAction(menu)
-            header_act.setDefaultWidget(header)
+            grid.addWidget(QLabel(""), row_idx, 0)
+            grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
             try:
-                menu.addAction(header_act)
+                spacer = QSpacerItem(1, 1, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+                grid.addItem(spacer, row_idx, 3)
             except Exception:
                 pass
+            row_idx += 1
+
         for val in values:
-            row = QWidget()
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(6, 2, 6, 2)
-            row_layout.setSpacing(8)
-            label = QLabel(str(val))
+            label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
+            cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
+            label = QLabel(label_text)
+            try:
+                min_w = label.fontMetrics().horizontalAdvance("WWWW")
+                label.setMinimumWidth(min_w)
+            except Exception:
+                pass
             include_cb = QCheckBox()
             exclude_cb = QCheckBox() if exclude_selected_set is not None else None
             try:
-                include_cb.setProperty("value", str(val))
+                include_cb.setProperty("value", str(cb_value))
             except Exception:
                 pass
             if exclude_cb is not None:
                 try:
-                    exclude_cb.setProperty("value", str(val))
+                    exclude_cb.setProperty("value", str(cb_value))
                 except Exception:
                     pass
             try:
@@ -1662,24 +1686,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 except Exception:
                     pass
             try:
-                include_cb.setChecked(str(val).casefold() in selected_norm)
+                include_cb.setChecked(str(cb_value).casefold() in selected_norm)
             except Exception:
                 pass
             if exclude_cb is not None:
                 try:
-                    exclude_cb.setChecked(str(val).casefold() in exclude_norm)
+                    exclude_cb.setChecked(str(cb_value).casefold() in exclude_norm)
                 except Exception:
                     pass
-            row_layout.addWidget(label, 1)
-            row_layout.addWidget(include_cb)
+            grid.addWidget(label, row_idx, 0)
+            grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             if exclude_cb is not None:
-                row_layout.addWidget(exclude_cb)
-            act = QWidgetAction(menu)
-            act.setDefaultWidget(row)
-            try:
-                menu.addAction(act)
-            except Exception:
-                pass
+                grid.addWidget(exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
             checks.append(include_cb)
             if exclude_cb is not None:
                 exclude_checks.append(exclude_cb)
@@ -1705,11 +1724,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     exclude_cb.toggled.connect(on_exclude_toggle)
                 except Exception:
                     pass
+
+        scroll = QScrollArea()
+        scroll.setWidget(container)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        try:
+            scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
+        except Exception:
+            pass
+        try:
+            from PyQt6.QtGui import QPalette as _QPal
+            pal = (button or scroll).palette()
+            border = pal.color(_QPal.ColorRole.Mid).name()
+            bg = pal.color(_QPal.ColorRole.Base).name()
+            container.setStyleSheet(f"QWidget {{ background: {bg}; }}")
+            scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {border}; }}")
+        except Exception:
+            pass
+        try:
+            scroll.setFixedHeight(320)
+        except Exception:
+            pass
+        scroll_act = QWidgetAction(menu)
+        scroll_act.setDefaultWidget(scroll)
+        try:
+            menu.addAction(scroll_act)
+        except Exception:
+            pass
+
         if on_apply is not None:
-            try:
-                menu.addSeparator()
-            except Exception:
-                pass
             ok_btn = QPushButton("OK")
             ok_btn.setFixedWidth(60)
             ok_btn.setToolTip("Aplicar selecao e fechar")
@@ -1723,7 +1767,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
             ok_row = QWidget()
             ok_layout = QHBoxLayout(ok_row)
-            ok_layout.setContentsMargins(6, 2, 6, 6)
+            ok_layout.setContentsMargins(6, 4, 6, 6)
             ok_layout.addStretch()
             ok_layout.addWidget(ok_btn)
             ok_layout.addStretch()
@@ -1764,7 +1808,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             accent = pal.color(_QPal.ColorRole.Highlight).name()
             checkbox.setStyleSheet(
                 "QCheckBox::indicator {"
-                f" width:14px; height:14px; border:1px solid {border}; background:{bg};"
+                f" width:13px; height:13px; border:1px solid {border}; background:{bg};"
                 " }"
                 "QCheckBox::indicator:checked {"
                 f" border:1px solid {border}; background:{accent};"
@@ -1791,17 +1835,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _build_advanced_filters_panel(self):
         group = QGroupBox("Filtros Avancados")
         outer = QVBoxLayout(group)
-        outer.setContentsMargins(4, 4, 4, 4)
-        outer.setSpacing(4)
+        outer.setContentsMargins(4, 4, 4, 2)
+        outer.setSpacing(2)
 
-        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Area Executora")
-        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Area Emissora")
+        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Setor Emissor")
+        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Setor Executor")
         div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
         status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
         macro_box = QGroupBox("Macros de filtros")
         macro_layout = QHBoxLayout(macro_box)
-        macro_layout.setContentsMargins(4, 4, 4, 4)
+        macro_layout.setContentsMargins(4, 2, 4, 2)
         macro_combo = QComboBox()
+        try:
+            macro_combo.setMinimumWidth(120)
+        except Exception:
+            pass
         macro_combo.addItem("Nenhum", None)
         macro_combo.addItem("SSAs para baixar", "ssas_para_baixar")
         macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
@@ -1817,13 +1865,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         top_grid = QGridLayout()
         top_grid.setContentsMargins(0, 0, 0, 0)
         top_grid.setSpacing(4)
-        top_grid.addWidget(exec_box, 0, 0)
-        top_grid.addWidget(emis_box, 0, 1)
-        top_grid.addWidget(year_emissao_box, 0, 2)
-        top_grid.addWidget(year_execucao_box, 0, 3)
-        top_grid.addWidget(div_box, 1, 0)
-        top_grid.addWidget(status_box, 1, 1)
-        top_grid.addWidget(macro_box, 1, 2, 1, 2)
+        # Linha 1: setores + situacao
+        top_grid.addWidget(emis_box, 0, 0)
+        top_grid.addWidget(exec_box, 0, 1)
+        top_grid.addWidget(div_box, 0, 2)
+        top_grid.addWidget(status_box, 0, 3)
+        # Linha 2: anos + macros + reprogramacoes
+        top_grid.addWidget(year_emissao_box, 1, 0)
+        top_grid.addWidget(year_execucao_box, 1, 1)
+        top_grid.addWidget(macro_box, 1, 2)
+        # placeholder para reprogramacoes; sera adicionado apos construir reprog_box
         top_grid.setColumnStretch(0, 1)
         top_grid.setColumnStretch(1, 1)
         top_grid.setColumnStretch(2, 1)
@@ -1838,54 +1889,86 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         week_emissao_label = QLabel("Emissao:")
         week_emissao_start = QLineEdit()
         week_emissao_start.setPlaceholderText("Inicio")
+        try:
+            week_emissao_start.setMaxLength(6)
+            week_emissao_start.setFixedWidth(70)
+        except Exception:
+            pass
         week_emissao_end = QLineEdit()
         week_emissao_end.setPlaceholderText("Fim")
-        week_emissao_exclude = QCheckBox("Diferente")
+        try:
+            week_emissao_end.setMaxLength(6)
+            week_emissao_end.setFixedWidth(70)
+        except Exception:
+            pass
+        week_emissao_exclude = None
         week_emissao_row.addWidget(week_emissao_label)
         week_emissao_row.addWidget(week_emissao_start)
         week_emissao_row.addWidget(week_emissao_end)
-        week_emissao_row.addWidget(week_emissao_exclude)
         week_layout.addLayout(week_emissao_row)
         week_exec_row = QHBoxLayout()
         week_exec_row.setSpacing(4)
         week_exec_label = QLabel("Execucao:")
         week_exec_start = QLineEdit()
         week_exec_start.setPlaceholderText("Inicio")
+        try:
+            week_exec_start.setMaxLength(6)
+            week_exec_start.setFixedWidth(70)
+        except Exception:
+            pass
         week_exec_end = QLineEdit()
         week_exec_end.setPlaceholderText("Fim")
-        week_exec_exclude = QCheckBox("Diferente")
+        try:
+            week_exec_end.setMaxLength(6)
+            week_exec_end.setFixedWidth(70)
+        except Exception:
+            pass
+        week_exec_exclude = None
         week_exec_row.addWidget(week_exec_label)
         week_exec_row.addWidget(week_exec_start)
         week_exec_row.addWidget(week_exec_end)
-        week_exec_row.addWidget(week_exec_exclude)
         week_layout.addLayout(week_exec_row)
 
         prio_box = QGroupBox("Prioridade")
         prio_grid = QGridLayout(prio_box)
         prio_grid.setContentsMargins(4, 4, 4, 4)
         prio_grid.setSpacing(4)
-        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio Emissao")
-        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio Planejamento")
+        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prioridade Emissao")
+        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prioridade Planejamento")
+
+        # Reprogramacoes
+        reprog_box = QGroupBox("Reprogramacoes")
+        reprog_layout = QHBoxLayout(reprog_box)
+        reprog_layout.setContentsMargins(4, 2, 4, 2)
+        reprog_layout.setSpacing(4)
+        reprog_mode = QComboBox()
+        reprog_mode.addItem("Igual", "eq")
+        reprog_mode.addItem("Ate", "lte")
+        reprog_mode.addItem("Acima", "gte")
+        reprog_layout.addWidget(reprog_mode)
+        reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Selecionar", with_exclude=False)
+        try:
+            reprog_button.setFixedWidth(120)
+        except Exception:
+            pass
+        reprog_layout.addWidget(reprog_button, 1)
+        self.adv_reprog_mode = reprog_mode
+        self.adv_reprog_button = reprog_button
+        self.adv_reprog_menu = reprog_menu
+        top_grid.addWidget(reprog_box, 1, 3)
         prio_grid.addWidget(prio_emis_box, 0, 0)
         prio_grid.addWidget(prio_plan_box, 0, 1)
         prio_grid.setColumnStretch(0, 1)
         prio_grid.setColumnStretch(1, 1)
+        self.adv_reprog_checks = []
 
         deriv_box = QGroupBox("Derivadas")
-        deriv_layout = QHBoxLayout(deriv_box)
-        deriv_layout.setContentsMargins(4, 4, 4, 4)
-        deriv_layout.setSpacing(4)
+        deriv_layout = QVBoxLayout(deriv_box)
+        deriv_layout.setContentsMargins(4, 2, 4, 2)
+        deriv_layout.setSpacing(2)
         deriv_has = QCheckBox("Possui SSA derivada")
         deriv_all_ste = QCheckBox("Derivadas em STE")
         deriv_is = QCheckBox("SSA derivada")
-        deriv_origem_label = QLabel("SSA origem:")
-        deriv_origem_input = QLineEdit()
-        deriv_origem_input.setPlaceholderText("Origem")
-        deriv_origem_input.setEnabled(False)
-        try:
-            deriv_is.toggled.connect(lambda checked: self._on_derivada_is_toggled(checked))
-        except Exception:
-            pass
         try:
             deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
         except Exception:
@@ -1894,17 +1977,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         deriv_layout.addWidget(deriv_all_ste)
         deriv_layout.addWidget(deriv_is)
         deriv_layout.addStretch()
-        deriv_layout.addWidget(deriv_origem_label)
-        deriv_layout.addWidget(deriv_origem_input)
 
         resp_box = QGroupBox("Responsaveis")
         resp_grid = QGridLayout(resp_box)
         resp_grid.setContentsMargins(4, 4, 4, 4)
         resp_grid.setSpacing(4)
         sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
-        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Programacao")
-        exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Execucao")
-        emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emissao")
+        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Responsavel Programacao")
+        exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Responsavel Execucao")
+        emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Responsavel Emissao")
         resp_grid.addWidget(sol_box, 0, 0)
         resp_grid.addWidget(prog_box, 0, 1)
         resp_grid.addWidget(exec_resp_box, 0, 2)
@@ -1930,12 +2011,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         buttons_row.addStretch()
 
         outer.addLayout(top_grid)
-        week_prio_row = QHBoxLayout()
-        week_prio_row.addWidget(week_box, 2)
-        week_prio_row.addWidget(prio_box, 1)
-        outer.addLayout(week_prio_row)
-        outer.addWidget(deriv_box)
-        outer.addWidget(resp_box)
+        row3 = QHBoxLayout()
+        row3.setContentsMargins(0, 0, 0, 0)
+        row3.setSpacing(4)
+        row3.addWidget(week_box, 2)
+        row3.addWidget(prio_box, 1)
+        row3.addWidget(deriv_box, 1)
+        row3.addWidget(resp_box, 2)
+        outer.addLayout(row3)
         outer.addLayout(buttons_row)
 
         ctx = {
@@ -1962,6 +2045,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_year_execucao_button": year_execucao_button,
             "adv_year_execucao_menu": year_execucao_menu,
             "adv_year_execucao_checks": [],
+            "adv_reprog_box": reprog_box,
+            "adv_reprog_mode": reprog_mode,
+            "adv_reprog_button": reprog_button,
+            "adv_reprog_menu": reprog_menu,
+            "adv_reprog_checks": [],
             "adv_week_emissao_start": week_emissao_start,
             "adv_week_emissao_end": week_emissao_end,
             "adv_week_emissao_exclude": week_emissao_exclude,
@@ -1977,7 +2065,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_derivada_has": deriv_has,
             "adv_derivada_all_ste": deriv_all_ste,
             "adv_derivada_is": deriv_is,
-            "adv_derivada_origem": deriv_origem_input,
             "adv_responsavel_solicitante_button": sol_button,
             "adv_responsavel_solicitante_menu": sol_menu,
             "adv_responsavel_solicitante_checks": [],
@@ -2002,17 +2089,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_save_defaults_btn": save_defaults_btn,
         }
         return group, ctx
-
-    def _on_derivada_is_toggled(self, checked: bool):
-        widget = getattr(self, "adv_derivada_origem", None)
-        if widget is None:
-            return
-        try:
-            widget.setEnabled(bool(checked))
-            if not checked:
-                widget.clear()
-        except Exception:
-            pass
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
         if not checked:
@@ -2137,6 +2213,58 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
         return setores
 
+    def _sector_sort_key(self, sector: str):
+        div = SECTOR_TO_DIV.get(sector, "")
+        div_rank = 0 if div == "SMIN" else 1 if div else 2
+        return (div_rank, div.casefold(), sector.casefold())
+
+    def _sort_sectors(self, values):
+        return sorted(values, key=self._sector_sort_key)
+
+    def _sort_responsavel_values(self, df_subset, values, resp_col: str):
+        if not values:
+            return []
+        sector_cols = [c for c in ["setor_executor", "setor_emissor"] if c in df_subset.columns]
+        sector_counts = {}
+        for col in sector_cols:
+            try:
+                pairs = df_subset[[col, resp_col]].dropna()
+            except Exception:
+                continue
+            for sec, person in pairs.itertuples(index=False):
+                sec_str = str(sec).strip()
+                person_str = str(person).strip()
+                if not person_str:
+                    continue
+                sector_counts.setdefault(person_str, {})
+                sector_counts[person_str][sec_str] = sector_counts[person_str].get(sec_str, 0) + 1
+
+        def _best_sector(person):
+            counts = sector_counts.get(person, {})
+            if not counts:
+                return ""
+            return max(counts.items(), key=lambda t: (t[1], -len(t[0]), t[0].casefold()))[0]
+
+        def _key(person):
+            sec = _best_sector(person)
+            div = SECTOR_TO_DIV.get(sec, "")
+            div_rank = 0 if div == "SMIN" else 1 if div else 2
+            return (div_rank, div.casefold(), sec.casefold(), person.casefold())
+
+        ordered = sorted(values, key=_key)
+        decorated = []
+        for person in ordered:
+            sec = _best_sector(person)
+            div = SECTOR_TO_DIV.get(sec, "")
+            prefix = ""
+            if div and sec:
+                prefix = f"{div} / {sec} - "
+            elif sec:
+                prefix = f"{sec} - "
+            display = f"{prefix}{person}"
+            decorated.append((person, display))
+        return decorated
+
     def _apply_divisao_to_setor_checks(self):
         selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
         setores = self._collect_divisao_setores(selected_div)
@@ -2223,7 +2351,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 vals = df[col].dropna().astype(str).str.strip()
                 vals = vals[vals != ""]
-                return sorted(set(vals), key=lambda v: v.casefold())
+                vals = [v for v in set(vals) if v]
+                return sorted(vals, key=lambda v: v.casefold())
             except Exception:
                 return []
 
@@ -2248,23 +2377,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 setattr(self, checks_attr, [])
                 setattr(self, exclude_checks_attr, [])
                 continue
-            if not has_sector:
-                _set_enabled(button, False)
-                _set_enabled(exclude, False)
-                include_checks, exclude_checks = self._rebuild_multiselect_menu(
-                    button,
-                    menu,
-                    [],
-                    set(),
-                    None,
-                    apply_cb,
-                    set(),
-                    None,
-                )
-                setattr(self, checks_attr, include_checks)
-                setattr(self, exclude_checks_attr, exclude_checks)
-                continue
             values = _unique_sorted(col)
+            try:
+                values = self._sort_responsavel_values(df, values, col)
+            except Exception:
+                pass
             _set_enabled(button, True)
             _set_enabled(exclude, True)
             selected = set((self._advanced_filters or {}).get(col) or [])
@@ -2289,6 +2406,54 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             setattr(self, checks_attr, include_checks)
             setattr(self, exclude_checks_attr, exclude_checks)
+
+        # Reprogramacoes
+        reprog_values = cache.get("reprog_vals", [])
+        try:
+            include_checks, _ = self._rebuild_multiselect_menu(
+                getattr(self, "adv_reprog_button", None),
+                getattr(self, "adv_reprog_menu", None),
+                reprog_values,
+                set((self._advanced_filters or {}).get("num_reprogramacoes_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    getattr(self, "adv_reprog_button", None),
+                    getattr(self, "adv_reprog_checks", None),
+                ),
+                lambda *_: self._apply_advanced_filters_from_ui(),
+                None,
+                None,
+            )
+            self.adv_reprog_checks = include_checks
+            try:
+                mode = (self._advanced_filters or {}).get("num_reprogramacoes_mode")
+                if mode is not None and getattr(self, "adv_reprog_mode", None):
+                    idx = getattr(self, "adv_reprog_mode").findData(mode)
+                    if idx >= 0:
+                        getattr(self, "adv_reprog_mode").setCurrentIndex(idx)
+            except Exception:
+                pass
+        except Exception:
+            self.adv_reprog_checks = []
+
+        # Reprogramacoes
+        reprog_values = cache.get("reprog_vals", [])
+        try:
+            include_checks, _ = self._rebuild_multiselect_menu(
+                getattr(self, "adv_reprog_button", None),
+                getattr(self, "adv_reprog_menu", None),
+                reprog_values,
+                set((self._advanced_filters or {}).get("num_reprogramacoes_values") or []),
+                lambda *_: self._update_multiselect_button(
+                    getattr(self, "adv_reprog_button", None),
+                    getattr(self, "adv_reprog_checks", None),
+                ),
+                lambda *_: self._apply_advanced_filters_from_ui(),
+                None,
+                None,
+            )
+            self.adv_reprog_checks = include_checks
+        except Exception:
+            self.adv_reprog_checks = []
 
     def _clear_advanced_filters(self):
         try:
@@ -2350,8 +2515,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if data.get("semana_execucao_inicio") is not None or data.get("semana_execucao_fim") is not None:
             return True
         if data.get("derivada_has") or data.get("derivada_all_ste") or data.get("derivada_is"):
-            return True
-        if data.get("derivada_origem"):
             return True
         if data.get("macro_filter"):
             return True
@@ -2440,14 +2603,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["semana_execucao_inicio"] = None
             data["semana_execucao_fim"] = None
-        try:
-            data["semana_emissao_exclude"] = bool(getattr(self, "adv_week_emissao_exclude", None).isChecked())
-        except Exception:
-            data["semana_emissao_exclude"] = False
-        try:
-            data["semana_execucao_exclude"] = bool(getattr(self, "adv_week_execucao_exclude", None).isChecked())
-        except Exception:
-            data["semana_execucao_exclude"] = False
+        data["semana_emissao_exclude"] = False
+        data["semana_execucao_exclude"] = False
         try:
             data["derivada_has"] = bool(getattr(self, "adv_derivada_has", None).isChecked())
         except Exception:
@@ -2462,13 +2619,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
         except Exception:
             data["derivada_is"] = False
-        try:
-            origem = self.adv_derivada_origem.text().strip()
-            data["derivada_origem"] = origem or None
-            if not data.get("derivada_is"):
-                data["derivada_origem"] = None
-        except Exception:
-            data["derivada_origem"] = None
         try:
             data["solicitante"] = self._get_checked_values(getattr(self, "adv_responsavel_solicitante_checks", None))
         except Exception:
@@ -2515,6 +2665,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             data["responsavel_emissor_exclude_values"] = []
+        try:
+            data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
+        except Exception:
+            data["num_reprogramacoes_values"] = []
+        try:
+            mode_idx = getattr(self, "adv_reprog_mode", None).currentIndex()
+            data["num_reprogramacoes_mode"] = getattr(self, "adv_reprog_mode", None).itemData(mode_idx)
+        except Exception:
+            data["num_reprogramacoes_mode"] = None
         try:
             data["prioridade_emissao_values"] = self._get_checked_values(
                 getattr(self, "adv_prioridade_emissao_checks", None)
@@ -2704,13 +2863,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            if hasattr(self, "adv_week_emissao_exclude"):
-                self.adv_week_emissao_exclude.setChecked(bool(data.get("semana_emissao_exclude")))
-            if hasattr(self, "adv_week_execucao_exclude"):
-                self.adv_week_execucao_exclude.setChecked(bool(data.get("semana_execucao_exclude")))
-        except Exception:
-            pass
-        try:
             if hasattr(self, "adv_derivada_has"):
                 if data.get("derivada_all_ste"):
                     self.adv_derivada_has.setChecked(True)
@@ -2720,13 +2872,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
             if hasattr(self, "adv_derivada_is"):
                 self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
-        except Exception:
-            pass
-        try:
-            if hasattr(self, "adv_derivada_origem"):
-                value = data.get("derivada_origem") or ""
-                self.adv_derivada_origem.setText(str(value))
-                self._on_derivada_is_toggled(bool(data.get("derivada_is")))
         except Exception:
             pass
         try:
@@ -2755,6 +2900,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filters = self._advanced_filters or {}
         apply_cb = lambda: self._apply_advanced_filters_from_ui()
         cache = getattr(self, "_adv_values_cache", None)
+        df_key = (
+            len(df),
+            tuple(df.columns),
+            getattr(self, "_data_load_token", None),
+        )
+        if cache and cache.get("df_key") == df_key and not getattr(self, "_adv_options_dirty", False):
+            self._adv_options_scheduled = False
+            return
         df_id = id(df)
 
         def _unique_sorted(col):
@@ -2766,14 +2919,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return []
 
         def _sort_sector_values(values):
-            order = {"IEE": 0, "ILA": 1, "MEG": 2, "MEL": 3}
-            def _key(val):
-                text = str(val).upper()
-                for prefix, idx in order.items():
-                    if text.startswith(prefix):
-                        return (idx, text)
-                return (9, text)
-            return sorted(set(values), key=_key)
+            try:
+                return self._sort_sectors(set(values))
+            except Exception:
+                return sorted(set(values), key=lambda v: str(v).casefold())
 
         def _div_key(val):
             text = str(val).upper()
@@ -2782,7 +2931,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return (1, text)
 
         if not isinstance(cache, dict) or cache.get("df_id") != df_id:
-            cache = {"df_id": df_id}
+            cache = {"df_id": df_id, "df_key": df_key}
             cache["exec_vals"] = (
                 _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
             )
@@ -2798,7 +2947,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     parsed = series.apply(parse_any_date)
                     ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
                     years = ts.dt.year.dropna().astype(int).tolist()
-                    return sorted(set(years))
+                    return sorted(set(years), reverse=True)
                 except Exception:
                     return []
 
@@ -2806,7 +2955,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
                     years = (nums // 100).tolist()
-                    return sorted(set(years))
+                    return sorted(set(years), reverse=True)
                 except Exception:
                     return []
 
@@ -2828,6 +2977,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             cache["prio_planejamento_vals"] = (
                 _unique_sorted("grau_prioridade_planejamento") if "grau_prioridade_planejamento" in df.columns else []
             )
+            if "num_reprogramacoes" in df.columns:
+                try:
+                    reprog_series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
+                    reprog_series = reprog_series[reprog_series.apply(lambda x: pd.notna(x))]
+                    reprog_vals = reprog_series.astype(int).tolist()
+                    cache["reprog_vals"] = sorted(set(reprog_vals), reverse=True)
+                except Exception:
+                    cache["reprog_vals"] = []
+            else:
+                cache["reprog_vals"] = []
             self._adv_values_cache = cache
 
         exec_vals = cache.get("exec_vals", [])
@@ -3096,6 +3255,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             filters.get("prioridade_planejamento_values") or [],
             filters.get("prioridade_planejamento_exclude_values") or [],
         )
+        try:
+            reprog_vals = filters.get("num_reprogramacoes_values") or []
+            mode = filters.get("num_reprogramacoes_mode")
+            if reprog_vals and mode and "num_reprogramacoes" in df.columns:
+                series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
+                vals = [int(v) for v in reprog_vals if pd.notna(v)]
+                if mode == "eq":
+                    mask &= series.isin(vals)
+                elif mode == "lte":
+                    threshold = max(vals)
+                    mask &= series <= threshold
+                elif mode == "gte":
+                    threshold = min(vals)
+                    mask &= series >= threshold
+        except Exception:
+            pass
 
         def _to_int_set(values):
             result = set()
@@ -3182,20 +3357,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivada_has = bool(filters.get("derivada_has"))
         derivada_all_ste = bool(filters.get("derivada_all_ste"))
         derivada_is = bool(filters.get("derivada_is"))
-        derivada_origem = (filters.get("derivada_origem") or "").strip()
 
         if "derivada_de" in df.columns:
             series_derivada = df["derivada_de"].apply(self._normalize_ssa_value)
             has_derivada = series_derivada.ne("")
             if derivada_is:
                 mask &= has_derivada
-            if derivada_origem:
-                try:
-                    origem_norm = self._normalize_ssa_value(derivada_origem)
-                    if origem_norm:
-                        mask &= series_derivada.eq(origem_norm)
-                except Exception:
-                    pass
             if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
                 try:
                     origins = set(series_derivada[has_derivada].unique())
@@ -3656,17 +3823,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     tab_bg = pal.color(_QPal.ColorRole.Window).name()
                     tab_text = pal.color(_QPal.ColorRole.WindowText).name()
                     tab_mid = pal.color(_QPal.ColorRole.Mid).name()
+                    accent = roles.get('accent', tab_text)
+                    support_color = roles.get('support_text_color', tab_text)
                     tab_css = (
                         "QTabWidget::pane {"
                         f" border:1px solid {tab_mid};"
-                        f" background: {tab_bg};"
+                        f" background:{tab_bg};"
+                        " margin:0; padding:0;"
                         " }"
                         "QTabBar::tab {"
-                        f" color: {tab_text};"
-                        " padding:4px 10px;"
+                        f" color:{support_color}; background:{tab_bg};"
+                        " padding:4px 10px; font-weight:500; border:1px solid transparent;"
                         " }"
                         "QTabBar::tab:selected {"
-                        f" background: {tab_bg};"
+                        f" color:{tab_text}; font-weight:600; background:{tab_bg};"
+                        f" border:1px solid {accent}; border-bottom:2px solid {accent};"
+                        " margin-bottom:-1px; margin-top:1px;"
+                        " }"
+                        "QTabBar::tab:!selected {"
+                        f" color:{support_color};"
                         " }"
                     )
                     self.main_tabs.setStyleSheet(tab_css)
@@ -3763,7 +3938,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "adv_week_emissao_end",
                 "adv_week_execucao_start",
                 "adv_week_execucao_end",
-                "adv_derivada_origem",
             ]
             for name in adv_line_edits:
                 widget = getattr(self, name, None)
@@ -3840,15 +4014,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.status_label.setStyleSheet(
                     f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
                 )
-            if hasattr(self, 'main_tabs'):
-                tab_css = (
-                    "QTabBar::tab { padding:4px 10px; }"
-                    f"QTabBar::tab:selected {{ color:{txt}; border-bottom:2px solid {accent};"
-                    f" border-top:1px solid {panel_border}; border-left:1px solid {panel_border};"
-                    f" border-right:1px solid {panel_border}; margin-bottom:-1px; }}"
-                    f"QTabBar::tab:!selected {{ color:{txt}; }}"
-                )
-                self.main_tabs.setStyleSheet(tab_css)
 
             # ============================================================
             # SECTION 8: Support Text and Indicators
@@ -4454,6 +4619,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Single display-formatting entrypoint for details panel; keep format_cell here.
         # HTML is required here to keep search hit highlighting in the details panel.
         import html as html_module
+        HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 
         if font_size_pt is None:
             font_size_pt = DETAILS_DIALOG_FONT_SIZE
@@ -4466,8 +4632,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             from PyQt6.QtGui import QPalette as _QPal
             text_color = self.palette().color(_QPal.ColorRole.WindowText).name()
+            link_color = self.palette().color(_QPal.ColorRole.Highlight).name()
         except Exception:
             text_color = "#000000"
+            link_color = text_color
 
         html_lines = [f'<html><body style="font-family: monospace; font-size: {font_size_pt}pt; color: {text_color};">']
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
@@ -4483,6 +4651,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
 
         for col, value in sorted_items:
+            if col in HIDDEN_DETAIL_FIELDS:
+                continue
             # Formata valor
             formatted_value = format_cell(value, col)
 
@@ -4508,25 +4678,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
 
         try:
-            derivada_origem = format_cell(series.get("derivada_de"), "derivada_de")
-        except Exception:
-            derivada_origem = ""
-        if derivada_origem:
-            if linkify:
-                href = self._normalize_ssa_value(derivada_origem)
-                display = html_module.escape(derivada_origem)
-                origem_text = f'<a href="ssa://{href}">{display}</a>'
-            elif highlight_search_terms and search_terms:
-                origem_text = self._highlight_text(derivada_origem, search_terms)
-            else:
-                origem_text = html_module.escape(derivada_origem)
-            html_lines.append(
-                f'<tr>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">SSA origem:</td>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{origem_text}</td>'
-                f'</tr>'
-            )
-        try:
             derived_list = self._get_derivadas_for_ssa(series.get("numero_ssa"))
         except Exception:
             derived_list = []
@@ -4536,7 +4687,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 for item in derived_list:
                     href = self._normalize_ssa_value(item)
                     display = html_module.escape(item)
-                    items.append(f'<a href="ssa://{href}">{display}</a>')
+                    items.append(
+                        f'<a href="ssa://{href}" style="color:{link_color}; text-decoration:none; border-bottom: 1px solid {link_color};">'
+                        f'{display}</a>'
+                    )
                 derived_text = ", ".join(items)
             else:
                 derived_text = ", ".join(derived_list)
@@ -4683,6 +4837,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
         lines = []
         for col, value in sorted_items:
+            if col in {"id", "derivada_de"}:
+                continue
             formatted_value = format_cell(value, col)
             if not formatted_value:
                 continue
