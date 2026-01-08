@@ -1931,20 +1931,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
 
         # Botoes OK e Cancelar - OK sempre a direita
+        # OTIMIZACAO 2026-01-08: OK apenas fecha o menu, NAO aplica filtro
+        # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle)
         if on_apply is not None:
             cancel_btn = QPushButton("Cancelar")
             cancel_btn.setFixedWidth(70)
             cancel_btn.setToolTip("Fechar sem aplicar")
             ok_btn = QPushButton("OK")
             ok_btn.setFixedWidth(70)
-            ok_btn.setToolTip("Aplicar selecao e fechar")
+            ok_btn.setToolTip("Confirmar selecao (use botao Aplicar para filtrar)")
             try:
                 cancel_btn.clicked.connect(menu.close)
             except Exception:
                 pass
             try:
                 ok_btn.clicked.connect(menu.close)
-                ok_btn.clicked.connect(on_apply)
+                # REMOVIDO: ok_btn.clicked.connect(on_apply)
+                # Agora o filtro so e aplicado pelo botao "Aplicar" geral
             except Exception:
                 pass
             ok_row = QWidget()
