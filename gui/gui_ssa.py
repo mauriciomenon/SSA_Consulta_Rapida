@@ -1316,7 +1316,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             bottom_layout.addWidget(right_col_widget, 3)
         else:
             right_col.addWidget(col_filters_group)
-            bottom_layout.addWidget(right_col_widget, 5)
+            # CORRECAO 2026-01-08: Aba SSAs com proporcao 50/50 (igual stretch)
+            # Detalhes ja tem stretch=2, filtros coluna tambem com stretch=2
+            bottom_layout.addWidget(right_col_widget, 2)
 
         tab_layout.addSpacing(12)
         tab_layout.addLayout(bottom_layout)
@@ -1706,9 +1708,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             grid.addWidget(header_sep, row_idx, 0, 1, col_span)
             row_idx += 1
 
-        # Estilo para checkboxes: == com destaque (borda escura), != sem destaque (invertido)
-        cb_style_include = "QCheckBox::indicator { background-color: #f0f0f0; border: 1px solid #888; border-radius: 2px; }"
-        cb_style_exclude = "QCheckBox::indicator { background-color: #f5f5f5; border: 1px solid #bbb; border-radius: 2px; }"
+        # Estilo para checkboxes com indicacao visual clara quando marcados
+        # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual
+        cb_style_include = """
+            QCheckBox::indicator {
+                background-color: #f0f0f0;
+                border: 1px solid #888;
+                border-radius: 2px;
+                width: 13px;
+                height: 13px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4a90d9;
+                border: 1px solid #2a70b9;
+                image: none;
+            }
+            QCheckBox::indicator:checked::after {
+                content: "";
+            }
+        """
+        cb_style_exclude = """
+            QCheckBox::indicator {
+                background-color: #f5f5f5;
+                border: 1px solid #bbb;
+                border-radius: 2px;
+                width: 13px;
+                height: 13px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #d94a4a;
+                border: 1px solid #b92a2a;
+                image: none;
+            }
+        """
 
         for val in values:
             label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
