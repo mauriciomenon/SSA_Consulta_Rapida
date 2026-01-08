@@ -855,7 +855,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_options_dirty = True
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
-        
+
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
         self._sector_debounce_timer = None
         self._sector_debounce_delay = 300  # ms
@@ -897,7 +897,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        
+
 
         # --- Barra de Ferramentas Superior ---
         toolbar_layout = QHBoxLayout()
@@ -1633,7 +1633,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
         checks = []
         exclude_checks = []
-        
+
         # Obter nome do filtro do titulo do GroupBox pai (subindo na hierarquia)
         filter_name = ""
         try:
@@ -1648,7 +1648,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 parent = parent.parent()
         except Exception:
             pass
-        
+
         try:
             try:
                 max_label_len = max((len(str(v)) for v in values), default=4)
@@ -1682,7 +1682,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
             grid.addWidget(label_filter, row_idx, 0)
-            
+
             if exclude_selected_set is not None:
                 label_inc = QLabel("==")
                 label_exc = QLabel("!=")
@@ -1697,7 +1697,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
                 grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
             row_idx += 1
-            
+
             # Separador entre header e conteudo
             header_sep = QFrame()
             header_sep.setFrameShape(QFrame.Shape.HLine)
@@ -1781,18 +1781,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             separator.setFrameShadow(QFrame.Shadow.Sunken)
             grid.addWidget(separator, row_idx, 0, 1, 3)
             row_idx += 1
-            
+
             # Selecionar/Desmarcar ao fim da lista
             select_all_include = QCheckBox()
             deselect_all_include = QCheckBox()
             select_all_exclude = QCheckBox()
             deselect_all_exclude = QCheckBox()
-            
+
             for cb in [select_all_include, deselect_all_include]:
                 cb.setStyleSheet(cb_style_include)
             for cb in [select_all_exclude, deselect_all_exclude]:
                 cb.setStyleSheet(cb_style_exclude)
-            
+
             label_select = QLabel("Selecionar tudo")
             label_deselect = QLabel("Desmarcar tudo")
             try:
@@ -1800,12 +1800,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 label_deselect.setStyleSheet("font-size: 11px;")
             except Exception:
                 pass
-            
+
             grid.addWidget(label_select, row_idx, 0)
             grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
             row_idx += 1
-            
+
             grid.addWidget(label_deselect, row_idx, 0)
             grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -1848,7 +1848,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(False)
                 if on_toggle:
                     on_toggle()
-            
+
             def _deselect_all_include():
                 for cb in checks:
                     cb.blockSignals(True)
@@ -1856,7 +1856,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(False)
                 if on_toggle:
                     on_toggle()
-            
+
             def _select_all_exclude():
                 for cb in exclude_checks:
                     cb.blockSignals(True)
@@ -1864,7 +1864,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(False)
                 if on_exclude_toggle:
                     on_exclude_toggle()
-            
+
             def _deselect_all_exclude():
                 for cb in exclude_checks:
                     cb.blockSignals(True)
@@ -1872,7 +1872,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(False)
                 if on_exclude_toggle:
                     on_exclude_toggle()
-            
+
             try:
                 select_all_include.toggled.connect(lambda checked: _select_all_include() if checked else None)
                 deselect_all_include.toggled.connect(lambda checked: _deselect_all_include() if checked else None)
@@ -1951,7 +1951,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         outer = QVBoxLayout(group)
         outer.setContentsMargins(2, 2, 2, 2)
         outer.setSpacing(2)
-        
+
         # Container para grid (preparado para scroll futuro)
         grid_container = QWidget()
         grid_container_layout = QVBoxLayout(grid_container)
@@ -2106,11 +2106,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_grid.addWidget(emis_resp_box, 2, 5)
         for col in range(6):
             main_grid.setColumnStretch(col, 1)
-        
+
         # Adiciona grid ao container
         grid_container_layout.addLayout(main_grid)
         outer.addWidget(grid_container, 1)
-        
+
         # Armazena referencia ao grid para reorganizacao responsiva
         self._adv_filters_main_grid = main_grid
         self._adv_filters_grid_widgets = {
@@ -2236,7 +2236,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
             if df is None or df.empty:
                 return
-            
+
             # Buscar coluna de derivada_de
             derivada_col = None
             numero_col = None
@@ -2246,14 +2246,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     derivada_col = col
                 elif "numero" in col_lower and "ssa" in col_lower:
                     numero_col = col
-            
+
             if derivada_col is None or numero_col is None:
                 return
-            
+
             # Construir mapeamento mae -> filhas
             mae_filhas = {}  # mae -> [filhas]
             filha_mae = {}   # filha -> mae
-            
+
             for _, row in df.iterrows():
                 numero = str(row.get(numero_col, "")).strip()
                 derivada_de = str(row.get(derivada_col, "")).strip()
@@ -2262,13 +2262,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if derivada_de not in mae_filhas:
                         mae_filhas[derivada_de] = []
                     mae_filhas[derivada_de].append(numero)
-            
+
             if not mae_filhas and not filha_mae:
                 return
-            
+
             # Construir texto
             lines = []
-            
+
             # Derivadas (maes com suas filhas)
             if mae_filhas:
                 lines.append("Derivadas")
@@ -2284,25 +2284,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         else:
                             filhas_str_parts.append(f)
                     lines.append(f"{mae} -> {', '.join(filhas_str_parts)}")
-            
+
             lines.append("")
-            
+
             # SSA de origem (filhas com suas maes)
             if filha_mae:
                 lines.append("SSA de origem")
                 for filha in sorted(filha_mae.keys()):
                     mae = filha_mae[filha]
                     lines.append(f"{filha} -> {mae}")
-            
+
             text = "\n".join(lines)
-            
+
             # Criar dialogo com texto copiavel e pesquisavel
             from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
             dialog = QDialog(self)
             dialog.setWindowTitle("Arvore de Derivadas")
             dialog.setMinimumSize(500, 400)
             layout = QVBoxLayout(dialog)
-            
+
             text_edit = QTextEdit()
             text_edit.setPlainText(text)
             text_edit.setReadOnly(True)
@@ -2311,11 +2311,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
             layout.addWidget(text_edit)
-            
+
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
             buttons.rejected.connect(dialog.close)
             layout.addWidget(buttons)
-            
+
             dialog.exec()
         except Exception as e:
             logger.warning("Erro ao mostrar popup de derivadas: %s", e)
@@ -2326,23 +2326,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
             if btn is None:
                 return
-            
+
             df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
             if df is None or df.empty:
                 btn.setEnabled(False)
                 return
-            
+
             # Verificar se existe coluna derivada_de com valores
             derivada_col = None
             for col in df.columns:
                 if "derivada" in col.lower():
                     derivada_col = col
                     break
-            
+
             if derivada_col is None:
                 btn.setEnabled(False)
                 return
-            
+
             # Verificar se ha valores nao nulos
             has_derivadas = df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().any()
             btn.setEnabled(bool(has_derivadas))
@@ -2392,16 +2392,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Reorganiza grid de filtros avancados baseado na largura disponivel."""
         if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
             return
-        
+
         grid = self._adv_filters_main_grid
         w = self._adv_filters_grid_widgets
-        
+
         # Remove todos os widgets do grid
         while grid.count():
             item = grid.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
-        
+
         # Define layout baseado na largura
         # Largura > 1400px: Grid 6x3 (layout original denso)
         if width > 1400:
@@ -2424,7 +2424,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             grid.addWidget(w["emis_resp_box"], 2, 5)
             for col in range(6):
                 grid.setColumnStretch(col, 1)
-        
+
         # Largura 900-1400px: Grid 3x6 (meio termo)
         elif width > 900:
             grid.addWidget(w["emis_box"], 0, 0)
@@ -2446,7 +2446,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             grid.addWidget(w["emis_resp_box"], 5, 2)
             for col in range(3):
                 grid.setColumnStretch(col, 1)
-        
+
         # Largura < 900px: Grid 2x9 (mais vertical)
         else:
             grid.addWidget(w["emis_box"], 0, 0)
@@ -2531,14 +2531,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             pass
-        
+
         # Debounce: cancela timer anterior e agenda novo refresh
         if self._sector_debounce_timer is not None:
             try:
                 self._sector_debounce_timer.stop()
             except Exception:
                 pass
-        
+
         try:
             from PyQt6.QtCore import QTimer
             self._sector_debounce_timer = QTimer()
@@ -2790,7 +2790,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
         except Exception:
             self.adv_reprog_checks = []
-        
+
         # SSAs Derivadas Específicas (novo filtro granular)
         adv_cache = getattr(self, "_adv_values_cache", {}) or {}
         derivadas_numbers = adv_cache.get("derivadas_vals", [])
@@ -3256,7 +3256,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         logger.debug(f"_refresh_advanced_filter_options: iniciando com {len(df)} registros")
         filters = self._advanced_filters or {}
         apply_cb = lambda: self._apply_advanced_filters_from_ui()
-        
+
         # Cache granular: permite invalidacao parcial por tipo de filtro
         cache = getattr(self, "_adv_values_cache", None)
         df_key = (
@@ -3264,14 +3264,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             tuple(df.columns),
             getattr(self, "_data_load_token", None),
         )
-        
+
         # Verifica se pode reutilizar cache completo
         if cache and cache.get("df_key") == df_key and not getattr(self, "_adv_options_dirty", False):
             self._adv_options_scheduled = False
             return
-        
+
         df_id = id(df)
-        
+
         # Inicializa cache granular se necessário
         if not isinstance(cache, dict) or cache.get("df_id") != df_id:
             cache = {"df_id": df_id, "df_key": df_key}
@@ -3740,7 +3740,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             has_derivada = series_derivada.ne("")
             if derivada_is:
                 mask &= has_derivada
-            
+
             if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
                 try:
                     origins = set(series_derivada[has_derivada].unique())
@@ -3967,7 +3967,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             super().resizeEvent(event)
         except Exception:
             pass
-        
+
         # Reorganiza grid de filtros avancados se estiver na aba Filtros
         try:
             if getattr(self, "_current_tab_kind", None) == "filters":
@@ -3976,7 +3976,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self._reorganize_advanced_filters_grid(width)
         except Exception:
             pass
-    
+
     def eventFilter(self, obj, event):
         try:
             header = self.table_widget.horizontalHeader()
