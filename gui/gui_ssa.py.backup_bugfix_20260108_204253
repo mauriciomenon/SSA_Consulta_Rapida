@@ -1535,8 +1535,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         menu = QMenu(button)
         try:
             menu.setMaximumHeight(360)
-            # BUGFIX 2026-01-08: Prevenir fechamento automatico ao clicar
-            menu.setWindowFlags(menu.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         except Exception:
             pass
         self._attach_multiselect_menu(button, menu)
@@ -1691,10 +1689,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
-        
-        # BUGFIX 2026-01-08: Prevenir fechamento do menu ao clicar em checkboxes
-        container.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        
         row_idx = 0
 
         # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
@@ -1804,18 +1798,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             checks.append(include_cb)
             if exclude_cb is not None:
                 exclude_checks.append(exclude_cb)
-            # BUGFIX 2026-01-08: Prevenir loops de sinais em mutuamente exclusivos
             if exclude_cb is not None:
                 def _toggle_include(checked, other=exclude_cb):
                     if checked and other.isChecked():
-                        other.blockSignals(True)
                         other.setChecked(False)
-                        other.blockSignals(False)
                 def _toggle_exclude(checked, other=include_cb):
                     if checked and other.isChecked():
-                        other.blockSignals(True)
                         other.setChecked(False)
-                        other.blockSignals(False)
                 try:
                     include_cb.toggled.connect(_toggle_include)
                     exclude_cb.toggled.connect(_toggle_exclude)
