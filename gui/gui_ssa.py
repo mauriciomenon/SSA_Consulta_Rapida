@@ -2837,24 +2837,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self._adv_values_cache = adv_cache
             except Exception:
                 pass
-        
-        try:
-            include_checks, _ = self._rebuild_multiselect_menu(
-                getattr(self, "adv_derivadas_especificas_button", None),
-                getattr(self, "adv_derivadas_especificas_menu", None),
-                derivadas_numbers,
-                set((self._advanced_filters or {}).get("derivadas_especificas_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    getattr(self, "adv_derivadas_especificas_button", None),
-                    getattr(self, "adv_derivadas_especificas_checks", None),
-                ),
-                lambda *_: self._apply_advanced_filters_from_ui(),
-                None,
-                None,
-            )
-            self.adv_derivadas_especificas_checks = include_checks
-        except Exception:
-            self.adv_derivadas_especificas_checks = []
 
     def _clear_advanced_filters(self):
         try:
@@ -3020,12 +3002,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
         except Exception:
             data["derivada_is"] = False
-        try:
-            data["derivadas_especificas_values"] = self._get_checked_values(
-                getattr(self, "adv_derivadas_especificas_checks", None)
-            )
-        except Exception:
-            data["derivadas_especificas_values"] = []
+        # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
         try:
             data["solicitante"] = self._get_checked_values(getattr(self, "adv_responsavel_solicitante_checks", None))
         except Exception:
@@ -3787,7 +3764,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivada_has = bool(filters.get("derivada_has"))
         derivada_all_ste = bool(filters.get("derivada_all_ste"))
         derivada_is = bool(filters.get("derivada_is"))
-        derivadas_especificas = filters.get("derivadas_especificas_values") or []
 
         if "derivada_de" in df.columns:
             series_derivada = df["derivada_de"].apply(self._normalize_ssa_value)
@@ -3795,15 +3771,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if derivada_is:
                 mask &= has_derivada
             
-            # Novo: filtro granular por SSAs derivadas específicas
-            if derivadas_especificas and "numero_ssa" in df.columns:
-                try:
-                    selected_origins = {self._normalize_ssa_value(v) for v in derivadas_especificas if str(v).strip()}
-                    numero_norm = df["numero_ssa"].apply(self._normalize_ssa_value)
-                    mask &= numero_norm.isin(selected_origins)
-                except Exception:
-                    pass
-            elif (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
+            if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
                 try:
                     origins = set(series_derivada[has_derivada].unique())
                 except Exception:
