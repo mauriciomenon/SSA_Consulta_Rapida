@@ -1840,17 +1840,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
         # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals
-        # CORRECAO 2026-01-08: Reset do checkbox apos acao para feedback visual correto
         if exclude_selected_set is not None:
             def _select_all_include():
                 for cb in checks:
                     cb.blockSignals(True)
                     cb.setChecked(True)
                     cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                select_all_include.blockSignals(True)
-                select_all_include.setChecked(False)
-                select_all_include.blockSignals(False)
                 if on_toggle:
                     on_toggle()
 
@@ -1859,10 +1854,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(True)
                     cb.setChecked(False)
                     cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                deselect_all_include.blockSignals(True)
-                deselect_all_include.setChecked(False)
-                deselect_all_include.blockSignals(False)
                 if on_toggle:
                     on_toggle()
 
@@ -1871,10 +1862,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(True)
                     cb.setChecked(True)
                     cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                select_all_exclude.blockSignals(True)
-                select_all_exclude.setChecked(False)
-                select_all_exclude.blockSignals(False)
                 if on_exclude_toggle:
                     on_exclude_toggle()
 
@@ -1883,10 +1870,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     cb.blockSignals(True)
                     cb.setChecked(False)
                     cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                deselect_all_exclude.blockSignals(True)
-                deselect_all_exclude.setChecked(False)
-                deselect_all_exclude.blockSignals(False)
                 if on_exclude_toggle:
                     on_exclude_toggle()
 
@@ -2639,11 +2622,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return decorated
 
     def _apply_divisao_to_setor_checks(self):
-        """Aplica selecao de divisao aos checkboxes de setor.
-        
-        CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
-        de signals que causava travamento da interface.
-        """
         selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
         setores = self._collect_divisao_setores(selected_div)
         if not setores:
@@ -2654,17 +2632,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for cb in getattr(self, "adv_executor_checks", None) or []:
                 try:
                     if cb.text().casefold() in setores_norm:
-                        cb.blockSignals(True)
                         cb.setChecked(True)
-                        cb.blockSignals(False)
                 except Exception:
                     pass
             for cb in getattr(self, "adv_emissor_checks", None) or []:
                 try:
                     if cb.text().casefold() in setores_norm:
-                        cb.blockSignals(True)
                         cb.setChecked(True)
-                        cb.blockSignals(False)
                 except Exception:
                     pass
         finally:
@@ -5160,13 +5134,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         layout = QVBoxLayout(dialog)
 
         # Texto formatado com HTML
-        # CORRECAO 2026-01-08: linkify=True e conectar anchorClicked para navegacao funcionar
         text_browser = QTextBrowser()
         text_browser.setOpenExternalLinks(False)
-        text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
 
-        # Formata conteudo com links clicaveis
-        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
+        # Formata conteudo
+        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=False)
         text_browser.setHtml(html_content)
 
         layout.addWidget(text_browser)
