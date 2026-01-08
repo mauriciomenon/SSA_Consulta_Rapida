@@ -1931,26 +1931,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
         return ""
 
-    def _style_menu_checkbox(self, checkbox, base_widget=None):
-        if checkbox is None:
-            return
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            pal = (base_widget or checkbox).palette()
-            border = pal.color(_QPal.ColorRole.Mid).name()
-            bg = pal.color(_QPal.ColorRole.Base).name()
-            accent = pal.color(_QPal.ColorRole.Highlight).name()
-            checkbox.setStyleSheet(
-                "QCheckBox::indicator {"
-                f" width:13px; height:13px; border:1px solid {border}; background:{bg};"
-                " }"
-                "QCheckBox::indicator:checked {"
-                f" border:1px solid {border}; background:{accent};"
-                " }"
-            )
-        except Exception:
-            pass
-
     def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None, exclude_selected=None):
         selected_set = {str(v).casefold() for v in (selected or [])}
         for cb in checks or []:
@@ -2129,16 +2109,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         
         # Adiciona grid ao container
         grid_container_layout.addLayout(main_grid)
-        
-        # Scroll area vertical (preparado para uso futuro)
-        # scroll_area = QScrollArea()
-        # scroll_area.setWidgetResizable(True)
-        # scroll_area.setWidget(grid_container)
-        # scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # outer.addWidget(scroll_area, 1)
-        
-        # Por enquanto, adiciona grid diretamente (sem scroll)
         outer.addWidget(grid_container, 1)
         
         # Armazena referencia ao grid para reorganizacao responsiva
