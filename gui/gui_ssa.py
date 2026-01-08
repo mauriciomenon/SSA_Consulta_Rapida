@@ -1598,12 +1598,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text = f"{len(selected)} selecionados"
         try:
             button.setText(text)
+            # Esmaecimento visual para botoes sem dados
+            if total == 0:
+                button.setEnabled(False)
+                button.setStyleSheet("color: #888; background-color: #f0f0f0;")
+            else:
+                button.setEnabled(True)
+                button.setStyleSheet("")  # Remove estilo customizado
             if selected or excluded:
                 button.setToolTip(
                     "Incluir: " + ", ".join(selected) + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
                 )
             else:
-                button.setToolTip(placeholder)
+                button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
         except Exception:
             pass
 
@@ -1639,9 +1646,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         container = QWidget()
         grid = QGridLayout(container)
-        grid.setContentsMargins(6, 4, 6, 4)
+        grid.setContentsMargins(6, 4, 14, 4)  # 14px direita para barra de rolagem
         grid.setHorizontalSpacing(6)
-        grid.setVerticalSpacing(2)
+        grid.setVerticalSpacing(4)
         try:
             grid.setAlignment(Qt.AlignmentFlag.AlignTop)
         except Exception:
@@ -1652,15 +1659,58 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.setColumnStretch(3, 1)
         row_idx = 0
 
+        # Adicionar linha de Selecionar Tudo / Desmarcar Tudo
         if exclude_selected_set is not None:
+            # Criar checkboxes de Selecionar/Desmarcar Tudo para coluna Include
+            select_all_include = QCheckBox()
+            deselect_all_include = QCheckBox()
+            select_all_include.setToolTip("Selecionar Tudo")
+            deselect_all_include.setToolTip("Desmarcar Tudo")
+            
+            # Criar checkboxes de Selecionar/Desmarcar Tudo para coluna Exclude  
+            select_all_exclude = QCheckBox()
+            deselect_all_exclude = QCheckBox()
+            select_all_exclude.setToolTip("Selecionar Tudo")
+            deselect_all_exclude.setToolTip("Desmarcar Tudo")
+            
+            # Labels
+            label_select = QLabel("Selecionar")
+            label_deselect = QLabel("Desmarcar")
+            
+            grid.addWidget(label_select, row_idx, 0)
+            grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
+            
+            grid.addWidget(label_deselect, row_idx, 0)
+            grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
+            
+            # Separador
+            separator = QFrame()
+            separator.setFrameShape(QFrame.Shape.HLine)
+            separator.setFrameShadow(QFrame.Shadow.Sunken)
+            grid.addWidget(separator, row_idx, 0, 1, 4)
+            row_idx += 1
+
+        if exclude_selected_set is not None:
+            # Label do filtro no header
+            filter_name = ""
+            try:
+                filter_name = button.text() if button and button.text() not in ["Selecionar", "Sem dados", "Todos"] else ""
+            except Exception:
+                pass
+            label_filter = QLabel(filter_name)
             label_inc = QLabel("==")
             label_exc = QLabel("!=")
             try:
+                label_filter.setStyleSheet("font-weight: bold;")
                 label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception:
                 pass
-            grid.addWidget(QLabel(""), row_idx, 0)
+            grid.addWidget(label_filter, row_idx, 0)
             grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
             try:
@@ -1767,10 +1817,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+        # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals para evitar loops
+        if exclude_selected_set is not None:
+            def _select_all_include():
+                for cb in checks:
+                    cb.blockSignals(True)
+                    cb.setChecked(True)
+                    cb.blockSignals(False)
+                if on_toggle:
+                    on_toggle()
+            
+            def _deselect_all_include():
+                for cb in checks:
+                    cb.blockSignals(True)
+                    cb.setChecked(False)
+                    cb.blockSignals(False)
+                if on_toggle:
+                    on_toggle()
+            
+            def _select_all_exclude():
+                for cb in exclude_checks:
+                    cb.blockSignals(True)
+                    cb.setChecked(True)
+                    cb.blockSignals(False)
+                if on_exclude_toggle:
+                    on_exclude_toggle()
+            
+            def _deselect_all_exclude():
+                for cb in exclude_checks:
+                    cb.blockSignals(True)
+                    cb.setChecked(False)
+                    cb.blockSignals(False)
+                if on_exclude_toggle:
+                    on_exclude_toggle()
+            
+            try:
+                select_all_include.toggled.connect(lambda checked: _select_all_include() if checked else None)
+                deselect_all_include.toggled.connect(lambda checked: _deselect_all_include() if checked else None)
+                select_all_exclude.toggled.connect(lambda checked: _select_all_exclude() if checked else None)
+                deselect_all_exclude.toggled.connect(lambda checked: _deselect_all_exclude() if checked else None)
+            except Exception:
+                pass
+
         if on_apply is not None:
             ok_btn = QPushButton("OK")
             ok_btn.setFixedWidth(60)
             ok_btn.setToolTip("Aplicar selecao e fechar")
+            cancel_btn = QPushButton("Cancelar")
+            cancel_btn.setFixedWidth(60)
+            cancel_btn.setToolTip("Fechar sem aplicar")
             try:
                 ok_btn.clicked.connect(menu.close)
             except Exception:
@@ -1779,11 +1874,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 ok_btn.clicked.connect(on_apply)
             except Exception:
                 pass
+            try:
+                cancel_btn.clicked.connect(menu.close)
+            except Exception:
+                pass
             ok_row = QWidget()
             ok_layout = QHBoxLayout(ok_row)
             ok_layout.setContentsMargins(6, 4, 6, 6)
             ok_layout.addStretch()
             ok_layout.addWidget(ok_btn)
+            ok_layout.addSpacing(8)
+            ok_layout.addWidget(cancel_btn)
             ok_layout.addStretch()
             ok_act = QWidgetAction(menu)
             ok_act.setDefaultWidget(ok_row)
@@ -1862,19 +1963,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
         div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
         status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
-        year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box("Ano Emis", with_exclude=False)
-        year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box("Ano Exec", with_exclude=False)
+        year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box("Ano Emissao", with_exclude=False)
+        year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box("Ano Execucao", with_exclude=False)
 
-        reprog_box = QGroupBox("Reprog")
+        reprog_box = QGroupBox("Reprogramacoes")
         reprog_layout = QHBoxLayout(reprog_box)
         reprog_layout.setContentsMargins(2, 1, 2, 1)
         reprog_layout.setSpacing(2)
         reprog_mode = QComboBox()
-        reprog_mode.addItem("=", "eq")
-        reprog_mode.addItem("<=", "lte")
-        reprog_mode.addItem(">=", "gte")
+        reprog_mode.addItem("= Igual", "eq")
+        reprog_mode.addItem("<= Menor", "lte")
+        reprog_mode.addItem(">= Maior", "gte")
         try:
-            reprog_mode.setFixedWidth(50)
+            reprog_mode.setFixedWidth(80)
         except Exception:
             pass
         reprog_layout.addWidget(reprog_mode)
@@ -1889,8 +1990,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.adv_reprog_menu = reprog_menu
         self.adv_reprog_checks = []
 
-        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio Emis")
-        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio Plan")
+        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio. Emissao")
+        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio. Planejamento")
 
         deriv_box = QGroupBox("Derivadas")
         deriv_layout = QHBoxLayout(deriv_box)
@@ -1907,6 +2008,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivadas_select_btn.setToolTip("Selecionar SSAs derivadas especificas")
         derivadas_menu = QMenu(derivadas_select_btn)
         try:
+            deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
             deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
         except Exception:
             pass
@@ -1916,7 +2018,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         deriv_layout.addWidget(derivadas_select_btn)
         deriv_layout.addStretch()
 
-        week_emis_box = QGroupBox("Sem Emis")
+        week_emis_box = QGroupBox("Emissao (AnoSemana)")
         week_emis_layout = QHBoxLayout(week_emis_box)
         week_emis_layout.setContentsMargins(2, 1, 2, 1)
         week_emis_layout.setSpacing(2)
@@ -1938,7 +2040,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         week_emis_layout.addWidget(week_emissao_start)
         week_emis_layout.addWidget(week_emissao_end)
 
-        week_exec_box = QGroupBox("Sem Exec")
+        week_exec_box = QGroupBox("Execucao (AnoSemana)")
         week_exec_layout = QHBoxLayout(week_exec_box)
         week_exec_layout.setContentsMargins(2, 1, 2, 1)
         week_exec_layout.setSpacing(2)
@@ -2044,7 +2146,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         buttons_row.addWidget(save_defaults_btn)
         buttons_row.addStretch()
 
-        outer.addLayout(main_grid)
         outer.addLayout(buttons_row)
 
         ctx = {
@@ -2118,6 +2219,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_save_defaults_btn": save_defaults_btn,
         }
         return group, ctx
+
+    def _on_derivada_has_toggled(self, checked: bool):
+        """Quando 'Tem' é desmarcado, 'STE' também deve ser desmarcado."""
+        if not checked:
+            try:
+                if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
+                    self.adv_derivada_all_ste.setChecked(False)
+            except Exception:
+                pass
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
         if not checked:
@@ -2535,7 +2645,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             setattr(self, exclude_checks_attr, exclude_checks)
 
         # Reprogramacoes (código duplicado removido)
-        reprog_values = cache.get("reprog_vals", [])
+        reprog_values = getattr(self, "_adv_values_cache", {}).get("reprog_vals", [])
         try:
             include_checks, _ = self._rebuild_multiselect_menu(
                 getattr(self, "adv_reprog_button", None),
@@ -2563,9 +2673,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.adv_reprog_checks = []
         
         # SSAs Derivadas Específicas (novo filtro granular)
-        derivadas_numbers = cache.get("derivadas_vals", [])
+        adv_cache = getattr(self, "_adv_values_cache", {}) or {}
+        derivadas_numbers = adv_cache.get("derivadas_vals", [])
         if not derivadas_numbers:
-            # Extrai números únicos de SSAs derivadas se não estiver em cache
+            # Extrai numeros unicos de SSAs derivadas se nao estiver em cache
             try:
                 if "derivada_de" in df.columns:
                     derivadas_series = df["derivada_de"].apply(self._normalize_ssa_value)
@@ -2573,7 +2684,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         {v for v in derivadas_series.unique() if v and str(v).strip()},
                         key=lambda x: str(x).casefold()
                     )
-                    cache["derivadas_vals"] = derivadas_numbers
+                    adv_cache["derivadas_vals"] = derivadas_numbers
+                    self._adv_values_cache = adv_cache
             except Exception:
                 pass
         
@@ -3039,15 +3151,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
     def _refresh_advanced_filter_options(self):
-        """Atualiza opções de filtros avançados com cache granular otimizado."""
+        """Atualiza opcoes de filtros avancados com cache granular otimizado."""
         if self.df_completo is None or self.df_completo.empty:
+            logger.debug("_refresh_advanced_filter_options: df_completo vazio ou None")
             return
         start = perf_counter()
         df = self.df_completo
+        logger.debug(f"_refresh_advanced_filter_options: iniciando com {len(df)} registros")
         filters = self._advanced_filters or {}
         apply_cb = lambda: self._apply_advanced_filters_from_ui()
         
-        # Cache granular: permite invalidação parcial por tipo de filtro
+        # Cache granular: permite invalidacao parcial por tipo de filtro
         cache = getattr(self, "_adv_values_cache", None)
         df_key = (
             len(df),
@@ -3087,8 +3201,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return (0, text)
             return (1, text)
 
-        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
-            cache = {"df_id": df_id, "df_key": df_key}
+        # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
+        if cache.get("exec_vals") is None:
             cache["exec_vals"] = (
                 _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
             )
@@ -3149,6 +3263,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 cache["reprog_vals"] = []
             self._adv_values_cache = cache
+            logger.debug(f"_refresh_advanced_filter_options: cache populado - exec={len(cache.get('exec_vals', []))}, emis={len(cache.get('emis_vals', []))}, status={len(cache.get('status_vals', []))}")
 
         exec_vals = cache.get("exec_vals", [])
         emis_vals = cache.get("emis_vals", [])
