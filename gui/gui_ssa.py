@@ -5188,7 +5188,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return '\n'.join(html_lines)
 
     def on_table_double_click(self, index):
-        """Mostra janela de detalhes formatada ao duplo clique."""
+        """
+        Abre SSA na aba Detalhes ao duplo clique.
+        UIREFACTOR 2026-01-08: Agora abre na aba Detalhes em vez de dialog.
+        """
+        row = index.row()
+        index_item = self.table_widget.item(row, 0)
+        if not index_item:
+            return
+        original_index = index_item.data(Qt.ItemDataRole.UserRole)
+        if original_index is None or not (0 <= original_index < len(self.df_exibido)):
+            QMessageBox.information(self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha.")
+            return
+
+        # Obtem numero da SSA
+        series = self.df_exibido.iloc[int(original_index)]
+        numero_ssa = str(series.get('numero_ssa', '')).strip()
+        
+        if numero_ssa:
+            # Abre na aba Detalhes
+            self._open_ssa_in_details_tab(numero_ssa)
+        else:
+            QMessageBox.information(self, "Info", "Numero SSA nao encontrado.")
+
+    def on_table_double_click_OLD_DIALOG_VERSION(self, index):
+        """
+        VERSAO ANTIGA: Mostra janela de detalhes formatada ao duplo clique.
+        Mantido para referencia. Agora usamos aba Detalhes.
+        """
         row = index.row()
         index_item = self.table_widget.item(row, 0)
         if not index_item:
@@ -5398,6 +5425,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if target:
             self._jump_to_ssa(target)
 
+    def _open_ssa_in_details_tab(self, numero_ssa):
+        """
+        Abre uma SSA na aba Detalhes.
+        
+        Args:
+            numero_ssa: Numero da SSA a abrir
+        """
+        # UIREFACTOR 2026-01-08: Integra com novo widget de detalhes
+        try:
+            # Muda para aba Detalhes (index 2)
+            self.main_tabs.setCurrentIndex(2)
+            # Abre SSA no widget
+            self.details_tab_widget.open_ssa(numero_ssa)
+        except Exception as e:
+            logger.error(f"Erro ao abrir SSA em Detalhes: {e}")
+
     def _filter_by_derivadas(self, numero_ssa):
         num_norm = self._normalize_ssa_value(numero_ssa)
         if not num_norm:
@@ -5454,6 +5497,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 numero_ssa = str(row_series.get("numero_ssa", "")).strip()
                 derivada_de = str(row_series.get("derivada_de", "")).strip()
                 derived_list = self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
+                
+                # UIREFACTOR 2026-01-08: Opcao para abrir na aba Detalhes
+                if numero_ssa:
+                    detalhes_action = QAction("Abrir em Detalhes", self)
+                    detalhes_action.triggered.connect(lambda: self._open_ssa_in_details_tab(numero_ssa))
+                    menu.addAction(detalhes_action)
+                    menu.addSeparator()
+                
                 if derivada_de:
                     origem_action = QAction("Ir para SSA origem", self)
                     origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))

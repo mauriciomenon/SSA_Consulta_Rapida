@@ -5,9 +5,10 @@ Widget dedicado para visualizacao de multiplas SSAs com navegacao estilo Notepad
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTextBrowser, QStackedWidget, QMessageBox
+    QPushButton, QTextBrowser, QStackedWidget, QMessageBox, QToolButton
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
 
 
 class DetailsTabWidget(QWidget):
@@ -142,24 +143,43 @@ class DetailsTabWidget(QWidget):
         except Exception as e:
             content.setPlainText(f"Erro ao renderizar detalhes: {e}")
         
-        # Cria botao de aba
-        tab_btn = QPushButton(f"{num_norm} x")
-        tab_btn.setCheckable(True)
-        tab_btn.setToolTip(f"Clique para focar\nClique no 'x' para fechar")
+        # Cria widget de aba (botao + close button)
         tab_idx = len(self.tabs)
+        tab_widget = QWidget()
+        tab_layout = QHBoxLayout(tab_widget)
+        tab_layout.setContentsMargins(4, 2, 4, 2)
+        tab_layout.setSpacing(4)
+        
+        # Botao principal da aba (clicavel)
+        tab_btn = QPushButton(num_norm)
+        tab_btn.setCheckable(True)
+        tab_btn.setFlat(True)
+        tab_btn.setMinimumWidth(120)
+        tab_btn.setToolTip(f"SSA {num_norm}\nClique para focar")
         tab_btn.clicked.connect(lambda checked, idx=tab_idx: self._on_tab_clicked(idx))
+        tab_layout.addWidget(tab_btn)
+        
+        # Botao de fechar (x)
+        close_btn = QToolButton()
+        close_btn.setText("x")
+        close_btn.setFixedSize(18, 18)
+        close_btn.setToolTip("Fechar aba")
+        close_btn.clicked.connect(lambda checked, idx=tab_idx: self.close_tab(idx))
+        tab_layout.addWidget(close_btn)
         
         # Adiciona aba a lista
         self.tabs.append({
             'numero_ssa': num_norm,
             'widget': content,
+            'tab_widget': tab_widget,
             'button': tab_btn,
+            'close_button': close_btn,
             'series': series
         })
         
-        # Remove stretch temporariamente, adiciona botao, re-adiciona stretch
+        # Remove stretch temporariamente, adiciona widget, re-adiciona stretch
         self.tabs_layout.removeItem(self.tabs_layout.itemAt(self.tabs_layout.count() - 1))
-        self.tabs_layout.addWidget(tab_btn)
+        self.tabs_layout.addWidget(tab_widget)
         self.tabs_layout.addStretch(1)
         
         # Adiciona widget ao stack (index = len(tabs) porque 0 e placeholder)
@@ -190,9 +210,9 @@ class DetailsTabWidget(QWidget):
         
         tab = self.tabs.pop(index)
         
-        # Remove botao
-        self.tabs_layout.removeWidget(tab['button'])
-        tab['button'].deleteLater()
+        # Remove widget da aba
+        self.tabs_layout.removeWidget(tab['tab_widget'])
+        tab['tab_widget'].deleteLater()
         
         # Remove widget do stack (index + 1 porque 0 e placeholder)
         self.content_stack.removeWidget(tab['widget'])
