@@ -39,6 +39,13 @@ class FilterHelpDialog(QDialog):
               <li><b>negativo</b>: prefixe <code>!</code> (ex.: <code>!^adm</code>, <code>!$2025</code>)</li>
               <li><b>vazios/nulos</b>: <code>=NULL</code> ou <code>NULL</code> (equivale a campo vazio, nulo ou <code>-</code>)</li>
             </ul>
+            <h4>Colunas == e != nos menus de selecao</h4>
+            <p>Nos menus de filtro avancado (Setor, Divisao, etc.), cada valor tem duas colunas de checkbox:</p>
+            <ul>
+              <li><b>== (Incluir)</b>: Marca valores que DEVEM aparecer nos resultados</li>
+              <li><b>!= (Excluir)</b>: Marca valores que NAO devem aparecer nos resultados</li>
+            </ul>
+            <p><i>Nota:</i> Nao e possivel marcar o mesmo valor em ambas as colunas simultaneamente.</p>
             <h4>Exemplos</h4>
             <ul>
               <li><code>mel3</code> — procura por MEL3</li>

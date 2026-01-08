@@ -143,7 +143,14 @@ class FilterGUISSAMixin:
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
         self._widths_computed_for_df_hash = None
         self._refresh_after_filter_change()
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs encontradas.")
+        # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
+        total_original = len(self.df_completo) if hasattr(self, 'df_completo') and self.df_completo is not None else 0
+        total_filtrado = len(self.df_exibido)
+        search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ''
+        if search_text:
+            self.status_label.setText(f"Status: {total_filtrado} de {total_original} SSAs encontradas para '{search_text}'")
+        else:
+            self.status_label.setText(f"Status: {total_filtrado} SSAs encontradas.")
         if hasattr(self, 'clear_filter_button'):
             self.clear_filter_button.setEnabled(True)
         self._apply_search_display()
@@ -1018,6 +1025,12 @@ class FilterGUISSAMixin:
             try:
                 mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
                 filtered = filtered[mask]
+            except Exception:
+                pass
+        # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
+        if not filtered.empty and 'numero_ssa' in filtered.columns:
+            try:
+                filtered = filtered.sort_values('numero_ssa', ascending=False)
             except Exception:
                 pass
         self.df_exibido = filtered
