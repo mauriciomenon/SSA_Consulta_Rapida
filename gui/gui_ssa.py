@@ -134,6 +134,7 @@ try:
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
     from gui.cache import FilterCache  # noqa: E402
     from gui.widgets import ColumnManagerDialog, ColumnSelector, DataPaginator, FilterHelpDialog  # noqa: E402
+    from gui.widgets.details_tab_manager import DetailsTabWidget  # noqa: E402  # UIREFACTOR 2026-01-08
     from gui.helpers import (  # noqa: E402
         build_global_widget_qss, build_central_widget_qss, build_group_box_qss, build_line_edit_qss,
         normalize_chunk_for_parse, format_search_display, highlight_text
@@ -975,6 +976,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         tab_filters = QWidget()
         ctx_filters = self._build_tab_content(tab_filters, "filters")
         self.main_tabs.addTab(tab_filters, "Filtros")
+        
+        # UIREFACTOR 2026-01-08: Nova aba Detalhes com sub-abas de SSAs
+        tab_details = QWidget()
+        details_layout = QVBoxLayout(tab_details)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        self.details_tab_widget = DetailsTabWidget(self)
+        details_layout.addWidget(self.details_tab_widget)
+        self.main_tabs.addTab(tab_details, "Detalhes")
+        
         self._tab_contexts = [ctx_main, ctx_filters]
         main_layout.addWidget(self.main_tabs)
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
