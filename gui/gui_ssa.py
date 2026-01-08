@@ -1312,7 +1312,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             right_col.addWidget(adv_group, 1)
             col_filters_group.setVisible(False)
             right_col.addWidget(col_filters_group)
-            # APENAS na aba Filtros: da mais espaco para Detalhes (7) vs Filtros (3)
+            # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
             bottom_layout.addWidget(right_col_widget, 3)
         else:
             right_col.addWidget(col_filters_group)
@@ -1511,6 +1511,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             button.setMaximumWidth(100)
         except Exception:
             pass
+        try:
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        except Exception:
+            pass
         menu = QMenu(button)
         try:
             menu.setMaximumHeight(360)
@@ -1518,10 +1522,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
         self._attach_multiselect_menu(button, menu)
         button.setToolTip(placeholder)
-        try:
-            button.setMinimumWidth(140)
-        except Exception:
-            pass
         try:
             box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         except Exception:
@@ -1851,6 +1851,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         outer = QVBoxLayout(group)
         outer.setContentsMargins(2, 2, 2, 2)
         outer.setSpacing(2)
+        
+        # Container para grid (preparado para scroll futuro)
+        grid_container = QWidget()
+        grid_container_layout = QVBoxLayout(grid_container)
+        grid_container_layout.setContentsMargins(0, 0, 0, 0)
+        grid_container_layout.setSpacing(0)
 
         emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
         exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
@@ -1994,6 +2000,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_grid.addWidget(emis_resp_box, 2, 5)
         for col in range(6):
             main_grid.setColumnStretch(col, 1)
+        
+        # Adiciona grid ao container
+        grid_container_layout.addLayout(main_grid)
+        
+        # Scroll area vertical (preparado para uso futuro)
+        # scroll_area = QScrollArea()
+        # scroll_area.setWidgetResizable(True)
+        # scroll_area.setWidget(grid_container)
+        # scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # outer.addWidget(scroll_area, 1)
+        
+        # Por enquanto, adiciona grid diretamente (sem scroll)
+        outer.addWidget(grid_container, 1)
+        
+        # Armazena referencia ao grid para reorganizacao responsiva
+        self._adv_filters_main_grid = main_grid
+        self._adv_filters_grid_widgets = {
+            "emis_box": emis_box, "exec_box": exec_box, "div_box": div_box,
+            "status_box": status_box, "year_emissao_box": year_emissao_box,
+            "year_execucao_box": year_execucao_box, "reprog_box": reprog_box,
+            "prio_emis_box": prio_emis_box, "prio_plan_box": prio_plan_box,
+            "deriv_box": deriv_box, "macro_box": macro_box,
+            "week_emis_box": week_emis_box, "week_exec_box": week_exec_box,
+            "sol_box": sol_box, "prog_box": prog_box,
+            "exec_resp_box": exec_resp_box, "emis_resp_box": emis_resp_box
+        }
 
         buttons_row = QHBoxLayout()
         buttons_row.setContentsMargins(0, 2, 0, 0)
@@ -2133,6 +2166,87 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
         self._apply_advanced_filters_from_ui()
+
+    def _reorganize_advanced_filters_grid(self, width: int):
+        """Reorganiza grid de filtros avancados baseado na largura disponivel."""
+        if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
+            return
+        
+        grid = self._adv_filters_main_grid
+        w = self._adv_filters_grid_widgets
+        
+        # Remove todos os widgets do grid
+        while grid.count():
+            item = grid.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        
+        # Define layout baseado na largura
+        # Largura > 1400px: Grid 6x3 (layout original denso)
+        if width > 1400:
+            grid.addWidget(w["emis_box"], 0, 0)
+            grid.addWidget(w["exec_box"], 0, 1)
+            grid.addWidget(w["div_box"], 0, 2)
+            grid.addWidget(w["status_box"], 0, 3)
+            grid.addWidget(w["year_emissao_box"], 0, 4)
+            grid.addWidget(w["year_execucao_box"], 0, 5)
+            grid.addWidget(w["reprog_box"], 1, 0)
+            grid.addWidget(w["prio_emis_box"], 1, 1)
+            grid.addWidget(w["prio_plan_box"], 1, 2)
+            grid.addWidget(w["deriv_box"], 1, 3, 1, 2)
+            grid.addWidget(w["macro_box"], 1, 5)
+            grid.addWidget(w["week_emis_box"], 2, 0)
+            grid.addWidget(w["week_exec_box"], 2, 1)
+            grid.addWidget(w["sol_box"], 2, 2)
+            grid.addWidget(w["prog_box"], 2, 3)
+            grid.addWidget(w["exec_resp_box"], 2, 4)
+            grid.addWidget(w["emis_resp_box"], 2, 5)
+            for col in range(6):
+                grid.setColumnStretch(col, 1)
+        
+        # Largura 900-1400px: Grid 3x6 (meio termo)
+        elif width > 900:
+            grid.addWidget(w["emis_box"], 0, 0)
+            grid.addWidget(w["exec_box"], 0, 1)
+            grid.addWidget(w["div_box"], 0, 2)
+            grid.addWidget(w["status_box"], 1, 0)
+            grid.addWidget(w["year_emissao_box"], 1, 1)
+            grid.addWidget(w["year_execucao_box"], 1, 2)
+            grid.addWidget(w["reprog_box"], 2, 0)
+            grid.addWidget(w["prio_emis_box"], 2, 1)
+            grid.addWidget(w["prio_plan_box"], 2, 2)
+            grid.addWidget(w["deriv_box"], 3, 0, 1, 2)
+            grid.addWidget(w["macro_box"], 3, 2)
+            grid.addWidget(w["week_emis_box"], 4, 0)
+            grid.addWidget(w["week_exec_box"], 4, 1)
+            grid.addWidget(w["sol_box"], 4, 2)
+            grid.addWidget(w["prog_box"], 5, 0)
+            grid.addWidget(w["exec_resp_box"], 5, 1)
+            grid.addWidget(w["emis_resp_box"], 5, 2)
+            for col in range(3):
+                grid.setColumnStretch(col, 1)
+        
+        # Largura < 900px: Grid 2x9 (mais vertical)
+        else:
+            grid.addWidget(w["emis_box"], 0, 0)
+            grid.addWidget(w["exec_box"], 0, 1)
+            grid.addWidget(w["div_box"], 1, 0)
+            grid.addWidget(w["status_box"], 1, 1)
+            grid.addWidget(w["year_emissao_box"], 2, 0)
+            grid.addWidget(w["year_execucao_box"], 2, 1)
+            grid.addWidget(w["reprog_box"], 3, 0)
+            grid.addWidget(w["prio_emis_box"], 3, 1)
+            grid.addWidget(w["prio_plan_box"], 4, 0)
+            grid.addWidget(w["deriv_box"], 4, 1, 1, 1)
+            grid.addWidget(w["macro_box"], 5, 0)
+            grid.addWidget(w["week_emis_box"], 5, 1)
+            grid.addWidget(w["week_exec_box"], 6, 0)
+            grid.addWidget(w["sol_box"], 6, 1)
+            grid.addWidget(w["prog_box"], 7, 0)
+            grid.addWidget(w["exec_resp_box"], 7, 1)
+            grid.addWidget(w["emis_resp_box"], 8, 0, 1, 2)
+            for col in range(2):
+                grid.setColumnStretch(col, 1)
 
     def _on_adv_sector_selection_changed(self, *_):
         if getattr(self, "_adv_sector_syncing", False):
@@ -3636,6 +3750,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
     # Garante menu de contexto no cabeçalho em qualquer tema/estilo
+    def resizeEvent(self, event):
+        """Detecta mudancas de tamanho da janela para adaptar layout."""
+        try:
+            super().resizeEvent(event)
+        except Exception:
+            pass
+        
+        # Reorganiza grid de filtros avancados se estiver na aba Filtros
+        try:
+            if getattr(self, "_current_tab_kind", None) == "filters":
+                if hasattr(self, "adv_filters_group") and self.adv_filters_group:
+                    width = self.adv_filters_group.width()
+                    self._reorganize_advanced_filters_grid(width)
+        except Exception:
+            pass
+    
     def eventFilter(self, obj, event):
         try:
             header = self.table_widget.horizontalHeader()
