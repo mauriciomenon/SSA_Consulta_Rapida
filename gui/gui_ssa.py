@@ -1261,7 +1261,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         tab_layout.addWidget(table_widget)
 
-        # Details + column filters
+        # UIREFACTOR 2026-01-08: Detalhes movidos para aba dedicada
+        # Mantemos widgets para compatibilidade com TAB_WIDGET_ATTRS mas nao exibimos na aba Filtros
         bottom_layout = QHBoxLayout()
         details_group = QGroupBox("Detalhes da SSA Selecionada")
         details_layout = QVBoxLayout(details_group)
@@ -1283,7 +1284,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         details_layout.addWidget(details_text)
-        bottom_layout.addWidget(details_group, 2)
+        
+        # UIREFACTOR 2026-01-08: Apenas adiciona detalhes na aba SSAs, nao na aba Filtros
+        if tab_kind != "filters":
+            bottom_layout.addWidget(details_group, 2)
 
         col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(col_filters_group)
@@ -1318,12 +1322,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         right_col = QVBoxLayout(right_col_widget)
         right_col.setContentsMargins(0, 0, 0, 0)
         if tab_kind == "filters":
+            # UIREFACTOR 2026-01-08: Aba Filtros sem painel de detalhes, filtros avancados em tela cheia
             adv_group, adv_ctx = self._build_advanced_filters_panel()
             right_col.addWidget(adv_group, 1)
             col_filters_group.setVisible(False)
             right_col.addWidget(col_filters_group)
-            # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
-            bottom_layout.addWidget(right_col_widget, 3)
+            # Filtros avancados ocupam toda largura (sem painel de detalhes)
+            bottom_layout.addWidget(right_col_widget, 1)
         else:
             right_col.addWidget(col_filters_group)
             # CORRECAO 2026-01-08: Aba SSAs com proporcao 50/50 (igual stretch)
