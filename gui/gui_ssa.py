@@ -1273,7 +1273,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         details_layout.addWidget(details_text)
-        bottom_layout.addWidget(details_group, 5)
+        bottom_layout.addWidget(details_group, 2)
 
         col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(col_filters_group)
@@ -1633,6 +1633,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
         checks = []
         exclude_checks = []
+        
+        # Obter nome do filtro do titulo do GroupBox pai
+        filter_name = ""
+        try:
+            parent = button.parent()
+            if parent and isinstance(parent, QGroupBox):
+                filter_name = parent.title()
+        except Exception:
+            pass
+        
         try:
             try:
                 max_label_len = max((len(str(v)) for v in values), default=4)
@@ -1646,66 +1656,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         container = QWidget()
         grid = QGridLayout(container)
-        grid.setContentsMargins(6, 4, 14, 4)  # 14px direita para barra de rolagem
+        grid.setContentsMargins(6, 4, 14, 4)
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(4)
         try:
             grid.setAlignment(Qt.AlignmentFlag.AlignTop)
         except Exception:
             pass
-        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
-        grid.setColumnStretch(3, 1)
         row_idx = 0
 
-        # Adicionar linha de Selecionar Tudo / Desmarcar Tudo
+        # Header com nome do filtro e colunas == / !=
         if exclude_selected_set is not None:
-            # Criar checkboxes de Selecionar/Desmarcar Tudo para coluna Include
-            select_all_include = QCheckBox()
-            deselect_all_include = QCheckBox()
-            select_all_include.setToolTip("Selecionar Tudo")
-            deselect_all_include.setToolTip("Desmarcar Tudo")
-            
-            # Criar checkboxes de Selecionar/Desmarcar Tudo para coluna Exclude  
-            select_all_exclude = QCheckBox()
-            deselect_all_exclude = QCheckBox()
-            select_all_exclude.setToolTip("Selecionar Tudo")
-            deselect_all_exclude.setToolTip("Desmarcar Tudo")
-            
-            # Labels
-            label_select = QLabel("Selecionar")
-            label_deselect = QLabel("Desmarcar")
-            
-            grid.addWidget(label_select, row_idx, 0)
-            grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-            
-            grid.addWidget(label_deselect, row_idx, 0)
-            grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-            
-            # Separador
-            separator = QFrame()
-            separator.setFrameShape(QFrame.Shape.HLine)
-            separator.setFrameShadow(QFrame.Shadow.Sunken)
-            grid.addWidget(separator, row_idx, 0, 1, 4)
-            row_idx += 1
-
-        if exclude_selected_set is not None:
-            # Label do filtro no header
-            filter_name = ""
-            try:
-                filter_name = button.text() if button and button.text() not in ["Selecionar", "Sem dados", "Todos"] else ""
-            except Exception:
-                pass
             label_filter = QLabel(filter_name)
             label_inc = QLabel("==")
             label_exc = QLabel("!=")
             try:
-                label_filter.setStyleSheet("font-weight: bold;")
+                label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
+                label_inc.setStyleSheet("font-size: 10px; color: #555;")
+                label_exc.setStyleSheet("font-size: 10px; color: #888; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;")
                 label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception:
@@ -1713,40 +1684,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             grid.addWidget(label_filter, row_idx, 0)
             grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            try:
-                spacer = QSpacerItem(1, 1, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-                grid.addItem(spacer, row_idx, 3)
-            except Exception:
-                pass
             row_idx += 1
+
+        # Estilo para checkboxes: interior cinza claro, contorno cinza para !=
+        cb_style_include = "QCheckBox::indicator { background-color: #f5f5f5; border: 1px solid #bbb; border-radius: 2px; }"
+        cb_style_exclude = "QCheckBox::indicator { background-color: #f0f0f0; border: 1px solid #888; border-radius: 2px; }"
 
         for val in values:
             label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
             cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
             label = QLabel(label_text)
             try:
-                min_w = label.fontMetrics().horizontalAdvance("WWWW")
-                label.setMinimumWidth(min_w)
+                label.setStyleSheet("font-size: 11px;")
             except Exception:
                 pass
             include_cb = QCheckBox()
             exclude_cb = QCheckBox() if exclude_selected_set is not None else None
             try:
                 include_cb.setProperty("value", str(cb_value))
+                include_cb.setStyleSheet(cb_style_include)
             except Exception:
                 pass
             if exclude_cb is not None:
                 try:
                     exclude_cb.setProperty("value", str(cb_value))
-                except Exception:
-                    pass
-            try:
-                self._style_menu_checkbox(include_cb, button)
-            except Exception:
-                pass
-            if exclude_cb is not None:
-                try:
-                    self._style_menu_checkbox(exclude_cb, button)
+                    exclude_cb.setStyleSheet(cb_style_exclude)
                 except Exception:
                     pass
             try:
@@ -1789,6 +1751,43 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 except Exception:
                     pass
 
+        # Separador antes de Selecionar/Desmarcar
+        if exclude_selected_set is not None:
+            separator = QFrame()
+            separator.setFrameShape(QFrame.Shape.HLine)
+            separator.setFrameShadow(QFrame.Shadow.Sunken)
+            grid.addWidget(separator, row_idx, 0, 1, 3)
+            row_idx += 1
+            
+            # Selecionar/Desmarcar ao fim da lista
+            select_all_include = QCheckBox()
+            deselect_all_include = QCheckBox()
+            select_all_exclude = QCheckBox()
+            deselect_all_exclude = QCheckBox()
+            
+            for cb in [select_all_include, deselect_all_include]:
+                cb.setStyleSheet(cb_style_include)
+            for cb in [select_all_exclude, deselect_all_exclude]:
+                cb.setStyleSheet(cb_style_exclude)
+            
+            label_select = QLabel("Selecionar")
+            label_deselect = QLabel("Desmarcar")
+            try:
+                label_select.setStyleSheet("font-size: 10px; color: #666;")
+                label_deselect.setStyleSheet("font-size: 10px; color: #666;")
+            except Exception:
+                pass
+            
+            grid.addWidget(label_select, row_idx, 0)
+            grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
+            
+            grid.addWidget(label_deselect, row_idx, 0)
+            grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
+
         scroll = QScrollArea()
         scroll.setWidget(container)
         scroll.setWidgetResizable(True)
@@ -1802,7 +1801,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pal = (button or scroll).palette()
             border = pal.color(_QPal.ColorRole.Mid).name()
             bg = pal.color(_QPal.ColorRole.Base).name()
-            container.setStyleSheet(f"QWidget {{ background: {bg}; }}")
+            container.setStyleSheet(f"QWidget {{ background: {bg}; }} QLabel {{ font-size: 11px; }}")
             scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {border}; }}")
         except Exception:
             pass
@@ -1817,7 +1816,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
-        # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals para evitar loops
+        # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals
         if exclude_selected_set is not None:
             def _select_all_include():
                 for cb in checks:
@@ -1859,33 +1858,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
 
+        # Botoes OK e Cancelar - OK sempre a direita
         if on_apply is not None:
-            ok_btn = QPushButton("OK")
-            ok_btn.setFixedWidth(60)
-            ok_btn.setToolTip("Aplicar selecao e fechar")
             cancel_btn = QPushButton("Cancelar")
-            cancel_btn.setFixedWidth(60)
+            cancel_btn.setFixedWidth(70)
             cancel_btn.setToolTip("Fechar sem aplicar")
-            try:
-                ok_btn.clicked.connect(menu.close)
-            except Exception:
-                pass
-            try:
-                ok_btn.clicked.connect(on_apply)
-            except Exception:
-                pass
+            ok_btn = QPushButton("OK")
+            ok_btn.setFixedWidth(70)
+            ok_btn.setToolTip("Aplicar selecao e fechar")
             try:
                 cancel_btn.clicked.connect(menu.close)
+            except Exception:
+                pass
+            try:
+                ok_btn.clicked.connect(menu.close)
+                ok_btn.clicked.connect(on_apply)
             except Exception:
                 pass
             ok_row = QWidget()
             ok_layout = QHBoxLayout(ok_row)
             ok_layout.setContentsMargins(6, 4, 6, 6)
             ok_layout.addStretch()
-            ok_layout.addWidget(ok_btn)
-            ok_layout.addSpacing(8)
             ok_layout.addWidget(cancel_btn)
-            ok_layout.addStretch()
+            ok_layout.addSpacing(8)
+            ok_layout.addWidget(ok_btn)
             ok_act = QWidgetAction(menu)
             ok_act.setDefaultWidget(ok_row)
             try:
@@ -2452,7 +2448,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _sector_sort_key(self, sector: str):
         div = SECTOR_TO_DIV.get(sector, "")
-        div_rank = 0 if div == "SMIN" else 1 if div else 2
+        # Ordem: SMIN primeiro (0), SMME segundo (1), outras divisoes alfabeticamente (2+)
+        if div == "SMIN":
+            div_rank = 0
+        elif div == "SMME":
+            div_rank = 1
+        elif div:
+            div_rank = 2
+        else:
+            div_rank = 3
         return (div_rank, div.casefold(), sector.casefold())
 
     def _sort_sectors(self, values):
@@ -3197,9 +3201,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         def _div_key(val):
             text = str(val).upper()
+            # Ordem: SMIN primeiro (0), SMME segundo (1), outras alfabetico (2)
             if text == "SMIN":
                 return (0, text)
-            return (1, text)
+            elif text == "SMME":
+                return (1, text)
+            return (2, text)
 
         # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
         if cache.get("exec_vals") is None:
@@ -3342,7 +3349,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 inc_vals = [filters.get("ano_emissao")]
             if exc_vals is None and filters.get("ano_emissao_exclude") and filters.get("ano_emissao") is not None:
                 exc_vals = [filters.get("ano_emissao")]
-            year_values = [str(y) for y in emissao_years]
+            # Filtra valores vazios/nulos
+            year_values = [str(y) for y in emissao_years if y and str(y).strip()]
             inc_set = {str(v) for v in (inc_vals or [])}
             exc_set = {str(v) for v in (exc_vals or [])}
             year_include, year_exclude = self._rebuild_multiselect_menu(
@@ -3372,7 +3380,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 inc_vals = [filters.get("ano_execucao")]
             if exc_vals is None and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
                 exc_vals = [filters.get("ano_execucao")]
-            year_values = [str(y) for y in execucao_years]
+            # Filtra valores vazios/nulos
+            year_values = [str(y) for y in execucao_years if y and str(y).strip()]
             inc_set = {str(v) for v in (inc_vals or [])}
             exc_set = {str(v) for v in (exc_vals or [])}
             year_include, year_exclude = self._rebuild_multiselect_menu(
