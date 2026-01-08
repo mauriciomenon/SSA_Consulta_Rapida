@@ -90,6 +90,52 @@ class DetailsTabWidget(QWidget):
         layout.addWidget(self.content_stack, 1)
         
         self._update_nav_buttons()
+        self._apply_styles()
+    
+    def _apply_styles(self):
+        """Aplica estilos CSS aos componentes."""
+        # Estilo para input de SSA
+        self.ssa_input.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid palette(mid);
+                border-radius: 3px;
+                background: palette(base);
+            }
+            QLineEdit:focus {
+                border: 1px solid palette(highlight);
+            }
+        """)
+        
+        # Estilo para botoes de navegacao
+        nav_button_style = """
+            QPushButton {
+                background: palette(button);
+                border: 1px solid palette(mid);
+                border-radius: 3px;
+                padding: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:pressed {
+                background: palette(dark);
+            }
+            QPushButton:disabled {
+                color: palette(mid);
+            }
+        """
+        self.prev_btn.setStyleSheet(nav_button_style)
+        self.next_btn.setStyleSheet(nav_button_style)
+        
+        # Estilo para barra de abas
+        self.tab_bar.setStyleSheet("""
+            QWidget {
+                background: palette(window);
+                border-bottom: 1px solid palette(mid);
+            }
+        """)
     
     def open_ssa(self, numero_ssa: str):
         """
@@ -157,6 +203,25 @@ class DetailsTabWidget(QWidget):
         tab_btn.setMinimumWidth(120)
         tab_btn.setToolTip(f"SSA {num_norm}\nClique para focar")
         tab_btn.clicked.connect(lambda checked, idx=tab_idx: self._on_tab_clicked(idx))
+        tab_btn.setStyleSheet("""
+            QPushButton {
+                background: palette(button);
+                border: 1px solid palette(mid);
+                border-top-left-radius: 4px;
+                border-top-right-radius: 0px;
+                border-bottom: none;
+                padding: 6px 12px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:checked {
+                background: palette(base);
+                border-bottom: 2px solid palette(highlight);
+                font-weight: bold;
+            }
+        """)
         tab_layout.addWidget(tab_btn)
         
         # Botao de fechar (x)
@@ -165,6 +230,19 @@ class DetailsTabWidget(QWidget):
         close_btn.setFixedSize(18, 18)
         close_btn.setToolTip("Fechar aba")
         close_btn.clicked.connect(lambda checked, idx=tab_idx: self.close_tab(idx))
+        close_btn.setStyleSheet("""
+            QToolButton {
+                background: transparent;
+                border: none;
+                border-top-right-radius: 4px;
+                color: palette(mid);
+                font-weight: bold;
+            }
+            QToolButton:hover {
+                background: palette(highlight);
+                color: palette(highlighted-text);
+            }
+        """)
         tab_layout.addWidget(close_btn)
         
         # Adiciona aba a lista
