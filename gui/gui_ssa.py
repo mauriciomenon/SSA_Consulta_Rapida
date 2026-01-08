@@ -1634,12 +1634,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         checks = []
         exclude_checks = []
         
-        # Obter nome do filtro do titulo do GroupBox pai
+        # Obter nome do filtro do titulo do GroupBox pai (subindo na hierarquia)
         filter_name = ""
         try:
             parent = button.parent()
-            if parent and isinstance(parent, QGroupBox):
-                filter_name = parent.title()
+            while parent is not None:
+                if isinstance(parent, QGroupBox):
+                    candidate = parent.title()
+                    # Ignorar titulos genericos como "Valores"
+                    if candidate and candidate not in ("Valores", ""):
+                        filter_name = candidate
+                        break
+                parent = parent.parent()
         except Exception:
             pass
         
@@ -1668,31 +1674,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.setColumnStretch(2, 0)
         row_idx = 0
 
-        # Header com nome do filtro e colunas == / !=
-        if exclude_selected_set is not None:
+        # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
+        if filter_name:
             label_filter = QLabel(filter_name)
-            label_inc = QLabel("==")
-            label_exc = QLabel("!=")
             try:
                 label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
-                label_inc.setStyleSheet("font-size: 10px; color: #555;")
-                label_exc.setStyleSheet("font-size: 10px; color: #888; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;")
-                label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception:
                 pass
             grid.addWidget(label_filter, row_idx, 0)
-            grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            
+            if exclude_selected_set is not None:
+                label_inc = QLabel("==")
+                label_exc = QLabel("!=")
+                try:
+                    # == com destaque (borda), != sem destaque (invertido conforme solicitado)
+                    label_inc.setStyleSheet("font-size: 10px; color: #888; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;")
+                    label_exc.setStyleSheet("font-size: 10px; color: #555;")
+                    label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                    label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                except Exception:
+                    pass
+                grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+                grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            row_idx += 1
+            
+            # Separador entre header e conteudo
+            header_sep = QFrame()
+            header_sep.setFrameShape(QFrame.Shape.HLine)
+            header_sep.setFrameShadow(QFrame.Shadow.Sunken)
+            col_span = 3 if exclude_selected_set is not None else 1
+            grid.addWidget(header_sep, row_idx, 0, 1, col_span)
             row_idx += 1
 
-        # Estilo para checkboxes: interior cinza claro, contorno cinza para !=
-        cb_style_include = "QCheckBox::indicator { background-color: #f5f5f5; border: 1px solid #bbb; border-radius: 2px; }"
-        cb_style_exclude = "QCheckBox::indicator { background-color: #f0f0f0; border: 1px solid #888; border-radius: 2px; }"
+        # Estilo para checkboxes: == com destaque (borda escura), != sem destaque (invertido)
+        cb_style_include = "QCheckBox::indicator { background-color: #f0f0f0; border: 1px solid #888; border-radius: 2px; }"
+        cb_style_exclude = "QCheckBox::indicator { background-color: #f5f5f5; border: 1px solid #bbb; border-radius: 2px; }"
 
         for val in values:
             label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
             cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
+            # Ignorar valores vazios ou apenas espacos
+            if not label_text or not label_text.strip():
+                continue
             label = QLabel(label_text)
             try:
                 label.setStyleSheet("font-size: 11px;")
@@ -1770,11 +1793,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for cb in [select_all_exclude, deselect_all_exclude]:
                 cb.setStyleSheet(cb_style_exclude)
             
-            label_select = QLabel("Selecionar")
-            label_deselect = QLabel("Desmarcar")
+            label_select = QLabel("Selecionar tudo")
+            label_deselect = QLabel("Desmarcar tudo")
             try:
-                label_select.setStyleSheet("font-size: 10px; color: #666;")
-                label_deselect.setStyleSheet("font-size: 10px; color: #666;")
+                label_select.setStyleSheet("font-size: 11px;")
+                label_deselect.setStyleSheet("font-size: 11px;")
             except Exception:
                 pass
             
@@ -1999,10 +2022,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivadas_select_btn = QPushButton("Especificas...")
         try:
             derivadas_select_btn.setMaximumWidth(100)
+            derivadas_select_btn.setEnabled(False)  # Habilitado quando existir derivadas
         except Exception:
             pass
-        derivadas_select_btn.setToolTip("Selecionar SSAs derivadas especificas")
-        derivadas_menu = QMenu(derivadas_select_btn)
+        derivadas_select_btn.setToolTip("Ver arvore de derivadas (habilitado quando existirem derivadas na lista)")
+        try:
+            derivadas_select_btn.clicked.connect(self._show_derivadas_popup)
+        except Exception:
+            pass
         try:
             deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
             deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
@@ -2078,7 +2105,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         main_grid = QGridLayout()
         main_grid.setContentsMargins(0, 0, 0, 0)
-        main_grid.setSpacing(2)
+        main_grid.setHorizontalSpacing(4)
+        main_grid.setVerticalSpacing(8)  # Espacamento entre linhas para conforto visual
         main_grid.addWidget(emis_box, 0, 0)
         main_grid.addWidget(exec_box, 0, 1)
         main_grid.addWidget(div_box, 0, 2)
@@ -2189,8 +2217,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_derivada_all_ste": deriv_all_ste,
             "adv_derivada_is": deriv_is,
             "adv_derivadas_especificas_button": derivadas_select_btn,
-            "adv_derivadas_especificas_menu": derivadas_menu,
-            "adv_derivadas_especificas_checks": [],
             "adv_responsavel_solicitante_button": sol_button,
             "adv_responsavel_solicitante_menu": sol_menu,
             "adv_responsavel_solicitante_checks": [],
@@ -2231,6 +2257,125 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             if hasattr(self, "adv_derivada_has"):
                 self.adv_derivada_has.setChecked(True)
+        except Exception:
+            pass
+
+    def _show_derivadas_popup(self):
+        """Mostra popup com arvore de derivadas em texto plano."""
+        try:
+            df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
+            if df is None or df.empty:
+                return
+            
+            # Buscar coluna de derivada_de
+            derivada_col = None
+            numero_col = None
+            for col in df.columns:
+                col_lower = col.lower()
+                if "derivada" in col_lower:
+                    derivada_col = col
+                elif "numero" in col_lower and "ssa" in col_lower:
+                    numero_col = col
+            
+            if derivada_col is None or numero_col is None:
+                return
+            
+            # Construir mapeamento mae -> filhas
+            mae_filhas = {}  # mae -> [filhas]
+            filha_mae = {}   # filha -> mae
+            
+            for _, row in df.iterrows():
+                numero = str(row.get(numero_col, "")).strip()
+                derivada_de = str(row.get(derivada_col, "")).strip()
+                if numero and derivada_de and derivada_de.lower() not in ("nan", "none", ""):
+                    filha_mae[numero] = derivada_de
+                    if derivada_de not in mae_filhas:
+                        mae_filhas[derivada_de] = []
+                    mae_filhas[derivada_de].append(numero)
+            
+            if not mae_filhas and not filha_mae:
+                return
+            
+            # Construir texto
+            lines = []
+            
+            # Derivadas (maes com suas filhas)
+            if mae_filhas:
+                lines.append("Derivadas")
+                for mae in sorted(mae_filhas.keys()):
+                    filhas = mae_filhas[mae]
+                    # Verificar se alguma filha tambem e mae
+                    filhas_str_parts = []
+                    for f in sorted(filhas):
+                        if f in mae_filhas:
+                            # Filha tambem e mae, incluir netas entre parenteses
+                            netas = mae_filhas[f]
+                            filhas_str_parts.append(f"{f}({','.join(sorted(netas))})")
+                        else:
+                            filhas_str_parts.append(f)
+                    lines.append(f"{mae} -> {', '.join(filhas_str_parts)}")
+            
+            lines.append("")
+            
+            # SSA de origem (filhas com suas maes)
+            if filha_mae:
+                lines.append("SSA de origem")
+                for filha in sorted(filha_mae.keys()):
+                    mae = filha_mae[filha]
+                    lines.append(f"{filha} -> {mae}")
+            
+            text = "\n".join(lines)
+            
+            # Criar dialogo com texto copiavel e pesquisavel
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Arvore de Derivadas")
+            dialog.setMinimumSize(500, 400)
+            layout = QVBoxLayout(dialog)
+            
+            text_edit = QTextEdit()
+            text_edit.setPlainText(text)
+            text_edit.setReadOnly(True)
+            try:
+                text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+            except Exception:
+                pass
+            layout.addWidget(text_edit)
+            
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(dialog.close)
+            layout.addWidget(buttons)
+            
+            dialog.exec()
+        except Exception as e:
+            logger.warning("Erro ao mostrar popup de derivadas: %s", e)
+
+    def _update_derivadas_button_state(self):
+        """Habilita/desabilita botao Especificas baseado em existencia de derivadas."""
+        try:
+            btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
+            if btn is None:
+                return
+            
+            df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
+            if df is None or df.empty:
+                btn.setEnabled(False)
+                return
+            
+            # Verificar se existe coluna derivada_de com valores
+            derivada_col = None
+            for col in df.columns:
+                if "derivada" in col.lower():
+                    derivada_col = col
+                    break
+            
+            if derivada_col is None:
+                btn.setEnabled(False)
+                return
+            
+            # Verificar se ha valores nao nulos
+            has_derivadas = df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().any()
+            btn.setEnabled(bool(has_derivadas))
         except Exception:
             pass
 
@@ -3738,6 +3883,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._refresh_advanced_filter_options()
         except Exception as e:
             logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
+        try:
+            self._update_derivadas_button_state()
+        except Exception:
+            pass
         profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
 
