@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 class FilterGUISSAMixin:
     """
     Mixin containing all filter-related methods.
-    
+
     Methods extracted from SSAMainWindow to improve code organization.
     """
 
@@ -274,7 +274,7 @@ class FilterGUISSAMixin:
         """Reinicia o temporizador de debounce ao digitar na busca."""
         # Chamar start() novamente reinicia o QTimer automaticamente
         self._debounce_timer.start()
-    
+
 
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
@@ -287,7 +287,7 @@ class FilterGUISSAMixin:
                 logger.debug("Falha ao limpar cache de filtros: %s", e)
         else:
             logger.debug("FilterWorker indisponivel; cache nao limpo")
-    
+
 
     def get_filter_cache_stats(self) -> dict:
         """Retorna estatísticas do cache de filtros."""
@@ -491,7 +491,7 @@ class FilterGUISSAMixin:
                 clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
             except Exception:
                 pass
-            
+
             def _mk_remove_line(c=col):
                 def _inner():
                     try:

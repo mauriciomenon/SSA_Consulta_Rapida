@@ -2675,7 +2675,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _apply_divisao_to_setor_checks(self):
         """Aplica selecao de divisao aos checkboxes de setor.
-        
+
         CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
         de signals que causava travamento da interface.
         """
