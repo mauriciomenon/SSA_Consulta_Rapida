@@ -6294,6 +6294,109 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error("Falha ao exportar lista para arquivo: %s", e)
             QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
 
+    def _update_filters_summary(self):
+        """Atualiza o label de resumo de filtros ativos."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            ctx = self._tab_contexts[self._current_tab_index]
+            label = ctx.get("filters_summary_label")
+            if not label:
+                return
+            
+            active_filters = []
+            
+            # Filtros de coluna
+            if self._active_column_filters:
+                for col, term in self._active_column_filters.items():
+                    display_name = self.display_map.get(col, col)
+                    active_filters.append(f"{display_name}: {term}")
+            
+            # Checkbox "Não está em STE/SCA"
+            exclude_ste = ctx.get("exclude_ste_checkbox")
+            if exclude_ste and exclude_ste.isChecked():
+                active_filters.append("Excluir STE/SCA")
+            
+            # Busca de texto
+            if hasattr(self, 'search_input') and self.search_input.text().strip():
+                active_filters.append(f"Busca: {self.search_input.text().strip()}")
+            
+            if active_filters:
+                label.setText(f"{len(active_filters)} filtro(s): {' | '.join(active_filters)}")
+            else:
+                label.setText("Nenhum filtro ativo")
+        except Exception as e:
+            logger.error(f"Erro ao atualizar resumo de filtros: {e}")
+
+    def _update_col_filter_indicator(self):
+        """Atualiza o indicador visual de filtros de coluna ativos."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            ctx = self._tab_contexts[self._current_tab_index]
+            indicator = ctx.get("col_filter_indicator")
+            if not indicator:
+                return
+            
+            count = len(self._active_column_filters)
+            if count > 0:
+                indicator.setText(f"🔍 {count} filtro(s) de coluna")
+                indicator.setVisible(True)
+            else:
+                indicator.setText("")
+                indicator.setVisible(False)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar indicador de filtros de coluna: {e}")
+
+    def _clear_all_filters_global(self):
+        """Limpa todos os filtros ativos (busca, colunas, checkboxes)."""
+        try:
+            # Limpar busca
+            if hasattr(self, 'search_input'):
+                self.search_input.clear()
+            
+            # Limpar filtros de coluna
+            self._active_column_filters.clear()
+            
+            # Limpar checkbox STE/SCA
+            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+                    ctx = self._tab_contexts[self._current_tab_index]
+                    exclude_ste = ctx.get("exclude_ste_checkbox")
+                    if exclude_ste:
+                        exclude_ste.setChecked(False)
+            
+            # Reprocessar dados
+            if hasattr(self, 'initiate_filtering'):
+                self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao limpar todos os filtros: {e}")
+
+    def _restore_last_filter_state(self):
+        """Desfaz o último filtro aplicado."""
+        # TODO: Implementar histórico de estados de filtro (pilha de undo)
+        logger.info("Funcionalidade de undo de filtros não implementada ainda")
+        QMessageBox.information(self, "Info", "Funcionalidade de desfazer filtros em desenvolvimento")
+
+    def _update_undo_button_state(self):
+        """Atualiza o estado (enabled/disabled) do botão de undo."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            ctx = self._tab_contexts[self._current_tab_index]
+            undo_btn = ctx.get("undo_filter_btn")
+            if undo_btn:
+                # Por enquanto, sempre desabilitado até implementarmos o histórico
+                undo_btn.setEnabled(False)
+        except Exception as e:
+            logger.error(f"Erro ao atualizar estado do botão undo: {e}")
+
     def remove_column_by_index(self, column_index):
         """Remove uma coluna especáfica baseada no ándice."""
         if column_index > 0 and column_index < len(

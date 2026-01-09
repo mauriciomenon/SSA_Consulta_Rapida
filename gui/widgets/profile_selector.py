@@ -58,7 +58,7 @@ class ProfileSelector(QWidget):
     def _update_combo(self):
         self.combo.blockSignals(True)
         self.combo.clear()
-        self.combo.addItem("Padrão", self.default_columns)
+        # Removido item "Padrão" conforme solicitação do usuário
         for name, cols in self.profiles.items():
             self.combo.addItem(name, cols)
         self.combo.blockSignals(False)
@@ -78,12 +78,15 @@ class ProfileSelector(QWidget):
 
     def _reset_default(self):
         self.profile_changed.emit(self.default_columns)
-        self.combo.setCurrentIndex(0)
+        # Não há mais índice 0 "Padrão", então apenas emite as colunas padrão
+        if self.combo.count() > 0:
+            self.combo.setCurrentIndex(0)
+        else:
+            self.combo.setCurrentIndex(-1)
 
     def _delete_current(self):
         curr = self.combo.currentText()
-        if curr == "Padrão":
-            return
+        # Removida verificação do "Padrão" pois não existe mais
         if curr in self.profiles:
             del self.profiles[curr]
             self._save_profiles_to_disk()
