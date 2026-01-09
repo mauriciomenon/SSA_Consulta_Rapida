@@ -728,7 +728,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "column_selector",
         "search_help",
         "paginator",
-        "profile_selector",
         "persistent_filters_layout",
         "filter_tags_layout",
         "exclude_ste_checkbox",
@@ -1398,7 +1397,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         
         # Criar 3 filtros permanentes para as colunas mais importantes (ORDEM CORRETA)
         permanent_columns = [
-            ("descricao_ssa", "Descrição da SSA"),
+            ("descricao_ssa", "Descricao da SSA"),
             ("setor_executor", "Executor"),
             ("setor_emissor", "Emissor")
         ]
@@ -1414,7 +1413,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             row_layout.addWidget(label)
             
             line_edit = QLineEdit()
-            line_edit.setPlaceholderText("Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, ...")
+            line_edit.setPlaceholderText("Separe termos por virgulas. Modos: foo, ^pre, suf$, =exato, ~regex, ...")
+            try:
+                line_edit.setStyleSheet("QLineEdit::placeholder { color: palette(mid); font-style: italic; }")
+            except Exception as e:
+                logger.error(f"Error setting placeholder style: {e}")
             line_edit.setClearButtonEnabled(True)
             line_edit.returnPressed.connect(lambda col=col_key: self._apply_permanent_filter(col))
             row_layout.addWidget(line_edit)
@@ -1580,23 +1583,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao verificar checkbox exclude_ste na mudanca de contexto: {e}")
 
-        try:
-            # UIREFACTOR 2026-01-08: profile_selector pode ser None
-            if self.profile_selector is not None and self.current_filter_profile:
-                idx = self.profile_selector.findData(self.current_filter_profile)
-            else:
-                idx = 0
-            if self.profile_selector is not None and idx >= 0:
-                self.profile_selector.blockSignals(True)
-                self.profile_selector.setCurrentIndex(idx)
-        except Exception as e:
-            logger.error(f"Erro ao restaurar profile na mudanca de contexto: {e}")
-        finally:
-            try:
-                if self.profile_selector is not None:
-                    self.profile_selector.blockSignals(False)
-            except Exception as e:
-                logger.error(f"Erro ao desbloquear sinais do profile na mudanca de contexto: {e}")
+        # UIREFACTOR 2026-01-09: ProfileSelector removido
 
         try:
             self.column_selector.set_selected_columns(self.visible_columns)
