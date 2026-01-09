@@ -40,13 +40,13 @@ class ColumnSelector(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        self.manage_button = QPushButton("Colunas visiveis...")
+        self.manage_button = QPushButton("Colunas visiveis")
         self.manage_button.setToolTip("Configurar colunas rapidas (marcar, ordenar e restaurar padrao)")
         self.manage_button.clicked.connect(self.open_dialog)
         try:
             fm = self.manage_button.fontMetrics()
             text_width = fm.horizontalAdvance(self.manage_button.text())
-            self.manage_button.setMinimumWidth(text_width + 40)
+            self.manage_button.setFixedWidth(text_width + 20)  # Mais estreito
         except Exception:
             pass
         layout.addWidget(self.manage_button)
@@ -59,7 +59,7 @@ class ColumnSelector(QWidget):
             pass
         self.summary_label.setVisible(False)  # Ocultar label
         layout.addWidget(self.summary_label)
-        layout.addStretch()
+        # UIREFACTOR 2026-01-09: Removido addStretch para eliminar espaco extra a direita
 
     def open_dialog(self):
         dialog = ColumnManagerDialog(

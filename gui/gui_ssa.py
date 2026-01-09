@@ -74,7 +74,7 @@ def load_gui_main_preferences():
             "localizacao_codigo": "Loc.", "grau_prioridade_emissao": "Prio.Emis."
         },
         "column_widths": {
-            "#": 50, "numero_ssa": 120, "setor_executor": 150, "situacao": 120,
+            "#": 35, "numero_ssa": 120, "setor_executor": 150, "situacao": 120,
             "descricao_ssa": 300, "data_cadastro": 110, "semana_cadastro": 100
         },
         "gui_settings": {
@@ -978,7 +978,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         tab_filters = QWidget()
         ctx_filters = self._build_tab_content(tab_filters, "filters")
         self.main_tabs.addTab(tab_filters, "Filtros")
-        
+
         # UIREFACTOR 2026-01-08: Nova aba Detalhes com sub-abas de SSAs
         tab_details = QWidget()
         details_layout = QVBoxLayout(tab_details)
@@ -986,7 +986,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.details_tab_widget = DetailsTabWidget(self)
         details_layout.addWidget(self.details_tab_widget)
         self.main_tabs.addTab(tab_details, "Detalhes")
-        
+
         self._tab_contexts = [ctx_main, ctx_filters]
         main_layout.addWidget(self.main_tabs)
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
@@ -1269,7 +1269,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         details_layout.addWidget(details_text)
-        
+
         # UIREFACTOR 2026-01-08: Apenas adiciona detalhes na aba SSAs, nao na aba Filtros
         if tab_kind != "filters":
             bottom_layout.addWidget(details_group, 2)
@@ -1681,10 +1681,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
-        
+
         # BUGFIX 2026-01-08: Prevenir fechamento do menu ao clicar em checkboxes
         container.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        
+
         row_idx = 0
 
         # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
@@ -4483,8 +4483,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
             )
             self._week_label_style = highlight_style
+            # UIREFACTOR 2026-01-08: week_label sem destaque azul - estilo simples
             if hasattr(self, 'week_label'):
-                self.week_label.setStyleSheet(highlight_style)
+                self.week_label.setStyleSheet(
+                    f"font-weight:600; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
+                )
 
             if hasattr(self, 'status_label'):
                 self.status_label.setStyleSheet(
@@ -4527,8 +4530,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.export_list_btn.setStyleSheet(highlight_style)
             if hasattr(self, 'undo_filter_btn'):
                 self.undo_filter_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'clear_all_btn'):
-                self.clear_all_btn.setStyleSheet(highlight_style)
+            # UIREFACTOR 2026-01-08: clear_all_btn sem destaque - estilo simples como botao ao lado
+            # if hasattr(self, 'clear_all_btn'):
+            #     self.clear_all_btn.setStyleSheet(highlight_style)
 
             # ============================================================
             # SECTION 10: Column Selector and Hints
@@ -5203,7 +5207,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Obtem numero da SSA
         series = self.df_exibido.iloc[int(original_index)]
         numero_ssa = str(series.get('numero_ssa', '')).strip()
-        
+
         if numero_ssa:
             # Abre na aba Detalhes
             self._open_ssa_in_details_tab(numero_ssa)
@@ -5427,7 +5431,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _open_ssa_in_details_tab(self, numero_ssa):
         """
         Abre uma SSA na aba Detalhes.
-        
+
         Args:
             numero_ssa: Numero da SSA a abrir
         """
@@ -5496,14 +5500,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 numero_ssa = str(row_series.get("numero_ssa", "")).strip()
                 derivada_de = str(row_series.get("derivada_de", "")).strip()
                 derived_list = self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
-                
+
                 # UIREFACTOR 2026-01-08: Opcao para abrir na aba Detalhes
                 if numero_ssa:
                     detalhes_action = QAction("Abrir em Detalhes", self)
                     detalhes_action.triggered.connect(lambda: self._open_ssa_in_details_tab(numero_ssa))
                     menu.addAction(detalhes_action)
                     menu.addSeparator()
-                
+
                 if derivada_de:
                     origem_action = QAction("Ir para SSA origem", self)
                     origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))

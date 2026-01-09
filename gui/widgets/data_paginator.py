@@ -41,6 +41,8 @@ class DataPaginator(QWidget):
         self.page_size_spinbox.setSingleStep(10)
         self.page_size_spinbox.setValue(self.page_size)
         self.page_size_spinbox.valueChanged.connect(self.change_page_size)
+        # UIREFACTOR 2026-01-09: Altura fixa para alinhar com botao Colunas visiveis
+        self.page_size_spinbox.setFixedHeight(self.prev_button.sizeHint().height())
         page_size_layout.addWidget(self.page_size_spinbox)
 
         layout.addWidget(self.prev_button)
