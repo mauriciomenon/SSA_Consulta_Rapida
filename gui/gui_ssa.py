@@ -48,7 +48,6 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 # Config
 from gui.gui_config import GUI_MAIN_PREFERENCES
 from gui.widgets.profile_selector import ProfileSelector
-from gui.widgets.filter_tags_widget import FilterTagsWidget
 
 # Inicializar logging robusto
 try:
@@ -732,7 +731,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "paginator",
         "profile_selector",
         "persistent_filters_layout",
-        "filter_tags_widget",
         "filter_tags_layout",
         "exclude_ste_checkbox",
         "ssa_count_label",
@@ -1208,13 +1206,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         profile_selector.profile_changed.connect(self.on_columns_changed)
         pagination_filters_layout.addWidget(profile_selector)
 
-        filter_tags_widget = FilterTagsWidget()
-        # Connect signal for removing tags
-        filter_tags_widget.filter_removed.connect(self._on_tag_removed)
-        # Add filter tags widget just below search bar
-        tab_layout.insertWidget(2, filter_tags_widget)
-
-        filter_tags_layout = None  # Deprecated/Replaced by widget internal layout
+        filter_tags_widget = None
+        filter_tags_layout = None
         persistent_filters_layout = None
 
         # UIREFACTOR 2026-01-08: Checkbox "Nao esta em STE/SCA" restaurado - util na aba SSAs
@@ -1465,7 +1458,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "paginator": paginator,
                 "profile_selector": profile_selector,
                 "persistent_filters_layout": persistent_filters_layout,
-                "filter_tags_widget": filter_tags_widget,
                 "filter_tags_layout": filter_tags_layout,
                 "exclude_ste_checkbox": exclude_ste_checkbox,
                 "ssa_count_label": ssa_count_label,
@@ -5858,8 +5850,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def on_table_double_click(self, index):
         """
-        Abre SSA na aba Detalhes ao duplo clique.
-        UIREFACTOR 2026-01-08: Agora abre na aba Detalhes em vez de dialog.
+        Duplo clique na tabela:
+        - Aba SSAs: Abre dialog de resumo rápido com opção de abrir em Detalhes
+        - Aba Filtros: Abre direto na aba Detalhes (sem dialog)
         """
         row = index.row()
         index_item = self.table_widget.item(row, 0)
@@ -5872,15 +5865,49 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             return
 
-        # Obtem numero da SSA
         series = self.df_exibido.iloc[int(original_index)]
         numero_ssa = str(series.get('numero_ssa', '')).strip()
 
+        # Aba Filtros: Abre direto na aba Detalhes
+        tab_kind = getattr(self, '_current_tab_kind', 'ssas')
+        if tab_kind == 'filters':
+            if numero_ssa:
+                self._open_ssa_in_details_tab(numero_ssa)
+            else:
+                QMessageBox.information(self, "Info", "Numero SSA nao encontrado.")
+            return
+
+        # Aba SSAs: Mostra dialog de resumo rápido
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Detalhes da SSA #{series.get('numero_ssa', 'N/A')}")
+        dialog.setMinimumWidth(DETAILS_DIALOG_MIN_WIDTH)
+        dialog.setMinimumHeight(DETAILS_DIALOG_MIN_HEIGHT)
+
+        layout = QVBoxLayout(dialog)
+
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(False)
+        text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
+
+        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
+        text_browser.setHtml(html_content)
+        layout.addWidget(text_browser)
+
+        # Botoes
+        button_layout = QHBoxLayout()
+        
         if numero_ssa:
-            # Abre na aba Detalhes
-            self._open_ssa_in_details_tab(numero_ssa)
-        else:
-            QMessageBox.information(self, "Info", "Numero SSA nao encontrado.")
+            open_tab_button = QPushButton("Abrir em Aba Detalhes")
+            open_tab_button.clicked.connect(lambda: self._open_ssa_in_details_tab(numero_ssa))
+            open_tab_button.clicked.connect(dialog.accept)
+            button_layout.addWidget(open_tab_button)
+        
+        close_button = QPushButton("Fechar")
+        close_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_button)
+
+        layout.addLayout(button_layout)
+        dialog.exec()
 
     def on_table_double_click_OLD_DIALOG_VERSION(self, index):
         """
