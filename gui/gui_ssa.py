@@ -1400,6 +1400,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Error setting col_filters_hint style: {e}")
         col_filters_outer.addWidget(col_filters_hint)
+        
+        # UIREFACTOR 2026-01-09: 3 filtros de coluna sempre visíveis (persistentes)
+        persistent_filters_widget = QWidget()
+        persistent_filters_layout = QVBoxLayout(persistent_filters_widget)
+        persistent_filters_layout.setContentsMargins(4, 4, 4, 4)
+        persistent_filters_layout.setSpacing(6)
+        
+        # Criar 3 filtros permanentes para as colunas mais importantes
+        permanent_columns = [
+            ("numero_ssa", "SSA"),
+            ("situacao", "Situação"),
+            ("setor_emissor", "Emissor")
+        ]
+        
+        permanent_filter_inputs = {}
+        for col_key, col_display in permanent_columns:
+            row_layout = QHBoxLayout()
+            row_layout.setSpacing(4)
+            
+            label = QLabel(f"{col_display}:")
+            label.setMinimumWidth(70)
+            label.setMaximumWidth(70)
+            row_layout.addWidget(label)
+            
+            line_edit = QLineEdit()
+            line_edit.setPlaceholderText(f"Filtrar {col_display}...")
+            line_edit.setClearButtonEnabled(True)
+            line_edit.returnPressed.connect(lambda col=col_key: self._apply_permanent_filter(col))
+            row_layout.addWidget(line_edit)
+            
+            apply_btn = QPushButton("⚡")
+            apply_btn.setMaximumWidth(30)
+            apply_btn.setToolTip(f"Aplicar filtro em {col_display}")
+            apply_btn.clicked.connect(lambda checked=False, col=col_key: self._apply_permanent_filter(col))
+            row_layout.addWidget(apply_btn)
+            
+            persistent_filters_layout.addLayout(row_layout)
+            permanent_filter_inputs[col_key] = line_edit
+        
+        col_filters_outer.addWidget(persistent_filters_widget)
+        
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
@@ -1458,6 +1499,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "paginator": paginator,
                 "profile_selector": profile_selector,
                 "persistent_filters_layout": persistent_filters_layout,
+                "permanent_filter_inputs": permanent_filter_inputs,
                 "filter_tags_layout": filter_tags_layout,
                 "exclude_ste_checkbox": exclude_ste_checkbox,
                 "ssa_count_label": ssa_count_label,
@@ -6396,6 +6438,81 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 undo_btn.setEnabled(False)
         except Exception as e:
             logger.error(f"Erro ao atualizar estado do botão undo: {e}")
+
+    def _apply_permanent_filter(self, column_key):
+        """Aplica filtro de um dos 3 campos permanentes."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            
+            ctx = self._tab_contexts[self._current_tab_index]
+            permanent_inputs = ctx.get("permanent_filter_inputs", {})
+            
+            line_edit = permanent_inputs.get(column_key)
+            if not line_edit:
+                return
+            
+            term = line_edit.text().strip()
+            
+            if term:
+                # Adiciona ou atualiza o filtro
+                self._active_column_filters[column_key] = term
+            else:
+                # Remove o filtro se vazio
+                self._active_column_filters.pop(column_key, None)
+            
+            # Reaplicar filtros
+            if hasattr(self, 'initiate_filtering'):
+                self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao aplicar filtro permanente para {column_key}: {e}")
+
+    def _clear_all_column_filters(self):
+        """Limpa todos os filtros de coluna, incluindo os permanentes."""
+        try:
+            self._active_column_filters.clear()
+            
+            # Limpar os inputs permanentes
+            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+                    ctx = self._tab_contexts[self._current_tab_index]
+                    permanent_inputs = ctx.get("permanent_filter_inputs", {})
+                    for line_edit in permanent_inputs.values():
+                        line_edit.clear()
+            
+            # Reaplicar filtros (vai mostrar tudo sem filtros)
+            if hasattr(self, 'initiate_filtering'):
+                self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao limpar filtros de coluna: {e}")
+
+    def _open_add_column_filter_menu(self):
+        """Abre menu para adicionar filtro de coluna adicional."""
+        # TODO: Implementar adição de filtros dinâmicos além dos 3 permanentes
+        QMessageBox.information(self, "Info", "Funcionalidade de filtros adicionais em desenvolvimento.\nUse os 3 filtros permanentes acima.")
+
+    def _build_column_filters_panel(self):
+        """Reconstrói o painel de filtros de coluna (atualiza valores dos permanentes)."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            
+            ctx = self._tab_contexts[self._current_tab_index]
+            permanent_inputs = ctx.get("permanent_filter_inputs", {})
+            
+            # Atualizar valores dos inputs permanentes com base em _active_column_filters
+            for col_key, line_edit in permanent_inputs.items():
+                current_filter = self._active_column_filters.get(col_key, "")
+                if line_edit.text() != current_filter:
+                    line_edit.blockSignals(True)
+                    line_edit.setText(current_filter)
+                    line_edit.blockSignals(False)
+        except Exception as e:
+            logger.error(f"Erro ao reconstruir painel de filtros de coluna: {e}")
 
     def remove_column_by_index(self, column_index):
         """Remove uma coluna especáfica baseada no ándice."""
