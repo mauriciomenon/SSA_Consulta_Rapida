@@ -6363,7 +6363,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             
             count = len(self._active_column_filters)
             if count > 0:
-                indicator.setText(f"🔍 {count} filtro(s) de coluna")
+                indicator.setText(f"{count} filtro(s) de coluna")
                 indicator.setVisible(True)
             else:
                 indicator.setText("")
