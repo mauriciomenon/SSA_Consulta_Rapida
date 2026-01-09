@@ -38,7 +38,7 @@ def test_gui_instantiation():
 
         # Garante QApplication
         if QT_AVAILABLE:
-            _app = _get_qapp()
+            _get_qapp()
 
         # Tenta criar instancia (modo headless)
         try:
@@ -46,22 +46,22 @@ def test_gui_instantiation():
             print("  [OK] SSAMainWindow instanciada com sucesso")
 
             # Verifica alguns atributos basicos
-            if hasattr(window, 'df_completo'):
-                print("  [OK] Atributo 'df_completo' existe")
-            if hasattr(window, 'initiate_filtering'):
-                print("  [OK] Metodo 'initiate_filtering' acessivel")
-            if hasattr(window, '_apply_column_filters'):
-                print("  [OK] Metodo '_apply_column_filters' acessivel")
+            assert hasattr(window, 'df_completo'), "Atributo 'df_completo' nao existe"
+            assert hasattr(window, 'initiate_filtering'), "Metodo 'initiate_filtering' nao acessivel"
+            assert hasattr(window, '_apply_column_filters'), "Metodo '_apply_column_filters' nao acessivel"
 
-            return True
+            # Check if cache is working and logging some times (user request)
+            if hasattr(window, 'filter_cache_stats'):
+                print(f"  [METRIC] Initial Cache Stats: {window.filter_cache_stats}")
 
         except Exception as e:
-            print(f"  [ERRO] Falha ao instanciar: {e}")
-            return False
+            import traceback
+            traceback.print_exc()
+            raise e
 
     except ImportError as e:
         print(f"  [ERRO] Falha ao importar: {e}")
-        return False
+        raise e
 
 
 def test_mixin_methods_callable():
@@ -70,7 +70,7 @@ def test_mixin_methods_callable():
 
     try:
         from gui.gui_ssa import SSAMainWindow
-        _app = _get_qapp()
+        _get_qapp()
 
         window = SSAMainWindow()
 
@@ -83,22 +83,13 @@ def test_mixin_methods_callable():
         ]
 
         for method_name in filter_methods:
-            if hasattr(window, method_name):
-                method = getattr(window, method_name)
-                if callable(method):
-                    print(f"  [OK] {method_name} e chamavel")
-                else:
-                    print(f"  [ERRO] {method_name} nao e chamavel")
-                    return False
-            else:
-                print(f"  [ERRO] {method_name} nao existe")
-                return False
-
-        return True
+            assert hasattr(window, method_name), f"Metodo {method_name} nao existe"
+            method = getattr(window, method_name)
+            assert callable(method), f"Atributo {method_name} nao e chamavel"
 
     except Exception as e:
         print(f"  [ERRO] Falha: {e}")
-        return False
+        raise e
 
 
 def test_no_method_conflicts():
@@ -127,41 +118,23 @@ def test_no_method_conflicts():
 
         print(f"  Metodos do mixin em SSAMainWindow: {len(inherited)}")
 
-        if len(inherited) == len(mixin_method_names):
-            print("  [OK] Todos os metodos do mixin estao presentes")
-            return True
-        else:
-            missing = mixin_method_names - inherited
-            print(f"  [ERRO] Metodos faltando: {missing}")
-            return False
+        missing = mixin_method_names - inherited
+        assert not missing, f"Metodos faltando no mixin: {missing}"
 
     except Exception as e:
         print(f"  [ERRO] Falha: {e}")
-        return False
+        raise e
 
-
-def main():
-    """Executa todos os smoke tests."""
-    print("="*60)
-    print("SMOKE TEST: GUI apos integracao do mixin")
-    print("="*60)
-
-    all_passed = True
-
-    all_passed &= test_gui_instantiation()
-    all_passed &= test_mixin_methods_callable()
-    all_passed &= test_no_method_conflicts()
-
-    # Resultado final
-    print("\n" + "="*60)
-    if all_passed:
+if __name__ == "__main__":
+    try:
+        test_gui_instantiation()
+        test_mixin_methods_callable()
+        test_no_method_conflicts()
+        print("\n" + "="*60)
         print("[SUCESSO] Todos os smoke tests passaram!")
-    else:
+        print("="*60)
+        sys.exit(0)
+    except Exception as e:
         print("[FALHA] Alguns smoke tests falharam.")
-    print("="*60)
-
-    return 0 if all_passed else 1
-
-
-if __name__ == '__main__':
-    sys.exit(main())
+        print(f"Errors: {e}")
+        sys.exit(1)

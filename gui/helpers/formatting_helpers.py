@@ -72,14 +72,14 @@ def highlight_text(text: str, terms: list[str],
 
     # Escape HTML
     text_escaped = html.escape(str(text))
-    
+
     style_parts = [
         f"background-color: {bg_color}",
         f"font-weight: {font_weight}"
     ]
     if text_color:
         style_parts.append(f"color: {text_color}")
-    
+
     style_str = "; ".join(style_parts)
 
     # Apply highlight for each term
@@ -99,7 +99,7 @@ def highlight_text(text: str, terms: list[str],
 def normalize_ssa_value(value) -> str:
     """
     Normalize SSA number for comparison/linking.
-    
+
     Removes non-digits, handles None/Nan.
     """
     text = str(value or "").strip()

@@ -47,6 +47,8 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
 # Config
 from gui.gui_config import GUI_MAIN_PREFERENCES
+from gui.widgets.profile_selector import ProfileSelector
+from gui.widgets.filter_tags_widget import FilterTagsWidget
 
 # Inicializar logging robusto
 try:
@@ -1196,11 +1198,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         column_selector.columns_changed.connect(self.on_columns_changed)
         pagination_filters_layout.addWidget(column_selector)
 
-        # UIREFACTOR 2026-01-08: Removidos profile_selector, save_filter_button e filter_tags_widget
-        # Mantido exclude_ste_checkbox pois e util na aba SSAs
-        profile_selector = None
-        filter_tags_widget = None
-        filter_tags_layout = None
+        # RESTORED: ProfileSelector and FilterTagsWidget (User Request)
+        profiles_path = os.path.join(project_root, 'config', 'column_profiles.json')
+        profile_selector = ProfileSelector(
+            profiles_file=profiles_path,
+            default_columns=self.default_columns,
+            current_columns=self.visible_columns,
+        )
+        profile_selector.profile_changed.connect(self.on_columns_changed)
+        pagination_filters_layout.addWidget(profile_selector)
+
+        filter_tags_widget = FilterTagsWidget()
+        # Connect signal for removing tags
+        filter_tags_widget.filter_removed.connect(self._on_tag_removed)
+        # Add filter tags widget just below search bar
+        tab_layout.insertWidget(2, filter_tags_widget)
+
+        filter_tags_layout = None  # Deprecated/Replaced by widget internal layout
         persistent_filters_layout = None
 
         # UIREFACTOR 2026-01-08: Checkbox "Nao esta em STE/SCA" restaurado - util na aba SSAs
@@ -1420,14 +1434,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if tab_kind == "filters":
             # UIREFACTOR 2026-01-08: Aba Filtros sem painel de detalhes, filtros avancados em tela cheia
             adv_group, adv_ctx = self._build_advanced_filters_panel()
-            
+
             # Assegurar que os widgets criados estejam acessiveis via self para funcoes de refresh
             # Isso corrige o erro onde menus (ex: adv_responsavel_solicitante_menu) eram None
             for k, v in adv_ctx.items():
                 setattr(self, k, v)
-                
+
             right_col.addWidget(adv_group, 1)
-            col_filters_group.setVisible(False)
+            col_filters_group.setVisible(True)
             right_col.addWidget(col_filters_group)
             # Filtros avancados ocupam toda largura (sem painel de detalhes)
             bottom_layout.addWidget(right_col_widget, 1)
@@ -1480,28 +1494,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ctx
 
     def _bind_tab_context(self, ctx: dict) -> None:
-        self._current_tab_kind = ctx.get("tab_kind")
+        new_kind = ctx.get("tab_kind")
+
+        # OTIMIZACAO: Se o widget alvo (table_widget) for o mesmo, evitamos re-bind total
+        # mas precisamos garantir que os atributos de contexto (table_widget, etc) apontem para o certo
+        current_table = getattr(self, "table_widget", None)
+        target_table = ctx.get("table_widget")
+
+        # Faz o bind dos atributos
+        self._current_tab_kind = new_kind
         for name in self.TAB_WIDGET_ATTRS:
             if name in ctx:
                 setattr(self, name, ctx[name])
+
+        # Se a tabela mudou (ou context switch forcado), reconecta ou ajusta
+        # No caso atual, ctx_filters e ctx_main podem apontar para tabelas diferentes ou a mesma tabela
+        # se apontarem para a mesma, a logica de redraw pode ser simplificada
+
         try:
-            active_text = self.search_input.text().strip()
-            self.clear_filter_button.setEnabled(bool(active_text))
+            # Sincroniza estado de busca/filtro com a UI
+            # Obs: Isso ja eh parcialmente tratado no _on_tab_changed ao restaurar state
+            # porem aqui ajustamos a habilitacao de botoes
+            if hasattr(self, 'search_input'):
+                active_text = self.search_input.text().strip()
+                self.clear_filter_button.setEnabled(bool(active_text))
         except Exception as e:
             logger.error(f"Erro ao atualizar estado do botao limpar filtro: {e}")
-        try:
-            if ctx.get("tab_kind") == "filters":
-                self.search_input.blockSignals(True)
-                self.search_input.clear()
-                self.clear_filter_button.setEnabled(False)
-        except Exception as e:
-            logger.error(f"Erro ao limpar input de busca na aba filters: {e}")
-        finally:
-            try:
-                if ctx.get("tab_kind") == "filters":
-                    self.search_input.blockSignals(False)
-            except Exception as e:
-                logger.error(f"Erro ao desbloquear sinais do input de busca: {e}")
+
+        # Logica especifica para aba Filters (agora redundante com isolamento, mas mantida para layout)
 
         tab_kind = ctx.get("tab_kind")
         try:
@@ -1517,7 +1537,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         self._refresh_advanced_filter_options()
                         self._adv_options_dirty = False
                     except Exception as e:
-                        logger.error(f"Erro ao atualizar opcoes de filtro (dirty check inside _bind_tab_context): {e}")
+                        logger.error(
+                            f"Erro ao atualizar opcoes de filtro (dirty check inside _bind_tab_context): {e}"
+                        )
         except Exception as e:
             logger.error(f"Erro ao verificar dirty check na mudanca de contexto: {e}")
 
@@ -1563,13 +1585,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao atualizar paginator na mudanca de contexto: {e}")
         try:
-            if tab_kind != "filters":
-                self._build_column_filters_panel()
+            # if tab_kind != "filters":  # RESTORED: Always build column filters
+            self._build_column_filters_panel()
         except Exception as e:
             logger.error(f"Erro ao reconstruir painel de filtros de coluna: {e}")
         try:
-            if tab_kind != "filters":
-                self._update_col_filter_indicator()
+            # if tab_kind != "filters": # RESTORED: Always update indicator
+            self._update_col_filter_indicator()
         except Exception as e:
             logger.error(f"Erro ao atualizar indicador de filtros: {e}")
         try:
@@ -1631,15 +1653,84 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._refresh_advanced_filter_options()
             self._adv_options_dirty = False
         except Exception as e:
-            logger.error(f"Erro durante execucao de _refresh_advanced_filter_options em _run_adv_options_refresh: {e}")
+            logger.error(
+                f"Erro durante execucao de _refresh_advanced_filter_options em _run_adv_options_refresh: {e}"
+            )
 
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
             return
+
+        # 1. SALVAR ESTADO DA ABA ANTERIOR (se houver)
+        # Identifica a aba anterior assumindo que self._current_tab_index armazena o indice antigo
+        # Se nao tiver esse atributo, assume 0 na primeira vez ou nao salva
+        if hasattr(self, "_current_tab_index") and 0 <= self._current_tab_index < len(
+            self._tab_contexts
+        ):
+            old_ctx = self._tab_contexts[self._current_tab_index]
+            # Sï¿½ salva se a aba antiga for do tipo que suporta filtros
+            if old_ctx:
+                state = old_ctx.setdefault("state", {})
+                state["active_column_filters"] = getattr(self, "_active_column_filters", {}).copy()
+                state["advanced_filters"] = getattr(self, "_advanced_filters", {}).copy()
+                state["search_text"] = self.search_input.text()
+                # OTIMIZACAO 2026-01-09: Cache do DataFrame
+                if hasattr(self, "df_exibido"):
+                    state["cached_df_exibido"] = self.df_exibido
+                if hasattr(self, "_df_last_search_filtered"):
+                    state["cached_last_search_filtered"] = self._df_last_search_filtered
+
+        # Atualiza indice atual
+        self._current_tab_index = index
+
         if index < 0 or index >= len(self._tab_contexts):
             return
+
+        # 2. CARREGAR ESTADO DA NOVA ABA
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
+
+        # Restaura filtros da nova aba
+        state = ctx.get("state", {})
+
+        # Restaura input de busca (evita disparar sinais durante a restauracao)
+        prev_search = state.get("search_text", "")
+        self.search_input.blockSignals(True)
+        self.search_input.setText(prev_search)
+        self.search_input.blockSignals(False)
+
+        # Restaura dicionarios de filtro
+        self._active_column_filters = state.get("active_column_filters", {}).copy()
+        self._advanced_filters = state.get("advanced_filters", {}).copy()
+
+        # Atualiza UI dos filtros (painel de colunas, tags, etc)
+        try:
+            self._build_column_filters_panel()
+            try:
+                self.update_filter_tags()  # Legacy support (persistent filters)
+            except Exception:
+                pass
+            try:
+                self._update_tags_visuals()  # New Active Filters Tags
+            except Exception:
+                pass
+
+            # OTIMIZACAO 2026-01-09: Usar cache se disponivel
+            cached_df = state.get("cached_df_exibido")
+            if cached_df is not None and not cached_df.empty:
+                self.df_exibido = cached_df
+                if "cached_last_search_filtered" in state:
+                    self._df_last_search_filtered = state["cached_last_search_filtered"]
+
+                self.paginator.set_dataframe(self.df_exibido)
+                self.display_current_page(self.paginator.current_page)
+                self._update_filters_summary()
+                # self.initiate_filtering() # PULA FILTRAGEM
+            else:
+                # Forca re-aplicacao dos filtros restaurados se nao houver cache
+                self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao restaurar estado da aba {index}: {e}")
 
     def _make_multiselect_box(
         self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True
@@ -1720,7 +1811,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if value:
                         selected.append(value)
             except Exception as e:
-                logger.error(f"Erro ao verificar checkbox (checks) em _update_multiselect_button: {e}")
+                logger.error(
+                    f"Erro ao verificar checkbox (checks) em _update_multiselect_button: {e}"
+                )
         excluded = []
         for cb in exclude_checks or []:
             try:
@@ -1729,7 +1822,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if value:
                         excluded.append(value)
             except Exception as e:
-                logger.error(f"Erro ao verificar checkbox (exclude_checks) em _update_multiselect_button: {e}")
+                logger.error(
+                    f"Erro ao verificar checkbox (exclude_checks) em _update_multiselect_button: {e}"
+                )
         total = len(checks or [])
         if total == 0:
             text = "Sem dados"
@@ -1866,37 +1961,77 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             row_idx += 1
 
         # Estilo para checkboxes com indicacao visual clara quando marcados
-        # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual
-        cb_style_include = """
-            QCheckBox::indicator {
-                background-color: #f0f0f0;
-                border: 1px solid #888;
+        # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual e suporte a temas
+        roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
+        p_color = roles.get('primary_color', '#4a90d9')
+        d_color = roles.get('danger_color', '#d94a4a')
+        bg_input = roles.get(
+            'input_bg',
+            '#3c3836' if getattr(self, '_current_theme', 'dark') != 'light' else '#f0f0f0',
+        )
+        border_c = roles.get('input_border', '#888')
+
+        cb_style_include = f"""
+            QCheckBox::indicator {{
+                background-color: {bg_input};
+                border: 1px solid {border_c};
                 border-radius: 2px;
                 width: 13px;
                 height: 13px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #4a90d9;
-                border: 1px solid #2a70b9;
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {p_color};
+                border: 1px solid {p_color};
                 image: none;
-            }
+            }}
         """
-        cb_style_exclude = """
-            QCheckBox::indicator {
-                background-color: #f5f5f5;
-                border: 1px solid #bbb;
+        cb_style_exclude = f"""
+            QCheckBox::indicator {{
+                background-color: {bg_input};
+                border: 1px solid {border_c};
                 border-radius: 2px;
                 width: 13px;
                 height: 13px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #d94a4a;
-                border: 1px solid #b92a2a;
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {d_color};
+                border: 1px solid {d_color};
                 image: none;
-            }
+            }}
         """
 
-        for val in values:
+        # OTIMIZACAO CRITICA: Limitar itens no menu para evitar congelamento da UI
+        MAX_MENU_ITEMS = 200
+        total_items = len(values)
+        display_values = values
+
+        has_truncated = False
+        if total_items > MAX_MENU_ITEMS:
+            # Filtra e limita, preservando selecionados
+            # Se values forem tuples (value, label), extrai value para check
+            selected_list = []
+            others = []
+
+            for v in values:
+                check_val = v[0] if isinstance(v, (list, tuple)) and len(v) > 0 else v
+                if str(check_val).casefold() in selected_norm:
+                    selected_list.append(v)
+                else:
+                    others.append(v)
+
+            remaining_quota = max(10, MAX_MENU_ITEMS - len(selected_list))
+            display_values = selected_list + others[:remaining_quota]
+
+            # Reordenar alfabeticamente pelo label
+            try:
+                display_values.sort(
+                    key=lambda x: str(x[1] if isinstance(x, (tuple, list)) else x).casefold()
+                )
+            except:
+                pass
+            has_truncated = True
+
+        for val in display_values:
             label_text = (
                 str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
             )
@@ -1973,6 +2108,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     exclude_cb.toggled.connect(on_exclude_toggle)
                 except Exception as e:
                     logger.error(f"Erro ao conectar on_exclude_toggle: {e}")
+
+        # Item de aviso se truncado
+        if (
+            getattr(self, "MAX_MENU_ITEMS", 200) <= len(values)
+            and hasattr(locals().get("has_truncated", False), "__bool__")
+            and locals().get("has_truncated", False)
+        ):
+            warning_label = QLabel(
+                f"... {len(values) - len(display_values) if 'display_values' in locals() else 0} itens ocultos. Use a pesquisa."
+            )
+            warning_label.setStyleSheet("color: #888; font-style: italic; margin-top: 4px;")
+            grid.addWidget(warning_label, row_idx, 0, 1, 3)
+            row_idx += 1
 
         # Separador antes de Selecionar/Desmarcar
         if exclude_selected_set is not None:
@@ -4464,6 +4612,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao reorganizar grid filtros: {e}")
 
     def eventFilter(self, obj, event):
+        # PROTECAO CONTRA CRASH NA TROCA DE ABAS
+        if not hasattr(self, 'table_widget') or self.table_widget is None:
+            return False
+
         try:
             header = self.table_widget.horizontalHeader()
             if obj is header:
@@ -4762,8 +4914,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
         try:
-            header = self.table_widget.horizontalHeader()
-            header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+            # FIX: Apply header style to ALL table widgets in all contexts
+            targets = []
+            if hasattr(self, 'table_widget') and self.table_widget:
+                targets.append(self.table_widget)
+            if hasattr(self, '_tab_contexts'):
+                for ctx in self._tab_contexts:
+                    if 'table_widget' in ctx and ctx['table_widget']:
+                        targets.append(ctx['table_widget'])
+            # Deduplicate
+            targets = list(set(targets))
+
+            for table in targets:
+                try:
+                    header = table.horizontalHeader()
+                    header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -4812,15 +4979,38 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 4: Search Bar Components
             # ============================================================
             # Style the search label and search input field
-            if hasattr(self, 'search_label'):
-                self.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
+            targets_input = []
+            targets_label = []
 
-            if hasattr(self, 'search_input') and self.search_input is not None:
-                self.search_input.setStyleSheet(
-                    build_line_edit_qss(
-                        input_text, input_bg, input_border, input_focus, input_placeholder
-                    )
-                )
+            if hasattr(self, 'search_input') and self.search_input:
+                targets_input.append(self.search_input)
+            if hasattr(self, 'search_label') and self.search_label:
+                targets_label.append(self.search_label)
+
+            if hasattr(self, '_tab_contexts'):
+                for ctx in self._tab_contexts:
+                    if 'search_input' in ctx and ctx['search_input']:
+                        targets_input.append(ctx['search_input'])
+                    if 'search_label' in ctx and ctx['search_label']:
+                        targets_label.append(ctx['search_label'])
+
+            targets_input = list(set(targets_input))
+            targets_label = list(set(targets_label))
+
+            for lbl in targets_label:
+                try:
+                    lbl.setStyleSheet(f"color: {label_color}; font-weight: 600;")
+                except:
+                    pass
+
+            qss_input = build_line_edit_qss(
+                input_text, input_bg, input_border, input_focus, input_placeholder
+            )
+            for inp in targets_input:
+                try:
+                    inp.setStyleSheet(qss_input)
+                except:
+                    pass
 
             tool_btn_css = (
                 "QToolButton {"

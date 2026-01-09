@@ -789,8 +789,8 @@ class FilterGUISSAMixin:
             _add_adv("Executor", adv.get("setor_executor_exclude_values"), "!=")
             _add_adv("Emissor", adv.get("setor_emissor"))
             _add_adv("Emissor", adv.get("setor_emissor_exclude_values"), "!=")
-            _add_adv("Divisao", adv.get("divisao"))
-            _add_adv("Divisao", adv.get("divisao_exclude_values"), "!=")
+            # _add_adv("Divisao", adv.get("divisao"))
+            # _add_adv("Divisao", adv.get("divisao_exclude_values"), "!=")
             _add_adv("Situacao", adv.get("situacao"))
             _add_adv("Situacao", adv.get("situacao_exclude_values"), "!=")
             _add_adv("Solicitante", adv.get("solicitante"))
@@ -1089,11 +1089,18 @@ class FilterGUISSAMixin:
 
     def _refresh_after_filter_change(self):
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
-        base = (
-            self._df_last_search_filtered
-            if not self._df_last_search_filtered.empty
-            else self.df_completo
-        )
+        # Identifica se existe busca ativa no input
+        has_search = False
+        if hasattr(self, 'search_input'):
+            has_search = bool(self.search_input.text().strip())
+        
+        # Se tem busca, respeita o resultado dela (mesmo que seja zero linhas).
+        # Caso contrario, usa o dataset completo como base.
+        if has_search:
+            base = self._df_last_search_filtered
+        else:
+            base = self.df_completo
+
         filtered = base
         if hasattr(self, "_apply_advanced_filters"):
             try:
@@ -1136,6 +1143,11 @@ class FilterGUISSAMixin:
         self._update_ssa_count()
         try:
             self._update_filters_summary()
+        except Exception:
+            pass
+        # Atualizar tags visuais (Filtros Ativos)
+        try:
+            self._update_tags_visuals()
         except Exception:
             pass
 
@@ -1745,3 +1757,62 @@ class FilterGUISSAMixin:
         """Aplica um filtro persistente."""
         self.search_input.setText(terms)
         self.initiate_filtering()
+
+    def _update_tags_visuals(self):
+        """Coleta todos os filtros ativos e atualiza o widget de tags."""
+        if not hasattr(self, 'filter_tags_widget') or not self.filter_tags_widget:
+            return
+
+        active_filters = []
+
+        # 1. Pesquisa Geral
+        try:
+            search_text = self.search_input.text().strip()
+            if search_text:
+                active_filters.append({'type': 'search', 'label': 'Pesquisa', 'val': search_text})
+        except Exception:
+            pass
+
+        # 2. Checkbox STE/SCA
+        try:
+            if hasattr(self, '_exclude_ste_sca') and self._exclude_ste_sca:
+                active_filters.append(
+                    {'type': 'exclude_ste', 'label': 'Filtro', 'val': 'Não está em STE/SCA'}
+                )
+        except Exception:
+            pass
+
+        # 3. Filtros por Coluna
+        try:
+            if hasattr(self, '_active_column_filters'):
+                for col, val in self._active_column_filters.items():
+                    str_val = str(val).strip()
+                    if str_val:
+                        # Tenta pegar nome de exibição
+                        label = col
+                        if hasattr(self, 'display_map'):
+                            label = self.display_map.get(col, col)
+                        elif hasattr(self, 'internal_to_display'):
+                            label = self.internal_to_display.get(col, col)
+
+                        active_filters.append(
+                            {'type': 'col', 'col': col, 'label': label, 'val': str_val}
+                        )
+        except Exception:
+            pass
+
+        self.filter_tags_widget.update_tags(active_filters)
+
+    def _on_tag_removed(self, type_, value):
+        """Callback quando remove tag."""
+        if type_ == 'search':
+            self.search_input.clear()
+            self.initiate_filtering()
+        elif type_ == 'exclude_ste':
+            box = getattr(self, 'exclude_ste_checkbox', None)
+            if box:
+                box.setChecked(False)
+        elif type_ == 'col':
+            col_name = value.get('col')
+            if col_name:
+                self._deactivate_column_filter(col_name)

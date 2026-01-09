@@ -63,7 +63,7 @@ class DataPaginator(QWidget):
             self.total_pages = (len(self.df) + self.page_size - 1) // self.page_size
         else:
             self.total_pages = 1
-        
+
         # Garante que a pagina atual esteja sempre dentro dos limites validos (clamping)
         if self.current_page > self.total_pages:
             self.current_page = self.total_pages
