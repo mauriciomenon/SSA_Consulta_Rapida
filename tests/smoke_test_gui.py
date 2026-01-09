@@ -14,6 +14,18 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
+def _get_qapp():
+    """Garante existência de QApplication."""
+    try:
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if not app:
+            app = QApplication([])
+        return app
+    except ImportError:
+        return None
+
+
 def test_gui_instantiation():
     """Testa se a GUI pode ser instanciada (modo headless)."""
     print("[TEST] Testando instanciacao da GUI...")
@@ -23,6 +35,10 @@ def test_gui_instantiation():
         from gui.gui_ssa import SSAMainWindow, QT_AVAILABLE
 
         print(f"  Qt disponivel: {QT_AVAILABLE}")
+
+        # Garante QApplication
+        if QT_AVAILABLE:
+            _app = _get_qapp()
 
         # Tenta criar instancia (modo headless)
         try:
@@ -54,6 +70,7 @@ def test_mixin_methods_callable():
 
     try:
         from gui.gui_ssa import SSAMainWindow
+        _app = _get_qapp()
 
         window = SSAMainWindow()
 

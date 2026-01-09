@@ -11,7 +11,8 @@ from gui.helpers.theme_helpers import (
 from gui.helpers.formatting_helpers import (
     normalize_chunk_for_parse,
     format_search_display,
-    highlight_text
+    highlight_text,
+    normalize_ssa_value
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     'build_line_edit_qss',
     'normalize_chunk_for_parse',
     'format_search_display',
-    'highlight_text'
+    'highlight_text',
+    'normalize_ssa_value'
 ]

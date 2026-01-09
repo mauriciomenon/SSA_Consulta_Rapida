@@ -52,7 +52,8 @@ def format_search_display(chunks: list[list[str]]) -> str:
 
 
 def highlight_text(text: str, terms: list[str],
-                  bg_color: str = 'yellow', font_weight: str = 'bold') -> str:
+                  bg_color: str = 'yellow', font_weight: str = 'bold',
+                  text_color: str = None) -> str:
     """
     Apply HTML highlight to terms found in text.
 
@@ -61,6 +62,7 @@ def highlight_text(text: str, terms: list[str],
         terms: List of terms to highlight
         bg_color: Background color for highlight (default: yellow)
         font_weight: Font weight for highlight (default: bold)
+        text_color: Optional text color (default: None/inherit)
 
     Returns:
         HTML string with highlighted terms
@@ -70,6 +72,15 @@ def highlight_text(text: str, terms: list[str],
 
     # Escape HTML
     text_escaped = html.escape(str(text))
+    
+    style_parts = [
+        f"background-color: {bg_color}",
+        f"font-weight: {font_weight}"
+    ]
+    if text_color:
+        style_parts.append(f"color: {text_color}")
+    
+    style_str = "; ".join(style_parts)
 
     # Apply highlight for each term
     for term in terms:
@@ -78,8 +89,29 @@ def highlight_text(text: str, terms: list[str],
         # Case-insensitive search
         pattern = re.compile(re.escape(term), re.IGNORECASE)
         text_escaped = pattern.sub(
-            lambda m: f'<span style="background-color: {bg_color}; font-weight: {font_weight};">{m.group()}</span>',
+            lambda m: f'<span style="{style_str};">{m.group()}</span>',
             text_escaped
         )
 
     return text_escaped
+
+
+def normalize_ssa_value(value) -> str:
+    """
+    Normalize SSA number for comparison/linking.
+    
+    Removes non-digits, handles None/Nan.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lowered = text.casefold()
+    if lowered in ("nan", "none", "nat"):
+        return ""
+    try:
+        digits = re.sub(r"\D", "", text)
+    except Exception:
+        digits = ""
+    if digits:
+        return digits
+    return lowered

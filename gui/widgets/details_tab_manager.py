@@ -4,11 +4,20 @@ Widget dedicado para visualizacao de multiplas SSAs com navegacao estilo Notepad
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTextBrowser, QStackedWidget, QMessageBox, QToolButton
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextBrowser,
+    QStackedWidget,
+    QMessageBox,
+    QToolButton,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+
+from gui.helpers.formatting_helpers import normalize_ssa_value
 
 
 class DetailsTabWidget(QWidget):
@@ -17,10 +26,16 @@ class DetailsTabWidget(QWidget):
     # Sinal emitido quando uma SSA e aberta
     ssa_opened = pyqtSignal(str)
 
-    def __init__(self, parent):
+    def __init__(self, parent=None, data_provider=None, html_formatter=None):
         super().__init__(parent)
-        self.parent_window = parent
-        self.tabs = []  # Lista de dicts: {'numero_ssa': str, 'widget': QWidget, 'button': QPushButton, 'series': pd.Series}
+        self.parent_window = (
+            parent  # Mantido para compatibilidade, mas nao deve ser usado para logica
+        )
+        self.data_provider = data_provider  # Callable[[str], pd.Series | None]
+        self.html_formatter = html_formatter  # Callable[[pd.Series], str]
+        self.tabs = (
+            []
+        )  # Lista de dicts: {'numero_ssa': str, 'widget': QWidget, 'button': QPushButton, 'series': pd.Series}
         self.current_index = -1
         self.max_tabs = 10
         self._init_ui()
@@ -79,7 +94,9 @@ class DetailsTabWidget(QWidget):
         # Widget placeholder quando nenhuma aba esta aberta
         placeholder = QWidget()
         placeholder_layout = QVBoxLayout(placeholder)
-        placeholder_label = QLabel("Nenhuma SSA aberta.\nDigite um numero SSA acima para visualizar detalhes.")
+        placeholder_label = QLabel(
+            "Nenhuma SSA aberta.\nDigite um numero SSA acima para visualizar detalhes."
+        )
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder_label.setStyleSheet("color: gray; font-size: 14pt;")
         placeholder_layout.addWidget(placeholder_label)
@@ -95,7 +112,8 @@ class DetailsTabWidget(QWidget):
     def _apply_styles(self):
         """Aplica estilos CSS aos componentes."""
         # Estilo para input de SSA
-        self.ssa_input.setStyleSheet("""
+        self.ssa_input.setStyleSheet(
+            """
             QLineEdit {
                 padding: 6px;
                 border: 1px solid palette(mid);
@@ -105,7 +123,8 @@ class DetailsTabWidget(QWidget):
             QLineEdit:focus {
                 border: 1px solid palette(highlight);
             }
-        """)
+        """
+        )
 
         # Estilo para botoes de navegacao
         nav_button_style = """
@@ -130,12 +149,14 @@ class DetailsTabWidget(QWidget):
         self.next_btn.setStyleSheet(nav_button_style)
 
         # Estilo para barra de abas
-        self.tab_bar.setStyleSheet("""
+        self.tab_bar.setStyleSheet(
+            """
             QWidget {
                 background: palette(window);
                 border-bottom: 1px solid palette(mid);
             }
-        """)
+        """
+        )
 
     def open_ssa(self, numero_ssa: str) -> bool:
         """
@@ -150,9 +171,9 @@ class DetailsTabWidget(QWidget):
         if not numero_ssa or not numero_ssa.strip():
             return False
 
-        # Normaliza numero usando funcao do parent
+        # Normaliza numero usando helper
         try:
-            num_norm = self.parent_window._normalize_ssa_value(numero_ssa)
+            num_norm = normalize_ssa_value(numero_ssa)
         except Exception:
             num_norm = numero_ssa.strip()
 
@@ -172,7 +193,7 @@ class DetailsTabWidget(QWidget):
             QMessageBox.warning(
                 self,
                 "SSA nao encontrada",
-                f"A SSA '{numero_ssa}' nao foi encontrada no banco de dados."
+                f"A SSA '{numero_ssa}' nao foi encontrada no banco de dados.",
             )
             return False
 
@@ -181,19 +202,17 @@ class DetailsTabWidget(QWidget):
         content.setOpenExternalLinks(False)
         content.anchorClicked.connect(self._on_link_clicked)
 
-        # Renderiza HTML usando funcao do parent
+        # Renderiza HTML usando formatador injetado
         try:
-            html = self.parent_window._format_details_html(
-                series,
-                highlight_search_terms=False,
-                linkify=True
-            )
+            if self.html_formatter:
+                html = self.html_formatter(series)
+            else:
+                html = f"<pre>Dados: {series.to_string()}</pre>"
             content.setHtml(html)
         except Exception as e:
             content.setPlainText(f"Erro ao renderizar detalhes: {e}")
 
         # Cria widget de aba (botao + close button)
-        tab_idx = len(self.tabs)
         tab_widget = QWidget()
         tab_layout = QHBoxLayout(tab_widget)
         tab_layout.setContentsMargins(4, 2, 4, 2)
@@ -205,8 +224,11 @@ class DetailsTabWidget(QWidget):
         tab_btn.setFlat(True)
         tab_btn.setMinimumWidth(120)
         tab_btn.setToolTip(f"SSA {num_norm}\nClique para focar")
-        tab_btn.clicked.connect(lambda checked, idx=tab_idx: self._on_tab_clicked(idx))
-        tab_btn.setStyleSheet("""
+        # Usa propriedade para identificar a aba, evitando problemas com indices capturados em lambda
+        tab_btn.setProperty("ssa_number", num_norm)
+        tab_btn.clicked.connect(lambda checked, n=num_norm: self._on_tab_clicked_by_ssa(n))
+        tab_btn.setStyleSheet(
+            """
             QPushButton {
                 background: palette(button);
                 border: 1px solid palette(mid);
@@ -224,7 +246,8 @@ class DetailsTabWidget(QWidget):
                 border-bottom: 2px solid palette(highlight);
                 font-weight: bold;
             }
-        """)
+        """
+        )
         tab_layout.addWidget(tab_btn)
 
         # Botao de fechar (x)
@@ -232,8 +255,10 @@ class DetailsTabWidget(QWidget):
         close_btn.setText("x")
         close_btn.setFixedSize(18, 18)
         close_btn.setToolTip("Fechar aba")
-        close_btn.clicked.connect(lambda checked, idx=tab_idx: self.close_tab(idx))
-        close_btn.setStyleSheet("""
+        close_btn.setProperty("ssa_number", num_norm)
+        close_btn.clicked.connect(lambda checked, n=num_norm: self.close_tab_by_ssa(n))
+        close_btn.setStyleSheet(
+            """
             QToolButton {
                 background: transparent;
                 border: none;
@@ -245,21 +270,30 @@ class DetailsTabWidget(QWidget):
                 background: palette(highlight);
                 color: palette(highlighted-text);
             }
-        """)
+        """
+        )
         tab_layout.addWidget(close_btn)
 
         # Adiciona aba a lista
-        self.tabs.append({
-            'numero_ssa': num_norm,
-            'widget': content,
-            'tab_widget': tab_widget,
-            'button': tab_btn,
-            'close_button': close_btn,
-            'series': series
-        })
+        self.tabs.append(
+            {
+                'numero_ssa': num_norm,
+                'widget': content,
+                'tab_widget': tab_widget,
+                'button': tab_btn,
+                'close_button': close_btn,
+                'series': series,
+            }
+        )
 
         # Remove stretch temporariamente, adiciona widget, re-adiciona stretch
-        self.tabs_layout.removeItem(self.tabs_layout.itemAt(self.tabs_layout.count() - 1))
+        # Verifica se existe item antes de remover para evitar crash
+        if self.tabs_layout.count() > 0:
+            last_item = self.tabs_layout.itemAt(self.tabs_layout.count() - 1)
+            # Remove apenas se for um spacer item (stretch)
+            if last_item.spacerItem():
+                self.tabs_layout.removeItem(last_item)
+
         self.tabs_layout.addWidget(tab_widget)
         self.tabs_layout.addStretch(1)
 
@@ -341,6 +375,20 @@ class DetailsTabWidget(QWidget):
             self._update_tab_highlights()
             self._update_nav_buttons()
 
+    def _on_tab_clicked_by_ssa(self, ssa_number: str):
+        """Handler para clique em aba usando numero da SSA (mais seguro que indice)."""
+        for i, tab in enumerate(self.tabs):
+            if tab['numero_ssa'] == ssa_number:
+                self._on_tab_clicked(i)
+                break
+
+    def close_tab_by_ssa(self, ssa_number: str):
+        """Fecha aba usando numero da SSA (mais seguro que indice)."""
+        for i, tab in enumerate(self.tabs):
+            if tab['numero_ssa'] == ssa_number:
+                self.close_tab(i)
+                break
+
     def _on_input_enter(self):
         """Handler para Enter pressionado no campo de input."""
         numero = self.ssa_input.text().strip()
@@ -367,30 +415,20 @@ class DetailsTabWidget(QWidget):
 
     def _get_ssa_series(self, numero_ssa: str):
         """
-        Busca dados de uma SSA no DataFrame principal.
+                Busca dados de uma SSA no DataFrame principal.
+        usando o provedor de dados.
 
-        Args:
-            numero_ssa: Numero normalizado da SSA
+                Args:
+                    numero_ssa: Numero normalizado da SSA
 
-        Returns:
-            pandas.Series com dados da SSA ou None se nao encontrada
+                Returns:
+                    pandas.Series com dados da SSA ou None se nao encontrada
         """
-        try:
-            df = self.parent_window.df_completo
-            if df is None or df.empty:
-                return None
-
-            # Normaliza coluna de numeros SSA para comparacao
-            series_norm = df["numero_ssa"].apply(
-                self.parent_window._normalize_ssa_value
-            )
-            mask = series_norm.eq(numero_ssa)
-
-            if mask.any():
-                return df[mask].iloc[0]
-        except Exception:
-            pass
-
+        if self.data_provider:
+            try:
+                return self.data_provider(numero_ssa)
+            except Exception:
+                pass
         return None
 
     def _update_tab_highlights(self):
