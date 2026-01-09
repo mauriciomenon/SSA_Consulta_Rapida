@@ -1265,19 +1265,6 @@ class FilterGUISSAMixin:
                 self.clear_filter_button.setEnabled(has_terms)
             except Exception:
                 pass
-            selector = getattr(self, 'profile_selector', None)
-            if selector is not None:
-                idx = (
-                    selector.findData(self.current_filter_profile)
-                    if self.current_filter_profile
-                    else selector.findData(None)
-                )
-                if idx >= 0:
-                    self._profile_lock = True
-                    try:
-                        selector.setCurrentIndex(idx)
-                    finally:
-                        self._profile_lock = False
         finally:
             self._restoring_filter_state = False
             self._update_undo_button_state()
@@ -1369,15 +1356,6 @@ class FilterGUISSAMixin:
                 return
         self.current_filter_profile = None
         self._profile_base_filters = {}
-        selector = getattr(self, 'profile_selector', None)
-        if selector is not None:
-            idx = selector.findData(None)
-            if idx >= 0 and selector.currentIndex() != idx:
-                self._profile_lock = True
-                try:
-                    selector.setCurrentIndex(idx)
-                finally:
-                    self._profile_lock = False
 
     def _apply_filter_profile(self, profile_name, update_selector=True, refresh=True):
         """Aplica filtros pré-configurados de setor."""
@@ -1512,52 +1490,13 @@ class FilterGUISSAMixin:
                 'or_groups': normalized_groups,
                 'exclude_ste_sca': bool(self._exclude_ste_sca),
             }
-            if update_selector and getattr(self, 'profile_selector', None) is not None:
-                idx = self.profile_selector.findData(profile_name)
-                if idx >= 0 and self.profile_selector.currentIndex() != idx:
-                    self.profile_selector.setCurrentIndex(idx)
         finally:
             self._profile_lock = False
         self._build_column_filters_panel()
         if refresh:
             self._refresh_after_filter_change()
 
-    def _apply_initial_filter_profile(self):
-        """Seleciona e aplica o perfil inicial definido em configuração."""
-        selector = getattr(self, 'profile_selector', None)
-        if selector is None:
-            return
-        initial_profile = (
-            self.default_filter_profile
-            if self.default_filter_profile in self.filter_profiles
-            else None
-        )
-        if not initial_profile and self.filter_profiles:
-            initial_profile = next(iter(self.filter_profiles.keys()))
-        if initial_profile:
-            self._apply_filter_profile(initial_profile, update_selector=True, refresh=False)
-        else:
-            idx = selector.findData(None)
-            if idx >= 0:
-                self._profile_lock = True
-                try:
-                    selector.setCurrentIndex(idx)
-                finally:
-                    self._profile_lock = False
-        self._build_column_filters_panel()
-        self._refresh_after_filter_change()
 
-    def on_profile_changed(self, index):
-        """Callback ao trocar o perfil de filtros por setor."""
-        if getattr(self, '_profile_lock', False):
-            return
-        selector = getattr(self, 'profile_selector', None)
-        if selector is None:
-            return
-        self._store_last_filter_state()
-        profile_name = selector.itemData(index)
-        if profile_name:
-            self._apply_filter_profile(profile_name, update_selector=False)
         else:
             self.current_filter_profile = None
             self._profile_base_filters = {}
