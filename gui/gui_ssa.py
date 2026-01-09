@@ -984,10 +984,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._persist_gui_preferences()
         except Exception as e:
             logger.warning(f"Erro ao salvar tema preferido no startup: {e}")
-        # Aplica perfil inicial de filtros por setor
-        self._apply_initial_filter_profile()
 
-        # Auto-carregar dados na abertura (assáncrono, mantêm a janela responsiva)
+        # Auto-carregar dados na abertura (assincrono, mantem a janela responsiva)
         QTimer.singleShot(150, self.load_data)
 
     def init_ui(self):
