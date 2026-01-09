@@ -47,7 +47,6 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
 # Config
 from gui.gui_config import GUI_MAIN_PREFERENCES
-from gui.widgets.profile_selector import ProfileSelector
 
 # Inicializar logging robusto
 try:
@@ -1196,16 +1195,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         column_selector.columns_changed.connect(self.on_columns_changed)
         pagination_filters_layout.addWidget(column_selector)
 
-        # RESTORED: ProfileSelector and FilterTagsWidget (User Request)
-        profiles_path = os.path.join(project_root, 'config', 'column_profiles.json')
-        profile_selector = ProfileSelector(
-            profiles_file=profiles_path,
-            default_columns=self.default_columns,
-            current_columns=self.visible_columns,
-        )
-        profile_selector.profile_changed.connect(self.on_columns_changed)
-        pagination_filters_layout.addWidget(profile_selector)
-
         filter_tags_widget = None
         filter_tags_layout = None
         persistent_filters_layout = None
@@ -1407,10 +1396,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         persistent_filters_layout.setContentsMargins(4, 4, 4, 4)
         persistent_filters_layout.setSpacing(6)
         
-        # Criar 3 filtros permanentes para as colunas mais importantes
+        # Criar 3 filtros permanentes para as colunas mais importantes (ORDEM CORRETA)
         permanent_columns = [
-            ("numero_ssa", "SSA"),
-            ("situacao", "Situação"),
+            ("descricao_ssa", "Descrição da SSA"),
+            ("setor_executor", "Executor"),
             ("setor_emissor", "Emissor")
         ]
         
@@ -1420,21 +1409,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             row_layout.setSpacing(4)
             
             label = QLabel(f"{col_display}:")
-            label.setMinimumWidth(70)
-            label.setMaximumWidth(70)
+            label.setMinimumWidth(120)
+            label.setMaximumWidth(120)
             row_layout.addWidget(label)
             
             line_edit = QLineEdit()
-            line_edit.setPlaceholderText(f"Filtrar {col_display}...")
+            line_edit.setPlaceholderText("Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, ...")
             line_edit.setClearButtonEnabled(True)
             line_edit.returnPressed.connect(lambda col=col_key: self._apply_permanent_filter(col))
             row_layout.addWidget(line_edit)
             
-            apply_btn = QPushButton("⚡")
-            apply_btn.setMaximumWidth(30)
-            apply_btn.setToolTip(f"Aplicar filtro em {col_display}")
+            apply_btn = QPushButton("Aplicar")
+            apply_btn.setMaximumWidth(80)
             apply_btn.clicked.connect(lambda checked=False, col=col_key: self._apply_permanent_filter(col))
             row_layout.addWidget(apply_btn)
+            
+            remove_btn = QPushButton("Remover")
+            remove_btn.setMaximumWidth(80)
+            remove_btn.clicked.connect(lambda checked=False, col=col_key: self._remove_permanent_filter(col))
+            row_layout.addWidget(remove_btn)
             
             persistent_filters_layout.addLayout(row_layout)
             permanent_filter_inputs[col_key] = line_edit
@@ -1497,7 +1490,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "column_selector": column_selector,
                 "search_help": search_help,
                 "paginator": paginator,
-                "profile_selector": profile_selector,
                 "persistent_filters_layout": persistent_filters_layout,
                 "permanent_filter_inputs": permanent_filter_inputs,
                 "filter_tags_layout": filter_tags_layout,
@@ -6469,6 +6461,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao aplicar filtro permanente para {column_key}: {e}")
 
+    def _remove_permanent_filter(self, column_key):
+        """Remove filtro de um dos 3 campos permanentes."""
+        try:
+            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+                return
+            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+                return
+            
+            ctx = self._tab_contexts[self._current_tab_index]
+            permanent_inputs = ctx.get("permanent_filter_inputs", {})
+            
+            line_edit = permanent_inputs.get(column_key)
+            if line_edit:
+                line_edit.clear()
+            
+            # Remove do dicionário de filtros ativos
+            self._active_column_filters.pop(column_key, None)
+            
+            # Reaplicar filtros
+            if hasattr(self, 'initiate_filtering'):
+                self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao remover filtro permanente para {column_key}: {e}")
+
     def _clear_all_column_filters(self):
         """Limpa todos os filtros de coluna, incluindo os permanentes."""
         try:
@@ -6490,8 +6506,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _open_add_column_filter_menu(self):
         """Abre menu para adicionar filtro de coluna adicional."""
-        # TODO: Implementar adição de filtros dinâmicos além dos 3 permanentes
-        QMessageBox.information(self, "Info", "Funcionalidade de filtros adicionais em desenvolvimento.\nUse os 3 filtros permanentes acima.")
+        # Implementação básica: permite adicionar filtros para outras colunas visíveis
+        available_cols = [col for col in self.visible_columns if col not in self._active_column_filters]
+        if not available_cols:
+            return
+        
+        from PyQt6.QtWidgets import QInputDialog
+        col_displays = [self.display_map.get(c, c) for c in available_cols]
+        col_display, ok = QInputDialog.getItem(self, "Adicionar Filtro", "Selecione a coluna:", col_displays, 0, False)
+        if ok and col_display:
+            col_key = available_cols[col_displays.index(col_display)]
+            term, ok = QInputDialog.getText(self, "Filtro", f"Termo para filtrar {col_display}:")
+            if ok and term.strip():
+                self._active_column_filters[col_key] = term.strip()
+                self._build_column_filters_panel()
+                if hasattr(self, 'initiate_filtering'):
+                    self.initiate_filtering()
 
     def _build_column_filters_panel(self):
         """Reconstrói o painel de filtros de coluna (atualiza valores dos permanentes)."""
