@@ -898,6 +898,17 @@ class FilterGUISSAMixin:
         except Exception:
             pass
 
+    def _update_ssa_count(self):
+        """Atualiza contador de SSAs selecionadas na barra de navegacao."""
+        # UIREFACTOR 2026-01-08: Contador de SSAs filtradas
+        if not hasattr(self, 'ssa_count_input'):
+            return
+        try:
+            count = len(self.df_exibido) if hasattr(self, 'df_exibido') and self.df_exibido is not None else 0
+            self.ssa_count_input.setText(str(count))
+        except Exception:
+            pass
+
 
     def show_filter_help(self):
         try:
@@ -1041,6 +1052,7 @@ class FilterGUISSAMixin:
         except Exception:
             (lambda cp=max(1, min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1))): self.display_current_page(cp))()
         self._update_col_filter_indicator()
+        self._update_ssa_count()
         try:
             self._update_filters_summary()
         except Exception:
@@ -1114,13 +1126,16 @@ class FilterGUISSAMixin:
                 self._register_or_group(list(group.get("columns") or []), list(group.get("values") or []))
             self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
             try:
-                self.exclude_ste_checkbox.blockSignals(True)
-                self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
+                # UIREFACTOR 2026-01-08: exclude_ste_checkbox pode ser None
+                if self.exclude_ste_checkbox is not None:
+                    self.exclude_ste_checkbox.blockSignals(True)
+                    self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
             except Exception:
                 pass
             finally:
                 try:
-                    self.exclude_ste_checkbox.blockSignals(False)
+                    if self.exclude_ste_checkbox is not None:
+                        self.exclude_ste_checkbox.blockSignals(False)
                 except Exception:
                     pass
             self._advanced_filters = state.get("advanced_filters") or {}
@@ -1557,6 +1572,9 @@ class FilterGUISSAMixin:
 
     def update_filter_tags(self):
         """Atualiza as tags visuais dos filtros persistentes."""
+        # UIREFACTOR 2026-01-08: filter_tags_layout pode ser None
+        if not hasattr(self, 'filter_tags_layout') or self.filter_tags_layout is None:
+            return
         # Remove tags existentes
         for i in reversed(range(self.filter_tags_layout.count())):
             child = self.filter_tags_layout.takeAt(i)

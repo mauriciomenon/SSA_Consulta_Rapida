@@ -51,11 +51,13 @@ class ColumnSelector(QWidget):
             pass
         layout.addWidget(self.manage_button)
 
+        # UIREFACTOR 2026-01-08: summary_label oculto - texto "X colunas ativas" removido
         self.summary_label = QLabel()
         try:
             self.summary_label.setStyleSheet("color: palette(windowText);")
         except Exception:
             pass
+        self.summary_label.setVisible(False)  # Ocultar label
         layout.addWidget(self.summary_label)
         layout.addStretch()
 

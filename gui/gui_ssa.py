@@ -653,6 +653,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "filter_tags_widget",
         "filter_tags_layout",
         "exclude_ste_checkbox",
+        "ssa_count_label",
+        "ssa_count_input",
         "col_filter_indicator",
         "filters_summary_frame",
         "filters_summary_label",
@@ -1045,21 +1047,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         left.addWidget(search_button)
         left.addWidget(clear_filter_button)
 
-        right = QHBoxLayout()
-        right.setContentsMargins(0, 0, 0, 0)
-        column_selector = ColumnSelector(
-            self.display_map,
-            self.visible_columns,
-            default_columns=self.default_columns,
-            available_columns=list(self.display_map.keys()),
-            info_font=self._info_font,
-        )
-        column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(column_selector)
+        # UIREFACTOR 2026-01-08: ColumnSelector movido para barra de paginacao
+        # Layout right removido - barra de pesquisa agora so tem left
 
         search_row.addLayout(left)
-        search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(right)
+        search_row.addStretch()
         tab_layout.addLayout(search_row)
 
         search_help = QLabel(
@@ -1085,36 +1077,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         paginator.page_changed.connect(self.display_current_page)
         pagination_filters_layout.addWidget(paginator)
 
-        profile_layout = QHBoxLayout()
-        profile_layout.setContentsMargins(0, 0, 0, 0)
-        profile_layout.setSpacing(4)
-        profile_label = QLabel("Perfil de filtro:")
-        profile_selector = QComboBox()
-        try:
-            profile_selector.setMinimumWidth(150)
-            profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        except Exception:
-            pass
-        profile_selector.addItem("Personalizado", None)
-        for profile_name in self.filter_profiles.keys():
-            profile_selector.addItem(profile_name, profile_name)
-        profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(profile_label)
-        profile_layout.addWidget(profile_selector)
-        pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(profile_layout)
+        # UIREFACTOR 2026-01-08: ColumnSelector imediatamente apos linhas por pagina
+        column_selector = ColumnSelector(
+            self.display_map,
+            self.visible_columns,
+            default_columns=self.default_columns,
+            available_columns=list(self.display_map.keys()),
+            info_font=self._info_font,
+        )
+        column_selector.columns_changed.connect(self.on_columns_changed)
+        pagination_filters_layout.addWidget(column_selector)
 
-        pagination_filters_layout.addSpacing(12)
+        # UIREFACTOR 2026-01-08: Removidos profile_selector, save_filter_button e filter_tags_widget
+        # Mantido exclude_ste_checkbox pois e util na aba SSAs
+        profile_selector = None
+        save_filter_button = None
+        filter_tags_widget = None
+        filter_tags_layout = None
+        persistent_filters_layout = None
 
-        persistent_filters_layout = QHBoxLayout()
-        persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        save_filter_button = QPushButton("Salvar Filtro")
-        save_filter_button.setMaximumWidth(100)
-        save_filter_button.setToolTip("Salvar filtro atual como persistente")
-        save_filter_button.clicked.connect(self.save_current_filter)
-        persistent_filters_layout.addWidget(save_filter_button)
-
+        # UIREFACTOR 2026-01-08: Checkbox "Nao esta em STE/SCA" restaurado - util na aba SSAs
         exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
         try:
@@ -1122,23 +1104,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            exclude_ste_checkbox.setVisible(False)
-        except Exception:
-            pass
-        try:
             exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
         except Exception:
             pass
-        persistent_filters_layout.addWidget(exclude_ste_checkbox)
+        pagination_filters_layout.addWidget(exclude_ste_checkbox)
 
-        filter_tags_widget = QWidget()
-        filter_tags_layout = QHBoxLayout(filter_tags_widget)
-        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
-        filter_tags_layout.setSpacing(5)
-        persistent_filters_layout.addWidget(filter_tags_widget)
-
-        pagination_filters_layout.addLayout(persistent_filters_layout)
         pagination_filters_layout.addStretch()
+
+        # Contador de SSAs selecionadas - UIREFACTOR 2026-01-08
+        ssa_count_label = QLabel("SSAs selecionadas:")
+        ssa_count_input = QLineEdit()
+        ssa_count_input.setReadOnly(True)
+        ssa_count_input.setMaximumWidth(60)
+        ssa_count_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ssa_count_input.setText("0")
+        try:
+            ssa_count_input.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid);")
+        except Exception:
+            pass
+        pagination_filters_layout.addWidget(ssa_count_label)
+        pagination_filters_layout.addWidget(ssa_count_input)
 
         col_filter_indicator = QLabel("")
         try:
@@ -1174,8 +1159,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     filters_summary_label.setFont(QFont(self._info_font))
                 except Exception:
                     pass
-            clear_all_filters_btn = QPushButton("Limpar todos os filtros")
-            clear_all_filters_btn.setMaximumWidth(200)
+            clear_all_filters_btn = QPushButton("Limpar")
+            clear_all_filters_btn.setMaximumWidth(100)
             clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
             try:
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
@@ -1189,8 +1174,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 export_list_btn.setStyleSheet(self._week_label_style)
             except Exception:
                 pass
-            undo_filter_btn = QPushButton("Undo")
-            undo_filter_btn.setMaximumWidth(160)
+            undo_filter_btn = QPushButton("↩")
+            undo_filter_btn.setMaximumWidth(50)
             undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
             undo_filter_btn.clicked.connect(self._restore_last_filter_state)
             try:
@@ -1311,8 +1296,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
         footer.addWidget(add_column_filter_btn)
         footer.addSpacing(8)
-        clear_all_btn = QPushButton("Limpar todos filtros de colunas")
-        clear_all_btn.setMaximumWidth(260)
+        clear_all_btn = QPushButton("Limpar filtros de coluna")
+        clear_all_btn.setMaximumWidth(220)
         clear_all_btn.clicked.connect(self._clear_all_column_filters)
         footer.addWidget(clear_all_btn)
         footer.addStretch()
@@ -1352,6 +1337,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 "filter_tags_widget": filter_tags_widget,
                 "filter_tags_layout": filter_tags_layout,
                 "exclude_ste_checkbox": exclude_ste_checkbox,
+                "ssa_count_label": ssa_count_label,
+                "ssa_count_input": ssa_count_input,
                 "col_filter_indicator": col_filter_indicator,
                 "filters_summary_frame": filters_summary_frame,
                 "filters_summary_label": filters_summary_label,
@@ -1412,24 +1399,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
         try:
-            if hasattr(self, "exclude_ste_checkbox") and not self.exclude_ste_checkbox.isVisible():
+            # UIREFACTOR 2026-01-08: exclude_ste_checkbox pode ser None
+            if hasattr(self, "exclude_ste_checkbox") and self.exclude_ste_checkbox is not None and not self.exclude_ste_checkbox.isVisible():
                 self._exclude_ste_sca = False
         except Exception:
             pass
 
         try:
-            if self.current_filter_profile:
+            # UIREFACTOR 2026-01-08: profile_selector pode ser None
+            if self.profile_selector is not None and self.current_filter_profile:
                 idx = self.profile_selector.findData(self.current_filter_profile)
             else:
                 idx = 0
-            if idx >= 0:
+            if self.profile_selector is not None and idx >= 0:
                 self.profile_selector.blockSignals(True)
                 self.profile_selector.setCurrentIndex(idx)
         except Exception:
             pass
         finally:
             try:
-                self.profile_selector.blockSignals(False)
+                if self.profile_selector is not None:
+                    self.profile_selector.blockSignals(False)
             except Exception:
                 pass
 
@@ -1743,9 +1733,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 background-color: #4a90d9;
                 border: 1px solid #2a70b9;
                 image: none;
-            }
-            QCheckBox::indicator:checked::after {
-                content: "";
             }
         """
         cb_style_exclude = """
@@ -4007,7 +3994,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             full_name = DEFAULT_DISPLAY_MAPPINGS.get(col_name, self.internal_to_display.get(col_name, col_name))
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
-            clear_all_action = QAction("Limpar todos filtros de colunas", self)
+            clear_all_action = QAction("Limpar filtros de coluna", self)
 
             def _apply():
                 term = None
@@ -4524,13 +4511,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 9: Filters Summary
             # ============================================================
             # Style the summary label and frame showing active filters
+            # UIREFACTOR 2026-01-08: Frame com estilo destacado (mesma formatacao dos botoes)
             if hasattr(self, 'filters_summary_label'):
-                self.filters_summary_label.setStyleSheet(f"color:{summary_color};")
+                self.filters_summary_label.setStyleSheet(f"color:{accent};")
 
             if hasattr(self, 'filters_summary_frame'):
                 self.filters_summary_frame.setStyleSheet(
                     "QFrame {"
-                    f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
+                    f" background:{panel_bg}; border:1px solid {accent}; border-radius:4px; padding:4px;"
                     " }"
                 )
             if hasattr(self, 'clear_all_filters_btn'):

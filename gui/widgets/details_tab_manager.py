@@ -137,15 +137,18 @@ class DetailsTabWidget(QWidget):
             }
         """)
     
-    def open_ssa(self, numero_ssa: str):
+    def open_ssa(self, numero_ssa: str) -> bool:
         """
         Abre uma SSA em nova sub-aba ou foca aba existente.
         
         Args:
             numero_ssa: Numero da SSA a abrir
+            
+        Returns:
+            bool: True se a SSA foi aberta com sucesso, False caso contrario
         """
         if not numero_ssa or not numero_ssa.strip():
-            return
+            return False
         
         # Normaliza numero usando funcao do parent
         try:
@@ -161,7 +164,7 @@ class DetailsTabWidget(QWidget):
                 self.content_stack.setCurrentIndex(i + 1)
                 self._update_tab_highlights()
                 self._update_nav_buttons()
-                return
+                return True
         
         # Busca dados da SSA no DataFrame
         series = self._get_ssa_series(num_norm)
@@ -171,7 +174,7 @@ class DetailsTabWidget(QWidget):
                 "SSA nao encontrada",
                 f"A SSA '{numero_ssa}' nao foi encontrada no banco de dados."
             )
-            return
+            return False
         
         # Cria widget de conteudo
         content = QTextBrowser()
@@ -275,6 +278,8 @@ class DetailsTabWidget(QWidget):
         # Aplica limite de abas
         if len(self.tabs) > self.max_tabs:
             self.close_tab(0)  # Fecha a mais antiga
+        
+        return True
     
     def close_tab(self, index: int):
         """
@@ -340,8 +345,10 @@ class DetailsTabWidget(QWidget):
         """Handler para Enter pressionado no campo de input."""
         numero = self.ssa_input.text().strip()
         if numero:
-            self.open_ssa(numero)
-            self.ssa_input.clear()
+            # UIREFACTOR 2026-01-08: So limpa campo se SSA foi encontrada
+            # Permite usuario corrigir numero se errou
+            if self.open_ssa(numero):
+                self.ssa_input.clear()
     
     def _on_link_clicked(self, url):
         """
