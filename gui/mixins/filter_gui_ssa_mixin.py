@@ -962,16 +962,40 @@ class FilterGUISSAMixin:
         """Atualiza contador de SSAs selecionadas na barra de navegacao."""
         # UIREFACTOR 2026-01-08: Contador de SSAs filtradas
         ssa_widget = getattr(self, 'ssa_count_input', None)
+        ssa_label = getattr(self, 'ssa_count_label', None)
         if ssa_widget is None:
             return
 
         try:
-            count = (
+            # Verificar se ha filtros ativos
+            has_search = hasattr(self, 'search_input') and bool(self.search_input.text().strip())
+            has_column_filters = bool(getattr(self, '_active_column_filters', {}))
+            has_exclude_ste = bool(getattr(self, '_exclude_ste_sca', False))
+            
+            # Contar SSAs do dataset atual
+            count_filtered = (
                 len(self.df_exibido)
                 if hasattr(self, 'df_exibido') and self.df_exibido is not None
                 else 0
             )
-            ssa_widget.setText(str(count))
+            
+            # Total do DB
+            count_total = (
+                len(self.df_completo)
+                if hasattr(self, 'df_completo') and self.df_completo is not None
+                else 0
+            )
+            
+            # Se houver qualquer filtro ativo, mostrar numero filtrado
+            if has_search or has_column_filters or has_exclude_ste:
+                ssa_widget.setText(str(count_filtered))
+                if ssa_label:
+                    ssa_label.setText("SSAs filtradas:")
+            else:
+                # Sem filtros: mostrar total do DB
+                ssa_widget.setText(str(count_total))
+                if ssa_label:
+                    ssa_label.setText("Total de SSAs:")
         except Exception as exc:
             logging.getLogger(__name__).debug(
                 "Falha ao atualizar contador de SSAs; ignorando para manter UI responsiva: %s",

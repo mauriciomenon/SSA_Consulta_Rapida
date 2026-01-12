@@ -1400,7 +1400,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         persistent_filters_widget = QWidget()
         persistent_filters_layout = QVBoxLayout(persistent_filters_widget)
         persistent_filters_layout.setContentsMargins(4, 4, 4, 4)
-        persistent_filters_layout.setSpacing(6)
+        persistent_filters_layout.setSpacing(10)
         
         # Criar 5 filtros permanentes para as colunas mais importantes (ORDEM CORRETA)
         permanent_columns = [
