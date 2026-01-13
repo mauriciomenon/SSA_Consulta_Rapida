@@ -984,7 +984,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Auto-carregar dados na abertura (assincrono, mantem a janela responsiva)
         QTimer.singleShot(150, self.load_data)
-        
+
         # Limpar filtros antigos que nao fazem mais parte dos permanentes
         QTimer.singleShot(200, self._cleanup_old_permanent_filters)
 
@@ -1067,13 +1067,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         main_layout.addLayout(toolbar_layout)
         self.main_tabs = QTabWidget()
-        
+
         # CRITICAL: Inicializar _tab_contexts e _current_tab_index ANTES de criar abas
         # para que widgets possam chamar _update_filters_summary durante construcao
         self._tab_contexts = []
         self._current_tab_index = 0
         logger.info("Inicializando _tab_contexts e _current_tab_index ANTES de criar abas")
-        
+
         tab_main = QWidget()
         ctx_main = self._build_tab_content(tab_main, "main")
         self.main_tabs.addTab(tab_main, "SSAs")
@@ -1395,13 +1395,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Error setting col_filters_hint style: {e}")
         col_filters_outer.addWidget(col_filters_hint)
-        
+
         # UIREFACTOR 2026-01-12: 5 filtros de coluna sempre visiveis (persistentes)
         persistent_filters_widget = QWidget()
         persistent_filters_layout = QVBoxLayout(persistent_filters_widget)
         persistent_filters_layout.setContentsMargins(4, 4, 4, 4)
         persistent_filters_layout.setSpacing(10)
-        
+
         # Criar 5 filtros permanentes para as colunas mais importantes (ORDEM CORRETA)
         permanent_columns = [
             ("descricao_ssa", "Descricao da SSA"),
@@ -1410,59 +1410,59 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ("situacao", "Situacao"),
             ("descricao_localizacao", "Descricao da Localizacao")
         ]
-        
+
         permanent_filter_inputs = {}
         for col_key, col_display in permanent_columns:
             row_layout = QHBoxLayout()
             row_layout.setSpacing(4)
-            
+
             label = QLabel(f"{col_display}:")
             label.setMinimumWidth(150)
             label.setMaximumWidth(150)
             row_layout.addWidget(label)
-            
+
             line_edit = QLineEdit()
             line_edit.setPlaceholderText("Separe termos por virgulas")
             line_edit.setStyleSheet("QLineEdit::placeholder { color: palette(mid); }")
-            
+
             # Closure para capturar col_key E line_edit
             def make_apply_handler(column, widget):
                 def handler():
                     self._apply_permanent_filter(column, widget)
                 return handler
-            
+
             line_edit.returnPressed.connect(make_apply_handler(col_key, line_edit))
             row_layout.addWidget(line_edit)
-            
+
             apply_btn = QPushButton("Aplicar")
             apply_btn.setMaximumWidth(80)
             apply_btn.clicked.connect(make_apply_handler(col_key, line_edit))
             row_layout.addWidget(apply_btn)
-            
+
             def make_remove_handler(column, widget):
                 def handler():
                     self._remove_permanent_filter(column, widget)
                 return handler
-            
+
             remove_btn = QPushButton("Remover")
             remove_btn.setMaximumWidth(80)
             remove_btn.clicked.connect(make_remove_handler(col_key, line_edit))
             row_layout.addWidget(remove_btn)
-            
+
             persistent_filters_layout.addLayout(row_layout)
             permanent_filter_inputs[col_key] = line_edit
-        
+
         col_filters_outer.addWidget(persistent_filters_widget)
-        
+
         # Spacer para empurrar conteudo para o topo
         col_filters_outer.addStretch()
-        
+
         # Separador horizontal
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         col_filters_outer.addWidget(separator)
-        
+
         # Botoes fixos na parte inferior
         footer = QHBoxLayout()
         footer.addStretch()
@@ -1536,7 +1536,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         if tab_kind == "filters":
             ctx.update(adv_ctx)
-        
+
         # CRITICAL: Adicionar contexto a _tab_contexts IMEDIATAMENTE para que widgets
         # possam chamar _update_filters_summary durante a construcao
         if hasattr(self, '_tab_contexts'):
@@ -1544,7 +1544,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Contexto '{tab_kind}' adicionado a _tab_contexts (total: {len(self._tab_contexts)})")
         else:
             logger.warning(f"_tab_contexts nao existe ao criar contexto '{tab_kind}'")
-        
+
         return ctx
 
     def _bind_tab_context(self, ctx: dict) -> None:
@@ -1816,6 +1816,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         def _show_menu():
             try:
+                logger.debug(f"[MENU] Abrindo menu, button={button.text()}")
                 rect = button.rect()
                 pos = button.mapToGlobal(rect.bottomLeft())
                 try:
@@ -1826,7 +1827,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         pos.setY(pos.y() - menu_size.height())
                 except Exception as e:
                     logger.error(f"Erro ao calcular posicao do menu: {e}")
+                logger.debug(f"[MENU] Executando menu.exec() em pos={pos}")
                 menu.exec(pos)
+                logger.debug(f"[MENU] Menu fechado")
                 return
             except Exception as e:
                 logger.error(f"Erro ao exibir menu multiselect: {e}")
@@ -1841,6 +1844,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     ):
         if button is None:
             return
+        logger.debug(f"[BTN] Atualizando button, checks={len(checks or [])}, exclude={len(exclude_checks or [])}")
         selected = []
         for cb in checks or []:
             try:
@@ -1880,6 +1884,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text = f"{len(selected)} selecionados"
         try:
             button.setText(text)
+            logger.debug(f"[BTN] setText='{text}'")
             # Esmaecimento visual para botoes sem dados
             if total == 0:
                 button.setEnabled(False)
@@ -4407,7 +4412,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         logger.debug(f"Verificando existencia do banco: {DB_PATH}")
         logger.debug(f"project_root: {project_root}")
         logger.debug(f"Arquivo existe? {os.path.exists(DB_PATH)}")
-        
+
         if not os.path.exists(DB_PATH):
             logger.error(f"Banco de dados nao encontrado em: {DB_PATH}")
             QMessageBox.warning(
@@ -5949,13 +5954,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Botoes
         button_layout = QHBoxLayout()
-        
+
         if numero_ssa:
             open_tab_button = QPushButton("Abrir em Aba Detalhes")
             open_tab_button.clicked.connect(lambda: self._open_ssa_in_details_tab(numero_ssa))
             open_tab_button.clicked.connect(dialog.accept)
             button_layout.addWidget(open_tab_button)
-        
+
         close_button = QPushButton("Fechar")
         close_button.clicked.connect(dialog.accept)
         button_layout.addWidget(close_button)
@@ -6354,47 +6359,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(">>> _update_filters_summary INICIADO")
             logger.info(f"hasattr _current_tab_index: {hasattr(self, '_current_tab_index')}")
             logger.info(f"hasattr _tab_contexts: {hasattr(self, '_tab_contexts')}")
-            
+
             if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
                 logger.error("ERRO: _current_tab_index ou _tab_contexts nao existe!")
                 return
-                
+
             logger.info(f"_current_tab_index = {self._current_tab_index}")
             logger.info(f"len(_tab_contexts) = {len(self._tab_contexts)}")
-            
+
             if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
                 logger.error(f"ERRO: _current_tab_index {self._current_tab_index} fora do range [0, {len(self._tab_contexts)})")
                 return
-                
+
             ctx = self._tab_contexts[self._current_tab_index]
             logger.info(f"Contexto da aba {self._current_tab_index}: {list(ctx.keys())}")
-            
+
             label = ctx.get("filters_summary_label")
             logger.info(f"filters_summary_label encontrado: {label is not None}")
-            
+
             if not label:
                 logger.error(f"ERRO: label nao encontrado no contexto! Keys disponiveis: {list(ctx.keys())}")
                 return
-            
+
             active_filters = []
-            
+
             # Filtros de coluna
             logger.info(f"========== CONSTRUINDO RESUMO DE FILTROS ==========")
             logger.info(f"_active_column_filters COMPLETO: {dict(self._active_column_filters)}")
             logger.info(f"display_map tem {len(self.display_map)} entradas")
             logger.info(f"Primeiras 10 keys do display_map: {list(self.display_map.keys())[:10]}")
-            
+
             if self._active_column_filters:
                 logger.info(f"Iterando sobre {len(self._active_column_filters)} filtros:")
                 for idx, (col, term) in enumerate(self._active_column_filters.items(), 1):
                     logger.info(f"  [{idx}] col='{col}' (tipo: {type(col).__name__})")
                     logger.info(f"  [{idx}] term='{term}' (tipo: {type(term).__name__}, len: {len(term) if term else 0})")
-                    
+
                     # CRITICO: SOMENTE adicionar se term tiver conteudo
                     if not term or not term.strip():
                         logger.info(f"  [{idx}] PULANDO - term vazio ou apenas espacos")
                         continue
-                    
+
                     display_name = self.display_map.get(col, col)
                     logger.info(f"  [{idx}] display_name='{display_name}'")
                     filter_text = f"{display_name}: {term}"
@@ -6403,24 +6408,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     logger.info(f"  [{idx}] active_filters agora tem {len(active_filters)} itens")
             else:
                 logger.info("_active_column_filters esta VAZIO")
-            
+
             # Checkbox "Não está em STE/SCA"
             exclude_ste = ctx.get("exclude_ste_checkbox")
             logger.info(f"exclude_ste_checkbox: {exclude_ste is not None}")
             if exclude_ste and exclude_ste.isChecked():
                 logger.info("Adicionando filtro: Excluir STE/SCA")
                 active_filters.append("Excluir STE/SCA")
-            
+
             # Busca de texto
             logger.info(f"hasattr search_input: {hasattr(self, 'search_input')}")
             if hasattr(self, 'search_input') and self.search_input.text().strip():
                 busca_text = f"Busca: {self.search_input.text().strip()}"
                 logger.info(f"Adicionando filtro: {busca_text}")
                 active_filters.append(busca_text)
-            
+
             logger.info(f"Total de filtros ativos: {len(active_filters)}")
             logger.info(f"Lista completa de filtros: {active_filters}")
-            
+
             if active_filters:
                 summary_text = f"{len(active_filters)} filtro(s): {' | '.join(active_filters)}"
                 logger.info(f"========================================")
@@ -6456,7 +6461,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not indicator:
                 logger.warning("col_filter_indicator: widget nao encontrado")
                 return
-            
+
             count = len(self._active_column_filters)
             logger.info(f"col_filter_indicator: count={count}")
             if count > 0:
@@ -6478,10 +6483,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Limpar busca
             if hasattr(self, 'search_input'):
                 self.search_input.clear()
-            
+
             # Limpar filtros de coluna
             self._active_column_filters.clear()
-            
+
             # Limpar checkbox STE/SCA
             if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
                 if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
@@ -6489,7 +6494,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     exclude_ste = ctx.get("exclude_ste_checkbox")
                     if exclude_ste:
                         exclude_ste.setChecked(False)
-            
+
             # Reprocessar dados
             if hasattr(self, 'initiate_filtering'):
                 self.initiate_filtering()
@@ -6532,14 +6537,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for k, v in self._active_column_filters.items():
                 logger.info(f"  '{k}': '{v}'")
             logger.info(f"Total de filtros ANTES: {len(self._active_column_filters)}")
-            
+
             # Guardar estado anterior
             if hasattr(self, '_store_last_filter_state'):
                 logger.info("Chamando _store_last_filter_state")
                 self._store_last_filter_state()
             else:
                 logger.warning("_store_last_filter_state NAO EXISTE")
-            
+
             if term:
                 self._active_column_filters[column_key] = term
                 logger.info(f">>> FILTRO ADICIONADO <<<")
@@ -6550,13 +6555,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.info(f">>> FILTRO REMOVIDO <<<")
                 logger.info(f"Chave: '{column_key}'")
                 logger.info(f"Valor removido: '{removed}'")
-            
+
             logger.info(f"_active_column_filters DEPOIS:")
             for k, v in self._active_column_filters.items():
                 logger.info(f"  '{k}': '{v}' (len: {len(v)})")
             logger.info(f"Total de filtros DEPOIS: {len(self._active_column_filters)}")
             logger.info(f"############################################################")
-            
+
             # Atualizar resumo de filtros
             logger.info("Verificando _update_filters_summary...")
             if hasattr(self, '_update_filters_summary'):
@@ -6565,14 +6570,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.info("_update_filters_summary CONCLUIDO")
             else:
                 logger.error("_update_filters_summary NAO EXISTE!")
-                
+
             logger.info("Verificando _update_col_filter_indicator...")
             if hasattr(self, '_update_col_filter_indicator'):
                 logger.info("CHAMANDO _update_col_filter_indicator")
                 self._update_col_filter_indicator()
             else:
                 logger.warning("_update_col_filter_indicator NAO EXISTE")
-            
+
             # Reaplicar filtros SEM reconstruir painel (mantem valores nos campos)
             logger.info("Verificando initiate_filtering...")
             if hasattr(self, 'initiate_filtering'):
@@ -6581,7 +6586,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.info("initiate_filtering CONCLUIDO")
             else:
                 logger.error("initiate_filtering NAO EXISTE!")
-            
+
             logger.info(f"=== FIM APLICAR FILTRO PERMANENTE ===")
         except Exception as e:
             logger.error(f"ERRO CRITICO ao aplicar filtro permanente para {column_key}: {e}", exc_info=True)
@@ -6590,21 +6595,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Remove filtro de um dos 5 campos permanentes."""
         try:
             line_edit.clear()
-            
+
             logger.info(f"Removendo filtro permanente: {column_key}")
-            
+
             # Guardar estado anterior
             if hasattr(self, '_store_last_filter_state'):
                 self._store_last_filter_state()
-            
+
             self._active_column_filters.pop(column_key, None)
-            
+
             # Atualizar resumo de filtros
             if hasattr(self, '_update_filters_summary'):
                 self._update_filters_summary()
             if hasattr(self, '_update_col_filter_indicator'):
                 self._update_col_filter_indicator()
-            
+
             # Reaplicar filtros SEM reconstruir painel
             if hasattr(self, 'initiate_filtering'):
                 self.initiate_filtering()
@@ -6615,7 +6620,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Limpa todos os filtros de coluna, incluindo os permanentes."""
         try:
             self._active_column_filters.clear()
-            
+
             # Limpar os inputs permanentes
             if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
                 if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
@@ -6623,7 +6628,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     permanent_inputs = ctx.get("permanent_filter_inputs", {})
                     for line_edit in permanent_inputs.values():
                         line_edit.clear()
-            
+
             # Reaplicar filtros (vai mostrar tudo sem filtros)
             if hasattr(self, 'initiate_filtering'):
                 self.initiate_filtering()
@@ -6648,44 +6653,44 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _open_add_column_filter_menu(self):
         """Abre menu para adicionar filtro de coluna adicional - QUALQUER coluna disponivel."""
         logger.info(">>> _open_add_column_filter_menu INICIADO")
-        
+
         # MUDANCA: Permitir TODAS as colunas do display_map, nao so as visiveis
         # Excluir as 3 permanentes (ja tem campos dedicados)
         permanent_cols = {"descricao_ssa", "setor_executor", "setor_emissor"}
-        
+
         # Todas as colunas disponiveis no mapa de exibicao
         all_cols = sorted([col for col in self.display_map.keys() if col not in permanent_cols])
-        
+
         logger.info(f"Colunas disponiveis para filtro: {len(all_cols)}")
-        
+
         if not all_cols:
             logger.warning("Nenhuma coluna disponivel para filtrar")
             return
-        
+
         from PyQt6.QtWidgets import QInputDialog
         col_displays = [self.display_map.get(c, c) for c in all_cols]
         col_display, ok = QInputDialog.getItem(
-            self, 
-            "Adicionar Filtro de Coluna", 
-            "Selecione a coluna (qualquer coluna, nao so as visiveis):", 
-            col_displays, 
-            0, 
+            self,
+            "Adicionar Filtro de Coluna",
+            "Selecione a coluna (qualquer coluna, nao so as visiveis):",
+            col_displays,
+            0,
             False
         )
-        
+
         if ok and col_display:
             col_key = all_cols[col_displays.index(col_display)]
             logger.info(f"Coluna selecionada: {col_key} ({col_display})")
-            
+
             term, ok = QInputDialog.getText(
-                self, 
-                "Filtro", 
+                self,
+                "Filtro",
                 f"Termo para filtrar '{col_display}':"
             )
-            
+
             if ok and term.strip():
                 logger.info(f"Termo digitado: '{term.strip()}'")
-                
+
                 # Se coluna nao estiver visivel, adiciona automaticamente
                 if col_key not in self.visible_columns:
                     logger.info(f"Coluna '{col_key}' NAO VISIVEL - adicionando ao final da tabela")
@@ -6694,17 +6699,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         self.refresh_table()
                 else:
                     logger.info(f"Coluna '{col_key}' ja esta visivel")
-                
+
                 # Adiciona filtro
                 self._active_column_filters[col_key] = term.strip()
                 logger.info(f"Filtro adicionado: {col_key} = '{term.strip()}'")
-                
+
                 # Reconstroi painel e aplica filtro
                 self._build_column_filters_panel()
-                
+
                 if hasattr(self, '_update_filters_summary'):
                     self._update_filters_summary()
-                
+
                 if hasattr(self, 'initiate_filtering'):
                     logger.info("Aplicando filtro...")
                     self.initiate_filtering()
@@ -6715,21 +6720,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(">>> _build_column_filters_panel INICIADO")
             logger.info(f"self._current_tab_index = {getattr(self, '_current_tab_index', 'NAO EXISTE')}")
             logger.info(f"len(self._tab_contexts) = {len(getattr(self, '_tab_contexts', []))}")
-            
+
             if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
                 logger.warning("_build_column_filters_panel: sem tab_contexts")
                 return
             if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
                 logger.warning(f"_build_column_filters_panel: tab_index {self._current_tab_index} invalido")
                 return
-            
+
             ctx = self._tab_contexts[self._current_tab_index]
             logger.info(f"Contexto obtido: tab_kind={ctx.get('tab_kind')}, id={id(ctx)}")
             logger.info(f"Keys disponiveis: {sorted(ctx.keys())}")
-            
+
             permanent_inputs = ctx.get("permanent_filter_inputs", {})
             logger.info(f"permanent_filter_inputs encontrado: {len(permanent_inputs)} inputs")
-            
+
             # 1. Atualizar valores dos 5 inputs permanentes com base em _active_column_filters
             for col_key, line_edit in permanent_inputs.items():
                 current_filter = self._active_column_filters.get(col_key, "")
@@ -6738,11 +6743,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     line_edit.setText(current_filter)
                     line_edit.blockSignals(False)
                     logger.info(f"  Permanente '{col_key}' atualizado para: '{current_filter}'")
-            
+
             logger.info("_build_column_filters_panel CONCLUIDO")
         except Exception as e:
             logger.error(f"Erro ao reconstruir painel de filtros de coluna: {e}", exc_info=True)
-    
+
     def _remove_additional_filter(self, column_key):
         """Remove um filtro adicional (nao-permanente)."""
         try:
