@@ -112,6 +112,7 @@ try:
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint
     from PyQt6.QtGui import QAction, QFont
+    from PyQt6 import sip  # Para verificar se widgets Qt foram deletados
 
     # Import workers, cache, widgets, and helpers from separate modules
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
@@ -712,6 +713,27 @@ def load_display_mappings():
 # --- Componentes da GUI ---
 
 
+def _is_widget_valid(widget) -> bool:
+    """
+    Verifica se um widget Qt ainda e valido (nao foi deletado).
+
+    Em PyQt6, hasattr() retorna True mesmo para widgets deletados.
+    Esta funcao usa sip.isdeleted() para verificacao correta.
+
+    Args:
+        widget: Widget Qt a ser verificado
+
+    Returns:
+        True se widget existe e nao foi deletado, False caso contrario
+    """
+    if widget is None:
+        return False
+    try:
+        return not sip.isdeleted(widget)
+    except Exception:
+        return False
+
+
 # --- Janela Principal da Aplicacao ---
 class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     """
@@ -877,6 +899,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
 
+        # LAZY LOADING: Estado de carregamento bifásico
+        self._is_full_data_loaded = False  # Flag para rastrear se dados completos estão carregados
+        self._full_data_loading_started = False  # Flag para rastrear se carregamento completo foi iniciado
+        self._buffer_size = 50  # Tamanho do buffer inicial (50 SSAs mais recentes)
+        self._full_data_loader_thread = None  # Thread de carregamento em background
+
+        # CORREÇÃO LAYOUTREFACTOR #1: Flag para evitar loop infinito em _sync_advanced_filter_ui
+        self._syncing_advanced_ui = False
+        self._filter_buffer_cache = {}  # Cache de valores únicos do buffer para dropdowns
+        self._filters_dirty = False  # Flag para invalidar cache quando dados completos carregam
+
         try:
             base_font = QFont(self.font())
             if base_font.pointSizeF() <= 0:
@@ -951,8 +984,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_sector_syncing = False
 
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
-        self._sector_debounce_timer = None
         self._sector_debounce_delay = 300  # ms
+        self._sector_debounce_timer = QTimer(self)
+        self._sector_debounce_timer.setSingleShot(True)
+        self._sector_debounce_timer.setInterval(self._sector_debounce_delay)
+        self._sector_debounce_timer.timeout.connect(self._refresh_responsavel_options)
 
         self._initialize_profile_filter_placeholders()
 
@@ -1265,6 +1301,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             summary_layout.setContentsMargins(6, 4, 6, 4)
             summary_layout.setSpacing(8)
             filters_summary_label = QLabel("Nenhum filtro ativo")
+            # MELHORIA POSGOLDRELEASE #8: Tooltip explicando que resumo reflete filtros aplicados
+            filters_summary_label.setToolTip(
+                "Este resumo mostra os filtros APLICADOS atualmente.\n\n"
+                "Alterações nos menus de filtros serão refletidas aqui\n"
+                "após clicar no botão 'Aplicar Filtros'.\n\n"
+                "Isso garante que você sempre veja exatamente\n"
+                "quais filtros estão ativos na tabela."
+            )
             if self._info_font is not None:
                 try:
                     filters_summary_label.setFont(QFont(self._info_font))
@@ -1695,6 +1739,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 f"Erro durante execucao de _refresh_advanced_filter_options em _run_adv_options_refresh: {e}"
             )
 
+    def _on_search_text_changed(self, text: str):
+        """
+        Handler para mudança de texto no campo de busca.
+        Usa debounce timer para evitar filtragem excessiva durante digitação.
+        """
+        try:
+            # Reinicia o timer de debounce - quando expirar, chama initiate_filtering
+            self._debounce_timer.stop()
+            self._debounce_timer.start()
+        except Exception as e:
+            logger.error(f"Erro em _on_search_text_changed: {e}")
+
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
             return
@@ -1712,6 +1768,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 state["active_column_filters"] = getattr(self, "_active_column_filters", {}).copy()
                 state["advanced_filters"] = getattr(self, "_advanced_filters", {}).copy()
                 state["search_text"] = self.search_input.text()
+
+                # CORREÇÃO LAYOUTREFACTOR #3: Salvar estado dos checkboxes de derivadas (com validação)
+                state["derivada_has"] = (
+                    self.adv_derivada_has.isChecked()
+                    if hasattr(self, "adv_derivada_has") and _is_widget_valid(self.adv_derivada_has)
+                    else False
+                )
+                state["derivada_all_ste"] = (
+                    self.adv_derivada_all_ste.isChecked()
+                    if hasattr(self, "adv_derivada_all_ste") and _is_widget_valid(self.adv_derivada_all_ste)
+                    else False
+                )
+                state["derivada_is"] = (
+                    self.adv_derivada_is.isChecked()
+                    if hasattr(self, "adv_derivada_is") and _is_widget_valid(self.adv_derivada_is)
+                    else False
+                )
+
                 # OTIMIZACAO 2026-01-09: Cache do DataFrame
                 if hasattr(self, "df_exibido"):
                     state["cached_df_exibido"] = self.df_exibido
@@ -1741,6 +1815,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._active_column_filters = state.get("active_column_filters", {}).copy()
         self._advanced_filters = state.get("advanced_filters", {}).copy()
 
+        # CORREÇÃO LAYOUTREFACTOR #3: Restaurar checkboxes de derivadas
+        if hasattr(self, "adv_derivada_has") and self.adv_derivada_has:
+            self.adv_derivada_has.blockSignals(True)
+            self.adv_derivada_has.setChecked(state.get("derivada_has", False))
+            self.adv_derivada_has.blockSignals(False)
+
+        if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste:
+            self.adv_derivada_all_ste.blockSignals(True)
+            self.adv_derivada_all_ste.setChecked(state.get("derivada_all_ste", False))
+            self.adv_derivada_all_ste.blockSignals(False)
+
+        if hasattr(self, "adv_derivada_is") and self.adv_derivada_is:
+            self.adv_derivada_is.blockSignals(True)
+            self.adv_derivada_is.setChecked(state.get("derivada_is", False))
+            self.adv_derivada_is.blockSignals(False)
+
         # Atualiza UI dos filtros (painel de colunas, tags, etc)
         try:
             self._build_column_filters_panel()
@@ -1769,6 +1859,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.initiate_filtering()
         except Exception as e:
             logger.error(f"Erro ao restaurar estado da aba {index}: {e}")
+
+        # LAZY LOADING: Gerenciar carregamento de dados ao trocar para aba Filtros
+        if index == 1 and hasattr(self, '_is_full_data_loaded'):
+            if self._is_full_data_loaded:
+                # Dados completos já carregados - apenas atualizar filtros
+                if hasattr(self, '_refresh_advanced_filter_options'):
+                    try:
+                        self._refresh_advanced_filter_options()
+                        logger.debug("Filtros atualizados ao trocar para aba Filtros")
+                    except Exception as e:
+                        logger.warning(f"Erro ao atualizar filtros na troca de aba: {e}")
+            elif not getattr(self, '_full_data_loading_started', False):
+                # Usuário rápido foi para aba Filtros antes do carregamento automático
+                # Forçar carregamento completo imediatamente
+                logger.info("Usuário rápido detectado - forçando carregamento completo")
+                self.status_label.setText("Carregando dados completos dos filtros...")
+                if hasattr(self, '_start_full_data_load'):
+                    self._start_full_data_load()
 
     def _make_multiselect_box(
         self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True
@@ -1815,6 +1923,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         def _show_menu():
+            # Validar widgets antes de usar - podem ter sido deletados
+            if not _is_widget_valid(button) or not _is_widget_valid(menu):
+                logger.debug("_show_menu: button ou menu invalido/deletado - ignorando")
+                return
             try:
                 logger.debug(f"[MENU] Abrindo menu, button={button.text()}")
                 rect = button.rect()
@@ -1840,9 +1952,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao conectar sinal button.clicked ao menu: {e}")
 
     def _update_multiselect_button(
-        self, button, checks, placeholder: str = "Selecionar", exclude_checks=None
+        self, button, checks, placeholder: str = "Selecionar", exclude_checks=None, suffix: str = ""
     ):
-        if button is None:
+        # Validar widget antes de usar - evita "wrapped C/C++ object has been deleted"
+        if not _is_widget_valid(button):
             return
         logger.debug(f"[BTN] Atualizando button, checks={len(checks or [])}, exclude={len(exclude_checks or [])}")
         selected = []
@@ -1869,7 +1982,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
         total = len(checks or [])
         if total == 0:
-            text = "Sem dados"
+            # MELHORIA POSGOLDRELEASE #2: Distinguir "carregando" de "sem dados"
+            if not getattr(self, '_is_full_data_loaded', False):
+                text = "Carregando..."
+            else:
+                text = "Sem dados"
         elif not selected and not excluded:
             text = placeholder
         elif len(selected) == total and not excluded:
@@ -1883,12 +2000,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         else:
             text = f"{len(selected)} selecionados"
         try:
-            button.setText(text)
-            logger.debug(f"[BTN] setText='{text}'")
+            button.setText(text + suffix)
+            logger.debug(f"[BTN] setText='{text + suffix}'")
             # Esmaecimento visual para botoes sem dados
             if total == 0:
                 button.setEnabled(False)
-                button.setStyleSheet("color: #888; background-color: #f0f0f0;")
+                # MELHORIA POSGOLDRELEASE #2: Estilo diferente para "Carregando..."
+                if not getattr(self, '_is_full_data_loaded', False):
+                    button.setStyleSheet("color: #666; background-color: #f9f9f9; font-style: italic;")
+                else:
+                    button.setStyleSheet("color: #888; background-color: #f0f0f0;")
             else:
                 button.setEnabled(True)
                 button.setStyleSheet("")  # Remove estilo customizado
@@ -1914,10 +2035,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude_selected_set=None,
         on_exclude_toggle=None,
     ):
+        # Validar widgets antes de usar - evita "wrapped C/C++ object has been deleted"
+        if not _is_widget_valid(button) or not _is_widget_valid(menu):
+            logger.debug("_rebuild_multiselect_menu: button ou menu invalido/deletado - ignorando")
+            return [], []
+
         try:
             menu.clear()
         except Exception as e:
             logger.error(f"Erro ao limpar menu multiselect: {e}")
+            return [], []
         selected_norm = {str(v).casefold() for v in (selected_set or [])}
         exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
         checks = []
@@ -2344,6 +2471,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return checks, []
 
     def _checkbox_value(self, checkbox) -> str:
+        # Validar widget antes de usar
+        if not _is_widget_valid(checkbox):
+            return ""
         try:
             text = checkbox.text()
             if text:
@@ -2361,15 +2491,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _sync_multiselect_checks(
         self, button, checks, selected, exclude_checks=None, exclude_selected=None
     ):
+        # Validar button antes de usar - evita "wrapped C/C++ object has been deleted"
+        if not _is_widget_valid(button):
+            return
         selected_set = {str(v).casefold() for v in (selected or [])}
         for cb in checks or []:
             try:
+                if not _is_widget_valid(cb):
+                    continue
                 cb.setChecked(self._checkbox_value(cb).casefold() in selected_set)
             except Exception as e:
                 logger.error(f"Erro ao sincronizar checkbox: {e}")
         exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
         for cb in exclude_checks or []:
             try:
+                if not _is_widget_valid(cb):
+                    continue
                 cb.setChecked(self._checkbox_value(cb).casefold() in exclude_set)
             except Exception as e:
                 logger.error(f"Erro ao sincronizar exclude checkbox: {e}")
@@ -2389,7 +2526,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
         exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
-        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
+        # LAYOUTREFACTOR #4: Renomeação para maior clareza
+        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao Emissora")
+
+        # GRIDREFACTOR V2: Placeholders para futuros filtros
+        div_exec_box, div_exec_button, div_exec_menu, div_exec_exclude = (
+            self._make_multiselect_box("Divisao Executora")
+        )
+        div_exec_button.setEnabled(False)
+        div_exec_button.setToolTip("Filtro em desenvolvimento - disponível em versão futura")
+
+        localizacao_box, localizacao_button, localizacao_menu, localizacao_exclude = (
+            self._make_multiselect_box("Localizacao")
+        )
+        localizacao_button.setEnabled(False)
+        localizacao_button.setToolTip("Filtro em desenvolvimento - disponível em versão futura")
+
         status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
             "Situacao"
         )
@@ -2433,26 +2585,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Prio. Planejamento"
         )
 
+        # LAYOUTREFACTOR #5: Seção Derivadas reorganizada verticalmente com textos claros
         deriv_box = QGroupBox("Derivadas")
-        deriv_layout = QHBoxLayout(deriv_box)
-        deriv_layout.setContentsMargins(2, 1, 2, 1)
-        deriv_layout.setSpacing(2)
-        deriv_has = QCheckBox("Tem")
-        deriv_all_ste = QCheckBox("STE")
-        deriv_is = QCheckBox("Sou Derivada")
-        derivadas_select_btn = QPushButton("Especificas...")
-        try:
-            derivadas_select_btn.setMaximumWidth(100)
-            derivadas_select_btn.setEnabled(False)  # Habilitado quando existir derivadas
-        except Exception as e:
-            logger.error(f"Erro config derivadas_select_btn: {e}")
-        derivadas_select_btn.setToolTip(
-            "Ver arvore de derivadas (habilitado quando existirem derivadas na lista)"
-        )
-        try:
-            derivadas_select_btn.clicked.connect(self._show_derivadas_popup)
-        except Exception as e:
-            logger.error(f"Erro connect derivadas_select_btn: {e}")
+        deriv_layout = QVBoxLayout(deriv_box)  # MUDANÇA: Vertical em vez de horizontal
+        deriv_layout.setContentsMargins(4, 4, 4, 4)  # Margens maiores para melhor espaçamento
+        deriv_layout.setSpacing(4)  # Espaçamento vertical entre checkboxes
+
+        # Checkboxes (mantém as 3 existentes)
+        deriv_has = QCheckBox("Possui Derivada(s)")  # Antes: "Tem"
+        deriv_all_ste = QCheckBox("Derivada Concluída (STE)")  # Antes: "STE"
+        deriv_is = QCheckBox("Status: SSA Derivada")  # Antes: "Sou Derivada"
+
+        # Callbacks (mantém iguais)
         try:
             deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
             deriv_all_ste.toggled.connect(
@@ -2460,11 +2604,40 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception as e:
             logger.error(f"Erro connect deriv toggles: {e}")
+
+        # ADICIONAR WIDGETS AO LAYOUT VERTICAL (apenas checkboxes)
         deriv_layout.addWidget(deriv_has)
         deriv_layout.addWidget(deriv_all_ste)
         deriv_layout.addWidget(deriv_is)
-        deriv_layout.addWidget(derivadas_select_btn)
-        deriv_layout.addStretch()
+        deriv_layout.addStretch()  # Empurra widgets para o topo
+        # NOTA: Botão "Derivadas (n)" agora é widget separado no grid (ver abaixo)
+
+        # GRIDREFACTOR V2: Botão Derivadas (n) como widget separado no grid
+        derivadas_btn_box = QGroupBox("Derivadas")
+        derivadas_btn_layout = QVBoxLayout(derivadas_btn_box)
+        derivadas_btn_layout.setContentsMargins(2, 1, 2, 1)
+        derivadas_btn_layout.setSpacing(2)
+
+        derivadas_button = QPushButton("Derivadas (0)")
+        derivadas_button.setEnabled(False)  # Habilitado quando houver derivadas
+        derivadas_button.setMinimumHeight(28)
+        derivadas_button.setToolTip(
+            "Clique para ver árvore hierárquica de SSAs derivadas.\n"
+            "Contador atualizado automaticamente."
+        )
+
+        # Conectar ao popup existente
+        try:
+            derivadas_button.clicked.connect(self._show_derivadas_popup)
+        except Exception as e:
+            logger.error(f"Erro ao conectar derivadas_button: {e}")
+
+        derivadas_btn_layout.addWidget(derivadas_button)
+        derivadas_btn_layout.addStretch()
+
+        # Armazenar referência para atualização do contador
+        self.adv_derivadas_button = derivadas_button
+        self.adv_derivadas_button_box = derivadas_btn_box
 
         week_emis_box = QGroupBox("Emissao (AnoSemana)")
         week_emis_layout = QHBoxLayout(week_emis_box)
@@ -2524,35 +2697,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         macro_layout.addWidget(macro_combo)
 
         sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
-        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
+
+        # GRIDREFACTOR V2: Renomeações "Resp" → "Responsavel"
+        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Responsavel Programação")
         exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = (
-            self._make_multiselect_box("Resp Exec")
+            self._make_multiselect_box("Responsavel Execução")
         )
         emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = (
-            self._make_multiselect_box("Resp Emis")
+            self._make_multiselect_box("Responsavel Emissão")
         )
 
+        # GRIDREFACTOR V2: Grid reorganizado (6x3)
         main_grid = QGridLayout()
         main_grid.setContentsMargins(0, 0, 0, 0)
         main_grid.setHorizontalSpacing(4)
-        main_grid.setVerticalSpacing(8)  # Espacamento entre linhas para conforto visual
-        main_grid.addWidget(emis_box, 0, 0)
-        main_grid.addWidget(exec_box, 0, 1)
-        main_grid.addWidget(div_box, 0, 2)
-        main_grid.addWidget(status_box, 0, 3)
-        main_grid.addWidget(year_emissao_box, 0, 4)
-        main_grid.addWidget(year_execucao_box, 0, 5)
-        main_grid.addWidget(reprog_box, 1, 0)
-        main_grid.addWidget(prio_emis_box, 1, 1)
-        main_grid.addWidget(prio_plan_box, 1, 2)
-        main_grid.addWidget(deriv_box, 1, 3, 1, 2)
-        main_grid.addWidget(macro_box, 1, 5)
-        main_grid.addWidget(week_emis_box, 2, 0)
-        main_grid.addWidget(week_exec_box, 2, 1)
-        main_grid.addWidget(sol_box, 2, 2)
-        main_grid.addWidget(prog_box, 2, 3)
-        main_grid.addWidget(exec_resp_box, 2, 4)
-        main_grid.addWidget(emis_resp_box, 2, 5)
+        main_grid.setVerticalSpacing(8)
+
+        # ROW 0 - Filtros principais
+        main_grid.addWidget(emis_box, 0, 0)                    # Emissor
+        main_grid.addWidget(exec_box, 0, 1)                    # Executor
+        main_grid.addWidget(div_box, 0, 2)                     # Divisao Emissora
+        main_grid.addWidget(div_exec_box, 0, 3)                # ⭐ NOVO: Divisao Executora (disabled)
+        main_grid.addWidget(status_box, 0, 4)                  # Situacao (MOVIDO de col 3 → 4)
+        main_grid.addWidget(localizacao_box, 0, 5)             # ⭐ NOVO: Localizacao (disabled)
+
+        # ROW 1 - Reprogramações, prioridades, derivadas, macro
+        main_grid.addWidget(reprog_box, 1, 0)                  # Reprogramacoes
+        main_grid.addWidget(prio_emis_box, 1, 1)               # Prio. Emissao
+        main_grid.addWidget(prio_plan_box, 1, 2)               # Prio. Planejamento
+        main_grid.addWidget(deriv_box, 1, 3, 1, 1)             # Derivadas (checkboxes) - ⭐ colspan=1 agora
+        main_grid.addWidget(derivadas_btn_box, 1, 4)           # ⭐ NOVO: Derivadas (n) botão
+        main_grid.addWidget(macro_box, 1, 5)                   # Macro
+
+        # ROW 2 - Datas, solicitante, responsáveis
+        main_grid.addWidget(week_emis_box, 2, 0)               # Emissao (AnoSemana)
+        main_grid.addWidget(week_exec_box, 2, 1)               # Execucao (AnoSemana)
+        main_grid.addWidget(sol_box, 2, 2)                     # Solicitante
+        main_grid.addWidget(prog_box, 2, 3)                    # ⭐ RENOMEADO: Responsavel Programação
+        main_grid.addWidget(exec_resp_box, 2, 4)               # ⭐ RENOMEADO: Responsavel Execução
+        main_grid.addWidget(emis_resp_box, 2, 5)               # ⭐ RENOMEADO: Responsavel Emissão
+
+        # Column stretch
         for col in range(6):
             main_grid.setColumnStretch(col, 1)
 
@@ -2566,13 +2751,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "emis_box": emis_box,
             "exec_box": exec_box,
             "div_box": div_box,
+            "div_exec_box": div_exec_box,                      # ⭐ NOVO V2
             "status_box": status_box,
             "year_emissao_box": year_emissao_box,
-            "year_execucao_box": year_execucao_box,
+            "localizacao_box": localizacao_box,                # ⭐ NOVO V2 (substitui year_execucao_box)
             "reprog_box": reprog_box,
             "prio_emis_box": prio_emis_box,
             "prio_plan_box": prio_plan_box,
             "deriv_box": deriv_box,
+            "derivadas_btn_box": derivadas_btn_box,            # ⭐ NOVO V2
             "macro_box": macro_box,
             "week_emis_box": week_emis_box,
             "week_exec_box": week_exec_box,
@@ -2644,7 +2831,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_derivada_has": deriv_has,
             "adv_derivada_all_ste": deriv_all_ste,
             "adv_derivada_is": deriv_is,
-            "adv_derivadas_especificas_button": derivadas_select_btn,
+            "adv_derivadas_especificas_button": derivadas_button,
             "adv_responsavel_solicitante_button": sol_button,
             "adv_responsavel_solicitante_menu": sol_menu,
             "adv_responsavel_solicitante_checks": [],
@@ -2675,7 +2862,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not checked:
             try:
                 if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
+                    self.adv_derivada_all_ste.blockSignals(True)
                     self.adv_derivada_all_ste.setChecked(False)
+                    self.adv_derivada_all_ste.blockSignals(False)
             except Exception as e:
                 logger.error(f"Erro em _on_derivada_has_toggled: {e}")
 
@@ -2684,9 +2873,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         try:
             if hasattr(self, "adv_derivada_has"):
+                self.adv_derivada_has.blockSignals(True)
                 self.adv_derivada_has.setChecked(True)
+                self.adv_derivada_has.blockSignals(False)
         except Exception as e:
             logger.error(f"Erro em _on_derivada_all_ste_toggled: {e}")
+
+    def _on_exclude_ste_sca_toggled(self, checked: bool):
+        """
+        Handler para checkbox 'Nao esta em STE/SCA'.
+        Quando toggled, reaplica todos os filtros para incluir/excluir SSAs com STE/SCA.
+        """
+        try:
+            logger.debug(f"_on_exclude_ste_sca_toggled: checked={checked}")
+            self._refresh_after_filter_change()
+        except Exception as e:
+            logger.error(f"Erro em _on_exclude_ste_sca_toggled: {e}")
 
     def _show_derivadas_popup(self):
         """Mostra popup com arvore de derivadas em texto plano."""
@@ -2812,9 +3014,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             has_derivadas = (
                 df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().any()
             )
-            btn.setEnabled(bool(has_derivadas))
+
+            # CORRECAO PREGOLDRELEASE #6: Mostrar contagem de derivadas no botão
+            if has_derivadas:
+                count = len(df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().unique())
+                btn.setText(f"Especificas... ({count})")
+                btn.setEnabled(True)
+            else:
+                btn.setText("Especificas...")
+                btn.setEnabled(False)
         except Exception as e:
             logger.error(f"Erro ao atualizar estado do botao de derivadas: {e}")
+
+    def _update_derivadas_counter(self):
+        """Atualiza contador de derivadas no botão 'Derivadas (n)'."""
+        try:
+            if not hasattr(self, "adv_derivadas_button"):
+                return
+
+            df = (
+                self._df_last_search_filtered
+                if hasattr(self, "_df_last_search_filtered")
+                else None
+            )
+
+            if df is None or df.empty:
+                self.adv_derivadas_button.setText("Derivadas (0)")
+                self.adv_derivadas_button.setEnabled(False)
+                return
+
+            # Contar SSAs com derivadas
+            derivada_col = None
+            for col in df.columns:
+                if "derivada" in col.lower():
+                    derivada_col = col
+                    break
+
+            if derivada_col is None:
+                self.adv_derivadas_button.setText("Derivadas (0)")
+                self.adv_derivadas_button.setEnabled(False)
+                return
+
+            # Contar não-vazios
+            count = df[derivada_col].notna().sum()
+
+            self.adv_derivadas_button.setText(f"Derivadas ({int(count)})")
+            self.adv_derivadas_button.setEnabled(bool(count > 0))
+
+        except Exception as e:
+            logger.error(f"Erro em _update_derivadas_counter: {e}")
 
     def _save_advanced_filters_default(self):
         self._apply_advanced_filters_from_ui(store_only=True)
@@ -2834,9 +3082,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if choice == "ssas_para_baixar":
             try:
                 if hasattr(self, "adv_derivada_has"):
+                    self.adv_derivada_has.blockSignals(True)
                     self.adv_derivada_has.setChecked(True)
+                    self.adv_derivada_has.blockSignals(False)
                 if hasattr(self, "adv_derivada_all_ste"):
+                    self.adv_derivada_all_ste.blockSignals(True)
                     self.adv_derivada_all_ste.setChecked(True)
+                    self.adv_derivada_all_ste.blockSignals(False)
             except Exception as e:
                 logger.error(f"Erro ao definir checkboxes de derivadas: {e}")
             try:
@@ -3002,22 +3254,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao atualizar botao divisao (exclude): {e}")
 
-        # Debounce: cancela timer anterior e agenda novo refresh
-        if self._sector_debounce_timer is not None:
-            try:
-                self._sector_debounce_timer.stop()
-            except Exception as e:
-                logger.debug(f"Erro ao parar timer de debounce: {e}")
-
+        # Debounce: reinicia timer existente (criado em __init__)
         try:
-            from PyQt6.QtCore import QTimer
-
-            self._sector_debounce_timer = QTimer()
-            self._sector_debounce_timer.setSingleShot(True)
-            self._sector_debounce_timer.timeout.connect(self._refresh_responsavel_options)
-            self._sector_debounce_timer.start(self._sector_debounce_delay)
+            self._sector_debounce_timer.stop()
+            self._sector_debounce_timer.start()
         except Exception as e:
-            logger.error(f"Erro ao configurar timer: {e}")
+            logger.error(f"Erro ao reiniciar timer de debounce: {e}")
             # Fallback sem debounce se timer falhar
             try:
                 self._refresh_responsavel_options()
@@ -3270,6 +3512,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 None,
             )
             self.adv_reprog_checks = include_checks
+
+            # CORRECAO PREGOLDRELEASE #1: Atualizar texto do botão após rebuild
+            self._update_multiselect_button(
+                getattr(self, "adv_reprog_button", None),
+                getattr(self, "adv_reprog_checks", None),
+            )
+
             try:
                 mode = (self._advanced_filters or {}).get("num_reprogramacoes_mode")
                 if mode is not None and getattr(self, "adv_reprog_mode", None):
@@ -3306,6 +3555,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao salvar estado do filtro antes de limpar: {e}")
         self._advanced_filters = {}
         self._advanced_filters_active = False
+
+        # CORREÇÃO LAYOUTREFACTOR #2: Desmarcar checkboxes de derivadas (com blockSignals)
+        if hasattr(self, "adv_derivada_has") and self.adv_derivada_has:
+            self.adv_derivada_has.blockSignals(True)
+            self.adv_derivada_has.setChecked(False)
+            self.adv_derivada_has.blockSignals(False)
+        if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste:
+            self.adv_derivada_all_ste.blockSignals(True)
+            self.adv_derivada_all_ste.setChecked(False)
+            self.adv_derivada_all_ste.blockSignals(False)
+        if hasattr(self, "adv_derivada_is") and self.adv_derivada_is:
+            self.adv_derivada_is.blockSignals(True)
+            self.adv_derivada_is.setChecked(False)
+            self.adv_derivada_is.blockSignals(False)
+
         try:
             self._sync_advanced_filter_ui()
         except Exception as e:
@@ -3647,6 +3911,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _sync_advanced_filter_ui(self):
         data = self._advanced_filters or {}
+
+        # CORRECAO PREGOLDRELEASE #7: Verificar se arrays de checks existem
+        # Se checks estiverem vazios, forçar rebuild de menus
+        # CORREÇÃO LAYOUTREFACTOR #1: Adicionar proteção contra loop infinito
+        if not getattr(self, "adv_executor_checks", None):
+            # Verificar se já está sincronizando para evitar recursão infinita
+            if getattr(self, "_syncing_advanced_ui", False):
+                logger.debug("_syncing_advanced_ui já em execução - evitando recursão")
+                return
+
+            self._syncing_advanced_ui = True
+            logger.warning("adv_executor_checks vazio - forçando rebuild de menus avançados")
+            try:
+                if hasattr(self, '_refresh_advanced_filter_options'):
+                    self._refresh_advanced_filter_options()
+            finally:
+                self._syncing_advanced_ui = False
+            return  # _refresh já vai chamar _sync novamente
+
         self._sync_multiselect_checks(
             getattr(self, "adv_executor_button", None),
             getattr(self, "adv_executor_checks", None),
@@ -3781,15 +4064,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao sincronizar ui semanas: {e}")
         try:
+            # CORRECAO: blockSignals para evitar loop infinito ao sincronizar checkboxes
             if hasattr(self, "adv_derivada_has"):
+                self.adv_derivada_has.blockSignals(True)
                 if data.get("derivada_all_ste"):
                     self.adv_derivada_has.setChecked(True)
                 else:
                     self.adv_derivada_has.setChecked(bool(data.get("derivada_has")))
+                self.adv_derivada_has.blockSignals(False)
             if hasattr(self, "adv_derivada_all_ste"):
+                self.adv_derivada_all_ste.blockSignals(True)
                 self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
+                self.adv_derivada_all_ste.blockSignals(False)
             if hasattr(self, "adv_derivada_is"):
+                self.adv_derivada_is.blockSignals(True)
                 self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
+                self.adv_derivada_is.blockSignals(False)
         except Exception as e:
             logger.error(f"Erro ao sincronizar ui derivadas: {e}")
         try:
@@ -3835,15 +4125,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             and cache.get("df_key") == df_key
             and not getattr(self, "_adv_options_dirty", False)
         ):
+            # CORRECAO PREGOLDRELEASE #5: Atualizar botões mesmo com cache válido
+            # Garante que widgets recriados mostrem valores corretos
+            self._sync_advanced_filter_ui()
             self._adv_options_scheduled = False
             return
 
         df_id = id(df)
 
-        # Inicializa cache granular se necessário
-        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
+        # Inicializa cache granular se necessario
+        if not isinstance(cache, dict):
+            # Cache nao existe ou eh invalido - cria novo
             cache = {"df_id": df_id, "df_key": df_key}
             self._adv_values_cache = cache
+        elif cache.get("df_id") != df_id:
+            # df_id mudou, mas preserva valores se df_key for igual
+            old_df_key = cache.get("df_key")
+            cache["df_id"] = df_id
+            cache["df_key"] = df_key
+
+            if old_df_key != df_key:
+                # DataFrame mudou logicamente (tamanho ou colunas) - limpa valores
+                for key in list(cache.keys()):
+                    if key not in ("df_id", "df_key"):
+                        cache.pop(key)
+            # Se df_key igual, preserva valores existentes (exec_vals, emis_vals, etc)
 
         def _unique_sorted(col):
             try:
@@ -4069,23 +4375,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             year_values = [str(y) for y in execucao_years if y and str(y).strip()]
             inc_set = {str(v) for v in (inc_vals or [])}
             exc_set = {str(v) for v in (exc_vals or [])}
+            # FUNCIONALIDADE PREGOLDRELEASE: Auto-marcar STE quando Ano Execução selecionado
+            def _on_ano_execucao_toggle(*_):
+                self._update_multiselect_button(
+                    self.adv_year_execucao_button,
+                    getattr(self, "adv_year_execucao_checks", None),
+                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
+                )
+                # Auto-marcar checkbox STE se houver anos selecionados (com blockSignals)
+                checks = getattr(self, "adv_year_execucao_checks", [])
+                if checks and any(cb.isChecked() for cb in checks if cb):
+                    if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste:
+                        self.adv_derivada_all_ste.blockSignals(True)
+                        self.adv_derivada_all_ste.setChecked(True)
+                        self.adv_derivada_all_ste.blockSignals(False)
+
             year_include, year_exclude = self._rebuild_multiselect_menu(
                 self.adv_year_execucao_button,
                 self.adv_year_execucao_menu,
                 year_values,
                 inc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_execucao_button,
-                    getattr(self, "adv_year_execucao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
-                ),
+                _on_ano_execucao_toggle,
                 apply_cb,
                 exc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_execucao_button,
-                    getattr(self, "adv_year_execucao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
-                ),
+                _on_ano_execucao_toggle,
             )
             self.adv_year_execucao_checks = year_include
             self.adv_year_execucao_exclude_checks = year_exclude
@@ -4136,6 +4449,86 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             self.adv_prioridade_planejamento_checks = prio_include
             self.adv_prioridade_planejamento_exclude_checks = prio_exclude
+
+        # Atualiza texto dos botões multiselect após popular checkboxes
+        # CORRECAO 2026-01-15: Botões ficavam com "Sem dados" mesmo após popular menus
+        if hasattr(self, "adv_executor_button"):
+            self._update_multiselect_button(
+                self.adv_executor_button,
+                getattr(self, "adv_executor_checks", None),
+                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
+            )
+        if hasattr(self, "adv_emissor_button"):
+            self._update_multiselect_button(
+                self.adv_emissor_button,
+                getattr(self, "adv_emissor_checks", None),
+                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
+            )
+        if hasattr(self, "adv_divisao_button"):
+            self._update_multiselect_button(
+                self.adv_divisao_button,
+                getattr(self, "adv_divisao_checks", None),
+                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_status_button"):
+            self._update_multiselect_button(
+                self.adv_status_button,
+                getattr(self, "adv_status_checks", None),
+                exclude_checks=getattr(self, "adv_status_exclude_checks", None),
+            )
+        if hasattr(self, "adv_year_emissao_button"):
+            self._update_multiselect_button(
+                self.adv_year_emissao_button,
+                getattr(self, "adv_year_emissao_checks", None),
+                exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_year_execucao_button"):
+            self._update_multiselect_button(
+                self.adv_year_execucao_button,
+                getattr(self, "adv_year_execucao_checks", None),
+                exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_reprog_button"):
+            self._update_multiselect_button(
+                self.adv_reprog_button,
+                getattr(self, "adv_reprog_checks", None),
+            )
+        if hasattr(self, "adv_prioridade_emissao_button"):
+            self._update_multiselect_button(
+                self.adv_prioridade_emissao_button,
+                getattr(self, "adv_prioridade_emissao_checks", None),
+                exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_prioridade_planejamento_button"):
+            self._update_multiselect_button(
+                self.adv_prioridade_planejamento_button,
+                getattr(self, "adv_prioridade_planejamento_checks", None),
+                exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
+            )
+        if hasattr(self, "adv_responsavel_solicitante_button"):
+            self._update_multiselect_button(
+                self.adv_responsavel_solicitante_button,
+                getattr(self, "adv_responsavel_solicitante_checks", None),
+                exclude_checks=getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
+            )
+        if hasattr(self, "adv_responsavel_programacao_button"):
+            self._update_multiselect_button(
+                self.adv_responsavel_programacao_button,
+                getattr(self, "adv_responsavel_programacao_checks", None),
+                exclude_checks=getattr(self, "adv_responsavel_programacao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_responsavel_execucao_button"):
+            self._update_multiselect_button(
+                self.adv_responsavel_execucao_button,
+                getattr(self, "adv_responsavel_execucao_checks", None),
+                exclude_checks=getattr(self, "adv_responsavel_execucao_exclude_checks", None),
+            )
+        if hasattr(self, "adv_responsavel_emissor_button"):
+            self._update_multiselect_button(
+                self.adv_responsavel_emissor_button,
+                getattr(self, "adv_responsavel_emissor_checks", None),
+                exclude_checks=getattr(self, "adv_responsavel_emissor_exclude_checks", None),
+            )
 
         self._refresh_responsavel_options()
         self._sync_advanced_filter_ui()
@@ -4426,9 +4819,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.progress_bar.setVisible(True)
         self.load_button.setEnabled(False)
         self.search_button.setEnabled(False)
+        self._is_full_data_loaded = False
 
-        self.data_loader_thread = DataLoaderWorker(DB_PATH, TABLE_NAME)
-        self.data_loader_thread.data_loaded.connect(self.on_data_loaded)
+        # LAZY LOADING: Carrega buffer inicial (50 SSAs mais recentes)
+        self.data_loader_thread = DataLoaderWorker(
+            DB_PATH,
+            TABLE_NAME,
+            limit=self._buffer_size,  # 50 SSAs
+            offset=0,
+            order_by="numero_ssa DESC"  # Mais recentes primeiro
+        )
+        self.data_loader_thread.data_loaded.connect(self._on_buffer_loaded)
         self.data_loader_thread.error_occurred.connect(self.on_load_error)
         self.data_loader_thread.finished.connect(self.on_load_finished)
         try:
@@ -4493,6 +4894,334 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.status_label.setText(
             f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
         )
+
+    # =============================================================================
+    # LAZY LOADING: Métodos de gerenciamento de buffer e cache
+    # =============================================================================
+
+    def _mark_filters_dirty(self) -> None:
+        """Marca filtros como sujos, sinalizando que cache precisa ser atualizado."""
+        self._filters_dirty = True
+        logger.debug("Filtros marcados como dirty - cache sera atualizado")
+
+    def _clear_filters_dirty(self) -> None:
+        """Limpa flag de filtros sujos após atualização de cache."""
+        self._filters_dirty = False
+        logger.debug("Flag de filtros dirty limpa")
+
+    def _populate_filter_buffer(self) -> None:
+        """
+        Popula cache de filtros com valores únicos do buffer inicial (50 SSAs).
+        Usado para popular dropdowns rapidamente na inicialização.
+        """
+        if self.df_completo.empty:
+            logger.warning("_populate_filter_buffer: df_completo vazio")
+            return
+
+        logger.debug(f"Populando buffer de filtros com {len(self.df_completo)} registros")
+
+        # Mapeia widgets de filtro para colunas do DataFrame
+        filter_mapping = {
+            'executor': 'setor_executor',
+            'emissor': 'setor_emissor',
+            'divisao': 'divisao',
+            'status': 'situacao',
+            'tipo': 'tipo_ssa',
+            'prioridade': 'prioridade',
+            'responsavel': 'responsavel_execucao',
+        }
+
+        # Extrai valores únicos de cada coluna relevante
+        for filter_key, column_name in filter_mapping.items():
+            if column_name in self.df_completo.columns:
+                try:
+                    unique_values = set(
+                        self.df_completo[column_name]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                    )
+                    unique_values.discard('')  # Remove strings vazias
+                    self._filter_buffer_cache[filter_key] = unique_values
+                    logger.debug(f"Buffer {filter_key}: {len(unique_values)} valores únicos")
+                except Exception as e:
+                    logger.error(f"Erro ao popular buffer de {filter_key}: {e}")
+                    self._filter_buffer_cache[filter_key] = set()
+            else:
+                logger.debug(f"Coluna {column_name} não encontrada para filtro {filter_key}")
+                self._filter_buffer_cache[filter_key] = set()
+
+    def _populate_full_filter_cache(self, filter_type: str) -> None:
+        """
+        Carrega valores completos para um tipo de filtro específico sob demanda.
+
+        Args:
+            filter_type: Tipo do filtro ('executor', 'emissor', 'divisao', etc.)
+        """
+        if not self._is_full_data_loaded:
+            logger.info(f"_populate_full_filter_cache({filter_type}): Dados completos ainda não carregados")
+            return
+
+        filter_mapping = {
+            'executor': 'setor_executor',
+            'emissor': 'setor_emissor',
+            'divisao': 'divisao',
+            'status': 'situacao',
+            'tipo': 'tipo_ssa',
+            'prioridade': 'prioridade',
+            'responsavel': 'responsavel_execucao',
+        }
+
+        column_name = filter_mapping.get(filter_type)
+        if not column_name:
+            logger.warning(f"Tipo de filtro desconhecido: {filter_type}")
+            return
+
+        if column_name not in self.df_completo.columns:
+            logger.warning(f"Coluna {column_name} não encontrada para filtro {filter_type}")
+            return
+
+        try:
+            unique_values = set(
+                self.df_completo[column_name]
+                .dropna()
+                .astype(str)
+                .str.strip()
+            )
+            unique_values.discard('')
+
+            # Atualiza cache com valores completos
+            old_count = len(self._filter_buffer_cache.get(filter_type, set()))
+            self._filter_buffer_cache[filter_type] = unique_values
+            new_count = len(unique_values)
+
+            logger.debug(f"Cache completo {filter_type}: {old_count} -> {new_count} valores")
+
+        except Exception as e:
+            logger.error(f"Erro ao popular cache completo de {filter_type}: {e}")
+
+    def _on_buffer_loaded(self, df: pd.DataFrame):
+        """
+        Callback quando buffer inicial (50 SSAs) é carregado.
+        Popula interface e inicia carregamento em background do resto.
+        """
+        logger.info(f"Buffer inicial carregado: {len(df)} SSAs")
+
+        # Processa buffer como dados completos (temporariamente)
+        self.df_completo = df.copy()
+
+        # Normalização (necessária para busca de SSA)
+        if 'numero_ssa' in self.df_completo.columns:
+            try:
+                self.df_completo['_norm_ssa'] = self.df_completo['numero_ssa'].map(
+                    normalize_ssa_value
+                )
+                logger.debug("Coluna _norm_ssa criada com sucesso no buffer")
+            except Exception as e:
+                logger.error(f"Erro ao normalizar SSAs no buffer: {e}")
+
+        # MELHORIA POSGOLDRELEASE #3: Preservar filtros de coluna válidos
+        # Remove apenas filtros de colunas que não existem mais no novo dataset
+        from collections import OrderedDict
+        old_filters = self._active_column_filters.copy()
+        self._active_column_filters = OrderedDict()
+
+        # Revalidar filtros contra novo schema
+        preserved_count = 0
+        removed_count = 0
+        for col_key, filter_value in old_filters.items():
+            if col_key in self.df_completo.columns:
+                # Coluna ainda existe - preservar filtro
+                self._active_column_filters[col_key] = filter_value
+                preserved_count += 1
+                logger.debug(f"Filtro de coluna preservado: {col_key}")
+            else:
+                # Coluna não existe mais - remover filtro
+                removed_count += 1
+                logger.warning(f"Filtro de coluna removido (coluna não existe): {col_key}")
+
+        if preserved_count > 0:
+            logger.info(f"Filtros preservados: {preserved_count}, removidos: {removed_count}")
+        else:
+            logger.debug("Nenhum filtro de coluna para preservar")
+
+        # Popula cache de filtros com buffer
+        self._populate_filter_buffer()
+
+        # Inicializa df_exibido
+        base = self.df_completo.copy()
+        self.df_exibido = base
+        self._df_last_search_filtered = df.copy()
+
+        # LAZY LOADING: NÃO atualiza filtros avançados com buffer - aguarda dados completos
+        # Os filtros serão atualizados corretamente em _on_full_data_loaded()
+        # if hasattr(self, '_refresh_advanced_filter_options'):
+        #     try:
+        #         self._refresh_advanced_filter_options()
+        #     except Exception as e:
+        #         logger.warning(f"Erro ao atualizar opções de filtros: {e}")
+
+        # MELHORIA POSGOLDRELEASE #3: Reconstruir painel de filtros com filtros preservados
+        if preserved_count > 0 and hasattr(self, '_build_column_filters_panel'):
+            try:
+                self._build_column_filters_panel()
+                logger.debug("Painel de filtros reconstruído com filtros preservados")
+            except Exception as e:
+                logger.error(f"Erro ao reconstruir painel de filtros: {e}")
+
+        self.initiate_filtering()
+
+        # Atualiza status com indicador de carregamento em background
+        self.status_label.setText(
+            f"Status: Carregando dados completos em background..."
+        )
+
+        # FASE 2: Inicia carregamento completo em background após 1s
+        # Delay de 1s para evitar conflitos com inicialização
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(1000, self._start_full_data_load)
+
+    def _start_full_data_load(self):
+        """Inicia carregamento de dados completos em background."""
+        # Evita iniciar carregamento múltiplas vezes
+        if self._full_data_loading_started or self._is_full_data_loaded:
+            logger.debug("Carregamento completo já iniciado ou concluído - ignorando")
+            return
+
+        logger.info("Iniciando carregamento de dados completos em background")
+        self._full_data_loading_started = True
+
+        from gui.workers.data_loader_worker import DataLoaderWorker
+
+        # Cria thread para carregar dados completos
+        self._full_data_loader_thread = DataLoaderWorker(
+            DB_PATH,
+            TABLE_NAME,
+            limit=None,  # Sem limite = tudo
+            offset=0,
+            order_by="numero_ssa DESC"
+        )
+
+        self._full_data_loader_thread.data_loaded.connect(self._on_full_data_loaded)
+        self._full_data_loader_thread.error_occurred.connect(self._on_full_data_load_error)
+        self._full_data_loader_thread.finished.connect(
+            self._full_data_loader_thread.deleteLater
+        )
+
+        self._full_data_loader_thread.start()
+
+    def _on_full_data_loaded(self, df: pd.DataFrame):
+        """
+        Callback quando dados completos são carregados.
+        Atualiza estado e invalida cache de filtros.
+        """
+        logger.info(f"Dados completos carregados: {len(df)} SSAs")
+
+        # Substitui df_completo por versão completa
+        self.df_completo = df.copy()
+
+        # Normalização completa
+        if 'numero_ssa' in self.df_completo.columns:
+            try:
+                self.df_completo['_norm_ssa'] = self.df_completo['numero_ssa'].map(
+                    normalize_ssa_value
+                )
+                logger.debug("Coluna _norm_ssa criada com sucesso (dados completos)")
+            except Exception as e:
+                logger.error(f"Erro ao normalizar SSAs completos: {e}")
+
+        # Marca dados completos como carregados
+        self._is_full_data_loaded = True
+
+        # Marca filtros como dirty para forçar atualização
+        self._mark_filters_dirty()
+
+        # Atualiza opções de filtros avançados com dados completos
+        # SEMPRE popula cache, independente da aba ativa
+        if hasattr(self, '_refresh_advanced_filter_options'):
+            try:
+                self._refresh_advanced_filter_options()
+                logger.debug("Filtros avançados atualizados com dados completos")
+            except Exception as e:
+                logger.warning(f"Erro ao atualizar opções de filtros: {e}")
+
+        # Reaplica filtros atuais com dados completos
+        self.initiate_filtering()
+
+        # Atualiza status
+        total_count = len(self.df_completo)
+        self.status_label.setText(
+            f"Status: {total_count} SSAs carregadas"
+        )
+
+        # Limpa flag dirty após atualização
+        self._clear_filters_dirty()
+
+        # Atualiza indicador de filtros de coluna agora que dados completos foram carregados
+        if hasattr(self, '_update_col_filter_indicator'):
+            try:
+                self._update_col_filter_indicator()
+                logger.debug("Indicador de filtros atualizado após carregamento completo")
+            except Exception as e:
+                logger.warning(f"Erro ao atualizar indicador após carregamento: {e}")
+
+        logger.info("Lazy loading concluído com sucesso")
+
+    def _on_full_data_load_error(self, error_msg: str):
+        """Trata erros no carregamento de dados completos."""
+        logger.error(f"Erro ao carregar dados completos: {error_msg}")
+        # Não mostra erro ao usuário - buffer já está funcional
+        # Apenas loga para debugging
+
+    def _ensure_full_data_loaded(self, operation_name: str = "esta operação") -> bool:
+        """
+        Garante que dados completos estejam carregados antes de executar operação.
+
+        Args:
+            operation_name: Nome da operação para mensagem ao usuário
+
+        Returns:
+            True se dados completos estão carregados, False caso contrário
+        """
+        if self._is_full_data_loaded:
+            return True
+
+        # Verifica se carregamento está em andamento
+        if self._full_data_loader_thread and self._full_data_loader_thread.isRunning():
+            # Mostra dialog de espera
+            reply = QMessageBox.question(
+                self,
+                "Carregamento em andamento",
+                f"Dados completos ainda estão sendo carregados.\n\n"
+                f"{operation_name.capitalize()} requer todos os dados.\n\n"
+                f"Deseja aguardar o carregamento?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                # Aguarda thread terminar
+                self.status_label.setText("Aguardando carregamento completo...")
+                self._full_data_loader_thread.wait()
+                return self._is_full_data_loaded
+            else:
+                return False
+
+        # Carregamento não foi iniciado - inicia agora
+        reply = QMessageBox.question(
+            self,
+            "Carregamento necessário",
+            f"{operation_name.capitalize()} requer todos os dados do banco.\n\n"
+            f"Deseja carregar dados completos agora?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self._start_full_data_load()
+            self.status_label.setText("Carregando dados completos...")
+            self._full_data_loader_thread.wait()  # Aguarda síncronamente
+            return self._is_full_data_loaded
+
+        return False
 
     def on_load_error(self, error_msg: str):
         QMessageBox.critical(self, "Erro de Carregamento", error_msg)
@@ -5798,6 +6527,126 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     seen.add(normalized)
         return aggregated
 
+    def _refresh_after_filter_change(self):
+        """
+        Atualiza a interface apos mudanca nos filtros.
+        Simplesmente chama initiate_filtering() para reaplicar todos os filtros.
+        """
+        try:
+            self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro em _refresh_after_filter_change: {e}")
+
+        # GRIDREFACTOR V2: Atualizar contador de derivadas
+        try:
+            self._update_derivadas_counter()
+        except Exception as e:
+            logger.error(f"Erro ao atualizar contador derivadas: {e}")
+
+    def initiate_filtering(self):
+        """
+        Aplica todos os filtros ativos (busca, colunas, checkboxes, avancados)
+        e atualiza a interface.
+        """
+        try:
+            logger.info("=== initiate_filtering INICIADO ===")
+
+            if self.df_completo is None or self.df_completo.empty:
+                logger.warning("initiate_filtering: df_completo vazio")
+                return
+
+            # Inicia com copia completa
+            df = self.df_completo.copy()
+            mask = pd.Series(True, index=df.index)
+
+            # 1. BUSCA GERAL (search_input)
+            search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ""
+            if search_text:
+                logger.info(f"Aplicando busca geral: '{search_text}'")
+                # Criar string combinada de todas as colunas para busca
+                search_columns = []
+                for col in df.columns:
+                    if col != 'id':  # Ignora campo ID
+                        search_columns.append(df[col].astype(str))
+                if search_columns:
+                    combined = pd.Series([' '.join(vals) for vals in zip(*search_columns)], index=df.index)
+                    # Busca case-insensitive
+                    search_mask = combined.str.contains(search_text, case=False, na=False, regex=False)
+                    mask &= search_mask
+                    logger.info(f"Busca geral: {search_mask.sum()} registros encontrados")
+
+            # 2. FILTROS DE COLUNA (_active_column_filters)
+            if self._active_column_filters:
+                logger.info(f"Aplicando {len(self._active_column_filters)} filtros de coluna")
+                for col_key, filter_term in self._active_column_filters.items():
+                    if not filter_term or not filter_term.strip():
+                        continue
+                    if col_key not in df.columns:
+                        logger.warning(f"Coluna '{col_key}' nao existe no DataFrame")
+                        continue
+
+                    # Aplica filtro case-insensitive
+                    col_mask = df[col_key].astype(str).str.contains(filter_term, case=False, na=False, regex=False)
+                    mask &= col_mask
+                    logger.info(f"Filtro coluna '{col_key}': {col_mask.sum()} registros")
+
+            # 3. CHECKBOX "Não está em STE/SCA"
+            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+                    ctx = self._tab_contexts[self._current_tab_index]
+                    exclude_ste = ctx.get("exclude_ste_checkbox")
+                    if exclude_ste and exclude_ste.isChecked():
+                        logger.info("Aplicando exclusao STE/SCA")
+                        if 'situacao' in df.columns:
+                            ste_mask = ~df['situacao'].astype(str).str.upper().isin(['STE', 'SCA'])
+                            mask &= ste_mask
+                            logger.info(f"Exclusao STE/SCA: {ste_mask.sum()} registros")
+
+            # Aplica mask acumulado
+            df = df[mask]
+            logger.info(f"Apos filtros gerais: {len(df)} registros")
+
+            # 4. FILTROS AVANCADOS
+            if getattr(self, '_advanced_filters_active', False):
+                logger.info("Aplicando filtros avancados")
+                df = self._apply_advanced_filters(df)
+                logger.info(f"Apos filtros avancados: {len(df)} registros")
+
+            # Atualiza df_exibido
+            self.df_exibido = df
+            self._df_last_search_filtered = df.copy()
+
+            # Atualiza paginator e exibe pagina 1
+            if hasattr(self, 'paginator'):
+                self.paginator.set_dataframe(self.df_exibido)
+                self.display_current_page(1)
+
+            # Atualiza contador de SSAs (ssa_count_input)
+            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+                    ctx = self._tab_contexts[self._current_tab_index]
+                    ssa_count = ctx.get("ssa_count_input")
+                    if ssa_count:
+                        ssa_count.setText(str(len(self.df_exibido)))
+
+            # Atualiza status_label
+            if hasattr(self, 'status_label'):
+                total_count = len(self.df_completo)
+                self.status_label.setText(f"Status: {total_count} SSAs carregadas")
+
+            # Atualiza resumo de filtros
+            if hasattr(self, '_update_filters_summary'):
+                self._update_filters_summary()
+
+            # Atualiza indicador de filtros de coluna
+            if hasattr(self, '_update_col_filter_indicator'):
+                self._update_col_filter_indicator()
+
+            logger.info("=== initiate_filtering CONCLUIDO ===")
+
+        except Exception as e:
+            logger.error(f"Erro em initiate_filtering: {e}", exc_info=True)
+
     def _highlight_text(self, text, terms):
         """Delegate to helper function."""
         bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
@@ -6423,6 +7272,163 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.info(f"Adicionando filtro: {busca_text}")
                 active_filters.append(busca_text)
 
+            # FILTROS AVANCADOS: Adicionar ao resumo quando estiver na aba Filtros
+            if self._current_tab_index == 1:
+                logger.info("Verificando filtros avancados (aba Filtros)...")
+
+                # 1. MULTISELECT: Emissor
+                emis_checks = getattr(self, "adv_emissor_checks", [])
+                emis_exclude = getattr(self, "adv_emissor_exclude_checks", [])
+                emis_selected = [self._checkbox_value(cb) for cb in emis_checks if cb.isChecked()]
+                emis_excluded = [self._checkbox_value(cb) for cb in emis_exclude if cb.isChecked()]
+                if emis_selected:
+                    active_filters.append(f"Emissor: {', '.join(emis_selected)}")
+                if emis_excluded:
+                    active_filters.append(f"Emissor (excluir): {', '.join(emis_excluded)}")
+
+                # 2. MULTISELECT: Executor
+                exec_checks = getattr(self, "adv_executor_checks", [])
+                exec_exclude = getattr(self, "adv_executor_exclude_checks", [])
+                exec_selected = [self._checkbox_value(cb) for cb in exec_checks if cb.isChecked()]
+                exec_excluded = [self._checkbox_value(cb) for cb in exec_exclude if cb.isChecked()]
+                if exec_selected:
+                    active_filters.append(f"Executor: {', '.join(exec_selected)}")
+                if exec_excluded:
+                    active_filters.append(f"Executor (excluir): {', '.join(exec_excluded)}")
+
+                # 3. MULTISELECT: Divisao
+                div_checks = getattr(self, "adv_divisao_checks", [])
+                div_exclude = getattr(self, "adv_divisao_exclude_checks", [])
+                div_selected = [self._checkbox_value(cb) for cb in div_checks if cb.isChecked()]
+                div_excluded = [self._checkbox_value(cb) for cb in div_exclude if cb.isChecked()]
+                if div_selected:
+                    active_filters.append(f"Divisao: {', '.join(div_selected)}")
+                if div_excluded:
+                    active_filters.append(f"Divisao (excluir): {', '.join(div_excluded)}")
+
+                # 4. MULTISELECT: Situacao
+                status_checks = getattr(self, "adv_status_checks", [])
+                status_exclude = getattr(self, "adv_status_exclude_checks", [])
+                status_selected = [self._checkbox_value(cb) for cb in status_checks if cb.isChecked()]
+                status_excluded = [self._checkbox_value(cb) for cb in status_exclude if cb.isChecked()]
+                if status_selected:
+                    active_filters.append(f"Situacao: {', '.join(status_selected)}")
+                if status_excluded:
+                    active_filters.append(f"Situacao (excluir): {', '.join(status_excluded)}")
+
+                # 5. MULTISELECT: Ano Emissao
+                year_emis_checks = getattr(self, "adv_year_emissao_checks", [])
+                year_emis_selected = [self._checkbox_value(cb) for cb in year_emis_checks if cb.isChecked()]
+                if year_emis_selected:
+                    active_filters.append(f"Ano Emissao: {', '.join(year_emis_selected)}")
+
+                # 6. MULTISELECT: Ano Execucao
+                year_exec_checks = getattr(self, "adv_year_execucao_checks", [])
+                year_exec_selected = [self._checkbox_value(cb) for cb in year_exec_checks if cb.isChecked()]
+                if year_exec_selected:
+                    active_filters.append(f"Ano Execucao: {', '.join(year_exec_selected)}")
+
+                # 7. MULTISELECT: Reprogramacoes (com modo)
+                reprog_checks = getattr(self, "adv_reprog_checks", [])
+                reprog_mode_widget = getattr(self, "adv_reprog_mode", None)
+                reprog_selected = [self._checkbox_value(cb) for cb in reprog_checks if cb.isChecked()]
+                if reprog_selected and reprog_mode_widget:
+                    mode_text = reprog_mode_widget.currentText()
+                    active_filters.append(f"Reprogramacoes {mode_text}: {', '.join(reprog_selected)}")
+
+                # 8. MULTISELECT: Prio. Emissao
+                prio_emis_checks = getattr(self, "adv_prioridade_emissao_checks", [])
+                prio_emis_selected = [self._checkbox_value(cb) for cb in prio_emis_checks if cb.isChecked()]
+                if prio_emis_selected:
+                    active_filters.append(f"Prio. Emissao: {', '.join(prio_emis_selected)}")
+
+                # 9. MULTISELECT: Prio. Planejamento
+                prio_plan_checks = getattr(self, "adv_prioridade_planejamento_checks", [])
+                prio_plan_selected = [self._checkbox_value(cb) for cb in prio_plan_checks if cb.isChecked()]
+                if prio_plan_selected:
+                    active_filters.append(f"Prio. Planejamento: {', '.join(prio_plan_selected)}")
+
+                # 10. MULTISELECT: Solicitante
+                sol_checks = getattr(self, "adv_responsavel_solicitante_checks", [])
+                sol_exclude = getattr(self, "adv_responsavel_solicitante_exclude_checks", [])
+                sol_selected = [self._checkbox_value(cb) for cb in sol_checks if cb.isChecked()]
+                sol_excluded = [self._checkbox_value(cb) for cb in sol_exclude if cb.isChecked()]
+                if sol_selected:
+                    active_filters.append(f"Solicitante: {', '.join(sol_selected)}")
+                if sol_excluded:
+                    active_filters.append(f"Solicitante (excluir): {', '.join(sol_excluded)}")
+
+                # 11. MULTISELECT: Resp Prog
+                prog_checks = getattr(self, "adv_responsavel_programacao_checks", [])
+                prog_exclude = getattr(self, "adv_responsavel_programacao_exclude_checks", [])
+                prog_selected = [self._checkbox_value(cb) for cb in prog_checks if cb.isChecked()]
+                prog_excluded = [self._checkbox_value(cb) for cb in prog_exclude if cb.isChecked()]
+                if prog_selected:
+                    active_filters.append(f"Resp Prog: {', '.join(prog_selected)}")
+                if prog_excluded:
+                    active_filters.append(f"Resp Prog (excluir): {', '.join(prog_excluded)}")
+
+                # 12. MULTISELECT: Resp Exec
+                exec_resp_checks = getattr(self, "adv_responsavel_execucao_checks", [])
+                exec_resp_exclude = getattr(self, "adv_responsavel_execucao_exclude_checks", [])
+                exec_resp_selected = [self._checkbox_value(cb) for cb in exec_resp_checks if cb.isChecked()]
+                exec_resp_excluded = [self._checkbox_value(cb) for cb in exec_resp_exclude if cb.isChecked()]
+                if exec_resp_selected:
+                    active_filters.append(f"Resp Exec: {', '.join(exec_resp_selected)}")
+                if exec_resp_excluded:
+                    active_filters.append(f"Resp Exec (excluir): {', '.join(exec_resp_excluded)}")
+
+                # 13. MULTISELECT: Resp Emis
+                emis_resp_checks = getattr(self, "adv_responsavel_emissor_checks", [])
+                emis_resp_exclude = getattr(self, "adv_responsavel_emissor_exclude_checks", [])
+                emis_resp_selected = [self._checkbox_value(cb) for cb in emis_resp_checks if cb.isChecked()]
+                emis_resp_excluded = [self._checkbox_value(cb) for cb in emis_resp_exclude if cb.isChecked()]
+                if emis_resp_selected:
+                    active_filters.append(f"Resp Emis: {', '.join(emis_resp_selected)}")
+                if emis_resp_excluded:
+                    active_filters.append(f"Resp Emis (excluir): {', '.join(emis_resp_excluded)}")
+
+                # 14. RANGE: Emissao AnoSemana
+                week_emis_start = getattr(self, "adv_week_emissao_start", None)
+                week_emis_end = getattr(self, "adv_week_emissao_end", None)
+                if week_emis_start and week_emis_start.text().strip():
+                    if week_emis_end and week_emis_end.text().strip():
+                        active_filters.append(f"Emissao AnoSemana: {week_emis_start.text().strip()} - {week_emis_end.text().strip()}")
+                    else:
+                        active_filters.append(f"Emissao AnoSemana: >= {week_emis_start.text().strip()}")
+                elif week_emis_end and week_emis_end.text().strip():
+                    active_filters.append(f"Emissao AnoSemana: <= {week_emis_end.text().strip()}")
+
+                # 15. RANGE: Execucao AnoSemana
+                week_exec_start = getattr(self, "adv_week_execucao_start", None)
+                week_exec_end = getattr(self, "adv_week_execucao_end", None)
+                if week_exec_start and week_exec_start.text().strip():
+                    if week_exec_end and week_exec_end.text().strip():
+                        active_filters.append(f"Execucao AnoSemana: {week_exec_start.text().strip()} - {week_exec_end.text().strip()}")
+                    else:
+                        active_filters.append(f"Execucao AnoSemana: >= {week_exec_start.text().strip()}")
+                elif week_exec_end and week_exec_end.text().strip():
+                    active_filters.append(f"Execucao AnoSemana: <= {week_exec_end.text().strip()}")
+
+                # 16-18. CHECKBOX: Derivadas
+                deriv_has = getattr(self, "adv_derivada_has", None)
+                deriv_ste = getattr(self, "adv_derivada_all_ste", None)
+                deriv_is = getattr(self, "adv_derivada_is", None)
+                if deriv_has and deriv_has.isChecked():
+                    active_filters.append("Derivadas: Tem")
+                if deriv_ste and deriv_ste.isChecked():
+                    active_filters.append("Derivadas: STE")
+                if deriv_is and deriv_is.isChecked():
+                    active_filters.append("Derivadas: Sou Derivada")
+
+                # 19. COMBOBOX: Macro
+                macro_combo = getattr(self, "adv_macro_combo", None)
+                if macro_combo and macro_combo.currentIndex() > 0:
+                    macro_text = macro_combo.currentText()
+                    active_filters.append(f"Macro: {macro_text}")
+
+                logger.info(f"Filtros avancados adicionados: {len(active_filters)} total")
+
             logger.info(f"Total de filtros ativos: {len(active_filters)}")
             logger.info(f"Lista completa de filtros: {active_filters}")
 
@@ -6462,6 +7468,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.warning("col_filter_indicator: widget nao encontrado")
                 return
 
+            # UIREFACTOR 2026-01-14: Ocultar indicador na aba "Filtros" (índice 1)
+            if self._current_tab_index == 1:
+                logger.debug("col_filter_indicator: OCULTO na aba Filtros")
+                indicator.setText("")
+                indicator.setVisible(False)
+                return
+
+            # LAZY LOADING: Não mostrar indicador se dados completos ainda não carregaram
+            # Evita mostrar valores temporários/incorretos durante inicialização
+            if not getattr(self, '_is_full_data_loaded', False):
+                logger.debug("col_filter_indicator: OCULTO - dados completos ainda não carregados")
+                indicator.setText("")
+                indicator.setVisible(False)
+                return
+
             count = len(self._active_column_filters)
             logger.info(f"col_filter_indicator: count={count}")
             if count > 0:
@@ -6487,13 +7508,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Limpar filtros de coluna
             self._active_column_filters.clear()
 
-            # Limpar checkbox STE/SCA
+            # Limpar checkbox STE/SCA (com blockSignals para evitar refresh duplo)
             if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
                 if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
                     ctx = self._tab_contexts[self._current_tab_index]
                     exclude_ste = ctx.get("exclude_ste_checkbox")
                     if exclude_ste:
+                        exclude_ste.blockSignals(True)
                         exclude_ste.setChecked(False)
+                        exclude_ste.blockSignals(False)
+
+            # CORREÇÃO LAYOUTREFACTOR #2: Limpar filtros avançados e derivadas
+            if hasattr(self, '_clear_advanced_filters'):
+                self._clear_advanced_filters()
 
             # Reprocessar dados
             if hasattr(self, 'initiate_filtering'):
