@@ -3351,6 +3351,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             for cb in getattr(self, "adv_executor_checks", None) or []:
                 try:
+                    if not _is_widget_valid(cb):
+                        continue
                     if cb.text().casefold() in setores_norm:
                         cb.blockSignals(True)
                         cb.setChecked(True)
@@ -3359,6 +3361,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     logger.error(f"Erro ao marcar executor check: {e}")
             for cb in getattr(self, "adv_emissor_checks", None) or []:
                 try:
+                    if not _is_widget_valid(cb):
+                        continue
                     if cb.text().casefold() in setores_norm:
                         cb.blockSignals(True)
                         cb.setChecked(True)
@@ -3886,6 +3890,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if isinstance(source, list):
             for child in source:
                 try:
+                    if not _is_widget_valid(child):
+                        continue
                     if child.isChecked():
                         value = self._checkbox_value(child)
                         if value:
@@ -3901,6 +3907,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 children = []
             for child in children:
                 try:
+                    if not _is_widget_valid(child):
+                        continue
                     if child.isChecked():
                         value = self._checkbox_value(child)
                         if value:
@@ -6595,7 +6603,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
                     ctx = self._tab_contexts[self._current_tab_index]
                     exclude_ste = ctx.get("exclude_ste_checkbox")
-                    if exclude_ste and exclude_ste.isChecked():
+                    if exclude_ste and _is_widget_valid(exclude_ste) and exclude_ste.isChecked():
                         logger.info("Aplicando exclusao STE/SCA")
                         if 'situacao' in df.columns:
                             ste_mask = ~df['situacao'].astype(str).str.upper().isin(['STE', 'SCA'])
@@ -7261,7 +7269,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Checkbox "Não está em STE/SCA"
             exclude_ste = ctx.get("exclude_ste_checkbox")
             logger.info(f"exclude_ste_checkbox: {exclude_ste is not None}")
-            if exclude_ste and exclude_ste.isChecked():
+            if exclude_ste and _is_widget_valid(exclude_ste) and exclude_ste.isChecked():
                 logger.info("Adicionando filtro: Excluir STE/SCA")
                 active_filters.append("Excluir STE/SCA")
 
@@ -7279,8 +7287,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 1. MULTISELECT: Emissor
                 emis_checks = getattr(self, "adv_emissor_checks", [])
                 emis_exclude = getattr(self, "adv_emissor_exclude_checks", [])
-                emis_selected = [self._checkbox_value(cb) for cb in emis_checks if cb.isChecked()]
-                emis_excluded = [self._checkbox_value(cb) for cb in emis_exclude if cb.isChecked()]
+                emis_selected = [self._checkbox_value(cb) for cb in emis_checks if _is_widget_valid(cb) and cb.isChecked()]
+                emis_excluded = [self._checkbox_value(cb) for cb in emis_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if emis_selected:
                     active_filters.append(f"Emissor: {', '.join(emis_selected)}")
                 if emis_excluded:
@@ -7289,8 +7297,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 2. MULTISELECT: Executor
                 exec_checks = getattr(self, "adv_executor_checks", [])
                 exec_exclude = getattr(self, "adv_executor_exclude_checks", [])
-                exec_selected = [self._checkbox_value(cb) for cb in exec_checks if cb.isChecked()]
-                exec_excluded = [self._checkbox_value(cb) for cb in exec_exclude if cb.isChecked()]
+                exec_selected = [self._checkbox_value(cb) for cb in exec_checks if _is_widget_valid(cb) and cb.isChecked()]
+                exec_excluded = [self._checkbox_value(cb) for cb in exec_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if exec_selected:
                     active_filters.append(f"Executor: {', '.join(exec_selected)}")
                 if exec_excluded:
@@ -7299,8 +7307,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 3. MULTISELECT: Divisao
                 div_checks = getattr(self, "adv_divisao_checks", [])
                 div_exclude = getattr(self, "adv_divisao_exclude_checks", [])
-                div_selected = [self._checkbox_value(cb) for cb in div_checks if cb.isChecked()]
-                div_excluded = [self._checkbox_value(cb) for cb in div_exclude if cb.isChecked()]
+                div_selected = [self._checkbox_value(cb) for cb in div_checks if _is_widget_valid(cb) and cb.isChecked()]
+                div_excluded = [self._checkbox_value(cb) for cb in div_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if div_selected:
                     active_filters.append(f"Divisao: {', '.join(div_selected)}")
                 if div_excluded:
@@ -7309,8 +7317,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 4. MULTISELECT: Situacao
                 status_checks = getattr(self, "adv_status_checks", [])
                 status_exclude = getattr(self, "adv_status_exclude_checks", [])
-                status_selected = [self._checkbox_value(cb) for cb in status_checks if cb.isChecked()]
-                status_excluded = [self._checkbox_value(cb) for cb in status_exclude if cb.isChecked()]
+                status_selected = [self._checkbox_value(cb) for cb in status_checks if _is_widget_valid(cb) and cb.isChecked()]
+                status_excluded = [self._checkbox_value(cb) for cb in status_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if status_selected:
                     active_filters.append(f"Situacao: {', '.join(status_selected)}")
                 if status_excluded:
@@ -7318,41 +7326,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                 # 5. MULTISELECT: Ano Emissao
                 year_emis_checks = getattr(self, "adv_year_emissao_checks", [])
-                year_emis_selected = [self._checkbox_value(cb) for cb in year_emis_checks if cb.isChecked()]
+                year_emis_selected = [self._checkbox_value(cb) for cb in year_emis_checks if _is_widget_valid(cb) and cb.isChecked()]
                 if year_emis_selected:
                     active_filters.append(f"Ano Emissao: {', '.join(year_emis_selected)}")
 
                 # 6. MULTISELECT: Ano Execucao
                 year_exec_checks = getattr(self, "adv_year_execucao_checks", [])
-                year_exec_selected = [self._checkbox_value(cb) for cb in year_exec_checks if cb.isChecked()]
+                year_exec_selected = [self._checkbox_value(cb) for cb in year_exec_checks if _is_widget_valid(cb) and cb.isChecked()]
                 if year_exec_selected:
                     active_filters.append(f"Ano Execucao: {', '.join(year_exec_selected)}")
 
                 # 7. MULTISELECT: Reprogramacoes (com modo)
                 reprog_checks = getattr(self, "adv_reprog_checks", [])
                 reprog_mode_widget = getattr(self, "adv_reprog_mode", None)
-                reprog_selected = [self._checkbox_value(cb) for cb in reprog_checks if cb.isChecked()]
-                if reprog_selected and reprog_mode_widget:
+                reprog_selected = [self._checkbox_value(cb) for cb in reprog_checks if _is_widget_valid(cb) and cb.isChecked()]
+                if reprog_selected and reprog_mode_widget and _is_widget_valid(reprog_mode_widget):
                     mode_text = reprog_mode_widget.currentText()
                     active_filters.append(f"Reprogramacoes {mode_text}: {', '.join(reprog_selected)}")
 
                 # 8. MULTISELECT: Prio. Emissao
                 prio_emis_checks = getattr(self, "adv_prioridade_emissao_checks", [])
-                prio_emis_selected = [self._checkbox_value(cb) for cb in prio_emis_checks if cb.isChecked()]
+                prio_emis_selected = [self._checkbox_value(cb) for cb in prio_emis_checks if _is_widget_valid(cb) and cb.isChecked()]
                 if prio_emis_selected:
                     active_filters.append(f"Prio. Emissao: {', '.join(prio_emis_selected)}")
 
                 # 9. MULTISELECT: Prio. Planejamento
                 prio_plan_checks = getattr(self, "adv_prioridade_planejamento_checks", [])
-                prio_plan_selected = [self._checkbox_value(cb) for cb in prio_plan_checks if cb.isChecked()]
+                prio_plan_selected = [self._checkbox_value(cb) for cb in prio_plan_checks if _is_widget_valid(cb) and cb.isChecked()]
                 if prio_plan_selected:
                     active_filters.append(f"Prio. Planejamento: {', '.join(prio_plan_selected)}")
 
                 # 10. MULTISELECT: Solicitante
                 sol_checks = getattr(self, "adv_responsavel_solicitante_checks", [])
                 sol_exclude = getattr(self, "adv_responsavel_solicitante_exclude_checks", [])
-                sol_selected = [self._checkbox_value(cb) for cb in sol_checks if cb.isChecked()]
-                sol_excluded = [self._checkbox_value(cb) for cb in sol_exclude if cb.isChecked()]
+                sol_selected = [self._checkbox_value(cb) for cb in sol_checks if _is_widget_valid(cb) and cb.isChecked()]
+                sol_excluded = [self._checkbox_value(cb) for cb in sol_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if sol_selected:
                     active_filters.append(f"Solicitante: {', '.join(sol_selected)}")
                 if sol_excluded:
@@ -7361,8 +7369,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 11. MULTISELECT: Resp Prog
                 prog_checks = getattr(self, "adv_responsavel_programacao_checks", [])
                 prog_exclude = getattr(self, "adv_responsavel_programacao_exclude_checks", [])
-                prog_selected = [self._checkbox_value(cb) for cb in prog_checks if cb.isChecked()]
-                prog_excluded = [self._checkbox_value(cb) for cb in prog_exclude if cb.isChecked()]
+                prog_selected = [self._checkbox_value(cb) for cb in prog_checks if _is_widget_valid(cb) and cb.isChecked()]
+                prog_excluded = [self._checkbox_value(cb) for cb in prog_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if prog_selected:
                     active_filters.append(f"Resp Prog: {', '.join(prog_selected)}")
                 if prog_excluded:
@@ -7371,8 +7379,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 12. MULTISELECT: Resp Exec
                 exec_resp_checks = getattr(self, "adv_responsavel_execucao_checks", [])
                 exec_resp_exclude = getattr(self, "adv_responsavel_execucao_exclude_checks", [])
-                exec_resp_selected = [self._checkbox_value(cb) for cb in exec_resp_checks if cb.isChecked()]
-                exec_resp_excluded = [self._checkbox_value(cb) for cb in exec_resp_exclude if cb.isChecked()]
+                exec_resp_selected = [self._checkbox_value(cb) for cb in exec_resp_checks if _is_widget_valid(cb) and cb.isChecked()]
+                exec_resp_excluded = [self._checkbox_value(cb) for cb in exec_resp_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if exec_resp_selected:
                     active_filters.append(f"Resp Exec: {', '.join(exec_resp_selected)}")
                 if exec_resp_excluded:
@@ -7381,8 +7389,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 13. MULTISELECT: Resp Emis
                 emis_resp_checks = getattr(self, "adv_responsavel_emissor_checks", [])
                 emis_resp_exclude = getattr(self, "adv_responsavel_emissor_exclude_checks", [])
-                emis_resp_selected = [self._checkbox_value(cb) for cb in emis_resp_checks if cb.isChecked()]
-                emis_resp_excluded = [self._checkbox_value(cb) for cb in emis_resp_exclude if cb.isChecked()]
+                emis_resp_selected = [self._checkbox_value(cb) for cb in emis_resp_checks if _is_widget_valid(cb) and cb.isChecked()]
+                emis_resp_excluded = [self._checkbox_value(cb) for cb in emis_resp_exclude if _is_widget_valid(cb) and cb.isChecked()]
                 if emis_resp_selected:
                     active_filters.append(f"Resp Emis: {', '.join(emis_resp_selected)}")
                 if emis_resp_excluded:
@@ -7391,39 +7399,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 14. RANGE: Emissao AnoSemana
                 week_emis_start = getattr(self, "adv_week_emissao_start", None)
                 week_emis_end = getattr(self, "adv_week_emissao_end", None)
-                if week_emis_start and week_emis_start.text().strip():
-                    if week_emis_end and week_emis_end.text().strip():
+                if week_emis_start and _is_widget_valid(week_emis_start) and week_emis_start.text().strip():
+                    if week_emis_end and _is_widget_valid(week_emis_end) and week_emis_end.text().strip():
                         active_filters.append(f"Emissao AnoSemana: {week_emis_start.text().strip()} - {week_emis_end.text().strip()}")
                     else:
                         active_filters.append(f"Emissao AnoSemana: >= {week_emis_start.text().strip()}")
-                elif week_emis_end and week_emis_end.text().strip():
+                elif week_emis_end and _is_widget_valid(week_emis_end) and week_emis_end.text().strip():
                     active_filters.append(f"Emissao AnoSemana: <= {week_emis_end.text().strip()}")
 
                 # 15. RANGE: Execucao AnoSemana
                 week_exec_start = getattr(self, "adv_week_execucao_start", None)
                 week_exec_end = getattr(self, "adv_week_execucao_end", None)
-                if week_exec_start and week_exec_start.text().strip():
-                    if week_exec_end and week_exec_end.text().strip():
+                if week_exec_start and _is_widget_valid(week_exec_start) and week_exec_start.text().strip():
+                    if week_exec_end and _is_widget_valid(week_exec_end) and week_exec_end.text().strip():
                         active_filters.append(f"Execucao AnoSemana: {week_exec_start.text().strip()} - {week_exec_end.text().strip()}")
                     else:
                         active_filters.append(f"Execucao AnoSemana: >= {week_exec_start.text().strip()}")
-                elif week_exec_end and week_exec_end.text().strip():
+                elif week_exec_end and _is_widget_valid(week_exec_end) and week_exec_end.text().strip():
                     active_filters.append(f"Execucao AnoSemana: <= {week_exec_end.text().strip()}")
 
                 # 16-18. CHECKBOX: Derivadas
                 deriv_has = getattr(self, "adv_derivada_has", None)
                 deriv_ste = getattr(self, "adv_derivada_all_ste", None)
                 deriv_is = getattr(self, "adv_derivada_is", None)
-                if deriv_has and deriv_has.isChecked():
+                if deriv_has and _is_widget_valid(deriv_has) and deriv_has.isChecked():
                     active_filters.append("Derivadas: Tem")
-                if deriv_ste and deriv_ste.isChecked():
+                if deriv_ste and _is_widget_valid(deriv_ste) and deriv_ste.isChecked():
                     active_filters.append("Derivadas: STE")
-                if deriv_is and deriv_is.isChecked():
+                if deriv_is and _is_widget_valid(deriv_is) and deriv_is.isChecked():
                     active_filters.append("Derivadas: Sou Derivada")
 
                 # 19. COMBOBOX: Macro
                 macro_combo = getattr(self, "adv_macro_combo", None)
-                if macro_combo and macro_combo.currentIndex() > 0:
+                if macro_combo and _is_widget_valid(macro_combo) and macro_combo.currentIndex() > 0:
                     macro_text = macro_combo.currentText()
                     active_filters.append(f"Macro: {macro_text}")
 
@@ -7797,6 +7805,43 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if internal_column in self.visible_columns:
                 self.visible_columns.remove(internal_column)
                 self.on_columns_changed(self.visible_columns)
+
+    def show_filter_help(self):
+        """Exibe ajuda sobre os filtros disponiveis."""
+        try:
+            from PyQt6.QtWidgets import QMessageBox
+            help_text = """
+<h3>Pesquisa Geral</h3>
+<p>Digite termos para buscar em todas as colunas visiveis.</p>
+<ul>
+<li>Use <b>virgulas</b> para multiplos termos (OU)</li>
+<li>Use <b>aspas</b> para termos exatos</li>
+<li>Use <b>-termo</b> para excluir</li>
+</ul>
+<h3>Filtros de Coluna</h3>
+<p>Clique no cabecalho da coluna para filtrar valores especificos.</p>
+<h3>Filtros Avancados</h3>
+<p>Use a aba Filtros para combinacoes complexas de criterios.</p>
+            """
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Ajuda - Filtros")
+            msg.setTextFormat(Qt.TextFormat.RichText)
+            msg.setText(help_text)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.exec()
+        except Exception as e:
+            logger.error(f"Erro ao exibir ajuda de filtros: {e}")
+
+    def clear_filter(self):
+        """Limpa o campo de busca e reaplica filtros."""
+        try:
+            if hasattr(self, 'search_input'):
+                self.search_input.clear()
+            if hasattr(self, 'clear_filter_button'):
+                self.clear_filter_button.setEnabled(False)
+            self.initiate_filtering()
+        except Exception as e:
+            logger.error(f"Erro ao limpar filtro de busca: {e}")
 
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
