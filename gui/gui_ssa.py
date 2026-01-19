@@ -886,8 +886,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return normalized
         return "gruvbox"
 
-    def __init__(self):
+    def __init__(self, debug_mode: bool = False):
         super().__init__()
+        # DEBUG-UI: Flag para prints de estado em pontos criticos
+        self._debug_mode = debug_mode
+        if debug_mode:
+            print("\n" + "=" * 60)
+            print("DEBUG-UI ATIVADO - Prints de estado serao exibidos")
+            print("=" * 60 + "\n")
+
         self.setWindowTitle("Consulta Rapida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
         # Icone da janela (prioriza .ico no Windows)
@@ -1765,6 +1772,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao agendar refresh de filtros na troca de aba: {e}")
 
+        # DEBUG-UI: Estado após bind do contexto
+        self._debug_print_context_state(f"_bind_tab_context FIM (kind={tab_kind})")
+
     def _sync_checks_to_tab_context(self):
         """
         BUGFIX 2026-01-19: Sincroniza checkbox lists de self para _tab_contexts.
@@ -1835,6 +1845,83 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro em _sync_checks_to_tab_context: {e}")
 
+    def _debug_print_context_state(self, label: str):
+        """
+        DEBUG-UI: Imprime estado detalhado do contexto de abas.
+
+        Ativado via --debug-ui na linha de comando.
+        Mostra:
+         - Tab atual
+         - Quantidade de checkboxes em self.*
+         - Quantidade de checkboxes em cada ctx de _tab_contexts
+         - Status de sincronização
+
+        Útil para diagnosticar bugs de estado "stale" após troca de abas.
+        """
+        if not getattr(self, '_debug_mode', False):
+            return
+
+        try:
+            import sys
+            from datetime import datetime
+
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+
+            print(f"\n{'=' * 70}")
+            print(f"DEBUG-UI [{timestamp}]: {label}")
+            print(f"{'=' * 70}")
+
+            # Estado atual
+            current_kind = getattr(self, '_current_tab_kind', 'N/A')
+            current_idx = getattr(self, '_current_tab_index', -1)
+            print(f"  Tab atual: {current_kind} (index={current_idx})")
+
+            # Checkboxes principais em self
+            key_checks = [
+                'adv_executor_checks',
+                'adv_emissor_checks',
+                'adv_divisao_checks',
+                'adv_status_checks',
+            ]
+
+            print(f"\n  Checkboxes em self:")
+            for attr in key_checks:
+                val = getattr(self, attr, None)
+                count = len(val) if val else 0
+                valid = "N/A"
+                if val:
+                    # Verificar quantos são widgets válidos
+                    valid_count = sum(1 for cb in val if _is_widget_valid(cb))
+                    valid = f"{valid_count}/{count} válidos"
+                print(f"    self.{attr}: {count} items ({valid})")
+
+            # Estado em _tab_contexts
+            contexts = getattr(self, '_tab_contexts', [])
+            print(f"\n  Contextos em _tab_contexts ({len(contexts)} total):")
+            for i, ctx in enumerate(contexts):
+                kind = ctx.get('tab_kind', 'unknown')
+                marker = " <-- ATUAL" if i == current_idx else ""
+                print(f"    ctx[{i}] ({kind}){marker}:")
+                for attr in key_checks:
+                    val = ctx.get(attr, None)
+                    count = len(val) if val else 0
+                    # Verificar se referência é a mesma que self
+                    self_val = getattr(self, attr, None)
+                    same_ref = " [MESMA REF]" if val is self_val and val is not None else ""
+                    print(f"      {attr}: {count} items{same_ref}")
+
+            # Verificar flags de estado
+            print(f"\n  Flags de estado:")
+            print(f"    _syncing_advanced_ui: {getattr(self, '_syncing_advanced_ui', 'N/A')}")
+            print(f"    _adv_options_dirty: {getattr(self, '_adv_options_dirty', 'N/A')}")
+            print(f"    _adv_options_scheduled: {getattr(self, '_adv_options_scheduled', 'N/A')}")
+
+            print(f"{'=' * 70}\n")
+            sys.stdout.flush()
+
+        except Exception as e:
+            print(f"DEBUG-UI ERROR: {e}")
+
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
             return
@@ -1880,6 +1967,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
             return
+
+        # DEBUG-UI: Estado ANTES da troca de aba
+        self._debug_print_context_state(f"_on_tab_changed INICIO (trocando para index={index})")
 
         # 1. SALVAR ESTADO DA ABA ANTERIOR (se houver)
         # Identifica a aba anterior assumindo que self._current_tab_index armazena o indice antigo
@@ -2012,6 +2102,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.status_label.setText("Carregando dados completos dos filtros...")
                 if hasattr(self, "_start_full_data_load"):
                     self._start_full_data_load()
+
+        # DEBUG-UI: Estado APÓS a troca de aba
+        self._debug_print_context_state(f"_on_tab_changed FIM (agora em index={index})")
 
     def _make_multiselect_box(
         self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True
@@ -4877,6 +4970,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # ainda tem as listas vazias originais. Isso causa "adv_executor_checks vazio"
         # quando o usuário troca de aba e volta.
         self._sync_checks_to_tab_context()
+
+        # DEBUG-UI: Estado após rebuild dos menus de filtros avançados
+        self._debug_print_context_state("_refresh_advanced_filter_options APOS REBUILD")
 
         self._refresh_responsavel_options()
         self._sync_advanced_filter_ui()

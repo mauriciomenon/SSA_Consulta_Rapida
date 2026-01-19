@@ -398,6 +398,20 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     )
 
     parser.add_argument(
+        '--debug-ui',
+        action='store_true',
+        help='''Ativa modo de debug da interface grafica.
+
+        Imprime estado detalhado do contexto de abas em pontos criticos:
+         - Troca de abas (antes/depois)
+         - Rebuild de filtros avancados
+         - Bind de contexto de aba
+
+        Util para diagnosticar bugs de sincronizacao de estado.
+        Exemplo: python main.py --gui --debug-ui'''
+    )
+
+    parser.add_argument(
         '--streamlit', '--web',
         dest='launch_streamlit',
         action='store_true',
@@ -809,6 +823,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
         if args.gui:
             logger.info("Iniciando interface grafica (GUI)...")
+            debug_ui = getattr(args, 'debug_ui', False)
+            if debug_ui:
+                logger.info("Modo debug-ui ativado - prints de estado serao exibidos no console")
             try:
                 # Import tardio para evitar dependencia obrigatoria em ambientes sem PyQt6
                 from gui.gui_ssa import SSAMainWindow
@@ -823,7 +840,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Permite multiplas janelas da GUI
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
-                window = SSAMainWindow()
+                window = SSAMainWindow(debug_mode=debug_ui)
                 window.show()  # type: ignore[attr-defined]
                 # Executa o loop de eventos
                 app.exec()
