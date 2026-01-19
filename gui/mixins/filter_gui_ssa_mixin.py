@@ -161,9 +161,7 @@ class FilterGUISSAMixin:
         # BUGFIX 2026-01-19: Verifica se FilterWorker está disponível
         # Se não estiver, faz fallback para modo síncrono
         if FilterWorker is None:
-            logger.warning(
-                "FilterWorker indisponivel - usando fallback sincrono"
-            )
+            logger.warning("FilterWorker indisponivel - usando fallback sincrono")
             try:
                 if chunk_terms_lists:
                     frames = []

@@ -791,7 +791,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         else:
             logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
-        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
+        logger.info(
+            f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})..."
+        )
 
         try:
             logger.debug("Executando run_importer_logic...")
