@@ -68,50 +68,6 @@ class _ASCIIOnlyFilter(logging.Filter):
 # ==============================================================================
 # Status: Always returns None (extracao.extractor exists but has no run_importer_logic)
 # Created: Unknown (likely intended for future extensibility)
-# Last modified: 2025-10-29T12:30:00 (marked as dead code)
-# Recommendation: DELETE - function always returns None, serves no purpose
-# Lines affected: 43-76
-#
-# This function tries to load run_importer_logic from extracao.extractor, but:
-# - extracao/extractor.py exists but has no run_importer_logic function
-# - Function always returns None
-# - Caller (line 677) checks result but it's always None
-# - Can safely remove function and lines 677-679
-def _load_external_run_importer(project_root: str):
-    """
-    Try to load run_importer_logic from extracao.extractor, if available.
-
-    Returns:
-        callable | None: External implementation (if provided), otherwise None.
-    """
-    try:
-        import importlib.util
-
-        spec = importlib.util.find_spec("extracao.extractor")
-        if not spec or not spec.loader:
-            logger.debug("Optional extractor override not found.")
-            return None
-
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        candidate = getattr(module, "run_importer_logic", None)
-        if callable(candidate):
-            logger.debug("Using run_importer_logic provided by extracao.extractor.")
-            return candidate
-
-        logger.debug(
-            "extracao.extractor module present but without run_importer_logic; using core.app_logic."
-        )
-        return None
-    except Exception as exc:  # noqa: BLE001
-        logger.debug(
-            "Failed to load extracao.extractor override (%s); falling back to core.app_logic.",
-            exc,
-            exc_info=True,
-        )
-        return None
-
-
 class SafeRawTextHelpFormatter(argparse.RawTextHelpFormatter):
     """RawTextHelpFormatter que tolera % literais nos textos."""
 
@@ -835,15 +791,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         else:
             logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
-        logger.info(
-            f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})..."
-        )
-        # DEAD CODE: Lines 690-693 - external_run always None, condition never true
-        # Can safely delete lines 690-693 when deleting _load_external_run_importer
-        logger.debug("Verificando implementacao externa de run_importer_logic")
-        external_run = _load_external_run_importer(project_root)
-        if external_run is not None:
-            run_importer_logic = external_run  # noqa: PLW0603
+        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
 
         try:
             logger.debug("Executando run_importer_logic...")
