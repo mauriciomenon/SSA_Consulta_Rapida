@@ -2886,6 +2886,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """
         try:
             logger.debug(f"_on_exclude_ste_sca_toggled: checked={checked}")
+            # Atualiza estado interno (compatibilidade com mixin)
+            self._exclude_ste_sca = bool(checked)
+
+            # Sincroniza checkbox widget se chamado programaticamente
+            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+                if 0 <= self._current_tab_index < len(self._tab_contexts):
+                    ctx = self._tab_contexts[self._current_tab_index]
+                    checkbox = ctx.get("exclude_ste_checkbox")
+                    if checkbox and _is_widget_valid(checkbox):
+                        if checkbox.isChecked() != checked:
+                            checkbox.blockSignals(True)
+                            checkbox.setChecked(checked)
+                            checkbox.blockSignals(False)
+
             self._refresh_after_filter_change()
         except Exception as e:
             logger.error(f"Erro em _on_exclude_ste_sca_toggled: {e}")
@@ -6568,6 +6582,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             mask = pd.Series(True, index=df.index)
 
             # 1. BUSCA GERAL (search_input)
+            # Suporta multiplos termos separados por virgula (AND) e negacao (!termo)
             search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ""
             if search_text:
                 logger.info(f"Aplicando busca geral: '{search_text}'")
@@ -6578,12 +6593,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         search_columns.append(df[col].astype(str))
                 if search_columns:
                     combined = pd.Series([' '.join(vals) for vals in zip(*search_columns)], index=df.index)
-                    # Busca case-insensitive
-                    search_mask = combined.str.contains(search_text, case=False, na=False, regex=False)
+
+                    # Divide por virgula e processa cada termo
+                    terms = [t.strip() for t in search_text.split(',') if t.strip()]
+                    search_mask = pd.Series(True, index=df.index)
+
+                    for term in terms:
+                        if term.startswith('!'):
+                            # Termo negativo: deve NAO conter
+                            neg_term = term[1:].strip()
+                            if neg_term:
+                                term_mask = ~combined.str.contains(neg_term, case=False, na=False, regex=False)
+                                search_mask &= term_mask
+                        else:
+                            # Termo positivo: deve conter
+                            term_mask = combined.str.contains(term, case=False, na=False, regex=False)
+                            search_mask &= term_mask
+
                     mask &= search_mask
                     logger.info(f"Busca geral: {search_mask.sum()} registros encontrados")
 
             # 2. FILTROS DE COLUNA (_active_column_filters)
+            # Usa _build_column_mask herdado do FilterGUISSAMixin para suportar:
+            # - Multiplos termos separados por virgula (OR entre termos)
+            # - Prefixo ^ (inicia com), sufixo $ (termina com)
+            # - =exato, ~regex, !negacao
             if self._active_column_filters:
                 logger.info(f"Aplicando {len(self._active_column_filters)} filtros de coluna")
                 for col_key, filter_term in self._active_column_filters.items():
@@ -6593,8 +6627,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         logger.warning(f"Coluna '{col_key}' nao existe no DataFrame")
                         continue
 
-                    # Aplica filtro case-insensitive
-                    col_mask = df[col_key].astype(str).str.contains(filter_term, case=False, na=False, regex=False)
+                    # Usa _build_column_mask para parsing correto de termos
+                    col_series = df[col_key].astype(str)
+                    col_mask = self._build_column_mask(col_series, filter_term)
                     mask &= col_mask
                     logger.info(f"Filtro coluna '{col_key}': {col_mask.sum()} registros")
 
@@ -6649,6 +6684,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Atualiza indicador de filtros de coluna
             if hasattr(self, '_update_col_filter_indicator'):
                 self._update_col_filter_indicator()
+
+            # Atualiza estado do botao clear_filter_button
+            if hasattr(self, 'clear_filter_button'):
+                has_filters = bool(search_text) or any(
+                    v.strip() for v in (self._active_column_filters or {}).values()
+                )
+                self.clear_filter_button.setEnabled(has_filters)
 
             logger.info("=== initiate_filtering CONCLUIDO ===")
 

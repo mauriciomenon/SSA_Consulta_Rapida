@@ -25,7 +25,7 @@ class TestGUIMainConfiguration:
     def test_load_gui_main_preferences_structure(self):
         """Testa se a função de carregamento funciona e estrutura é válida"""
         # Testa configuração real (não mock)
-        from gui.gui_ssa import load_gui_main_preferences
+        from gui.gui_config import load_gui_main_preferences
         config = load_gui_main_preferences()
 
         # Verifica estrutura essencial
@@ -41,7 +41,7 @@ class TestGUIMainConfiguration:
     def test_load_gui_main_preferences_fallback(self):
         """Testa fallback quando arquivo não existe"""
         with patch("os.path.exists", return_value=False):
-            from gui.gui_ssa import load_gui_main_preferences
+            from gui.gui_config import load_gui_main_preferences
             config = load_gui_main_preferences()
 
             # Verifica que retorna configuração padrão válida
@@ -54,7 +54,7 @@ class TestGUIMainConfiguration:
         """Testa comportamento com JSON inválido"""
         with patch("builtins.open", mock_open(read_data="invalid json")):
             with patch("os.path.exists", return_value=True):
-                from gui.gui_ssa import load_gui_main_preferences
+                from gui.gui_config import load_gui_main_preferences
                 config = load_gui_main_preferences()
 
                 # Deve retornar configuração padrão em caso de erro
@@ -143,7 +143,7 @@ class TestGUIMainConfiguration:
 
         # Tenta importar GUI Main
         try:
-            from gui.gui_ssa import load_gui_main_preferences, GUI_MAIN_PREFERENCES
+            from gui.gui_config import load_gui_main_preferences, GUI_MAIN_PREFERENCES
             # Se chegou aqui, importação foi bem-sucedida
             assert True
         except ImportError as e:

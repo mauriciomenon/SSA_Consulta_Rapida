@@ -448,3 +448,8 @@ profile.bkp
 .envrc.backup
 .envrc.multi
 .envrc.new
+
+# GUI backup files (development snapshots)
+gui/**/*.backup_*
+*.py.backup_*
+*.py.bak_*
