@@ -1711,6 +1711,72 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao agendar refresh de filtros na troca de aba: {e}")
 
+    def _sync_checks_to_tab_context(self):
+        """
+        BUGFIX 2026-01-19: Sincroniza checkbox lists de self para _tab_contexts.
+
+        Quando _refresh_advanced_filter_options() reconstroi os menus multiselect,
+        as novas listas de checkboxes são atribuídas a self.adv_*_checks, mas o
+        contexto em _tab_contexts ainda tem as listas vazias originais.
+        Isso causa o bug "adv_executor_checks vazio" após troca de abas.
+        """
+        try:
+            if not hasattr(self, "_tab_contexts"):
+                return
+
+            # Encontrar o contexto da aba Filters
+            filters_ctx = None
+            for ctx in self._tab_contexts:
+                if ctx.get("tab_kind") == "filters":
+                    filters_ctx = ctx
+                    break
+
+            if filters_ctx is None:
+                logger.debug("_sync_checks_to_tab_context: contexto filters não encontrado")
+                return
+
+            # Lista de atributos *_checks que precisam ser sincronizados
+            checks_attrs = [
+                "adv_executor_checks",
+                "adv_executor_exclude_checks",
+                "adv_emissor_checks",
+                "adv_emissor_exclude_checks",
+                "adv_divisao_checks",
+                "adv_divisao_exclude_checks",
+                "adv_status_checks",
+                "adv_status_exclude_checks",
+                "adv_year_emissao_checks",
+                "adv_year_emissao_exclude_checks",
+                "adv_year_execucao_checks",
+                "adv_year_execucao_exclude_checks",
+                "adv_reprog_checks",
+                "adv_prioridade_emissao_checks",
+                "adv_prioridade_emissao_exclude_checks",
+                "adv_prioridade_planejamento_checks",
+                "adv_prioridade_planejamento_exclude_checks",
+                "adv_responsavel_solicitante_checks",
+                "adv_responsavel_solicitante_exclude_checks",
+                "adv_responsavel_programacao_checks",
+                "adv_responsavel_programacao_exclude_checks",
+                "adv_responsavel_execucao_checks",
+                "adv_responsavel_execucao_exclude_checks",
+                "adv_responsavel_emissor_checks",
+                "adv_responsavel_emissor_exclude_checks",
+            ]
+
+            synced = 0
+            for attr in checks_attrs:
+                if hasattr(self, attr):
+                    value = getattr(self, attr)
+                    if value is not None:
+                        filters_ctx[attr] = value
+                        synced += 1
+
+            logger.debug(f"_sync_checks_to_tab_context: {synced} atributos sincronizados para ctx")
+
+        except Exception as e:
+            logger.error(f"Erro em _sync_checks_to_tab_context: {e}")
+
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
             return
@@ -3944,7 +4010,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             self._syncing_advanced_ui = True
-            logger.warning("adv_executor_checks vazio - forçando rebuild de menus avançados")
+            logger.debug("adv_executor_checks vazio - forçando rebuild de menus avançados")
             try:
                 if hasattr(self, '_refresh_advanced_filter_options'):
                     self._refresh_advanced_filter_options()
@@ -4551,6 +4617,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 getattr(self, "adv_responsavel_emissor_checks", None),
                 exclude_checks=getattr(self, "adv_responsavel_emissor_exclude_checks", None),
             )
+
+        # BUGFIX 2026-01-19: Sincronizar checkbox lists de volta para _tab_contexts
+        # Após rebuild, os novos checkboxes estão em self.* mas o ctx em _tab_contexts
+        # ainda tem as listas vazias originais. Isso causa "adv_executor_checks vazio"
+        # quando o usuário troca de aba e volta.
+        self._sync_checks_to_tab_context()
 
         self._refresh_responsavel_options()
         self._sync_advanced_filter_ui()

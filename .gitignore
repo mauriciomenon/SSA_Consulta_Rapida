@@ -453,3 +453,24 @@ profile.bkp
 gui/**/*.backup_*
 *.py.backup_*
 *.py.bak_*
+
+# Claude Code / AI agent artifacts
+.backups/
+.codeviz/
+.github/agents/
+.github/copilot-instructions.md
+.serena/
+CLAUDE.md
+_.swp
+claude-*-cwd
+git_output.txt
+gui_test_output.txt
+python-dev.omp.json
+temp_test.txt
+
+# Test files (local development only)
+test_button_*.py
+test_filtros_tab.py
+test_visibility_*.py
+test_visible_simple.py
+test_widget_hierarchy.py
