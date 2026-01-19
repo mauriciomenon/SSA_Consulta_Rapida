@@ -1,6 +1,9 @@
 /.emoji_backups/
 /LocalTemp/
 
+# Backup files
+*.backup_*
+
 # Temporary test outputs (folder exists, contents ignored)
 /temp/*
 !/temp/.gitkeep
