@@ -4,17 +4,22 @@
 Teste abrangente da importação de arquivos e verificação da integridade dos dados.
 """
 
-import sys
-import os
-import pandas as pd
-import sqlite3
-from datetime import datetime
 import logging
+import os
+import sqlite3
+import sys
+from datetime import datetime
+
+import pandas as pd
 
 sys.path.insert(0, '.')
 
+from armazenamento.database import (
+    get_db_connection,
+    query_db,
+    verify_database_integrity,
+)
 from core.app_logic import import_files_to_database
-from armazenamento.database import get_db_connection, query_db, verify_database_integrity
 from extracao.extractor import extract_data_from_excel
 
 # Configurar logging

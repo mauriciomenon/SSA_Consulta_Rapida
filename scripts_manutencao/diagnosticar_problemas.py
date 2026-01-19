@@ -2,8 +2,10 @@
 """
 DIAGNÓSTICO DOS ERROS DE IMPORTAÇÃO
 """
-import sys
+
 import os
+import sys
+
 import pandas as pd
 
 # Adiciona o diretório raiz ao path
@@ -11,6 +13,7 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 from extracao.extractor import extract_data_from_excel
+
 
 def diagnosticar_arquivos_problematicos():
     print(" DIAGNÓSTICO DOS ARQUIVOS PROBLEMÁTICOS")
@@ -24,7 +27,7 @@ def diagnosticar_arquivos_problematicos():
         "Pendentes de Execução_15-07-2025_0224PM.xlsx",
         "Pendentes de Execução_15-08-2025_0416PM.xlsx",
         "Pendentes de Planejamento_15-08-2025_0411PM.xlsx",
-        "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx"
+        "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
     ]
 
     for arquivo in arquivos_problema:
@@ -55,8 +58,8 @@ def diagnosticar_arquivos_problematicos():
             # Amostra
             if len(df) > 0:
                 sample = df.iloc[0]
-                numero_ssa = sample.get('numero_ssa', 'N/A')
-                situacao = sample.get('situacao', 'N/A')
+                numero_ssa = sample.get("numero_ssa", "N/A")
+                situacao = sample.get("situacao", "N/A")
                 print(f"  INFO Amostra: SSA {numero_ssa}, Situação {situacao}")
 
         except Exception as e:
@@ -76,6 +79,7 @@ def diagnosticar_arquivos_problematicos():
 
             except Exception as e2:
                 print(f"  ERR ERRO na leitura direta: {e2}")
+
 
 if __name__ == "__main__":
     diagnosticar_arquivos_problematicos()

@@ -1,15 +1,16 @@
+import json
+import logging
+import os
+
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
-    QWidget,
     QHBoxLayout,
-    QToolButton,
-    QMenu,
     QInputDialog,
+    QMenu,
+    QToolButton,
+    QWidget,
 )
-from PyQt6.QtCore import pyqtSignal
-import json
-import os
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,14 @@ class ProfileSelector(QWidget):
     def _load_profiles(self):
         if os.path.exists(self.profiles_file):
             try:
-                with open(self.profiles_file, 'r') as f:
+                with open(self.profiles_file, "r") as f:
                     self.profiles = json.load(f)
             except Exception as e:
                 logger.error(f"Erro ao carregar perfis: {e}")
 
     def _save_profiles_to_disk(self):
         try:
-            with open(self.profiles_file, 'w') as f:
+            with open(self.profiles_file, "w") as f:
                 json.dump(self.profiles, f)
         except Exception as e:
             logger.error(f"Erro ao salvar perfis: {e}")

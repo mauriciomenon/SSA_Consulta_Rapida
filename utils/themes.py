@@ -5,7 +5,7 @@ Define paletas de cores e roles para multiplos temas visuais, incluindo
 temas claros, escuros e populares como Dracula, Gruvbox, Tokyo Night, etc.
 """
 
-from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtGui import QColor, QPalette
 
 # Definicao de roles (papeis) de cores para cada tema
 THEME_ROLES: dict[str, dict[str, str]] = {
@@ -612,14 +612,3 @@ def normalize_theme(name: str) -> str:
     if name in ("nord",):
         return "nord"
     return "dark"
-
-
-
-
-
-
-
-
-
-
-

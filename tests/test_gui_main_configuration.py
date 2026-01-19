@@ -3,29 +3,34 @@ Testes para o sistema de configuração isolado da GUI Principal (main.py --gui)
 Valida carregamento, estrutura e isolamento das configurações.
 """
 
-import sys
-import os
 import json
+import os
+import sys
+from unittest.mock import mock_open, patch
+
 import pytest
-from unittest.mock import patch, mock_open
 
 # Adiciona o projeto ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
 
 class TestGUIMainConfiguration:
     """Testes para o sistema de configuração da GUI Principal"""
 
     def test_gui_main_preferences_file_exists(self):
         """Verifica se o arquivo de configuração existe"""
-        config_path = os.path.join(project_root, 'config', 'gui_main_preferences.json')
-        assert os.path.exists(config_path), "Arquivo gui_main_preferences.json deve existir"
+        config_path = os.path.join(project_root, "config", "gui_main_preferences.json")
+        assert os.path.exists(config_path), (
+            "Arquivo gui_main_preferences.json deve existir"
+        )
 
     def test_load_gui_main_preferences_structure(self):
         """Testa se a função de carregamento funciona e estrutura é válida"""
         # Testa configuração real (não mock)
         from gui.gui_config import load_gui_main_preferences
+
         config = load_gui_main_preferences()
 
         # Verifica estrutura essencial
@@ -42,6 +47,7 @@ class TestGUIMainConfiguration:
         """Testa fallback quando arquivo não existe"""
         with patch("os.path.exists", return_value=False):
             from gui.gui_config import load_gui_main_preferences
+
             config = load_gui_main_preferences()
 
             # Verifica que retorna configuração padrão válida
@@ -55,6 +61,7 @@ class TestGUIMainConfiguration:
         with patch("builtins.open", mock_open(read_data="invalid json")):
             with patch("os.path.exists", return_value=True):
                 from gui.gui_config import load_gui_main_preferences
+
                 config = load_gui_main_preferences()
 
                 # Deve retornar configuração padrão em caso de erro
@@ -64,10 +71,10 @@ class TestGUIMainConfiguration:
     def test_gui_main_preferences_isolation_from_cli(self):
         """Verifica que as configurações são independentes do CLI"""
         # Carrega configurações da GUI Main
-        from gui.gui_ssa import GUI_MAIN_PREFERENCES
-
         # Carrega configurações padrão do CLI
         from core.config_manager import load_settings
+        from gui.gui_ssa import GUI_MAIN_PREFERENCES
+
         cli_settings = load_settings()
 
         # Verifica que são diferentes estruturas
@@ -135,7 +142,7 @@ class TestGUIMainConfiguration:
         # Remove imports do CLI se existirem no namespace
         modules_to_remove = []
         for module_name in sys.modules:
-            if 'core.config_manager' in module_name:
+            if "core.config_manager" in module_name:
                 modules_to_remove.append(module_name)
 
         for module_name in modules_to_remove:
@@ -143,11 +150,13 @@ class TestGUIMainConfiguration:
 
         # Tenta importar GUI Main
         try:
-            from gui.gui_config import load_gui_main_preferences, GUI_MAIN_PREFERENCES
+            from gui.gui_config import GUI_MAIN_PREFERENCES, load_gui_main_preferences
+
             # Se chegou aqui, importação foi bem-sucedida
             assert True
         except ImportError as e:
             pytest.fail(f"GUI Main não deveria depender de módulos do CLI: {e}")
+
 
 if __name__ == "__main__":
     # Executa os testes

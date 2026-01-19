@@ -1,16 +1,18 @@
 # gui/widgets/column_selector.py
 # Widget for column selection with manager dialog
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QDialog
+import logging
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
-import logging
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from gui.widgets.column_manager_dialog import ColumnManagerDialog
 
 
 class ColumnSelector(QWidget):
     """Widget compacto que abre o gerenciador de colunas."""
+
     columns_changed = pyqtSignal(list)
 
     def __init__(
@@ -41,7 +43,9 @@ class ColumnSelector(QWidget):
         layout.setSpacing(6)
 
         self.manage_button = QPushButton("Colunas visiveis")
-        self.manage_button.setToolTip("Configurar colunas rapidas (marcar, ordenar e restaurar padrao)")
+        self.manage_button.setToolTip(
+            "Configurar colunas rapidas (marcar, ordenar e restaurar padrao)"
+        )
         self.manage_button.clicked.connect(self.open_dialog)
         try:
             fm = self.manage_button.fontMetrics()
@@ -67,7 +71,7 @@ class ColumnSelector(QWidget):
             self.selected_internal_columns,
             default_columns=self.default_columns,
             available_columns=self.available_columns,
-            parent=self
+            parent=self,
         )
         try:
             result = dialog.exec()
@@ -85,7 +89,9 @@ class ColumnSelector(QWidget):
             self.columns_changed.emit(self.selected_internal_columns)
 
     def _update_summary(self):
-        translated = [self.display_map.get(col, col) for col in self.selected_internal_columns]
+        translated = [
+            self.display_map.get(col, col) for col in self.selected_internal_columns
+        ]
         if not translated:
             text = "Nenhuma coluna selecionada"
             tooltip = text
@@ -115,4 +121,6 @@ class ColumnSelector(QWidget):
             try:
                 self.summary_label.setFont(font)
             except Exception as e2:
-                logging.getLogger(__name__).debug("Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2)
+                logging.getLogger(__name__).debug(
+                    "Falha ao aplicar fonte do resumo: %s | fallback=%s", e1, e2
+                )

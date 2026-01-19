@@ -8,58 +8,67 @@ import os
 import re
 import sys
 
+
 def verificar_otimizacoes():
     """Verifica se todas as otimizações foram aplicadas corretamente."""
 
-    gui_ssa_path = os.path.join('gui', 'gui_ssa.py')
+    gui_ssa_path = os.path.join("gui", "gui_ssa.py")
 
     if not os.path.exists(gui_ssa_path):
         print("ERR Arquivo gui/gui_ssa.py não encontrado!")
         return False
 
-    with open(gui_ssa_path, 'r', encoding='utf-8') as f:
+    with open(gui_ssa_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     verificacoes = []
 
     # 1. Verificar eliminação do cálculo duplo de larguras
-    if '_widths_computed_for_df_hash' in content:
-        if 'current_df_hash = hash(str(display_df.shape)' in content:
-            verificacoes.append("OK Cálculo duplo de larguras eliminado - hash tracking implementado")
+    if "_widths_computed_for_df_hash" in content:
+        if "current_df_hash = hash(str(display_df.shape)" in content:
+            verificacoes.append(
+                "OK Cálculo duplo de larguras eliminado - hash tracking implementado"
+            )
         else:
             verificacoes.append("ERR Hash tracking de larguras não encontrado")
     else:
         verificacoes.append("ERR Sistema de cache de larguras não implementado")
 
     # 2. Verificar remoção da chamada dupla em on_filter_finished
-    on_filter_pattern = r'def on_filter_finished.*?def \w+'
+    on_filter_pattern = r"def on_filter_finished.*?def \w+"
     on_filter_match = re.search(on_filter_pattern, content, re.DOTALL)
     if on_filter_match:
         on_filter_code = on_filter_match.group(0)
-        if '_compute_gui_column_widths(self.df_exibido)' not in on_filter_code:
-            verificacoes.append("OK Chamada redundante removida de on_filter_finished()")
+        if "_compute_gui_column_widths(self.df_exibido)" not in on_filter_code:
+            verificacoes.append(
+                "OK Chamada redundante removida de on_filter_finished()"
+            )
         else:
-            verificacoes.append("ERR Chamada redundante ainda presente em on_filter_finished()")
+            verificacoes.append(
+                "ERR Chamada redundante ainda presente em on_filter_finished()"
+            )
     else:
         verificacoes.append("ERR Método on_filter_finished não encontrado")
 
     # 3. Verificar cache de configurações
-    if '_cached_default_mode' in content:
+    if "_cached_default_mode" in content:
         verificacoes.append("OK Cache de configurações GUI implementado")
     else:
         verificacoes.append("ERR Cache de configurações não implementado")
 
     # 4. Verificar cache de formatação
-    if '_formatted_df_cache' in content:
-        if 'display_df_hash = hash(str(display_df.shape)' in content:
+    if "_formatted_df_cache" in content:
+        if "display_df_hash = hash(str(display_df.shape)" in content:
             verificacoes.append("OK Cache de formatação implementado com hash tracking")
         else:
-            verificacoes.append("ERR Cache de formatação implementado mas sem hash tracking")
+            verificacoes.append(
+                "ERR Cache de formatação implementado mas sem hash tracking"
+            )
     else:
         verificacoes.append("ERR Cache de formatação não implementado")
 
     # 5. Verificar otimização do resizeEvent (já existente)
-    if 'QTimer.singleShot(300' in content and 'width_change > 50' in content:
+    if "QTimer.singleShot(300" in content and "width_change > 50" in content:
         verificacoes.append("OK ResizeEvent já otimizado com timer e threshold")
     else:
         verificacoes.append("WARN  ResizeEvent pode precisar de otimização")
@@ -90,6 +99,7 @@ def verificar_otimizacoes():
         print("FIX Revisar implementações restantes.")
         return False
 
+
 def exibir_metricas_esperadas():
     """Exibe as métricas de performance esperadas."""
     print("\nINFO MÉTRICAS DE PERFORMANCE ESPERADAS:")
@@ -100,28 +110,27 @@ def exibir_metricas_esperadas():
     print("• Cache de config: ~80% menos acesso a arquivos JSON")
     print("• ResizeEvent: Máximo 1 recálculo por 300ms")
 
+
 def main():
     """Função principal do validador."""
     print("START VALIDADOR DE OTIMIZAÇÕES - ORDEM DE EXECUÇÃO")
     print("=" * 60)
 
     # Mudar para o diretório do projeto
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = [
-            '.',
-            '../SSA_Consulta_Rapida',
-            './SSA_Consulta_Rapida'
-        ]
+    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
+        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
 
         found = False
         for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'gui', 'gui_ssa.py')):
+            if os.path.exists(os.path.join(path, "gui", "gui_ssa.py")):
                 os.chdir(path)
                 found = True
                 break
 
         if not found:
-            print("ERR Não foi possível encontrar o diretório do projeto SSA_Consulta_Rapida")
+            print(
+                "ERR Não foi possível encontrar o diretório do projeto SSA_Consulta_Rapida"
+            )
             return False
 
     # Executar verificações
@@ -129,6 +138,7 @@ def main():
     exibir_metricas_esperadas()
 
     return resultado
+
 
 if __name__ == "__main__":
     success = main()

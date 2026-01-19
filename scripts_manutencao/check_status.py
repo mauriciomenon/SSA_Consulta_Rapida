@@ -2,12 +2,14 @@
 """
 Script rápido para verificar status do banco após --rescan
 """
+
 import sqlite3
+
 
 def main():
     print("=== VERIFICAÇÃO FINAL PÓS-RESCAN ===")
 
-    conn = sqlite3.connect('data/ssas.db')
+    conn = sqlite3.connect("data/ssas.db")
     c = conn.cursor()
 
     # Contar registros totais
@@ -20,12 +22,14 @@ def main():
     print(f"INFO Registros únicos por numero_ssa: {unique}")
 
     # Verificar duplicatas
-    duplicates = c.execute('''
+    duplicates = c.execute(
+        """
         SELECT numero_ssa, COUNT(*)
         FROM ssas
         GROUP BY numero_ssa
         HAVING COUNT(*) > 1
-    ''').fetchall()
+    """
+    ).fetchall()
 
     print(f"WARN  Duplicatas encontradas: {len(duplicates)}")
 
@@ -45,6 +49,7 @@ def main():
         print(f"\n STATUS: PROBLEMA - {total - unique} duplicatas ainda existem")
 
     conn.close()
+
 
 if __name__ == "__main__":
     main()

@@ -2,22 +2,30 @@
 """
 Verificação rápida de integridade do banco após importação
 """
+
 import sqlite3
 import sys
+
 
 def verificar_integridade():
     print("INFO VERIFICAÇÃO DE INTEGRIDADE PÓS-IMPORTAÇÃO")
     print("=" * 60)
 
     try:
-        conn = sqlite3.connect('data/ssas.db')
+        conn = sqlite3.connect("data/ssas.db")
         cursor = conn.cursor()
 
         # Verificações básicas
         total = cursor.execute("SELECT COUNT(*) FROM ssas").fetchone()[0]
-        unicos = cursor.execute("SELECT COUNT(DISTINCT numero_ssa) FROM ssas").fetchone()[0]
-        nulls_ssa = cursor.execute("SELECT COUNT(*) FROM ssas WHERE numero_ssa IS NULL").fetchone()[0]
-        vazios_desc = cursor.execute("SELECT COUNT(*) FROM ssas WHERE descricao_ssa IS NULL OR descricao_ssa = ''").fetchone()[0]
+        unicos = cursor.execute(
+            "SELECT COUNT(DISTINCT numero_ssa) FROM ssas"
+        ).fetchone()[0]
+        nulls_ssa = cursor.execute(
+            "SELECT COUNT(*) FROM ssas WHERE numero_ssa IS NULL"
+        ).fetchone()[0]
+        vazios_desc = cursor.execute(
+            "SELECT COUNT(*) FROM ssas WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
+        ).fetchone()[0]
 
         print(f"INFO Total de registros: {total}")
         print(f" Registros únicos por numero_ssa: {unicos}")
@@ -26,14 +34,20 @@ def verificar_integridade():
 
         # Amostra de dados
         print("\nINFO AMOSTRA DOS DADOS:")
-        amostras = cursor.execute("SELECT numero_ssa, situacao, descricao_ssa FROM ssas LIMIT 5").fetchall()
+        amostras = cursor.execute(
+            "SELECT numero_ssa, situacao, descricao_ssa FROM ssas LIMIT 5"
+        ).fetchall()
         for ssa, situacao, desc in amostras:
-            desc_preview = (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
+            desc_preview = (
+                (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
+            )
             print(f"  SSA {ssa}: {situacao} - {desc_preview}")
 
         # Verificar situações
         print("\nSTAT SITUAÇÕES ENCONTRADAS:")
-        situacoes = cursor.execute("SELECT situacao, COUNT(*) FROM ssas GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10").fetchall()
+        situacoes = cursor.execute(
+            "SELECT situacao, COUNT(*) FROM ssas GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10"
+        ).fetchall()
         for sit, count in situacoes:
             print(f"  {sit}: {count} registros")
 
@@ -42,8 +56,12 @@ def verificar_integridade():
         # Status geral
         duplicatas = total - unicos
         print(f"\nOK RESULTADO GERAL:")
-        print(f"  - Zero duplicatas: {'OK SIM' if duplicatas == 0 else 'ERR NÃO - ' + str(duplicatas) + ' duplicatas'}")
-        print(f"  - Dados válidos: {'OK SIM' if nulls_ssa == 0 else 'WARN ' + str(nulls_ssa) + ' registros sem numero_ssa'}")
+        print(
+            f"  - Zero duplicatas: {'OK SIM' if duplicatas == 0 else 'ERR NÃO - ' + str(duplicatas) + ' duplicatas'}"
+        )
+        print(
+            f"  - Dados válidos: {'OK SIM' if nulls_ssa == 0 else 'WARN ' + str(nulls_ssa) + ' registros sem numero_ssa'}"
+        )
         print(f"  - Importação: {'OK SUCESSO' if total > 0 else 'ERR FALHOU'}")
 
         return total > 0 and duplicatas == 0
@@ -51,6 +69,7 @@ def verificar_integridade():
     except Exception as e:
         print(f"ERR ERRO na verificação: {e}")
         return False
+
 
 if __name__ == "__main__":
     sucesso = verificar_integridade()

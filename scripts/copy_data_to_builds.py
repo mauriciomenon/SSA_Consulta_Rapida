@@ -15,8 +15,8 @@ Uso:
 
 import argparse
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def copy_data_to_build(
@@ -48,7 +48,9 @@ def copy_data_to_build(
         db_size_mb = source_db.stat().st_size / (1024 * 1024)
         if db_size_mb > 100:
             if verbose:
-                print(f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis")
+                print(
+                    f"WARN  Pulando DB grande ({db_size_mb:.1f} MB) - risco de dados sensiveis"
+                )
             return False
 
         target_data_dir = build_dir / "data"
@@ -77,9 +79,7 @@ def copy_data_to_build(
 
         # Buscar arquivos Excel ordenados por data de modificacao (mais recentes primeiro)
         excel_files = sorted(
-            docs_entrada.glob("*.xlsx"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            docs_entrada.glob("*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
         # Copiar ate N arquivos mais recentes
@@ -111,39 +111,33 @@ def copy_data_to_build(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Copia dados (DB e Excel) para builds"
-    )
+    parser = argparse.ArgumentParser(description="Copia dados (DB e Excel) para builds")
     parser.add_argument(
         "--build-system",
         choices=["pyinstaller", "pyoxidizer", "nuitka"],
-        help="Build system especifico para copiar dados"
+        help="Build system especifico para copiar dados",
     )
     parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Copiar para todos os builds existentes"
+        "--all", action="store_true", help="Copiar para todos os builds existentes"
     )
     parser.add_argument(
         "--db-path",
         default="data/ssas.db",
-        help="Caminho para o arquivo do banco de dados (default: data/ssas.db)"
+        help="Caminho para o arquivo do banco de dados (default: data/ssas.db)",
     )
     parser.add_argument(
         "--docs-dir",
         default="docs_entrada",
-        help="Diretorio de entrada de documentos Excel (default: docs_entrada)"
+        help="Diretorio de entrada de documentos Excel (default: docs_entrada)",
     )
     parser.add_argument(
         "--max-excels",
         type=int,
         default=3,
-        help="Quantidade maxima de arquivos Excel para copiar (default: 3)"
+        help="Quantidade maxima de arquivos Excel para copiar (default: 3)",
     )
     parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Modo silencioso (menos output)"
+        "--quiet", action="store_true", help="Modo silencioso (menos output)"
     )
 
     args = parser.parse_args()

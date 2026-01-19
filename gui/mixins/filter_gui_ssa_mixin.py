@@ -8,20 +8,22 @@ Extraido de gui_ssa.py para reduzir tamanho do arquivo.
 Padrao de nomenclatura: funcao_pai_mixin.py
 """
 
+import copy
+import json
+
 # Imports necessarios
 import logging
-import copy
 import os
-import json
 import re
-import pandas as pd
 from collections import OrderedDict
+
+import pandas as pd
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
-    QMessageBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QWidget,
@@ -48,7 +50,10 @@ from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 
 # Imports de gui helpers
-from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
+from gui.helpers.formatting_helpers import (
+    format_search_display,
+    normalize_chunk_for_parse,
+)
 
 # Imports de utils
 from utils.themes import get_theme_roles
@@ -66,7 +71,9 @@ class FilterGUISSAMixin:
 
     def initiate_filtering(self):
         if self.df_completo.empty:
-            QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
+            QMessageBox.information(
+                self, "Aviso", "Nenhum dado carregado para filtrar."
+            )
             return
 
         self._store_last_filter_state()
@@ -76,12 +83,16 @@ class FilterGUISSAMixin:
         chunk_terms_lists = (
             [self._normalize_chunk_for_parse(chunk) for chunk in raw_chunks]
             if raw_chunks
-            else ([] if not search_text else [self._normalize_chunk_for_parse(search_text)])
+            else (
+                []
+                if not search_text
+                else [self._normalize_chunk_for_parse(search_text)]
+            )
         )
         # remove empty chunk lists
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
 
-        if hasattr(self, 'clear_filter_button'):
+        if hasattr(self, "clear_filter_button"):
             has_terms = bool(
                 chunk_terms_lists
                 or search_text
@@ -92,7 +103,7 @@ class FilterGUISSAMixin:
         if chunk_terms_lists:
             display_text = self._format_search_display(chunk_terms_lists)
         else:
-            display_text = search_text if search_text else ''
+            display_text = search_text if search_text else ""
         self._pending_search_display = display_text
 
         self.status_label.setText("Status: Filtrando dados...")
@@ -101,15 +112,17 @@ class FilterGUISSAMixin:
         self.search_button.setEnabled(False)
 
         # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
-        if not hasattr(self, '_cached_default_mode'):
+        if not hasattr(self, "_cached_default_mode"):
             from gui.gui_config import GUI_MAIN_PREFERENCES
 
             gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
+            self._cached_default_mode = gui_settings.get(
+                "default_filter_mode", "contains"
+            )
         default_mode = self._cached_default_mode
 
         # Modo síncrono (sem QThread) opcional para testes
-        if getattr(self, '_sync_filtering', False):
+        if getattr(self, "_sync_filtering", False):
             try:
                 if chunk_terms_lists:
                     frames = []
@@ -168,18 +181,20 @@ class FilterGUISSAMixin:
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         total_original = (
             len(self.df_completo)
-            if hasattr(self, 'df_completo') and self.df_completo is not None
+            if hasattr(self, "df_completo") and self.df_completo is not None
             else 0
         )
         total_filtrado = len(self.df_exibido)
-        search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ''
+        search_text = (
+            self.search_input.text().strip() if hasattr(self, "search_input") else ""
+        )
         if search_text:
             self.status_label.setText(
                 f"Status: {total_filtrado} de {total_original} SSAs encontradas para '{search_text}'"
             )
         else:
             self.status_label.setText(f"Status: {total_filtrado} SSAs encontradas.")
-        if hasattr(self, 'clear_filter_button'):
+        if hasattr(self, "clear_filter_button"):
             self.clear_filter_button.setEnabled(True)
         self._apply_search_display()
         # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
@@ -189,14 +204,17 @@ class FilterGUISSAMixin:
             pass
         # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
         try:
-            if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
+            if hasattr(self, "df_para_tabela") and not self.df_para_tabela.empty:
                 self._compute_gui_column_widths(self.df_para_tabela)
                 self._apply_computed_widths_only()
         except Exception:
             pass
         # Garantia específica: coluna 1 (primeira após '#') nunca deve ficar com largura 0
         try:
-            if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
+            if (
+                self.table_widget.columnCount() > 1
+                and self.table_widget.columnWidth(1) == 0
+            ):
                 self.table_widget.setColumnWidth(1, 80)
         except Exception:
             pass
@@ -252,7 +270,7 @@ class FilterGUISSAMixin:
                         pass
                     # Solicita término e aguarda brevemente
                     try:
-                        if hasattr(worker, 'isRunning') and worker.isRunning():
+                        if hasattr(worker, "isRunning") and worker.isRunning():
                             worker.quit()
                             worker.wait(1500)
                     except Exception:
@@ -274,7 +292,7 @@ class FilterGUISSAMixin:
         try:
             self.search_input.blockSignals(True)
             self.search_input.clear()
-            self.search_input.setText('')
+            self.search_input.setText("")
         finally:
             self.search_input.blockSignals(False)
         self._pending_search_display = None
@@ -288,12 +306,14 @@ class FilterGUISSAMixin:
             lambda cp=max(
                 1,
                 min(
-                    getattr(self.paginator, 'current_page', 1),
-                    getattr(self.paginator, 'total_pages', 1),
+                    getattr(self.paginator, "current_page", 1),
+                    getattr(self.paginator, "total_pages", 1),
                 ),
             ): self.display_current_page(cp)
         )()
-        self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
+        self.status_label.setText(
+            f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas."
+        )
         self._build_column_filters_panel()
         # Atualizar resumo de filtros
         try:
@@ -311,7 +331,7 @@ class FilterGUISSAMixin:
     def clear_filter_cache(self):
         """Limpa o cache de filtros."""
         # Usa logger e verifica disponibilidade do FilterWorker e cache
-        if FilterWorker is not None and hasattr(FilterWorker, '_cache'):
+        if FilterWorker is not None and hasattr(FilterWorker, "_cache"):
             try:
                 FilterWorker._cache.clear()
                 logger.info("Cache de filtros limpo")
@@ -324,8 +344,8 @@ class FilterGUISSAMixin:
         """Retorna estatísticas do cache de filtros."""
         if (
             FilterWorker is not None
-            and hasattr(FilterWorker, '_cache')
-            and hasattr(FilterWorker._cache, 'get_stats')
+            and hasattr(FilterWorker, "_cache")
+            and hasattr(FilterWorker._cache, "get_stats")
         ):
             try:
                 return FilterWorker._cache.get_stats()
@@ -341,14 +361,19 @@ class FilterGUISSAMixin:
             from PyQt6.QtWidgets import QMenu
         except Exception:
             return
-        if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
+        if (
+            not hasattr(self, "_current_display_columns")
+            or not self._current_display_columns
+        ):
             return
         menu = QMenu(self)
         columns = []
         for col in self._current_display_columns:
-            if col == '#':
+            if col == "#":
                 continue
-            display = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
+            display = DEFAULT_DISPLAY_MAPPINGS.get(
+                col, self.internal_to_display.get(col, col)
+            )
             action = menu.addAction(display)
             action.setCheckable(True)
             action.setChecked(col in self._active_column_filters)
@@ -358,7 +383,9 @@ class FilterGUISSAMixin:
             menu.deleteLater()
             return
         chosen = menu.exec(
-            self.add_column_filter_btn.mapToGlobal(self.add_column_filter_btn.rect().bottomLeft())
+            self.add_column_filter_btn.mapToGlobal(
+                self.add_column_filter_btn.rect().bottomLeft()
+            )
         )
         if chosen is None:
             return
@@ -391,11 +418,11 @@ class FilterGUISSAMixin:
         if col_name in self._column_to_or_group:
             group = self._column_to_or_group.get(col_name)
             if group:
-                for member in group.get('columns', []):
+                for member in group.get("columns", []):
                     if member in self._active_column_filters:
                         self._active_column_filters.pop(member, None)
                         removed = True
-                group['values'] = []
+                group["values"] = []
         elif col_name in self._active_column_filters:
             self._active_column_filters.pop(col_name, None)
             removed = True
@@ -412,9 +439,9 @@ class FilterGUISSAMixin:
     def _build_column_filters_panel(self):
         # Escolhe layout de lista (compatável com versões antigas e novas)
         target_layout = None
-        if hasattr(self, 'col_filters_list_layout'):
+        if hasattr(self, "col_filters_list_layout"):
             target_layout = self.col_filters_list_layout
-        elif hasattr(self, 'col_filters_layout'):
+        elif hasattr(self, "col_filters_layout"):
             target_layout = self.col_filters_layout
         else:
             return
@@ -428,7 +455,7 @@ class FilterGUISSAMixin:
         self._column_filter_inputs = {}
         self._column_filter_labels = {}
         # Controle de linhas ocultas (somente exibição)
-        if not hasattr(self, '_hidden_column_filter_lines'):
+        if not hasattr(self, "_hidden_column_filter_lines"):
             self._hidden_column_filter_lines = set()
 
         if not self._active_column_filters:
@@ -445,24 +472,30 @@ class FilterGUISSAMixin:
         for col, term in self._active_column_filters.items():
             # Pula linhas ocultas (removidas da exibição)
             if (
-                hasattr(self, '_hidden_column_filter_lines')
+                hasattr(self, "_hidden_column_filter_lines")
                 and col in self._hidden_column_filter_lines
             ):
                 continue
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(4)
-            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
+            full_name = DEFAULT_DISPLAY_MAPPINGS.get(
+                col, self.internal_to_display.get(col, col)
+            )
             name_lbl = QLabel(full_name)
             self._column_filter_labels[col] = name_lbl
             name_lbl.setMinimumWidth(100)
             try:
-                name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+                name_lbl.setSizePolicy(
+                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+                )
             except Exception:
                 pass
             # Exibe 'OU' no campo (apenas visual). Internamente continuamos usando vírgulas.
             try:
-                display_text = self._format_column_filter_display_value(str(term), column=col)
+                display_text = self._format_column_filter_display_value(
+                    str(term), column=col
+                )
             except Exception:
                 display_text = str(term)
             term_box = QLineEdit(display_text)
@@ -478,13 +511,17 @@ class FilterGUISSAMixin:
             except Exception:
                 pass
             try:
-                term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                term_box.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+                )
             except Exception:
                 pass
             self._apply_filter_widget_theme(name_lbl, term_box)
             # Enter aplica o filtro desta coluna
             try:
-                term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
+                term_box.returnPressed.connect(
+                    lambda c=col, tb=term_box: _mk_apply(c, tb)()
+                )
             except Exception:
                 pass
             # Botao Aplicar atualiza o filtro com o texto da caixa
@@ -494,7 +531,9 @@ class FilterGUISSAMixin:
             except Exception:
                 pass
             try:
-                apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+                apply_btn.setSizePolicy(
+                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+                )
             except Exception:
                 pass
             try:
@@ -523,7 +562,9 @@ class FilterGUISSAMixin:
             except Exception:
                 pass
             try:
-                clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+                clear_btn.setSizePolicy(
+                    QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+                )
             except Exception:
                 pass
             try:
@@ -582,7 +623,7 @@ class FilterGUISSAMixin:
         self._refresh_column_filter_widgets()
         # Botção limpar todos
         # Rodape centralizado (se nao houver barra fixa)
-        if not hasattr(self, 'clear_all_btn'):
+        if not hasattr(self, "clear_all_btn"):
             clear_all = QPushButton("Limpar todos filtros de colunas")
             clear_all.setMaximumWidth(260)
             clear_all.clicked.connect(self._clear_all_column_filters)
@@ -596,17 +637,17 @@ class FilterGUISSAMixin:
         target_layout.addStretch()
 
     def _apply_filter_widget_theme(self, label_widget=None, input_widget=None):
-        theme = getattr(self, '_current_theme', '') or 'dark'
+        theme = getattr(self, "_current_theme", "") or "dark"
         roles = get_theme_roles(theme)
-        label_color = roles.get('support_text_color') or roles.get('label_color')
+        label_color = roles.get("support_text_color") or roles.get("label_color")
         if label_widget is not None:
-            label_widget.setStyleSheet(f'color:{label_color};')
+            label_widget.setStyleSheet(f"color:{label_color};")
         if input_widget is not None:
-            input_text = roles.get('input_text')
-            input_bg = roles.get('input_bg')
-            input_border = roles.get('input_border')
-            input_focus = roles.get('input_border_focus') or roles.get('accent')
-            input_placeholder = roles.get('input_placeholder')
+            input_text = roles.get("input_text")
+            input_bg = roles.get("input_bg")
+            input_border = roles.get("input_border")
+            input_focus = roles.get("input_border_focus") or roles.get("accent")
+            input_placeholder = roles.get("input_placeholder")
             style = (
                 f"QLineEdit {{ font-size:11px; color:{input_text}; background:{input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }}\n"
                 f"QLineEdit::placeholder {{ color:{input_placeholder}; }}\n"
@@ -615,8 +656,8 @@ class FilterGUISSAMixin:
             input_widget.setStyleSheet(style)
 
     def _refresh_column_filter_widgets(self):
-        labels = getattr(self, '_column_filter_labels', {}) or {}
-        inputs = getattr(self, '_column_filter_inputs', {}) or {}
+        labels = getattr(self, "_column_filter_labels", {}) or {}
+        inputs = getattr(self, "_column_filter_inputs", {}) or {}
         for col, label in labels.items():
             self._apply_filter_widget_theme(label, inputs.get(col))
 
@@ -624,8 +665,10 @@ class FilterGUISSAMixin:
         if col_name in self._active_column_filters:
             # Se já está vazio e o campo também está vazio, não faz nada
             try:
-                if str(self._active_column_filters.get(col_name, '')).strip() == '' and (
-                    current_text is None or str(current_text).strip() == ''
+                if str(
+                    self._active_column_filters.get(col_name, "")
+                ).strip() == "" and (
+                    current_text is None or str(current_text).strip() == ""
                 ):
                     return
             except Exception:
@@ -642,9 +685,9 @@ class FilterGUISSAMixin:
     def _clear_all_column_filters(self):
         if self._active_column_filters:
             self._store_last_filter_state()
-            for group in getattr(self, '_column_or_groups', []):
-                group['values'] = []
-                for col in group.get('columns', []):
+            for group in getattr(self, "_column_or_groups", []):
+                group["values"] = []
+                for col in group.get("columns", []):
                     self._active_column_filters[col] = ""
             for col in list(self._active_column_filters.keys()):
                 if col not in self._column_to_or_group:
@@ -655,7 +698,7 @@ class FilterGUISSAMixin:
             except Exception:
                 self._hidden_column_filter_lines = set()
             # Limpa também o texto dedicado de OR (somente exibição)
-            self._dedicated_or_text = ''
+            self._dedicated_or_text = ""
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
@@ -688,7 +731,7 @@ class FilterGUISSAMixin:
             self._hidden_column_filter_lines.clear()
         except Exception:
             self._hidden_column_filter_lines = set()
-        self._dedicated_or_text = ''
+        self._dedicated_or_text = ""
         self._build_column_filters_panel()
         self._update_col_filter_indicator()
 
@@ -696,7 +739,7 @@ class FilterGUISSAMixin:
         self.status_label.setText(
             f"Status: {len(self.df_exibido)} SSAs carregadas. Pronto para filtrar."
         )
-        if hasattr(self, 'clear_filter_button'):
+        if hasattr(self, "clear_filter_button"):
             self.clear_filter_button.setEnabled(False)
 
         # Atualizar resumo de filtros
@@ -710,40 +753,50 @@ class FilterGUISSAMixin:
         show_basic = tab_kind != "filters"
 
         # Filtro de busca geral
-        if show_basic and hasattr(self, 'search_input') and self.search_input.text().strip():
+        if (
+            show_basic
+            and hasattr(self, "search_input")
+            and self.search_input.text().strip()
+        ):
             active_filters.append(f"Busca: '{self.search_input.text().strip()}'")
 
         def _display_name(col: str) -> str:
-            if col == 'setor_executor':
-                return 'Executor'
-            if col == 'setor_emissor':
-                return 'Emissor'
-            if col == 'descricao_ssa':
-                return 'Descricao da SSA'
-            if col == 'situacao':
-                return 'Situacao'
-            return self.internal_to_display.get(col, col.replace('_', ' ').title())
+            if col == "setor_executor":
+                return "Executor"
+            if col == "setor_emissor":
+                return "Emissor"
+            if col == "descricao_ssa":
+                return "Descricao da SSA"
+            if col == "situacao":
+                return "Situacao"
+            return self.internal_to_display.get(col, col.replace("_", " ").title())
 
         # Filtro OU dedicado (exibição)
-        or_text = str(getattr(self, '_dedicated_or_text', '') or '').strip()
+        or_text = str(getattr(self, "_dedicated_or_text", "") or "").strip()
         if show_basic and or_text:
-            active_filters.append(f"Filtro OU: {self._format_column_filter_display_value(or_text)}")
+            active_filters.append(
+                f"Filtro OU: {self._format_column_filter_display_value(or_text)}"
+            )
 
         # Filtros de coluna (exibição)
-        if show_basic and hasattr(self, '_active_column_filters') and self._active_column_filters:
+        if (
+            show_basic
+            and hasattr(self, "_active_column_filters")
+            and self._active_column_filters
+        ):
             processed_groups = set()
-            for group in getattr(self, '_column_or_groups', []):
-                if not group.get('values'):
+            for group in getattr(self, "_column_or_groups", []):
+                if not group.get("values"):
                     continue
                 gid = id(group)
                 processed_groups.add(gid)
-                columns = group.get('columns', [])
-                if set(columns) == {'setor_executor', 'setor_emissor'}:
-                    label = 'Executor ou Emissor (OU)'
+                columns = group.get("columns", [])
+                if set(columns) == {"setor_executor", "setor_emissor"}:
+                    label = "Executor ou Emissor (OU)"
                 else:
                     label = f"{' ou '.join(_display_name(c) for c in columns)} (OU)"
                 values_txt = self._format_column_filter_display_value(
-                    ', '.join(group.get('values', []))
+                    ", ".join(group.get("values", []))
                 )
                 if values_txt:
                     active_filters.append(f"{label}: {values_txt}")
@@ -796,15 +849,27 @@ class FilterGUISSAMixin:
             _add_adv("Solicitante", adv.get("solicitante"))
             _add_adv("Solicitante", adv.get("solicitante_exclude_values"), "!=")
             _add_adv("Resp Programacao", adv.get("responsavel_programacao"))
-            _add_adv("Resp Programacao", adv.get("responsavel_programacao_exclude_values"), "!=")
+            _add_adv(
+                "Resp Programacao",
+                adv.get("responsavel_programacao_exclude_values"),
+                "!=",
+            )
             _add_adv("Resp Execucao", adv.get("responsavel_execucao"))
-            _add_adv("Resp Execucao", adv.get("responsavel_execucao_exclude_values"), "!=")
+            _add_adv(
+                "Resp Execucao", adv.get("responsavel_execucao_exclude_values"), "!="
+            )
             _add_adv("Resp Emissao", adv.get("responsavel_emissor"))
-            _add_adv("Resp Emissao", adv.get("responsavel_emissor_exclude_values"), "!=")
+            _add_adv(
+                "Resp Emissao", adv.get("responsavel_emissor_exclude_values"), "!="
+            )
             _add_adv("Prio Emissao", adv.get("prioridade_emissao_values"))
             _add_adv("Prio Emissao", adv.get("prioridade_emissao_exclude_values"), "!=")
             _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_values"))
-            _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_exclude_values"), "!=")
+            _add_adv(
+                "Prio Planejamento",
+                adv.get("prioridade_planejamento_exclude_values"),
+                "!=",
+            )
 
             ano_emissao_vals = adv.get("ano_emissao_values")
             ano_emissao_exc = adv.get("ano_emissao_exclude_values")
@@ -856,11 +921,13 @@ class FilterGUISSAMixin:
             if adv.get("macro_filter"):
                 macro_val = adv.get("macro_filter")
                 macro_label = (
-                    "SSAs para baixar" if macro_val == "ssas_para_baixar" else str(macro_val)
+                    "SSAs para baixar"
+                    if macro_val == "ssas_para_baixar"
+                    else str(macro_val)
                 )
                 active_filters.append(f"Macro: {macro_label}")
 
-        if show_basic and getattr(self, '_exclude_ste_sca', False):
+        if show_basic and getattr(self, "_exclude_ste_sca", False):
             active_filters.append("situacao!=STE/SCA")
 
         # Monta texto do resumo
@@ -870,10 +937,12 @@ class FilterGUISSAMixin:
             summary_text = "Nenhum filtro ativo"
 
         # Atualiza label de resumo principal
-        if hasattr(self, 'filters_summary_label'):
+        if hasattr(self, "filters_summary_label"):
             self.filters_summary_label.setText(summary_text)
 
-    def _format_column_filter_display_value(self, raw: str, *, column: str | None = None) -> str:
+    def _format_column_filter_display_value(
+        self, raw: str, *, column: str | None = None
+    ) -> str:
         """Normaliza um valor de filtro de coluna para exibicao consistente.
 
         SIMPLIFIED: No logical operators - just comma-separated terms.
@@ -888,9 +957,9 @@ class FilterGUISSAMixin:
         try:
             text = str(raw).strip()
             # Remove extra spaces
-            text = re.sub(r'\s+', ' ', text).strip()
+            text = re.sub(r"\s+", " ", text).strip()
             # Split by commas only
-            tokens = [t.strip() for t in text.split(',') if t.strip()]
+            tokens = [t.strip() for t in text.split(",") if t.strip()]
             # Apply optional display aliases per column
             if tokens:
                 alias_map = self._get_filter_alias_map()
@@ -898,7 +967,9 @@ class FilterGUISSAMixin:
                 col_map = None
                 if column and isinstance(alias_map, dict):
                     col_map = alias_map.get(column) or alias_map.get(column.lower())
-                global_map = alias_map.get('_global') if isinstance(alias_map, dict) else None
+                global_map = (
+                    alias_map.get("_global") if isinstance(alias_map, dict) else None
+                )
                 for tok in tokens:
                     key = tok.casefold()
                     new_tok = None
@@ -906,10 +977,12 @@ class FilterGUISSAMixin:
                         new_tok = col_map.get(key) or col_map.get(tok)
                     if new_tok is None and isinstance(global_map, dict):
                         new_tok = global_map.get(key) or global_map.get(tok)
-                    mapped.append(new_tok if isinstance(new_tok, str) and new_tok.strip() else tok)
+                    mapped.append(
+                        new_tok if isinstance(new_tok, str) and new_tok.strip() else tok
+                    )
                 tokens = mapped
             # Display as comma-separated (OR logic)
-            return ', '.join(tokens)
+            return ", ".join(tokens)
         except Exception:
             # Fallback: display raw, trimmed
             return str(raw).strip()
@@ -923,15 +996,19 @@ class FilterGUISSAMixin:
         }
         Chaves de lookup aceitam minúsculas (casefold). Retorna {} se ausente/erro.
         """
-        if hasattr(self, '_filter_alias_map') and isinstance(self._filter_alias_map, dict):
+        if hasattr(self, "_filter_alias_map") and isinstance(
+            self._filter_alias_map, dict
+        ):
             return self._filter_alias_map
         try:
             # Resolve config path relative to repository root, avoiding reliance on project_root
             # Walk up three levels from this file: gui/mixins/ -> gui/ -> repo root
-            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            cfg_path = os.path.join(repo_root, 'config', 'filter_aliases.json')
+            repo_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+            cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
             if os.path.exists(cfg_path):
-                with open(cfg_path, 'r', encoding='utf-8') as f:
+                with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 # Normaliza apenas para dict
                 if isinstance(data, dict):
@@ -943,7 +1020,7 @@ class FilterGUISSAMixin:
         return self._filter_alias_map
 
     def _update_col_filter_indicator(self):
-        if not hasattr(self, 'col_filter_indicator'):
+        if not hasattr(self, "col_filter_indicator"):
             return
         try:
             if not self.col_filter_indicator.isVisible():
@@ -951,7 +1028,10 @@ class FilterGUISSAMixin:
         except Exception:
             pass
         # Ativo quando existe ao menos um termo nao vazio em filtros por coluna
-        active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
+        active = any(
+            (str(v).strip() != "")
+            for _, v in (self._active_column_filters or {}).items()
+        )
         txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
         try:
             self.col_filter_indicator.setText(txt)
@@ -961,31 +1041,33 @@ class FilterGUISSAMixin:
     def _update_ssa_count(self):
         """Atualiza contador de SSAs selecionadas na barra de navegacao."""
         # UIREFACTOR 2026-01-08: Contador de SSAs filtradas
-        ssa_widget = getattr(self, 'ssa_count_input', None)
-        ssa_label = getattr(self, 'ssa_count_label', None)
+        ssa_widget = getattr(self, "ssa_count_input", None)
+        ssa_label = getattr(self, "ssa_count_label", None)
         if ssa_widget is None:
             return
 
         try:
             # Verificar se ha filtros ativos
-            has_search = hasattr(self, 'search_input') and bool(self.search_input.text().strip())
-            has_column_filters = bool(getattr(self, '_active_column_filters', {}))
-            has_exclude_ste = bool(getattr(self, '_exclude_ste_sca', False))
-            
+            has_search = hasattr(self, "search_input") and bool(
+                self.search_input.text().strip()
+            )
+            has_column_filters = bool(getattr(self, "_active_column_filters", {}))
+            has_exclude_ste = bool(getattr(self, "_exclude_ste_sca", False))
+
             # Contar SSAs do dataset atual
             count_filtered = (
                 len(self.df_exibido)
-                if hasattr(self, 'df_exibido') and self.df_exibido is not None
+                if hasattr(self, "df_exibido") and self.df_exibido is not None
                 else 0
             )
-            
+
             # Total do DB
             count_total = (
                 len(self.df_completo)
-                if hasattr(self, 'df_completo') and self.df_completo is not None
+                if hasattr(self, "df_completo") and self.df_completo is not None
                 else 0
             )
-            
+
             # Se houver qualquer filtro ativo, mostrar numero filtrado
             if has_search or has_column_filters or has_exclude_ste:
                 ssa_widget.setText(str(count_filtered))
@@ -1015,18 +1097,24 @@ class FilterGUISSAMixin:
         for profile_data in profiles.values():
             if isinstance(profile_data, dict):
                 all_section = (
-                    profile_data.get('all') if isinstance(profile_data.get('all'), dict) else None
+                    profile_data.get("all")
+                    if isinstance(profile_data.get("all"), dict)
+                    else None
                 )
                 if all_section:
                     for col_name in all_section.keys():
                         if col_name not in cols:
                             cols.append(col_name)
                 any_section = (
-                    profile_data.get('any') if isinstance(profile_data.get('any'), list) else None
+                    profile_data.get("any")
+                    if isinstance(profile_data.get("any"), list)
+                    else None
                 )
                 if any_section:
                     for group in any_section:
-                        columns = group.get('columns') if isinstance(group, dict) else None
+                        columns = (
+                            group.get("columns") if isinstance(group, dict) else None
+                        )
                         if isinstance(columns, list):
                             for col_name in columns:
                                 if col_name not in cols:
@@ -1064,8 +1152,8 @@ class FilterGUISSAMixin:
         if not normalized_columns:
             return None
         group = {
-            'columns': normalized_columns,
-            'values': normalized_values,
+            "columns": normalized_columns,
+            "values": normalized_values,
         }
         self._column_or_groups.append(group)
         for col in normalized_columns:
@@ -1080,16 +1168,16 @@ class FilterGUISSAMixin:
         group = self._column_to_or_group.get(column)
         if not group:
             return
-        normalized = str(text or '').strip()
+        normalized = str(text or "").strip()
         # Remove extra spaces, semicolons
-        normalized = normalized.replace(';', ',')
-        normalized = re.sub(r'\s+', ' ', normalized).strip()
+        normalized = normalized.replace(";", ",")
+        normalized = re.sub(r"\s+", " ", normalized).strip()
         # Split by commas only
-        tokens = [token.strip() for token in normalized.split(',') if token.strip()]
-        group['values'] = tokens
+        tokens = [token.strip() for token in normalized.split(",") if token.strip()]
+        group["values"] = tokens
         # Store internally as comma-separated list (OR logic)
-        common_text = ', '.join(tokens)
-        for col in group['columns']:
+        common_text = ", ".join(tokens)
+        for col in group["columns"]:
             self._active_column_filters[col] = common_text
 
     def _apply_column_filters(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1115,9 +1203,9 @@ class FilterGUISSAMixin:
         """Reaplica filtros de coluna, atualiza tabela e indicadores."""
         # Identifica se existe busca ativa no input
         has_search = False
-        if hasattr(self, 'search_input'):
+        if hasattr(self, "search_input"):
             has_search = bool(self.search_input.text().strip())
-        
+
         # Se tem busca, respeita o resultado dela (mesmo que seja zero linhas).
         # Caso contrario, usa o dataset completo como base.
         if has_search:
@@ -1133,33 +1221,37 @@ class FilterGUISSAMixin:
                 pass
         filtered = self._apply_column_filters(filtered)
         if (
-            getattr(self, '_exclude_ste_sca', False)
+            getattr(self, "_exclude_ste_sca", False)
             and not filtered.empty
-            and 'situacao' in filtered.columns
+            and "situacao" in filtered.columns
         ):
             try:
-                mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
+                mask = ~filtered["situacao"].astype(str).str.upper().isin(
+                    {"STE", "SCA"}
+                )
                 filtered = filtered[mask]
             except Exception:
                 pass
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
-        if not filtered.empty and 'numero_ssa' in filtered.columns:
+        if not filtered.empty and "numero_ssa" in filtered.columns:
             try:
-                filtered = filtered.sort_values('numero_ssa', ascending=False)
+                filtered = filtered.sort_values("numero_ssa", ascending=False)
             except Exception:
                 pass
         self.df_exibido = filtered
         self.paginator.set_dataframe(self.df_exibido)
         try:
-            current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
+            current = max(
+                1, min(self.paginator.current_page, self.paginator.total_pages)
+            )
             self.display_current_page(current)
         except Exception:
             (
                 lambda cp=max(
                     1,
                     min(
-                        getattr(self.paginator, 'current_page', 1),
-                        getattr(self.paginator, 'total_pages', 1),
+                        getattr(self.paginator, "current_page", 1),
+                        getattr(self.paginator, "total_pages", 1),
                     ),
                 ): self.display_current_page(cp)
             )()
@@ -1185,11 +1277,11 @@ class FilterGUISSAMixin:
         except Exception:
             active_filters = OrderedDict()
         groups_snapshot = []
-        for group in getattr(self, '_column_or_groups', []) or []:
+        for group in getattr(self, "_column_or_groups", []) or []:
             groups_snapshot.append(
                 {
-                    'columns': tuple(group.get('columns', ())),
-                    'values': list(group.get('values', ())),
+                    "columns": tuple(group.get("columns", ())),
+                    "values": list(group.get("values", ())),
                 }
             )
         try:
@@ -1202,12 +1294,20 @@ class FilterGUISSAMixin:
             "active_column_filters": active_filters,
             "column_or_groups": groups_snapshot,
             "exclude_ste_sca": bool(getattr(self, "_exclude_ste_sca", False)),
-            "advanced_filters": copy.deepcopy(getattr(self, "_advanced_filters", None) or {}),
-            "advanced_filters_active": bool(getattr(self, "_advanced_filters_active", False)),
+            "advanced_filters": copy.deepcopy(
+                getattr(self, "_advanced_filters", None) or {}
+            ),
+            "advanced_filters_active": bool(
+                getattr(self, "_advanced_filters_active", False)
+            ),
             "df_last_search_filtered": df_last,
             "current_filter_profile": getattr(self, "current_filter_profile", None),
-            "profile_base_filters": copy.deepcopy(getattr(self, "_profile_base_filters", {}) or {}),
-            "hidden_column_filter_lines": set(getattr(self, "_hidden_column_filter_lines", set())),
+            "profile_base_filters": copy.deepcopy(
+                getattr(self, "_profile_base_filters", {}) or {}
+            ),
+            "hidden_column_filter_lines": set(
+                getattr(self, "_hidden_column_filter_lines", set())
+            ),
             "dedicated_or_text": str(getattr(self, "_dedicated_or_text", "")),
         }
 
@@ -1236,7 +1336,9 @@ class FilterGUISSAMixin:
                 except Exception:
                     pass
             self._pending_search_display = state.get("pending_search_display")
-            self._active_column_filters = OrderedDict(state.get("active_column_filters") or {})
+            self._active_column_filters = OrderedDict(
+                state.get("active_column_filters") or {}
+            )
             self._reset_or_groups()
             for group in state.get("column_or_groups") or []:
                 self._register_or_group(
@@ -1265,7 +1367,9 @@ class FilterGUISSAMixin:
                 self._df_last_search_filtered = pd.DataFrame()
             self.current_filter_profile = state.get("current_filter_profile")
             self._profile_base_filters = state.get("profile_base_filters") or {}
-            self._hidden_column_filter_lines = set(state.get("hidden_column_filter_lines") or set())
+            self._hidden_column_filter_lines = set(
+                state.get("hidden_column_filter_lines") or set()
+            )
             self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
             try:
                 self._sync_advanced_filter_ui()
@@ -1305,7 +1409,7 @@ class FilterGUISSAMixin:
             pass
 
     def _apply_search_display(self):
-        display_text = getattr(self, '_pending_search_display', None)
+        display_text = getattr(self, "_pending_search_display", None)
         if display_text is None:
             return
 
@@ -1325,27 +1429,38 @@ class FilterGUISSAMixin:
 
     def _mark_profile_as_custom(self):
         """Marca o perfil atual como personalizado quando filtros divergem."""
-        if getattr(self, '_profile_lock', False):
+        if getattr(self, "_profile_lock", False):
             return
         base = self._profile_base_filters or {}
-        base_columns = {k: str(v).strip() for k, v in (base.get('columns') or {}).items()}
-        base_groups = base.get('or_groups') or []
-        base_exclude = bool(base.get('exclude_ste_sca', False))
+        base_columns = {
+            k: str(v).strip() for k, v in (base.get("columns") or {}).items()
+        }
+        base_groups = base.get("or_groups") or []
+        base_exclude = bool(base.get("exclude_ste_sca", False))
 
-        if self.current_filter_profile and self.current_filter_profile in self.filter_profiles:
+        if (
+            self.current_filter_profile
+            and self.current_filter_profile in self.filter_profiles
+        ):
             mismatch = False
             # Verifica colunas mapeadas
             current_columns = {}
-            referenced_columns = set(base_columns.keys()) | set(self._active_column_filters.keys())
+            referenced_columns = set(base_columns.keys()) | set(
+                self._active_column_filters.keys()
+            )
             for col in referenced_columns:
                 if col in self._column_to_or_group:
                     group = self._column_to_or_group.get(col)
-                    current_columns[col] = ', '.join(group.get('values', [])) if group else ''
+                    current_columns[col] = (
+                        ", ".join(group.get("values", [])) if group else ""
+                    )
                 else:
-                    current_columns[col] = str(self._active_column_filters.get(col, '')).strip()
+                    current_columns[col] = str(
+                        self._active_column_filters.get(col, "")
+                    ).strip()
 
             for col, expected in base_columns.items():
-                if current_columns.get(col, '').strip() != expected:
+                if current_columns.get(col, "").strip() != expected:
                     mismatch = True
                     break
 
@@ -1359,15 +1474,17 @@ class FilterGUISSAMixin:
             if not mismatch:
                 # Compara grupos OR
                 def _group_repr(group):
-                    cols = tuple(group.get('columns', ()))
-                    vals = tuple(group.get('values', ()))
+                    cols = tuple(group.get("columns", ()))
+                    vals = tuple(group.get("values", ()))
                     return (cols, vals)
 
                 current_groups = sorted(
-                    _group_repr(g) for g in getattr(self, '_column_or_groups', [])
+                    _group_repr(g) for g in getattr(self, "_column_or_groups", [])
                 )
                 expected_groups = sorted(
-                    _group_repr({'columns': g.get('columns', ()), 'values': g.get('values', ())})
+                    _group_repr(
+                        {"columns": g.get("columns", ()), "values": g.get("values", ())}
+                    )
                     for g in base_groups
                 )
                 if current_groups != expected_groups:
@@ -1389,31 +1506,34 @@ class FilterGUISSAMixin:
                 import re as _re
 
                 raw = str(profile_name)
-                tokens = [_t.strip() for _t in _re.split(r"[+,]", raw) if _t and _t.strip()]
+                tokens = [
+                    _t.strip() for _t in _re.split(r"[+,]", raw) if _t and _t.strip()
+                ]
                 if tokens:
                     self._reset_or_groups()
-                    self._register_or_group(['setor_executor', 'setor_emissor'], tokens)
+                    self._register_or_group(["setor_executor", "setor_emissor"], tokens)
                     # Garante colunas monitoradas
-                    for _col in ('setor_executor', 'setor_emissor'):
+                    for _col in ("setor_executor", "setor_emissor"):
                         if _col not in self._profile_columns:
                             self._profile_columns.append(_col)
                     # Define filtros subjacentes separados por vírgulas (lógica)
                     new_filters = OrderedDict(self._active_column_filters or {})
-                    for _col in ('setor_executor', 'setor_emissor'):
-                        new_filters[_col] = ', '.join(tokens)
+                    for _col in ("setor_executor", "setor_emissor"):
+                        new_filters[_col] = ", ".join(tokens)
                     self._active_column_filters = new_filters
                     # Base do perfil para marcação de personalizado
                     self._profile_base_filters = {
-                        'columns': {
-                            c: new_filters.get(c, '') for c in ('setor_executor', 'setor_emissor')
+                        "columns": {
+                            c: new_filters.get(c, "")
+                            for c in ("setor_executor", "setor_emissor")
                         },
-                        'or_groups': [
+                        "or_groups": [
                             {
-                                'columns': ('setor_executor', 'setor_emissor'),
-                                'values': tuple(tokens),
+                                "columns": ("setor_executor", "setor_emissor"),
+                                "values": tuple(tokens),
                             }
                         ],
-                        'exclude_ste_sca': bool(self._exclude_ste_sca),
+                        "exclude_ste_sca": bool(self._exclude_ste_sca),
                     }
                     self._build_column_filters_panel()
                     if refresh:
@@ -1439,51 +1559,61 @@ class FilterGUISSAMixin:
 
         if isinstance(profile_def, dict):
             all_section = (
-                profile_def.get('all') if isinstance(profile_def.get('all'), dict) else None
+                profile_def.get("all")
+                if isinstance(profile_def.get("all"), dict)
+                else None
             )
             if all_section:
                 for col, value in all_section.items():
                     values_list = normalize_values(value)
-                    normalized_columns[col] = ', '.join(values_list) if values_list else ''
+                    normalized_columns[col] = (
+                        ", ".join(values_list) if values_list else ""
+                    )
                     if col not in self._profile_columns:
                         self._profile_columns.append(col)
             any_section = (
-                profile_def.get('any') if isinstance(profile_def.get('any'), list) else None
+                profile_def.get("any")
+                if isinstance(profile_def.get("any"), list)
+                else None
             )
             if any_section:
                 for group in any_section:
                     if not isinstance(group, dict):
                         continue
                     columns = (
-                        group.get('columns') if isinstance(group.get('columns'), list) else None
+                        group.get("columns")
+                        if isinstance(group.get("columns"), list)
+                        else None
                     )
-                    values_list = normalize_values(group.get('values'))
+                    values_list = normalize_values(group.get("values"))
                     registered = self._register_or_group(columns, values_list)
                     if registered:
-                        display_values = ', '.join(registered['values'])
-                        for col in registered['columns']:
+                        display_values = ", ".join(registered["values"])
+                        for col in registered["columns"]:
                             normalized_columns[col] = display_values
-                        for col in registered['columns']:
+                        for col in registered["columns"]:
                             if col not in self._profile_columns:
                                 self._profile_columns.append(col)
                         normalized_groups.append(
                             {
-                                'columns': tuple(registered['columns']),
-                                'values': tuple(registered['values']),
+                                "columns": tuple(registered["columns"]),
+                                "values": tuple(registered["values"]),
                             }
                         )
-            if not all_section and 'any' not in profile_def:
+            if not all_section and "any" not in profile_def:
                 for col, value in profile_def.items():
                     values_list = normalize_values(value)
-                    normalized_columns[col] = ', '.join(values_list) if values_list else ''
+                    normalized_columns[col] = (
+                        ", ".join(values_list) if values_list else ""
+                    )
                     if col not in self._profile_columns:
                         self._profile_columns.append(col)
         else:
             values_list = normalize_values(profile_def)
             if values_list:
-                normalized_columns['situacao'] = ', '.join(values_list)
-                if 'situacao' not in self._profile_columns:
-                    self._profile_columns.append('situacao')
+                normalized_columns["situacao"] = ", ".join(values_list)
+                if "situacao" not in self._profile_columns:
+                    self._profile_columns.append("situacao")
 
         self._profile_lock = True
         try:
@@ -1497,8 +1627,8 @@ class FilterGUISSAMixin:
                 else:
                     new_filters[col] = text
             for group in self._column_or_groups:
-                group_text = ', '.join(group.get('values', []))
-                for col in group.get('columns', []):
+                group_text = ", ".join(group.get("values", []))
+                for col in group.get("columns", []):
                     if col not in new_filters:
                         new_filters[col] = group_text
                     else:
@@ -1506,20 +1636,21 @@ class FilterGUISSAMixin:
             self._active_column_filters = new_filters
             # Garante consistência das strings dos grupos OR (subjacente em vírgulas)
             for group in self._column_or_groups:
-                display_group = ', '.join(group.get('values', []))
-                for col in group.get('columns', []):
+                display_group = ", ".join(group.get("values", []))
+                for col in group.get("columns", []):
                     self._active_column_filters[col] = display_group
             self._profile_base_filters = {
-                'columns': {col: new_filters.get(col, '').strip() for col in new_filters},
-                'or_groups': normalized_groups,
-                'exclude_ste_sca': bool(self._exclude_ste_sca),
+                "columns": {
+                    col: new_filters.get(col, "").strip() for col in new_filters
+                },
+                "or_groups": normalized_groups,
+                "exclude_ste_sca": bool(self._exclude_ste_sca),
             }
         finally:
             self._profile_lock = False
         self._build_column_filters_panel()
         if refresh:
             self._refresh_after_filter_change()
-
 
         else:
             self.current_filter_profile = None
@@ -1528,28 +1659,30 @@ class FilterGUISSAMixin:
     def _build_column_mask(self, series: pd.Series, raw: str) -> pd.Series:
         # Divide SOMENTE por vírgulas; não há conectivos especiais aqui.
         normalized = str(raw)
-        tokens = [t.strip() for t in normalized.split(',') if t.strip()]
+        tokens = [t.strip() for t in normalized.split(",") if t.strip()]
         if not tokens:
             return pd.Series([True] * len(series), index=series.index)
 
         # Determina modo padrao a partir das preferencias
-        if not hasattr(self, '_cached_default_mode'):
+        if not hasattr(self, "_cached_default_mode"):
             from gui import gui_ssa
 
             gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
-            self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
+            self._cached_default_mode = gui_settings.get(
+                "default_filter_mode", "contains"
+            )
         default_mode = self._cached_default_mode
 
         def match_token(s: pd.Series, token: str) -> pd.Series:
-            neg = token.startswith('!')
+            neg = token.startswith("!")
             t = token[1:] if neg else token
             # VAZIOS/NULL: aceita NULL ou =NULL (case-insensitive)
-            if t.upper() in ('NULL', '=NULL'):
+            if t.upper() in ("NULL", "=NULL"):
                 # Considera nulos, strings vazias e '-'
-                res = s.isna() | (s.str.strip().eq('', na=False)) | (s == '-')
+                res = s.isna() | (s.str.strip().eq("", na=False)) | (s == "-")
                 return ~res if neg else res
             # Regex explácito
-            if t.startswith('~') and len(t) > 1:
+            if t.startswith("~") and len(t) > 1:
                 try:
                     import re
 
@@ -1557,20 +1690,20 @@ class FilterGUISSAMixin:
                     res = s.str.contains(pat, na=False)
                 except Exception:
                     res = s.str.contains(t[1:], case=False, na=False)
-            elif t.startswith('='):
+            elif t.startswith("="):
                 res = s.str.casefold().eq(t[1:].casefold())
-            elif t.startswith('^'):
+            elif t.startswith("^"):
                 res = s.str.casefold().str.startswith(t[1:].casefold())
-            elif t.endswith('$'):
+            elif t.endswith("$"):
                 res = s.str.casefold().str.endswith(t[:-1].casefold())
             else:
-                if default_mode == 'prefix':
+                if default_mode == "prefix":
                     res = s.str.casefold().str.startswith(t.casefold())
-                elif default_mode == 'suffix':
+                elif default_mode == "suffix":
                     res = s.str.casefold().str.endswith(t.casefold())
-                elif default_mode == 'exact':
+                elif default_mode == "exact":
                     res = s.str.casefold().eq(t.casefold())
-                elif default_mode == 'regex':
+                elif default_mode == "regex":
                     try:
                         import re
 
@@ -1583,8 +1716,8 @@ class FilterGUISSAMixin:
             return ~res if neg else res
 
         # OR entre inclusões no MESMO CAMPO; exclusões (com !) removem
-        includes = [tok for tok in tokens if not tok.startswith('!')]
-        excludes = [tok for tok in tokens if tok.startswith('!')]
+        includes = [tok for tok in tokens if not tok.startswith("!")]
+        excludes = [tok for tok in tokens if tok.startswith("!")]
 
         if includes:
             m = match_token(series, includes[0])
@@ -1635,7 +1768,9 @@ class FilterGUISSAMixin:
             return
 
         # Cria um nome baseado no filtro (limitado para exibicao)
-        filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
+        filter_name = (
+            current_text[:20] + "..." if len(current_text) > 20 else current_text
+        )
 
         # Verifica se ja existe
         for f in self.persistent_filters:
@@ -1649,12 +1784,14 @@ class FilterGUISSAMixin:
         self.persistent_filters.sort(key=lambda f: f["name"].casefold())
         self.update_filter_tags()
 
-        QMessageBox.information(self, "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!")
+        QMessageBox.information(
+            self, "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!"
+        )
 
     def update_filter_tags(self):
         """Atualiza as tags visuais dos filtros persistentes."""
         # UIREFACTOR 2026-01-08: filter_tags_layout pode ser None
-        if not hasattr(self, 'filter_tags_layout') or self.filter_tags_layout is None:
+        if not hasattr(self, "filter_tags_layout") or self.filter_tags_layout is None:
             return
         # Remove tags existentes
         for i in reversed(range(self.filter_tags_layout.count())):
@@ -1662,12 +1799,12 @@ class FilterGUISSAMixin:
             if child.widget():
                 child.widget().deleteLater()
 
-        roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
-        fg = roles.get('summary_text_color', self.palette().windowText().color().name())
-        border = roles.get('tag_border')
-        bg_normal = roles.get('tag_normal_bg')
-        bg_hover = roles.get('tag_hover')
-        bg_pressed = roles.get('tag_pressed')
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+        fg = roles.get("summary_text_color", self.palette().windowText().color().name())
+        border = roles.get("tag_border")
+        bg_normal = roles.get("tag_normal_bg")
+        bg_hover = roles.get("tag_hover")
+        bg_pressed = roles.get("tag_pressed")
 
         tag_css = f"""
             QPushButton {{
@@ -1687,13 +1824,16 @@ class FilterGUISSAMixin:
         """
 
         # Adiciona novas tags
-        for filter_data in sorted(self.persistent_filters, key=lambda f: f["name"].casefold()):
+        for filter_data in sorted(
+            self.persistent_filters, key=lambda f: f["name"].casefold()
+        ):
             tag_button = QPushButton(filter_data["name"])
             tag_button.setMaximumHeight(25)
             tag_button.setStyleSheet(tag_css)
             tag_button.setToolTip(f"Clique para aplicar: {filter_data['terms']}")
             tag_button.clicked.connect(
-                lambda checked, terms=filter_data["terms"]: self.apply_persistent_filter(terms)
+                lambda checked,
+                terms=filter_data["terms"]: self.apply_persistent_filter(terms)
             )
 
             # Botção X para remover
@@ -1702,7 +1842,9 @@ class FilterGUISSAMixin:
             remove_button.setStyleSheet(tag_css)
             remove_button.setToolTip("Remover filtro")
             remove_button.clicked.connect(
-                lambda checked, filter_data=filter_data: self.remove_persistent_filter(filter_data)
+                lambda checked, filter_data=filter_data: self.remove_persistent_filter(
+                    filter_data
+                )
             )
 
             # Layout horizontal para tag + botção remover
@@ -1723,7 +1865,7 @@ class FilterGUISSAMixin:
 
     def _update_tags_visuals(self):
         """Coleta todos os filtros ativos e atualiza o widget de tags."""
-        if not hasattr(self, 'filter_tags_widget') or not self.filter_tags_widget:
+        if not hasattr(self, "filter_tags_widget") or not self.filter_tags_widget:
             return
 
         active_filters = []
@@ -1732,34 +1874,40 @@ class FilterGUISSAMixin:
         try:
             search_text = self.search_input.text().strip()
             if search_text:
-                active_filters.append({'type': 'search', 'label': 'Pesquisa', 'val': search_text})
+                active_filters.append(
+                    {"type": "search", "label": "Pesquisa", "val": search_text}
+                )
         except Exception:
             pass
 
         # 2. Checkbox STE/SCA
         try:
-            if hasattr(self, '_exclude_ste_sca') and self._exclude_ste_sca:
+            if hasattr(self, "_exclude_ste_sca") and self._exclude_ste_sca:
                 active_filters.append(
-                    {'type': 'exclude_ste', 'label': 'Filtro', 'val': 'Não está em STE/SCA'}
+                    {
+                        "type": "exclude_ste",
+                        "label": "Filtro",
+                        "val": "Não está em STE/SCA",
+                    }
                 )
         except Exception:
             pass
 
         # 3. Filtros por Coluna
         try:
-            if hasattr(self, '_active_column_filters'):
+            if hasattr(self, "_active_column_filters"):
                 for col, val in self._active_column_filters.items():
                     str_val = str(val).strip()
                     if str_val:
                         # Tenta pegar nome de exibição
                         label = col
-                        if hasattr(self, 'display_map'):
+                        if hasattr(self, "display_map"):
                             label = self.display_map.get(col, col)
-                        elif hasattr(self, 'internal_to_display'):
+                        elif hasattr(self, "internal_to_display"):
                             label = self.internal_to_display.get(col, col)
 
                         active_filters.append(
-                            {'type': 'col', 'col': col, 'label': label, 'val': str_val}
+                            {"type": "col", "col": col, "label": label, "val": str_val}
                         )
         except Exception:
             pass
@@ -1768,14 +1916,14 @@ class FilterGUISSAMixin:
 
     def _on_tag_removed(self, type_, value):
         """Callback quando remove tag."""
-        if type_ == 'search':
+        if type_ == "search":
             self.search_input.clear()
             self.initiate_filtering()
-        elif type_ == 'exclude_ste':
-            box = getattr(self, 'exclude_ste_checkbox', None)
+        elif type_ == "exclude_ste":
+            box = getattr(self, "exclude_ste_checkbox", None)
             if box:
                 box.setChecked(False)
-        elif type_ == 'col':
-            col_name = value.get('col')
+        elif type_ == "col":
+            col_name = value.get("col")
             if col_name:
                 self._deactivate_column_filter(col_name)

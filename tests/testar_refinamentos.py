@@ -7,6 +7,7 @@ Valida se as otimizações estão funcionando corretamente.
 import os
 import sys
 import time
+
 import pandas as pd
 
 # Adiciona o diretório do projeto ao path
@@ -14,22 +15,23 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
 
+
 def teste_performance_cli():
     """Testa a performance das otimizações do CLI."""
     print("TEST TESTE DE PERFORMANCE - CLI")
     print("-" * 40)
 
     try:
+        from core.config_manager import get_settings, load_display_mappings
         from interface.cli import _cached_pretty_print_df
         from utils.table_printer import pretty_print_df
-        from core.config_manager import get_settings, load_display_mappings
 
         # Cria DataFrame de teste
         test_data = {
-            'numero_ssa': ['SSA001', 'SSA002', 'SSA003'] * 100,
-            'setor_executor': ['Setor A', 'Setor B', 'Setor C'] * 100,
-            'situacao': ['Ativa', 'Pendente', 'Finalizada'] * 100,
-            'descricao_ssa': ['Descrição longa de teste que vai ser truncada'] * 300
+            "numero_ssa": ["SSA001", "SSA002", "SSA003"] * 100,
+            "setor_executor": ["Setor A", "Setor B", "Setor C"] * 100,
+            "situacao": ["Ativa", "Pendente", "Finalizada"] * 100,
+            "descricao_ssa": ["Descrição longa de teste que vai ser truncada"] * 300,
         }
         df = pd.DataFrame(test_data)
 
@@ -41,6 +43,7 @@ def teste_performance_cli():
         start_time = time.time()
         import io
         import sys
+
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
 
@@ -59,7 +62,7 @@ def teste_performance_cli():
         cached_time = time.time() - start_time
 
         # Resultados
-        speedup = (first_time / cached_time) if cached_time > 0 else float('inf')
+        speedup = (first_time / cached_time) if cached_time > 0 else float("inf")
         print(f"  Primeira execução: {first_time:.4f}s")
         print(f"  Segunda execução (cache): {cached_time:.4f}s")
         print(f"  Melhoria: {speedup:.1f}x mais rápido")
@@ -72,6 +75,7 @@ def teste_performance_cli():
         print(f"  ERR Erro no teste CLI: {e}")
         return False
 
+
 def teste_otimizacoes_gui():
     """Testa as otimizações da GUI (sem interface gráfica)."""
     print("TEST TESTE DE OTIMIZAÇÕES - GUI")
@@ -79,14 +83,14 @@ def teste_otimizacoes_gui():
 
     try:
         # Testa cache de sets de colunas
-        test_columns = ['col1', 'col2', 'col3', 'col4', 'col5']
+        test_columns = ["col1", "col2", "col3", "col4", "col5"]
         cache = {}
 
         # Simula operações de set que foram otimizadas
         start_time = time.time()
         for i in range(1000):
             # Operação original (sem cache)
-            expandable_cols = ['col1', 'col3']
+            expandable_cols = ["col1", "col3"]
             result = [col for col in expandable_cols if col in set(test_columns)]
         original_time = time.time() - start_time
 
@@ -94,11 +98,13 @@ def teste_otimizacoes_gui():
         start_time = time.time()
         test_columns_set = set(test_columns)  # Cached
         for i in range(1000):
-            expandable_cols = ['col1', 'col3']
+            expandable_cols = ["col1", "col3"]
             result = [col for col in expandable_cols if col in test_columns_set]
         optimized_time = time.time() - start_time
 
-        speedup = (original_time / optimized_time) if optimized_time > 0 else float('inf')
+        speedup = (
+            (original_time / optimized_time) if optimized_time > 0 else float("inf")
+        )
         print(f"  Operação original (1000x): {original_time:.4f}s")
         print(f"  Operação otimizada (1000x): {optimized_time:.4f}s")
         print(f"  Melhoria: {speedup:.1f}x mais rápido")
@@ -111,6 +117,7 @@ def teste_otimizacoes_gui():
         print(f"  ERR Erro no teste GUI: {e}")
         return False
 
+
 def teste_configuracoes():
     """Testa se as configurações estão consistentes."""
     print("TEST TESTE DE CONFIGURAÇÕES")
@@ -120,9 +127,9 @@ def teste_configuracoes():
         import json
 
         config_files = [
-            'config/gui_main_preferences.json',
-            'config/display_mappings.json',
-            'config/column_priority.json'
+            "config/gui_main_preferences.json",
+            "config/display_mappings.json",
+            "config/column_priority.json",
         ]
 
         all_valid = True
@@ -130,7 +137,7 @@ def teste_configuracoes():
         for config_file in config_files:
             if os.path.exists(config_file):
                 try:
-                    with open(config_file, 'r', encoding='utf-8') as f:
+                    with open(config_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     print(f"  OK {config_file}: Válido ({len(data)} entradas)")
                 except json.JSONDecodeError as e:
@@ -146,6 +153,7 @@ def teste_configuracoes():
         print(f"  ERR Erro no teste de configurações: {e}")
         return False
 
+
 def main():
     """Executa todos os testes de refinamento."""
     print("FIX VALIDAÇÃO DOS REFINAMENTOS")
@@ -153,10 +161,10 @@ def main():
     print()
 
     # Muda para o diretório do projeto se necessário
-    if os.path.basename(os.getcwd()) != 'SSA_Consulta_Rapida':
-        possible_paths = ['.', '../SSA_Consulta_Rapida', './SSA_Consulta_Rapida']
+    if os.path.basename(os.getcwd()) != "SSA_Consulta_Rapida":
+        possible_paths = [".", "../SSA_Consulta_Rapida", "./SSA_Consulta_Rapida"]
         for path in possible_paths:
-            if os.path.exists(os.path.join(path, 'interface', 'cli.py')):
+            if os.path.exists(os.path.join(path, "interface", "cli.py")):
                 os.chdir(path)
                 break
 
@@ -182,9 +190,12 @@ def main():
         print("  WARN  Refinamentos precisam de ajustes")
 
     print()
-    print(f"  Status final: {'SUCESSO' if passed == total else 'PARCIAL' if passed > 0 else 'FALHA'}")
+    print(
+        f"  Status final: {'SUCESSO' if passed == total else 'PARCIAL' if passed > 0 else 'FALHA'}"
+    )
 
     return passed == total
+
 
 if __name__ == "__main__":
     success = main()

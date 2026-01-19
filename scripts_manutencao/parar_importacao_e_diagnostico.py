@@ -5,10 +5,12 @@ Script para parar importação lenta e fazer diagnóstico rápido.
 """
 
 import os
-import sys
-import psutil
 import sqlite3
+import sys
 import time
+
+import psutil
+
 
 def find_and_kill_python_processes():
     """Encontra e para processos Python relacionados à importação."""
@@ -17,33 +19,48 @@ def find_and_kill_python_processes():
     current_pid = os.getpid()
     killed_processes = []
 
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
-            if proc.info['name'] and 'python' in proc.info['name'].lower():
-                if proc.info['pid'] != current_pid:  # Não matar a si mesmo
-                    cmdline = ' '.join(proc.info['cmdline'] or [])
+            if proc.info["name"] and "python" in proc.info["name"].lower():
+                if proc.info["pid"] != current_pid:  # Não matar a si mesmo
+                    cmdline = " ".join(proc.info["cmdline"] or [])
 
                     # Verificar se é processo relacionado ao SSA
-                    if any(keyword in cmdline.lower() for keyword in [
-                        'main.py', 'import', 'test_import', 'ssa', 'excel'
-                    ]):
-                        print(f"  DONE Encontrado processo relacionado: PID {proc.info['pid']}")
+                    if any(
+                        keyword in cmdline.lower()
+                        for keyword in [
+                            "main.py",
+                            "import",
+                            "test_import",
+                            "ssa",
+                            "excel",
+                        ]
+                    ):
+                        print(
+                            f"  DONE Encontrado processo relacionado: PID {proc.info['pid']}"
+                        )
                         print(f"     Comando: {cmdline[:100]}...")
 
                         try:
                             proc.terminate()  # Terminar gentilmente
                             proc.wait(timeout=5)  # Esperar 5 segundos
-                            killed_processes.append(proc.info['pid'])
+                            killed_processes.append(proc.info["pid"])
                             print(f"  OK Processo {proc.info['pid']} terminado")
                         except (psutil.NoSuchProcess, psutil.TimeoutExpired):
                             try:
                                 proc.kill()  # Forçar se necessário
-                                killed_processes.append(proc.info['pid'])
-                                print(f"  PERF Processo {proc.info['pid']} forçado a parar")
+                                killed_processes.append(proc.info["pid"])
+                                print(
+                                    f"  PERF Processo {proc.info['pid']} forçado a parar"
+                                )
                             except psutil.NoSuchProcess:
-                                print(f"  WARN  Processo {proc.info['pid']} já finalizou")
+                                print(
+                                    f"  WARN  Processo {proc.info['pid']} já finalizou"
+                                )
                         except psutil.AccessDenied:
-                            print(f"  ERR Sem permissão para parar processo {proc.info['pid']}")
+                            print(
+                                f"  ERR Sem permissão para parar processo {proc.info['pid']}"
+                            )
 
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
@@ -54,6 +71,7 @@ def find_and_kill_python_processes():
         print(f"  OK Parados {len(killed_processes)} processos")
 
     return killed_processes
+
 
 def check_database_status():
     """Verifica o status atual do banco de dados."""
@@ -74,14 +92,16 @@ def check_database_status():
             print(f"OK Banco acessível: {total_records} registros")
 
             # Verificar últimas modificações
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT data_cadastro, COUNT(*)
                 FROM ssas
                 WHERE data_cadastro IS NOT NULL
                 GROUP BY data_cadastro
                 ORDER BY data_cadastro DESC
                 LIMIT 3
-            """)
+            """
+            )
             recent_dates = cursor.fetchall()
 
             if recent_dates:
@@ -102,6 +122,7 @@ def check_database_status():
         print(f"ERR Erro inesperado: {e}")
         return False
 
+
 def check_system_resources():
     """Verifica recursos do sistema."""
     print("\nINFO  RECURSOS DO SISTEMA")
@@ -113,29 +134,36 @@ def check_system_resources():
 
     # Memória
     memory = psutil.virtual_memory()
-    print(f" RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)")
+    print(
+        f" RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)"
+    )
 
     # Disco
-    disk = psutil.disk_usage('.')
+    disk = psutil.disk_usage(".")
     print(f" Disco: {disk.percent}% usado ({disk.free // (1024**3):.1f}GB livres)")
 
     # Processos Python
     python_procs = []
-    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+    for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
         try:
-            if proc.info['name'] and 'python' in proc.info['name'].lower():
-                python_procs.append({
-                    'pid': proc.info['pid'],
-                    'cpu': proc.info['cpu_percent'] or 0,
-                    'memory': proc.info['memory_percent'] or 0
-                })
+            if proc.info["name"] and "python" in proc.info["name"].lower():
+                python_procs.append(
+                    {
+                        "pid": proc.info["pid"],
+                        "cpu": proc.info["cpu_percent"] or 0,
+                        "memory": proc.info["memory_percent"] or 0,
+                    }
+                )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
     if python_procs:
         print(f" Processos Python ativos: {len(python_procs)}")
         for proc in python_procs[:3]:  # Top 3
-            print(f"   PID {proc['pid']}: CPU {proc['cpu']:.1f}%, RAM {proc['memory']:.1f}%")
+            print(
+                f"   PID {proc['pid']}: CPU {proc['cpu']:.1f}%, RAM {proc['memory']:.1f}%"
+            )
+
 
 def main():
     print(" PARAR IMPORTAÇÃO LENTA E DIAGNÓSTICO RÁPIDO")
@@ -185,6 +213,7 @@ def main():
 
     print("\n Para importação rápida no futuro:")
     print("   Use sempre: python otimizacao_importacao_rapida.py")
+
 
 if __name__ == "__main__":
     try:

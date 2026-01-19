@@ -3,26 +3,30 @@
 Testes de performance e carga para o sistema SSA Consulta Rápida.
 """
 
+import concurrent.futures
 import os
-import sys
-import time
-import psutil
 import sqlite3
-import pandas as pd
+import sys
+import threading
+import time
 from datetime import datetime
 from typing import Dict, List, Tuple
-import threading
-import concurrent.futures
+
+import pandas as pd
+import psutil
 
 # Verificar se memory_profiler está disponível
 try:
     from memory_profiler import profile
+
     MEMORY_PROFILER_AVAILABLE = True
 except ImportError:
     MEMORY_PROFILER_AVAILABLE = False
+
     # Criar decorator dummy
     def profile(func):
         return func
+
 
 # Adicionar diretório raiz ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,6 +34,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from armazenamento.database import get_db_connection
 from core.app_logic import get_filtered_data
 from extracao.extractor import extract_data_from_excel as extract_data_from_file
+
 
 class PerformanceMetrics:
     """Coletores de métricas de performance."""
@@ -67,12 +72,15 @@ class PerformanceMetrics:
         self.end_time = time.time()
 
         return {
-            'duration_seconds': self.end_time - self.start_time,
-            'memory_used_mb': self.peak_memory_mb - self.start_memory_mb,
-            'peak_memory_mb': self.peak_memory_mb,
-            'avg_cpu_percent': sum(self.cpu_percent) / len(self.cpu_percent) if self.cpu_percent else 0,
-            'max_cpu_percent': max(self.cpu_percent) if self.cpu_percent else 0
+            "duration_seconds": self.end_time - self.start_time,
+            "memory_used_mb": self.peak_memory_mb - self.start_memory_mb,
+            "peak_memory_mb": self.peak_memory_mb,
+            "avg_cpu_percent": (
+                sum(self.cpu_percent) / len(self.cpu_percent) if self.cpu_percent else 0
+            ),
+            "max_cpu_percent": max(self.cpu_percent) if self.cpu_percent else 0,
         }
+
 
 class PerformanceTester:
     """Executor de testes de performance."""
@@ -90,7 +98,10 @@ class PerformanceTester:
             ("SELECT * FROM ssas LIMIT 1000", "select_1000"),
             ("SELECT DISTINCT situacao FROM ssas", "distinct_situacao"),
             ("SELECT * FROM ssas WHERE situacao = 'EM EXECUÇÃO'", "filter_em_execucao"),
-            ("SELECT numero_ssa, situacao, setor_executor FROM ssas ORDER BY numero_ssa DESC LIMIT 500", "ordered_select"),
+            (
+                "SELECT numero_ssa, situacao, setor_executor FROM ssas ORDER BY numero_ssa DESC LIMIT 500",
+                "ordered_select",
+            ),
         ]
 
         query_results = []
@@ -105,28 +116,29 @@ class PerformanceTester:
                     result_count = len(df)
 
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'query_name': query_name,
-                    'result_count': result_count,
-                    'success': True
-                })
+                perf_metrics.update(
+                    {
+                        "query_name": query_name,
+                        "result_count": result_count,
+                        "success": True,
+                    }
+                )
 
             except Exception as e:
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'query_name': query_name,
-                    'success': False,
-                    'error': str(e)
-                })
+                perf_metrics.update(
+                    {"query_name": query_name, "success": False, "error": str(e)}
+                )
 
             query_results.append(perf_metrics)
             print(f"  {query_name}: {perf_metrics['duration_seconds']:.3f}s")
 
         return {
-            'test_name': 'database_query_performance',
-            'query_results': query_results,
-            'avg_duration': sum(r['duration_seconds'] for r in query_results) / len(query_results),
-            'total_duration': sum(r['duration_seconds'] for r in query_results)
+            "test_name": "database_query_performance",
+            "query_results": query_results,
+            "avg_duration": sum(r["duration_seconds"] for r in query_results)
+            / len(query_results),
+            "total_duration": sum(r["duration_seconds"] for r in query_results),
         }
 
     def test_concurrent_access(self, num_threads: int = 5) -> Dict:
@@ -151,26 +163,28 @@ class PerformanceTester:
                         elif i % 3 == 1:
                             df = pd.read_sql_query("SELECT * FROM ssas LIMIT 100", conn)
                         else:
-                            df = pd.read_sql_query("SELECT DISTINCT situacao FROM ssas", conn)
+                            df = pd.read_sql_query(
+                                "SELECT DISTINCT situacao FROM ssas", conn
+                            )
 
                         results.append(len(df))
 
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'thread_id': thread_id,
-                    'queries_executed': queries_per_thread,
-                    'success': True
-                })
+                perf_metrics.update(
+                    {
+                        "thread_id": thread_id,
+                        "queries_executed": queries_per_thread,
+                        "success": True,
+                    }
+                )
 
                 return perf_metrics
 
             except Exception as e:
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'thread_id': thread_id,
-                    'success': False,
-                    'error': str(e)
-                })
+                perf_metrics.update(
+                    {"thread_id": thread_id, "success": False, "error": str(e)}
+                )
                 return perf_metrics
 
         # Executar threads concorrentes
@@ -178,18 +192,23 @@ class PerformanceTester:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
             futures = [executor.submit(worker_query, i) for i in range(num_threads)]
-            thread_results = [future.result() for future in concurrent.futures.as_completed(futures)]
+            thread_results = [
+                future.result() for future in concurrent.futures.as_completed(futures)
+            ]
 
         total_time = time.time() - start_time
-        successful_threads = sum(1 for result in thread_results if result.get('success', False))
+        successful_threads = sum(
+            1 for result in thread_results if result.get("success", False)
+        )
 
         return {
-            'test_name': 'concurrent_access',
-            'num_threads': num_threads,
-            'successful_threads': successful_threads,
-            'total_time': total_time,
-            'avg_thread_time': sum(r['duration_seconds'] for r in thread_results) / len(thread_results),
-            'thread_results': thread_results
+            "test_name": "concurrent_access",
+            "num_threads": num_threads,
+            "successful_threads": successful_threads,
+            "total_time": total_time,
+            "avg_thread_time": sum(r["duration_seconds"] for r in thread_results)
+            / len(thread_results),
+            "thread_results": thread_results,
         }
 
     def test_large_filter_performance(self) -> Dict:
@@ -197,10 +216,13 @@ class PerformanceTester:
         print("INFO Testando performance de filtros com grandes volumes...")
 
         filter_tests = [
-            ({'situacao': 'EM EXECUÇÃO'}, 'filter_by_situacao'),
-            ({'setor_executor': 'MEDEIRO'}, 'filter_by_setor'),
-            ({}, 'no_filter_all_data'),
-            ({'situacao': 'EM EXECUÇÃO', 'setor_executor': 'MEDEIRO'}, 'multiple_filters'),
+            ({"situacao": "EM EXECUÇÃO"}, "filter_by_situacao"),
+            ({"setor_executor": "MEDEIRO"}, "filter_by_setor"),
+            ({}, "no_filter_all_data"),
+            (
+                {"situacao": "EM EXECUÇÃO", "setor_executor": "MEDEIRO"},
+                "multiple_filters",
+            ),
         ]
 
         filter_results = []
@@ -210,36 +232,36 @@ class PerformanceTester:
             metrics.start_monitoring()
 
             try:
-                filtered_data = get_filtered_data(
-                    db_path=self.db_path,
-                    filters=filters
-                )
+                filtered_data = get_filtered_data(db_path=self.db_path, filters=filters)
 
                 result_count = len(filtered_data) if filtered_data is not None else 0
 
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'test_name': test_name,
-                    'result_count': result_count,
-                    'filters_applied': len(filters),
-                    'success': True
-                })
+                perf_metrics.update(
+                    {
+                        "test_name": test_name,
+                        "result_count": result_count,
+                        "filters_applied": len(filters),
+                        "success": True,
+                    }
+                )
 
             except Exception as e:
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'test_name': test_name,
-                    'success': False,
-                    'error': str(e)
-                })
+                perf_metrics.update(
+                    {"test_name": test_name, "success": False, "error": str(e)}
+                )
 
             filter_results.append(perf_metrics)
-            print(f"  {test_name}: {perf_metrics['duration_seconds']:.3f}s ({perf_metrics.get('result_count', 0)} registros)")
+            print(
+                f"  {test_name}: {perf_metrics['duration_seconds']:.3f}s ({perf_metrics.get('result_count', 0)} registros)"
+            )
 
         return {
-            'test_name': 'large_filter_performance',
-            'filter_results': filter_results,
-            'avg_duration': sum(r['duration_seconds'] for r in filter_results) / len(filter_results)
+            "test_name": "large_filter_performance",
+            "filter_results": filter_results,
+            "avg_duration": sum(r["duration_seconds"] for r in filter_results)
+            / len(filter_results),
         }
 
     def test_file_extraction_performance(self) -> Dict:
@@ -249,21 +271,22 @@ class PerformanceTester:
         docs_entrada = "docs_entrada"
         if not os.path.exists(docs_entrada):
             return {
-                'test_name': 'file_extraction_performance',
-                'success': False,
-                'error': 'Diretório docs_entrada não encontrado'
+                "test_name": "file_extraction_performance",
+                "success": False,
+                "error": "Diretório docs_entrada não encontrado",
             }
 
         excel_files = [
-            f for f in os.listdir(docs_entrada)
-            if f.endswith(('.xlsx', '.xls')) and not f.startswith('~$')
+            f
+            for f in os.listdir(docs_entrada)
+            if f.endswith((".xlsx", ".xls")) and not f.startswith("~$")
         ]
 
         if not excel_files:
             return {
-                'test_name': 'file_extraction_performance',
-                'success': False,
-                'error': 'Nenhum arquivo Excel encontrado'
+                "test_name": "file_extraction_performance",
+                "success": False,
+                "error": "Nenhum arquivo Excel encontrado",
             }
 
         extraction_results = []
@@ -281,31 +304,36 @@ class PerformanceTester:
                 total_rows += rows
 
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'file_name': file_name,
-                    'rows_extracted': rows,
-                    'file_size_mb': os.path.getsize(file_path) / 1024 / 1024,
-                    'success': True
-                })
+                perf_metrics.update(
+                    {
+                        "file_name": file_name,
+                        "rows_extracted": rows,
+                        "file_size_mb": os.path.getsize(file_path) / 1024 / 1024,
+                        "success": True,
+                    }
+                )
 
             except Exception as e:
                 perf_metrics = metrics.stop_monitoring()
-                perf_metrics.update({
-                    'file_name': file_name,
-                    'success': False,
-                    'error': str(e)
-                })
+                perf_metrics.update(
+                    {"file_name": file_name, "success": False, "error": str(e)}
+                )
 
             extraction_results.append(perf_metrics)
-            print(f"  {file_name}: {perf_metrics['duration_seconds']:.3f}s ({perf_metrics.get('rows_extracted', 0)} linhas)")
+            print(
+                f"  {file_name}: {perf_metrics['duration_seconds']:.3f}s ({perf_metrics.get('rows_extracted', 0)} linhas)"
+            )
 
         return {
-            'test_name': 'file_extraction_performance',
-            'extraction_results': extraction_results,
-            'total_files_processed': len(extraction_results),
-            'total_rows_extracted': total_rows,
-            'avg_duration_per_file': sum(r['duration_seconds'] for r in extraction_results) / len(extraction_results),
-            'total_duration': sum(r['duration_seconds'] for r in extraction_results)
+            "test_name": "file_extraction_performance",
+            "extraction_results": extraction_results,
+            "total_files_processed": len(extraction_results),
+            "total_rows_extracted": total_rows,
+            "avg_duration_per_file": sum(
+                r["duration_seconds"] for r in extraction_results
+            )
+            / len(extraction_results),
+            "total_duration": sum(r["duration_seconds"] for r in extraction_results),
         }
 
     def test_memory_usage_patterns(self) -> Dict:
@@ -325,26 +353,32 @@ class PerformanceTester:
 
                 # Fazer operações que consomem memória
                 df_copy = df.copy()
-                df_sorted = df.sort_values('numero_ssa') if 'numero_ssa' in df.columns else df
-                df_grouped = df.groupby('situacao').size() if 'situacao' in df.columns else pd.Series()
+                df_sorted = (
+                    df.sort_values("numero_ssa") if "numero_ssa" in df.columns else df
+                )
+                df_grouped = (
+                    df.groupby("situacao").size()
+                    if "situacao" in df.columns
+                    else pd.Series()
+                )
 
                 # Limpar objetos grandes
                 del df_copy, df_sorted, df_grouped
 
             perf_metrics = metrics.stop_monitoring()
-            perf_metrics.update({
-                'test_name': 'large_data_loading',
-                'records_processed': len(df),
-                'success': True
-            })
+            perf_metrics.update(
+                {
+                    "test_name": "large_data_loading",
+                    "records_processed": len(df),
+                    "success": True,
+                }
+            )
 
         except Exception as e:
             perf_metrics = metrics.stop_monitoring()
-            perf_metrics.update({
-                'test_name': 'large_data_loading',
-                'success': False,
-                'error': str(e)
-            })
+            perf_metrics.update(
+                {"test_name": "large_data_loading", "success": False, "error": str(e)}
+            )
 
         memory_tests.append(perf_metrics)
 
@@ -356,31 +390,32 @@ class PerformanceTester:
             for i in range(10):
                 filtered_data = get_filtered_data(
                     db_path=self.db_path,
-                    filters={'situacao': 'EM EXECUÇÃO'} if i % 2 == 0 else {}
+                    filters={"situacao": "EM EXECUÇÃO"} if i % 2 == 0 else {},
                 )
 
             perf_metrics = metrics.stop_monitoring()
-            perf_metrics.update({
-                'test_name': 'multiple_operations',
-                'operations_count': 10,
-                'success': True
-            })
+            perf_metrics.update(
+                {
+                    "test_name": "multiple_operations",
+                    "operations_count": 10,
+                    "success": True,
+                }
+            )
 
         except Exception as e:
             perf_metrics = metrics.stop_monitoring()
-            perf_metrics.update({
-                'test_name': 'multiple_operations',
-                'success': False,
-                'error': str(e)
-            })
+            perf_metrics.update(
+                {"test_name": "multiple_operations", "success": False, "error": str(e)}
+            )
 
         memory_tests.append(perf_metrics)
 
         return {
-            'test_name': 'memory_usage_patterns',
-            'memory_tests': memory_tests,
-            'peak_memory_mb': max(t['peak_memory_mb'] for t in memory_tests),
-            'avg_memory_usage_mb': sum(t['memory_used_mb'] for t in memory_tests) / len(memory_tests)
+            "test_name": "memory_usage_patterns",
+            "memory_tests": memory_tests,
+            "peak_memory_mb": max(t["peak_memory_mb"] for t in memory_tests),
+            "avg_memory_usage_mb": sum(t["memory_used_mb"] for t in memory_tests)
+            / len(memory_tests),
         }
 
     def run_all_performance_tests(self) -> Dict:
@@ -396,7 +431,7 @@ class PerformanceTester:
             self.test_concurrent_access,
             self.test_large_filter_performance,
             self.test_file_extraction_performance,
-            self.test_memory_usage_patterns
+            self.test_memory_usage_patterns,
         ]
 
         test_results = []
@@ -406,18 +441,18 @@ class PerformanceTester:
                 result = test_func()
                 test_results.append(result)
             except Exception as e:
-                test_results.append({
-                    'test_name': test_func.__name__,
-                    'success': False,
-                    'error': str(e)
-                })
+                test_results.append(
+                    {"test_name": test_func.__name__, "success": False, "error": str(e)}
+                )
 
             print()  # Linha em branco entre testes
 
         total_time = time.time() - start_time
 
         # Calcular estatísticas gerais
-        successful_tests = sum(1 for result in test_results if result.get('success', True))
+        successful_tests = sum(
+            1 for result in test_results if result.get("success", True)
+        )
 
         print("=" * 60)
         print("INFO RESULTADO DOS TESTES DE PERFORMANCE:")
@@ -426,11 +461,11 @@ class PerformanceTester:
         print(f"   Duração Total: {total_time:.2f}s")
 
         return {
-            'total_tests': len(test_results),
-            'successful_tests': successful_tests,
-            'total_duration_seconds': total_time,
-            'test_results': test_results,
-            'timestamp': datetime.now().isoformat()
+            "total_tests": len(test_results),
+            "successful_tests": successful_tests,
+            "total_duration_seconds": total_time,
+            "test_results": test_results,
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -441,11 +476,12 @@ def main():
 
     # Salvar resultados
     import json
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = f"docs_saida/performance_tests_{timestamp}.json"
 
     os.makedirs("docs_saida", exist_ok=True)
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print(f"\nFILE Resultados salvos em: {output_file}")

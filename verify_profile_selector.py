@@ -1,10 +1,11 @@
-
-from PyQt6.QtWidgets import QApplication
-from gui.widgets.profile_selector import ProfileSelector
-import sys
-
 # Mocking file existence
 import os
+import sys
+
+from PyQt6.QtWidgets import QApplication
+
+from gui.widgets.profile_selector import ProfileSelector
+
 with open("test_profiles.json", "w") as f:
     f.write("{}")
 
@@ -21,4 +22,5 @@ print("ProfileSelector verification passed")
 
 try:
     os.remove("test_profiles.json")
-except: pass
+except:
+    pass

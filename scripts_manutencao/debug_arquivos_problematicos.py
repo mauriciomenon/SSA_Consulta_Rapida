@@ -22,7 +22,7 @@ def investigar_arquivos_problematicos():
         "Pendentes de Execução_15-08-2025_0416PM.xlsx",
         "SSAs em Desvio na Programação_15-08-2025_0411PM.xlsx",
         "SSAs Executadas_15-08-2025_0415PM.xlsx",
-        "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx"
+        "SSAs Pendentes com Execução Parcial_15-08-2025_0416PM.xlsx",
     ]
 
     for arquivo in problematicos:
@@ -53,6 +53,7 @@ def investigar_arquivos_problematicos():
                 print(f"  ERR ERRO ao ler arquivo: {e}")
         else:
             print(f"\nERR Arquivo não encontrado: {arquivo}")
+
 
 if __name__ == "__main__":
     project_root = Path(__file__).parent.parent

@@ -2,12 +2,13 @@
 # Widget for data pagination controls
 
 import pandas as pd
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QSpinBox
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSpinBox, QWidget
 
 
 class DataPaginator(QWidget):
     """Widget para paginacao de dados."""
+
     page_changed = pyqtSignal(int)  # Emite o numero da nova pagina (1-based)
 
     def __init__(self, df, page_size=50):
@@ -59,7 +60,7 @@ class DataPaginator(QWidget):
 
     def update_pagination_info(self):
         # Calcula total de paginas com guard rails (df pode estar vazio ou ainda nao definido)
-        if getattr(self, 'df', None) is not None and not self.df.empty:
+        if getattr(self, "df", None) is not None and not self.df.empty:
             self.total_pages = (len(self.df) + self.page_size - 1) // self.page_size
         else:
             self.total_pages = 1
@@ -71,8 +72,10 @@ class DataPaginator(QWidget):
             self.current_page = 1
 
         # Pode ser chamado antes do init_ui terminar em alguns cenarios; proteja acesso
-        if hasattr(self, 'page_info_label'):
-            self.page_info_label.setText(f"Pagina {self.current_page} de {self.total_pages}")
+        if hasattr(self, "page_info_label"):
+            self.page_info_label.setText(
+                f"Pagina {self.current_page} de {self.total_pages}"
+            )
 
     def update_buttons(self):
         self.prev_button.setEnabled(self.current_page > 1)

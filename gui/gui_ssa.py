@@ -16,16 +16,16 @@ Para executar: python gui_ssa.py
 """
 # flake8: noqa
 
-import sys
-import os
-import pandas as pd
 import json
-import subprocess
-import re
 import logging
+import os
+import re
+import subprocess
+import sys
 from collections import OrderedDict
 from time import perf_counter
 
+import pandas as pd
 
 try:
     from utils.version import get_app_version
@@ -36,17 +36,21 @@ except ImportError:
 
 
 # --- Configuração do Path do Projeto (precisa vir antes das importações internas) ---
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Importações dos managers unificados
-from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
-from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 
 # Config
 from gui.gui_config import GUI_MAIN_PREFERENCES
+
+# Importações dos managers unificados
+from gui.simple_width_manager import (  # noqa: E402
+    SimpleCacheManager,
+    SimpleWidthManager,
+)
+from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
 
 # Inicializar logging robusto
 try:
@@ -54,7 +58,9 @@ try:
 
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.debug("Sistema de logging robusto inicializado na GUI", extra={'component': 'gui'})
+    logger.debug(
+        "Sistema de logging robusto inicializado na GUI", extra={"component": "gui"}
+    )
 except Exception as e:
     # Fallback para logging padrão
     logger = logging.getLogger(__name__)
@@ -62,83 +68,86 @@ except Exception as e:
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
+import hashlib
 
-# (mantido acima)
+from armazenamento.database import query_db  # noqa: E402
 
 # --- Importações do Projeto ---
 from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
-import hashlib
-from armazenamento.database import query_db  # noqa: E402
+from utils.formatting import format_cell, format_dataframe_for_display  # noqa: E402
+
+# (mantido acima)
+
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
 try:
+    from PyQt6 import sip  # Para verificar se widgets Qt foram deletados
+    from PyQt6.QtCore import QEvent, QPoint, Qt, QThread, QTimer, pyqtSignal
+    from PyQt6.QtGui import QAction, QFont
     from PyQt6.QtWidgets import (
-        QApplication,
-        QMainWindow,
-        QWidget,
-        QVBoxLayout,
-        QHBoxLayout,
-        QGridLayout,
-        QPushButton,
-        QLineEdit,
-        QLabel,
-        QTableWidget,
-        QTableWidgetItem,
-        QHeaderView,
-        QMessageBox,
-        QProgressBar,
-        QComboBox,
-        QSpinBox,
         QAbstractItemView,
-        QMenu,
-        QGroupBox,
-        QTextEdit,
-        QTextBrowser,
-        QFileDialog,
+        QApplication,
+        QCheckBox,
+        QComboBox,
         QDialog,
         QDialogButtonBox,
-        QSpacerItem,
-        QSizePolicy,
+        QFileDialog,
         QFrame,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QHeaderView,
+        QLabel,
+        QLineEdit,
         QListWidget,
         QListWidgetItem,
-        QCheckBox,
-        QTabWidget,
+        QMainWindow,
+        QMenu,
+        QMessageBox,
+        QProgressBar,
+        QPushButton,
         QScrollArea,
+        QSizePolicy,
+        QSpacerItem,
+        QSpinBox,
+        QTableWidget,
+        QTableWidgetItem,
+        QTabWidget,
+        QTextBrowser,
+        QTextEdit,
         QToolButton,
+        QVBoxLayout,
+        QWidget,
         QWidgetAction,
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint
-    from PyQt6.QtGui import QAction, QFont
-    from PyQt6 import sip  # Para verificar se widgets Qt foram deletados
 
-    # Import workers, cache, widgets, and helpers from separate modules
-    from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
     from gui.cache import FilterCache  # noqa: E402
-    from gui.widgets import (
-        ColumnManagerDialog,
-        ColumnSelector,
-        DataPaginator,
-        FilterHelpDialog,
-    )  # noqa: E402
-    from gui.widgets.details_tab_manager import (
-        DetailsTabWidget,
-    )  # noqa: E402  # UIREFACTOR 2026-01-08
     from gui.helpers import (  # noqa: E402
-        build_global_widget_qss,
         build_central_widget_qss,
+        build_global_widget_qss,
         build_group_box_qss,
         build_line_edit_qss,
-        normalize_chunk_for_parse,
         format_search_display,
         highlight_text,
+        normalize_chunk_for_parse,
         normalize_ssa_value,
     )
 
     # Import mixins for code organization
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
+    from gui.widgets import (  # noqa: E402
+        ColumnManagerDialog,
+        ColumnSelector,
+        DataPaginator,
+        FilterHelpDialog,
+    )
+    from gui.widgets.details_tab_manager import (  # noqa: E402  # UIREFACTOR 2026-01-08
+        DetailsTabWidget,
+    )
+
+    # Import workers, cache, widgets, and helpers from separate modules
+    from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
@@ -632,16 +641,16 @@ except ImportError as exc:
 
 
 # --- Constantes ---
-DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
+DB_PATH = os.path.join(project_root, "data", "ssas.db")
 
 # Constantes de UI
 DETAILS_DIALOG_FONT_SIZE = 10  # pt
 DETAILS_DIALOG_TABLE_PADDING = 8  # px
-DETAILS_DIALOG_BORDER_COLOR = '#ccc'
+DETAILS_DIALOG_BORDER_COLOR = "#ccc"
 DETAILS_DIALOG_MIN_WIDTH = 700  # px
 DETAILS_DIALOG_MIN_HEIGHT = 500  # px
-HIGHLIGHT_BACKGROUND_COLOR = 'yellow'
-HIGHLIGHT_FONT_WEIGHT = 'bold'
+HIGHLIGHT_BACKGROUND_COLOR = "yellow"
+HIGHLIGHT_FONT_WEIGHT = "bold"
 
 DIVISAO_SETORES = {
     "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
@@ -653,51 +662,51 @@ SECTOR_TO_DIV = {sec: div for div, secs in DIVISAO_SETORES.items() for sec in se
 
 # Prioridade de campos para ordenacao em detalhes
 DETAIL_FIELD_PRIORITY = [
-    'numero_ssa',
-    'situacao',
-    'descricao_ssa',
-    'descricao_servico',
-    'setor_executor',
-    'setor_emissor',
-    'data_cadastro',
-    'prazo_limite',
+    "numero_ssa",
+    "situacao",
+    "descricao_ssa",
+    "descricao_servico",
+    "setor_executor",
+    "setor_emissor",
+    "data_cadastro",
+    "prazo_limite",
 ]
 
 DETAIL_DISPLAY_OVERRIDES = {
-    'situacao': 'Situacao',
-    'semana_cadastro': 'Semana de Cadastro',
-    'data_cadastro': 'Data de Cadastro',
-    'loc': 'Localizacao',
-    'descricao_ssa': 'Descricao da SSA',
-    'setor_executor': 'Setor Executor',
-    'setor_emissor': 'Setor Emissor',
-    'responsavel_emissor': 'Responsavel Emissor',
-    'solicitante': 'Solicitante',
-    'servico_origem': 'Servico de Origem',
-    'grau_prioridade_emissao': 'Grau de Prioridade (Emissao)',
-    'grau_prioridade_planejamento': 'Grau de Prioridade (Planejamento)',
-    'execucao_simples': 'Execucao Simples',
-    'responsavel_programacao': 'Responsavel pela Programacao',
-    'responsavel_execucao': 'Responsavel pela Execucao',
-    'num_reprogramacoes': 'Reprogramacoes',
-    'semana_programada': 'Semana Programada',
-    'semana_executada': 'Semana Executada',
-    'prazo_limite': 'Prazo Limite',
-    'tempo_disponivel': 'Tempo Disponivel',
-    'data_limite': 'Data Limite',
-    'tempo_excedido': 'Tempo Excedido',
-    'total_tempo_tex_executada': 'Tempo Total (TEX)',
-    'total_tempo_tpe_executada': 'Tempo Total (TPE)',
-    'total_tempo_tpo_executada': 'Tempo Total (TPO)',
-    'numero_ssa': 'Numero da SSA',
-    'descricao_execucao': 'Descricao da Execucao',
-    'status_execucao_prazo': 'Situacao do Prazo',
-    'execucao_parcial': 'Execucao Parcial',
+    "situacao": "Situacao",
+    "semana_cadastro": "Semana de Cadastro",
+    "data_cadastro": "Data de Cadastro",
+    "loc": "Localizacao",
+    "descricao_ssa": "Descricao da SSA",
+    "setor_executor": "Setor Executor",
+    "setor_emissor": "Setor Emissor",
+    "responsavel_emissor": "Responsavel Emissor",
+    "solicitante": "Solicitante",
+    "servico_origem": "Servico de Origem",
+    "grau_prioridade_emissao": "Grau de Prioridade (Emissao)",
+    "grau_prioridade_planejamento": "Grau de Prioridade (Planejamento)",
+    "execucao_simples": "Execucao Simples",
+    "responsavel_programacao": "Responsavel pela Programacao",
+    "responsavel_execucao": "Responsavel pela Execucao",
+    "num_reprogramacoes": "Reprogramacoes",
+    "semana_programada": "Semana Programada",
+    "semana_executada": "Semana Executada",
+    "prazo_limite": "Prazo Limite",
+    "tempo_disponivel": "Tempo Disponivel",
+    "data_limite": "Data Limite",
+    "tempo_excedido": "Tempo Excedido",
+    "total_tempo_tex_executada": "Tempo Total (TEX)",
+    "total_tempo_tpe_executada": "Tempo Total (TPE)",
+    "total_tempo_tpo_executada": "Tempo Total (TPO)",
+    "numero_ssa": "Numero da SSA",
+    "descricao_execucao": "Descricao da Execucao",
+    "status_execucao_prazo": "Situacao do Prazo",
+    "execucao_parcial": "Execucao Parcial",
 }
 
-TABLE_NAME = 'ssas'
-CONFIG_DIR = os.path.join(project_root, 'config')
-DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
+TABLE_NAME = "ssas"
+CONFIG_DIR = os.path.join(project_root, "config")
+DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, "display_mappings.json")
 
 # --- Funções Auxiliares ---
 
@@ -832,21 +841,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _get_theme_catalog(self):
         light_themes = [
-            ("Classico", 'classico'),
-            ("Mint Light", 'mint-light'),
-            ("Paper", 'paper'),
-            ("Solarized Light", 'solarized-light'),
-            ("Windows 7", 'windows7'),
+            ("Classico", "classico"),
+            ("Mint Light", "mint-light"),
+            ("Paper", "paper"),
+            ("Solarized Light", "solarized-light"),
+            ("Windows 7", "windows7"),
         ]
         dark_themes = [
-            ("Catppuccin (Mocha)", 'catppuccin'),
-            ("Dark", 'dark'),
-            ("Dracula", 'dracula'),
-            ("Grayscale", 'grayscale'),
-            ("Gruvbox", 'gruvbox'),
-            ("Nord", 'nord'),
-            ("Solarized Dark", 'solarized-dark'),
-            ("Tokyo Night", 'tokyo-night'),
+            ("Catppuccin (Mocha)", "catppuccin"),
+            ("Dark", "dark"),
+            ("Dracula", "dracula"),
+            ("Grayscale", "grayscale"),
+            ("Gruvbox", "gruvbox"),
+            ("Nord", "nord"),
+            ("Solarized Dark", "solarized-dark"),
+            ("Tokyo Night", "tokyo-night"),
         ]
         return light_themes, dark_themes
 
@@ -857,9 +866,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _persist_gui_preferences(self):
         try:
             with open(
-                os.path.join(project_root, 'config', 'gui_main_preferences.json'),
-                'w',
-                encoding='utf-8',
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                "w",
+                encoding="utf-8",
             ) as f:
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -885,11 +894,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             from PyQt6.QtGui import QIcon
 
-            ico_path = os.path.join(project_root, 'resources', 'app_icon.ico')
+            ico_path = os.path.join(project_root, "resources", "app_icon.ico")
             if os.path.exists(ico_path):
                 self.setWindowIcon(QIcon(ico_path))
             else:
-                svg_path = os.path.join(project_root, 'resources', 'app_icon.svg')
+                svg_path = os.path.join(project_root, "resources", "app_icon.svg")
                 if os.path.exists(svg_path):
                     self.setWindowIcon(QIcon(svg_path))
         except Exception as e:
@@ -900,15 +909,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_para_tabela = pd.DataFrame()  # DataFrame paginado para exibiçção
 
         # LAZY LOADING: Estado de carregamento bifásico
-        self._is_full_data_loaded = False  # Flag para rastrear se dados completos estão carregados
-        self._full_data_loading_started = False  # Flag para rastrear se carregamento completo foi iniciado
+        self._is_full_data_loaded = (
+            False  # Flag para rastrear se dados completos estão carregados
+        )
+        self._full_data_loading_started = (
+            False  # Flag para rastrear se carregamento completo foi iniciado
+        )
         self._buffer_size = 50  # Tamanho do buffer inicial (50 SSAs mais recentes)
         self._full_data_loader_thread = None  # Thread de carregamento em background
 
         # CORREÇÃO LAYOUTREFACTOR #1: Flag para evitar loop infinito em _sync_advanced_filter_ui
         self._syncing_advanced_ui = False
         self._filter_buffer_cache = {}  # Cache de valores únicos do buffer para dropdowns
-        self._filters_dirty = False  # Flag para invalidar cache quando dados completos carregam
+        self._filters_dirty = (
+            False  # Flag para invalidar cache quando dados completos carregam
+        )
 
         try:
             base_font = QFont(self.font())
@@ -920,25 +935,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._info_font = None
 
         # Carrega mapeamentos de exibicao das preferencias da GUI principal
-        self.display_map = GUI_MAIN_PREFERENCES.get("display_mappings", load_display_mappings())
+        self.display_map = GUI_MAIN_PREFERENCES.get(
+            "display_mappings", load_display_mappings()
+        )
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
 
         # Colunas padrção para exibiçção (das configurações JSON)
         self.default_columns = GUI_MAIN_PREFERENCES.get(
             "display_columns",
             [
-                'numero_ssa',
-                'setor_executor',
-                'situacao',
-                'descricao_ssa',
-                'data_cadastro',
-                'semana_cadastro',
+                "numero_ssa",
+                "setor_executor",
+                "situacao",
+                "descricao_ssa",
+                "data_cadastro",
+                "semana_cadastro",
             ],
         )
 
         # Garante que colunas padrção existam no mapeamento
         self.visible_columns = [
-            col for col in self.default_columns if col in self.internal_to_display or col == '#'
+            col
+            for col in self.default_columns
+            if col in self.internal_to_display or col == "#"
         ]
 
         # Perfis de filtro por setor (precarregados)
@@ -954,7 +973,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._column_or_groups = []
         self._column_to_or_group = {}
         self._exclude_ste_sca = False
-        self._pending_search_display = ''
+        self._pending_search_display = ""
 
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
@@ -977,7 +996,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
         self._df_last_search_filtered = pd.DataFrame()
         adv_default = gui_settings.get("advanced_filters_default")
-        self._advanced_filters = dict(adv_default) if isinstance(adv_default, dict) else {}
+        self._advanced_filters = (
+            dict(adv_default) if isinstance(adv_default, dict) else {}
+        )
         self._advanced_filters_active = False
         self._adv_options_dirty = True
         self._last_derivada_origem = None
@@ -993,7 +1014,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._initialize_profile_filter_placeholders()
 
         # Larguras salvas por coluna (das configurações JSON) - mantido para compatibilidade
-        self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
+        self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get(
+            "column_widths", {}
+        ).copy()
 
         # Debounce de filtro (da configuraçção JSON)
         debounce_delay = gui_settings.get("debounce_delay", 250)
@@ -1013,7 +1036,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         preferred_theme = self._resolve_startup_theme()
         self.apply_theme(preferred_theme)
         try:
-            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = preferred_theme
+            GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})["theme"] = (
+                preferred_theme
+            )
             self._persist_gui_preferences()
         except Exception as e:
             logger.warning(f"Erro ao salvar tema preferido no startup: {e}")
@@ -1047,7 +1072,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
-        self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
+        self.rescan_button.setToolTip(
+            "Reprocessar arquivos Excel da pasta docs_entrada"
+        )
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(self.rescan_button)
 
@@ -1066,9 +1093,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             week_str = "-"
         self.week_label = QLabel(f"Semana Atual: {week_str}")
         # Destaque visual em caixa
-        self._week_label_style = (
-            "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
-        )
+        self._week_label_style = "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual (nção clicãvel)")
         toolbar_layout.addSpacing(6)
@@ -1108,7 +1133,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # para que widgets possam chamar _update_filters_summary durante construcao
         self._tab_contexts = []
         self._current_tab_index = 0
-        logger.info("Inicializando _tab_contexts e _current_tab_index ANTES de criar abas")
+        logger.info(
+            "Inicializando _tab_contexts e _current_tab_index ANTES de criar abas"
+        )
 
         tab_main = QWidget()
         ctx_main = self._build_tab_content(tab_main, "main")
@@ -1122,7 +1149,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         details_layout = QVBoxLayout(self.tab_details)
         details_layout.setContentsMargins(0, 0, 0, 0)
         self.details_tab_widget = DetailsTabWidget(
-            self, data_provider=self.get_ssa_data_provider, html_formatter=self._format_details_html
+            self,
+            data_provider=self.get_ssa_data_provider,
+            html_formatter=self._format_details_html,
         )
         details_layout.addWidget(self.details_tab_widget)
         self.main_tabs.addTab(self.tab_details, "Detalhes")
@@ -1207,7 +1236,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         )
         search_help.setWordWrap(False)
         try:
-            search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            search_help.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
         except Exception as e:
             logger.error(f"Erro ao definir sizePolicy do search_help: {e}")
         search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
@@ -1350,7 +1381,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Error initializing filters summary frame: {e}")
 
-        if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
+        if (
+            isinstance(self._restored_page_size, int)
+            and 10 <= self._restored_page_size <= 500
+        ):
             try:
                 paginator.page_size_spinbox.setValue(self._restored_page_size)
             except Exception as e:
@@ -1363,15 +1397,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Table
         table_widget = QTableWidget()
         table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        table_widget.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        table_widget.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Interactive
+        )
         table_widget.verticalHeader().setVisible(False)
         table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         table_widget.verticalHeader().setDefaultSectionSize(24)
 
         table_widget.doubleClicked.connect(self.on_table_double_click)
         table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-        table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
+        table_widget.horizontalHeader().sectionResized.connect(
+            self._on_header_section_resized
+        )
 
         try:
             header = table_widget.horizontalHeader()
@@ -1435,7 +1475,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E."
         )
         try:
-            col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
+            col_filters_hint.setStyleSheet(
+                "color: palette(windowText); font-size: 11px;"
+            )
         except Exception as e:
             logger.error(f"Error setting col_filters_hint style: {e}")
         col_filters_outer.addWidget(col_filters_hint)
@@ -1452,7 +1494,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ("descricao_execucao", "Descricao da Execucao"),
             ("localizacao_codigo", "Localizacao"),
             ("situacao", "Situacao"),
-            ("descricao_localizacao", "Descricao da Localizacao")
+            ("descricao_localizacao", "Descricao da Localizacao"),
         ]
 
         permanent_filter_inputs = {}
@@ -1473,6 +1515,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             def make_apply_handler(column, widget):
                 def handler():
                     self._apply_permanent_filter(column, widget)
+
                 return handler
 
             line_edit.returnPressed.connect(make_apply_handler(col_key, line_edit))
@@ -1486,6 +1529,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             def make_remove_handler(column, widget):
                 def handler():
                     self._remove_permanent_filter(column, widget)
+
                 return handler
 
             remove_btn = QPushButton("Remover")
@@ -1512,7 +1556,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         footer.addStretch()
         add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
         add_column_filter_btn.setMaximumWidth(260)
-        add_column_filter_btn.setToolTip("Adicionar filtro para QUALQUER coluna (nao so as visiveis)")
+        add_column_filter_btn.setToolTip(
+            "Adicionar filtro para QUALQUER coluna (nao so as visiveis)"
+        )
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
         footer.addWidget(add_column_filter_btn)
         footer.addSpacing(8)
@@ -1583,9 +1629,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # CRITICAL: Adicionar contexto a _tab_contexts IMEDIATAMENTE para que widgets
         # possam chamar _update_filters_summary durante a construcao
-        if hasattr(self, '_tab_contexts'):
+        if hasattr(self, "_tab_contexts"):
             self._tab_contexts.append(ctx)
-            logger.info(f"Contexto '{tab_kind}' adicionado a _tab_contexts (total: {len(self._tab_contexts)})")
+            logger.info(
+                f"Contexto '{tab_kind}' adicionado a _tab_contexts (total: {len(self._tab_contexts)})"
+            )
         else:
             logger.warning(f"_tab_contexts nao existe ao criar contexto '{tab_kind}'")
 
@@ -1613,7 +1661,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Sincroniza estado de busca/filtro com a UI
             # Obs: Isso ja eh parcialmente tratado no _on_tab_changed ao restaurar state
             # porem aqui ajustamos a habilitacao de botoes
-            if hasattr(self, 'search_input'):
+            if hasattr(self, "search_input"):
                 active_text = self.search_input.text().strip()
                 self.clear_filter_button.setEnabled(bool(active_text))
         except Exception as e:
@@ -1650,7 +1698,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ):
                 self._exclude_ste_sca = False
         except Exception as e:
-            logger.error(f"Erro ao verificar checkbox exclude_ste na mudanca de contexto: {e}")
+            logger.error(
+                f"Erro ao verificar checkbox exclude_ste na mudanca de contexto: {e}"
+            )
 
         # UIREFACTOR 2026-01-09: ProfileSelector removido
 
@@ -1698,7 +1748,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao aplicar tema na mudanca de contexto: {e}")
         try:
             current_page = max(1, getattr(self.paginator, "current_page", 1))
-            render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
+            render_key = (
+                id(self.df_exibido),
+                current_page,
+                tuple(self.visible_columns),
+            )
             if ctx.get("_last_render_key") != render_key:
                 ctx["_last_render_key"] = render_key
                 self.display_current_page(current_page)
@@ -1732,7 +1786,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     break
 
             if filters_ctx is None:
-                logger.debug("_sync_checks_to_tab_context: contexto filters não encontrado")
+                logger.debug(
+                    "_sync_checks_to_tab_context: contexto filters não encontrado"
+                )
                 return
 
             # Lista de atributos *_checks que precisam ser sincronizados
@@ -1772,7 +1828,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         filters_ctx[attr] = value
                         synced += 1
 
-            logger.debug(f"_sync_checks_to_tab_context: {synced} atributos sincronizados para ctx")
+            logger.debug(
+                f"_sync_checks_to_tab_context: {synced} atributos sincronizados para ctx"
+            )
 
         except Exception as e:
             logger.error(f"Erro em _sync_checks_to_tab_context: {e}")
@@ -1789,7 +1847,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 self._run_adv_options_refresh()
             except Exception as e2:
-                logger.error(f"Erro ao executar refresh de filtros (fallback imediato): {e2}")
+                logger.error(
+                    f"Erro ao executar refresh de filtros (fallback imediato): {e2}"
+                )
 
     def _run_adv_options_refresh(self):
         self._adv_options_scheduled = False
@@ -1831,24 +1891,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Sï¿½ salva se a aba antiga for do tipo que suporta filtros
             if old_ctx:
                 state = old_ctx.setdefault("state", {})
-                state["active_column_filters"] = getattr(self, "_active_column_filters", {}).copy()
-                state["advanced_filters"] = getattr(self, "_advanced_filters", {}).copy()
+                state["active_column_filters"] = getattr(
+                    self, "_active_column_filters", {}
+                ).copy()
+                state["advanced_filters"] = getattr(
+                    self, "_advanced_filters", {}
+                ).copy()
                 state["search_text"] = self.search_input.text()
 
                 # CORREÇÃO LAYOUTREFACTOR #3: Salvar estado dos checkboxes de derivadas (com validação)
                 state["derivada_has"] = (
                     self.adv_derivada_has.isChecked()
-                    if hasattr(self, "adv_derivada_has") and _is_widget_valid(self.adv_derivada_has)
+                    if hasattr(self, "adv_derivada_has")
+                    and _is_widget_valid(self.adv_derivada_has)
                     else False
                 )
                 state["derivada_all_ste"] = (
                     self.adv_derivada_all_ste.isChecked()
-                    if hasattr(self, "adv_derivada_all_ste") and _is_widget_valid(self.adv_derivada_all_ste)
+                    if hasattr(self, "adv_derivada_all_ste")
+                    and _is_widget_valid(self.adv_derivada_all_ste)
                     else False
                 )
                 state["derivada_is"] = (
                     self.adv_derivada_is.isChecked()
-                    if hasattr(self, "adv_derivada_is") and _is_widget_valid(self.adv_derivada_is)
+                    if hasattr(self, "adv_derivada_is")
+                    and _is_widget_valid(self.adv_derivada_is)
                     else False
                 )
 
@@ -1927,21 +1994,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao restaurar estado da aba {index}: {e}")
 
         # LAZY LOADING: Gerenciar carregamento de dados ao trocar para aba Filtros
-        if index == 1 and hasattr(self, '_is_full_data_loaded'):
+        if index == 1 and hasattr(self, "_is_full_data_loaded"):
             if self._is_full_data_loaded:
                 # Dados completos já carregados - apenas atualizar filtros
-                if hasattr(self, '_refresh_advanced_filter_options'):
+                if hasattr(self, "_refresh_advanced_filter_options"):
                     try:
                         self._refresh_advanced_filter_options()
                         logger.debug("Filtros atualizados ao trocar para aba Filtros")
                     except Exception as e:
-                        logger.warning(f"Erro ao atualizar filtros na troca de aba: {e}")
-            elif not getattr(self, '_full_data_loading_started', False):
+                        logger.warning(
+                            f"Erro ao atualizar filtros na troca de aba: {e}"
+                        )
+            elif not getattr(self, "_full_data_loading_started", False):
                 # Usuário rápido foi para aba Filtros antes do carregamento automático
                 # Forçar carregamento completo imediatamente
                 logger.info("Usuário rápido detectado - forçando carregamento completo")
                 self.status_label.setText("Carregando dados completos dos filtros...")
-                if hasattr(self, '_start_full_data_load'):
+                if hasattr(self, "_start_full_data_load"):
                     self._start_full_data_load()
 
     def _make_multiselect_box(
@@ -2000,7 +2069,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     menu_size = menu.sizeHint()
                     screen = QApplication.primaryScreen().geometry()
-                    if menu_size and screen and pos.y() + menu_size.height() > screen.bottom():
+                    if (
+                        menu_size
+                        and screen
+                        and pos.y() + menu_size.height() > screen.bottom()
+                    ):
                         pos = button.mapToGlobal(rect.topLeft())
                         pos.setY(pos.y() - menu_size.height())
                 except Exception as e:
@@ -2018,12 +2091,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao conectar sinal button.clicked ao menu: {e}")
 
     def _update_multiselect_button(
-        self, button, checks, placeholder: str = "Selecionar", exclude_checks=None, suffix: str = ""
+        self,
+        button,
+        checks,
+        placeholder: str = "Selecionar",
+        exclude_checks=None,
+        suffix: str = "",
     ):
         # Validar widget antes de usar - evita "wrapped C/C++ object has been deleted"
         if not _is_widget_valid(button):
             return
-        logger.debug(f"[BTN] Atualizando button, checks={len(checks or [])}, exclude={len(exclude_checks or [])}")
+        logger.debug(
+            f"[BTN] Atualizando button, checks={len(checks or [])}, exclude={len(exclude_checks or [])}"
+        )
         selected = []
         for cb in checks or []:
             try:
@@ -2049,7 +2129,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         total = len(checks or [])
         if total == 0:
             # MELHORIA POSGOLDRELEASE #2: Distinguir "carregando" de "sem dados"
-            if not getattr(self, '_is_full_data_loaded', False):
+            if not getattr(self, "_is_full_data_loaded", False):
                 text = "Carregando..."
             else:
                 text = "Sem dados"
@@ -2072,8 +2152,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if total == 0:
                 button.setEnabled(False)
                 # MELHORIA POSGOLDRELEASE #2: Estilo diferente para "Carregando..."
-                if not getattr(self, '_is_full_data_loaded', False):
-                    button.setStyleSheet("color: #666; background-color: #f9f9f9; font-style: italic;")
+                if not getattr(self, "_is_full_data_loaded", False):
+                    button.setStyleSheet(
+                        "color: #666; background-color: #f9f9f9; font-style: italic;"
+                    )
                 else:
                     button.setStyleSheet("color: #888; background-color: #f0f0f0;")
             else:
@@ -2086,7 +2168,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
                 )
             else:
-                button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
+                button.setToolTip(
+                    placeholder if total > 0 else "Nenhum dado disponivel"
+                )
         except Exception as e:
             logger.error(f"Erro final em _update_multiselect_button: {e}")
 
@@ -2103,7 +2187,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     ):
         # Validar widgets antes de usar - evita "wrapped C/C++ object has been deleted"
         if not _is_widget_valid(button) or not _is_widget_valid(menu):
-            logger.debug("_rebuild_multiselect_menu: button ou menu invalido/deletado - ignorando")
+            logger.debug(
+                "_rebuild_multiselect_menu: button ou menu invalido/deletado - ignorando"
+            )
             return [], []
 
         try:
@@ -2138,7 +2224,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 max_label_len = 4
             computed = max_label_len * 8 + 70
             min_width = max(
-                int(getattr(button, "width", lambda: 0)() or 0), min(360, max(160, computed))
+                int(getattr(button, "width", lambda: 0)() or 0),
+                min(360, max(160, computed)),
             )
             menu.setMinimumWidth(min_width)
         except Exception as e:
@@ -2183,9 +2270,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                     label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 except Exception as e:
-                    logger.error(f"Erro ao definir estilo dos labels header (inc/exc): {e}")
-                grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-                grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+                    logger.error(
+                        f"Erro ao definir estilo dos labels header (inc/exc): {e}"
+                    )
+                grid.addWidget(
+                    label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+                )
+                grid.addWidget(
+                    label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
+                )
             row_idx += 1
 
             # Separador entre header e conteudo
@@ -2198,14 +2291,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Estilo para checkboxes com indicacao visual clara quando marcados
         # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual e suporte a temas
-        roles = get_theme_roles(getattr(self, '_current_theme', 'dark'))
-        p_color = roles.get('primary_color', '#4a90d9')
-        d_color = roles.get('danger_color', '#d94a4a')
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+        p_color = roles.get("primary_color", "#4a90d9")
+        d_color = roles.get("danger_color", "#d94a4a")
         bg_input = roles.get(
-            'input_bg',
-            '#3c3836' if getattr(self, '_current_theme', 'dark') != 'light' else '#f0f0f0',
+            "input_bg",
+            "#3c3836"
+            if getattr(self, "_current_theme", "dark") != "light"
+            else "#f0f0f0",
         )
-        border_c = roles.get('input_border', '#888')
+        border_c = roles.get("input_border", "#888")
 
         cb_style_include = f"""
             QCheckBox::indicator {{
@@ -2261,7 +2356,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Reordenar alfabeticamente pelo label
             try:
                 display_values.sort(
-                    key=lambda x: str(x[1] if isinstance(x, (tuple, list)) else x).casefold()
+                    key=lambda x: str(
+                        x[1] if isinstance(x, (tuple, list)) else x
+                    ).casefold()
                 )
             except:
                 pass
@@ -2269,9 +2366,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         for val in display_values:
             label_text = (
-                str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
+                str(val[1])
+                if isinstance(val, (list, tuple)) and len(val) > 1
+                else str(val)
             )
-            cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
+            cb_value = (
+                val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
+            )
             # Ignorar valores vazios ou apenas espacos
             if not label_text or not label_text.strip():
                 continue
@@ -2303,9 +2404,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 except Exception as e:
                     logger.error(f"Erro setChecked exclude_cb: {e}")
             grid.addWidget(label, row_idx, 0)
-            grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(
+                include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+            )
             if exclude_cb is not None:
-                grid.addWidget(exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+                grid.addWidget(
+                    exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
+                )
             row_idx += 1
             checks.append(include_cb)
             if exclude_cb is not None:
@@ -2354,7 +2459,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             warning_label = QLabel(
                 f"... {len(values) - len(display_values) if 'display_values' in locals() else 0} itens ocultos. Use a pesquisa."
             )
-            warning_label.setStyleSheet("color: #888; font-style: italic; margin-top: 4px;")
+            warning_label.setStyleSheet(
+                "color: #888; font-style: italic; margin-top: 4px;"
+            )
             grid.addWidget(warning_label, row_idx, 0, 1, 3)
             row_idx += 1
 
@@ -2386,16 +2493,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.error(f"Erro ao definir estilo labels select all: {e}")
 
             grid.addWidget(label_select, row_idx, 0)
-            grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+            grid.addWidget(
+                select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+            )
+            grid.addWidget(
+                select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
+            )
             row_idx += 1
 
             grid.addWidget(label_deselect, row_idx, 0)
             grid.addWidget(
-                deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+                deselect_all_include,
+                row_idx,
+                1,
+                alignment=Qt.AlignmentFlag.AlignHCenter,
             )
             grid.addWidget(
-                deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter
+                deselect_all_exclude,
+                row_idx,
+                2,
+                alignment=Qt.AlignmentFlag.AlignHCenter,
             )
             row_idx += 1
 
@@ -2590,32 +2707,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid_container_layout.setContentsMargins(0, 0, 0, 0)
         grid_container_layout.setSpacing(0)
 
-        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
-        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
+        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box(
+            "Emissor"
+        )
+        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box(
+            "Executor"
+        )
         # LAYOUTREFACTOR #4: Renomeação para maior clareza
-        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao Emissora")
+        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box(
+            "Divisao Emissora"
+        )
 
         # GRIDREFACTOR V2: Placeholders para futuros filtros
         div_exec_box, div_exec_button, div_exec_menu, div_exec_exclude = (
             self._make_multiselect_box("Divisao Executora")
         )
         div_exec_button.setEnabled(False)
-        div_exec_button.setToolTip("Filtro em desenvolvimento - disponível em versão futura")
+        div_exec_button.setToolTip(
+            "Filtro em desenvolvimento - disponível em versão futura"
+        )
 
         localizacao_box, localizacao_button, localizacao_menu, localizacao_exclude = (
             self._make_multiselect_box("Localizacao")
         )
         localizacao_button.setEnabled(False)
-        localizacao_button.setToolTip("Filtro em desenvolvimento - disponível em versão futura")
+        localizacao_button.setToolTip(
+            "Filtro em desenvolvimento - disponível em versão futura"
+        )
 
-        status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
-            "Situacao"
+        status_box, status_button, status_menu, status_exclude = (
+            self._make_multiselect_box("Situacao")
         )
-        year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box(
-            "Ano Emissao", with_exclude=False
+        year_emissao_box, year_emissao_button, year_emissao_menu, _ = (
+            self._make_multiselect_box("Ano Emissao", with_exclude=False)
         )
-        year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box(
-            "Ano Execucao", with_exclude=False
+        year_execucao_box, year_execucao_button, year_execucao_menu, _ = (
+            self._make_multiselect_box("Ano Execucao", with_exclude=False)
         )
 
         reprog_box = QGroupBox("Reprogramacoes")
@@ -2654,7 +2781,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # LAYOUTREFACTOR #5: Seção Derivadas reorganizada verticalmente com textos claros
         deriv_box = QGroupBox("Derivadas")
         deriv_layout = QVBoxLayout(deriv_box)  # MUDANÇA: Vertical em vez de horizontal
-        deriv_layout.setContentsMargins(4, 4, 4, 4)  # Margens maiores para melhor espaçamento
+        deriv_layout.setContentsMargins(
+            4, 4, 4, 4
+        )  # Margens maiores para melhor espaçamento
         deriv_layout.setSpacing(4)  # Espaçamento vertical entre checkboxes
 
         # Checkboxes (mantém as 3 existentes)
@@ -2664,7 +2793,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Callbacks (mantém iguais)
         try:
-            deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
+            deriv_has.toggled.connect(
+                lambda checked: self._on_derivada_has_toggled(checked)
+            )
             deriv_all_ste.toggled.connect(
                 lambda checked: self._on_derivada_all_ste_toggled(checked)
             )
@@ -2762,10 +2893,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
         macro_layout.addWidget(macro_combo)
 
-        sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
+        sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box(
+            "Solicitante"
+        )
 
         # GRIDREFACTOR V2: Renomeações "Resp" → "Responsavel"
-        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Responsavel Programação")
+        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box(
+            "Responsavel Programação"
+        )
         exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = (
             self._make_multiselect_box("Responsavel Execução")
         )
@@ -2780,28 +2915,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         main_grid.setVerticalSpacing(8)
 
         # ROW 0 - Filtros principais
-        main_grid.addWidget(emis_box, 0, 0)                    # Emissor
-        main_grid.addWidget(exec_box, 0, 1)                    # Executor
-        main_grid.addWidget(div_box, 0, 2)                     # Divisao Emissora
-        main_grid.addWidget(div_exec_box, 0, 3)                # ⭐ NOVO: Divisao Executora (disabled)
-        main_grid.addWidget(status_box, 0, 4)                  # Situacao (MOVIDO de col 3 → 4)
-        main_grid.addWidget(localizacao_box, 0, 5)             # ⭐ NOVO: Localizacao (disabled)
+        main_grid.addWidget(emis_box, 0, 0)  # Emissor
+        main_grid.addWidget(exec_box, 0, 1)  # Executor
+        main_grid.addWidget(div_box, 0, 2)  # Divisao Emissora
+        main_grid.addWidget(div_exec_box, 0, 3)  # ⭐ NOVO: Divisao Executora (disabled)
+        main_grid.addWidget(status_box, 0, 4)  # Situacao (MOVIDO de col 3 → 4)
+        main_grid.addWidget(localizacao_box, 0, 5)  # ⭐ NOVO: Localizacao (disabled)
 
         # ROW 1 - Reprogramações, prioridades, derivadas, macro
-        main_grid.addWidget(reprog_box, 1, 0)                  # Reprogramacoes
-        main_grid.addWidget(prio_emis_box, 1, 1)               # Prio. Emissao
-        main_grid.addWidget(prio_plan_box, 1, 2)               # Prio. Planejamento
-        main_grid.addWidget(deriv_box, 1, 3, 1, 1)             # Derivadas (checkboxes) - ⭐ colspan=1 agora
-        main_grid.addWidget(derivadas_btn_box, 1, 4)           # ⭐ NOVO: Derivadas (n) botão
-        main_grid.addWidget(macro_box, 1, 5)                   # Macro
+        main_grid.addWidget(reprog_box, 1, 0)  # Reprogramacoes
+        main_grid.addWidget(prio_emis_box, 1, 1)  # Prio. Emissao
+        main_grid.addWidget(prio_plan_box, 1, 2)  # Prio. Planejamento
+        main_grid.addWidget(
+            deriv_box, 1, 3, 1, 1
+        )  # Derivadas (checkboxes) - ⭐ colspan=1 agora
+        main_grid.addWidget(derivadas_btn_box, 1, 4)  # ⭐ NOVO: Derivadas (n) botão
+        main_grid.addWidget(macro_box, 1, 5)  # Macro
 
         # ROW 2 - Datas, solicitante, responsáveis
-        main_grid.addWidget(week_emis_box, 2, 0)               # Emissao (AnoSemana)
-        main_grid.addWidget(week_exec_box, 2, 1)               # Execucao (AnoSemana)
-        main_grid.addWidget(sol_box, 2, 2)                     # Solicitante
-        main_grid.addWidget(prog_box, 2, 3)                    # ⭐ RENOMEADO: Responsavel Programação
-        main_grid.addWidget(exec_resp_box, 2, 4)               # ⭐ RENOMEADO: Responsavel Execução
-        main_grid.addWidget(emis_resp_box, 2, 5)               # ⭐ RENOMEADO: Responsavel Emissão
+        main_grid.addWidget(week_emis_box, 2, 0)  # Emissao (AnoSemana)
+        main_grid.addWidget(week_exec_box, 2, 1)  # Execucao (AnoSemana)
+        main_grid.addWidget(sol_box, 2, 2)  # Solicitante
+        main_grid.addWidget(prog_box, 2, 3)  # ⭐ RENOMEADO: Responsavel Programação
+        main_grid.addWidget(exec_resp_box, 2, 4)  # ⭐ RENOMEADO: Responsavel Execução
+        main_grid.addWidget(emis_resp_box, 2, 5)  # ⭐ RENOMEADO: Responsavel Emissão
 
         # Column stretch
         for col in range(6):
@@ -2817,15 +2954,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "emis_box": emis_box,
             "exec_box": exec_box,
             "div_box": div_box,
-            "div_exec_box": div_exec_box,                      # ⭐ NOVO V2
+            "div_exec_box": div_exec_box,  # ⭐ NOVO V2
             "status_box": status_box,
             "year_emissao_box": year_emissao_box,
-            "localizacao_box": localizacao_box,                # ⭐ NOVO V2 (substitui year_execucao_box)
+            "localizacao_box": localizacao_box,  # ⭐ NOVO V2 (substitui year_execucao_box)
             "reprog_box": reprog_box,
             "prio_emis_box": prio_emis_box,
             "prio_plan_box": prio_plan_box,
             "deriv_box": deriv_box,
-            "derivadas_btn_box": derivadas_btn_box,            # ⭐ NOVO V2
+            "derivadas_btn_box": derivadas_btn_box,  # ⭐ NOVO V2
             "macro_box": macro_box,
             "week_emis_box": week_emis_box,
             "week_exec_box": week_exec_box,
@@ -2927,7 +3064,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Quando 'Tem' é desmarcado, 'STE' também deve ser desmarcado."""
         if not checked:
             try:
-                if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
+                if (
+                    hasattr(self, "adv_derivada_all_ste")
+                    and self.adv_derivada_all_ste.isChecked()
+                ):
                     self.adv_derivada_all_ste.blockSignals(True)
                     self.adv_derivada_all_ste.setChecked(False)
                     self.adv_derivada_all_ste.blockSignals(False)
@@ -2956,7 +3096,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._exclude_ste_sca = bool(checked)
 
             # Sincroniza checkbox widget se chamado programaticamente
-            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
+            if hasattr(self, "_current_tab_index") and hasattr(self, "_tab_contexts"):
                 if 0 <= self._current_tab_index < len(self._tab_contexts):
                     ctx = self._tab_contexts[self._current_tab_index]
                     checkbox = ctx.get("exclude_ste_checkbox")
@@ -2974,7 +3114,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Mostra popup com arvore de derivadas em texto plano."""
         try:
             df = (
-                self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
+                self._df_last_search_filtered
+                if hasattr(self, "_df_last_search_filtered")
+                else None
             )
             if df is None or df.empty:
                 return
@@ -2999,7 +3141,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for _, row in df.iterrows():
                 numero = str(row.get(numero_col, "")).strip()
                 derivada_de = str(row.get(derivada_col, "")).strip()
-                if numero and derivada_de and derivada_de.lower() not in ("nan", "none", ""):
+                if (
+                    numero
+                    and derivada_de
+                    and derivada_de.lower() not in ("nan", "none", "")
+                ):
                     filha_mae[numero] = derivada_de
                     if derivada_de not in mae_filhas:
                         mae_filhas[derivada_de] = []
@@ -3039,7 +3185,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text = "\n".join(lines)
 
             # Criar dialogo com texto copiavel e pesquisavel
-            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+            from PyQt6.QtWidgets import (
+                QDialog,
+                QDialogButtonBox,
+                QTextEdit,
+                QVBoxLayout,
+            )
 
             dialog = QDialog(self)
             dialog.setWindowTitle("Arvore de Derivadas")
@@ -3050,7 +3201,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_edit.setPlainText(text)
             text_edit.setReadOnly(True)
             try:
-                text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+                text_edit.setStyleSheet(
+                    "font-family: Consolas, monospace; font-size: 11px;"
+                )
             except Exception as e:
                 logger.error(f"Erro style sheet text_edit derivadas: {e}")
             layout.addWidget(text_edit)
@@ -3073,7 +3226,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             df = (
-                self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
+                self._df_last_search_filtered
+                if hasattr(self, "_df_last_search_filtered")
+                else None
             )
             if df is None or df.empty:
                 btn.setEnabled(False)
@@ -3092,12 +3247,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Verificar se ha valores nao nulos
             has_derivadas = (
-                df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().any()
+                df[derivada_col]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .replace("", pd.NA)
+                .dropna()
+                .any()
             )
 
             # CORRECAO PREGOLDRELEASE #6: Mostrar contagem de derivadas no botão
             if has_derivadas:
-                count = len(df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().unique())
+                count = len(
+                    df[derivada_col]
+                    .dropna()
+                    .astype(str)
+                    .str.strip()
+                    .replace("", pd.NA)
+                    .dropna()
+                    .unique()
+                )
                 btn.setText(f"Especificas... ({count})")
                 btn.setEnabled(True)
             else:
@@ -3148,7 +3317,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._apply_advanced_filters_from_ui(store_only=True)
         try:
             gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-            gui_settings["advanced_filters_default"] = dict(self._advanced_filters or {})
+            gui_settings["advanced_filters_default"] = dict(
+                self._advanced_filters or {}
+            )
             self._persist_gui_preferences()
         except Exception as e:
             logger.warning("Falha ao salvar filtros avancados default: %s", e)
@@ -3374,7 +3545,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _sort_responsavel_values(self, df_subset, values, resp_col: str):
         if not values:
             return []
-        sector_cols = [c for c in ["setor_executor", "setor_emissor"] if c in df_subset.columns]
+        sector_cols = [
+            c for c in ["setor_executor", "setor_emissor"] if c in df_subset.columns
+        ]
         sector_counts = {}
         for col in sector_cols:
             try:
@@ -3388,13 +3561,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if not person_str:
                     continue
                 sector_counts.setdefault(person_str, {})
-                sector_counts[person_str][sec_str] = sector_counts[person_str].get(sec_str, 0) + 1
+                sector_counts[person_str][sec_str] = (
+                    sector_counts[person_str].get(sec_str, 0) + 1
+                )
 
         def _best_sector(person):
             counts = sector_counts.get(person, {})
             if not counts:
                 return ""
-            return max(counts.items(), key=lambda t: (t[1], -len(t[0]), t[0].casefold()))[0]
+            return max(
+                counts.items(), key=lambda t: (t[1], -len(t[0]), t[0].casefold())
+            )[0]
 
         def _key(person):
             sec = _best_sector(person)
@@ -3422,7 +3599,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
         de signals que causava travamento da interface.
         """
-        selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
+        selected_div = self._get_checked_values(
+            getattr(self, "adv_divisao_checks", None)
+        )
         setores = self._collect_divisao_setores(selected_div)
         if not setores:
             return
@@ -3455,12 +3634,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _refresh_responsavel_options(self):
         if self.df_completo is None or self.df_completo.empty:
             return
-        exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
-        emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
+        exec_values = self._get_checked_values(
+            getattr(self, "adv_executor_checks", None)
+        )
+        emis_values = self._get_checked_values(
+            getattr(self, "adv_emissor_checks", None)
+        )
         div_values = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-        exec_excluded = self._get_checked_values(getattr(self, "adv_executor_exclude_checks", None))
-        emis_excluded = self._get_checked_values(getattr(self, "adv_emissor_exclude_checks", None))
-        div_excluded = self._get_checked_values(getattr(self, "adv_divisao_exclude_checks", None))
+        exec_excluded = self._get_checked_values(
+            getattr(self, "adv_executor_exclude_checks", None)
+        )
+        emis_excluded = self._get_checked_values(
+            getattr(self, "adv_emissor_exclude_checks", None)
+        )
+        div_excluded = self._get_checked_values(
+            getattr(self, "adv_divisao_exclude_checks", None)
+        )
         has_sector = bool(
             exec_values
             or emis_values
@@ -3512,7 +3701,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if emis_col in subset.columns and selected_emis:
                 subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
             if emis_col in subset.columns and selected_emis_excluded:
-                subset = subset[~subset[emis_col].astype(str).isin(selected_emis_excluded)]
+                subset = subset[
+                    ~subset[emis_col].astype(str).isin(selected_emis_excluded)
+                ]
             return subset
 
         if has_sector:
@@ -3557,7 +3748,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             _set_enabled(button, True)
             _set_enabled(exclude, True)
             selected = set((self._advanced_filters or {}).get(col) or [])
-            excluded = set((self._advanced_filters or {}).get(f"{col}_exclude_values") or [])
+            excluded = set(
+                (self._advanced_filters or {}).get(f"{col}_exclude_values") or []
+            )
             include_checks, exclude_checks = self._rebuild_multiselect_menu(
                 button,
                 menu,
@@ -3586,7 +3779,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 getattr(self, "adv_reprog_button", None),
                 getattr(self, "adv_reprog_menu", None),
                 reprog_values,
-                set((self._advanced_filters or {}).get("num_reprogramacoes_values") or []),
+                set(
+                    (self._advanced_filters or {}).get("num_reprogramacoes_values")
+                    or []
+                ),
                 lambda *_: self._update_multiselect_button(
                     getattr(self, "adv_reprog_button", None),
                     getattr(self, "adv_reprog_checks", None),
@@ -3698,9 +3894,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return True
         if data.get("ano_emissao_values") or data.get("ano_execucao_values"):
             return True
-        if data.get("ano_emissao_exclude_values") or data.get("ano_execucao_exclude_values"):
+        if data.get("ano_emissao_exclude_values") or data.get(
+            "ano_execucao_exclude_values"
+        ):
             return True
-        if data.get("prioridade_emissao_values") or data.get("prioridade_planejamento_values"):
+        if data.get("prioridade_emissao_values") or data.get(
+            "prioridade_planejamento_values"
+        ):
             return True
         if (
             data.get("semana_emissao_inicio") is not None
@@ -3712,7 +3912,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             or data.get("semana_execucao_fim") is not None
         ):
             return True
-        if data.get("derivada_has") or data.get("derivada_all_ste") or data.get("derivada_is"):
+        if (
+            data.get("derivada_has")
+            or data.get("derivada_all_ste")
+            or data.get("derivada_is")
+        ):
             return True
         if data.get("macro_filter"):
             return True
@@ -3754,7 +3958,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao obter emissor exclude checks: {e}")
             data["setor_emissor_exclude_values"] = []
         try:
-            data["divisao"] = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
+            data["divisao"] = self._get_checked_values(
+                getattr(self, "adv_divisao_checks", None)
+            )
         except Exception as e:
             logger.error(f"Erro ao obter divisao checks: {e}")
             data["divisao"] = []
@@ -3766,7 +3972,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao obter divisao exclude checks: {e}")
             data["divisao_exclude_values"] = []
         try:
-            data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
+            data["situacao"] = self._get_checked_values(
+                getattr(self, "adv_status_checks", None)
+            )
         except Exception as e:
             logger.error(f"Erro ao obter status checks: {e}")
             data["situacao"] = []
@@ -3806,15 +4014,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro filtro ano_execucao exclude: {e}")
             data["ano_execucao_exclude_values"] = []
         try:
-            data["semana_emissao_inicio"] = self._parse_week(self.adv_week_emissao_start.text())
-            data["semana_emissao_fim"] = self._parse_week(self.adv_week_emissao_end.text())
+            data["semana_emissao_inicio"] = self._parse_week(
+                self.adv_week_emissao_start.text()
+            )
+            data["semana_emissao_fim"] = self._parse_week(
+                self.adv_week_emissao_end.text()
+            )
         except Exception as e:
             logger.error(f"Erro filtro semana_emissao: {e}")
             data["semana_emissao_inicio"] = None
             data["semana_emissao_fim"] = None
         try:
-            data["semana_execucao_inicio"] = self._parse_week(self.adv_week_execucao_start.text())
-            data["semana_execucao_fim"] = self._parse_week(self.adv_week_execucao_end.text())
+            data["semana_execucao_inicio"] = self._parse_week(
+                self.adv_week_execucao_start.text()
+            )
+            data["semana_execucao_fim"] = self._parse_week(
+                self.adv_week_execucao_end.text()
+            )
         except Exception as e:
             logger.error(f"Erro filtro semana_execucao: {e}")
             data["semana_execucao_inicio"] = None
@@ -3822,19 +4038,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         data["semana_emissao_exclude"] = False
         data["semana_execucao_exclude"] = False
         try:
-            data["derivada_has"] = bool(getattr(self, "adv_derivada_has", None).isChecked())
+            data["derivada_has"] = bool(
+                getattr(self, "adv_derivada_has", None).isChecked()
+            )
         except Exception as e:
             logger.error(f"Erro filtro derivada_has: {e}")
             data["derivada_has"] = False
         try:
-            data["derivada_all_ste"] = bool(getattr(self, "adv_derivada_all_ste", None).isChecked())
+            data["derivada_all_ste"] = bool(
+                getattr(self, "adv_derivada_all_ste", None).isChecked()
+            )
         except Exception as e:
             logger.error(f"Erro filtro derivada_all_ste: {e}")
             data["derivada_all_ste"] = False
         if data.get("derivada_all_ste"):
             data["derivada_has"] = True
         try:
-            data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
+            data["derivada_is"] = bool(
+                getattr(self, "adv_derivada_is", None).isChecked()
+            )
         except Exception as e:
             logger.error(f"Erro filtro derivada_is: {e}")
             data["derivada_is"] = False
@@ -3904,9 +4126,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             data["num_reprogramacoes_values"] = []
         try:
             mode_idx = getattr(self, "adv_reprog_mode", None).currentIndex()
-            data["num_reprogramacoes_mode"] = getattr(self, "adv_reprog_mode", None).itemData(
-                mode_idx
-            )
+            data["num_reprogramacoes_mode"] = getattr(
+                self, "adv_reprog_mode", None
+            ).itemData(mode_idx)
         except Exception as e:
             logger.error(f"Erro filtro reprogramacoes mode: {e}")
             data["num_reprogramacoes_mode"] = None
@@ -4010,9 +4232,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             self._syncing_advanced_ui = True
-            logger.debug("adv_executor_checks vazio - forçando rebuild de menus avançados")
+            logger.debug(
+                "adv_executor_checks vazio - forçando rebuild de menus avançados"
+            )
             try:
-                if hasattr(self, '_refresh_advanced_filter_options'):
+                if hasattr(self, "_refresh_advanced_filter_options"):
                     self._refresh_advanced_filter_options()
             finally:
                 self._syncing_advanced_ui = False
@@ -4195,7 +4419,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         start = perf_counter()
         df = self.df_completo
-        logger.debug(f"_refresh_advanced_filter_options: iniciando com {len(df)} registros")
+        logger.debug(
+            f"_refresh_advanced_filter_options: iniciando com {len(df)} registros"
+        )
         filters = self._advanced_filters or {}
         apply_cb = lambda: self._apply_advanced_filters_from_ui()
 
@@ -4276,7 +4502,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if "setor_emissor" in df.columns
                 else []
             )
-            cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
+            cache["status_vals"] = (
+                _unique_sorted("situacao") if "situacao" in df.columns else []
+            )
             cache["divisao_vals"] = sorted(DIVISAO_SETORES.keys(), key=_div_key)
 
             def _collect_years_from_dates(series):
@@ -4436,14 +4664,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 lambda *_: self._update_multiselect_button(
                     self.adv_year_emissao_button,
                     getattr(self, "adv_year_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
+                    exclude_checks=getattr(
+                        self, "adv_year_emissao_exclude_checks", None
+                    ),
                 ),
                 apply_cb,
                 exc_set,
                 lambda *_: self._update_multiselect_button(
                     self.adv_year_emissao_button,
                     getattr(self, "adv_year_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
+                    exclude_checks=getattr(
+                        self, "adv_year_emissao_exclude_checks", None
+                    ),
                 ),
             )
             self.adv_year_emissao_checks = year_include
@@ -4463,17 +4695,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             year_values = [str(y) for y in execucao_years if y and str(y).strip()]
             inc_set = {str(v) for v in (inc_vals or [])}
             exc_set = {str(v) for v in (exc_vals or [])}
+
             # FUNCIONALIDADE PREGOLDRELEASE: Auto-marcar STE quando Ano Execução selecionado
             def _on_ano_execucao_toggle(*_):
                 self._update_multiselect_button(
                     self.adv_year_execucao_button,
                     getattr(self, "adv_year_execucao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
+                    exclude_checks=getattr(
+                        self, "adv_year_execucao_exclude_checks", None
+                    ),
                 )
                 # Auto-marcar checkbox STE se houver anos selecionados (com blockSignals)
                 checks = getattr(self, "adv_year_execucao_checks", [])
                 if checks and any(cb.isChecked() for cb in checks if cb):
-                    if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste:
+                    if (
+                        hasattr(self, "adv_derivada_all_ste")
+                        and self.adv_derivada_all_ste
+                    ):
                         self.adv_derivada_all_ste.blockSignals(True)
                         self.adv_derivada_all_ste.setChecked(True)
                         self.adv_derivada_all_ste.blockSignals(False)
@@ -4500,14 +4738,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 lambda *_: self._update_multiselect_button(
                     self.adv_prioridade_emissao_button,
                     getattr(self, "adv_prioridade_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+                    exclude_checks=getattr(
+                        self, "adv_prioridade_emissao_exclude_checks", None
+                    ),
                 ),
                 apply_cb,
                 set(filters.get("prioridade_emissao_exclude_values") or []),
                 lambda *_: self._update_multiselect_button(
                     self.adv_prioridade_emissao_button,
                     getattr(self, "adv_prioridade_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+                    exclude_checks=getattr(
+                        self, "adv_prioridade_emissao_exclude_checks", None
+                    ),
                 ),
             )
             self.adv_prioridade_emissao_checks = prio_include
@@ -4585,37 +4827,49 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._update_multiselect_button(
                 self.adv_prioridade_emissao_button,
                 getattr(self, "adv_prioridade_emissao_checks", None),
-                exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_prioridade_emissao_exclude_checks", None
+                ),
             )
         if hasattr(self, "adv_prioridade_planejamento_button"):
             self._update_multiselect_button(
                 self.adv_prioridade_planejamento_button,
                 getattr(self, "adv_prioridade_planejamento_checks", None),
-                exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_prioridade_planejamento_exclude_checks", None
+                ),
             )
         if hasattr(self, "adv_responsavel_solicitante_button"):
             self._update_multiselect_button(
                 self.adv_responsavel_solicitante_button,
                 getattr(self, "adv_responsavel_solicitante_checks", None),
-                exclude_checks=getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_responsavel_solicitante_exclude_checks", None
+                ),
             )
         if hasattr(self, "adv_responsavel_programacao_button"):
             self._update_multiselect_button(
                 self.adv_responsavel_programacao_button,
                 getattr(self, "adv_responsavel_programacao_checks", None),
-                exclude_checks=getattr(self, "adv_responsavel_programacao_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_responsavel_programacao_exclude_checks", None
+                ),
             )
         if hasattr(self, "adv_responsavel_execucao_button"):
             self._update_multiselect_button(
                 self.adv_responsavel_execucao_button,
                 getattr(self, "adv_responsavel_execucao_checks", None),
-                exclude_checks=getattr(self, "adv_responsavel_execucao_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_responsavel_execucao_exclude_checks", None
+                ),
             )
         if hasattr(self, "adv_responsavel_emissor_button"):
             self._update_multiselect_button(
                 self.adv_responsavel_emissor_button,
                 getattr(self, "adv_responsavel_emissor_checks", None),
-                exclude_checks=getattr(self, "adv_responsavel_emissor_exclude_checks", None),
+                exclude_checks=getattr(
+                    self, "adv_responsavel_emissor_exclude_checks", None
+                ),
             )
 
         # BUGFIX 2026-01-19: Sincronizar checkbox lists de volta para _tab_contexts
@@ -4720,7 +4974,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             reprog_vals = filters.get("num_reprogramacoes_values") or []
             mode = filters.get("num_reprogramacoes_mode")
             if reprog_vals and mode and "num_reprogramacoes" in df.columns:
-                series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
+                series = pd.to_numeric(
+                    df["num_reprogramacoes"], errors="coerce"
+                ).dropna()
                 vals = [int(v) for v in reprog_vals if pd.notna(v)]
                 if mode == "eq":
                     mask &= series.isin(vals)
@@ -4758,7 +5014,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     from shared.date_utils import parse_any_date
 
                     parsed = df["data_cadastro"].apply(parse_any_date)
-                    ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+                    ts = pd.to_datetime(
+                        parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S"
+                    )
                     years = ts.dt.year
                     if emissao_inc:
                         mask &= years.isin(emissao_inc)
@@ -4768,7 +5026,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     logger.error(f"Erro filtro data_cadastro (ano): {e}")
             elif "semana_cadastro" in df.columns:
                 try:
-                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").astype("Int64")
+                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").astype(
+                        "Int64"
+                    )
                     years = (nums // 100).astype("Int64")
                     if emissao_inc:
                         mask &= years.isin(emissao_inc)
@@ -4790,7 +5050,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         if "semana_executada" in df.columns and (execucao_inc or execucao_exc):
             try:
-                nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype("Int64")
+                nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype(
+                    "Int64"
+                )
                 years = (nums // 100).astype("Int64")
                 if execucao_inc:
                     mask &= years.isin(execucao_inc)
@@ -4884,8 +5146,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
 
         # Otimizacao: Usa coluna pre-calculada se disponivel
-        if '_norm_ssa' in self.df_completo.columns:
-            mask = self.df_completo['_norm_ssa'].eq(numero_ssa)
+        if "_norm_ssa" in self.df_completo.columns:
+            mask = self.df_completo["_norm_ssa"].eq(numero_ssa)
         else:
             # Fallback: Normaliza coluna (menos eficiente, mas funcional)
             series_norm = self.df_completo["numero_ssa"].apply(normalize_ssa_value)
@@ -4921,13 +5183,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             TABLE_NAME,
             limit=self._buffer_size,  # 50 SSAs
             offset=0,
-            order_by="numero_ssa DESC"  # Mais recentes primeiro
+            order_by="numero_ssa DESC",  # Mais recentes primeiro
         )
         self.data_loader_thread.data_loaded.connect(self._on_buffer_loaded)
         self.data_loader_thread.error_occurred.connect(self.on_load_error)
         self.data_loader_thread.finished.connect(self.on_load_finished)
         try:
-            self.data_loader_thread.finished.connect(self.data_loader_thread.deleteLater)
+            self.data_loader_thread.finished.connect(
+                self.data_loader_thread.deleteLater
+            )
         except Exception as e:
             logger.debug(f"Erro ao conectar deleteLater no loader: {e}")
         self.data_loader_thread.start()
@@ -4937,10 +5201,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Otimizacao: Pre-calcula coluna de SSA normalizada para busca rapidae
         # Evita recalcular em detalhes_tab_manager a cada abertura
-        if 'numero_ssa' in self.df_completo.columns:
+        if "numero_ssa" in self.df_completo.columns:
             try:
                 # Usa map que e mais rapido que apply para series
-                self.df_completo['_norm_ssa'] = self.df_completo['numero_ssa'].map(
+                self.df_completo["_norm_ssa"] = self.df_completo["numero_ssa"].map(
                     normalize_ssa_value
                 )
             except Exception as e:
@@ -4952,19 +5216,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         base = df.copy()
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
         try:
-            if 'situacao' in base.columns:
-                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
+            if "situacao" in base.columns:
+                is_ste = base["situacao"].astype(str).str.upper().eq("STE")
             else:
                 is_ste = pd.Series([False] * len(base), index=base.index)
-            if 'numero_ssa' in base.columns:
-                ssa_str = base['numero_ssa'].astype(str).str.replace(r'\D', '', regex=True)
+            if "numero_ssa" in base.columns:
+                ssa_str = (
+                    base["numero_ssa"].astype(str).str.replace(r"\D", "", regex=True)
+                )
                 ssa_int = ssa_str.apply(lambda s: int(s) if s.isdigit() else -1)
             else:
                 ssa_int = pd.Series([-1] * len(base), index=base.index)
             base = (
                 base.assign(__is_ste=is_ste, __ssa=ssa_int)
-                .sort_values(by=['__is_ste', '__ssa'], ascending=[True, False], na_position='last')
-                .drop(columns=['__is_ste', '__ssa'])
+                .sort_values(
+                    by=["__is_ste", "__ssa"],
+                    ascending=[True, False],
+                    na_position="last",
+                )
+                .drop(columns=["__is_ste", "__ssa"])
             )
         except Exception as e:
             logger.warning("Falha na ordenacao inicial dos dados: %s", e)
@@ -4983,7 +5253,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao atualizar botao derivadas: {e}")
         profile_hint = (
-            f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
+            f" (perfil: {self.current_filter_profile})"
+            if self.current_filter_profile
+            else ""
         )
         self.status_label.setText(
             f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
@@ -5012,17 +5284,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.warning("_populate_filter_buffer: df_completo vazio")
             return
 
-        logger.debug(f"Populando buffer de filtros com {len(self.df_completo)} registros")
+        logger.debug(
+            f"Populando buffer de filtros com {len(self.df_completo)} registros"
+        )
 
         # Mapeia widgets de filtro para colunas do DataFrame
         filter_mapping = {
-            'executor': 'setor_executor',
-            'emissor': 'setor_emissor',
-            'divisao': 'divisao',
-            'status': 'situacao',
-            'tipo': 'tipo_ssa',
-            'prioridade': 'prioridade',
-            'responsavel': 'responsavel_execucao',
+            "executor": "setor_executor",
+            "emissor": "setor_emissor",
+            "divisao": "divisao",
+            "status": "situacao",
+            "tipo": "tipo_ssa",
+            "prioridade": "prioridade",
+            "responsavel": "responsavel_execucao",
         }
 
         # Extrai valores únicos de cada coluna relevante
@@ -5030,19 +5304,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if column_name in self.df_completo.columns:
                 try:
                     unique_values = set(
-                        self.df_completo[column_name]
-                        .dropna()
-                        .astype(str)
-                        .str.strip()
+                        self.df_completo[column_name].dropna().astype(str).str.strip()
                     )
-                    unique_values.discard('')  # Remove strings vazias
+                    unique_values.discard("")  # Remove strings vazias
                     self._filter_buffer_cache[filter_key] = unique_values
-                    logger.debug(f"Buffer {filter_key}: {len(unique_values)} valores únicos")
+                    logger.debug(
+                        f"Buffer {filter_key}: {len(unique_values)} valores únicos"
+                    )
                 except Exception as e:
                     logger.error(f"Erro ao popular buffer de {filter_key}: {e}")
                     self._filter_buffer_cache[filter_key] = set()
             else:
-                logger.debug(f"Coluna {column_name} não encontrada para filtro {filter_key}")
+                logger.debug(
+                    f"Coluna {column_name} não encontrada para filtro {filter_key}"
+                )
                 self._filter_buffer_cache[filter_key] = set()
 
     def _populate_full_filter_cache(self, filter_type: str) -> None:
@@ -5053,17 +5328,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             filter_type: Tipo do filtro ('executor', 'emissor', 'divisao', etc.)
         """
         if not self._is_full_data_loaded:
-            logger.info(f"_populate_full_filter_cache({filter_type}): Dados completos ainda não carregados")
+            logger.info(
+                f"_populate_full_filter_cache({filter_type}): Dados completos ainda não carregados"
+            )
             return
 
         filter_mapping = {
-            'executor': 'setor_executor',
-            'emissor': 'setor_emissor',
-            'divisao': 'divisao',
-            'status': 'situacao',
-            'tipo': 'tipo_ssa',
-            'prioridade': 'prioridade',
-            'responsavel': 'responsavel_execucao',
+            "executor": "setor_executor",
+            "emissor": "setor_emissor",
+            "divisao": "divisao",
+            "status": "situacao",
+            "tipo": "tipo_ssa",
+            "prioridade": "prioridade",
+            "responsavel": "responsavel_execucao",
         }
 
         column_name = filter_mapping.get(filter_type)
@@ -5072,24 +5349,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         if column_name not in self.df_completo.columns:
-            logger.warning(f"Coluna {column_name} não encontrada para filtro {filter_type}")
+            logger.warning(
+                f"Coluna {column_name} não encontrada para filtro {filter_type}"
+            )
             return
 
         try:
             unique_values = set(
-                self.df_completo[column_name]
-                .dropna()
-                .astype(str)
-                .str.strip()
+                self.df_completo[column_name].dropna().astype(str).str.strip()
             )
-            unique_values.discard('')
+            unique_values.discard("")
 
             # Atualiza cache com valores completos
             old_count = len(self._filter_buffer_cache.get(filter_type, set()))
             self._filter_buffer_cache[filter_type] = unique_values
             new_count = len(unique_values)
 
-            logger.debug(f"Cache completo {filter_type}: {old_count} -> {new_count} valores")
+            logger.debug(
+                f"Cache completo {filter_type}: {old_count} -> {new_count} valores"
+            )
 
         except Exception as e:
             logger.error(f"Erro ao popular cache completo de {filter_type}: {e}")
@@ -5105,9 +5383,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_completo = df.copy()
 
         # Normalização (necessária para busca de SSA)
-        if 'numero_ssa' in self.df_completo.columns:
+        if "numero_ssa" in self.df_completo.columns:
             try:
-                self.df_completo['_norm_ssa'] = self.df_completo['numero_ssa'].map(
+                self.df_completo["_norm_ssa"] = self.df_completo["numero_ssa"].map(
                     normalize_ssa_value
                 )
                 logger.debug("Coluna _norm_ssa criada com sucesso no buffer")
@@ -5117,6 +5395,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # MELHORIA POSGOLDRELEASE #3: Preservar filtros de coluna válidos
         # Remove apenas filtros de colunas que não existem mais no novo dataset
         from collections import OrderedDict
+
         old_filters = self._active_column_filters.copy()
         self._active_column_filters = OrderedDict()
 
@@ -5132,10 +5411,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 # Coluna não existe mais - remover filtro
                 removed_count += 1
-                logger.warning(f"Filtro de coluna removido (coluna não existe): {col_key}")
+                logger.warning(
+                    f"Filtro de coluna removido (coluna não existe): {col_key}"
+                )
 
         if preserved_count > 0:
-            logger.info(f"Filtros preservados: {preserved_count}, removidos: {removed_count}")
+            logger.info(
+                f"Filtros preservados: {preserved_count}, removidos: {removed_count}"
+            )
         else:
             logger.debug("Nenhum filtro de coluna para preservar")
 
@@ -5156,7 +5439,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         #         logger.warning(f"Erro ao atualizar opções de filtros: {e}")
 
         # MELHORIA POSGOLDRELEASE #3: Reconstruir painel de filtros com filtros preservados
-        if preserved_count > 0 and hasattr(self, '_build_column_filters_panel'):
+        if preserved_count > 0 and hasattr(self, "_build_column_filters_panel"):
             try:
                 self._build_column_filters_panel()
                 logger.debug("Painel de filtros reconstruído com filtros preservados")
@@ -5173,6 +5456,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # FASE 2: Inicia carregamento completo em background após 1s
         # Delay de 1s para evitar conflitos com inicialização
         from PyQt6.QtCore import QTimer
+
         QTimer.singleShot(1000, self._start_full_data_load)
 
     def _start_full_data_load(self):
@@ -5193,11 +5477,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             TABLE_NAME,
             limit=None,  # Sem limite = tudo
             offset=0,
-            order_by="numero_ssa DESC"
+            order_by="numero_ssa DESC",
         )
 
         self._full_data_loader_thread.data_loaded.connect(self._on_full_data_loaded)
-        self._full_data_loader_thread.error_occurred.connect(self._on_full_data_load_error)
+        self._full_data_loader_thread.error_occurred.connect(
+            self._on_full_data_load_error
+        )
         self._full_data_loader_thread.finished.connect(
             self._full_data_loader_thread.deleteLater
         )
@@ -5215,9 +5501,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_completo = df.copy()
 
         # Normalização completa
-        if 'numero_ssa' in self.df_completo.columns:
+        if "numero_ssa" in self.df_completo.columns:
             try:
-                self.df_completo['_norm_ssa'] = self.df_completo['numero_ssa'].map(
+                self.df_completo["_norm_ssa"] = self.df_completo["numero_ssa"].map(
                     normalize_ssa_value
                 )
                 logger.debug("Coluna _norm_ssa criada com sucesso (dados completos)")
@@ -5232,7 +5518,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Atualiza opções de filtros avançados com dados completos
         # SEMPRE popula cache, independente da aba ativa
-        if hasattr(self, '_refresh_advanced_filter_options'):
+        if hasattr(self, "_refresh_advanced_filter_options"):
             try:
                 self._refresh_advanced_filter_options()
                 logger.debug("Filtros avançados atualizados com dados completos")
@@ -5244,18 +5530,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Atualiza status
         total_count = len(self.df_completo)
-        self.status_label.setText(
-            f"Status: {total_count} SSAs carregadas"
-        )
+        self.status_label.setText(f"Status: {total_count} SSAs carregadas")
 
         # Limpa flag dirty após atualização
         self._clear_filters_dirty()
 
         # Atualiza indicador de filtros de coluna agora que dados completos foram carregados
-        if hasattr(self, '_update_col_filter_indicator'):
+        if hasattr(self, "_update_col_filter_indicator"):
             try:
                 self._update_col_filter_indicator()
-                logger.debug("Indicador de filtros atualizado após carregamento completo")
+                logger.debug(
+                    "Indicador de filtros atualizado após carregamento completo"
+                )
             except Exception as e:
                 logger.warning(f"Erro ao atualizar indicador após carregamento: {e}")
 
@@ -5289,7 +5575,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 f"Dados completos ainda estão sendo carregados.\n\n"
                 f"{operation_name.capitalize()} requer todos os dados.\n\n"
                 f"Deseja aguardar o carregamento?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
 
             if reply == QMessageBox.StandardButton.Yes:
@@ -5306,7 +5592,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Carregamento necessário",
             f"{operation_name.capitalize()} requer todos os dados do banco.\n\n"
             f"Deseja carregar dados completos agora?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
@@ -5330,10 +5616,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.search_button.setEnabled(True)
         # Finalização segura do loader
         try:
-            worker = getattr(self, 'data_loader_thread', None)
+            worker = getattr(self, "data_loader_thread", None)
             if worker is not None:
                 try:
-                    if hasattr(worker, 'isRunning') and worker.isRunning():
+                    if hasattr(worker, "isRunning") and worker.isRunning():
                         worker.quit()
                         worker.wait(1500)
                 except Exception as e:
@@ -5350,18 +5636,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if logical_index < 0 or self.table_widget.columnCount() == 0:
                 return
             # Usa o mapa de colunas exibidas atualmente, que inclui '#'
-            if not hasattr(self, '_current_display_columns'):
+            if not hasattr(self, "_current_display_columns"):
                 return
             if logical_index >= len(self._current_display_columns):
                 return
             col_name = self._current_display_columns[logical_index]
             # Ignora a coluna de ándice
-            if col_name == '#':
+            if col_name == "#":
                 return
 
             # Alterna direçção ao clicar na mesma coluna
-            if getattr(self, 'sort_column', None) == col_name:
-                self.sort_ascending = not getattr(self, 'sort_ascending', True)
+            if getattr(self, "sort_column", None) == col_name:
+                self.sort_ascending = not getattr(self, "sort_ascending", True)
             else:
                 self.sort_column = col_name
                 self.sort_ascending = True
@@ -5369,7 +5655,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Ordena resultado filtrado atual e reinicia paginaçção
             try:
                 self.df_exibido = self.df_exibido.sort_values(
-                    by=self.sort_column, ascending=self.sort_ascending, na_position='last'
+                    by=self.sort_column,
+                    ascending=self.sort_ascending,
+                    na_position="last",
                 )
             except Exception as e:
                 logger.error(f"Erro ao ordenar df_exibido por {self.sort_column}: {e}")
@@ -5379,8 +5667,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 lambda cp=max(
                     1,
                     min(
-                        getattr(self.paginator, 'current_page', 1),
-                        getattr(self.paginator, 'total_pages', 1),
+                        getattr(self.paginator, "current_page", 1),
+                        getattr(self.paginator, "total_pages", 1),
                     ),
                 ): self.display_current_page(cp)
             )()
@@ -5407,12 +5695,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logical_index = header.logicalIndexAt(pos)
             if logical_index < 0 or self.table_widget.columnCount() == 0:
                 return
-            if not hasattr(self, '_current_display_columns'):
+            if not hasattr(self, "_current_display_columns"):
                 return
             if logical_index >= len(self._current_display_columns):
                 return
             col_name = self._current_display_columns[logical_index]
-            if col_name == '#':
+            if col_name == "#":
                 return
 
             menu = QMenu(self)
@@ -5486,7 +5774,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def eventFilter(self, obj, event):
         # PROTECAO CONTRA CRASH NA TROCA DE ABAS
-        if not hasattr(self, 'table_widget') or self.table_widget is None:
+        if not hasattr(self, "table_widget") or self.table_widget is None:
             return False
 
         try:
@@ -5498,10 +5786,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     return True
                 # Qt6: MouseButtonPress com botção direito
                 if et == QEvent.Type.MouseButtonPress:
-                    btn = getattr(event, 'button', lambda: None)()
+                    btn = getattr(event, "button", lambda: None)()
                     if btn == Qt.MouseButton.RightButton:
                         # Compatável com position() (Qt6) e pos()
-                        pos = getattr(event, 'position', None)
+                        pos = getattr(event, "position", None)
                         if callable(pos):
                             p = pos().toPoint()
                         else:
@@ -5514,15 +5802,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
     def toggle_theme_menu(self):
-        from PyQt6.QtWidgets import QMenu, QWidgetAction, QCheckBox
         from functools import partial
+
+        from PyQt6.QtWidgets import QCheckBox, QMenu, QWidgetAction
 
         menu = QMenu(self)
         # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
         try:
-            from PyQt6.QtWidgets import QApplication
             from PyQt6.QtCore import Qt as _Qt
             from PyQt6.QtGui import QPalette as _QPal
+            from PyQt6.QtWidgets import QApplication
 
             app = QApplication.instance()
             pal = app.palette() if app is not None else self.palette()
@@ -5561,14 +5850,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Erro ao obter palette menu: {e}")
             wtxt = "#ffffff"
             win = "#000000"
-        support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
+        support_color = (
+            roles.get("support_text_color") or roles.get("label_color") or wtxt
+        )
         if support_color.lower() == win.lower():
             support_color = wtxt
 
         try:
             check_action = QWidgetAction(menu)
             check_widget = QCheckBox("Usar tema atual como padrao")
-            check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
+            check_widget.setChecked(
+                normalize_theme(theme_default or "") == current_theme
+            )
             try:
                 check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
             except Exception as e:
@@ -5577,7 +5870,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             def _toggle_default(checked):
                 gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
                 if checked:
-                    active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
+                    active_theme = normalize_theme(
+                        getattr(self, "_current_theme", "") or "gruvbox"
+                    )
                     gui_settings["theme_default"] = active_theme
                 else:
                     gui_settings.pop("theme_default", None)
@@ -5592,10 +5887,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if default_action is not None:
                 try:
                     default_action.setCheckable(True)
-                    default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
+                    default_action.setChecked(
+                        normalize_theme(theme_default or "") == current_theme
+                    )
 
                     def _toggle_default_action(checked):
-                        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
+                        gui_settings = GUI_MAIN_PREFERENCES.setdefault(
+                            "gui_settings", {}
+                        )
                         if checked:
                             active_theme = normalize_theme(
                                 getattr(self, "_current_theme", "") or "gruvbox"
@@ -5690,8 +5989,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 if app is not None:
                     styles = QStyleFactory.keys()
-                    if styles and 'Fusion' in styles:
-                        app.setStyle('Fusion')
+                    if styles and "Fusion" in styles:
+                        app.setStyle("Fusion")
             except Exception as e:
                 logger.debug(f"Erro ao setar estilo Fusion: {e}")
             # Aplica paleta no aplicativo inteiro para garantir consistência
@@ -5734,14 +6033,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             existing = existing[:start].rstrip()
                     normalized_name = normalize_theme(normalized)
                     if normalized_name in {
-                        'grayscale',
-                        'gruvbox',
-                        'dark',
-                        'dracula',
-                        'solarized-dark',
-                        'tokyo-night',
-                        'catppuccin',
-                        'nord',
+                        "grayscale",
+                        "gruvbox",
+                        "dark",
+                        "dracula",
+                        "solarized-dark",
+                        "tokyo-night",
+                        "catppuccin",
+                        "nord",
                     }:
                         bg = pal.window().color().name()
                         block = build_central_widget_qss(bg)
@@ -5762,8 +6061,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     tab_bg = pal.color(_QPal.ColorRole.Window).name()
                     tab_text = pal.color(_QPal.ColorRole.WindowText).name()
                     tab_mid = pal.color(_QPal.ColorRole.Mid).name()
-                    accent = roles.get('accent', tab_text)
-                    support_color = roles.get('support_text_color', tab_text)
+                    accent = roles.get("accent", tab_text)
+                    support_color = roles.get("support_text_color", tab_text)
                     tab_css = (
                         "QTabWidget::pane {"
                         f" border:1px solid {tab_mid};"
@@ -5789,12 +6088,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             # FIX: Apply header style to ALL table widgets in all contexts
             targets = []
-            if hasattr(self, 'table_widget') and self.table_widget:
+            if hasattr(self, "table_widget") and self.table_widget:
                 targets.append(self.table_widget)
-            if hasattr(self, '_tab_contexts'):
+            if hasattr(self, "_tab_contexts"):
                 for ctx in self._tab_contexts:
-                    if 'table_widget' in ctx and ctx['table_widget']:
-                        targets.append(ctx['table_widget'])
+                    if "table_widget" in ctx and ctx["table_widget"]:
+                        targets.append(ctx["table_widget"])
             # Deduplicate
             targets = list(set(targets))
 
@@ -5814,8 +6113,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # These variables are used in subsequent sections
         self._current_theme = normalized
         try:
-            light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
-            selector = getattr(self, 'column_selector', None)
+            light_themes = {
+                "windows7",
+                "classico",
+                "solarized-light",
+                "mint-light",
+                "paper",
+            }
+            selector = getattr(self, "column_selector", None)
             pal_active = self.palette()
             from PyQt6.QtGui import QPalette as _QPal
 
@@ -5824,22 +6129,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             base = pal_active.color(_QPal.ColorRole.Base).name()
             mid = pal_active.color(_QPal.ColorRole.Mid).name()
             high = pal_active.color(_QPal.ColorRole.Highlight).name()
-            label_color = roles.get('label_color', txt)
-            support_color = roles.get('support_text_color', label_color)
-            indicator_color = roles.get('indicator_text_color', support_color)
-            summary_color = roles.get('summary_text_color', label_color)
-            summary_bg = roles.get('summary_frame_bg', roles.get('panel_bg', base))
-            summary_border = roles.get('summary_frame_border', roles.get('panel_border', mid))
-            accent = roles.get('accent', high)
-            accent_soft = roles.get('accent_soft', support_color)
-            input_bg = roles.get('input_bg', base)
-            input_text = roles.get('input_text', txt)
-            input_border = roles.get('input_border', mid)
-            input_focus = roles.get('input_border_focus', accent)
-            input_placeholder = roles.get('input_placeholder', support_color)
-            panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
-            panel_text = roles.get('panel_text', txt)
-            panel_border = roles.get('panel_border', input_border)
+            label_color = roles.get("label_color", txt)
+            support_color = roles.get("support_text_color", label_color)
+            indicator_color = roles.get("indicator_text_color", support_color)
+            summary_color = roles.get("summary_text_color", label_color)
+            summary_bg = roles.get("summary_frame_bg", roles.get("panel_bg", base))
+            summary_border = roles.get(
+                "summary_frame_border", roles.get("panel_border", mid)
+            )
+            accent = roles.get("accent", high)
+            accent_soft = roles.get("accent_soft", support_color)
+            input_bg = roles.get("input_bg", base)
+            input_text = roles.get("input_text", txt)
+            input_border = roles.get("input_border", mid)
+            input_focus = roles.get("input_border_focus", accent)
+            input_placeholder = roles.get("input_placeholder", support_color)
+            panel_bg = roles.get(
+                "panel_bg", pal_active.color(_QPal.ColorRole.Window).name()
+            )
+            panel_text = roles.get("panel_text", txt)
+            panel_border = roles.get("panel_border", input_border)
             try:
                 highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
             except Exception:
@@ -5855,17 +6164,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             targets_input = []
             targets_label = []
 
-            if hasattr(self, 'search_input') and self.search_input:
+            if hasattr(self, "search_input") and self.search_input:
                 targets_input.append(self.search_input)
-            if hasattr(self, 'search_label') and self.search_label:
+            if hasattr(self, "search_label") and self.search_label:
                 targets_label.append(self.search_label)
 
-            if hasattr(self, '_tab_contexts'):
+            if hasattr(self, "_tab_contexts"):
                 for ctx in self._tab_contexts:
-                    if 'search_input' in ctx and ctx['search_input']:
-                        targets_input.append(ctx['search_input'])
-                    if 'search_label' in ctx and ctx['search_label']:
-                        targets_label.append(ctx['search_label'])
+                    if "search_input" in ctx and ctx["search_input"]:
+                        targets_input.append(ctx["search_input"])
+                    if "search_label" in ctx and ctx["search_label"]:
+                        targets_label.append(ctx["search_label"])
 
             targets_input = list(set(targets_input))
             targets_label = list(set(targets_label))
@@ -5925,7 +6234,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     try:
                         widget.setStyleSheet(
                             build_line_edit_qss(
-                                input_text, input_bg, input_border, input_focus, input_placeholder
+                                input_text,
+                                input_bg,
+                                input_border,
+                                input_focus,
+                                input_placeholder,
                             )
                         )
                     except Exception as e:
@@ -5935,8 +6248,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 5: Details Panel
             # ============================================================
             # Style the SSA details text widget and its group box
-            if hasattr(self, 'details_text'):
-                if hasattr(self, 'details_group'):
+            if hasattr(self, "details_text"):
+                if hasattr(self, "details_group"):
                     try:
                         base_font = self.details_group.font()
                         small_font = QFont(base_font)
@@ -5949,7 +6262,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     except Exception as e:
                         logger.debug(f"Erro ao ajustar fonte details em theme: {e}")
                 if normalized in light_themes:
-                    self.details_text.setStyleSheet('')
+                    self.details_text.setStyleSheet("")
                 else:
                     self.details_text.setStyleSheet(
                         "QTextEdit {"
@@ -5959,9 +6272,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
 
-            if hasattr(self, 'details_group'):
+            if hasattr(self, "details_group"):
                 if normalized in light_themes:
-                    self.details_group.setStyleSheet('')
+                    self.details_group.setStyleSheet("")
                 else:
                     self.details_group.setStyleSheet(group_css)
 
@@ -5969,14 +6282,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 6: Column Filters Panel
             # ============================================================
             # Style the column filters group box
-            if hasattr(self, 'col_filters_group'):
+            if hasattr(self, "col_filters_group"):
                 if normalized in light_themes:
-                    self.col_filters_group.setStyleSheet('')
+                    self.col_filters_group.setStyleSheet("")
                 else:
                     self.col_filters_group.setStyleSheet(group_css)
-            if hasattr(self, 'adv_filters_group'):
+            if hasattr(self, "adv_filters_group"):
                 if normalized in light_themes:
-                    self.adv_filters_group.setStyleSheet('')
+                    self.adv_filters_group.setStyleSheet("")
                 else:
                     self.adv_filters_group.setStyleSheet(group_css)
 
@@ -5990,12 +6303,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             self._week_label_style = highlight_style
             # UIREFACTOR 2026-01-08: week_label sem destaque azul - estilo simples
-            if hasattr(self, 'week_label'):
+            if hasattr(self, "week_label"):
                 self.week_label.setStyleSheet(
                     f"font-weight:600; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
                 )
 
-            if hasattr(self, 'status_label'):
+            if hasattr(self, "status_label"):
                 self.status_label.setStyleSheet(
                     f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
                 )
@@ -6004,16 +6317,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 8: Support Text and Indicators
             # ============================================================
             # Style help text and filter indicator labels
-            if hasattr(self, 'search_help'):
+            if hasattr(self, "search_help"):
                 css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
-                if hasattr(self, 'status_label'):
+                if hasattr(self, "status_label"):
                     try:
                         self.search_help.setFont(self.status_label.font())
                     except Exception:
                         pass
                 self.search_help.setStyleSheet(css)
 
-            if hasattr(self, 'col_filter_indicator'):
+            if hasattr(self, "col_filter_indicator"):
                 self.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
 
             # ============================================================
@@ -6021,20 +6334,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # ============================================================
             # Style the summary label and frame showing active filters
             # UIREFACTOR 2026-01-08: Frame com estilo destacado (mesma formatacao dos botoes)
-            if hasattr(self, 'filters_summary_label'):
+            if hasattr(self, "filters_summary_label"):
                 self.filters_summary_label.setStyleSheet(f"color:{accent};")
 
-            if hasattr(self, 'filters_summary_frame'):
+            if hasattr(self, "filters_summary_frame"):
                 self.filters_summary_frame.setStyleSheet(
                     "QFrame {"
                     f" background:{panel_bg}; border:1px solid {accent}; border-radius:4px; padding:4px;"
                     " }"
                 )
-            if hasattr(self, 'clear_all_filters_btn'):
+            if hasattr(self, "clear_all_filters_btn"):
                 self.clear_all_filters_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'export_list_btn'):
+            if hasattr(self, "export_list_btn"):
                 self.export_list_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'undo_filter_btn'):
+            if hasattr(self, "undo_filter_btn"):
                 self.undo_filter_btn.setStyleSheet(highlight_style)
             # UIREFACTOR 2026-01-08: clear_all_btn sem destaque - estilo simples como botao ao lado
             # if hasattr(self, 'clear_all_btn'):
@@ -6044,11 +6357,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # SECTION 10: Column Selector and Hints
             # ============================================================
             # Style the column selector widget and filter hints
-            if selector is not None and hasattr(selector, 'summary_label'):
+            if selector is not None and hasattr(selector, "summary_label"):
                 selector.summary_label.setStyleSheet(f"color:{indicator_color};")
 
-            if hasattr(self, 'col_filters_hint'):
-                self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
+            if hasattr(self, "col_filters_hint"):
+                self.col_filters_hint.setStyleSheet(
+                    f"color:{support_color}; font-size: 11px;"
+                )
         except Exception as e:
             logger.error(f"Erro em apply_theme sections 3-10: {e}")
 
@@ -6064,11 +6379,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Save theme preference and apply macOS-specific contrast fixes
         try:
             # Persistencia simples do tema sem normalizacao adicional
-            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalized
+            GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})["theme"] = normalized
             with open(
-                os.path.join(project_root, 'config', 'gui_main_preferences.json'),
-                'w',
-                encoding='utf-8',
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                "w",
+                encoding="utf-8",
             ) as f:
                 json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception:
@@ -6080,14 +6395,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
     def _apply_macos_contrast(self, theme_name: str):
-        if sys.platform != 'darwin':
+        if sys.platform != "darwin":
             return
         normalized = normalize_theme(theme_name)
         roles = get_theme_roles(normalized)
-        text_color = roles.get('panel_text')
-        bg_color = roles.get('panel_bg')
-        border_color = roles.get('panel_border')
-        label_color = roles.get('label_color')
+        text_color = roles.get("panel_text")
+        bg_color = roles.get("panel_bg")
+        border_color = roles.get("panel_border")
+        label_color = roles.get("label_color")
         block = (
             "/* SSA_MAC_QSS_START */\n"
             "QLineEdit, QTextEdit, QTextBrowser {"
@@ -6106,7 +6421,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     end += len("/* SSA_MAC_QSS_END */")
                     existing = existing[:start] + existing[end:]
                 new_qss = (
-                    existing + ("\n" if existing and not existing.endswith("\n") else "") + block
+                    existing
+                    + ("\n" if existing and not existing.endswith("\n") else "")
+                    + block
                 ).strip()
                 central.setStyleSheet(new_qss)
         except Exception as e:
@@ -6115,7 +6432,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
         self.visible_columns = new_columns
-        if hasattr(self, 'column_selector') and self.column_selector is not None:
+        if hasattr(self, "column_selector") and self.column_selector is not None:
             try:
                 self.column_selector.set_selected_columns(new_columns)
             except Exception as e:
@@ -6144,7 +6461,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Determina colunas válidas a partir de df_exibido (mesmo vazio, mantém schema)
             valid_cols = []
             try:
-                base_cols = list(getattr(self, 'df_exibido', pd.DataFrame()).columns)
+                base_cols = list(getattr(self, "df_exibido", pd.DataFrame()).columns)
                 if base_cols:
                     valid_cols = [c for c in self.visible_columns if c in base_cols]
             except Exception as e:
@@ -6159,13 +6476,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
 
             # Atualiza colunas atuais (inclui '#') e aplica cabeçalhos
-            self._current_display_columns = ['#'] + list(valid_cols)
+            self._current_display_columns = ["#"] + list(valid_cols)
             self.table_widget.setColumnCount(len(self._current_display_columns))
             headers = []
             for col in self._current_display_columns:
-                base = '#' if col == '#' else self.internal_to_display.get(col, col)
+                base = "#" if col == "#" else self.internal_to_display.get(col, col)
                 term = self._active_column_filters.get(col)
-                has_filter = bool(term) and str(term).strip() != '' and col != '#'
+                has_filter = bool(term) and str(term).strip() != "" and col != "#"
                 headers.append(f"[f] {base}" if has_filter else base)
             try:
                 self.table_widget.setHorizontalHeaderLabels(headers)
@@ -6176,25 +6493,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             for i, col_name in enumerate(self._current_display_columns):
                 px = self._saved_gui_column_widths.get(col_name)
                 if px is None:
-                    if col_name == '#':
+                    if col_name == "#":
                         px = 30
-                    elif col_name == 'numero_ssa':
+                    elif col_name == "numero_ssa":
                         px = 110
-                    elif col_name == 'localizacao_codigo':
+                    elif col_name == "localizacao_codigo":
                         px = 86
-                    elif col_name == 'situacao':
+                    elif col_name == "situacao":
                         px = 51
-                    elif col_name == 'descricao_ssa':
+                    elif col_name == "descricao_ssa":
                         px = 296
-                    elif col_name == 'data_cadastro':
+                    elif col_name == "data_cadastro":
                         px = 100
-                    elif col_name == 'setor_emissor':
+                    elif col_name == "setor_emissor":
                         px = 58
-                    elif col_name == 'derivada_de':
+                    elif col_name == "derivada_de":
                         px = 93
-                    elif col_name == 'semana_programada':
+                    elif col_name == "semana_programada":
                         px = 72
-                    elif col_name == 'descricao_execucao':
+                    elif col_name == "descricao_execucao":
                         px = 280
                     else:
                         px = 80
@@ -6205,7 +6522,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Garantia extra para a primeira coluna de dados
             try:
-                if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
+                if (
+                    self.table_widget.columnCount() > 1
+                    and self.table_widget.columnWidth(1) == 0
+                ):
                     self.table_widget.setColumnWidth(1, 80)
             except Exception as e:
                 logger.debug(f"Falha ao validar largura col 1: {e}")
@@ -6221,11 +6541,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         # Seleciona apenas as colunas visáveis
-        cols_to_show = [col for col in self.visible_columns if col in self.df_para_tabela.columns]
+        cols_to_show = [
+            col for col in self.visible_columns if col in self.df_para_tabela.columns
+        ]
         if not cols_to_show:
             # Se nenhuma coluna selecionada for valida, mostra as padroes
             cols_to_show = [
-                col for col in self.default_columns if col in self.df_para_tabela.columns
+                col
+                for col in self.default_columns
+                if col in self.df_para_tabela.columns
             ]
             if not cols_to_show:
                 # Ultimo recurso: mostra todas
@@ -6236,13 +6560,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         display_df = self.df_para_tabela[cols_to_show].copy()
         # Mantêm colunas atuais para mapear ándice->nome ao salvar larguras
-        self._current_display_columns = ['#'] + list(display_df.columns)
+        self._current_display_columns = ["#"] + list(display_df.columns)
 
         # Adiciona a coluna de ándice '#'
-        if '#' not in display_df.columns:
+        if "#" not in display_df.columns:
             display_df.insert(
                 0,
-                '#',
+                "#",
                 range(
                     (self.paginator.current_page - 1) * self.paginator.page_size + 1,
                     (self.paginator.current_page - 1) * self.paginator.page_size
@@ -6257,7 +6581,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         display_df_hash = hash(
             str(display_df.shape)
             + str(list(display_df.columns))
-            + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else '')
+            + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else "")
         )
 
         # Usa CacheManager unificado para cache de DataFrame formatado
@@ -6282,10 +6606,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Define cabeçalhos de exibiçção com indicador de filtro [f] por coluna
         display_headers = []
         for col in display_df.columns:
-            base = '#' if col == '#' else self.internal_to_display.get(col, col)
+            base = "#" if col == "#" else self.internal_to_display.get(col, col)
             term = self._active_column_filters.get(col)
-            has_filter = bool(term) and str(term).strip() != ''
-            if has_filter and col != '#':
+            has_filter = bool(term) and str(term).strip() != ""
+            if has_filter and col != "#":
                 base = f"[f] {base}"
             display_headers.append(base)
         self.table_widget.setHorizontalHeaderLabels(display_headers)
@@ -6299,19 +6623,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 item_text = "" if pd.isna(value) else str(value)
 
                 # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
-                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
+                if col_name not in [
+                    "descricao_ssa",
+                    "descricao_execucao",
+                    "solicitante",
+                ]:
                     # Trunca apenas colunas que nção sção de descriçção
                     max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
                     if len(item_text) > max_chars:
                         item_text = item_text[: max_chars - 3] + "..."
 
                 item = QTableWidgetItem(item_text)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+                )
                 # Armazena o indice da linha original nos dados filtrados para referencia
-                if col_name == '#':
+                if col_name == "#":
                     item.setData(
                         Qt.ItemDataRole.UserRole,
-                        row_idx + (self.paginator.current_page - 1) * self.paginator.page_size,
+                        row_idx
+                        + (self.paginator.current_page - 1) * self.paginator.page_size,
                     )
                 self.table_widget.setItem(row_idx, col_idx, item)
 
@@ -6323,10 +6654,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.debug(f"Erro viewport width: {e}")
             vw = -1
-        need_cols = (not hasattr(self, '_widths_columns_sig')) or (
+        need_cols = (not hasattr(self, "_widths_columns_sig")) or (
             self._widths_columns_sig != cols_sig
         )
-        need_vw = (not hasattr(self, '_last_viewport_w')) or (abs(vw - self._last_viewport_w) > 12)
+        need_vw = (not hasattr(self, "_last_viewport_w")) or (
+            abs(vw - self._last_viewport_w) > 12
+        )
         if need_cols or need_vw:
             self._compute_gui_column_widths(display_df)
             self._widths_columns_sig = cols_sig
@@ -6339,7 +6672,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Usa a coluna diretamente do DataFrame (que jã inclui '#')
             col_key = col_name
 
-            px = getattr(self, '_gui_column_pixel_widths', {}).get(col_key)
+            px = getattr(self, "_gui_column_pixel_widths", {}).get(col_key)
 
             # Se nção hã largura calculada, usa configuraçção salva manualmente pelo usuãrio
             if px is None:
@@ -6347,31 +6680,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Fallbacks apenas se nenhuma das anteriores estiver disponável
             if px is None:
-                if col_key == '#':
+                if col_key == "#":
                     px = 30
-                elif col_key == 'numero_ssa':
+                elif col_key == "numero_ssa":
                     px = 110  # leve aumento para leitura do n┬║ SSA
-                elif col_key == 'localizacao_codigo':
+                elif col_key == "localizacao_codigo":
                     px = 86  # 10 chars * 7 + 16
-                elif col_key == 'situacao':
+                elif col_key == "situacao":
                     px = 51  # 5 chars * 7 + 16
-                elif col_key == 'descricao_ssa':
+                elif col_key == "descricao_ssa":
                     px = 296  # 40 chars * 7 + 16
-                elif col_key == 'data_cadastro':
+                elif col_key == "data_cadastro":
                     px = 100  # 12 chars * 7 + 16
-                elif col_key == 'setor_emissor':
+                elif col_key == "setor_emissor":
                     px = 58  # 6 chars * 7 + 16
-                elif col_key == 'derivada_de':
+                elif col_key == "derivada_de":
                     px = 93  # 11 chars * 7 + 16
-                elif col_key == 'semana_programada':
+                elif col_key == "semana_programada":
                     px = 72  # 8 chars * 7 + 16
-                elif col_key == 'descricao_execucao':
+                elif col_key == "descricao_execucao":
                     px = 280  # Menor que descriçção_ssa
                 else:
                     px = 80  # Fallback geral
 
             # Aplica limites de segurança apenas
-            px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
+            px = max(
+                30, min(int(px), 1000)
+            )  # Permite larguras maiores para descriptions
 
             self.table_widget.setColumnWidth(i, px)
 
@@ -6410,21 +6745,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     # --- Wrappers de compatibilidade com testes antigos (PoC) ---
     def display_data(self, df):  # usado em testes legados
         try:
-            if df is None or getattr(df, 'empty', True):
+            if df is None or getattr(df, "empty", True):
                 return
             self.df_completo = df.copy()
             self.df_exibido = df.copy()
             self.paginator.set_dataframe(self.df_exibido)
-            self.display_current_page(getattr(self.paginator, 'current_page', 1))
+            self.display_current_page(getattr(self.paginator, "current_page", 1))
         except Exception as e:
             logger.error(f"Erro em display_data (legacy): {e}")
 
     def _force_column_widths(self):
         """Força reaplicaçção das larguras das colunas para garantir que sejam respeitadas."""
-        if not hasattr(self, 'visible_columns') or not self.visible_columns:
+        if not hasattr(self, "visible_columns") or not self.visible_columns:
             return
 
-        for i, col_name in enumerate(['#'] + self.visible_columns):
+        for i, col_name in enumerate(["#"] + self.visible_columns):
             # Busca largura salva das configurações
             px = self._saved_gui_column_widths.get(col_name)
             if px is not None:
@@ -6446,7 +6781,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     try:
                         self.table_widget.resizeColumnToContents(i)
                     except Exception as e:
-                        logger.debug(f"Falha ao redimensionar coluna {i} pelo conteudo: {e}")
+                        logger.debug(
+                            f"Falha ao redimensionar coluna {i} pelo conteudo: {e}"
+                        )
                     if self.table_widget.columnWidth(i) == 0:
                         self.table_widget.setColumnWidth(i, 80)
         except Exception as e:
@@ -6471,18 +6808,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """
         try:
             # Garante que visible_columns esteja definido
-            if not hasattr(self, 'visible_columns') or not self.visible_columns:
+            if not hasattr(self, "visible_columns") or not self.visible_columns:
                 return
 
             # CORRECAO CRITICA: Filtra visible_columns para incluir apenas colunas que EXISTEM no DataFrame
-            if hasattr(df, 'columns'):
-                existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
+            if hasattr(df, "columns"):
+                existing_visible_cols = [
+                    col for col in self.visible_columns if col in df.columns
+                ]
                 if not existing_visible_cols:
-                    logger.warning("ERRO: Nenhuma coluna visível encontrada no DataFrame")
+                    logger.warning(
+                        "ERRO: Nenhuma coluna visível encontrada no DataFrame"
+                    )
                     return
 
                 # IMPORTANTE: Mantêm a ordem exata de self.visible_columns
-                visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
+                visible_df = df[existing_visible_cols].reindex(
+                    columns=existing_visible_cols
+                )
             else:
                 visible_df = df
 
@@ -6490,16 +6833,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             widget_width = self.table_widget.width()
 
             if widget_width < 500:  # Tabela ainda nção inicializada
-                table_width = max(1000 if sys.platform == 'darwin' else 1400, self.width() - 50)
+                table_width = max(
+                    1000 if sys.platform == "darwin" else 1400, self.width() - 50
+                )
             else:
                 table_width = widget_width - 40  # Margem para scrollbars
 
-            min_width = 1100 if sys.platform == 'darwin' else 1400
+            min_width = 1100 if sys.platform == "darwin" else 1400
             table_width = max(table_width, min_width)
 
             # Usa o WidthManager para calcular larguras otimizadas
             # IMPORTANTE: Força ordem correta das colunas (adiciona '#' no inácio)
-            correct_column_order = ['#'] + existing_visible_cols
+            correct_column_order = ["#"] + existing_visible_cols
             column_widths = self.width_manager.compute_optimal_widths(
                 df=visible_df,
                 available_width=table_width,
@@ -6510,7 +6855,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             if sys.platform == "darwin":
                 column_widths = {
-                    key: (value + 2 if key != '#' else value)
+                    key: (value + 2 if key != "#" else value)
                     for key, value in column_widths.items()
                 }
 
@@ -6520,8 +6865,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"ERRO em _compute_gui_column_widths: {e}")
             # Fallback para larguras mánimas das colunas visáveis apenas
-            visible_cols = ['#'] + (
-                self.visible_columns if hasattr(self, 'visible_columns') else []
+            visible_cols = ["#"] + (
+                self.visible_columns if hasattr(self, "visible_columns") else []
             )
             self._gui_column_pixel_widths = {col: 100 for col in visible_cols}
 
@@ -6529,7 +6874,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Calcula o numero maximo de caracteres baseado na largura da coluna."""
         try:
             # Usa largura calculada pelo WidthManager ou largura atual da coluna
-            width_px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
+            width_px = getattr(self, "_gui_column_pixel_widths", {}).get(col_name)
             if width_px is None:
                 width_px = self.table_widget.columnWidth(col_idx)
 
@@ -6537,13 +6882,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores proporções
 
             # Limites especáficos por tipo de coluna
-            if col_name in ['descricao_ssa', 'descricao_execucao']:
+            if col_name in ["descricao_ssa", "descricao_execucao"]:
                 # Descrições podem usar toda largura disponável
                 max_chars = max(50, max_chars)  # Mánimo mais alto para descrições
-            elif col_name in ['numero_ssa', 'localizacao_codigo']:
+            elif col_name in ["numero_ssa", "localizacao_codigo"]:
                 # Campos curtos nção precisam de muito espaço
                 max_chars = min(max_chars, 25)
-            elif col_name == 'solicitante':
+            elif col_name == "solicitante":
                 # Solicitante deve caber pelo menos "MAURICIO MENON"
                 max_chars = max(15, max_chars)  # Garante pelo menos 15 caracteres
             else:
@@ -6556,17 +6901,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Fallback mais generoso
             return 80
 
-    def _on_header_section_resized(self, logical_index: int, old_size: int, new_size: int):
+    def _on_header_section_resized(
+        self, logical_index: int, old_size: int, new_size: int
+    ):
         """Salva a largura ajustada pelo usuãrio na configuraçção persistente."""
         try:
-            cols = getattr(self, '_current_display_columns', None)
+            cols = getattr(self, "_current_display_columns", None)
             if not cols or logical_index < 0 or logical_index >= len(cols):
                 return
             col_name = cols[logical_index]
             new_px = max(30, min(int(new_size), 1200))
             if col_name:
                 self._saved_gui_column_widths[col_name] = new_px
-                if hasattr(self, '_gui_column_pixel_widths'):
+                if hasattr(self, "_gui_column_pixel_widths"):
                     self._gui_column_pixel_widths[col_name] = new_px
         except Exception as e:
             # Evita quebrar a GUI por falhas de IO
@@ -6579,11 +6926,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         cleaned = str(term).strip()
         if not cleaned:
             return ""
-        if cleaned.startswith('!') or cleaned.startswith('-'):
+        if cleaned.startswith("!") or cleaned.startswith("-"):
             cleaned = cleaned[1:]
-        if cleaned.startswith('~') or cleaned.startswith('=') or cleaned.startswith('^'):
+        if (
+            cleaned.startswith("~")
+            or cleaned.startswith("=")
+            or cleaned.startswith("^")
+        ):
             cleaned = cleaned[1:]
-        if cleaned.endswith('$'):
+        if cleaned.endswith("$"):
             cleaned = cleaned[:-1]
         return cleaned.strip()
 
@@ -6593,7 +6944,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not search_text:
             return []
         # Split por virgulas
-        terms = [term.strip() for term in search_text.split(',') if term.strip()]
+        terms = [term.strip() for term in search_text.split(",") if term.strip()]
         clean_terms = []
         for term in terms:
             normalized = self._normalize_highlight_term(term)
@@ -6609,11 +6960,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if term and term not in seen:
                 aggregated.append(term)
                 seen.add(term)
-        for raw in getattr(self, '_active_column_filters', {}).values():
+        for raw in getattr(self, "_active_column_filters", {}).values():
             if not raw:
                 continue
-            normalized_raw = str(raw).replace(';', ',')
-            tokens = [tok.strip() for tok in normalized_raw.split(',') if tok.strip()]
+            normalized_raw = str(raw).replace(";", ",")
+            tokens = [tok.strip() for tok in normalized_raw.split(",") if tok.strip()]
             for tok in tokens:
                 normalized = self._normalize_highlight_term(tok)
                 if normalized and normalized not in seen:
@@ -6655,35 +7006,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # 1. BUSCA GERAL (search_input)
             # Suporta multiplos termos separados por virgula (AND) e negacao (!termo)
-            search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ""
+            search_text = (
+                self.search_input.text().strip()
+                if hasattr(self, "search_input")
+                else ""
+            )
             if search_text:
                 logger.info(f"Aplicando busca geral: '{search_text}'")
                 # Criar string combinada de todas as colunas para busca
                 search_columns = []
                 for col in df.columns:
-                    if col != 'id':  # Ignora campo ID
+                    if col != "id":  # Ignora campo ID
                         search_columns.append(df[col].astype(str))
                 if search_columns:
-                    combined = pd.Series([' '.join(vals) for vals in zip(*search_columns)], index=df.index)
+                    combined = pd.Series(
+                        [" ".join(vals) for vals in zip(*search_columns)],
+                        index=df.index,
+                    )
 
                     # Divide por virgula e processa cada termo
-                    terms = [t.strip() for t in search_text.split(',') if t.strip()]
+                    terms = [t.strip() for t in search_text.split(",") if t.strip()]
                     search_mask = pd.Series(True, index=df.index)
 
                     for term in terms:
-                        if term.startswith('!'):
+                        if term.startswith("!"):
                             # Termo negativo: deve NAO conter
                             neg_term = term[1:].strip()
                             if neg_term:
-                                term_mask = ~combined.str.contains(neg_term, case=False, na=False, regex=False)
+                                term_mask = ~combined.str.contains(
+                                    neg_term, case=False, na=False, regex=False
+                                )
                                 search_mask &= term_mask
                         else:
                             # Termo positivo: deve conter
-                            term_mask = combined.str.contains(term, case=False, na=False, regex=False)
+                            term_mask = combined.str.contains(
+                                term, case=False, na=False, regex=False
+                            )
                             search_mask &= term_mask
 
                     mask &= search_mask
-                    logger.info(f"Busca geral: {search_mask.sum()} registros encontrados")
+                    logger.info(
+                        f"Busca geral: {search_mask.sum()} registros encontrados"
+                    )
 
             # 2. FILTROS DE COLUNA (_active_column_filters)
             # Usa _build_column_mask herdado do FilterGUISSAMixin para suportar:
@@ -6691,7 +7055,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # - Prefixo ^ (inicia com), sufixo $ (termina com)
             # - =exato, ~regex, !negacao
             if self._active_column_filters:
-                logger.info(f"Aplicando {len(self._active_column_filters)} filtros de coluna")
+                logger.info(
+                    f"Aplicando {len(self._active_column_filters)} filtros de coluna"
+                )
                 for col_key, filter_term in self._active_column_filters.items():
                     if not filter_term or not filter_term.strip():
                         continue
@@ -6703,17 +7069,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     col_series = df[col_key].astype(str)
                     col_mask = self._build_column_mask(col_series, filter_term)
                     mask &= col_mask
-                    logger.info(f"Filtro coluna '{col_key}': {col_mask.sum()} registros")
+                    logger.info(
+                        f"Filtro coluna '{col_key}': {col_mask.sum()} registros"
+                    )
 
             # 3. CHECKBOX "Não está em STE/SCA"
-            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
-                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+            if hasattr(self, "_current_tab_index") and hasattr(self, "_tab_contexts"):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(
+                    self._tab_contexts
+                ):
                     ctx = self._tab_contexts[self._current_tab_index]
                     exclude_ste = ctx.get("exclude_ste_checkbox")
-                    if exclude_ste and _is_widget_valid(exclude_ste) and exclude_ste.isChecked():
+                    if (
+                        exclude_ste
+                        and _is_widget_valid(exclude_ste)
+                        and exclude_ste.isChecked()
+                    ):
                         logger.info("Aplicando exclusao STE/SCA")
-                        if 'situacao' in df.columns:
-                            ste_mask = ~df['situacao'].astype(str).str.upper().isin(['STE', 'SCA'])
+                        if "situacao" in df.columns:
+                            ste_mask = ~df["situacao"].astype(str).str.upper().isin(
+                                ["STE", "SCA"]
+                            )
                             mask &= ste_mask
                             logger.info(f"Exclusao STE/SCA: {ste_mask.sum()} registros")
 
@@ -6722,7 +7098,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Apos filtros gerais: {len(df)} registros")
 
             # 4. FILTROS AVANCADOS
-            if getattr(self, '_advanced_filters_active', False):
+            if getattr(self, "_advanced_filters_active", False):
                 logger.info("Aplicando filtros avancados")
                 df = self._apply_advanced_filters(df)
                 logger.info(f"Apos filtros avancados: {len(df)} registros")
@@ -6732,33 +7108,35 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._df_last_search_filtered = df.copy()
 
             # Atualiza paginator e exibe pagina 1
-            if hasattr(self, 'paginator'):
+            if hasattr(self, "paginator"):
                 self.paginator.set_dataframe(self.df_exibido)
                 self.display_current_page(1)
 
             # Atualiza contador de SSAs (ssa_count_input)
-            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
-                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+            if hasattr(self, "_current_tab_index") and hasattr(self, "_tab_contexts"):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(
+                    self._tab_contexts
+                ):
                     ctx = self._tab_contexts[self._current_tab_index]
                     ssa_count = ctx.get("ssa_count_input")
                     if ssa_count:
                         ssa_count.setText(str(len(self.df_exibido)))
 
             # Atualiza status_label
-            if hasattr(self, 'status_label'):
+            if hasattr(self, "status_label"):
                 total_count = len(self.df_completo)
                 self.status_label.setText(f"Status: {total_count} SSAs carregadas")
 
             # Atualiza resumo de filtros
-            if hasattr(self, '_update_filters_summary'):
+            if hasattr(self, "_update_filters_summary"):
                 self._update_filters_summary()
 
             # Atualiza indicador de filtros de coluna
-            if hasattr(self, '_update_col_filter_indicator'):
+            if hasattr(self, "_update_col_filter_indicator"):
                 self._update_col_filter_indicator()
 
             # Atualiza estado do botao clear_filter_button
-            if hasattr(self, 'clear_filter_button'):
+            if hasattr(self, "clear_filter_button"):
                 has_filters = bool(search_text) or any(
                     v.strip() for v in (self._active_column_filters or {}).values()
                 )
@@ -6771,9 +7149,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _highlight_text(self, text, terms):
         """Delegate to helper function."""
-        bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
-        fg = getattr(self, '_highlight_text_color', None)
-        weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
+        bg = getattr(self, "_highlight_bg_color", HIGHLIGHT_BACKGROUND_COLOR)
+        fg = getattr(self, "_highlight_text_color", None)
+        weight = getattr(self, "_highlight_font_weight", HIGHLIGHT_FONT_WEIGHT)
         return highlight_text(text, terms, bg, weight, fg)
 
     def _format_details_html(
@@ -6828,7 +7206,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 continue
 
             # Nome de exibicao
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
+            display_name = DETAIL_DISPLAY_OVERRIDES.get(
+                col, self.internal_to_display.get(col, col)
+            )
 
             # Aplica highlight se necessario
             if highlight_search_terms and search_terms:
@@ -6838,10 +7218,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Adiciona linha
             html_lines.append(
-                f'<tr>'
+                f"<tr>"
                 f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
                 f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{formatted_value}</td>'
-                f'</tr>'
+                f"</tr>"
             )
 
         try:
@@ -6857,7 +7237,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     display = html_module.escape(item)
                     items.append(
                         f'<a href="ssa://{href}" style="color:{link_color}; text-decoration:none; border-bottom: 1px solid {link_color};">'
-                        f'{display}</a>'
+                        f"{display}</a>"
                     )
                 derived_text = ", ".join(items)
             else:
@@ -6868,14 +7248,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     derived_text = html_module.escape(derived_text)
             label = f"SSAs derivadas ({len(derived_list)})"
             html_lines.append(
-                f'<tr>'
+                f"<tr>"
                 f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(label)}:</td>'
                 f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{derived_text}</td>'
-                f'</tr>'
+                f"</tr>"
             )
 
-        html_lines.append('</table></body></html>')
-        return '\n'.join(html_lines)
+        html_lines.append("</table></body></html>")
+        return "\n".join(html_lines)
 
     def on_table_double_click(self, index):
         """
@@ -6890,20 +7270,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         original_index = index_item.data(Qt.ItemDataRole.UserRole)
         if original_index is None or not (0 <= original_index < len(self.df_exibido)):
             QMessageBox.information(
-                self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha."
+                self,
+                "Info",
+                "Nao foi possivel encontrar os dados detalhados para esta linha.",
             )
             return
 
         series = self.df_exibido.iloc[int(original_index)]
-        numero_ssa = str(series.get('numero_ssa', '')).strip()
+        numero_ssa = str(series.get("numero_ssa", "")).strip()
 
         # Aba Filtros: Abre direto na aba Detalhes
-        tab_kind = getattr(self, '_current_tab_kind', 'ssas')
-        if tab_kind == 'filters':
+        tab_kind = getattr(self, "_current_tab_kind", "ssas")
+        if tab_kind == "filters":
             if numero_ssa:
                 self._open_ssa_in_details_tab(numero_ssa)
             else:
-                logger.warning("POPUP: Abrindo QMessageBox.information - Numero SSA nao encontrado")
+                logger.warning(
+                    "POPUP: Abrindo QMessageBox.information - Numero SSA nao encontrado"
+                )
                 QMessageBox.information(self, "Info", "Numero SSA nao encontrado.")
             return
 
@@ -6919,7 +7303,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         text_browser.setOpenExternalLinks(False)
         text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
 
-        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
+        html_content = self._format_details_html(
+            series, highlight_search_terms=True, linkify=True
+        )
         text_browser.setHtml(html_content)
         layout.addWidget(text_browser)
 
@@ -6928,7 +7314,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         if numero_ssa:
             open_tab_button = QPushButton("Abrir em Aba Detalhes")
-            open_tab_button.clicked.connect(lambda: self._open_ssa_in_details_tab(numero_ssa))
+            open_tab_button.clicked.connect(
+                lambda: self._open_ssa_in_details_tab(numero_ssa)
+            )
             open_tab_button.clicked.connect(dialog.accept)
             button_layout.addWidget(open_tab_button)
 
@@ -6951,7 +7339,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         original_index = index_item.data(Qt.ItemDataRole.UserRole)
         if original_index is None or not (0 <= original_index < len(self.df_exibido)):
             QMessageBox.information(
-                self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha."
+                self,
+                "Info",
+                "Nao foi possivel encontrar os dados detalhados para esta linha.",
             )
             return
 
@@ -6973,7 +7363,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
 
         # Formata conteudo com links clicaveis
-        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
+        html_content = self._format_details_html(
+            series, highlight_search_terms=True, linkify=True
+        )
         text_browser.setHtml(html_content)
 
         layout.addWidget(text_browser)
@@ -7029,7 +7421,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         try:
             font_size_pt = None
-            if hasattr(self, 'details_group'):
+            if hasattr(self, "details_group"):
                 try:
                     base_font = self.details_group.font()
                     size = base_font.pointSizeF()
@@ -7069,7 +7461,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             formatted_value = format_cell(value, col)
             if not formatted_value:
                 continue
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
+            display_name = DETAIL_DISPLAY_OVERRIDES.get(
+                col, self.internal_to_display.get(col, col)
+            )
             lines.append(f"{display_name}: {formatted_value}")
         details_str = "\n".join(lines)
         try:
@@ -7162,14 +7556,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             # Muda para aba Detalhes (busca dinamica de indice)
             idx = -1
-            if hasattr(self, 'tab_details'):
+            if hasattr(self, "tab_details"):
                 idx = self.main_tabs.indexOf(self.tab_details)
 
             if idx >= 0:
                 self.main_tabs.setCurrentIndex(idx)
             else:
                 # Fallback se nao encontrar
-                logger.warning("Aba Detalhes nao encontrada via referencia, tentando indice fixo 2")
+                logger.warning(
+                    "Aba Detalhes nao encontrada via referencia, tentando indice fixo 2"
+                )
                 if self.main_tabs.count() > 2:
                     self.main_tabs.setCurrentIndex(2)
 
@@ -7228,13 +7624,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     row_series = self._get_series_from_row(current_item.row())
                 except Exception as e:
-                    logger.debug(f"Nao foi possivel obter dados da linha para context menu: {e}")
+                    logger.debug(
+                        f"Nao foi possivel obter dados da linha para context menu: {e}"
+                    )
                     row_series = None
 
             if row_series is not None:
                 numero_ssa = str(row_series.get("numero_ssa", "")).strip()
                 derivada_de = str(row_series.get("derivada_de", "")).strip()
-                derived_list = self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
+                derived_list = (
+                    self._get_derivadas_for_ssa(numero_ssa) if numero_ssa else []
+                )
 
                 # UIREFACTOR 2026-01-08: Opcao para abrir na aba Detalhes
                 if numero_ssa:
@@ -7247,7 +7647,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                 if derivada_de:
                     origem_action = QAction("Ir para SSA origem", self)
-                    origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))
+                    origem_action.triggered.connect(
+                        lambda: self._jump_to_ssa(derivada_de)
+                    )
                     menu.addAction(origem_action)
                 if derived_list:
                     label = f"Mostrar derivadas ({len(derived_list)})"
@@ -7268,14 +7670,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if column > 0:  # Nção permitir remover a coluna de ándice
                     column_name = self.table_widget.horizontalHeaderItem(column).text()
 
-                    remove_column_action = QAction(f"Remover Coluna '{column_name}'", self)
+                    remove_column_action = QAction(
+                        f"Remover Coluna '{column_name}'", self
+                    )
                     remove_column_action.triggered.connect(
                         lambda: self.remove_column_by_index(column)
                     )
                     menu.addAction(remove_column_action)
 
                     auto_fit_action = QAction(f"Ajustar Largura '{column_name}'", self)
-                    auto_fit_action.triggered.connect(lambda: self.auto_fit_column(column))
+                    auto_fit_action.triggered.connect(
+                        lambda: self.auto_fit_column(column)
+                    )
                     menu.addAction(auto_fit_action)
 
             menu.exec(self.table_widget.mapToGlobal(position))
@@ -7304,7 +7710,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QMessageBox.information(self, "Aviso", "Nenhum dado para exportar.")
             return
         try:
-            path, _ = QFileDialog.getSaveFileName(self, "Exportar lista", "", "Text Files (*.txt)")
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Exportar lista", "", "Text Files (*.txt)"
+            )
         except Exception as e:
             logger.warning(f"Erro no diálogo de salvar arquivo: {e}")
             path = ""
@@ -7328,43 +7736,65 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Atualiza o label de resumo de filtros ativos."""
         try:
             logger.info(">>> _update_filters_summary INICIADO")
-            logger.info(f"hasattr _current_tab_index: {hasattr(self, '_current_tab_index')}")
+            logger.info(
+                f"hasattr _current_tab_index: {hasattr(self, '_current_tab_index')}"
+            )
             logger.info(f"hasattr _tab_contexts: {hasattr(self, '_tab_contexts')}")
 
-            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+            if not hasattr(self, "_current_tab_index") or not hasattr(
+                self, "_tab_contexts"
+            ):
                 logger.error("ERRO: _current_tab_index ou _tab_contexts nao existe!")
                 return
 
             logger.info(f"_current_tab_index = {self._current_tab_index}")
             logger.info(f"len(_tab_contexts) = {len(self._tab_contexts)}")
 
-            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
-                logger.error(f"ERRO: _current_tab_index {self._current_tab_index} fora do range [0, {len(self._tab_contexts)})")
+            if self._current_tab_index < 0 or self._current_tab_index >= len(
+                self._tab_contexts
+            ):
+                logger.error(
+                    f"ERRO: _current_tab_index {self._current_tab_index} fora do range [0, {len(self._tab_contexts)})"
+                )
                 return
 
             ctx = self._tab_contexts[self._current_tab_index]
-            logger.info(f"Contexto da aba {self._current_tab_index}: {list(ctx.keys())}")
+            logger.info(
+                f"Contexto da aba {self._current_tab_index}: {list(ctx.keys())}"
+            )
 
             label = ctx.get("filters_summary_label")
             logger.info(f"filters_summary_label encontrado: {label is not None}")
 
             if not label:
-                logger.error(f"ERRO: label nao encontrado no contexto! Keys disponiveis: {list(ctx.keys())}")
+                logger.error(
+                    f"ERRO: label nao encontrado no contexto! Keys disponiveis: {list(ctx.keys())}"
+                )
                 return
 
             active_filters = []
 
             # Filtros de coluna
             logger.info(f"========== CONSTRUINDO RESUMO DE FILTROS ==========")
-            logger.info(f"_active_column_filters COMPLETO: {dict(self._active_column_filters)}")
+            logger.info(
+                f"_active_column_filters COMPLETO: {dict(self._active_column_filters)}"
+            )
             logger.info(f"display_map tem {len(self.display_map)} entradas")
-            logger.info(f"Primeiras 10 keys do display_map: {list(self.display_map.keys())[:10]}")
+            logger.info(
+                f"Primeiras 10 keys do display_map: {list(self.display_map.keys())[:10]}"
+            )
 
             if self._active_column_filters:
-                logger.info(f"Iterando sobre {len(self._active_column_filters)} filtros:")
-                for idx, (col, term) in enumerate(self._active_column_filters.items(), 1):
+                logger.info(
+                    f"Iterando sobre {len(self._active_column_filters)} filtros:"
+                )
+                for idx, (col, term) in enumerate(
+                    self._active_column_filters.items(), 1
+                ):
                     logger.info(f"  [{idx}] col='{col}' (tipo: {type(col).__name__})")
-                    logger.info(f"  [{idx}] term='{term}' (tipo: {type(term).__name__}, len: {len(term) if term else 0})")
+                    logger.info(
+                        f"  [{idx}] term='{term}' (tipo: {type(term).__name__}, len: {len(term) if term else 0})"
+                    )
 
                     # CRITICO: SOMENTE adicionar se term tiver conteudo
                     if not term or not term.strip():
@@ -7376,20 +7806,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     filter_text = f"{display_name}: {term}"
                     logger.info(f"  [{idx}] TEXTO CONSTRUIDO: '{filter_text}'")
                     active_filters.append(filter_text)
-                    logger.info(f"  [{idx}] active_filters agora tem {len(active_filters)} itens")
+                    logger.info(
+                        f"  [{idx}] active_filters agora tem {len(active_filters)} itens"
+                    )
             else:
                 logger.info("_active_column_filters esta VAZIO")
 
             # Checkbox "Não está em STE/SCA"
             exclude_ste = ctx.get("exclude_ste_checkbox")
             logger.info(f"exclude_ste_checkbox: {exclude_ste is not None}")
-            if exclude_ste and _is_widget_valid(exclude_ste) and exclude_ste.isChecked():
+            if (
+                exclude_ste
+                and _is_widget_valid(exclude_ste)
+                and exclude_ste.isChecked()
+            ):
                 logger.info("Adicionando filtro: Excluir STE/SCA")
                 active_filters.append("Excluir STE/SCA")
 
             # Busca de texto
             logger.info(f"hasattr search_input: {hasattr(self, 'search_input')}")
-            if hasattr(self, 'search_input') and self.search_input.text().strip():
+            if hasattr(self, "search_input") and self.search_input.text().strip():
                 busca_text = f"Busca: {self.search_input.text().strip()}"
                 logger.info(f"Adicionando filtro: {busca_text}")
                 active_filters.append(busca_text)
@@ -7401,136 +7837,296 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # 1. MULTISELECT: Emissor
                 emis_checks = getattr(self, "adv_emissor_checks", [])
                 emis_exclude = getattr(self, "adv_emissor_exclude_checks", [])
-                emis_selected = [self._checkbox_value(cb) for cb in emis_checks if _is_widget_valid(cb) and cb.isChecked()]
-                emis_excluded = [self._checkbox_value(cb) for cb in emis_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                emis_selected = [
+                    self._checkbox_value(cb)
+                    for cb in emis_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                emis_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in emis_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if emis_selected:
                     active_filters.append(f"Emissor: {', '.join(emis_selected)}")
                 if emis_excluded:
-                    active_filters.append(f"Emissor (excluir): {', '.join(emis_excluded)}")
+                    active_filters.append(
+                        f"Emissor (excluir): {', '.join(emis_excluded)}"
+                    )
 
                 # 2. MULTISELECT: Executor
                 exec_checks = getattr(self, "adv_executor_checks", [])
                 exec_exclude = getattr(self, "adv_executor_exclude_checks", [])
-                exec_selected = [self._checkbox_value(cb) for cb in exec_checks if _is_widget_valid(cb) and cb.isChecked()]
-                exec_excluded = [self._checkbox_value(cb) for cb in exec_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                exec_selected = [
+                    self._checkbox_value(cb)
+                    for cb in exec_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                exec_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in exec_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if exec_selected:
                     active_filters.append(f"Executor: {', '.join(exec_selected)}")
                 if exec_excluded:
-                    active_filters.append(f"Executor (excluir): {', '.join(exec_excluded)}")
+                    active_filters.append(
+                        f"Executor (excluir): {', '.join(exec_excluded)}"
+                    )
 
                 # 3. MULTISELECT: Divisao
                 div_checks = getattr(self, "adv_divisao_checks", [])
                 div_exclude = getattr(self, "adv_divisao_exclude_checks", [])
-                div_selected = [self._checkbox_value(cb) for cb in div_checks if _is_widget_valid(cb) and cb.isChecked()]
-                div_excluded = [self._checkbox_value(cb) for cb in div_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                div_selected = [
+                    self._checkbox_value(cb)
+                    for cb in div_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                div_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in div_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if div_selected:
                     active_filters.append(f"Divisao: {', '.join(div_selected)}")
                 if div_excluded:
-                    active_filters.append(f"Divisao (excluir): {', '.join(div_excluded)}")
+                    active_filters.append(
+                        f"Divisao (excluir): {', '.join(div_excluded)}"
+                    )
 
                 # 4. MULTISELECT: Situacao
                 status_checks = getattr(self, "adv_status_checks", [])
                 status_exclude = getattr(self, "adv_status_exclude_checks", [])
-                status_selected = [self._checkbox_value(cb) for cb in status_checks if _is_widget_valid(cb) and cb.isChecked()]
-                status_excluded = [self._checkbox_value(cb) for cb in status_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                status_selected = [
+                    self._checkbox_value(cb)
+                    for cb in status_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                status_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in status_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if status_selected:
                     active_filters.append(f"Situacao: {', '.join(status_selected)}")
                 if status_excluded:
-                    active_filters.append(f"Situacao (excluir): {', '.join(status_excluded)}")
+                    active_filters.append(
+                        f"Situacao (excluir): {', '.join(status_excluded)}"
+                    )
 
                 # 5. MULTISELECT: Ano Emissao
                 year_emis_checks = getattr(self, "adv_year_emissao_checks", [])
-                year_emis_selected = [self._checkbox_value(cb) for cb in year_emis_checks if _is_widget_valid(cb) and cb.isChecked()]
+                year_emis_selected = [
+                    self._checkbox_value(cb)
+                    for cb in year_emis_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if year_emis_selected:
-                    active_filters.append(f"Ano Emissao: {', '.join(year_emis_selected)}")
+                    active_filters.append(
+                        f"Ano Emissao: {', '.join(year_emis_selected)}"
+                    )
 
                 # 6. MULTISELECT: Ano Execucao
                 year_exec_checks = getattr(self, "adv_year_execucao_checks", [])
-                year_exec_selected = [self._checkbox_value(cb) for cb in year_exec_checks if _is_widget_valid(cb) and cb.isChecked()]
+                year_exec_selected = [
+                    self._checkbox_value(cb)
+                    for cb in year_exec_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if year_exec_selected:
-                    active_filters.append(f"Ano Execucao: {', '.join(year_exec_selected)}")
+                    active_filters.append(
+                        f"Ano Execucao: {', '.join(year_exec_selected)}"
+                    )
 
                 # 7. MULTISELECT: Reprogramacoes (com modo)
                 reprog_checks = getattr(self, "adv_reprog_checks", [])
                 reprog_mode_widget = getattr(self, "adv_reprog_mode", None)
-                reprog_selected = [self._checkbox_value(cb) for cb in reprog_checks if _is_widget_valid(cb) and cb.isChecked()]
-                if reprog_selected and reprog_mode_widget and _is_widget_valid(reprog_mode_widget):
+                reprog_selected = [
+                    self._checkbox_value(cb)
+                    for cb in reprog_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                if (
+                    reprog_selected
+                    and reprog_mode_widget
+                    and _is_widget_valid(reprog_mode_widget)
+                ):
                     mode_text = reprog_mode_widget.currentText()
-                    active_filters.append(f"Reprogramacoes {mode_text}: {', '.join(reprog_selected)}")
+                    active_filters.append(
+                        f"Reprogramacoes {mode_text}: {', '.join(reprog_selected)}"
+                    )
 
                 # 8. MULTISELECT: Prio. Emissao
                 prio_emis_checks = getattr(self, "adv_prioridade_emissao_checks", [])
-                prio_emis_selected = [self._checkbox_value(cb) for cb in prio_emis_checks if _is_widget_valid(cb) and cb.isChecked()]
+                prio_emis_selected = [
+                    self._checkbox_value(cb)
+                    for cb in prio_emis_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if prio_emis_selected:
-                    active_filters.append(f"Prio. Emissao: {', '.join(prio_emis_selected)}")
+                    active_filters.append(
+                        f"Prio. Emissao: {', '.join(prio_emis_selected)}"
+                    )
 
                 # 9. MULTISELECT: Prio. Planejamento
-                prio_plan_checks = getattr(self, "adv_prioridade_planejamento_checks", [])
-                prio_plan_selected = [self._checkbox_value(cb) for cb in prio_plan_checks if _is_widget_valid(cb) and cb.isChecked()]
+                prio_plan_checks = getattr(
+                    self, "adv_prioridade_planejamento_checks", []
+                )
+                prio_plan_selected = [
+                    self._checkbox_value(cb)
+                    for cb in prio_plan_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if prio_plan_selected:
-                    active_filters.append(f"Prio. Planejamento: {', '.join(prio_plan_selected)}")
+                    active_filters.append(
+                        f"Prio. Planejamento: {', '.join(prio_plan_selected)}"
+                    )
 
                 # 10. MULTISELECT: Solicitante
                 sol_checks = getattr(self, "adv_responsavel_solicitante_checks", [])
-                sol_exclude = getattr(self, "adv_responsavel_solicitante_exclude_checks", [])
-                sol_selected = [self._checkbox_value(cb) for cb in sol_checks if _is_widget_valid(cb) and cb.isChecked()]
-                sol_excluded = [self._checkbox_value(cb) for cb in sol_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                sol_exclude = getattr(
+                    self, "adv_responsavel_solicitante_exclude_checks", []
+                )
+                sol_selected = [
+                    self._checkbox_value(cb)
+                    for cb in sol_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                sol_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in sol_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if sol_selected:
                     active_filters.append(f"Solicitante: {', '.join(sol_selected)}")
                 if sol_excluded:
-                    active_filters.append(f"Solicitante (excluir): {', '.join(sol_excluded)}")
+                    active_filters.append(
+                        f"Solicitante (excluir): {', '.join(sol_excluded)}"
+                    )
 
                 # 11. MULTISELECT: Resp Prog
                 prog_checks = getattr(self, "adv_responsavel_programacao_checks", [])
-                prog_exclude = getattr(self, "adv_responsavel_programacao_exclude_checks", [])
-                prog_selected = [self._checkbox_value(cb) for cb in prog_checks if _is_widget_valid(cb) and cb.isChecked()]
-                prog_excluded = [self._checkbox_value(cb) for cb in prog_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                prog_exclude = getattr(
+                    self, "adv_responsavel_programacao_exclude_checks", []
+                )
+                prog_selected = [
+                    self._checkbox_value(cb)
+                    for cb in prog_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                prog_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in prog_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if prog_selected:
                     active_filters.append(f"Resp Prog: {', '.join(prog_selected)}")
                 if prog_excluded:
-                    active_filters.append(f"Resp Prog (excluir): {', '.join(prog_excluded)}")
+                    active_filters.append(
+                        f"Resp Prog (excluir): {', '.join(prog_excluded)}"
+                    )
 
                 # 12. MULTISELECT: Resp Exec
                 exec_resp_checks = getattr(self, "adv_responsavel_execucao_checks", [])
-                exec_resp_exclude = getattr(self, "adv_responsavel_execucao_exclude_checks", [])
-                exec_resp_selected = [self._checkbox_value(cb) for cb in exec_resp_checks if _is_widget_valid(cb) and cb.isChecked()]
-                exec_resp_excluded = [self._checkbox_value(cb) for cb in exec_resp_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                exec_resp_exclude = getattr(
+                    self, "adv_responsavel_execucao_exclude_checks", []
+                )
+                exec_resp_selected = [
+                    self._checkbox_value(cb)
+                    for cb in exec_resp_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                exec_resp_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in exec_resp_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if exec_resp_selected:
                     active_filters.append(f"Resp Exec: {', '.join(exec_resp_selected)}")
                 if exec_resp_excluded:
-                    active_filters.append(f"Resp Exec (excluir): {', '.join(exec_resp_excluded)}")
+                    active_filters.append(
+                        f"Resp Exec (excluir): {', '.join(exec_resp_excluded)}"
+                    )
 
                 # 13. MULTISELECT: Resp Emis
                 emis_resp_checks = getattr(self, "adv_responsavel_emissor_checks", [])
-                emis_resp_exclude = getattr(self, "adv_responsavel_emissor_exclude_checks", [])
-                emis_resp_selected = [self._checkbox_value(cb) for cb in emis_resp_checks if _is_widget_valid(cb) and cb.isChecked()]
-                emis_resp_excluded = [self._checkbox_value(cb) for cb in emis_resp_exclude if _is_widget_valid(cb) and cb.isChecked()]
+                emis_resp_exclude = getattr(
+                    self, "adv_responsavel_emissor_exclude_checks", []
+                )
+                emis_resp_selected = [
+                    self._checkbox_value(cb)
+                    for cb in emis_resp_checks
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
+                emis_resp_excluded = [
+                    self._checkbox_value(cb)
+                    for cb in emis_resp_exclude
+                    if _is_widget_valid(cb) and cb.isChecked()
+                ]
                 if emis_resp_selected:
                     active_filters.append(f"Resp Emis: {', '.join(emis_resp_selected)}")
                 if emis_resp_excluded:
-                    active_filters.append(f"Resp Emis (excluir): {', '.join(emis_resp_excluded)}")
+                    active_filters.append(
+                        f"Resp Emis (excluir): {', '.join(emis_resp_excluded)}"
+                    )
 
                 # 14. RANGE: Emissao AnoSemana
                 week_emis_start = getattr(self, "adv_week_emissao_start", None)
                 week_emis_end = getattr(self, "adv_week_emissao_end", None)
-                if week_emis_start and _is_widget_valid(week_emis_start) and week_emis_start.text().strip():
-                    if week_emis_end and _is_widget_valid(week_emis_end) and week_emis_end.text().strip():
-                        active_filters.append(f"Emissao AnoSemana: {week_emis_start.text().strip()} - {week_emis_end.text().strip()}")
+                if (
+                    week_emis_start
+                    and _is_widget_valid(week_emis_start)
+                    and week_emis_start.text().strip()
+                ):
+                    if (
+                        week_emis_end
+                        and _is_widget_valid(week_emis_end)
+                        and week_emis_end.text().strip()
+                    ):
+                        active_filters.append(
+                            f"Emissao AnoSemana: {week_emis_start.text().strip()} - {week_emis_end.text().strip()}"
+                        )
                     else:
-                        active_filters.append(f"Emissao AnoSemana: >= {week_emis_start.text().strip()}")
-                elif week_emis_end and _is_widget_valid(week_emis_end) and week_emis_end.text().strip():
-                    active_filters.append(f"Emissao AnoSemana: <= {week_emis_end.text().strip()}")
+                        active_filters.append(
+                            f"Emissao AnoSemana: >= {week_emis_start.text().strip()}"
+                        )
+                elif (
+                    week_emis_end
+                    and _is_widget_valid(week_emis_end)
+                    and week_emis_end.text().strip()
+                ):
+                    active_filters.append(
+                        f"Emissao AnoSemana: <= {week_emis_end.text().strip()}"
+                    )
 
                 # 15. RANGE: Execucao AnoSemana
                 week_exec_start = getattr(self, "adv_week_execucao_start", None)
                 week_exec_end = getattr(self, "adv_week_execucao_end", None)
-                if week_exec_start and _is_widget_valid(week_exec_start) and week_exec_start.text().strip():
-                    if week_exec_end and _is_widget_valid(week_exec_end) and week_exec_end.text().strip():
-                        active_filters.append(f"Execucao AnoSemana: {week_exec_start.text().strip()} - {week_exec_end.text().strip()}")
+                if (
+                    week_exec_start
+                    and _is_widget_valid(week_exec_start)
+                    and week_exec_start.text().strip()
+                ):
+                    if (
+                        week_exec_end
+                        and _is_widget_valid(week_exec_end)
+                        and week_exec_end.text().strip()
+                    ):
+                        active_filters.append(
+                            f"Execucao AnoSemana: {week_exec_start.text().strip()} - {week_exec_end.text().strip()}"
+                        )
                     else:
-                        active_filters.append(f"Execucao AnoSemana: >= {week_exec_start.text().strip()}")
-                elif week_exec_end and _is_widget_valid(week_exec_end) and week_exec_end.text().strip():
-                    active_filters.append(f"Execucao AnoSemana: <= {week_exec_end.text().strip()}")
+                        active_filters.append(
+                            f"Execucao AnoSemana: >= {week_exec_start.text().strip()}"
+                        )
+                elif (
+                    week_exec_end
+                    and _is_widget_valid(week_exec_end)
+                    and week_exec_end.text().strip()
+                ):
+                    active_filters.append(
+                        f"Execucao AnoSemana: <= {week_exec_end.text().strip()}"
+                    )
 
                 # 16-18. CHECKBOX: Derivadas
                 deriv_has = getattr(self, "adv_derivada_has", None)
@@ -7545,17 +8141,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                 # 19. COMBOBOX: Macro
                 macro_combo = getattr(self, "adv_macro_combo", None)
-                if macro_combo and _is_widget_valid(macro_combo) and macro_combo.currentIndex() > 0:
+                if (
+                    macro_combo
+                    and _is_widget_valid(macro_combo)
+                    and macro_combo.currentIndex() > 0
+                ):
                     macro_text = macro_combo.currentText()
                     active_filters.append(f"Macro: {macro_text}")
 
-                logger.info(f"Filtros avancados adicionados: {len(active_filters)} total")
+                logger.info(
+                    f"Filtros avancados adicionados: {len(active_filters)} total"
+                )
 
             logger.info(f"Total de filtros ativos: {len(active_filters)}")
             logger.info(f"Lista completa de filtros: {active_filters}")
 
             if active_filters:
-                summary_text = f"{len(active_filters)} filtro(s): {' | '.join(active_filters)}"
+                summary_text = (
+                    f"{len(active_filters)} filtro(s): {' | '.join(active_filters)}"
+                )
                 logger.info(f"========================================")
                 logger.info(f"TEXTO FINAL A SER MOSTRADO:")
                 logger.info(f"'{summary_text}'")
@@ -7577,11 +8181,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Atualiza o indicador visual de filtros de coluna ativos."""
         try:
             logger.info(">>> _update_col_filter_indicator INICIADO")
-            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+            if not hasattr(self, "_current_tab_index") or not hasattr(
+                self, "_tab_contexts"
+            ):
                 logger.warning("col_filter_indicator: _tab_contexts nao existe")
                 return
-            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
-                logger.warning(f"col_filter_indicator: _current_tab_index {self._current_tab_index} invalido")
+            if self._current_tab_index < 0 or self._current_tab_index >= len(
+                self._tab_contexts
+            ):
+                logger.warning(
+                    f"col_filter_indicator: _current_tab_index {self._current_tab_index} invalido"
+                )
                 return
             ctx = self._tab_contexts[self._current_tab_index]
             indicator = ctx.get("col_filter_indicator")
@@ -7599,8 +8209,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # LAZY LOADING: Não mostrar indicador se dados completos ainda não carregaram
             # Evita mostrar valores temporários/incorretos durante inicialização
-            if not getattr(self, '_is_full_data_loaded', False):
-                logger.debug("col_filter_indicator: OCULTO - dados completos ainda não carregados")
+            if not getattr(self, "_is_full_data_loaded", False):
+                logger.debug(
+                    "col_filter_indicator: OCULTO - dados completos ainda não carregados"
+                )
                 indicator.setText("")
                 indicator.setVisible(False)
                 return
@@ -7624,15 +8236,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Limpa todos os filtros ativos (busca, colunas, checkboxes)."""
         try:
             # Limpar busca
-            if hasattr(self, 'search_input'):
+            if hasattr(self, "search_input"):
                 self.search_input.clear()
 
             # Limpar filtros de coluna
             self._active_column_filters.clear()
 
             # Limpar checkbox STE/SCA (com blockSignals para evitar refresh duplo)
-            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
-                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+            if hasattr(self, "_current_tab_index") and hasattr(self, "_tab_contexts"):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(
+                    self._tab_contexts
+                ):
                     ctx = self._tab_contexts[self._current_tab_index]
                     exclude_ste = ctx.get("exclude_ste_checkbox")
                     if exclude_ste:
@@ -7641,11 +8255,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         exclude_ste.blockSignals(False)
 
             # CORREÇÃO LAYOUTREFACTOR #2: Limpar filtros avançados e derivadas
-            if hasattr(self, '_clear_advanced_filters'):
+            if hasattr(self, "_clear_advanced_filters"):
                 self._clear_advanced_filters()
 
             # Reprocessar dados
-            if hasattr(self, 'initiate_filtering'):
+            if hasattr(self, "initiate_filtering"):
                 self.initiate_filtering()
         except Exception as e:
             logger.error(f"Erro ao limpar todos os filtros: {e}")
@@ -7654,14 +8268,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Desfaz o último filtro aplicado."""
         # TODO: Implementar histórico de estados de filtro (pilha de undo)
         logger.info("Funcionalidade de undo de filtros não implementada ainda")
-        QMessageBox.information(self, "Info", "Funcionalidade de desfazer filtros em desenvolvimento")
+        QMessageBox.information(
+            self, "Info", "Funcionalidade de desfazer filtros em desenvolvimento"
+        )
 
     def _update_undo_button_state(self):
         """Atualiza o estado (enabled/disabled) do botão de undo."""
         try:
-            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+            if not hasattr(self, "_current_tab_index") or not hasattr(
+                self, "_tab_contexts"
+            ):
                 return
-            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
+            if self._current_tab_index < 0 or self._current_tab_index >= len(
+                self._tab_contexts
+            ):
                 return
             ctx = self._tab_contexts[self._current_tab_index]
             undo_btn = ctx.get("undo_filter_btn")
@@ -7679,8 +8299,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"############################################################")
             logger.info(f"### APLICAR FILTRO PERMANENTE ###")
             logger.info(f"############################################################")
-            logger.info(f"Coluna KEY: '{column_key}' (tipo: {type(column_key).__name__})")
-            logger.info(f"Termo DIGITADO: '{term}' (tipo: {type(term).__name__}, len: {len(term)})")
+            logger.info(
+                f"Coluna KEY: '{column_key}' (tipo: {type(column_key).__name__})"
+            )
+            logger.info(
+                f"Termo DIGITADO: '{term}' (tipo: {type(term).__name__}, len: {len(term)})"
+            )
             logger.info(f"Widget line_edit: {type(line_edit).__name__}")
             logger.info(f"_active_column_filters ANTES:")
             for k, v in self._active_column_filters.items():
@@ -7688,7 +8312,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Total de filtros ANTES: {len(self._active_column_filters)}")
 
             # Guardar estado anterior
-            if hasattr(self, '_store_last_filter_state'):
+            if hasattr(self, "_store_last_filter_state"):
                 logger.info("Chamando _store_last_filter_state")
                 self._store_last_filter_state()
             else:
@@ -7713,7 +8337,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Atualizar resumo de filtros
             logger.info("Verificando _update_filters_summary...")
-            if hasattr(self, '_update_filters_summary'):
+            if hasattr(self, "_update_filters_summary"):
                 logger.info("CHAMANDO _update_filters_summary")
                 self._update_filters_summary()
                 logger.info("_update_filters_summary CONCLUIDO")
@@ -7721,7 +8345,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.error("_update_filters_summary NAO EXISTE!")
 
             logger.info("Verificando _update_col_filter_indicator...")
-            if hasattr(self, '_update_col_filter_indicator'):
+            if hasattr(self, "_update_col_filter_indicator"):
                 logger.info("CHAMANDO _update_col_filter_indicator")
                 self._update_col_filter_indicator()
             else:
@@ -7729,7 +8353,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # Reaplicar filtros SEM reconstruir painel (mantem valores nos campos)
             logger.info("Verificando initiate_filtering...")
-            if hasattr(self, 'initiate_filtering'):
+            if hasattr(self, "initiate_filtering"):
                 logger.info("CHAMANDO initiate_filtering")
                 self.initiate_filtering()
                 logger.info("initiate_filtering CONCLUIDO")
@@ -7738,7 +8362,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             logger.info(f"=== FIM APLICAR FILTRO PERMANENTE ===")
         except Exception as e:
-            logger.error(f"ERRO CRITICO ao aplicar filtro permanente para {column_key}: {e}", exc_info=True)
+            logger.error(
+                f"ERRO CRITICO ao aplicar filtro permanente para {column_key}: {e}",
+                exc_info=True,
+            )
 
     def _remove_permanent_filter(self, column_key, line_edit):
         """Remove filtro de um dos 5 campos permanentes."""
@@ -7748,22 +8375,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Removendo filtro permanente: {column_key}")
 
             # Guardar estado anterior
-            if hasattr(self, '_store_last_filter_state'):
+            if hasattr(self, "_store_last_filter_state"):
                 self._store_last_filter_state()
 
             self._active_column_filters.pop(column_key, None)
 
             # Atualizar resumo de filtros
-            if hasattr(self, '_update_filters_summary'):
+            if hasattr(self, "_update_filters_summary"):
                 self._update_filters_summary()
-            if hasattr(self, '_update_col_filter_indicator'):
+            if hasattr(self, "_update_col_filter_indicator"):
                 self._update_col_filter_indicator()
 
             # Reaplicar filtros SEM reconstruir painel
-            if hasattr(self, 'initiate_filtering'):
+            if hasattr(self, "initiate_filtering"):
                 self.initiate_filtering()
         except Exception as e:
-            logger.error(f"Erro ao remover filtro permanente para {column_key}: {e}", exc_info=True)
+            logger.error(
+                f"Erro ao remover filtro permanente para {column_key}: {e}",
+                exc_info=True,
+            )
 
     def _clear_all_column_filters(self):
         """Limpa todos os filtros de coluna, incluindo os permanentes."""
@@ -7771,15 +8401,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._active_column_filters.clear()
 
             # Limpar os inputs permanentes
-            if hasattr(self, '_current_tab_index') and hasattr(self, '_tab_contexts'):
-                if self._current_tab_index >= 0 and self._current_tab_index < len(self._tab_contexts):
+            if hasattr(self, "_current_tab_index") and hasattr(self, "_tab_contexts"):
+                if self._current_tab_index >= 0 and self._current_tab_index < len(
+                    self._tab_contexts
+                ):
                     ctx = self._tab_contexts[self._current_tab_index]
                     permanent_inputs = ctx.get("permanent_filter_inputs", {})
                     for line_edit in permanent_inputs.values():
                         line_edit.clear()
 
             # Reaplicar filtros (vai mostrar tudo sem filtros)
-            if hasattr(self, 'initiate_filtering'):
+            if hasattr(self, "initiate_filtering"):
                 self.initiate_filtering()
         except Exception as e:
             logger.error(f"Erro ao limpar filtros de coluna: {e}")
@@ -7808,7 +8440,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         permanent_cols = {"descricao_ssa", "setor_executor", "setor_emissor"}
 
         # Todas as colunas disponiveis no mapa de exibicao
-        all_cols = sorted([col for col in self.display_map.keys() if col not in permanent_cols])
+        all_cols = sorted(
+            [col for col in self.display_map.keys() if col not in permanent_cols]
+        )
 
         logger.info(f"Colunas disponiveis para filtro: {len(all_cols)}")
 
@@ -7817,6 +8451,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         from PyQt6.QtWidgets import QInputDialog
+
         col_displays = [self.display_map.get(c, c) for c in all_cols]
         col_display, ok = QInputDialog.getItem(
             self,
@@ -7824,7 +8459,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "Selecione a coluna (qualquer coluna, nao so as visiveis):",
             col_displays,
             0,
-            False
+            False,
         )
 
         if ok and col_display:
@@ -7832,9 +8467,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Coluna selecionada: {col_key} ({col_display})")
 
             term, ok = QInputDialog.getText(
-                self,
-                "Filtro",
-                f"Termo para filtrar '{col_display}':"
+                self, "Filtro", f"Termo para filtrar '{col_display}':"
             )
 
             if ok and term.strip():
@@ -7842,9 +8475,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                 # Se coluna nao estiver visivel, adiciona automaticamente
                 if col_key not in self.visible_columns:
-                    logger.info(f"Coluna '{col_key}' NAO VISIVEL - adicionando ao final da tabela")
+                    logger.info(
+                        f"Coluna '{col_key}' NAO VISIVEL - adicionando ao final da tabela"
+                    )
                     self.visible_columns.append(col_key)
-                    if hasattr(self, 'refresh_table'):
+                    if hasattr(self, "refresh_table"):
                         self.refresh_table()
                 else:
                     logger.info(f"Coluna '{col_key}' ja esta visivel")
@@ -7856,10 +8491,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 # Reconstroi painel e aplica filtro
                 self._build_column_filters_panel()
 
-                if hasattr(self, '_update_filters_summary'):
+                if hasattr(self, "_update_filters_summary"):
                     self._update_filters_summary()
 
-                if hasattr(self, 'initiate_filtering'):
+                if hasattr(self, "initiate_filtering"):
                     logger.info("Aplicando filtro...")
                     self.initiate_filtering()
 
@@ -7867,22 +8502,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Reconstrói o painel de filtros de coluna (permanentes + adicionais na área de scroll)."""
         try:
             logger.info(">>> _build_column_filters_panel INICIADO")
-            logger.info(f"self._current_tab_index = {getattr(self, '_current_tab_index', 'NAO EXISTE')}")
-            logger.info(f"len(self._tab_contexts) = {len(getattr(self, '_tab_contexts', []))}")
+            logger.info(
+                f"self._current_tab_index = {getattr(self, '_current_tab_index', 'NAO EXISTE')}"
+            )
+            logger.info(
+                f"len(self._tab_contexts) = {len(getattr(self, '_tab_contexts', []))}"
+            )
 
-            if not hasattr(self, '_current_tab_index') or not hasattr(self, '_tab_contexts'):
+            if not hasattr(self, "_current_tab_index") or not hasattr(
+                self, "_tab_contexts"
+            ):
                 logger.warning("_build_column_filters_panel: sem tab_contexts")
                 return
-            if self._current_tab_index < 0 or self._current_tab_index >= len(self._tab_contexts):
-                logger.warning(f"_build_column_filters_panel: tab_index {self._current_tab_index} invalido")
+            if self._current_tab_index < 0 or self._current_tab_index >= len(
+                self._tab_contexts
+            ):
+                logger.warning(
+                    f"_build_column_filters_panel: tab_index {self._current_tab_index} invalido"
+                )
                 return
 
             ctx = self._tab_contexts[self._current_tab_index]
-            logger.info(f"Contexto obtido: tab_kind={ctx.get('tab_kind')}, id={id(ctx)}")
+            logger.info(
+                f"Contexto obtido: tab_kind={ctx.get('tab_kind')}, id={id(ctx)}"
+            )
             logger.info(f"Keys disponiveis: {sorted(ctx.keys())}")
 
             permanent_inputs = ctx.get("permanent_filter_inputs", {})
-            logger.info(f"permanent_filter_inputs encontrado: {len(permanent_inputs)} inputs")
+            logger.info(
+                f"permanent_filter_inputs encontrado: {len(permanent_inputs)} inputs"
+            )
 
             # 1. Atualizar valores dos 5 inputs permanentes com base em _active_column_filters
             for col_key, line_edit in permanent_inputs.items():
@@ -7891,11 +8540,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     line_edit.blockSignals(True)
                     line_edit.setText(current_filter)
                     line_edit.blockSignals(False)
-                    logger.info(f"  Permanente '{col_key}' atualizado para: '{current_filter}'")
+                    logger.info(
+                        f"  Permanente '{col_key}' atualizado para: '{current_filter}'"
+                    )
 
             logger.info("_build_column_filters_panel CONCLUIDO")
         except Exception as e:
-            logger.error(f"Erro ao reconstruir painel de filtros de coluna: {e}", exc_info=True)
+            logger.error(
+                f"Erro ao reconstruir painel de filtros de coluna: {e}", exc_info=True
+            )
 
     def _remove_additional_filter(self, column_key):
         """Remove um filtro adicional (nao-permanente)."""
@@ -7903,9 +8556,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.info(f"Removendo filtro adicional: {column_key}")
             self._active_column_filters.pop(column_key, None)
             self._build_column_filters_panel()
-            if hasattr(self, '_update_filters_summary'):
+            if hasattr(self, "_update_filters_summary"):
                 self._update_filters_summary()
-            if hasattr(self, 'initiate_filtering'):
+            if hasattr(self, "initiate_filtering"):
                 self.initiate_filtering()
         except Exception as e:
             logger.error(f"Erro ao remover filtro adicional: {e}")
@@ -7915,7 +8568,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if column_index > 0 and column_index < len(
             self.visible_columns
         ):  # Protege coluna de ándice
-            internal_column = self.visible_columns[column_index - 1]  # -1 porque hã coluna '#'
+            internal_column = self.visible_columns[
+                column_index - 1
+            ]  # -1 porque hã coluna '#'
             if internal_column in self.visible_columns:
                 self.visible_columns.remove(internal_column)
                 self.on_columns_changed(self.visible_columns)
@@ -7924,6 +8579,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Exibe ajuda sobre os filtros disponiveis."""
         try:
             from PyQt6.QtWidgets import QMessageBox
+
             help_text = """
 <h3>Pesquisa Geral</h3>
 <p>Digite termos para buscar em todas as colunas visiveis.</p>
@@ -7949,9 +8605,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def clear_filter(self):
         """Limpa o campo de busca e reaplica filtros."""
         try:
-            if hasattr(self, 'search_input'):
+            if hasattr(self, "search_input"):
                 self.search_input.clear()
-            if hasattr(self, 'clear_filter_button'):
+            if hasattr(self, "clear_filter_button"):
                 self.clear_filter_button.setEnabled(False)
             self.initiate_filtering()
         except Exception as e:
@@ -7974,13 +8630,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""
-        from gui.workers import RescanWorker
         from gui.widgets import RescanProgressDialog
+        from gui.workers import RescanWorker
 
         # Check if main.py exists
-        main_py_path = os.path.join(project_root, 'main.py')
+        main_py_path = os.path.join(project_root, "main.py")
         if not os.path.exists(main_py_path):
-            QMessageBox.warning(self, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}")
+            QMessageBox.warning(
+                self, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}"
+            )
             return
 
         # Create progress dialog
@@ -8027,12 +8685,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no Windows Explorer."""
-        docs_path = os.path.join(project_root, 'docs_entrada')
+        docs_path = os.path.join(project_root, "docs_entrada")
 
         if os.path.exists(docs_path):
             try:
                 # Abre no Windows Explorer
-                subprocess.run(['explorer', docs_path], check=True)
+                subprocess.run(["explorer", docs_path], check=True)
             except Exception as e:
                 QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
         else:
@@ -8044,7 +8702,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         db_file, _ = file_dialog.getOpenFileName(
             self,
             "Selecionar Banco de Dados",
-            os.path.join(project_root, 'data'),
+            os.path.join(project_root, "data"),
             "Arquivos de Banco (*.db *.sqlite);;Todos os Arquivos (*)",
         )
 
@@ -8071,7 +8729,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         "O arquivo selecionado nao contem dados validos na tabela 'ssas'.",
                     )
             except Exception as e:
-                QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
+                QMessageBox.critical(
+                    self, "Erro", f"Erro ao abrir o banco de dados: {e}"
+                )
         elif db_file:  # Arquivo selecionado mas nao existe
             QMessageBox.warning(self, "Erro", "Arquivo selecionado nao existe.")
 
@@ -8092,9 +8752,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # So recalcula se ha dados carregados e uma mudanca significativa na largura
         if (
-            hasattr(self, 'df_exibido')
+            hasattr(self, "df_exibido")
             and not self.df_exibido.empty
-            and hasattr(self, '_last_window_width')
+            and hasattr(self, "_last_window_width")
         ):
             width_change = abs(event.size().width() - self._last_window_width)
             if width_change > 12:  # So recalcula se mudanca for > 12px
@@ -8109,7 +8769,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             # Verifica se widgets estção em estado vãlido
             if (
-                not hasattr(self, 'df_para_tabela')
+                not hasattr(self, "df_para_tabela")
                 or self.df_para_tabela.empty
                 or not self.table_widget
                 or not self.table_widget.isVisible()
@@ -8127,9 +8787,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
         try:
             if (
-                not hasattr(self, 'df_para_tabela')
+                not hasattr(self, "df_para_tabela")
                 or self.df_para_tabela.empty
-                or not hasattr(self, '_gui_column_pixel_widths')
+                or not hasattr(self, "_gui_column_pixel_widths")
                 or not self.table_widget
                 or not self.table_widget.isVisible()
             ):
@@ -8137,7 +8797,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             # CORRECAO CRITICA: Usar _current_display_columns que contem apenas as colunas visiveis filtradas
             # Em vez de ['#'] + todas as colunas do df_para_tabela
-            if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
+            if (
+                not hasattr(self, "_current_display_columns")
+                or not self._current_display_columns
+            ):
                 return
 
             table_columns = self._current_display_columns
@@ -8162,7 +8825,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         """
         # Aguarda finalizacao do data loader thread se estiver rodando
         if (
-            hasattr(self, 'data_loader_thread')
+            hasattr(self, "data_loader_thread")
             and self.data_loader_thread
             and self.data_loader_thread.isRunning()
         ):
@@ -8170,7 +8833,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.data_loader_thread.wait(3000)  # Aguarda ate 3 segundos
 
         # Aguarda finalizacao do filter thread se estiver rodando
-        if hasattr(self, 'filter_thread') and self.filter_thread and self.filter_thread.isRunning():
+        if (
+            hasattr(self, "filter_thread")
+            and self.filter_thread
+            and self.filter_thread.isRunning()
+        ):
             # Desconecta sinais para evitar callbacks tardios durante teardown
             try:
                 self.filter_thread.finished.disconnect(self.on_filter_finished_cleanup)

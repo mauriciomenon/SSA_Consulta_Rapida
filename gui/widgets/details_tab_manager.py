@@ -3,19 +3,19 @@ Gerenciador de sub-abas de detalhes de SSAs.
 Widget dedicado para visualizacao de multiplas SSAs com navegacao estilo Notepad++.
 """
 
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QTextBrowser,
-    QStackedWidget,
     QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QTextBrowser,
     QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
 
 from gui.helpers.formatting_helpers import normalize_ssa_value
 
@@ -33,9 +33,7 @@ class DetailsTabWidget(QWidget):
         )
         self.data_provider = data_provider  # Callable[[str], pd.Series | None]
         self.html_formatter = html_formatter  # Callable[[pd.Series], str]
-        self.tabs = (
-            []
-        )  # Lista de dicts: {'numero_ssa': str, 'widget': QWidget, 'button': QPushButton, 'series': pd.Series}
+        self.tabs = []  # Lista de dicts: {'numero_ssa': str, 'widget': QWidget, 'button': QPushButton, 'series': pd.Series}
         self.current_index = -1
         self.max_tabs = 10
         self._init_ui()
@@ -179,7 +177,7 @@ class DetailsTabWidget(QWidget):
 
         # Verifica se SSA ja esta aberta
         for i, tab in enumerate(self.tabs):
-            if tab['numero_ssa'] == num_norm:
+            if tab["numero_ssa"] == num_norm:
                 self.current_index = i
                 # +1 porque index 0 e o placeholder
                 self.content_stack.setCurrentIndex(i + 1)
@@ -226,7 +224,9 @@ class DetailsTabWidget(QWidget):
         tab_btn.setToolTip(f"SSA {num_norm}\nClique para focar")
         # Usa propriedade para identificar a aba, evitando problemas com indices capturados em lambda
         tab_btn.setProperty("ssa_number", num_norm)
-        tab_btn.clicked.connect(lambda checked, n=num_norm: self._on_tab_clicked_by_ssa(n))
+        tab_btn.clicked.connect(
+            lambda checked, n=num_norm: self._on_tab_clicked_by_ssa(n)
+        )
         tab_btn.setStyleSheet(
             """
             QPushButton {
@@ -277,12 +277,12 @@ class DetailsTabWidget(QWidget):
         # Adiciona aba a lista
         self.tabs.append(
             {
-                'numero_ssa': num_norm,
-                'widget': content,
-                'tab_widget': tab_widget,
-                'button': tab_btn,
-                'close_button': close_btn,
-                'series': series,
+                "numero_ssa": num_norm,
+                "widget": content,
+                "tab_widget": tab_widget,
+                "button": tab_btn,
+                "close_button": close_btn,
+                "series": series,
             }
         )
 
@@ -328,12 +328,12 @@ class DetailsTabWidget(QWidget):
         tab = self.tabs.pop(index)
 
         # Remove widget da aba
-        self.tabs_layout.removeWidget(tab['tab_widget'])
-        tab['tab_widget'].deleteLater()
+        self.tabs_layout.removeWidget(tab["tab_widget"])
+        tab["tab_widget"].deleteLater()
 
         # Remove widget do stack (index + 1 porque 0 e placeholder)
-        self.content_stack.removeWidget(tab['widget'])
-        tab['widget'].deleteLater()
+        self.content_stack.removeWidget(tab["widget"])
+        tab["widget"].deleteLater()
 
         # Ajusta indice atual
         if self.current_index >= len(self.tabs):
@@ -378,14 +378,14 @@ class DetailsTabWidget(QWidget):
     def _on_tab_clicked_by_ssa(self, ssa_number: str):
         """Handler para clique em aba usando numero da SSA (mais seguro que indice)."""
         for i, tab in enumerate(self.tabs):
-            if tab['numero_ssa'] == ssa_number:
+            if tab["numero_ssa"] == ssa_number:
                 self._on_tab_clicked(i)
                 break
 
     def close_tab_by_ssa(self, ssa_number: str):
         """Fecha aba usando numero da SSA (mais seguro que indice)."""
         for i, tab in enumerate(self.tabs):
-            if tab['numero_ssa'] == ssa_number:
+            if tab["numero_ssa"] == ssa_number:
                 self.close_tab(i)
                 break
 
@@ -434,7 +434,7 @@ class DetailsTabWidget(QWidget):
     def _update_tab_highlights(self):
         """Atualiza estilo visual das abas (highlight da aba atual)."""
         for i, tab in enumerate(self.tabs):
-            tab['button'].setChecked(i == self.current_index)
+            tab["button"].setChecked(i == self.current_index)
 
     def _update_nav_buttons(self):
         """Atualiza estado habilitado/desabilitado dos botoes de navegacao."""
@@ -455,4 +455,4 @@ class DetailsTabWidget(QWidget):
         Returns:
             List[str]: Numeros SSA abertos
         """
-        return [tab['numero_ssa'] for tab in self.tabs]
+        return [tab["numero_ssa"] for tab in self.tabs]

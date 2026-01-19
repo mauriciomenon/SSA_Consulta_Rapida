@@ -15,15 +15,19 @@ get_db_connection is defined early in database.py). The database.py module impor
 insert_dataframe_optimized lazily (inside dispatcher function). This works but is
 fragile - if get_db_connection moves lower in database.py, circular import will break.
 """
+
 # Last modified: 2025-10-29T11:10:00 (circular import documentation)
 
 from __future__ import annotations
 
 import logging
 import time
+
 import pandas as pd  # type: ignore[import-not-found]
 
-from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
+from .database import (
+    get_db_connection,  # Top-level import (safe - defined early in database.py)
+)
 from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
@@ -48,7 +52,7 @@ def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP)
 def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
-    table_name: str = 'ssas',
+    table_name: str = "ssas",
 ) -> bool:
     """
     Versão OTIMIZADA da inserção de DataFrame com as seguintes melhorias:
@@ -78,35 +82,37 @@ def insert_dataframe_optimized(
         work = df.copy().reset_index(drop=True)
 
         # Normalizar numero_ssa de forma vetorizada
-        if 'numero_ssa' in work.columns:
-            work['numero_ssa'] = work['numero_ssa'].astype(str).str.strip()
-            work['numero_ssa'] = work['numero_ssa'].replace(['nan', 'None', ''], None)
+        if "numero_ssa" in work.columns:
+            work["numero_ssa"] = work["numero_ssa"].astype(str).str.strip()
+            work["numero_ssa"] = work["numero_ssa"].replace(["nan", "None", ""], None)
 
         # Converter datas de forma mais eficiente (vetorizada)
         date_columns = [
-            'data_cadastro',
-            'prazo_limite',
-            'data_limite',
-            'desde',
-            'desde_1',
+            "data_cadastro",
+            "prazo_limite",
+            "data_limite",
+            "desde",
+            "desde_1",
         ]
         for col in date_columns:
             if col in work.columns:
-                work[col] = pd.to_datetime(work[col], errors='coerce', dayfirst=True)
+                work[col] = pd.to_datetime(work[col], errors="coerce", dayfirst=True)
                 work[col] = (
                     work[col]
-                    .dt.strftime('%Y-%m-%d %H:%M:%S')
+                    .dt.strftime("%Y-%m-%d %H:%M:%S")
                     .where(work[col].notna(), None)
                 )
 
         with get_db_connection(db_path) as conn:
             # ===== CONFIGURAÇÕES DE PERFORMANCE SQLITE =====
             logger.info("FIX APLICANDO OTIMIZAÇÕES SQLITE")
-            conn.execute("PRAGMA journal_mode=WAL")        # Permite leituras concorrentes
-            conn.execute("PRAGMA synchronous=NORMAL")      # Balanço entre segurança e velocidade
-            conn.execute("PRAGMA cache_size=10000")        # Cache maior = menos I/O
-            conn.execute("PRAGMA temp_store=MEMORY")       # Operações temporárias em RAM
-            conn.execute("PRAGMA mmap_size=268435456")     # Memory-mapped I/O (256MB)
+            conn.execute("PRAGMA journal_mode=WAL")  # Permite leituras concorrentes
+            conn.execute(
+                "PRAGMA synchronous=NORMAL"
+            )  # Balanço entre segurança e velocidade
+            conn.execute("PRAGMA cache_size=10000")  # Cache maior = menos I/O
+            conn.execute("PRAGMA temp_store=MEMORY")  # Operações temporárias em RAM
+            conn.execute("PRAGMA mmap_size=268435456")  # Memory-mapped I/O (256MB)
 
             # LOG: Verificar configurações aplicadas
             cur = conn.cursor()
@@ -114,21 +120,21 @@ def insert_dataframe_optimized(
             journal_mode = cur.fetchone()[0]
             cur.execute("PRAGMA cache_size")
             cache_size = cur.fetchone()[0]
-            logger.info(f"OK Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}")
+            logger.info(
+                f"OK Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}"
+            )
 
             # Criar índice temporário se não existir
             try:
-                idx_stmt = (
-                    f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {table_name}(numero_ssa)"
-                )
+                idx_stmt = f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {table_name}(numero_ssa)"
                 conn.execute(idx_stmt)
             except Exception as e:  # pragma: no cover - não crítico
                 logger.warning("Aviso ao criar índice temporário: %s", e)
 
             # Separar registros com e sem SSA
-            if 'numero_ssa' in work.columns:
-                has_ssa = work[work['numero_ssa'].notna()].copy()
-                no_ssa = work[work['numero_ssa'].isna()].copy()
+            if "numero_ssa" in work.columns:
+                has_ssa = work[work["numero_ssa"].notna()].copy()
+                no_ssa = work[work["numero_ssa"].isna()].copy()
             else:
                 has_ssa = pd.DataFrame()
                 no_ssa = work.copy()
@@ -143,7 +149,13 @@ def insert_dataframe_optimized(
             if not no_ssa.empty:
                 safe_chunksize = sqlite_safe_chunksize(len(no_ssa.columns))
                 # method='multi' ignora chunksize; usar chunksize seguro
-                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
+                no_ssa.to_sql(
+                    table_name,
+                    conn,
+                    if_exists="append",
+                    index=False,
+                    chunksize=safe_chunksize,
+                )
                 total_inserted += len(no_ssa)
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
@@ -152,7 +164,7 @@ def insert_dataframe_optimized(
                 # Verificar se tabela existe antes de fazer SELECT
                 table_exists = pd.read_sql_query(
                     f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
-                    conn
+                    conn,
                 )
 
                 # OTIMIZACAO CHAVE: Uma consulta para TODAS as SSAs existentes
@@ -173,7 +185,12 @@ def insert_dataframe_optimized(
                 # Criar dicionário para lookup O(1) em vez de O(n) por linha
                 existing_dict = {}
                 if not existing_ssas_df.empty:
-                    existing_dict = dict(zip(existing_ssas_df['numero_ssa'], existing_ssas_df['data_cadastro']))
+                    existing_dict = dict(
+                        zip(
+                            existing_ssas_df["numero_ssa"],
+                            existing_ssas_df["data_cadastro"],
+                        )
+                    )
 
                 logger.info(
                     "Lookup de SSAs existentes: %s encontrados em %.3fs",
@@ -186,8 +203,8 @@ def insert_dataframe_optimized(
                 to_update = []
 
                 for idx, row in has_ssa.iterrows():
-                    numero_ssa = row['numero_ssa']
-                    new_date = row.get('data_cadastro')
+                    numero_ssa = row["numero_ssa"]
+                    new_date = row.get("data_cadastro")
 
                     if numero_ssa not in existing_dict:
                         to_insert.append(row)
@@ -199,7 +216,9 @@ def insert_dataframe_optimized(
                         should_update = True
                     elif new_date and existing_date:
                         try:
-                            if pd.to_datetime(new_date) >= pd.to_datetime(existing_date):
+                            if pd.to_datetime(new_date) >= pd.to_datetime(
+                                existing_date
+                            ):
                                 should_update = True
                         except Exception:  # pragma: no cover - caminho raro
                             should_update = True
@@ -212,9 +231,17 @@ def insert_dataframe_optimized(
                     # Calcula chunksize dinamico centralizado para evitar limite de variaveis
                     safe_chunksize = sqlite_safe_chunksize(len(insert_df.columns))
                     # method='multi' ignora chunksize; usar chunksize seguro
-                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
+                    insert_df.to_sql(
+                        table_name,
+                        conn,
+                        if_exists="append",
+                        index=False,
+                        chunksize=safe_chunksize,
+                    )
                     total_inserted += len(insert_df)
-                    logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
+                    logger.info(
+                        f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})"
+                    )
 
                 # ===== ATUALIZAÇÃO EM LOTE (DELETE + INSERT é mais rápido que UPDATE) =====
                 if to_update:
@@ -222,22 +249,30 @@ def insert_dataframe_optimized(
 
                     # Processar em chunks seguros para SQLite (centralizado)
                     CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
-                    logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
-                    ssa_list = list(update_df['numero_ssa'])
+                    logger.debug(
+                        f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas"
+                    )
+                    ssa_list = list(update_df["numero_ssa"])
 
                     for i in range(0, len(ssa_list), CHUNK_SIZE):
-                        chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
-                        ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
-                        delete_query = (
-                            f"DELETE FROM {table_name} WHERE numero_ssa IN ({ssa_placeholders})"
-                        )
+                        chunk_ssas = ssa_list[i : i + CHUNK_SIZE]
+                        ssa_placeholders = ",".join(["?"] * len(chunk_ssas))
+                        delete_query = f"DELETE FROM {table_name} WHERE numero_ssa IN ({ssa_placeholders})"
                         conn.execute(delete_query, chunk_ssas)
 
                     # Inserir versões atualizadas com chunk size dinâmico centralizado
                     # method='multi' ignora chunksize; usar chunksize seguro
-                    update_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
+                    update_df.to_sql(
+                        table_name,
+                        conn,
+                        if_exists="append",
+                        index=False,
+                        chunksize=CHUNK_SIZE,
+                    )
                     total_inserted += len(update_df)
-                    logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
+                    logger.info(
+                        f"[OK] Atualizados {len(update_df)} registros existentes"
+                    )
 
             # Commit explícito
             conn.commit()
@@ -256,17 +291,21 @@ def insert_dataframe_optimized(
         logger.error("[ERRO] Erro na insercao otimizada: %s", e)
         return False
 
+
 def enable_optimized_import():
     """
     Ativa o modo de importacao otimizada.
     Deve ser chamado antes de run_importer_logic().
     """
     from .database import set_optimized_mode
+
     set_optimized_mode(True)
+
 
 def disable_optimized_import():
     """
     Desativa o modo de importacao otimizada.
     """
     from .database import set_optimized_mode
+
     set_optimized_mode(False)

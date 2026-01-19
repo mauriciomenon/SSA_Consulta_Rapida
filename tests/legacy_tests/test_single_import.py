@@ -13,15 +13,17 @@ atuais (`insert_dataframe_to_db`). Este arquivo pode ser removido em limpeza fut
 # from armazenamento.database import insert_data_in_database
 # from extracao.extractor import extract_data_from_excel
 
+
 def test_single_file():
     print("Iniciando teste...")
     try:
         # Pegar o primeiro arquivo Excel
         import os
+
         print("Importando os...")
         docs_path = "docs_entrada"
         print(f"Listando arquivos em {docs_path}...")
-        excel_files = [f for f in os.listdir(docs_path) if f.endswith('.xlsx')]
+        excel_files = [f for f in os.listdir(docs_path) if f.endswith(".xlsx")]
 
         if not excel_files:
             print("Nenhum arquivo Excel encontrado")
@@ -33,6 +35,7 @@ def test_single_file():
         # Extrair dados
         print("Importando extractor...")
         from extracao.extractor import extract_data_from_excel
+
         print("Extraindo dados...")
         df = extract_data_from_excel(test_file)
 
@@ -46,17 +49,19 @@ def test_single_file():
         # Inserir dados
         print("Importando database...")
         from armazenamento.database import insert_data_in_database
+
         print("Inserindo dados...")
-        success = insert_data_in_database(df, 'ssa_data.db', 'ssa_table')
+        success = insert_data_in_database(df, "ssa_data.db", "ssa_table")
 
         if success:
             print("OK Inserção bem-sucedida!")
 
             # Verificar resultado
             import sqlite3
-            with sqlite3.connect('ssa_data.db') as conn:
+
+            with sqlite3.connect("ssa_data.db") as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT COUNT(*) FROM ssa_table')
+                cursor.execute("SELECT COUNT(*) FROM ssa_table")
                 count = cursor.fetchone()[0]
                 print(f"Total de registros inseridos: {count}")
         else:
@@ -65,7 +70,9 @@ def test_single_file():
     except Exception as e:
         print(f"Erro: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     test_single_file()

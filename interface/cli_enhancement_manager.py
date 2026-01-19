@@ -3,11 +3,12 @@ CLI Enhancement Integration - Integra melhorias na CLI existente
 Permite ativar/desativar enhanced table printer facilmente.
 """
 
-import os
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
 
 class CLIEnhancementManager:
     """
@@ -17,14 +18,16 @@ class CLIEnhancementManager:
     def __init__(self):
         """Inicializa o gerenciador de melhorias."""
         self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.settings_file = os.path.join(self.project_root, 'config', 'cli_enhancements.json')
+        self.settings_file = os.path.join(
+            self.project_root, "config", "cli_enhancements.json"
+        )
         self.settings = self._load_settings()
 
     def _load_settings(self) -> dict:
         """Carrega configurações das melhorias CLI."""
         try:
             if os.path.exists(self.settings_file):
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                with open(self.settings_file, "r", encoding="utf-8") as f:
                     return json.load(f)
         except Exception as e:
             logger.warning(f"Erro ao carregar configurações CLI: {e}")
@@ -36,14 +39,14 @@ class CLIEnhancementManager:
             "improved_ssa_normalization": True,
             "word_wrap_in_cli": True,
             "debug_output": False,
-            "version": "1.0"
+            "version": "1.0",
         }
 
     def _save_settings(self):
         """Salva configurações das melhorias."""
         try:
             os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
-            with open(self.settings_file, 'w', encoding='utf-8') as f:
+            with open(self.settings_file, "w", encoding="utf-8") as f:
                 json.dump(self.settings, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.error(f"Erro ao salvar configurações CLI: {e}")
@@ -106,12 +109,15 @@ class CLIEnhancementManager:
 
         return "\n".join(status)
 
+
 # Instância global
 enhancement_manager = CLIEnhancementManager()
+
 
 def print_cli_enhancements_status():
     """Função de conveniência para imprimir status."""
     print(enhancement_manager.get_status_report())
+
 
 def toggle_cli_debug():
     """Função de conveniência para alternar debug."""

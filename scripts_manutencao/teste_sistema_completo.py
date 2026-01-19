@@ -3,8 +3,9 @@
 Teste rápido do sistema SSA após melhorias
 """
 
-import sys
 import os
+import sys
+
 
 def test_basic_functionality():
     """Testa funcionalidade básica do sistema"""
@@ -32,6 +33,7 @@ def test_basic_functionality():
         print(f"ERR Erro no teste básico: {e}")
         return False
 
+
 def test_database():
     """Testa se o banco está acessível"""
     try:
@@ -45,6 +47,7 @@ def test_database():
 
             # Teste simples de conexão
             import sqlite3
+
             try:
                 conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
@@ -73,12 +76,15 @@ def test_database():
                 print(f"WARN Erro ao acessar banco: {e}")
                 return True  # Não é erro crítico
         else:
-            print("WARN Banco de dados não encontrado (será criado na primeira importação)")
+            print(
+                "WARN Banco de dados não encontrado (será criado na primeira importação)"
+            )
             return True
 
     except Exception as e:
         print(f"ERR Erro no teste do banco: {e}")
         return False
+
 
 def test_scripts_organization():
     """Verifica se a organização dos scripts está correta"""
@@ -87,13 +93,17 @@ def test_scripts_organization():
 
         # Verifica se as pastas existem
         if os.path.exists("scripts_manutencao"):
-            manutencao_files = len([f for f in os.listdir("scripts_manutencao") if f.endswith('.py')])
+            manutencao_files = len(
+                [f for f in os.listdir("scripts_manutencao") if f.endswith(".py")]
+            )
             print(f"OK scripts_manutencao/ com {manutencao_files} arquivos Python")
         else:
             print("ERR Pasta scripts_manutencao/ não encontrada")
 
         if os.path.exists("scripts_desenvolvimento"):
-            dev_files = len([f for f in os.listdir("scripts_desenvolvimento") if f.endswith('.py')])
+            dev_files = len(
+                [f for f in os.listdir("scripts_desenvolvimento") if f.endswith(".py")]
+            )
             print(f"OK scripts_desenvolvimento/ com {dev_files} arquivos Python")
         else:
             print("ERR Pasta scripts_desenvolvimento/ não encontrada")
@@ -110,16 +120,13 @@ def test_scripts_organization():
         print(f"ERR Erro na verificação: {e}")
         return False
 
+
 def test_documentation():
     """Verifica se a documentação está atualizada"""
     try:
         print("\n Verificando documentação...")
 
-        files_to_check = [
-            "README.md",
-            "GUIA_MODO_OPTIMIZED.md",
-            "requirements.txt"
-        ]
+        files_to_check = ["README.md", "GUIA_MODO_OPTIMIZED.md", "requirements.txt"]
 
         for file in files_to_check:
             if os.path.exists(file):
@@ -134,6 +141,7 @@ def test_documentation():
         print(f"ERR Erro na verificação da documentação: {e}")
         return False
 
+
 def test_requirements():
     """Verifica se o requirements.txt está otimizado"""
     try:
@@ -141,7 +149,11 @@ def test_requirements():
 
         if os.path.exists("requirements.txt"):
             with open("requirements.txt", "r", encoding="utf-8") as f:
-                lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                lines = [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.startswith("#")
+                ]
 
             print(f"OK {len(lines)} dependências principais")
 
@@ -155,7 +167,9 @@ def test_requirements():
                     found_packages.append(package_name)
 
             if len(found_packages) >= 2:
-                print(f"OK Dependências essenciais encontradas: {', '.join(found_packages)}")
+                print(
+                    f"OK Dependências essenciais encontradas: {', '.join(found_packages)}"
+                )
             else:
                 print("WARN Algumas dependências essenciais podem estar ausentes")
 
@@ -168,6 +182,7 @@ def test_requirements():
         print(f"ERR Erro na verificação do requirements: {e}")
         return False
 
+
 def main():
     """Executa todos os testes"""
     print("START SSA Consulta Rápida - Teste de Sistema v3.0.7+")
@@ -178,7 +193,7 @@ def main():
         ("Banco de Dados", test_database),
         ("Organização de Scripts", test_scripts_organization),
         ("Documentação", test_documentation),
-        ("Requirements", test_requirements)
+        ("Requirements", test_requirements),
     ]
 
     results = []
@@ -211,6 +226,7 @@ def main():
     print("   INFO Interface GUI:  python main.py --gui")
     print("   ️ Gerenciar DB:   python scripts_manutencao/gerenciar_banco.py")
     print("   INFO Ver ajuda:      python main.py --help")
+
 
 if __name__ == "__main__":
     main()
