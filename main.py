@@ -19,20 +19,26 @@ from typing import Optional
 # CRITICAL FIX: PyOxidizer monkey patch for pandas delvewheel
 # pandas._libs uses __file__ which is None in PyOxidizer causing crash
 # This must be BEFORE any imports that use pandas
-if getattr(sys, 'oxidized', False):
+if getattr(sys, "oxidized", False):
     import builtins
+
     _original_import = builtins.__import__
+
     def _patched_import(name, *args, **kwargs):
         module = _original_import(name, *args, **kwargs)
-        if not hasattr(module, '__file__') or module.__file__ is None:
+        if not hasattr(module, "__file__") or module.__file__ is None:
             # Set a dummy __file__ for modules that need it
-            module.__file__ = os.path.join(os.path.dirname(sys.executable), f"{name.replace('.', os.sep)}.py")
+            module.__file__ = os.path.join(
+                os.path.dirname(sys.executable), f"{name.replace('.', os.sep)}.py"
+            )
         return module
+
     builtins.__import__ = _patched_import
 
 # Suppress pandas FutureWarnings about chained assignment
 import warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 logger = logging.getLogger("ssa")
 # Logger level will be set by argument parsing - do not hardcode DEBUG
@@ -45,7 +51,7 @@ class _ASCIIOnlyFilter(logging.Filter):
     @staticmethod
     def _to_ascii(value):
         if isinstance(value, str):
-            return value.encode('ascii', 'ignore').decode('ascii')
+            return value.encode("ascii", "ignore").decode("ascii")
         return value
 
     def filter(self, record: logging.LogRecord) -> bool:
@@ -165,7 +171,7 @@ def _configure_logging(
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level_console)
-    console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+    console_handler.setFormatter(logging.Formatter("%(levelname)s - %(message)s"))
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
@@ -184,15 +190,15 @@ def _configure_logging(
 def _get_project_root():
     """Retorna o diretorio raiz do projeto de forma robusta para diferentes builds."""
     # PyOxidizer
-    if getattr(sys, 'oxidized', False):
+    if getattr(sys, "oxidized", False):
         return os.path.dirname(sys.executable)
     # PyInstaller - CRITICAL FIX FOR ONEDRIVE/NETWORK PATHS
     # sys._MEIPASS eh pasta temporaria interna - NAO USAR
     # Precisamos do diretorio onde o usuario colocou o .exe
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return os.path.dirname(os.path.abspath(sys.executable))
     # Nuitka
-    if '__compiled__' in globals():
+    if "__compiled__" in globals():
         return os.path.dirname(sys.executable)
     # Desenvolvimento
     try:
@@ -203,13 +209,16 @@ def _get_project_root():
     except (NameError, TypeError):
         return os.getcwd()
 
+
 project_root = _get_project_root()
 sys.path.insert(0, project_root)
+
 
 def get_app_version():
     """Obtem versao da aplicacao"""
     try:
         from utils.version import get_app_version as _get_version
+
         return _get_version()
     except ImportError:
         return "3.11+"
@@ -217,32 +226,37 @@ def get_app_version():
 
 def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
     """Inicia o aplicativo Streamlit em segundo plano."""
-    script_path = os.path.join(project_root, 'streamlit_app.py')
+    script_path = os.path.join(project_root, "streamlit_app.py")
     if not os.path.exists(script_path):
         print("Streamlit app nao encontrado em streamlit_app.py")
         return False
-    if not shutil.which('streamlit'):
+    if not shutil.which("streamlit"):
         print("Streamlit nao encontrado. Instale com: pip install streamlit")
         return False
 
-    cmd = ['streamlit', 'run', script_path, '--server.headless=true']
+    cmd = ["streamlit", "run", script_path, "--server.headless=true"]
     if port:
-        cmd.append(f'--server.port={port}')
+        cmd.append(f"--server.port={port}")
 
-    logs_dir = os.path.join(project_root, 'logs')
+    logs_dir = os.path.join(project_root, "logs")
     os.makedirs(logs_dir, exist_ok=True)
-    log_path = os.path.join(logs_dir, 'streamlit.log')
+    log_path = os.path.join(logs_dir, "streamlit.log")
 
     try:
-        with open(log_path, 'ab') as log_file:
-            process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, cwd=project_root)
+        with open(log_path, "ab") as log_file:
+            process = subprocess.Popen(
+                cmd, stdout=log_file, stderr=log_file, cwd=project_root
+            )
         display_port = port or 8501
-        print(f"Streamlit iniciado em background (PID {process.pid}). Acesse http://localhost:{display_port}/")
+        print(
+            f"Streamlit iniciado em background (PID {process.pid}). Acesse http://localhost:{display_port}/"
+        )
         print(f"Logs: {log_path}")
         return True
     except Exception as exc:  # noqa: BLE001
         print(f"Falha ao iniciar Streamlit: {exc}")
         return False
+
 
 def main(cli_args=None):
     """
@@ -254,20 +268,20 @@ def main(cli_args=None):
     """
     logger.debug("Iniciando funcao main()")
 
-    import sys
     import os
+    import sys
 
     logger.debug("Verificando escopo da variavel sys...")
-    logger.debug("sys disponivel no escopo global: %s", 'sys' in globals())
-    logger.debug("sys disponivel no escopo local: %s", 'sys' in locals())
-    logger.debug("sys.argv disponivel: %s", hasattr(sys, 'argv'))
+    logger.debug("sys disponivel no escopo global: %s", "sys" in globals())
+    logger.debug("sys disponivel no escopo local: %s", "sys" in locals())
+    logger.debug("sys.argv disponivel: %s", hasattr(sys, "argv"))
 
     logger.debug("Verificando estrutura de diretorios do projeto...")
     logger.debug("Diretorio raiz do projeto: %s", project_root)
     logger.debug("sys.path atual: %s", sys.path)
 
-    extracao_root = os.path.join(project_root, 'extracao')
-    extracao_core = os.path.join(project_root, 'core', 'extracao')
+    extracao_root = os.path.join(project_root, "extracao")
+    extracao_core = os.path.join(project_root, "core", "extracao")
 
     logger.debug("Diretorio extracao (raiz): %s", extracao_root)
     logger.debug("Diretorio extracao (core): %s", extracao_core)
@@ -279,18 +293,28 @@ def main(cli_args=None):
     if os.path.exists(extracao_core):
         logger.debug("Conteudo de extracao (core): %s", os.listdir(extracao_core))
 
-    extractor_root = os.path.join(extracao_root, 'extractor.py')
-    extractor_core = os.path.join(extracao_core, 'extractor.py')
+    extractor_root = os.path.join(extracao_root, "extractor.py")
+    extractor_core = os.path.join(extracao_core, "extractor.py")
 
     logger.debug("Arquivo extractor.py (raiz): %s", extractor_root)
     logger.debug("Arquivo extractor.py (core): %s", extractor_core)
-    logger.debug("Arquivo extractor.py (raiz) existe: %s", os.path.exists(extractor_root))
-    logger.debug("Arquivo extractor.py (core) existe: %s", os.path.exists(extractor_core))
+    logger.debug(
+        "Arquivo extractor.py (raiz) existe: %s", os.path.exists(extractor_root)
+    )
+    logger.debug(
+        "Arquivo extractor.py (core) existe: %s", os.path.exists(extractor_core)
+    )
 
     if os.path.exists(extractor_root):
-        logger.debug("Permissoes do arquivo extractor.py (raiz): %s", oct(os.stat(extractor_root).st_mode))
+        logger.debug(
+            "Permissoes do arquivo extractor.py (raiz): %s",
+            oct(os.stat(extractor_root).st_mode),
+        )
     if os.path.exists(extractor_core):
-        logger.debug("Permissoes do arquivo extractor.py (core): %s", oct(os.stat(extractor_core).st_mode))
+        logger.debug(
+            "Permissoes do arquivo extractor.py (core): %s",
+            oct(os.stat(extractor_core).st_mode),
+        )
 
     APP_VERSION = get_app_version()
 
@@ -311,20 +335,21 @@ EXEMPLOS DE USO
   Otimizado + rescan: python main.py --optimized --force-rescan
 
 Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
-"""
+""",
     )
 
     # Versao
     parser.add_argument(
-        '--version', action='store_true',
-        help='Exibe versao curta e encerra')
+        "--version", action="store_true", help="Exibe versao curta e encerra"
+    )
 
     # Suporta --rescan como alias historico de --force-rescan
     parser.add_argument(
-        '--force-rescan', '--rescan',
-        dest='force_rescan',
-        action='store_true',
-        help='''Reimporta todos os arquivos Excel ignorando o cache.
+        "--force-rescan",
+        "--rescan",
+        dest="force_rescan",
+        action="store_true",
+        help="""Reimporta todos os arquivos Excel ignorando o cache.
 
          DIFERENCAS
          --force-rescan: Nome atual, recomendado
@@ -337,13 +362,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          Detecta e importa mudancas, adicoes e remocoes
          Util quando arquivos foram modificados manualmente
 
-        EXEMPLO: python main.py --force-rescan'''
+        EXEMPLO: python main.py --force-rescan""",
     )
 
     parser.add_argument(
-        '--optimized',
-        action='store_true',
-        help='''DEPRECATED: Modo otimizado agora e PADRAO. Use --standard para modo legado.
+        "--optimized",
+        action="store_true",
+        help="""DEPRECATED: Modo otimizado agora e PADRAO. Use --standard para modo legado.
 
          AVISO: MODO OTIMIZADO JA E PADRAO
          Esta flag nao e mais necessaria - modo otimizado
@@ -351,13 +376,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
          Use --standard se precisar do modo legado por
          compatibilidade ou debugging especifico.
-        '''
+        """,
     )
 
     parser.add_argument(
-        '--standard',
-        action='store_true',
-        help='''Ativa modo LEGADO/PADRAO (mais lento, melhor para debugging).
+        "--standard",
+        action="store_true",
+        help="""Ativa modo LEGADO/PADRAO (mais lento, melhor para debugging).
 
          MODO LEGADO/DEBUG
          CARACTERISTICAS
@@ -379,13 +404,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         python main.py --standard
         python main.py --standard --force-rescan
 
-        Mais detalhes: GUIA_MODO_OPTIMIZED.md'''
+        Mais detalhes: GUIA_MODO_OPTIMIZED.md""",
     )
 
     parser.add_argument(
-        '--gui',
-        action='store_true',
-        help='''Inicia a interface grafica (GUI) em vez da CLI.
+        "--gui",
+        action="store_true",
+        help="""Inicia a interface grafica (GUI) em vez da CLI.
 
         RECURSOS DA GUI:
          Interface visual amigavel com PyQt6
@@ -394,13 +419,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          Protecao contra multiplas instancias
          Tooltips explicativos nos controles
 
-        Exemplo: python main.py --gui'''
+        Exemplo: python main.py --gui""",
     )
 
     parser.add_argument(
-        '--debug-ui',
-        action='store_true',
-        help='''Ativa modo de debug da interface grafica.
+        "--debug-ui",
+        action="store_true",
+        help="""Ativa modo de debug da interface grafica.
 
         Imprime estado detalhado do contexto de abas em pontos criticos:
          - Troca de abas (antes/depois)
@@ -408,34 +433,35 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          - Bind de contexto de aba
 
         Util para diagnosticar bugs de sincronizacao de estado.
-        Exemplo: python main.py --gui --debug-ui'''
+        Exemplo: python main.py --gui --debug-ui""",
     )
 
     parser.add_argument(
-        '--streamlit', '--web',
-        dest='launch_streamlit',
-        action='store_true',
-        help='''Inicia a interface web (Streamlit) em segundo plano.
+        "--streamlit",
+        "--web",
+        dest="launch_streamlit",
+        action="store_true",
+        help="""Inicia a interface web (Streamlit) em segundo plano.
 
         CARACTERISTICAS:
          Interface moderna acessivel via navegador
          Filtros rapidos com sintaxe equivalente a CLI
          Indicadores resumidos e opcao de consulta a API
 
-        Exemplo: python main.py --streamlit'''
+        Exemplo: python main.py --streamlit""",
     )
 
     parser.add_argument(
-        '--streamlit-port',
+        "--streamlit-port",
         type=int,
         default=8501,
-        help='Porta para a interface web (usar em conjunto com --streamlit)'
+        help="Porta para a interface web (usar em conjunto com --streamlit)",
     )
 
     parser.add_argument(
-        '--reset-db',
-        action='store_true',
-        help='''Zera o banco de dados e cria apenas a estrutura (sem importar dados).
+        "--reset-db",
+        action="store_true",
+        help="""Zera o banco de dados e cria apenas a estrutura (sem importar dados).
 
         Operacao destrutiva:
          Backup automatico e criado antes da operacao
@@ -443,13 +469,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          Recria estrutura limpa das tabelas
          Nao importa novos dados automaticamente
 
-        Exemplo: python main.py --reset-db'''
+        Exemplo: python main.py --reset-db""",
     )
 
     parser.add_argument(
-        '--clean-data',
-        action='store_true',
-        help='''Limpa e sanitiza a pasta data (remove backups antigos).
+        "--clean-data",
+        action="store_true",
+        help="""Limpa e sanitiza a pasta data (remove backups antigos).
 
         LIMPEZA REALIZADA:
          Remove backups mais antigos que 30 dias
@@ -457,42 +483,42 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          Verifica integridade dos arquivos restantes
          Exibe relatorio de espaco liberado
 
-        Exemplo: python main.py --clean-data'''
+        Exemplo: python main.py --clean-data""",
     )
 
     parser.add_argument(
-        '--log-level',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='INFO',
-        help='Define o nivel de detalhe dos logs (padrao: INFO)'
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Define o nivel de detalhe dos logs (padrao: INFO)",
     )
 
     # Acao principal (processar = comportamento atual, backfill = reprocessar historico via script dedicado)
     parser.add_argument(
-        '--acao',
-        choices=['processar', 'backfill'],
-        default='processar',
-        help='Define acao principal: processar (import normal) ou backfill (reprocessar diretorio historico).\n'
-             'Uso para backfill com argumentos extras apos -- :\n'
-             '  python main.py --acao backfill -- --dir docs_entrada --dry-run --smart-upsert\n'
+        "--acao",
+        choices=["processar", "backfill"],
+        default="processar",
+        help="Define acao principal: processar (import normal) ou backfill (reprocessar diretorio historico).\n"
+        "Uso para backfill com argumentos extras apos -- :\n"
+        "  python main.py --acao backfill -- --dir docs_entrada --dry-run --smart-upsert\n",
     )
 
     # Suporte a passagem de argumentos apos '--' exclusivamente ao backfill
     logger.debug("Processando argumentos de linha de comando")
     logger.debug("cli_args fornecido: %s", cli_args is not None)
-    logger.debug("sys.argv disponivel: %s", hasattr(sys, 'argv'))
+    logger.debug("sys.argv disponivel: %s", hasattr(sys, "argv"))
 
-    if hasattr(sys, 'argv'):
+    if hasattr(sys, "argv"):
         logger.debug("sys.argv[1:]: %s", sys.argv[1:])
     else:
         logger.error("sys.argv nao esta disponivel!")
 
     raw_args = cli_args if cli_args is not None else sys.argv[1:]
     backfill_args: list[str] = []
-    if '--' in raw_args:
-        split_idx = raw_args.index('--')
+    if "--" in raw_args:
+        split_idx = raw_args.index("--")
         main_args = raw_args[:split_idx]
-        backfill_args = raw_args[split_idx + 1:]
+        backfill_args = raw_args[split_idx + 1 :]
     else:
         main_args = raw_args
 
@@ -504,11 +530,11 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     args = parser.parse_args(main_args)
 
     # --version: imprime e sai antes de qualquer outra acao
-    if getattr(args, 'version', False):
+    if getattr(args, "version", False):
         try:
             print(get_app_version())
         except Exception:
-            print('0.0.0')
+            print("0.0.0")
         return
 
     # Configura logging
@@ -529,24 +555,28 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             # Testar importacao individualmente
             try:
                 from core.app_logic import run_importer_logic
+
                 logger.debug("Importacao de core.app_logic bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar core.app_logic: %s", e)
 
             try:
                 from core.config_manager import ensure_default_settings
+
                 logger.debug("Importacao de core.config_manager bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar core.config_manager: %s", e)
 
             try:
                 from interface.cli import start_cli_loop
+
                 logger.debug("Importacao de interface.cli bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar interface.cli: %s", e)
 
             try:
                 from utils import setup_project_structure
+
                 logger.debug("Importacao de utils.setup_project_structure bem sucedida")
             except ImportError as e:
                 logger.error("Falha ao importar utils.setup_project_structure: %s", e)
@@ -556,6 +586,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             from core.config_manager import ensure_default_settings
             from interface.cli import start_cli_loop
             from utils import setup_project_structure
+
             logger.debug("Todas as importacoes bem sucedidas")
 
         except ImportError as e:
@@ -569,6 +600,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             print("Resetando banco de dados...")
             try:
                 from scripts_manutencao.gerenciar_banco import reset_database
+
                 reset_database()
                 print("Banco de dados resetado com sucesso!")
             except ImportError:
@@ -578,7 +610,11 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         if args.clean_data:
             print("Limpando pasta data...")
             try:
-                from scripts_manutencao.gerenciar_banco import clean_old_backups, sanitize_data_folder
+                from scripts_manutencao.gerenciar_banco import (
+                    clean_old_backups,
+                    sanitize_data_folder,
+                )
+
                 clean_old_backups()
                 sanitize_data_folder()
                 print("Limpeza concluida!")
@@ -594,12 +630,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         logger.debug("sys.path: %s", sys.path)
 
         # Verificar diretorios importantes
-        data_dir = os.path.join(project_root, 'data')
-        docs_dir = os.path.join(project_root, 'docs_entrada')
-        config_dir = os.path.join(project_root, 'config')
-        core_dir = os.path.join(project_root, 'core')
-        armazenamento_dir = os.path.join(core_dir, 'armazenamento')
-        extracao_dir = os.path.join(core_dir, 'extracao')
+        data_dir = os.path.join(project_root, "data")
+        docs_dir = os.path.join(project_root, "docs_entrada")
+        config_dir = os.path.join(project_root, "config")
+        core_dir = os.path.join(project_root, "core")
+        armazenamento_dir = os.path.join(core_dir, "armazenamento")
+        extracao_dir = os.path.join(core_dir, "extracao")
 
         logger.debug("Verificando diretorios...")
         logger.debug("data_dir existe: %s", os.path.exists(data_dir))
@@ -619,33 +655,39 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         if os.path.exists(core_dir):
             logger.debug("Arquivos em core/: %s", os.listdir(core_dir))
         if os.path.exists(armazenamento_dir):
-            logger.debug("Arquivos em core/armazenamento/: %s", os.listdir(armazenamento_dir))
+            logger.debug(
+                "Arquivos em core/armazenamento/: %s", os.listdir(armazenamento_dir)
+            )
         if os.path.exists(extracao_dir):
             logger.debug("Arquivos em core/extracao/: %s", os.listdir(extracao_dir))
 
         # Verificar arquivos especificos que causam problemas
-        database_py = os.path.join(armazenamento_dir, 'database.py')
-        extractor_py = os.path.join(extracao_dir, 'extractor.py')
+        database_py = os.path.join(armazenamento_dir, "database.py")
+        extractor_py = os.path.join(extracao_dir, "extractor.py")
 
         logger.debug("database.py existe: %s", os.path.exists(database_py))
         logger.debug("extractor.py existe: %s", os.path.exists(extractor_py))
 
         # Verificar arquivos alternativos
-        database_optimized = os.path.join(armazenamento_dir, 'database_optimized.py')
-        logger.debug("database_optimized.py existe: %s", os.path.exists(database_optimized))
+        database_optimized = os.path.join(armazenamento_dir, "database_optimized.py")
+        logger.debug(
+            "database_optimized.py existe: %s", os.path.exists(database_optimized)
+        )
 
         # Verificar arquivos de init nos diretorios
-        armazenamento_init = os.path.join(armazenamento_dir, '__init__.py')
-        extracao_init = os.path.join(extracao_dir, '__init__.py')
+        armazenamento_init = os.path.join(armazenamento_dir, "__init__.py")
+        extracao_init = os.path.join(extracao_dir, "__init__.py")
 
-        logger.debug("armazenamento/__init__.py existe: %s", os.path.exists(armazenamento_init))
+        logger.debug(
+            "armazenamento/__init__.py existe: %s", os.path.exists(armazenamento_init)
+        )
         logger.debug("extracao/__init__.py existe: %s", os.path.exists(extracao_init))
 
         # Verificar variaveis de ambiente importantes
         logger.debug("Variaveis de ambiente:")
-        logger.debug("SSA_DB_PATH: %s", os.environ.get('SSA_DB_PATH'))
-        logger.debug("SSA_TABLE_NAME: %s", os.environ.get('SSA_TABLE_NAME'))
-        logger.debug("PYTHONPATH: %s", os.environ.get('PYTHONPATH'))
+        logger.debug("SSA_DB_PATH: %s", os.environ.get("SSA_DB_PATH"))
+        logger.debug("SSA_TABLE_NAME: %s", os.environ.get("SSA_TABLE_NAME"))
+        logger.debug("PYTHONPATH: %s", os.environ.get("PYTHONPATH"))
 
         setup_project_structure.setup_dirs()
         logger.info("Estrutura de pastas verificada.")
@@ -663,15 +705,20 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             raise
 
         # Se a acao for backfill, executar diretamente o script de backfill e encerrar
-        if getattr(args, 'acao', 'processar') == 'backfill':
-            logger.info("Acao=backfill selecionada. Encaminhando argumentos ao backfill: %s", backfill_args)
+        if getattr(args, "acao", "processar") == "backfill":
+            logger.info(
+                "Acao=backfill selecionada. Encaminhando argumentos ao backfill: %s",
+                backfill_args,
+            )
             try:
                 from scripts.migracao.backfill_reprocessar import main as backfill_main
             except ModuleNotFoundError:
                 # garantir path root
                 if project_root not in sys.path:
                     sys.path.insert(0, project_root)
-                from scripts.migracao.backfill_reprocessar import main as backfill_main  # type: ignore
+                from scripts.migracao.backfill_reprocessar import (
+                    main as backfill_main,  # type: ignore
+                )
             # Executa backfill (retorna exit code int)
             exit_code = backfill_main(backfill_args)
             logger.info("Backfill finalizado (exit_code=%s)", exit_code)
@@ -686,66 +733,99 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
         # Aviso de depreciacao se --optimized for usado
         if args.optimized:
-            logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
+            logger.warning(
+                "  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado."
+            )
 
         # Ativar importacao otimizada (agora padrao)
         if use_optimized:
             logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
-            logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
+            logger.debug(
+                "Tentando importar enable_optimized_import de armazenamento.database_optimized"
+            )
 
             # Testar caminho absoluto
-            import sys
             import os
+            import sys
+
             current_project_root = project_root
-            optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+            optimized_path = os.path.join(
+                current_project_root, "armazenamento", "database_optimized.py"
+            )
             logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
-            logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
+            logger.debug(
+                "Arquivo otimizado presente: %s", os.path.exists(optimized_path)
+            )
 
             logger.debug("Verificando disponibilidade do modo otimizado...")
 
             # Verificar se o arquivo existe
             import os
-            optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+
+            optimized_file_path = os.path.join(
+                current_project_root, "armazenamento", "database_optimized.py"
+            )
             logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
-            logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
+            logger.debug(
+                "Arquivo otimizado existe: %s", os.path.exists(optimized_file_path)
+            )
 
             if os.path.exists(optimized_file_path):
                 file_stat = os.stat(optimized_file_path)
-                logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
-                logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
+                logger.debug(
+                    "Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode)
+                )
+                logger.debug(
+                    "Tamanho do arquivo otimizado: %d bytes", file_stat.st_size
+                )
 
-                armazenamento_path = os.path.join(current_project_root, 'armazenamento')
-                logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
+                armazenamento_path = os.path.join(current_project_root, "armazenamento")
+                logger.debug(
+                    "Diretorio armazenamento no sys.path: %s",
+                    armazenamento_path in sys.path,
+                )
 
                 if os.path.exists(armazenamento_path):
-                    logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
+                    logger.debug(
+                        "Arquivos em armazenamento/: %s", os.listdir(armazenamento_path)
+                    )
 
             try:
                 # Tentar importar o modulo completo primeiro
                 logger.debug("Tentando importar armazenamento.database_optimized...")
                 import armazenamento.database_optimized
+
                 logger.debug("Importacao do modulo completo bem-sucedida")
 
                 # Verificar se a funcao existe no modulo
-                logger.debug("Verificando se enable_optimized_import existe no modulo...")
-                if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
+                logger.debug(
+                    "Verificando se enable_optimized_import existe no modulo..."
+                )
+                if hasattr(armazenamento.database_optimized, "enable_optimized_import"):
                     logger.debug("Funcao enable_optimized_import encontrada")
 
                     from armazenamento.database_optimized import enable_optimized_import
+
                     logger.debug("Importacao de enable_optimized_import bem-sucedida")
 
                     enable_optimized_import()
                     logger.debug("enable_optimized_import() executado com sucesso")
                 else:
-                    logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
-                    logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
+                    logger.error(
+                        "Funcao enable_optimized_import NAO encontrada no modulo"
+                    )
+                    logger.warning(
+                        "Modo otimizado nao disponivel, recorrendo ao modo legado"
+                    )
                     use_optimized = False
 
             except ImportError as e:
                 logger.error("Falha ao importar enable_optimized_import: %s", e)
                 logger.debug("Tipo do erro: %s", type(e).__name__)
-                logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
-                logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
+                logger.debug("Modulo associado: %s", getattr(e, "name", "desconhecido"))
+                logger.warning(
+                    "Modo otimizado nao disponivel, recorrendo ao modo legado"
+                )
                 use_optimized = False
             except Exception as e:
                 logger.error("Erro ao executar enable_optimized_import: %s", e)
@@ -755,7 +835,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         else:
             logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
-        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
+        logger.info(
+            f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})..."
+        )
         # DEAD CODE: Lines 690-693 - external_run always None, condition never true
         # Can safely delete lines 690-693 when deleting _load_external_run_importer
         logger.debug("Verificando implementacao externa de run_importer_logic")
@@ -766,7 +848,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         try:
             logger.debug("Executando run_importer_logic...")
             db_updated = run_importer_logic(force_import=force_import)
-            logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
+            logger.debug(
+                "Importacao de dados concluida. Resultado: db_updated=%s", db_updated
+            )
         except Exception as e:
             logger.error("Falha critica na importacao de dados: %s", e)
             logger.error("Este e o ponto mais critico do processo. Verifique:")
@@ -780,6 +864,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         if use_optimized:
             try:
                 from armazenamento.database_optimized import disable_optimized_import
+
                 disable_optimized_import()
             except ImportError:
                 pass
@@ -788,18 +873,26 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
         if db_updated:
             logger.info("Banco de dados atualizado com sucesso.")
-            logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
+            logger.debug(
+                "Banco de dados foi atualizado. Verifique se os dados estao acessiveis."
+            )
         else:
             logger.info("Nenhum novo ou modificado relatorio encontrado.")
-            logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
-            logger.debug("Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos.")
+            logger.debug(
+                "Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas."
+            )
+            logger.debug(
+                "Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos."
+            )
 
         # --- 4. Inicio da Interface ---
         # Respeita variaveis de ambiente para facilitar testes e integracao
         # Exemplos:
         #   SSA_DB_PATH=C:\\tmp\\test_ssas.db  SSA_TABLE_NAME=ssas  python main.py --log-level INFO
-        db_path = os.environ.get('SSA_DB_PATH') or os.path.join(project_root, 'data', 'ssas.db')
-        table_name = os.environ.get('SSA_TABLE_NAME') or 'ssa_table'
+        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(
+            project_root, "data", "ssas.db"
+        )
+        table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
         logger.info(f"Usando base: {db_path} (tabela: {table_name})")
         logger.debug("Verificando acesso ao banco de dados...")
         logger.debug("Caminho do banco: %s", db_path)
@@ -810,7 +903,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             file_size = os.path.getsize(db_path)
             logger.debug("Tamanho do arquivo do banco: %d bytes", file_size)
         else:
-            logger.debug("Arquivo do banco NAO encontrado. Isso pode indicar que a importacao falhou.")
+            logger.debug(
+                "Arquivo do banco NAO encontrado. Isso pode indicar que a importacao falhou."
+            )
 
         if args.launch_streamlit:
             if args.gui:
@@ -818,18 +913,23 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 return
             launched = launch_streamlit(project_root, port=args.streamlit_port)
             if launched:
-                print("Interface web ativa. Pressione CTRL+C quando desejar encerrar este processo.")
+                print(
+                    "Interface web ativa. Pressione CTRL+C quando desejar encerrar este processo."
+                )
             return
 
         if args.gui:
             logger.info("Iniciando interface grafica (GUI)...")
-            debug_ui = getattr(args, 'debug_ui', False)
+            debug_ui = getattr(args, "debug_ui", False)
             if debug_ui:
-                logger.info("Modo debug-ui ativado - prints de estado serao exibidos no console")
+                logger.info(
+                    "Modo debug-ui ativado - prints de estado serao exibidos no console"
+                )
             try:
                 # Import tardio para evitar dependencia obrigatoria em ambientes sem PyQt6
-                from gui.gui_ssa import SSAMainWindow
                 from PyQt6.QtWidgets import QApplication
+
+                from gui.gui_ssa import SSAMainWindow
             except Exception as e:
                 logger.error(f"Falha ao iniciar GUI: {e}")
                 logger.info("Recuando para CLI.")
@@ -860,6 +960,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         sys.exit(1)
 
     logger.info("aplicacao encerrada normalmente.")
+
 
 if __name__ == "__main__":
     # Permite que o script seja executado diretamente

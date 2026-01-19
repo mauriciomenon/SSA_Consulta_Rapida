@@ -1858,7 +1858,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         Útil para diagnosticar bugs de estado "stale" após troca de abas.
         """
-        if not getattr(self, '_debug_mode', False):
+        if not getattr(self, "_debug_mode", False):
             return
 
         try:
@@ -1872,16 +1872,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             print(f"{'=' * 70}")
 
             # Estado atual
-            current_kind = getattr(self, '_current_tab_kind', 'N/A')
-            current_idx = getattr(self, '_current_tab_index', -1)
+            current_kind = getattr(self, "_current_tab_kind", "N/A")
+            current_idx = getattr(self, "_current_tab_index", -1)
             print(f"  Tab atual: {current_kind} (index={current_idx})")
 
             # Checkboxes principais em self
             key_checks = [
-                'adv_executor_checks',
-                'adv_emissor_checks',
-                'adv_divisao_checks',
-                'adv_status_checks',
+                "adv_executor_checks",
+                "adv_emissor_checks",
+                "adv_divisao_checks",
+                "adv_status_checks",
             ]
 
             print(f"\n  Checkboxes em self:")
@@ -1896,10 +1896,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 print(f"    self.{attr}: {count} items ({valid})")
 
             # Estado em _tab_contexts
-            contexts = getattr(self, '_tab_contexts', [])
+            contexts = getattr(self, "_tab_contexts", [])
             print(f"\n  Contextos em _tab_contexts ({len(contexts)} total):")
             for i, ctx in enumerate(contexts):
-                kind = ctx.get('tab_kind', 'unknown')
+                kind = ctx.get("tab_kind", "unknown")
                 marker = " <-- ATUAL" if i == current_idx else ""
                 print(f"    ctx[{i}] ({kind}){marker}:")
                 for attr in key_checks:
@@ -1907,14 +1907,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     count = len(val) if val else 0
                     # Verificar se referência é a mesma que self
                     self_val = getattr(self, attr, None)
-                    same_ref = " [MESMA REF]" if val is self_val and val is not None else ""
+                    same_ref = (
+                        " [MESMA REF]" if val is self_val and val is not None else ""
+                    )
                     print(f"      {attr}: {count} items{same_ref}")
 
             # Verificar flags de estado
             print(f"\n  Flags de estado:")
-            print(f"    _syncing_advanced_ui: {getattr(self, '_syncing_advanced_ui', 'N/A')}")
-            print(f"    _adv_options_dirty: {getattr(self, '_adv_options_dirty', 'N/A')}")
-            print(f"    _adv_options_scheduled: {getattr(self, '_adv_options_scheduled', 'N/A')}")
+            print(
+                f"    _syncing_advanced_ui: {getattr(self, '_syncing_advanced_ui', 'N/A')}"
+            )
+            print(
+                f"    _adv_options_dirty: {getattr(self, '_adv_options_dirty', 'N/A')}"
+            )
+            print(
+                f"    _adv_options_scheduled: {getattr(self, '_adv_options_scheduled', 'N/A')}"
+            )
 
             print(f"{'=' * 70}\n")
             sys.stdout.flush()
@@ -1969,7 +1977,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
 
         # DEBUG-UI: Estado ANTES da troca de aba
-        self._debug_print_context_state(f"_on_tab_changed INICIO (trocando para index={index})")
+        self._debug_print_context_state(
+            f"_on_tab_changed INICIO (trocando para index={index})"
+        )
 
         # 1. SALVAR ESTADO DA ABA ANTERIOR (se houver)
         # Identifica a aba anterior assumindo que self._current_tab_index armazena o indice antigo
