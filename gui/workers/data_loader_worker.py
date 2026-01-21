@@ -2,8 +2,10 @@
 # Worker thread for loading data from database asynchronously
 
 import logging
+
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
+
 from armazenamento.database import query_db
 
 logger = logging.getLogger(__name__)
@@ -11,15 +13,26 @@ logger = logging.getLogger(__name__)
 
 class DataLoaderWorker(QThread):
     """Thread para carregar dados do banco com suporte a paginação lazy loading."""
+
     data_loaded = pyqtSignal(pd.DataFrame)
     error_occurred = pyqtSignal(str)
 
     # Lista branca de colunas permitidas para ORDER BY (previne injeção SQL)
     _ALLOWED_ORDER_COLUMNS = {
-        'numero_ssa', 'situacao', 'data_cadastro', 'semana_cadastro',
-        'semana_programada', 'semana_executada', 'setor_emissor', 'setor_executor',
-        'descricao_ssa', 'localizacao_codigo', 'equipamento', 'solicitante',
-        'grau_prioridade_emissao', 'grau_prioridade_planejamento'
+        "numero_ssa",
+        "situacao",
+        "data_cadastro",
+        "semana_cadastro",
+        "semana_programada",
+        "semana_executada",
+        "setor_emissor",
+        "setor_executor",
+        "descricao_ssa",
+        "localizacao_codigo",
+        "equipamento",
+        "solicitante",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
     }
 
     def __init__(self, db_path, table_name, limit=None, offset=0, order_by=None):
@@ -54,7 +67,7 @@ class DataLoaderWorker(QThread):
         if not order_by:
             return True
         # Extrai nomes de colunas (remove direções ASC/DESC e espaços)
-        for part in order_by.split(','):
+        for part in order_by.split(","):
             col_part = part.strip().split()[0].lower()  # Pega só nome da coluna
             if col_part not in self._ALLOWED_ORDER_COLUMNS:
                 logger.warning(f"Coluna ORDER BY não permitida: {col_part}")
@@ -65,7 +78,7 @@ class DataLoaderWorker(QThread):
         try:
             # NOTA: ssa_table é o nome real da tabela no schema
             # TABLE_NAME="ssas" em gui_ssa.py é uma VIEW que aponta para ssa_table
-            query = 'SELECT * FROM ssa_table'
+            query = "SELECT * FROM ssa_table"
 
             # Valida e adiciona ORDER BY se especificado
             if self.order_by:
@@ -82,7 +95,7 @@ class DataLoaderWorker(QThread):
 
             # query_db(db_path, table_name, query) - table_name usado só se query vazia
             # Como query não está vazia, o segundo parâmetro é ignorado
-            df = query_db(self.db_path, '', query)
+            df = query_db(self.db_path, "", query)
 
             if not df.empty:
                 self.data_loaded.emit(df)
