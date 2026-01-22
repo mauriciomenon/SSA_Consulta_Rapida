@@ -1236,7 +1236,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         search_row.addLayout(left)
         search_row.addStretch()
-        tab_layout.addLayout(search_row)
+        # PLANV5: search_row movido para apos bottom_layout (abaixo do conteudo especifico)
 
         search_help = QLabel(
             "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
@@ -1253,7 +1253,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             search_help.setVisible(False)
         except Exception as e:
             logger.error(f"Erro ao ocultar search_help: {e}")
-        tab_layout.addSpacing(4)
+        # PLANV5: spacing removido (search_row movido para apos bottom_layout)
 
         # Pagination and persistent filters
         pagination_filters_layout = QHBoxLayout()
@@ -1325,7 +1325,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.error(f"Error hiding col_filter_indicator: {e}")
         pagination_filters_layout.addWidget(col_filter_indicator)
 
-        tab_layout.addLayout(pagination_filters_layout)
+        # PLANV5: pagination_filters_layout movido para apos bottom_layout (abaixo do conteudo especifico)
 
         filters_summary_frame = None
         filters_summary_label = None
@@ -1379,7 +1379,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             summary_layout.addWidget(export_list_btn, 0)
             summary_layout.addWidget(undo_filter_btn, 0)
             summary_layout.addWidget(filters_summary_label, 1)
-            tab_layout.addWidget(filters_summary_frame)
+            # PLANV5: filters_summary_frame movido para apos bottom_layout
             filters_summary_frame.setVisible(True)
             try:
                 self._update_undo_button_state()
@@ -1599,6 +1599,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         tab_layout.addSpacing(12)
         tab_layout.addLayout(bottom_layout)
+
+        # PLANV5: Filtros Gerais na parte inferior (AMBAS as abas - Abordagem B)
+        # Search row (busca geral e botoes)
+        tab_layout.addSpacing(8)
+        tab_layout.addLayout(search_row)
+        tab_layout.addSpacing(4)
+
+        # Pagination filters layout (paginator, colunas, STE, contador)
+        tab_layout.addLayout(pagination_filters_layout)
+        tab_layout.addSpacing(4)
+
+        # Filters summary frame (botoes Limpar, Exportar, Desfazer) - apenas para SSAs
+        if filters_summary_frame is not None:
+            tab_layout.addWidget(filters_summary_frame)
 
         ctx.update(
             {
@@ -3216,12 +3230,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _show_derivadas_popup(self):
         """Mostra popup com arvore de derivadas em texto plano."""
         try:
-            df = (
-                self._df_last_search_filtered
-                if hasattr(self, "_df_last_search_filtered")
-                else None
-            )
+            # PLANV5: Usa df_completo como fallback quando _df_last_search_filtered esta vazio
+            df = None
+            if hasattr(self, "_df_last_search_filtered"):
+                df = self._df_last_search_filtered
             if df is None or df.empty:
+                df = self.df_completo if hasattr(self, "df_completo") else None
+            if df is None or df.empty:
+                logger.debug("Nenhum dado disponivel para mostrar popup de derivadas")
                 return
 
             # Buscar coluna de derivada_de
