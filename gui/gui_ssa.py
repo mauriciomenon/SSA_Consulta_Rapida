@@ -4861,6 +4861,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro filtro macro: {e}")
             data["macro_filter"] = None
+        # FASE5: LOCALIZAÇÃO - Coleta de dados
+        try:
+            data["localizacao_values"] = self._get_checked_values(
+                getattr(self, "adv_localizacao_checks", None)
+            )
+        except Exception as e:
+            logger.error(f"Erro ao obter localizacao checks: {e}")
+            data["localizacao_values"] = []
+        try:
+            data["localizacao_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_localizacao_exclude_checks", None)
+            )
+        except Exception as e:
+            logger.error(f"Erro ao obter localizacao exclude checks: {e}")
+            data["localizacao_exclude_values"] = []
+        # FASE5: DIVISÃO EXECUTORA - Coleta de dados
+        try:
+            data["divisao_executora_values"] = self._get_checked_values(
+                getattr(self, "adv_divisao_executora_checks", None)
+            )
+        except Exception as e:
+            logger.error(f"Erro ao obter divisao_executora checks: {e}")
+            data["divisao_executora_values"] = []
+        try:
+            data["divisao_executora_exclude_values"] = self._get_checked_values(
+                getattr(self, "adv_divisao_executora_exclude_checks", None)
+            )
+        except Exception as e:
+            logger.error(f"Erro ao obter divisao_executora exclude checks: {e}")
+            data["divisao_executora_exclude_values"] = []
 
         self._advanced_filters = data
         if store_only:
@@ -8986,14 +9016,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.error(f"Erro ao limpar todos os filtros: {e}")
 
-    def _restore_last_filter_state(self):
-        """Desfaz o ultimo filtro aplicado."""
-        # TODO: Implementar historico de estados de filtro (pilha de undo)
-        logger.info("Funcionalidade de undo de filtros nao implementada ainda")
-        QMessageBox.information(
-            self, "Info", "Funcionalidade de desfazer filtros em desenvolvimento"
-        )
-
     def _update_undo_button_state(self):
         """Atualiza o estado (enabled/disabled) do botao de undo."""
         try:
@@ -9376,21 +9398,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         except Exception as e:
             logger.error(f"Erro ao limpar todos os filtros: {e}")
-
-    def _restore_last_filter_state(self):
-        """FASE2: Desfaz o último filtro aplicado (undo) na aba Filtros."""
-        try:
-            # TODO FASE2: Implementar sistema de histórico de estados de filtros
-            # Por enquanto, apenas mostra mensagem
-            QMessageBox.information(
-                self,
-                "Desfazer Filtro",
-                "Funcionalidade de desfazer será implementada com sistema de histórico de estados.\n\n"
-                "Por enquanto, use 'Limpar Tudo' para remover todos os filtros."
-            )
-
-        except Exception as e:
-            logger.error(f"Erro ao desfazer filtro: {e}")
 
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
