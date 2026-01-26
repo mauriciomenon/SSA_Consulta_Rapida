@@ -158,6 +158,32 @@ class FilterGUISSAMixin:
                 self.on_filter_finished_cleanup()
             return
 
+        # BUGFIX 2026-01-19: Verifica se FilterWorker está disponível
+        # Se não estiver, faz fallback para modo síncrono
+        if FilterWorker is None:
+            logger.warning("FilterWorker indisponivel - usando fallback sincrono")
+            try:
+                if chunk_terms_lists:
+                    frames = []
+                    for terms in chunk_terms_lists:
+                        parsed = parse_search_terms(terms, default_mode=default_mode)
+                        frames.append(filter_dataframe(self.df_completo, parsed))
+                    df_filtrado = (
+                        pd.concat(frames, axis=0, ignore_index=False)
+                        .drop_duplicates()
+                        .reset_index(drop=True)
+                        if frames
+                        else self.df_completo.copy()
+                    )
+                else:
+                    df_filtrado = self.df_completo.copy()
+                self.on_filter_finished(df_filtrado)
+            except Exception as e:
+                self.on_filter_error(f"Erro ao filtrar dados (fallback): {e}")
+            finally:
+                self.on_filter_finished_cleanup()
+            return
+
         # Inicia a thread de filtragem (modo padrão assíncrono)
         self.filter_thread = FilterWorker(
             self.df_completo, chunk_terms_lists, default_mode=default_mode

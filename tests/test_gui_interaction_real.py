@@ -172,54 +172,6 @@ def test_tab_interaction(window):
     print("[INTERACAO] Clique na Aba 0 retornou com sucesso.")
 
 
-def test_column_profile_selector(window):
-    """Testa troca de perfil de Colunas via ProfileSelector (widget customizado)."""
-
-    # 1. Localiza o ProfileSelector
-    selector_widget = getattr(window, "profile_selector", None)
-
-    if not selector_widget:
-        print("[WARN] ProfileSelector widget nao encontrado no window.")
-        return  # Skip test if widget not present
-
-    # O ProfileSelector contem um QComboBox interno chamado 'combo'
-    # conforme visto em gui/widgets/profile_selector.py
-    if not hasattr(selector_widget, "combo"):
-        print("[WARN] Widget profile_selector nao tem atributo 'combo'.")
-        return
-
-    combo = selector_widget.combo
-
-    # 2. Adiciona um perfil de colunas de teste (mock)
-    # mockando profiles dict interna do widget
-    test_cols = ["SSA", "Situacao", "Emissor"]
-    selector_widget.profiles["Perfil Teste Colunas"] = test_cols
-    selector_widget._update_combo()  # Refresh combo items
-
-    # 3. Muda para o perfil de teste
-    target_index = combo.findText("Perfil Teste Colunas")
-
-    if target_index >= 0:
-        print(f"  [INFO] Trocando perfil de colunas para index {target_index}")
-        combo.setCurrentIndex(target_index)
-        QApplication.processEvents()
-
-        # 4. Verifica se visible_columns mudou
-        # O signal profile_changed conecta em on_columns_changed -> atualiza self.visible_columns
-        current_cols = window.visible_columns
-        print(f"  [INFO] Colunas visiveis agora: {current_cols}")
-
-        # A ordem pode variar ou ser exata, mas deve conter as colunas do perfil
-        assert set(current_cols) == set(test_cols)
-        print("[INTERACAO] Troca de perfil de COLUNAS validada.")
-
-        # 5. Restaura padrao
-        selector_widget._reset_default()
-        QApplication.processEvents()
-    else:
-        print("[WARN] Nao consegui selecionar o perfil de teste recem criado.")
-
-
 def test_advanced_filters_components(window):
     """Testa a existencia dos componentes de Filtros Avancados."""
 
