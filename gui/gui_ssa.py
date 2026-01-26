@@ -9054,12 +9054,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.info(f"  '{k}': '{v}'")
             logger.info(f"Total de filtros ANTES: {len(self._active_column_filters)}")
 
-            # Guardar estado anterior
-            if hasattr(self, "_store_last_filter_state"):
-                logger.info("Chamando _store_last_filter_state")
+            # Guardar estado anterior (FASE4: corrigido para usar try/except robusto)
+            try:
+                logger.debug("Armazenando estado do filtro no histórico")
                 self._store_last_filter_state()
-            else:
-                logger.warning("_store_last_filter_state NAO EXISTE")
+            except AttributeError as e:
+                logger.warning(f"Histórico de filtros não disponível: {e}")
+            except Exception as e:
+                logger.error(f"Erro ao armazenar estado do filtro: {e}")
 
             if term:
                 self._active_column_filters[column_key] = term
@@ -9117,9 +9119,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             logger.info(f"Removendo filtro permanente: {column_key}")
 
-            # Guardar estado anterior
-            if hasattr(self, "_store_last_filter_state"):
+            # Guardar estado anterior (FASE4: corrigido para try/except robusto)
+            try:
                 self._store_last_filter_state()
+            except Exception as e:
+                logger.debug(f"Erro ao armazenar estado do filtro: {e}")
 
             self._active_column_filters.pop(column_key, None)
 
