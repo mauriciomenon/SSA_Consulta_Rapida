@@ -9,7 +9,11 @@
     "localizacao_codigo",
     "grau_prioridade_emissao"
   ],
-  "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
+  "hidden_columns": [
+    "descricao_localizacao",
+    "equipamento",
+    "servico_origem"
+  ],
   "column_display_names": {
     "numero_ssa": "Numero SSA",
     "setor_executor": "Exec.",
