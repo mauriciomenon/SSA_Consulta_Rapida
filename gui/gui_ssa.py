@@ -3480,13 +3480,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if derivada_col is None or numero_col is None:
                 return
 
+            # Normalizar colunas SSA antes de processar (FASE2: corrige "→ None")
+            df = df.copy()
+            df["_numero_normalizado"] = df[numero_col].pipe(normalize_ssa_series)
+            df["_derivada_normalizada"] = df[derivada_col].pipe(normalize_ssa_series)
+
             # Construir mapeamento mae -> filhas
             mae_filhas = {}  # mae -> [filhas]
             filha_mae = {}  # filha -> mae
 
             for _, row in df.iterrows():
-                numero = str(row.get(numero_col, "")).strip()
-                derivada_de = str(row.get(derivada_col, "")).strip()
+                numero = str(row.get("_numero_normalizado", "")).strip()
+                derivada_de = str(row.get("_derivada_normalizada", "")).strip()
                 if (
                     numero
                     and derivada_de
@@ -7902,6 +7907,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
 
         for col, value in sorted_items:
+            # Filtrar colunas internas (começam com _)
+            if col.startswith("_"):
+                continue
             if col in HIDDEN_DETAIL_FIELDS:
                 continue
             # Formata valor
@@ -8969,15 +8977,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.initiate_filtering()
         except Exception as e:
             logger.error(f"Erro ao limpar todos os filtros: {e}")
-
-    def _restore_last_filter_state(self):
-        """Desfaz o ultimo filtro aplicado."""
-        # TODO: Implementar historico de estados de filtro (pilha de undo)
-        logger.info("Funcionalidade de undo de filtros nao implementada ainda")
-        QMessageBox.information(
-            self, "Info", "Funcionalidade de desfazer filtros em desenvolvimento"
-        )
-
     def _update_undo_button_state(self):
         """Atualiza o estado (enabled/disabled) do botao de undo."""
         try:
@@ -9356,22 +9355,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         except Exception as e:
             logger.error(f"Erro ao limpar todos os filtros: {e}")
-
-    def _restore_last_filter_state(self):
-        """FASE2: Desfaz o último filtro aplicado (undo) na aba Filtros."""
-        try:
-            # TODO FASE2: Implementar sistema de histórico de estados de filtros
-            # Por enquanto, apenas mostra mensagem
-            QMessageBox.information(
-                self,
-                "Desfazer Filtro",
-                "Funcionalidade de desfazer será implementada com sistema de histórico de estados.\n\n"
-                "Por enquanto, use 'Limpar Tudo' para remover todos os filtros."
-            )
-
-        except Exception as e:
-            logger.error(f"Erro ao desfazer filtro: {e}")
-
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
         self.table_widget.resizeColumnToContents(column_index)
