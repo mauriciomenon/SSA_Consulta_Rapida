@@ -9,11 +9,7 @@
     "localizacao_codigo",
     "grau_prioridade_emissao"
   ],
-  "hidden_columns": [
-    "descricao_localizacao",
-    "equipamento",
-    "servico_origem"
-  ],
+  "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
   "column_display_names": {
     "numero_ssa": "Numero SSA",
     "setor_executor": "Exec.",
@@ -39,7 +35,6 @@
     "debounce_delay": 250,
     "default_filter_mode": "contains",
     "show_progress_bar": true,
-<<<<<<< HEAD
     "enable_column_sorting": true,
     "show_details_panel": true,
     "enable_double_click_details": true,
@@ -84,10 +79,7 @@
       "prioridade_planejamento_values": [],
       "prioridade_planejamento_exclude_values": [],
       "macro_filter": null
-    }
-=======
-    "theme": "gruvbox",
-    "theme_default": null
-  },
-  "version": "1.0.0"
+    },
+    "version": "1.0.0"
+  }
 }
