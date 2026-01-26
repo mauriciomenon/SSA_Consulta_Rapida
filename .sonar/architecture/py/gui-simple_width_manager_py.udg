@@ -1,0 +1,71 @@
+
+1.0PythonFrontend"1769122852580*py2.Bè
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+ 
+gui/simple_width_manager.py9
+
+gui.simple_width_manager11
+1
++gui.simple_width_manager.SimpleWidthManager12
+:
+4gui.simple_width_manager.SimpleWidthManager.__init__14
+H
+Bgui.simple_width_manager.SimpleWidthManager.compute_optimal_widths16
+	
+int18
+1
++gui.simple_width_manager.SimpleCacheManager20
+:
+4gui.simple_width_manager.SimpleCacheManager.__init__22
+I
+Cgui.simple_width_manager.SimpleCacheManager.get_cached_formatted_df24
+D
+>gui.simple_width_manager.SimpleCacheManager.cache_formatted_df26J
+
+8
+89 jä
+ 
+10
+10115 *
+8 (
+
+13
+13126 210
+
+15
+15147 213
+
+17
+17167 213
+
+19
+19186
+
+21
+21206 210
+
+23
+23227 221
+
+25
+25247 221
+
+27
+27267 221r
+
+17194*
+8"	 "(

@@ -1,0 +1,109 @@
+
+
+"SSA_Consulta_Rapida"str
+
+0int
+W)N"ERR N√£o foi poss√≠vel encontrar o diret√≥rio do projeto SSA_Consulta_Rapida"str
+ "./SSA_Consulta_Rapida"str
+"."str
++""Fun√ß√£o principal do validador."str
+60int
+"truebool
+falsebool
+"="str
+A8"START VALIDADOR DE OTIMIZA√á√ïES - ORDEM DE EXECU√á√ÉO"str
+"gui"str
+!"../SSA_Consulta_Rapida"str
+"gui_ssa.py"strlist"¢1
+/
+t t(?"
+builtinsprint*:BNoneType%
+#
+u
+ u("	#binop *#*2*:1
+/
+u u("
+builtinsprint*:BNoneType!
+
+x x(#"
+osgetcwdBstr&
+$
+x x($	"
+os.pathbasename:*
+(
+x x(="
+#binop !=#2!=:	
+Bbool"
+x x(= *x x("•7
+5
+y y(Qpossible_paths"#unknown-value#Blist&
+$
+y y(Q"
+#is-exact#:Bbool
+
+y y(Q"
+#assume#:8
+6
+y y(Q"#set-field# __collection_size:Bint&
+$
+y y(Q"#array-add-last#:&
+$
+y y(Q"#array-add-last#:&
+$
+y y(Q"#array-add-last#:&
+$
+{ {(found"#id#:Bbool7
+5
+| |(""
+builtinsiter*:Btyping.Iterator
+| |(""¡X
+V
+
+â â('+	resultado";
+"tests.validar_otimizacoes_execucaoverificar_otimizacoesQ
+O
+
+ä ä(,"?
+"tests.validar_otimizacoes_execucaoexibir_metricas_esperadas
+
+å å(+"o*$found&2
+0
+| |(""
+builtins
+__has_next*:Bbool"
+| |(" *| |(H"°-
++
+	} Ç(path"
+builtinsnext*:$
+"
+} }(E"
+os.pathjoin:*
+(
+} }(F "
+os.pathexists:Bbool"
+} }(F  *} }("j*'found$#+
+)
+
+Ç Ç(("#unaryop !#2!:'Bbool "
+
+Ç Ç((	 
+*
+Ç Ç(
+"f(
+&
+~ ~(!"
+oschdir:BNoneType&
+$
+ (#found"#id#:"Bbool
+
+Ä Ä("!*&found$%"-#
+!
+
+Ç Ç(%"#unknown-value#"I	3
+1
+
+É Ö(*"
+builtinsprint*:)BNoneType
+
+Ü Ü("
+*LC:\Users\mauri\git\SSA_Consulta_Rapida\tests\validar_otimizacoes_execucao.py

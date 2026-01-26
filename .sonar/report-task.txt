@@ -1,0 +1,7 @@
+organization=mauriciomenon
+projectKey=mauriciomenon_SSA_Consulta_Rapida
+serverUrl=https://sonarcloud.io
+serverVersion=8.0.0.78820
+dashboardUrl=https://sonarcloud.io/dashboard?id=mauriciomenon_SSA_Consulta_Rapida
+ceTaskId=AZvn8RgLoHLqwjBoTt8w
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZvn8RgLoHLqwjBoTt8w

@@ -1,0 +1,29 @@
+
+
+1int
+ïå"Compute a safe chunksize for SQLite to avoid the 999 variables limit.
+
+    Uses a small safety margin by adding SQLITE_SAFETY_EXTRA_COLUMNS to the
+    column count and caps the chunk size to avoid overly large batches.
+    "strnum_columns* *(*cap*, *(O"©!
+
+0( 0(C"#unknown-value#"
+ 
+0 0(C"	#binop +#2+:4
+2
+0 0(Dper_row_vars"
+builtinsmax*:!
+
+1 1(/"#unknown-value#'
+%
+1 1(?	"
+#binop //#*2//:&
+$
+1 1(@
+"
+builtinsmax*:	&
+$
+1 1(A"
+builtinsmin*:
+
+1 1(A*JC:\Users\mauri\git\SSA_Consulta_Rapida\armazenamento\database_optimized.py

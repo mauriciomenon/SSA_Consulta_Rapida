@@ -1,0 +1,107 @@
+
+1.0PythonFrontend"1769122854237*py2.B£
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+/
+*scripts_manutencao/analyze_code_quality.py9
+
+analyze_code_quality11
+	
+ast12
+
+os14
+
+pathlib16
+
+collections18
+
+typing20
+;
+5analyze_code_quality.check_armazenamento_independence22
+.
+(analyze_code_quality.check_shared_purity24
+/
+)analyze_code_quality.check_unused_imports26
+
+analyze_code_quality.main28
+0
+*analyze_code_quality.check_backward_compat30
+(
+"analyze_code_quality.iter_py_files32
+
+pathlib.Path34J
+
+8
+89 jª
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35346rœ
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8 (
+
+10191*
+8 ($
+
+10211*
+8 (#
+
+33354*
+8 (

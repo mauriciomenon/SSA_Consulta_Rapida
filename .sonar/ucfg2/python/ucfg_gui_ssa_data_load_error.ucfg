@@ -1,0 +1,38 @@
+
+2gui.gui_ssa.SSAMainWindow._on_full_data_load_errorA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.py¨, ¨,( "2*ð
+2
+©, ©,(=q
+o
+
+ª, ª,(E
+%1"__concat*4
+
+ª, ª,(9&$
+"Erro ao carregar dados completos: *
+
+ª,: ª,(C
+
+	error_msgge
+
+ª, ª,(F
+%2*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%12error*
+3*2
+3
+
+gui_ssa.py"
+®, ®,(
+implicit return:
+
+¨,' ¨,(5
+	error_msgB
+gui.gui_ssa.SSAMainWindow

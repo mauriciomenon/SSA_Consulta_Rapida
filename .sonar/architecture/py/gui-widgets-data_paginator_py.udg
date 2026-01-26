@@ -1,0 +1,142 @@
+
+1.0PythonFrontend"1769122849940*py2.Bñ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+"
+gui/widgets/data_paginator.py9
+ 
+gui.widgets.data_paginator11
+
+PyQt6.QtCore.pyqtSignal12
+
+PyQt6.QtCore14
+!
+PyQt6.QtWidgets.QHBoxLayout16
+
+PyQt6.QtWidgets.QLabel18
+!
+PyQt6.QtWidgets.QPushButton20
+
+PyQt6.QtWidgets.QSpinBox22
+
+PyQt6.QtWidgets.QWidget24
+
+PyQt6.QtWidgets26
+.
+(gui.widgets.data_paginator.DataPaginator28
+=
+7gui.widgets.data_paginator.DataPaginator.update_buttons30
+<
+6gui.widgets.data_paginator.DataPaginator.set_dataframe32
+@
+:gui.widgets.data_paginator.DataPaginator.get_current_slice34
+E
+?gui.widgets.data_paginator.DataPaginator.update_pagination_info36
+6
+0gui.widgets.data_paginator.DataPaginator.init_ui38
+8
+2gui.widgets.data_paginator.DataPaginator.next_page40
+7
+1gui.widgets.data_paginator.DataPaginator.__init__42
+?
+9gui.widgets.data_paginator.DataPaginator.change_page_size44
+8
+2gui.widgets.data_paginator.DataPaginator.prev_page46J
+
+8
+89 j´
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29286 210
+
+31
+31307 229
+
+33
+33327 229
+
+35
+35347 229
+
+37
+37367 229
+
+39
+39387 229
+
+41
+41407 229
+
+43
+43427 229
+
+45
+45447 229
+
+47
+47467 229rÐ
+
+10131*
+8 ($
+
+10151*
+8 ($
+
+10171*
+8 ((
+
+10191*
+8* (0
+
+10211*
+82 (=
+
+10231*
+8? (G
+
+10251*
+8I (P
+
+10271*
+8 (P

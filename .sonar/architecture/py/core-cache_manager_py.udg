@@ -1,0 +1,309 @@
+
+1.0PythonFrontend"1769122849910*py2.BÖ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+core/cache_manager.py9
+
+core.cache_manager11
+
+typing12
+
+hashlib14
+
+
+json16
+
+datetime18
+%
+core.cache_manager.CacheManager20
+7
+1core.cache_manager.CacheManager.get_cached_output22
+	
+str24
+7
+1core.cache_manager.CacheManager.get_cached_widths26
+	
+int28
+3
+-core.cache_manager.CacheManager._put_in_cache30
+
+NoneType32
+8
+2core.cache_manager.CacheManager.cache_formatted_df34
+!
+pandas.core.frame.DataFrame36
+=
+7core.cache_manager.CacheManager.get_cached_formatted_df38
+5
+/core.cache_manager.CacheManager._get_from_cache40
+5
+/core.cache_manager.CacheManager.get_cache_stats42
+
+
+dict44
+7
+1core.cache_manager.CacheManager.get_cached_config46
+6
+0core.cache_manager.CacheManager.invalidate_cache48
+2
+,core.cache_manager.CacheManager.cache_widths50
+;
+5core.cache_manager.CacheManager.get_cached_column_set52
+8
+2core.cache_manager.CacheManager.get_dataframe_hash54
+9
+3core.cache_manager.CacheManager.cleanup_old_entries56
+2
+,core.cache_manager.CacheManager.cache_config58
+2
+,core.cache_manager.CacheManager.cache_output60
+.
+(core.cache_manager.CacheManager.__init__62
+3
+-core.cache_manager.CacheManager._evict_oldest64
+@
+:core.cache_manager.CacheManager.export_cache_for_debugging66
+6
+0core.cache_manager.CacheManager.cache_column_set68
+
+
+list70J
+
+8
+89 j‘
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21206 210
+
+23
+23227 221
+
+25
+25246
+
+27
+27267 221
+
+29
+29286
+
+31
+31307 221
+
+33
+33326
+
+35
+35347 221
+
+37
+37366
+
+39
+39387 221
+
+41
+41407 221
+
+43
+43427 221
+
+45
+45446
+
+47
+47467 221
+
+49
+49487 221
+
+51
+51507 221
+
+53
+53527 221
+
+55
+55547 221
+
+57
+57567 221
+
+59
+59587 221
+
+61
+61607 221
+
+63
+63627 221
+
+65
+65647 221
+
+67
+67667 221
+
+69
+69687 221
+
+71
+71706rÙ
+
+10131*
+8 (7
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8
+ 
+(
+
+23254*
+8Ø	 Ø(
+
+27254*
+8H	 H(
+
+27294*
+8H	 H(
+
+31333*
+8‘	 ‘(
+
+31254*
+8‘	 ‘(
+
+31254*
+8‘	 ‘(
+
+35333*
+8w	 w(
+
+35254*
+8w	 w(
+
+35374*
+8w	 w(
+
+39254*
+8k	 k( 
+
+41254*
+8≈	 ≈(
+
+41254*
+8≈	 ≈(
+
+43453*
+8à	 à(
+
+47254*
+8É	 É(
+
+49333*
+8˜	 ˜(
+
+51333*
+8Z	 Z(
+
+51254*
+8Z	 Z(
+
+51454*
+8Z	 Z(
+
+51294*
+8Z	 Z(
+
+53254*
+8ô	 ô(
+
+55253*
+8+	 +(
+
+55374*
+8+	 +(
+
+55254*
+8+	 +(
+
+57293*
+8û	 û(
+
+57294*
+8û	 û(
+
+59333*
+8è	 è(
+
+59254*
+8è	 è(
+
+59454*
+8è	 è(
+
+61333*
+8ª	 ª(
+
+61254*
+8ª	 ª(
+
+61254*
+8ª	 ª(
+
+63294*
+8	 (
+
+65333*
+8‰	 ‰(
+
+65254*
+8‰	 ‰(
+
+67453*
+8ø	 ø(#
+
+69333*
+8•	 •(
+
+69254*
+8•	 •(
+
+69714*
+8•	 •(

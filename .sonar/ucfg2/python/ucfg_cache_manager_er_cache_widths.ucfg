@@ -1,0 +1,76 @@
+
+,core.cache_manager.CacheManager.cache_widthsF
+<C:\Users\mauri\git\SSA_Consulta_Rapida\core\cache_manager.pyZ Z("4"5*6
+3
+cache_manager.py"
+k k(
+implicit return*·
+4h h(.e
+c
+h h(.
+%2"__concat*
+h h(
+	
+df_hash*
+h h( 
+_*
+h! h(,
+
+table_width<
+:
+h h(.
+%1"__id*"
+
+__unknown_file (
+
+%2*
+6*U
+5hC h(JA
+?
+hC h(J
+%1"__id*'
+
+__unknown_file (
+	
+df_hash*
+6*
+6hC h(JC
+A
+h h(J
+	cache_key"__id*"
+
+__unknown_file (
+
+%1KI
+i0 i(=
+%3"	dict.copy*&
+
+__unknown_file (
+
+
+widths2copyÚ×
+i i(>
+%4*?
+
+__unknown_file (#!
+core.cache_manager.CacheManager*&
+
+__unknown_file (
+
+widths*)
+
+__unknown_file (
+
+	cache_key*"
+
+__unknown_file (
+
+%32_put_in_cache*
+3:
+\ \(	
+df_hash:
+] ](
+widths:
+^ ^(
+table_widthB#!
+core.cache_manager.CacheManagerH

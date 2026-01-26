@@ -1,0 +1,138 @@
+
+1.0PythonFrontend"1769122850056*py2.Bê
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+(
+#armazenamento/database_optimized.py9
+&
+ armazenamento.database_optimized11
+
+
+__future__12
+
+logging14
+
+
+time16
+
+armazenamento.database18
+"
+armazenamento.schema_manager20
+>
+8armazenamento.database_optimized.enable_optimized_import22
+?
+9armazenamento.database_optimized.disable_optimized_import24
+<
+6armazenamento.database_optimized.sqlite_safe_chunksize26
+	
+int28
+A
+;armazenamento.database_optimized.insert_dataframe_optimized30
+
+
+bool32
+!
+pandas.core.frame.DataFrame34
+	
+str36J
+
+8
+89 j±
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29286
+
+31
+31307 210
+
+33
+33326
+
+35
+35346
+
+37
+37366rð
+
+10131*
+8 (#
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (1
+
+10191*
+8¬ ¬(-
+
+10191*
+8µ µ(-
+
+27293*
+8* *(
+
+27294*
+8* *(
+
+27294*
+8* *(
+
+31333*
+84 4(
+
+31354*
+84 4(
+
+31374*
+84 4(
+
+31374*
+84 4(

@@ -1,0 +1,124 @@
+
+1.0PythonFrontend"1769122855305*py2.Bà
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+tests/test_database.py9
+
+tests.test_database11
+
+os12
+	
+sys14
+
+tempfile16
+
+shutil18
+
+sqlite320
+
+armazenamento.database22
+4
+.tests.test_database.test_query_db_empty_result24
+&
+ tests.test_database.temp_db_path26
+=
+7tests.test_database.test_insert_dataframe_to_db_success28
+,
+&tests.test_database.sample_schema_file30
+>
+8tests.test_database.test_insert_dataframe_to_db_empty_df32
+@
+:tests.test_database.test_get_db_connection_context_manager34
+/
+)tests.test_database.test_query_db_success36
+:
+4tests.test_database.test_initialize_database_success38
+*
+$tests.test_database.sample_dataframe40J
+
+8
+89 jõ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35347 210
+
+37
+37367 210
+
+39
+39387 210
+
+41
+41407 210rœ
+
+10131*
+8 (
+
+
+10151*
+8	 	(
+
+10171*
+8
+ 
+(
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (l

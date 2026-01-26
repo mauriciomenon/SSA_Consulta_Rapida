@@ -1,0 +1,196 @@
+
+;2"Ô∏è Consolidar imports duplicados em __init__.py"str
+B9"Ô∏è Unificar nomenclatura de vari√°veis entre GUI e CLI"str
+@97"Ô∏è Remover c√≥digo morto e fun√ß√µes n√£o utilizadas"str
++""RUN Elimina√ß√£o de Redund√¢ncia"str
+>*5"Ô∏è Aplicar padr√£o Observer para eventos de resize"str
+$'"Ô∏è Melhoria Arquitetural"str
+?<6"Ô∏è Aplicar formata√ß√£o consistente com black/isort"str
+(" Elimina√ß√£o de Frankenstein"str
+"categoria"str
+=:4"Ô∏è Eliminar imports desnecess√°rios com autoflake"str
+P	G"DONE Criar ConfigurationManager central para todas as configura√ß√µes"str
+<;3"Ô∏è Padronizar docstrings com formato consistente"str
+>+5"Ô∏è Usar padr√£o Factory para cria√ß√£o de handlers"str
+QH"Sugere refatora√ß√µes espec√≠ficas para eliminar c√≥digo frankenstein."str
+#7"CLEAN Limpeza de C√≥digo"str
+E,<"Ô∏è Implementar padr√£o Command para opera√ß√µes de filtro"str
+
+0int
+E
+<"DONE Padronizar assinaturas de handlers em interface comum"str
+F="DONE Consolidar sistemas de cache em CacheManager unificado"str
+"sugest√µes"str
+F)="Ô∏è Implementar padr√£o Strategy para algoritmos de largura"str
+>5"Ô∏è Criar classe base HandlerBase para handlers CLI"str
+RI"DONE Unificar estrat√©gias de largura em uma √∫nica classe WidthManager"str
+A8"Ô∏è Extrair fun√ß√µes comuns para m√≥dulo utils.common"strlist"¢&
+$
+
+± π(	"#new-object#Bdict"
+ 
+
+≤ ≤(6"	#map-set#:)
+'
+
+≥ ∏("#unknown-value#Blist(
+&
+
+≥ ∏("
+#is-exact#:Bbool
+
+
+≥ ∏("
+#assume#::
+8
+
+≥ ∏("#set-field# __collection_size:Bint(
+&
+
+≥ ∏("#array-add-last#:(
+&
+
+≥ ∏("#array-add-last#:(
+&
+
+≥ ∏("#array-add-last#:	(
+&
+
+≥ ∏("#array-add-last#:
+"
+ 
+
+≥ ∏("	#map-set#:&
+$
+
+∫ ¬(	"#new-object#Bdict"
+ 
+
+ª ª(8"	#map-set#:)
+'
+
+º ¡("#unknown-value#Blist(
+&
+
+º ¡("
+#is-exact#:Bbool
+
+
+º ¡("
+#assume#::
+8
+
+º ¡( "#set-field# __collection_size:Bint(
+&
+
+º ¡(!"#array-add-last#:(
+&
+
+º ¡(""#array-add-last#:(
+&
+
+º ¡(#"#array-add-last#:(
+&
+
+º ¡($"#array-add-last#:"
+ 
+
+º ¡(%"	#map-set#:&
+$
+
+√ À(	&"#new-object#Bdict"
+ 
+
+ƒ ƒ(2("	#map-set#:&')
+'
+
+≈  (-"#unknown-value#Blist(
+&
+
+≈  (."
+#is-exact#:-Bbool
+
+
+≈  (/"
+#assume#:.:
+8
+
+≈  (0"#set-field# __collection_size:-Bint(
+&
+
+≈  (1"#array-add-last#:-)(
+&
+
+≈  (2"#array-add-last#:-*(
+&
+
+≈  (3"#array-add-last#:-+(
+&
+
+≈  (4"#array-add-last#:-,"
+ 
+
+≈  (5"	#map-set#:&-&
+$
+
+Ã ‘(	6"#new-object#Bdict"
+ 
+
+Õ Õ(28"	#map-set#:67)
+'
+
+Œ ”(="#unknown-value#Blist(
+&
+
+Œ ”(>"
+#is-exact#:=Bbool
+
+
+Œ ”(?"
+#assume#:>:
+8
+
+Œ ”(@"#set-field# __collection_size:=Bint(
+&
+
+Œ ”(A"#array-add-last#:=9(
+&
+
+Œ ”(B"#array-add-last#:=:(
+&
+
+Œ ”(C"#array-add-last#:=;(
+&
+
+Œ ”(D"#array-add-last#:=<"
+ 
+
+Œ ”(E"	#map-set#:6=7
+5
+
+∞ ’(Frefactorings"#unknown-value#Blist(
+&
+
+∞ ’(G"
+#is-exact#:FBbool
+
+
+∞ ’(H"
+#assume#:G:
+8
+
+∞ ’(I"#set-field# __collection_size:FBint(
+&
+
+∞ ’(J"#array-add-last#:F(
+&
+
+∞ ’(K"#array-add-last#:F(
+&
+
+∞ ’(L"#array-add-last#:F&(
+&
+
+∞ ’(M"#array-add-last#:F6
+
+◊ ◊(F*BC:\Users\mauri\git\SSA_Consulta_Rapida\tests\debug_frankenstein.py

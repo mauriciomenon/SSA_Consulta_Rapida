@@ -1,0 +1,15 @@
+
+ÓÉ"
+    Build QSS for central widget background.
+
+    Used in dark themes to ensure the central widget background matches
+    the theme and prevents white boxes from appearing.
+
+    Args:
+        bg_color: Hex color string (e.g., '#2c2c2c')
+
+    Returns:
+        QSS string with SSA_MAIN_BG markers for replacement
+    "str
+f]"/* SSA_MAIN_BG_START */\nQWidget {{ background-color: {bg_color}; }}\n/* SSA_MAIN_BG_END */"strbg_color) )(*"
+6 :(*CC:\Users\mauri\git\SSA_Consulta_Rapida\gui\helpers\theme_helpers.py

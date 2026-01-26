@@ -1,0 +1,166 @@
+
+1.0PythonFrontend"1769122852939*py2.Bò
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+#
+gui/widgets/column_selector.py9
+!
+gui.widgets.column_selector11
+
+logging12
+
+PyQt6.QtCore.pyqtSignal14
+
+PyQt6.QtCore16
+
+PyQt6.QtGui.QFont18
+
+PyQt6.QtGui20
+
+PyQt6.QtWidgets.QDialog22
+!
+PyQt6.QtWidgets.QHBoxLayout24
+
+PyQt6.QtWidgets.QLabel26
+!
+PyQt6.QtWidgets.QPushButton28
+
+PyQt6.QtWidgets.QWidget30
+
+PyQt6.QtWidgets32
+'
+!gui.widgets.column_manager_dialog34
+0
+*gui.widgets.column_selector.ColumnSelector36
+8
+2gui.widgets.column_selector.ColumnSelector.init_ui38
+@
+:gui.widgets.column_selector.ColumnSelector._update_summary40
+E
+?gui.widgets.column_selector.ColumnSelector.get_selected_columns42
+A
+;gui.widgets.column_selector.ColumnSelector.set_summary_font44
+9
+3gui.widgets.column_selector.ColumnSelector.__init__46
+<
+6gui.widgets.column_selector.ColumnSelector.open_dialog48
+E
+?gui.widgets.column_selector.ColumnSelector.set_selected_columns50J
+
+8
+89 jÎ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37366 210
+
+39
+39387 237
+
+41
+41407 237
+
+43
+43427 237
+
+45
+45447 237
+
+47
+47467 237
+
+49
+49487 237
+
+51
+51507 237r¸
+
+10131*
+8 (
+
+10151*
+8 ($
+
+10171*
+8 ($
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 ($
+
+10251*
+8& (1
+
+10271*
+83 (9
+
+10291*
+8; (F
+
+10311*
+8H (O
+
+10331*
+8 (O
+
+10351*
+8
+ 
+(B

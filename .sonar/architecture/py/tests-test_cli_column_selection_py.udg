@@ -1,0 +1,46 @@
+
+1.0PythonFrontend"1769122851978*py2.BŽ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+'
+"tests/test_cli_column_selection.py9
+%
+tests.test_cli_column_selection11
+
+interface.table_printer12
+W
+Qtests.test_cli_column_selection.test_select_columns_handles_extremely_small_width14
+b
+\tests.test_cli_column_selection.test_select_columns_respects_always_visible_and_fixed_widths16J
+
+8
+89 jg
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210
+
+17
+17167 210r
+
+10131*
+8 (>

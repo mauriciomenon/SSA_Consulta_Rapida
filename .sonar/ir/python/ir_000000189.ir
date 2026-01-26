@@ -1,0 +1,167 @@
+
+"a"bool
+0"evictions"str
+
+"hits"str
+&	"entries"str
+)
+"max_size"str
+3
+"hit_rate"str
+"division by zero"bool
+5"ttl_seconds"str
+100int
+"misses"str
+) "Retorna estatisticas do cache."str
+#"size"str
+"S3518"bool
+
+0intself
+² ²("™<
+:
+
+´0 ´(Gstats" #get-field# _use_session_state:+
+)
+
+´0 ´(G"
+__bool__*:BboolH,"*
+
+´0 ´(G *
+´- ´(/2
+´H ´(L"›#
+!
+
+´ ´("#unknown-value#0
+.
+
+´ ´( "#get-field# session_state:.
+,
+
+´ ´(,"#get-field# cache_stats:
+
+´ ´(^"E/
+-
+
+´M ´(^"#get-field# _local_stats:
+
+´ ´(^"ø*	stats$
+"
+
+µ µ("#array-read#:	
+$
+"
+
+µ  µ(/"#array-read#:	+
+)
+
+µ µ(/total"	#binop +#2+:4
+2
+
+¶4 ¶(=hit_rate"	#binop >#2>:Bbool,"*
+
+¶4 ¶(= *
+¶1 ¶(32
+¶> ¶(B"ö$
+"
+
+¶ ¶(!"#array-read#:	
+,
+*
+
+¶ ¶()"
+#binop !=#2!=:Bbool"
+ 
+
+¶ ¶()"
+#assert#:3
+1
+
+¶ ¶()"#dependent-value#*:Bfloat3
+1
+
+¶ ¶(/"#dependent-value#*:Bfloat
+
+¶ ¶(D"
+
+¶ ¶(D"·*hit_rate<
+:
+
+¸1 ¸(Hcache" #get-field# _use_session_state:+
+)
+
+¸1 ¸(H"
+__bool__*:BboolH,"*
+
+¸1 ¸(H *
+¸. ¸(02
+¸I ¸(M"œ#
+!
+
+¸ ¸("#unknown-value#0
+.
+
+¸ ¸( "#get-field# session_state:/
+-
+
+¸ ¸(-"#get-field# filter_cache:
+
+¸ ¸(_	"E/
+-
+
+¸N ¸(_ "#get-field# _local_cache:
+
+¸ ¸(_	" 	*!cache &
+$
+
+º Ã(	""#new-object#Bdict,
+*
+
+» »($"
+builtinslen*:!Bint"
+ 
+
+» »(%"	#map-set#:"#$,
+*
+
+¼ ¼(!'"
+builtinslen*:!Bint"
+ 
+
+¼ ¼(!("	#map-set#:"&'+
+)
+
+½ ½(%*"#get-field# max_size:"
+ 
+
+½ ½(%+"	#map-set#:")*$
+"
+
+¾ ¾(!,"#array-read#:	
+"
+ 
+
+¾ ¾(!-"	#map-set#:"
+,$
+"
+
+¿ ¿(%."#array-read#:	"
+ 
+
+¿ ¿(%/"	#map-set#:".$
+"
+
+À À(+1"#array-read#:	0"
+ 
+
+À À(+2"	#map-set#:"01"
+ 
+
+Á Á( 4"	#map-set#:"3.
+,
+
+Â Â(+6"#get-field# ttl_seconds:"
+ 
+
+Â Â(+7"	#map-set#:"56
+
+º Ã(	"*?C:\Users\mauri\git\SSA_Consulta_Rapida\dev_env\streamlit_app.py

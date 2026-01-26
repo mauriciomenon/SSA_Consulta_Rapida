@@ -1,0 +1,55 @@
+
+1.0PythonFrontend"1769122853989*py2.Bê
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+'
+"utils/fallback/emergency_import.py9
+
+emergency_import11
+
+os12
+
+sqlite314
+)
+#emergency_import.create_basic_table16
+'
+!emergency_import.emergency_import18J
+
+8
+89 jz
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19187 210r4
+
+10131*
+8 (
+
+
+10151*
+8 (

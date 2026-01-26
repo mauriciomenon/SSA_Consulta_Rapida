@@ -1,0 +1,214 @@
+
+1.0PythonFrontend"1769122853786*py2.Bˇ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+#
+tests/test_gui_filter_logic.py9
+!
+tests.test_gui_filter_logic11
+
+os12
+	
+sys14
+
+collections16
+
+unittest.mock18
+
+PyQt6.QtCore.Qt20
+
+PyQt6.QtCore22
+
+PyQt6.QtTest.QTest24
+
+PyQt6.QtTest26
+"
+PyQt6.QtWidgets.QApplication28
+
+PyQt6.QtWidgets.QLabel30
+
+PyQt6.QtWidgets.QLineEdit32
+!
+PyQt6.QtWidgets.QPushButton34
+
+PyQt6.QtWidgets36
+
+gui.gui_ssa38
+4
+.tests.test_gui_filter_logic.TestGUIFilterLogic40
+R
+Ltests.test_gui_filter_logic.TestGUIFilterLogic.test_persistent_filters_order42
+W
+Qtests.test_gui_filter_logic.TestGUIFilterLogic.test_general_search_and_or_display44
+c
+]tests.test_gui_filter_logic.TestGUIFilterLogic.test_clear_operations_preserve_group_structure46
+@
+:tests.test_gui_filter_logic.TestGUIFilterLogic.setup_class48
+_
+Ytests.test_gui_filter_logic.TestGUIFilterLogic.test_column_widths_stability_during_cycles50
+`
+Ztests.test_gui_filter_logic.TestGUIFilterLogic.test_profile_or_filters_executor_or_emissor52
+T
+Ntests.test_gui_filter_logic.TestGUIFilterLogic.test_column_filter_buttons_flow54
+A
+;tests.test_gui_filter_logic.TestGUIFilterLogic.setup_method56
+b
+\tests.test_gui_filter_logic.TestGUIFilterLogic.test_exclude_checkbox_and_clear_filter_button58
+P
+Jtests.test_gui_filter_logic.TestGUIFilterLogic._get_column_filter_controls60
+I
+Ctests.test_gui_filter_logic.TestGUIFilterLogic._extract_visible_ssa62
+D
+>tests.test_gui_filter_logic.TestGUIFilterLogic.teardown_method64
+`
+Ztests.test_gui_filter_logic.TestGUIFilterLogic.test_exclude_ste_sca_combined_with_or_group66J
+
+8
+89 jä
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41406 210
+
+43
+43427 241
+
+45
+45447 241
+
+47
+47467 241
+
+49
+49487 241
+
+51
+51507 241
+
+53
+53527 241
+
+55
+55547 241
+
+57
+57567 241
+
+59
+59587 241
+
+61
+61607 241
+
+63
+63627 241
+
+65
+65647 241
+
+67
+67667 241rà
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 ( 
+
+10191*
+8 ( 
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 ()
+
+10311*
+8+ (1
+
+10331*
+83 (<
+
+10351*
+8> (I
+
+10371*
+8 (I
+
+10391*
+8 (&
+
+10191*
+8§	 §((

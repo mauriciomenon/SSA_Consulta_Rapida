@@ -1,0 +1,101 @@
+
+1.0PythonFrontend"1769122855282*py2.B®
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+)
+$armazenamento/database_validation.py9
+'
+!armazenamento.database_validation11
+
+
+__future__12
+
+logging14
+
+typing16
+
+shared.date_utils18
+$
+armazenamento.numero_ssa_utils20
+H
+Barmazenamento.database_validation.validate_dataframe_before_insert22
+
+
+dict24
+!
+pandas.core.frame.DataFrame26
+	
+str28J
+
+8
+89 j”
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25246
+
+27
+27266
+
+29
+29286r–
+
+10131*
+8 (#
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8
+ 
+(-
+
+10211*
+8 (:
+
+23253*
+8 (%
+
+23274*
+8 (%
+
+23294*
+8 (%

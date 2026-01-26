@@ -1,0 +1,142 @@
+
+1.0PythonFrontend"1769122857059*py2.Bõ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+!
+tests/testar_refinamentos.py9
+
+tests.testar_refinamentos11
+
+os12
+	
+sys14
+
+
+time16
+&
+ core.config_manager.get_settings18
+/
+)core.config_manager.load_display_mappings20
+
+core.config_manager22
+
+interface.cli24
+)
+#utils.table_printer.pretty_print_df26
+
+utils.table_printer28
+
+io30
+
+
+json32
+3
+-tests.testar_refinamentos.teste_configuracoes34
+5
+/tests.testar_refinamentos.teste_otimizacoes_gui36
+5
+/tests.testar_refinamentos.teste_performance_cli38
+$
+tests.testar_refinamentos.main40J
+
+8
+89 j×
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35347 210
+
+37
+37367 210
+
+39
+39387 210
+
+41
+41407 210r¸
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8	 	(
+
+10191*
+8) (5
+
+10211*
+87 (L
+
+10231*
+8	 (L
+
+10251*
+8	 (:
+
+10271*
+8) (8
+
+10291*
+8	 (8
+
+10311*
+8, ,(
+
+10151*
+8- -(
+
+10331*
+8 (

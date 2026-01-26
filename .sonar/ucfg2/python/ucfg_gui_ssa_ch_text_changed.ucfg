@@ -1,0 +1,72 @@
+
+1gui.gui_ssa.SSAMainWindow._on_search_text_changedA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.py¹ ¹("6*2
+3
+
+gui_ssa.py"
+Å Å(
+implicit return*ç
+4
+Ã Ã(Ah
+f
+
+Ã Ã(@
+%1"__concat*3
+
+Ã Ã(<%#
+!Erro em _on_search_text_changed: *
+
+Ã= Ã(>
+
+ege
+
+Ã Ã(A
+%2*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%12error*
+3*ð
+6
+À À('j
+h
+
+À À( 
+%3"__id*N
+
+__unknown_file (2*0
+gui.gui_ssa.SSAMainWindow"
+_debounce_timer><
+
+À À('
+%4*"
+
+__unknown_file (
+
+%32stopj
+h
+
+Á Á( 
+%5"__id*N
+
+__unknown_file (2*0
+gui.gui_ssa.SSAMainWindow"
+_debounce_timer?=
+
+Á Á((
+%6*"
+
+__unknown_file (
+
+%52start*
+3
+4:
+
+¹& ¹(/
+textB
+gui.gui_ssa.SSAMainWindow

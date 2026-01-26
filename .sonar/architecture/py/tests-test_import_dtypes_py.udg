@@ -1,0 +1,105 @@
+
+1.0PythonFrontend"1769122853003*py2.BÓ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+ 
+tests/test_import_dtypes.py9
+
+tests.test_import_dtypes11
+
+
+__future__12
+
+sqlite314
+
+armazenamento.database16
+1
++tests._helpers.dtypes_matrix.DTYPES_BY_NAME18
+"
+tests._helpers.dtypes_matrix20
+:
+4tests.test_import_dtypes.test_basic_import_dataframe22
+<
+6tests.test_import_dtypes.test_import_idempotent_insert24
+F
+@tests.test_import_dtypes.test_dataframe_validation_rejects_empty26
+)
+#tests.test_import_dtypes._fetch_all28
+
+sqlite3.dbapi2.Connection30
+	
+str32J
+
+8
+89 j‹
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31306
+
+33
+33326r¶
+
+10131*
+8	 	(#
+
+10151*
+8 (
+
+10171*
+8 (#
+
+10191*
+8* (8
+
+10211*
+8 (8
+
+29314*
+8 (
+
+29334*
+8 (

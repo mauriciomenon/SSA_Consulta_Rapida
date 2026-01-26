@@ -1,0 +1,27 @@
+
+
+0intdf (	page_size (list"¦&
+$
+K (S"#get-field# empty:)
+'
+G (S"
+__bool__*:BboolH)
+'
+G (S"#unaryop !#2!:Bbool&"$
+G (S *D (F2T (X"@,
+*
+ (C"?python-unknown?:Blist
+ (["¼'
+%
+Y (["#unknown-value#Blist&
+$
+Y ([	"
+#is-exact#:Bbool
+
+Y ([
+"
+#assume#:	8
+6
+Y (["#set-field# __collection_size:Bint
+ (["$*
+ ([*GC:\Users\mauri\git\SSA_Consulta_Rapida\tests\test_paginate_dataframe.py

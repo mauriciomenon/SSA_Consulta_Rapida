@@ -1,0 +1,82 @@
+
+6gui.gui_ssa.SSAMainWindow._refresh_after_filter_changeA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.py¹7 ¹7($"9*2
+3
+
+gui_ssa.py"
+É7 É7(
+implicit return*ì
+4
+Ç7 Ç7(Fm
+k
+
+Ç7 Ç7(E
+%1"__concat*8
+
+Ç7 Ç7(A*(
+&Erro ao atualizar contador derivadas: *
+
+Ç7B Ç7(C
+
+ege
+
+Ç7 Ç7(F
+%2*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%12error*
+3*ƒ
+6
+Å7 Å7(,jh
+
+Å7 Å7(,
+%3*9
+
+__unknown_file (
+gui.gui_ssa.SSAMainWindow2_update_derivadas_counter*
+3
+4*ì
+7
+Á7 Á7(Fm
+k
+
+Á7 Á7(E
+%4"__concat*8
+
+Á7 Á7(A*(
+&Erro em _refresh_after_filter_change: *
+
+Á7B Á7(C
+
+ege
+
+Á7 Á7(F
+%5*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%42error*
+6*
+9
+¿7 ¿7(%ca
+
+¿7 ¿7(%
+%6*9
+
+__unknown_file (
+gui.gui_ssa.SSAMainWindow2initiate_filtering*	
+3
+6
+7B
+gui.gui_ssa.SSAMainWindow

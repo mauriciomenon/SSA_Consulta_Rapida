@@ -1,0 +1,9 @@
+
+��"Wrapper explícito para clareza sem expor ``_strict`` direto fora do módulo.
+
+    Mantém compatibilidade sem duplicar implementação.
+    "strvalue+  +(%"J8
+6
+0 0("%
+shared.numero_ssanormalize_strict:
+0 0(*HC:\Users\mauri\git\SSA_Consulta_Rapida\armazenamento\numero_ssa_utils.py

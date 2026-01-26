@@ -1,0 +1,94 @@
+
+1.0PythonFrontend"1769122852592*py2.BÉ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_db_reset_and_upsert.py9
+$
+tests.test_db_reset_and_upsert11
+
+os12
+
+sqlite314
+
+tempfile16
+
+shutil18
+
+armazenamento.database20
+8
+2tests.test_db_reset_and_upsert.test_ensure_indexes22
+1
++tests.test_db_reset_and_upsert._make_schema24
+B
+<tests.test_db_reset_and_upsert.test_reset_database_file_mode26
+C
+=tests.test_db_reset_and_upsert.test_reset_database_table_mode28
+L
+Ftests.test_db_reset_and_upsert.test_insert_dataframe_with_smart_upsert30J
+
+8
+89 jş
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210r‚
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 ('

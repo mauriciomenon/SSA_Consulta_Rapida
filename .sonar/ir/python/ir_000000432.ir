@@ -1,0 +1,18 @@
+
+úð"QGroupBox { color: {panel_text}; border:1px solid {panel_border}; border-radius:4px; margin-top: 10px; }QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; background-color: {panel_bg}; left: 8px; padding:0 6px; }"str
+–Œ"
+    Build QSS for QGroupBox styling.
+
+    Used for details_group and col_filters_group to ensure proper
+    borders and title positioning.
+
+    Args:
+        panel_text: Hex color for text (e.g., '#e0e0e0')
+        panel_border: Hex color for border (e.g., '#555555')
+        panel_bg: Hex color for background (e.g., '#2a2a2a')
+
+    Returns:
+        QSS string for QGroupBox
+    "str
+panel_text= =('panel_border=) =(:panel_bg=< =(I"
+L V(*CC:\Users\mauri\git\SSA_Consulta_Rapida\gui\helpers\theme_helpers.py

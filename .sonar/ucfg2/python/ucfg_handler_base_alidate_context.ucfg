@@ -1,0 +1,128 @@
+
+.core.handler_base.HandlerBase.validate_contextG
+;C:\Users\mauri\git\SSA_Consulta_Rapida\core\handler_base.py— —("2*î
+2
+˜  (
+
+¡ ¡(
+%6"listB
+@
+
+¡ ¡(
+errors"__id*"
+
+__unknown_file (
+
+%6q
+o
+
+£( £(?
+%7"__id*U
+
+__unknown_file (9*7
+core.handler_base.HandlerBase"
+_supported_formatsV
+T
+
+£ £( 
+%8"__id*:
+
+__unknown_file (*
+	
+context"
+output_formatjh
+
+£ £(?
+%9*"
+
+__unknown_file (
+
+%7*"
+
+__unknown_file (
+
+%82__contains__>
+<
+
+£ £(?
+%10"not*"
+
+__unknown_file (
+
+%9*
+4
+5*)
+4
+© ©("
+
+© ©(
+
+
+errors*õ
+5
+¤ §(V
+T
+
+¥ ¥(1
+%1"__id*:
+
+__unknown_file (*
+	
+context"
+output_formatq
+o
+
+¦) ¦(@
+%2"__id*U
+
+__unknown_file (9*7
+core.handler_base.HandlerBase"
+_supported_formatslj
+
+¦ ¦(A
+%3"str.join*"
+
+__unknown_file (
+, *"
+
+__unknown_file (
+
+%22join®
+«
+
+¥ ¦(C
+%4"__concat*
+
+¥ ¥(
+	Formato '*
+
+¥ ¥(1
+
+%1*$
+
+¥2 ¥(C
+' nÃ£o suportado. *
+
+¦ ¦(
+Suportados: *
+
+¦ ¦(A
+
+%3us
+
+¤ §(
+%5"list.append*&
+
+__unknown_file (
+
+
+errors*"
+
+__unknown_file (
+
+%42append*
+4:
+
+— —(6	
+contextB!
+core.handler_base.HandlerBaseH

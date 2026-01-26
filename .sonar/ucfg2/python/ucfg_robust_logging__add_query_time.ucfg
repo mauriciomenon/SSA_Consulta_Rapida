@@ -1,0 +1,51 @@
+
+6utils.robust_logging.PerformanceMetrics.add_query_timeH
+>C:\Users\mauri\git\SSA_Consulta_Rapida\utils\robust_logging.py6 6("2*ƒ
+27 7(6l
+j
+8 8(
+%4"__id*R
+
+__unknown_file (6*4)
+'utils.robust_logging.PerformanceMetrics"
+_lock*
+3
+4*7
+3
+robust_logging.py"
+; ;(
+implicit return*é
+49 9(9o
+m
+9 9(
+%1"__id*U
+
+__unknown_file (9*7)
+'utils.robust_logging.PerformanceMetrics"
+
+_metricszx
+9 9((
+%2"__mapGet*"
+
+__unknown_file (
+
+%1*+
+
+__unknown_file (
+query_times2__getitem__hf
+9 9(9
+%3*"
+
+__unknown_file (
+
+%2*(
+
+__unknown_file (
+
+
+duration2append*
+3:
+6 6(,
+
+durationB+)
+'utils.robust_logging.PerformanceMetricsH

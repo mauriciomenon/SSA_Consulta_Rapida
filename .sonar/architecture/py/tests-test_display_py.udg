@@ -1,0 +1,111 @@
+
+1.0PythonFrontend"1769122856412*py2.B¨
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+tests/test_display.py9
+
+tests.test_display11
+	
+sys12
+
+os14
+
+io16
+
+unittest.mock18
+
+interface.display20
+F
+@tests.test_display.test_pretty_print_details_invalid_display_map22
+F
+@tests.test_display.test_pretty_print_details_invalid_series_type24
+>
+8tests.test_display.test_pretty_print_details_with_series26
+<
+6tests.test_display.test_pretty_print_details_with_dict28
+$
+tests.test_display.display_map30
+$
+tests.test_display.sample_dict32
+?
+9tests.test_display.test_pretty_print_details_empty_series34
+&
+ tests.test_display.sample_series36J
+
+8
+89 jÉ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35347 210
+
+37
+37367 210r‚
+
+10131*
+8 (
+
+10151*
+8	 	(
+
+
+10171*
+8
+ 
+(
+
+10191*
+8 ( 
+
+10211*
+8 (3

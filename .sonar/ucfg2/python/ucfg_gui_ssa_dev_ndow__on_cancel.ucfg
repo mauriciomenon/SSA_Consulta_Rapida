@@ -1,0 +1,56 @@
+
+%gui.gui_ssa_dev.MainWindow._on_cancelE
+9C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa_dev.py¦ ¦("2*{
+2
+§ §("b
+`
+
+§ §(
+%5"__id*F
+
+__unknown_file (**(
+gui.gui_ssa_dev.MainWindow"
+worker*
+3
+4*6
+3
+gui_ssa_dev.py"
+« «(
+implicit return*œ
+4
+¨ ¨((b
+`
+
+¨ ¨(
+%1"__id*F
+
+__unknown_file (**(
+gui.gui_ssa_dev.MainWindow"
+workerHF
+
+¨ ¨((
+%2*"
+
+__unknown_file (
+
+%12request_cancelb
+`
+
+© ©(
+%3"__id*F
+
+__unknown_file (**(
+gui.gui_ssa_dev.MainWindow"
+statustr
+
+© ©(4
+%4*"
+
+__unknown_file (
+
+%3*-
+
+__unknown_file (
+Cancelling...2showMessage*
+3B
+gui.gui_ssa_dev.MainWindow

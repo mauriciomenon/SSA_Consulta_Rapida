@@ -1,0 +1,192 @@
+
+1.0PythonFrontend"1769122854944*py2.BŒ	
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+ 
+tests/test_gui_stability.py9
+
+tests.test_gui_stability11
+
+os12
+	
+sys14
+
+
+time16
+
+unittest18
+
+PyQt6.QtCore.Qt20
+
+PyQt6.QtCore22
+
+PyQt6.QtTest.QTest24
+
+PyQt6.QtTest26
+"
+PyQt6.QtWidgets.QApplication28
+
+PyQt6.QtWidgets30
+
+gui.gui_ssa.QT_AVAILABLE32
+
+gui.gui_ssa34
+2
+,tests.test_gui_stability.run_stability_tests36
+/
+)tests.test_gui_stability.TestGUIStability38
+
+unittest.case.TestCase40
+O
+Itests.test_gui_stability.TestGUIStability.test_carregamento_dados_grandes42
+J
+Dtests.test_gui_stability.TestGUIStability.test_filtro_travamento_svp44
+J
+Dtests.test_gui_stability.TestGUIStability.test_filtros_problematicos46
+I
+Ctests.test_gui_stability.TestGUIStability.test_colunas_obrigatorias48
+B
+<tests.test_gui_stability.TestGUIStability.test_menu_contexto50
+5
+/tests.test_gui_stability.TestGUIStability.setUp52
+F
+@tests.test_gui_stability.TestGUIStability.test_responsividade_ui54
+:
+4tests.test_gui_stability.TestGUIStability.setUpClass56
+8
+2tests.test_gui_stability.TestGUIStability.tearDown58J
+
+8
+89 j¬
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37367 210
+
+39
+39386 210
+
+41
+41406
+
+43
+43427 239
+
+45
+45447 239
+
+47
+47467 239
+
+49
+49487 239
+
+51
+51507 239
+
+53
+53527 239
+
+55
+55547 239
+
+57
+57567 239
+
+59
+59587 239rì
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 ()
+
+10311*
+8 ()
+
+10331*
+8 (%
+
+10351*
+8 (%
+
+10351*
+8   (*
+
+39412*
+8& &(

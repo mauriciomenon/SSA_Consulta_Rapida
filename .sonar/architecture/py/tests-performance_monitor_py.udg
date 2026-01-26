@@ -1,0 +1,171 @@
+
+1.0PythonFrontend"1769122857151*py2.Bí
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+!
+tests/performance_monitor.py9
+
+tests.performance_monitor11
+
+os12
+
+signal14
+	
+sys16
+
+
+time18
+
+datetime20
+
+PyQt6.QtCore.QTimer22
+
+PyQt6.QtCore24
+"
+PyQt6.QtWidgets.QApplication26
+
+PyQt6.QtWidgets28
+
+gui.gui_ssa.QT_AVAILABLE30
+
+gui.gui_ssa32
+2
+,tests.performance_monitor.PerformanceMonitor34
+B
+<tests.performance_monitor.PerformanceMonitor.run_filter_test36
+<
+6tests.performance_monitor.PerformanceMonitor.log_issue38
+D
+>tests.performance_monitor.PerformanceMonitor.print_final_stats40
+A
+;tests.performance_monitor.PerformanceMonitor.signal_handler42
+>
+8tests.performance_monitor.PerformanceMonitor.print_stats44
+C
+=tests.performance_monitor.PerformanceMonitor.start_monitoring46
+;
+5tests.performance_monitor.PerformanceMonitor.__init__48
+B
+<tests.performance_monitor.PerformanceMonitor.stop_monitoring50
+$
+tests.performance_monitor.main52J
+
+8
+89 jí
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35346 210
+
+37
+37367 235
+
+39
+39387 235
+
+41
+41407 235
+
+43
+43427 235
+
+45
+45447 235
+
+47
+47467 235
+
+49
+49487 235
+
+51
+51507 235
+
+53
+53527 210r¸
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 ( 
+
+10251*
+8 ( 
+
+10271*
+8 ()
+
+10291*
+8 ()
+
+10311*
+8 (%
+
+10331*
+8 (%
+
+10331*
+8 (*

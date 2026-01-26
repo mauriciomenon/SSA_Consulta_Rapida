@@ -1,0 +1,150 @@
+
+/utils.robust_logging.RobustLogger.log_cache_hitJ
+>C:\Users\mauri\git\SSA_Consulta_Rapida\utils\robust_logging.pyî î("2*∞
+
+2
+ï ï(-j
+h
+
+ñ ñ(
+%1"__id*N
+
+__unknown_file (2*0#
+!utils.robust_logging.RobustLogger"	
+metricsMK
+
+ñ ñ(*
+%2*"
+
+__unknown_file (
+
+%12increment_cache_hit∫∑
+
+ó ó(8
+%3*A
+
+__unknown_file (%#
+!utils.robust_logging.RobustLogger*)
+
+__unknown_file (
+	ssa.cache*)
+
+__unknown_file (
+
+	component2
+get_loggerB
+@
+
+ó ó(8
+logger"__id*"
+
+__unknown_file (
+
+%3[
+Y
+
+ô ô(&
+%4"__concat*
+
+ô ô(
+Cache HIT: *
+
+ô ô($
+
+
+cache_type
+
+ö ü(
+%5"dictô
+ñ
+
+õ õ((
+%6"__mapSet*"
+
+__unknown_file (
+
+%5*)
+
+__unknown_file (
+	operation*)
+
+__unknown_file (
+	cache_hitõ
+ò
+
+ú ú((
+%7"__mapSet*"
+
+__unknown_file (
+
+%5**
+
+__unknown_file (
+
+cache_type**
+
+__unknown_file (
+
+
+cache_typeì
+ê
+
+ù ù( 
+%8"__mapSet*"
+
+__unknown_file (
+
+%5*)
+
+__unknown_file (
+	cache_key*#
+
+__unknown_file (
+
+keyô
+ñ
+
+û û(&
+%9"__mapSet*"
+
+__unknown_file (
+
+%5*)
+
+__unknown_file (
+	component*)
+
+__unknown_file (
+
+	componentyw
+
+ò †(	
+%10*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%42debug:
+extra
+
+%5*
+3*9
+3
+robust_logging.py"
+¢ ¢(
+implicit return:
+
+î î(+
+
+cache_type:
+
+î- î(5
+key:
+
+î7 î(O
+	componentB%#
+!utils.robust_logging.RobustLoggerH

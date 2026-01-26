@@ -1,0 +1,193 @@
+
+1.0PythonFrontend"1769122853380*py2.BÇ
+
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+)
+$gui/widgets/column_manager_dialog.py9
+'
+!gui.widgets.column_manager_dialog11
+
+PyQt6.QtWidgets.QDialog12
+!
+PyQt6.QtWidgets.QVBoxLayout14
+!
+PyQt6.QtWidgets.QHBoxLayout16
+
+PyQt6.QtWidgets.QLabel18
+
+PyQt6.QtWidgets.QLineEdit20
+!
+PyQt6.QtWidgets.QListWidget22
+%
+PyQt6.QtWidgets.QListWidgetItem24
+!
+PyQt6.QtWidgets.QPushButton26
+&
+ PyQt6.QtWidgets.QDialogButtonBox28
+'
+!PyQt6.QtWidgets.QAbstractItemView30
+
+PyQt6.QtWidgets32
+
+PyQt6.QtCore.Qt34
+
+PyQt6.QtCore36
+
+logging38
+;
+5gui.widgets.column_manager_dialog.ColumnManagerDialog40
+D
+>gui.widgets.column_manager_dialog.ColumnManagerDialog.__init__42
+F
+@gui.widgets.column_manager_dialog.ColumnManagerDialog.select_all44
+E
+?gui.widgets.column_manager_dialog.ColumnManagerDialog._build_ui46
+L
+Fgui.widgets.column_manager_dialog.ColumnManagerDialog.restore_defaults48
+L
+Fgui.widgets.column_manager_dialog.ColumnManagerDialog._ordered_columns50
+E
+?gui.widgets.column_manager_dialog.ColumnManagerDialog.clear_all52
+P
+Jgui.widgets.column_manager_dialog.ColumnManagerDialog.get_selected_columns54
+J
+Dgui.widgets.column_manager_dialog.ColumnManagerDialog._populate_list56
+I
+Cgui.widgets.column_manager_dialog.ColumnManagerDialog._apply_filter58J
+
+8
+89 j¦
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41406 210
+
+43
+43427 241
+
+45
+45447 241
+
+47
+47467 241
+
+49
+49487 241
+
+51
+51507 241
+
+53
+53527 241
+
+55
+55547 241
+
+57
+57567 241
+
+59
+59587 241rì
+
+10131*
+8 (
+
+10151*
+8 (
+
+10171*
+8 (&
+
+10191*
+8( (.
+
+10211*
+80 (9
+
+10231*
+8 (
+
+10251*
+8 (!
+
+10271*
+8# (.
+
+10291*
+80 (@
+
+10311*
+8 (
+
+10331*
+8 (
+
+10351*
+8	 	(
+
+10371*
+8	 	(
+
+10391*
+8
+ 
+(

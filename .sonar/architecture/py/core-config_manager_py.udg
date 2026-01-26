@@ -1,0 +1,133 @@
+
+1.0PythonFrontend"1769122857760*py2.B»
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+core/config_manager.py9
+
+core.config_manager11
+
+
+json12
+
+os14
+
+shutil16
+
+logging18
+
+typing20
+9
+3core.config_manager.load_display_mappings_integrity22
+
+
+dict24
+'
+!core.config_manager.load_settings26
+'
+!core.config_manager.save_settings28
+8
+2core.config_manager.load_column_mappings_integrity30
+)
+#core.config_manager._get_config_dir32
+	
+str34
+/
+)core.config_manager.handle_config_command36
+1
++core.config_manager.ensure_default_settings38J
+
+8
+89 j÷
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25246
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35346
+
+37
+37367 210
+
+39
+39387 210ré
+
+10131*
+8 (
+
+10151*
+8	 	(
+
+
+10171*
+8
+ 
+(
+
+10191*
+8 (
+
+10211*
+8 (
+
+23253*
+8È È($
+
+27253*
+8ü ü(
+
+29254*
+8π π(
+
+31253*
+8Ä Ä(#
+
+33353*
+8Â Â(

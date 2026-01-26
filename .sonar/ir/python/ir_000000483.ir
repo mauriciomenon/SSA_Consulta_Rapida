@@ -1,0 +1,80 @@
+
+"S3518"bool
+(
+"hit_rate"str
+100int
+$"evictions"str
+"misses"str
+"division by zero"bool
+"size"str
+
+	0int
+
+"max_size"str
+"hits"str
+"a"boolselfJ J("Ÿ&
+$
+K K("#get-field# stats:"
+ 
+K K(""#array-read#:&
+$
+K% K(/"#get-field# stats:"
+ 
+K% K(9"#array-read#:)
+'
+K K(9total"	#binop +#2+:2
+0
+L9 L(B
+hit_rate"	#binop >#2>:	Bbool&"$
+L9 L(B
+ *L6 L(82LC L(G"ÿ&
+$
+L L("#get-field# stats:"
+ 
+L L(&"#array-read#:*
+(
+L L(."
+#binop !=#2!=:	Bbool 
+
+L L(."
+#assert#:*
+(
+L L(."#dependent-value#*:%
+#
+L L(4"	#binop *#*2*:
+L L(I"
+L L(I"ƒ*hit_rate	$
+"
+N U(	"#new-object#Bdict&
+$
+O O(""#get-field# cache:*
+(
+O O(#"
+builtinslen*:Bint 
+
+O O(#"	#map-set#:)
+'
+P P(%"#get-field# max_size: 
+
+P P(%"	#map-set#:&
+$
+Q Q("#get-field# stats:"
+ 
+Q Q(&"#array-read#: 
+
+Q Q(& "	#map-set#:&
+$
+R R( !"#get-field# stats:"
+ 
+R R(*""#array-read#:! 
+
+R R(*#"	#map-set#:"&
+$
+S S(#%"#get-field# stats:"
+ 
+S S(0&"#array-read#:%$ 
+
+S S(0'"	#map-set#:$& 
+
+T T( )"	#map-set#:(
+N U(	*QC:\Users\mauri\git\SSA_Consulta_Rapida\scripts\validate_streamlit_improvements.py

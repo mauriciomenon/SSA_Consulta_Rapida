@@ -1,0 +1,121 @@
+
+1.0PythonFrontend"1769122856957*py2.Bµ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+.
+)tests/test_gui_performance_interactive.py9
+,
+&tests.test_gui_performance_interactive11
+
+os12
+	
+sys14
+
+
+time16
+"
+PyQt6.QtWidgets.QApplication18
+ 
+PyQt6.QtWidgets.QTabWidget20
+
+PyQt6.QtWidgets22
+
+gui.gui_ssa24
+
+	traceback26
+G
+Atests.test_gui_performance_interactive.test_filtering_performance28
+B
+<tests.test_gui_performance_interactive.run_performance_suite30
+K
+Etests.test_gui_performance_interactive.test_tab_switching_performance32
+?
+9tests.test_gui_performance_interactive.test_gui_load_time34
+6
+0tests.test_gui_performance_interactive._get_qapp36J
+
+8
+89 j·
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35347 210
+
+37
+37367 210rÒ
+
+10131*
+8	 	(
+
+
+10151*
+8
+ 
+(
+
+10171*
+8 (
+
+10191*
+8 ()
+
+10211*
+8+ (5
+
+10231*
+8 (5
+
+10251*
+8 (*
+
+10271*
+8§ §(

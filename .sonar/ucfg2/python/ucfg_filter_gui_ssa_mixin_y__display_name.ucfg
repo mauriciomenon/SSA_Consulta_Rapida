@@ -1,0 +1,152 @@
+
+Wgui.mixins.filter_gui_ssa_mixin.FilterGUISSAMixin._update_filters_summary._display_nameU
+IC:\Users\mauri\git\SSA_Consulta_Rapida\gui\mixins\filter_gui_ssa_mixin.pyï ï("2*µ
+2
+ñ ñ(&ô
+ñ
+
+ñ ñ(&
+%8"	__compare*"
+
+__unknown_file (
+==*#
+
+__unknown_file (
+
+col*.
+
+__unknown_file (
+setor_executor*
+10
+11*Ô
+4
+û û(SY
+W
+
+û û(+
+%1"__id*=
+
+__unknown_file (!*
+
+self"
+internal_to_displayñì
+
+û5 û(J
+%2"str.replace*#
+
+__unknown_file (
+
+col*!
+
+__unknown_file (
+_*!
+
+__unknown_file (
+ 2replaceJH
+
+û5 û(R
+%3"	str.title*"
+
+__unknown_file (
+
+%22titleáÑ
+
+û û(S
+%4*"
+
+__unknown_file (
+
+%1*#
+
+__unknown_file (
+
+col*"
+
+__unknown_file (
+
+%32get"
+
+û û(S
+
+%4*+
+5
+ù ù(!"
+
+ù ù(!
+
+Situacao*≠
+6
+ú ú( ì
+ê
+
+ú ú( 
+%5"	__compare*"
+
+__unknown_file (
+==*#
+
+__unknown_file (
+
+col*(
+
+__unknown_file (
+
+situacao*
+4
+5*3
+7
+õ õ()""
+
+õ õ()
+Descricao da SSA*≤
+8
+ö ö(%ò
+ï
+
+ö ö(%
+%6"	__compare*"
+
+__unknown_file (
+==*#
+
+__unknown_file (
+
+col*-
+
+__unknown_file (
+descricao_ssa*
+6
+7**
+9
+ô ô( "
+
+ô ô( 	
+Emissor*≥
+10
+ò ò(%ò
+ï
+
+ò ò(%
+%7"	__compare*"
+
+__unknown_file (
+==*#
+
+__unknown_file (
+
+col*-
+
+__unknown_file (
+setor_emissor*
+8
+9*,
+11
+ó ó(!"
+
+ó ó(!
+
+Executor:
+
+ï ï("
+colB53
+1gui.mixins.filter_gui_ssa_mixin.FilterGUISSAMixin

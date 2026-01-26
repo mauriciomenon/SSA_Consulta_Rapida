@@ -1,0 +1,60 @@
+
+1.0PythonFrontend"1769122853139*py2.B’
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!armazenamento/identifier_utils.py9
+$
+armazenamento.identifier_utils11
+
+
+__future__12
+
+re14
+8
+2armazenamento.identifier_utils.is_valid_identifier16
+
+
+bool18J
+
+8
+89 jt
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19186rN
+
+10131*
+8 (#
+
+10151*
+8	 	(
+
+
+17193*
+8 (

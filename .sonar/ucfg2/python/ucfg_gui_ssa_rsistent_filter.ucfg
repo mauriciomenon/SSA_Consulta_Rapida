@@ -1,0 +1,143 @@
+
+2gui.gui_ssa.SSAMainWindow.remove_persistent_filterA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.pyœE œE( "2*þ
+2
+E E(Dn
+l
+
+žE žE(1
+%12"__id*Q
+
+__unknown_file (5*3
+gui.gui_ssa.SSAMainWindow"
+persistent_filtersus
+
+žE žE(1
+%13*#
+
+__unknown_file (
+
+%12*+
+
+__unknown_file (
+
+filter_data2__contains__*
+3
+5*2
+3
+
+gui_ssa.py"
+§E §E(
+implicit return*£
+4
+¤E ¤E()g
+e
+
+¤E ¤E(!
+%1"__id*K
+
+__unknown_file (/*-
+gui.gui_ssa.SSAMainWindow"
+search_input?=
+
+¤E ¤E()
+%2*"
+
+__unknown_file (
+
+%12clearca
+
+¥E ¥E()
+%3*9
+
+__unknown_file (
+gui.gui_ssa.SSAMainWindow2initiate_filtering*
+3*°
+5
+ŸE ŸE(7m
+k
+
+ŸE ŸE(#
+%4"__id*Q
+
+__unknown_file (5*3
+gui.gui_ssa.SSAMainWindow"
+persistent_filtersmk
+
+ŸE ŸE(7
+%5*"
+
+__unknown_file (
+
+%4*+
+
+__unknown_file (
+
+filter_data2removeca
+
+ E  E(%
+%6*9
+
+__unknown_file (
+gui.gui_ssa.SSAMainWindow2update_filter_tagsg
+e
+
+¢E ¢E(.
+%7"__id*K
+
+__unknown_file (/*-
+gui.gui_ssa.SSAMainWindow"
+search_input><
+
+¢E ¢E(5
+%8*"
+
+__unknown_file (
+
+%72text?=
+
+¢E ¢E(=
+%9*"
+
+__unknown_file (
+
+%82stripJ
+H
+
+¢E ¢E(=
+current_search"__id*"
+
+__unknown_file (
+
+%9€~
+
+£E! £E(5
+%10"__mapGet*+
+
+__unknown_file (
+
+filter_data*%
+
+__unknown_file (	
+terms2__getitem__š
+—
+
+£E £E(5
+%11"	__compare*"
+
+__unknown_file (
+==*.
+
+__unknown_file (
+
+current_search*#
+
+__unknown_file (
+
+%10*
+3
+4:
+
+œE' œE(2
+filter_dataB
+gui.gui_ssa.SSAMainWindowH

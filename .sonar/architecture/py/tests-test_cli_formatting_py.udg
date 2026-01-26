@@ -1,0 +1,74 @@
+
+1.0PythonFrontend"1769122851783*py2.BË
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+!
+tests/test_cli_formatting.py9
+
+tests.test_cli_formatting11
+
+io12
+
+unittest.mock14
+
+os16
+	
+sys18
+
+interface.display20
+V
+Ptests.test_cli_formatting.test_details_uses_shared_formatter_for_dates_and_nulls22J
+
+8
+89 jš
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210r‚
+
+10131*
+8 (
+
+10151*
+8 ( 
+
+10171*
+8 (
+
+
+10191*
+8 (
+
+10211*
+8	 	(3

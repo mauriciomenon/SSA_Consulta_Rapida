@@ -1,0 +1,275 @@
+
+1.0PythonFrontend"1769122850384*py2.BŞ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+'
+"gui/widgets/details_tab_manager.py9
+%
+gui.widgets.details_tab_manager11
+
+PyQt6.QtCore.Qt12
+
+PyQt6.QtCore.pyqtSignal14
+
+PyQt6.QtCore16
+!
+PyQt6.QtWidgets.QHBoxLayout18
+
+PyQt6.QtWidgets.QLabel20
+
+PyQt6.QtWidgets.QLineEdit22
+!
+PyQt6.QtWidgets.QMessageBox24
+!
+PyQt6.QtWidgets.QPushButton26
+$
+PyQt6.QtWidgets.QStackedWidget28
+"
+PyQt6.QtWidgets.QTextBrowser30
+!
+PyQt6.QtWidgets.QToolButton32
+!
+PyQt6.QtWidgets.QVBoxLayout34
+
+PyQt6.QtWidgets.QWidget36
+
+PyQt6.QtWidgets38
+$
+gui.helpers.formatting_helpers40
+6
+0gui.widgets.details_tab_manager.DetailsTabWidget42
+G
+Agui.widgets.details_tab_manager.DetailsTabWidget.close_tab_by_ssa44
+	
+str46
+M
+Ggui.widgets.details_tab_manager.DetailsTabWidget._update_tab_highlights48
+?
+9gui.widgets.details_tab_manager.DetailsTabWidget._init_ui50
+D
+>gui.widgets.details_tab_manager.DetailsTabWidget._apply_styles52
+F
+@gui.widgets.details_tab_manager.DetailsTabWidget._on_tab_clicked54
+	
+int56
+J
+Dgui.widgets.details_tab_manager.DetailsTabWidget._update_nav_buttons58
+G
+Agui.widgets.details_tab_manager.DetailsTabWidget._on_link_clicked60
+?
+9gui.widgets.details_tab_manager.DetailsTabWidget.__init__62
+F
+@gui.widgets.details_tab_manager.DetailsTabWidget._get_ssa_series64
+M
+Ggui.widgets.details_tab_manager.DetailsTabWidget._on_tab_clicked_by_ssa66
+F
+@gui.widgets.details_tab_manager.DetailsTabWidget._on_input_enter68
+E
+?gui.widgets.details_tab_manager.DetailsTabWidget.close_all_tabs70
+@
+:gui.widgets.details_tab_manager.DetailsTabWidget.close_tab72
+K
+Egui.widgets.details_tab_manager.DetailsTabWidget.get_open_ssa_numbers74
+?
+9gui.widgets.details_tab_manager.DetailsTabWidget.navigate76
+?
+9gui.widgets.details_tab_manager.DetailsTabWidget.open_ssa78
+
+
+bool80J
+
+8
+89 j¡
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41405
+
+43
+43426 210
+
+45
+45447 243
+
+47
+47466
+
+49
+49487 243
+
+51
+51507 243
+
+53
+53527 243
+
+55
+55547 243
+
+57
+57566
+
+59
+59587 243
+
+61
+61607 243
+
+63
+63627 243
+
+65
+65647 243
+
+67
+67667 243
+
+69
+69687 243
+
+71
+71707 243
+
+73
+73727 243
+
+75
+75747 243
+
+77
+77767 243
+
+79
+79787 243
+
+81
+81806ræ
+
+10131*
+8 (
+
+10151*
+8 ((
+
+10171*
+8 ((
+
+10191*
+8 (
+
+10211*
+8	 	(
+
+10231*
+8
+ 
+(
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 (
+
+10311*
+8 (
+
+10331*
+8 (
+
+10351*
+8 (
+
+10371*
+8 (
+
+10391*
+8 (
+
+10411*
+8 (?
+
+45474*
+8	 (
+
+55574*
+8ğ	 ğ(
+
+65474*
+8 	  (
+
+67474*
+8ú	 ú(
+
+73574*
+8¾	 ¾(
+
+77574*
+8ß	 ß(
+
+79813*
+8Ÿ	 Ÿ(
+
+79474*
+8Ÿ	 Ÿ(

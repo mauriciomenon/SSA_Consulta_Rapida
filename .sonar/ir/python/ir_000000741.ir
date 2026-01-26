@@ -1,0 +1,83 @@
+
+)
+"hit_rate"str
+) "Retorna estatisticas do cache."str
+"S3518"bool
+100int
+
+"max_size"str
+"division by zero"bool
+%"evictions"str
+"misses"str
+"size"str
+
+
+0int
+"a"bool
+"hits"strselfG G("¡'
+%
+I I("#get-field# _stats:"
+ 
+I I(#"#array-read#:'
+%
+I& I(1"#get-field# _stats:"
+ 
+I& I(;"#array-read#:)
+'
+I I(;	total"	#binop +#2+:2
+0
+J: J(Chit_rate"	#binop >#2>:	
+Bbool&"$
+J: J(C *J7 J(92JD J(H"€'
+%
+J J("#get-field# _stats:"
+ 
+J J('"#array-read#:*
+(
+J J(/"
+#binop !=#2!=:	
+Bbool 
+
+J J(/"
+#assert#:*
+(
+J J(/"#dependent-value#*:	%
+#
+J J(5"	#binop *#*2*:
+J J(J"
+J J(J"‡*hit_rate
+$
+"
+L S(	"#new-object#Bdict'
+%
+M M(#"#get-field# _cache:*
+(
+M M($"
+builtinslen*:Bint 
+
+M M($"	#map-set#:)
+'
+N N(%"#get-field# max_size: 
+
+N N(%"	#map-set#:'
+%
+O O("#get-field# _stats:"
+ 
+O O(' "#array-read#: 
+
+O O('!"	#map-set#: '
+%
+P P(!""#get-field# _stats:"
+ 
+P P(+#"#array-read#:" 
+
+P P(+$"	#map-set#:#'
+%
+Q Q($&"#get-field# _stats:"
+ 
+Q Q(1'"#array-read#:&% 
+
+Q Q(1("	#map-set#:%' 
+
+R R( *"	#map-set#:)
+L S(	*@C:\Users\mauri\git\SSA_Consulta_Rapida\gui\cache\filter_cache.py

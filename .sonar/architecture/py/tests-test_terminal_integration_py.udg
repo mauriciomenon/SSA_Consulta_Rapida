@@ -1,0 +1,159 @@
+
+1.0PythonFrontend"1769122856253*py2.B¦
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+'
+"tests/test_terminal_integration.py9
+%
+tests.test_terminal_integration11
+
+os12
+
+
+json14
+
+shutil16
+
+
+subprocess18
+
+platform20
+
+typing22
+J
+Dtests.test_terminal_integration.test_pwsh_path_discovered_and_exists24
+A
+;tests.test_terminal_integration._user_settings_path_windows26
+	
+str28
+0
+*tests.test_terminal_integration._try_spawn30
+!
+subprocess.CompletedProcess32
+
+
+list34
+	
+int36
+9
+3tests.test_terminal_integration.get_pwsh_candidates38
+
+
+dict40
+H
+Btests.test_terminal_integration.test_spawn_shell_and_invoke_python42
+M
+Gtests.test_terminal_integration.test_workspace_vscode_settings_env_vars44
+8
+2tests.test_terminal_integration.load_user_settings46J
+
+8
+89 j¢
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29286
+
+31
+31307 210
+
+33
+33326
+
+35
+35346
+
+37
+37366
+
+39
+39387 210
+
+41
+41406
+
+43
+43427 210
+
+45
+45447 210
+
+47
+47467 210r¾
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+27293*
+8# #( 
+
+31333*
+8€ €(
+
+31354*
+8€ €(
+
+31374*
+8€ €(
+
+39353*
+80 0(
+
+39414*
+80 0(

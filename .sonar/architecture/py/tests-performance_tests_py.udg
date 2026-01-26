@@ -1,0 +1,259 @@
+
+1.0PythonFrontend"1769122856986*py2.B≠
+
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+tests/performance_tests.py9
+
+tests.performance_tests11
+
+concurrent.futures12
+
+os14
+
+sqlite316
+	
+sys18
+
+	threading20
+
+
+time22
+
+datetime24
+
+typing26
+
+psutil28
+
+memory_profiler.profile30
+
+memory_profiler32
+
+armazenamento.database34
+
+core.app_logic36
+
+extracao.extractor38
+
+
+json40
+"
+tests.performance_tests.main42
+0
+*tests.performance_tests.PerformanceMetrics44
+9
+3tests.performance_tests.PerformanceMetrics.__init__46
+@
+:tests.performance_tests.PerformanceMetrics.stop_monitoring48
+A
+;tests.performance_tests.PerformanceMetrics.start_monitoring50
+/
+)tests.performance_tests.PerformanceTester52
+8
+2tests.performance_tests.PerformanceTester.__init__54
+	
+str56
+I
+Ctests.performance_tests.PerformanceTester.run_all_performance_tests58
+
+
+dict60
+F
+@tests.performance_tests.PerformanceTester.test_concurrent_access62
+	
+int64
+J
+Dtests.performance_tests.PerformanceTester.test_memory_usage_patterns66
+M
+Gtests.performance_tests.PerformanceTester.test_large_filter_performance68
+O
+Itests.performance_tests.PerformanceTester.test_database_query_performance70
+P
+Jtests.performance_tests.PerformanceTester.test_file_extraction_performance72J
+
+8
+89 jΩ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41405
+
+43
+43427 210
+
+45
+45446 210
+
+47
+47467 245
+
+49
+49487 245
+
+51
+51507 245
+
+53
+53526 210
+
+55
+55547 253
+
+57
+57566
+
+59
+59587 253
+
+61
+61606
+
+63
+63627 253
+
+65
+65646
+
+67
+67667 253
+
+69
+69687 253
+
+71
+71707 253
+
+73
+73727 253r‰
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8 (
+
+10191*
+8	 	(
+
+10211*
+8
+ 
+(
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (%
+
+10291*
+8 (
+
+10311*
+8! ((
+
+10331*
+8 ((
+
+10351*
+8" "(5
+
+10371*
+8# #(-
+
+10391*
+8$ $(Q
+
+10411*
+8ﬁ ﬁ(
+
+55574*
+8X	 X(
+
+59613*
+8•	 •("
+
+63613*
+8ê	 ê(
+
+63654*
+8ê	 ê(
+
+67613*
+8”	 ”(#
+
+69613*
+8÷	 ÷(&
+
+71613*
+8\	 \((
+
+73613*
+8ã	 ã()

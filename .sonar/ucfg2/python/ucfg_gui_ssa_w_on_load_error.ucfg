@@ -1,0 +1,110 @@
+
+'gui.gui_ssa.SSAMainWindow.on_load_errorA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.pyà, à,("2*î
+2
+á, á,(Eèå
+
+á, á,(E
+%1*+
+
+__unknown_file (
+
+QMessageBox*9
+
+__unknown_file (
+gui.gui_ssa.SSAMainWindow*4
+
+__unknown_file (
+Erro de Carregamento*)
+
+__unknown_file (
+
+	error_msg2criticalg
+e
+
+â, â,(
+%2"__id*K
+
+__unknown_file (/*-
+gui.gui_ssa.SSAMainWindow"
+status_labelƒ€
+
+â, â,(D
+%3*"
+
+__unknown_file (
+
+%2*?
+
+__unknown_file (#!
+Status: Erro ao carregar dados.2setTextf
+d
+
+ã, ã,(
+%4"__id*J
+
+__unknown_file (.*,
+gui.gui_ssa.SSAMainWindow"
+load_buttonjh
+
+ã, ã,()
+%5*"
+
+__unknown_file (
+
+%4*$
+
+__unknown_file (
+
+True2
+setEnabledh
+f
+
+ä, ä,(
+%6"__id*L
+
+__unknown_file (0*.
+gui.gui_ssa.SSAMainWindow"
+search_buttonjh
+
+ä, ä,(+
+%7*"
+
+__unknown_file (
+
+%6*$
+
+__unknown_file (
+
+True2
+setEnabledg
+e
+
+å, å,(
+%8"__id*K
+
+__unknown_file (/*-
+gui.gui_ssa.SSAMainWindow"
+progress_barki
+
+å, å,(+
+%9*"
+
+__unknown_file (
+
+%8*%
+
+__unknown_file (	
+
+False2
+setVisible*
+3*2
+3
+
+gui_ssa.py"
+ç, ç,(
+implicit return:
+
+à, à,(*
+	error_msgB
+gui.gui_ssa.SSAMainWindowH

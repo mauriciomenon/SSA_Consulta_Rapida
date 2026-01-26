@@ -1,0 +1,1969 @@
+
+2"solicitante"str
+#ï"Data inÃ­cio Programada"str
+$Å"numero_ssa_relacionada_1"str
+w"semana_executada"str
+{"NÂº Reprog."str
+B"Resp. Prog."str
+Ã"Desde (2)"str
+$­"data_inicio_reprogramada"str
+Q"Sis. Origem"str
+S"prazo_limite"str
+ô
+"Situacao"str
+"executado"str
+¨"Data InÃ­cio Prog."str
+½
+"AtÃ© (1)"str
+D"semana_programada"str
+E"Sem. Prog."str
+š"numero_desvios"str
+"Derivada de"str
+(’"DescriÃ§Ã£o da LocalizaÃ§Ã£o"str
+á"RelaÃ§Ã£o"str
+#"ResponsÃ¡vel ExecuÃ§Ã£o"str
+?"Exec. Simples"str
+&Ü"Setor Executor Relacionado"str
+W"SituaÃ§Ã£o do Prazo"str
+)‹"SituaÃ§Ã£o de ReprogramaÃ§Ã£o"str
+¥"Tempo TPO Exec."str
+J"descricao_execucao"str
+3"Solicitante"str
+~"Exec. Parcial"str
+º"SituaÃ§Ã£o Desvio"str
+ Ï"Setor Emissor Rel. 1"str
+"A"responsavel_programacao"str
+$n"total_tempo_tex_planejado"str
+"numero_ssa"str
+À
+"AtÃ© (2)"str
+
+"situacao"str
+"Ú"situacao_relacionada_1"str
+"Desvio"str
+,"setor_emissor"str
+›"instalacao_estimada"str
+¦"justificativa"str
+h	"desde_1"str
+•"origem"str
+%Î"Setor Emissor Relacionado"str
+!"Equipamento Instalado"str
+–"Origem"str
+"SN Instalado"str
+ "equipamento"str
+)Õ"Setor Emissor Relacionado (2)"str
+u"Horas Prog."str
+Ì"NÂº SSA Rel. 3"str
+&À"NÃºmero da SSA Relacionada"str
+&"data_cadastro"str
+¥"Semana Cadastro"str
+»"Descricao"str
+Ÿ"Executado"str
+"t"total_horas_programadas"str
+‡"SN Retirado"str
+¤"Sem. Cadastro"str
+Â	"desde_2"str
+à	"relacao"str
+"Atividade Especial"str
+ˆ"Codigo Localizacao"str
+ ™"SituaÃ§Ã£o de Desvio"str
+±"Data Reprog."str
+Z"Tempo Disp."str
+â"Prioridade EmissÃ£o"str
+„"ExecuÃ§Ã£o Parcial"str
+'Î"setor_emissor_relacionado_1"str
+T"Prazo Limite"str
+%’"Total de ReprogramaÃ§Ãµes"str
+†"LocalizaÃ§Ã£o"str
+!ö"Data de programaÃ§Ã£o"str
+	"NÂº SSA"str
+%Ú"Total Tempo TPO Planejado"str
+"SituaÃ§Ã£o"str
+É"NÂº SSA Rel. 2"str
+N
+"Anomalia"str
+ì0int
+Y"tempo_disponivel"str
+c"Desde"str
+œ"Equipamento"str
+x"Sem. Exec."str
+$"Sem.\nCadastro"str
+ ®"Data InÃ­cio Reprog."str
+–Œ"
+Gerenciador de configuraÃ§Ãµes da aplicaÃ§Ã£o.
+
+ResponsÃ¡vel por carregar, salvar e garantir a existÃªncia do arquivo settings.json.
+"str
+"³"situacao_reprogramacao"str
+o"Tempo TEX Plan."str
+_"tempo_excedido"str
+*Ï "DesativaÃ§Ã£o da localizaÃ§Ã£o"str
+"localizacao_codigo"str
+!°"Data/Hora de Cadastro"str
+ç"NÂº da SSA"str
+¤"Tempo DisponÃ­vel"str
+§"Justificativa"str
+G"responsavel_execucao"str
+"Loc."str
+'Ñ"setor_emissor_relacionado_2"str
+"sn_instalado"str
+·"Total Reprog."str
+*ã "Setor Executor Relacionado (2)"str
+Æ"NÂº SSA Rel. 1"str
+ä
+"NÂº SSA*"str
+ò"Semana Executada"str
+!"Equip."str
+%Ê"Total Tempo TPE Planejado"str
+¡"concluido"str
+]"Data Limite"str
+$ã"Grau Prioridade EmissÃ£o"str
+&˜"desativacao_da_localizacao"str
+ "display_mappings.json"str
+ V"status_execucao_prazo"str
+€"atividade_especial"str
+%è"Total Tempo TPO Executada"str
+>"execucao_simples"str
+´"SituaÃ§Ã£o Reprog."str
+"column_mappings.json"str
+'"Emitida Em"str
+/"setor_executor"str
+‡"Cod. LocalizaÃ§Ã£o"str
+r"Tempo TPO Plan."str
+*™ "DesativaÃ§Ã£o da LocalizaÃ§Ã£o"str
+\"data_limite"str
+Ş"SituaÃ§Ã£o Rel. 2"str
+e"tempo_total"str
+†"sn_retirado"str
+#"semana_cadastro"str
+ "default_settings.json"str
+"8"grau_prioridade_emissao"str
+¯"Data Cadastro"str
+ş"Derivada De"str
+*Ç "NÃºmero da SSA Relacionada (2)"str
+’"Sistema de Origem"str
+&ñ"SituaÃ§Ã£o Relacionada (2)"str
+ø"Status Prazo"str
+i"Desde (1)"str
+$k"total_tempo_tpe_planejado"str
+ª"data_programacao"str
+õ"Status"str
+!Õ"Setor Executor Rel. 1"str
+%¤"total_tempo_tpo_executada"str
+"§"data_inicio_programada"str
+$q"total_tempo_tpo_planejado"str
+°"data_reprogramacao"str
+ ƒ"equipamento_retirado"str
+!–"Descricao da Execucao"str
+Ä"Setor Emissor"str
+¹"situacao_de_desvio"str
+æ"Numero SSA"str
+!Œ"equipamento_instalado"str
+‰	"destino"str
+ "descricao_localizacao"str
+«"Data ProgramaÃ§Ã£o"str
+®"Data de EmissÃ£o"str
+Ú"ServiÃ§o de Origem"str
+)"descricao_ssa"str
+#„"Data de reprogramaÃ§Ã£o"str
+°"Actividad Especial"str
+Ì"Setor Executor"str
+*"DescriÃ§Ã£o da SSA"str
+<"Prior. Planej."str
+Û"SituaÃ§Ã£o Rel. 1"str
+0
+"Executor"str
+P"sistema_origem"str
+§"SN"str
+¢"ConcluÃ­do"str
+ Ò"Setor Emissor Rel. 2"str
+!Ø"Setor Executor Rel. 2"str
+&ş"ResponsÃ¡vel ProgramaÃ§Ã£o"str
+-	"Emissor"str
+"config"str
+(Ô"setor_executor_relacionado_1"str
+%ı"Data inÃ­cio Reprogramada"str
+$Ë"numero_ssa_relacionada_3"str
+l"Tempo TPE Plan."str
+%ê"total_tempo_tpe_executada"str
+¦"sn"str
+›"NÃºmero de Desvios"str
+%ë"Total Tempo TPE Executada"str
+H"Resp. Exec."str
+"İ"situacao_relacionada_2"str
+œ"NÂº de Desvios"str
+"ê"SituaÃ§Ã£o Relacionada"str
+#¶"total_de_reprogramacoes"str
+`"Tempo Excedido"str
+Š	"Destino"str
+z"num_reprogramacoes"str
+"Desc. Loc."str
+M
+"anomalia"str
+#ì"Prioridade Planejamento"str
+$K"DescriÃ§Ã£o da ExecuÃ§Ã£o"str
+'ú"NÃºmero de ReprogramaÃ§Ãµes"str
+º"Descricao da SSA"str
+f"Tempo Total"str
+!œ"InstalaÃ§Ã£o Estimada"str
+b"desde"str
+(×"setor_executor_relacionado_2"str
+$È"numero_ssa_relacionada_2"str
+å"NÂº SSA Original"str
+';"grau_prioridade_planejamento"str
+(í"Grau Prioridade Planejamento"str
+¿"ate_2"str
+5"servico_origem"str
+NoneNoneType
+û"ReprogramaÃ§Ãµes"str
+†"Semana Programada"str
+}"execucao_parcial"str
+“
+"SN Extra"str
+!“"Descricao Localizacao"str
+ö"ExecuÃ§Ã£o Simples"str
+6"Serv. Origem"str
+ „"Equipamento Retirado"str
+¼"ate_1"str
+#â"Total Horas Programadas"str
+9"Prior. EmissÃ£o"str
+%Ò"Total Tempo TEX Planejado"str
+!¨"Justificativa sem APR"str
+’
+"sn_extra"str
+
+"settings.json"str
+"derivada_de"str	élist"¯È&
+$
+ (Dict"?python-unknown?%
+#
+ (Any"?python-unknown?!
+
+ (#"#unknown-value#?
+=
+	 ($logger"
+logging	getLogger:Blogging.Logger(
+&
+ (
+CONFIG_DIR"#id#:Bstr:
+8
+ (I	DEFAULT_SETTINGS_FILE"
+os.pathjoin:7
+5
+ (>USER_SETTINGS_FILE"
+os.pathjoin:
+:
+8
+ (IDISPLAY_MAPPINGS_FILE"
+os.pathjoin:9
+7
+ (GCOLUMN_MAPPINGS_FILE"
+os.pathjoin:>
+<
++ _(DEFAULT_DISPLAY_MAPPINGS"#new-object#Bdict 
+
+ ("	#map-set#: 
+
+ ("	#map-set#: 
+
+ ( "	#map-set#: 
+
+ ( "	#map-set#: 
+
+ ()"	#map-set#: 
+
+ (""	#map-set#: ! 
+
+ ('%"	#map-set#:#$ 
+
+   (!("	#map-set#:&' 
+
+! !('+"	#map-set#:)* 
+
+" "(."	#map-set#:,- 
+
+# #( 1"	#map-set#:/0 
+
+$ $( 4"	#map-set#:23 
+
+% %($7"	#map-set#:56 
+
+& &(/:"	#map-set#:89 
+
+' '(4="	#map-set#:;< 
+
+( (('@"	#map-set#:>? 
+
+) )(,C"	#map-set#:AB 
+
+* *(%F"	#map-set#:DE 
+
++ +()I"	#map-set#:GH 
+
+, ,(1L"	#map-set#:JK 
+
+- -(O"	#map-set#:MN 
+
+. .(#R"	#map-set#:PQ 
+
+/ /("U"	#map-set#:ST 
+
+0 0(0X"	#map-set#:VW 
+
+1 1(%["	#map-set#:YZ 
+
+2 2( ^"	#map-set#:\] 
+
+3 3(&a"	#map-set#:_` 
+
+4 4(d"	#map-set#:bc 
+
+5 5( g"	#map-set#:ef 
+
+6 6(j"	#map-set#:hi 
+
+7 7(2m"	#map-set#:kl 
+
+8 8(2p"	#map-set#:no 
+
+9 9(2s"	#map-set#:qr 
+
+: :(,v"	#map-set#:tu 
+
+; ;($y"	#map-set#:wx 
+
+< <(&|"	#map-set#:z{ 
+
+= =('"	#map-set#:}~#
+!
+> >(.‚"	#map-set#:€#
+!
+? ?(2…"	#map-set#:ƒ„#
+!
+@ @( ˆ"	#map-set#:†‡#
+!
+A A(‹"	#map-set#:‰Š#
+!
+B B(4"	#map-set#:Œ#
+!
+C C("‘"	#map-set#:#
+!
+D D(”"	#map-set#:’“#
+!
+E E(—"	#map-set#:•–#
+!
+F F(>š"	#map-set#:˜™#
+!
+G G(0"	#map-set#:›œ#
+!
+H H( "	#map-set#:Ÿ#
+!
+I I(£"	#map-set#:¡¢#
+!
+J J(2¦"	#map-set#:¤¥#
+!
+K K(1©"	#map-set#:§¨#
+!
+L L(*¬"	#map-set#:ª«#
+!
+M M(5¯"	#map-set#:­®#
+!
+N N((²"	#map-set#:°±#
+!
+O O(0µ"	#map-set#:³´#
+!
+P P(.¸"	#map-set#:¶·#
+!
+Q Q(+»"	#map-set#:¹º#
+!
+R R(¾"	#map-set#:¼½#
+!
+S S(Á"	#map-set#:¿À#
+!
+T T(Ä"	#map-set#:ÂÃ#
+!
+U U(/Ç"	#map-set#:ÅÆ#
+!
+V V(/Ê"	#map-set#:ÈÉ#
+!
+W W(/Í"	#map-set#:ËÌ#
+!
+X X(9Ğ"	#map-set#:ÎÏ#
+!
+Y Y(9Ó"	#map-set#:ÑÒ#
+!
+Z Z(;Ö"	#map-set#:ÔÕ#
+!
+[ [(;Ù"	#map-set#:×Ø#
+!
+\ \(/Ü"	#map-set#:ÚÛ#
+!
+] ](/ß"	#map-set#:İŞ#
+!
+^ ^(â"	#map-set#:àá?
+=
+	b+ ã(ãDEFAULT_COLUMN_MAPPINGS"#new-object#Bdict(
+&
+c i(è"#unknown-value#Blist)
+'
+c i(ê"
+#is-exact#:èéBbool
+
+c i(ë"
+#assume#:ê;
+9
+c i(í"#set-field# __collection_size:èìBint(
+&
+c i(î"#array-add-last#:è)
+'
+c i(ï"#array-add-last#:èä)
+'
+c i(ğ"#array-add-last#:èå)
+'
+c i(ñ"#array-add-last#:èæ)
+'
+c i(ò"#array-add-last#:èç#
+!
+c i(ó"	#map-set#:ãè(
+&
+j n(ö"#unknown-value#Blist)
+'
+j n(÷"
+#is-exact#:öéBbool
+
+j n(ø"
+#assume#:÷;
+9
+j n(ù"#set-field# __collection_size:öìBint(
+&
+j n(ú"#array-add-last#:ö)
+'
+j n(û"#array-add-last#:öô)
+'
+j n(ü"#array-add-last#:öõ#
+!
+j n(ı"	#map-set#:ãö(
+&
+o r(ÿ"#unknown-value#Blist)
+'
+o r(€"
+#is-exact#:ÿéBbool
+
+o r("
+#assume#:€;
+9
+o r(‚"#set-field# __collection_size:ÿìBint(
+&
+o r(ƒ"#array-add-last#:ÿ)
+'
+o r(„"#array-add-last#:ÿş#
+!
+o r(…"	#map-set#:ãÿ(
+&
+s x(‰"#unknown-value#Blist)
+'
+s x(Š"
+#is-exact#:‰éBbool
+
+s x(‹"
+#assume#:Š;
+9
+s x(Œ"#set-field# __collection_size:‰ìBint(
+&
+s x("#array-add-last#:‰)
+'
+s x("#array-add-last#:‰†)
+'
+s x("#array-add-last#:‰‡)
+'
+s x("#array-add-last#:‰ˆ#
+!
+s x(‘"	#map-set#:ã‰(
+&
+y }(”"#unknown-value#Blist)
+'
+y }(•"
+#is-exact#:”éBbool
+
+y }(–"
+#assume#:•;
+9
+y }(—"#set-field# __collection_size:”ìBint(
+&
+y }(˜"#array-add-last#:”)
+'
+y }(™"#array-add-last#:”’)
+'
+y }(š"#array-add-last#:”“#
+!
+y }(›"	#map-set#:ã”)
+'
+	~ ("#unknown-value#Blist*
+(
+	~ ("
+#is-exact#:éBbool 
+
+	~ (Ÿ"
+#assume#:<
+:
+	~ ( "#set-field# __collection_size:ìBint)
+'
+	~ (¡"#array-add-last#:!*
+(
+	~ (¢"#array-add-last#:œ$
+"
+	~ (£"	#map-set#:ã *
+(
+
+‚ †(¦"#unknown-value#Blist+
+)
+
+‚ †(§"
+#is-exact#:¦éBbool!
+
+
+‚ †(¨"
+#assume#:§=
+;
+
+‚ †(©"#set-field# __collection_size:¦ìBint*
+(
+
+‚ †(ª"#array-add-last#:¦$+
+)
+
+‚ †(«"#array-add-last#:¦¤+
+)
+
+‚ †(¬"#array-add-last#:¦¥%
+#
+
+‚ †(­"	#map-set#:ã#¦*
+(
+
+‡ Œ(±"#unknown-value#Blist+
+)
+
+‡ Œ(²"
+#is-exact#:±éBbool!
+
+
+‡ Œ(³"
+#assume#:²=
+;
+
+‡ Œ(´"#set-field# __collection_size:±ìBint*
+(
+
+‡ Œ(µ"#array-add-last#:±'+
+)
+
+‡ Œ(¶"#array-add-last#:±®+
+)
+
+‡ Œ(·"#array-add-last#:±¯+
+)
+
+‡ Œ(¸"#array-add-last#:±°%
+#
+
+‡ Œ(¹"	#map-set#:ã&±*
+(
+
+ ‘(¼"#unknown-value#Blist+
+)
+
+ ‘(½"
+#is-exact#:¼éBbool!
+
+
+ ‘(¾"
+#assume#:½=
+;
+
+ ‘(¿"#set-field# __collection_size:¼ìBint*
+(
+
+ ‘(À"#array-add-last#:¼*+
+)
+
+ ‘(Á"#array-add-last#:¼º+
+)
+
+ ‘(Â"#array-add-last#:¼»%
+#
+
+ ‘(Ã"	#map-set#:ã)¼*
+(
+
+’ •(Å"#unknown-value#Blist+
+)
+
+’ •(Æ"
+#is-exact#:ÅéBbool!
+
+
+’ •(Ç"
+#assume#:Æ=
+;
+
+’ •(È"#set-field# __collection_size:ÅìBint*
+(
+
+’ •(É"#array-add-last#:Å-+
+)
+
+’ •(Ê"#array-add-last#:ÅÄ%
+#
+
+’ •(Ë"	#map-set#:ã,Å*
+(
+
+– ™(Í"#unknown-value#Blist+
+)
+
+– ™(Î"
+#is-exact#:ÍéBbool!
+
+
+– ™(Ï"
+#assume#:Î=
+;
+
+– ™(Ğ"#set-field# __collection_size:ÍìBint*
+(
+
+– ™(Ñ"#array-add-last#:Í0+
+)
+
+– ™(Ò"#array-add-last#:ÍÌ%
+#
+
+– ™(Ó"	#map-set#:ã/Í*
+(
+
+š œ(Ô"#unknown-value#Blist+
+)
+
+š œ(Õ"
+#is-exact#:ÔéBbool!
+
+
+š œ(Ö"
+#assume#:Õ=
+;
+
+š œ(×"#set-field# __collection_size:ÔìBint*
+(
+
+š œ(Ø"#array-add-last#:Ô3%
+#
+
+š œ(Ù"	#map-set#:ã2Ô*
+(
+
+  (Û"#unknown-value#Blist+
+)
+
+  (Ü"
+#is-exact#:ÛéBbool!
+
+
+  (İ"
+#assume#:Ü=
+;
+
+  (Ş"#set-field# __collection_size:ÛìBint*
+(
+
+  (ß"#array-add-last#:Û6+
+)
+
+  (à"#array-add-last#:ÛÚ%
+#
+
+  (á"	#map-set#:ã5Û*
+(
+
+¡ ¥(ä"#unknown-value#Blist+
+)
+
+¡ ¥(å"
+#is-exact#:äéBbool!
+
+
+¡ ¥(æ"
+#assume#:å=
+;
+
+¡ ¥(ç"#set-field# __collection_size:äìBint*
+(
+
+¡ ¥(è"#array-add-last#:ä9+
+)
+
+¡ ¥(é"#array-add-last#:äâ+
+)
+
+¡ ¥(ê"#array-add-last#:äã%
+#
+
+¡ ¥(ë"	#map-set#:ã8ä*
+(
+
+¦$ ª(î"#unknown-value#Blist+
+)
+
+¦$ ª(ï"
+#is-exact#:îéBbool!
+
+
+¦$ ª(ğ"
+#assume#:ï=
+;
+
+¦$ ª(ñ"#set-field# __collection_size:îìBint*
+(
+
+¦$ ª(ò"#array-add-last#:î<+
+)
+
+¦$ ª(ó"#array-add-last#:îì+
+)
+
+¦$ ª(ô"#array-add-last#:îí%
+#
+
+¦ ª(õ"	#map-set#:ã;î*
+(
+
+« ®(÷"#unknown-value#Blist+
+)
+
+« ®(ø"
+#is-exact#:÷éBbool!
+
+
+« ®(ù"
+#assume#:ø=
+;
+
+« ®(ú"#set-field# __collection_size:÷ìBint*
+(
+
+« ®(û"#array-add-last#:÷?+
+)
+
+« ®(ü"#array-add-last#:÷ö%
+#
+
+« ®(ı"	#map-set#:ã>÷*
+(
+
+¯ ²(ÿ"#unknown-value#Blist+
+)
+
+¯ ²(€"
+#is-exact#:ÿéBbool!
+
+
+¯ ²("
+#assume#:€=
+;
+
+¯ ²(‚"#set-field# __collection_size:ÿìBint*
+(
+
+¯ ²(ƒ"#array-add-last#:ÿB+
+)
+
+¯ ²(„"#array-add-last#:ÿş%
+#
+
+¯ ²(…"	#map-set#:ãAÿ*
+(
+
+³ ¶(‡"#unknown-value#Blist+
+)
+
+³ ¶(ˆ"
+#is-exact#:‡éBbool!
+
+
+³ ¶(‰"
+#assume#:ˆ=
+;
+
+³ ¶(Š"#set-field# __collection_size:‡ìBint*
+(
+
+³ ¶(‹"#array-add-last#:‡E+
+)
+
+³ ¶(Œ"#array-add-last#:‡†%
+#
+
+³ ¶("	#map-set#:ãD‡*
+(
+
+· º("#unknown-value#Blist+
+)
+
+· º("
+#is-exact#:éBbool!
+
+
+· º(‘"
+#assume#:=
+;
+
+· º(’"#set-field# __collection_size:ìBint*
+(
+
+· º(“"#array-add-last#:H+
+)
+
+· º(”"#array-add-last#:%
+#
+
+· º(•"	#map-set#:ãG*
+(
+
+» ¾(—"#unknown-value#Blist+
+)
+
+» ¾(˜"
+#is-exact#:—éBbool!
+
+
+» ¾(™"
+#assume#:˜=
+;
+
+» ¾(š"#set-field# __collection_size:—ìBint*
+(
+
+» ¾(›"#array-add-last#:—K+
+)
+
+» ¾(œ"#array-add-last#:—–%
+#
+
+» ¾("	#map-set#:ãJ—*
+(
+
+¿ Á("#unknown-value#Blist+
+)
+
+¿ Á(Ÿ"
+#is-exact#:éBbool!
+
+
+¿ Á( "
+#assume#:Ÿ=
+;
+
+¿ Á(¡"#set-field# __collection_size:ìBint*
+(
+
+¿ Á(¢"#array-add-last#:T%
+#
+
+¿ Á(£"	#map-set#:ãS*
+(
+
+Â Å(¥"#unknown-value#Blist+
+)
+
+Â Å(¦"
+#is-exact#:¥éBbool!
+
+
+Â Å(§"
+#assume#:¦=
+;
+
+Â Å(¨"#set-field# __collection_size:¥ìBint*
+(
+
+Â Å(©"#array-add-last#:¥Z+
+)
+
+Â Å(ª"#array-add-last#:¥¤%
+#
+
+Â Å(«"	#map-set#:ãY¥*
+(
+
+Æ È(¬"#unknown-value#Blist+
+)
+
+Æ È(­"
+#is-exact#:¬éBbool!
+
+
+Æ È(®"
+#assume#:­=
+;
+
+Æ È(¯"#set-field# __collection_size:¬ìBint*
+(
+
+Æ È(°"#array-add-last#:¬]%
+#
+
+Æ È(±"	#map-set#:ã\¬*
+(
+
+É Ë(²"#unknown-value#Blist+
+)
+
+É Ë(³"
+#is-exact#:²éBbool!
+
+
+É Ë(´"
+#assume#:³=
+;
+
+É Ë(µ"#set-field# __collection_size:²ìBint*
+(
+
+É Ë(¶"#array-add-last#:²`%
+#
+
+É Ë(·"	#map-set#:ã_²*
+(
+
+Ì Î(¸"#unknown-value#Blist+
+)
+
+Ì Î(¹"
+#is-exact#:¸éBbool!
+
+
+Ì Î(º"
+#assume#:¹=
+;
+
+Ì Î(»"#set-field# __collection_size:¸ìBint*
+(
+
+Ì Î(¼"#array-add-last#:¸c%
+#
+
+Ì Î(½"	#map-set#:ãb¸*
+(
+
+Ï Ñ(¾"#unknown-value#Blist+
+)
+
+Ï Ñ(¿"
+#is-exact#:¾éBbool!
+
+
+Ï Ñ(À"
+#assume#:¿=
+;
+
+Ï Ñ(Á"#set-field# __collection_size:¾ìBint*
+(
+
+Ï Ñ(Â"#array-add-last#:¾f%
+#
+
+Ï Ñ(Ã"	#map-set#:ãe¾*
+(
+
+Ò Ô(Ä"#unknown-value#Blist+
+)
+
+Ò Ô(Å"
+#is-exact#:ÄéBbool!
+
+
+Ò Ô(Æ"
+#assume#:Å=
+;
+
+Ò Ô(Ç"#set-field# __collection_size:ÄìBint*
+(
+
+Ò Ô(È"#array-add-last#:Äi%
+#
+
+Ò Ô(É"	#map-set#:ãhÄ*
+(
+
+Õ! Ø(Ë"#unknown-value#Blist+
+)
+
+Õ! Ø(Ì"
+#is-exact#:ËéBbool!
+
+
+Õ! Ø(Í"
+#assume#:Ì=
+;
+
+Õ! Ø(Î"#set-field# __collection_size:ËìBint*
+(
+
+Õ! Ø(Ï"#array-add-last#:Ël+
+)
+
+Õ! Ø(Ğ"#array-add-last#:ËÊ%
+#
+
+Õ Ø(Ñ"	#map-set#:ãkË*
+(
+
+Ù! Ü(Ó"#unknown-value#Blist+
+)
+
+Ù! Ü(Ô"
+#is-exact#:ÓéBbool!
+
+
+Ù! Ü(Õ"
+#assume#:Ô=
+;
+
+Ù! Ü(Ö"#set-field# __collection_size:ÓìBint*
+(
+
+Ù! Ü(×"#array-add-last#:Óo+
+)
+
+Ù! Ü(Ø"#array-add-last#:ÓÒ%
+#
+
+Ù Ü(Ù"	#map-set#:ãnÓ*
+(
+
+İ! à(Û"#unknown-value#Blist+
+)
+
+İ! à(Ü"
+#is-exact#:ÛéBbool!
+
+
+İ! à(İ"
+#assume#:Ü=
+;
+
+İ! à(Ş"#set-field# __collection_size:ÛìBint*
+(
+
+İ! à(ß"#array-add-last#:Ûr+
+)
+
+İ! à(à"#array-add-last#:ÛÚ%
+#
+
+İ à(á"	#map-set#:ãqÛ*
+(
+
+á ä(ã"#unknown-value#Blist+
+)
+
+á ä(ä"
+#is-exact#:ãéBbool!
+
+
+á ä(å"
+#assume#:ä=
+;
+
+á ä(æ"#set-field# __collection_size:ãìBint*
+(
+
+á ä(ç"#array-add-last#:ãu+
+)
+
+á ä(è"#array-add-last#:ãâ%
+#
+
+á ä(é"	#map-set#:ãtã*
+(
+
+å! ç(ì"#unknown-value#Blist+
+)
+
+å! ç(í"
+#is-exact#:ìéBbool!
+
+
+å! ç(î"
+#assume#:í=
+;
+
+å! ç(ï"#set-field# __collection_size:ììBint+
+)
+
+å! ç(ğ"#array-add-last#:ìë&
+$
+
+å ç(ñ"	#map-set#:ãêì*
+(
+
+è ë(ó"#unknown-value#Blist+
+)
+
+è ë(ô"
+#is-exact#:óéBbool!
+
+
+è ë(õ"
+#assume#:ô=
+;
+
+è ë(ö"#set-field# __collection_size:óìBint*
+(
+
+è ë(÷"#array-add-last#:óx+
+)
+
+è ë(ø"#array-add-last#:óò%
+#
+
+è ë(ù"	#map-set#:ãwó*
+(
+
+ì ğ(ü"#unknown-value#Blist+
+)
+
+ì ğ(ı"
+#is-exact#:üéBbool!
+
+
+ì ğ(ş"
+#assume#:ı=
+;
+
+ì ğ(ÿ"#set-field# __collection_size:üìBint*
+(
+
+ì ğ(€"#array-add-last#:ü{+
+)
+
+ì ğ("#array-add-last#:üú+
+)
+
+ì ğ(‚"#array-add-last#:üû%
+#
+
+ì ğ(ƒ"	#map-set#:ãzü*
+(
+
+ñ ô(…"#unknown-value#Blist+
+)
+
+ñ ô(†"
+#is-exact#:…éBbool!
+
+
+ñ ô(‡"
+#assume#:†=
+;
+
+ñ ô(ˆ"#set-field# __collection_size:…ìBint*
+(
+
+ñ ô(‰"#array-add-last#:…~+
+)
+
+ñ ô(Š"#array-add-last#:…„%
+#
+
+ñ ô(‹"	#map-set#:ã}…*
+(
+
+õ ÷(Œ"#unknown-value#Blist+
+)
+
+õ ÷("
+#is-exact#:ŒéBbool!
+
+
+õ ÷("
+#assume#:=
+;
+
+õ ÷("#set-field# __collection_size:ŒìBint*
+(
+
+õ ÷("#array-add-last#:ŒN%
+#
+
+õ ÷(‘"	#map-set#:ãMŒ*
+(
+
+ø û(“"#unknown-value#Blist+
+)
+
+ø û(”"
+#is-exact#:“éBbool!
+
+
+ø û(•"
+#assume#:”=
+;
+
+ø û(–"#set-field# __collection_size:“ìBint*
+(
+
+ø û(—"#array-add-last#:“Q+
+)
+
+ø û(˜"#array-add-last#:“’%
+#
+
+ø û(™"	#map-set#:ãP“*
+(
+
+ü €("#unknown-value#Blist+
+)
+
+ü €(Ÿ"
+#is-exact#:éBbool!
+
+
+ü €( "
+#assume#:Ÿ=
+;
+
+ü €(¡"#set-field# __collection_size:ìBint+
+)
+
+ü €(¢"#array-add-last#:›+
+)
+
+ü €(£"#array-add-last#:œ+
+)
+
+ü €(¤"#array-add-last#:&
+$
+
+ü €(¥"	#map-set#:ãš*
+(
+
+ „(©"#unknown-value#Blist+
+)
+
+ „(ª"
+#is-exact#:©éBbool!
+
+
+ „(«"
+#assume#:ª=
+;
+
+ „(¬"#set-field# __collection_size:©ìBint+
+)
+
+ „(­"#array-add-last#:©§+
+)
+
+ „(®"#array-add-last#:©¨&
+$
+
+ „(¯"	#map-set#:ã¦©*
+(
+
+… ‡(±"#unknown-value#Blist+
+)
+
+… ‡(²"
+#is-exact#:±éBbool!
+
+
+… ‡(³"
+#assume#:²=
+;
+
+… ‡(´"#set-field# __collection_size:±ìBint+
+)
+
+… ‡(µ"#array-add-last#:±°&
+$
+
+… ‡(¶"	#map-set#:ã€±*
+(
+
+ˆ Š(·"#unknown-value#Blist+
+)
+
+ˆ Š(¸"
+#is-exact#:·éBbool!
+
+
+ˆ Š(¹"
+#assume#:¸=
+;
+
+ˆ Š(º"#set-field# __collection_size:·ìBint+
+)
+
+ˆ Š(»"#array-add-last#:·„&
+$
+
+ˆ Š(¼"	#map-set#:ãƒ·*
+(
+
+‹ (½"#unknown-value#Blist+
+)
+
+‹ (¾"
+#is-exact#:½éBbool!
+
+
+‹ (¿"
+#assume#:¾=
+;
+
+‹ (À"#set-field# __collection_size:½ìBint+
+)
+
+‹ (Á"#array-add-last#:½Š&
+$
+
+‹ (Â"	#map-set#:ã‰½*
+(
+
+ (Ã"#unknown-value#Blist+
+)
+
+ (Ä"
+#is-exact#:ÃéBbool!
+
+
+ (Å"
+#assume#:Ä=
+;
+
+ (Æ"#set-field# __collection_size:ÃìBint+
+)
+
+ (Ç"#array-add-last#:Ã&
+$
+
+ (È"	#map-set#:ãŒÃ*
+(
+
+‘ “(É"#unknown-value#Blist+
+)
+
+‘ “(Ê"
+#is-exact#:ÉéBbool!
+
+
+‘ “(Ë"
+#assume#:Ê=
+;
+
+‘ “(Ì"#set-field# __collection_size:ÉìBint+
+)
+
+‘ “(Í"#array-add-last#:É–&
+$
+
+‘ “(Î"	#map-set#:ã•É*
+(
+
+”" –(Ğ"#unknown-value#Blist+
+)
+
+”" –(Ñ"
+#is-exact#:ĞéBbool!
+
+
+”" –(Ò"
+#assume#:Ñ=
+;
+
+”" –(Ó"#set-field# __collection_size:ĞìBint+
+)
+
+”" –(Ô"#array-add-last#:ĞÏ&
+$
+
+” –(Õ"	#map-set#:ã˜Ğ*
+(
+
+— ™(Ö"#unknown-value#Blist+
+)
+
+— ™(×"
+#is-exact#:ÖéBbool!
+
+
+— ™(Ø"
+#assume#:×=
+;
+
+— ™(Ù"#set-field# __collection_size:ÖìBint+
+)
+
+— ™(Ú"#array-add-last#:Öœ&
+$
+
+— ™(Û"	#map-set#:ã›Ö*
+(
+
+š œ(Ü"#unknown-value#Blist+
+)
+
+š œ(İ"
+#is-exact#:ÜéBbool!
+
+
+š œ(Ş"
+#assume#:İ=
+;
+
+š œ(ß"#set-field# __collection_size:ÜìBint+
+)
+
+š œ(à"#array-add-last#:ÜŸ&
+$
+
+š œ(á"	#map-set#:ãÜ*
+(
+
+ Ÿ(â"#unknown-value#Blist+
+)
+
+ Ÿ(ã"
+#is-exact#:âéBbool!
+
+
+ Ÿ(ä"
+#assume#:ã=
+;
+
+ Ÿ(å"#set-field# __collection_size:âìBint+
+)
+
+ Ÿ(æ"#array-add-last#:â¢&
+$
+
+ Ÿ(ç"	#map-set#:ã¡â*
+(
+
+ ! ¢(é"#unknown-value#Blist+
+)
+
+ ! ¢(ê"
+#is-exact#:ééBbool!
+
+
+ ! ¢(ë"
+#assume#:ê=
+;
+
+ ! ¢(ì"#set-field# __collection_size:éìBint+
+)
+
+ ! ¢(í"#array-add-last#:éè&
+$
+
+  ¢(î"	#map-set#:ã¤é*
+(
+
+£ ¥(ğ"#unknown-value#Blist+
+)
+
+£ ¥(ñ"
+#is-exact#:ğéBbool!
+
+
+£ ¥(ò"
+#assume#:ñ=
+;
+
+£ ¥(ó"#set-field# __collection_size:ğìBint+
+)
+
+£ ¥(ô"#array-add-last#:ğï&
+$
+
+£ ¥(õ"	#map-set#:ã§ğ*
+(
+
+¦ ¨(÷"#unknown-value#Blist+
+)
+
+¦ ¨(ø"
+#is-exact#:÷éBbool!
+
+
+¦ ¨(ù"
+#assume#:ø=
+;
+
+¦ ¨(ú"#set-field# __collection_size:÷ìBint+
+)
+
+¦ ¨(û"#array-add-last#:÷ö&
+$
+
+¦ ¨(ü"	#map-set#:ãª÷*
+(
+
+©  «(ş"#unknown-value#Blist+
+)
+
+©  «(ÿ"
+#is-exact#:şéBbool!
+
+
+©  «(€"
+#assume#:ÿ=
+;
+
+©  «("#set-field# __collection_size:şìBint+
+)
+
+©  «(‚"#array-add-last#:şı&
+$
+
+© «(ƒ"	#map-set#:ã­ş*
+(
+
+¬ ®(…"#unknown-value#Blist+
+)
+
+¬ ®(†"
+#is-exact#:…éBbool!
+
+
+¬ ®(‡"
+#assume#:†=
+;
+
+¬ ®(ˆ"#set-field# __collection_size:…ìBint+
+)
+
+¬ ®(‰"#array-add-last#:…„&
+$
+
+¬ ®(Š"	#map-set#:ã°…*
+(
+
+¯ ±(Œ"#unknown-value#Blist+
+)
+
+¯ ±("
+#is-exact#:ŒéBbool!
+
+
+¯ ±("
+#assume#:=
+;
+
+¯ ±("#set-field# __collection_size:ŒìBint+
+)
+
+¯ ±("#array-add-last#:Œ‹&
+$
+
+¯ ±(‘"	#map-set#:ã³Œ*
+(
+
+² ´(“"#unknown-value#Blist+
+)
+
+² ´(”"
+#is-exact#:“éBbool!
+
+
+² ´(•"
+#assume#:”=
+;
+
+² ´(–"#set-field# __collection_size:“ìBint+
+)
+
+² ´(—"#array-add-last#:“’&
+$
+
+² ´(˜"	#map-set#:ã¶“*
+(
+
+µ ·(š"#unknown-value#Blist+
+)
+
+µ ·(›"
+#is-exact#:šéBbool!
+
+
+µ ·(œ"
+#assume#:›=
+;
+
+µ ·("#set-field# __collection_size:šìBint+
+)
+
+µ ·("#array-add-last#:š™&
+$
+
+µ ·(Ÿ"	#map-set#:ã¹š*
+(
+
+¸ º( "#unknown-value#Blist+
+)
+
+¸ º(¡"
+#is-exact#: éBbool!
+
+
+¸ º(¢"
+#assume#:¡=
+;
+
+¸ º(£"#set-field# __collection_size: ìBint+
+)
+
+¸ º(¤"#array-add-last#: á&
+$
+
+¸ º(¥"	#map-set#:ãà *
+(
+
+»
+ ½(¨"#unknown-value#Blist+
+)
+
+»
+ ½(©"
+#is-exact#:¨éBbool!
+
+
+»
+ ½(ª"
+#assume#:©=
+;
+
+»
+ ½(«"#set-field# __collection_size:¨ìBint+
+)
+
+»
+ ½(¬"#array-add-last#:¨§&
+$
+
+» ½(­"	#map-set#:ã¦¨*
+(
+
+¾ À(®"#unknown-value#Blist+
+)
+
+¾ À(¯"
+#is-exact#:®éBbool!
+
+
+¾ À(°"
+#assume#:¯=
+;
+
+¾ À(±"#set-field# __collection_size:®ìBint+
+)
+
+¾ À(²"#array-add-last#:®½&
+$
+
+¾ À(³"	#map-set#:ã¼®*
+(
+
+Á Ã(´"#unknown-value#Blist+
+)
+
+Á Ã(µ"
+#is-exact#:´éBbool!
+
+
+Á Ã(¶"
+#assume#:µ=
+;
+
+Á Ã(·"#set-field# __collection_size:´ìBint+
+)
+
+Á Ã(¸"#array-add-last#:´À&
+$
+
+Á Ã(¹"	#map-set#:ã¿´*
+(
+
+Ä Æ(º"#unknown-value#Blist+
+)
+
+Ä Æ(»"
+#is-exact#:ºéBbool!
+
+
+Ä Æ(¼"
+#assume#:»=
+;
+
+Ä Æ(½"#set-field# __collection_size:ºìBint+
+)
+
+Ä Æ(¾"#array-add-last#:ºÃ&
+$
+
+Ä Æ(¿"	#map-set#:ãÂº*
+(
+
+Ç  É(Á"#unknown-value#Blist+
+)
+
+Ç  É(Â"
+#is-exact#:ÁéBbool!
+
+
+Ç  É(Ã"
+#assume#:Â=
+;
+
+Ç  É(Ä"#set-field# __collection_size:ÁìBint+
+)
+
+Ç  É(Å"#array-add-last#:ÁÀ&
+$
+
+Ç É(Æ"	#map-set#:ãÅÁ*
+(
+
+Ê  Ì(È"#unknown-value#Blist+
+)
+
+Ê  Ì(É"
+#is-exact#:ÈéBbool!
+
+
+Ê  Ì(Ê"
+#assume#:É=
+;
+
+Ê  Ì(Ë"#set-field# __collection_size:ÈìBint+
+)
+
+Ê  Ì(Ì"#array-add-last#:ÈÇ&
+$
+
+Ê Ì(Í"	#map-set#:ãÈÈ*
+(
+
+Í# Ï(Ï"#unknown-value#Blist+
+)
+
+Í# Ï(Ğ"
+#is-exact#:ÏéBbool!
+
+
+Í# Ï(Ñ"
+#assume#:Ğ=
+;
+
+Í# Ï(Ò"#set-field# __collection_size:ÏìBint+
+)
+
+Í# Ï(Ó"#array-add-last#:ÏÎ&
+$
+
+Í Ï(Ô"	#map-set#:ãÎÏ*
+(
+
+Ğ# Ò(Ö"#unknown-value#Blist+
+)
+
+Ğ# Ò(×"
+#is-exact#:ÖéBbool!
+
+
+Ğ# Ò(Ø"
+#assume#:×=
+;
+
+Ğ# Ò(Ù"#set-field# __collection_size:ÖìBint+
+)
+
+Ğ# Ò(Ú"#array-add-last#:ÖÕ&
+$
+
+Ğ Ò(Û"	#map-set#:ãÑÖ*
+(
+
+Ó$ Õ(İ"#unknown-value#Blist+
+)
+
+Ó$ Õ(Ş"
+#is-exact#:İéBbool!
+
+
+Ó$ Õ(ß"
+#assume#:Ş=
+;
+
+Ó$ Õ(à"#set-field# __collection_size:İìBint+
+)
+
+Ó$ Õ(á"#array-add-last#:İÜ&
+$
+
+Ó Õ(â"	#map-set#:ãÔİ*
+(
+
+Ö$ Ø(ä"#unknown-value#Blist+
+)
+
+Ö$ Ø(å"
+#is-exact#:äéBbool!
+
+
+Ö$ Ø(æ"
+#assume#:å=
+;
+
+Ö$ Ø(ç"#set-field# __collection_size:äìBint+
+)
+
+Ö$ Ø(è"#array-add-last#:äã&
+$
+
+Ö Ø(é"	#map-set#:ã×ä*
+(
+
+Ù Û(ë"#unknown-value#Blist+
+)
+
+Ù Û(ì"
+#is-exact#:ëéBbool!
+
+
+Ù Û(í"
+#assume#:ì=
+;
+
+Ù Û(î"#set-field# __collection_size:ëìBint+
+)
+
+Ù Û(ï"#array-add-last#:ëê&
+$
+
+Ù Û(ğ"	#map-set#:ãÚë*
+(
+
+Ü Ş(ò"#unknown-value#Blist+
+)
+
+Ü Ş(ó"
+#is-exact#:òéBbool!
+
+
+Ü Ş(ô"
+#assume#:ó=
+;
+
+Ü Ş(õ"#set-field# __collection_size:òìBint+
+)
+
+Ü Ş(ö"#array-add-last#:òñ&
+$
+
+Ü Ş(÷"	#map-set#:ãİò*
+(
+
+ß â(ù"#unknown-value#Blist+
+)
+
+ß â(ú"
+#is-exact#:ùéBbool!
+
+
+ß â(û"
+#assume#:ú=
+;
+
+ß â(ü"#set-field# __collection_size:ùìBint*
+(
+
+ß â(ı"#array-add-last#:ùW+
+)
+
+ß â(ş"#array-add-last#:ùø%
+#
+
+ß â(ÿ"	#map-set#:ãVù'
+%
+å é€%closure"#new-object#,
+*
+å é"#set-field# CONFIG_DIR:€+
+)
+å é‚"?python-partial-apply?:€'
+%
+é €ƒ%closure"#new-object#&
+$
+é €„"#set-field# Dict:ƒ(
+&
+é €…"#set-field# logger:ƒ:
+8
+é €†"&$#set-field# DEFAULT_DISPLAY_MAPPINGS:ƒ+
+)
+é €‡"?python-partial-apply?:ƒ'
+%
+€ Ÿˆ%closure"#new-object#&
+$
+€ Ÿ‰"#set-field# Dict:ˆ(
+&
+€ ŸŠ"#set-field# logger:ˆ:
+8
+€ Ÿ‹"%##set-field# DEFAULT_COLUMN_MAPPINGS:ˆã+
+)
+€ ŸŒ"?python-partial-apply?:ˆ'
+%
+Ÿ ¹%closure"#new-object#&
+$
+Ÿ ¹"#set-field# Dict:%
+#
+Ÿ ¹"#set-field# Any:4
+2
+Ÿ ¹" #set-field# USER_SETTINGS_FILE:(
+&
+Ÿ ¹‘"#set-field# logger:7
+5
+Ÿ ¹’"#!#set-field# DEFAULT_SETTINGS_FILE:	+
+)
+Ÿ ¹“"?python-partial-apply?:'
+%
+¹ É”%closure"#new-object#&
+$
+¹ É•"#set-field# Dict:”%
+#
+¹ É–"#set-field# Any:”4
+2
+¹ É—" #set-field# USER_SETTINGS_FILE:”(
+&
+¹ É˜"#set-field# logger:”+
+)
+¹ É™"?python-partial-apply?:”'
+%
+É ‡š%closure"#new-object#7
+5
+É ‡›"#!#set-field# DEFAULT_SETTINGS_FILE:š	7
+5
+É ‡œ"#!#set-field# DISPLAY_MAPPINGS_FILE:š6
+4
+É ‡"" #set-field# COLUMN_MAPPINGS_FILE:š,
+*
+É ‡"#set-field# CONFIG_DIR:š(
+&
+É ‡Ÿ"#set-field# logger:š:
+8
+É ‡ "&$#set-field# DEFAULT_DISPLAY_MAPPINGS:š:
+8
+É ‡¡"%##set-field# DEFAULT_COLUMN_MAPPINGS:šã+
+)
+É ‡¢"?python-partial-apply?:š *=C:\Users\mauri\git\SSA_Consulta_Rapida\core\config_manager.py

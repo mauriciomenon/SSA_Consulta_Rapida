@@ -1,0 +1,83 @@
+
+1.0PythonFrontend"1769122857006*py2.B˜
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+tests/test_filter_modes.py9
+
+tests.test_filter_modes11
+
+os12
+	
+sys14
+
+core.app_logic16
+!
+tests.test_filter_modes._df18
+<
+6tests.test_filter_modes.test_mixed_terms_and_negatives20
+>
+8tests.test_filter_modes.test_contains_basic_and_negative22
+5
+/tests.test_filter_modes.test_regex_and_fallback24
+;
+5tests.test_filter_modes.test_exact_match_and_negative26
+4
+.tests.test_filter_modes.test_prefix_and_suffix28J
+
+8
+89 jñ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210rN
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (,

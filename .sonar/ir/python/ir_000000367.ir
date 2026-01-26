@@ -1,0 +1,440 @@
+
+q"sugest√µes"str
+32*"  OK Nenhum problema cr√≠tico encontrado"str
+ö5int
+v"  {sugestao}"str
+0"  {issue}"str
+/B&" POSS√çVEIS GARGALOS DE PERFORMANCE:"str
+=ò3"OK C√ìDIGO EM EXCELENTE ESTADO PARA REFINAMENTOS!"str
+="  {warning}"str
+!"../SSA_Consulta_Rapida"str
+
+"3int
+]"  {improvement}"str
+%5"WARN  AVISOS E ATEN√á√ïES:"str
+
+$1int
+%_"  OK C√≥digo bem otimizado"str
+*?!"  OK Nenhum aviso significativo"str
+Iú?"OK C√ìDIGO EM BOM ESTADO ({total_issues} pontos para refinar)"str
+;2"INFO ANALISADOR DE CONTRADI√á√ïES E REFINAMENTOS"str
+ "./SSA_Consulta_Rapida"str
+
+0int
+55int
+2N)"  OK Nenhum gargalo √≥bvio identificado"str
+"."str
+*o!"\nIN {refinement['categoria']}:"str
+'*"ERR PROBLEMAS IDENTIFICADOS:"str
+"="str
+&Q" OPORTUNIDADES DE MELHORIA:"str
+"SSA_Consulta_Rapida"str
+*b!"FIX  SUGEST√ïES DE REFINAMENTO:"str
+L
+"  {perf}"str
+
+&2int
+"gui"str
+"gui_ssa.py"str
+TûJ"WARN  C√ìDIGO PRECISA DE ATEN√á√ÉO ({total_issues} pontos identificados)"str
+,#"Fun√ß√£o principal do analisador."strlist"‰3
+1
+
+˘ ˘(;"
+builtinsprint*:BNoneType'
+%
+
+˙
+ ˙("	#binop *#*2*:3
+1
+
+˙ ˙("
+builtinsprint*:BNoneType0
+.
+
+˚ ˚("
+builtinsprint*BNoneType#
+!
+
+˛ ˛(#	"
+osgetcwdBstr(
+&
+
+˛ ˛($
+"
+os.pathbasename:	,
+*
+
+˛ ˛(="
+#binop !=#2!=:
+Bbool "
+
+˛ ˛(= *
+˛ ˛("è9
+7
+
+ˇ ˇ(Qpossible_paths"#unknown-value#Blist(
+&
+
+ˇ ˇ(Q"
+#is-exact#:Bbool
+
+
+ˇ ˇ(Q"
+#assume#::
+8
+
+ˇ ˇ(Q"#set-field# __collection_size:Bint(
+&
+
+ˇ ˇ(Q"#array-add-last#:(
+&
+
+ˇ ˇ(Q"#array-add-last#:(
+&
+
+ˇ ˇ(Q"#array-add-last#:9
+7
+
+Ä Ä(""
+builtinsiter*:Btyping.Iterator
+
+Ä Ä(""≥P
+N
+
+Ü% Ü(=!issues"6
+tests.analisar_contradictoesanalisar_contradictoes0
+.
+
+Ü Ü(=#issues"#python-unpack#:!"2
+0
+
+Ü Ü(=%warnings"#python-unpack#:!$"6
+4
+
+Ü Ü(='improvements"#python-unpack#:!&"Z
+X
+
+á á(/(performance_issues"4
+tests.analisar_contradictoesanalisar_performanceS
+Q
+
+à à(()refinements"4
+tests.analisar_contradictoessugerir_refinamentos3
+1
+
+ã ã()+"
+builtinsprint*:*BNoneType+
+)
+
+å å(,"
+__bool__*:#BboolH,"*
+
+å å(,	 
+*
+å å(2
+è è("\4
+2
+
+Ä Ä(""
+builtins
+__has_next*:Bbool"" 
+
+Ä Ä(" *
+Ä Ä(H"™.
+,
+
+Å Ü(path"
+builtinsnext*:&
+$
+
+Å Å(E"
+os.pathjoin:,
+*
+
+Å Å(F"
+os.pathexists:Bbool "
+
+Å Å(F *
+Å Å(""@*
+(
+
+Ç Ç( "
+oschdir:BNoneType
+
+É É("""O	9
+7
+
+ç ç(-"
+builtinsiter*:#Btyping.Iterator
+
+ç ç("=
+3
+1
+
+ê ê(83"
+builtinsprint*:2BNoneType"˜*{issues	#{*drefinements	)d*Simprovements	'S$*"Dperformance_issues	(D*7warnings	%74
+2
+
+ç ç(."
+builtins
+__has_next*:-Bbool"" 
+
+ç ç(. *
+ç ç(H"n/
+-
+
+é é(/issue"
+builtinsnext*:-3
+1
+
+é é(1"
+builtinsprint*:0BNoneType""ﬂ*|issues{
+#*erefinementsd
+)*TimprovementsS
+'$*"Eperformance_issuesD
+(*8warnings7
+%0
+.
+
+ë ë(4"
+builtinsprint*BNoneType3
+1
+
+ì ì(%6"
+builtinsprint*:5BNoneType+
+)
+
+î î(9"
+__bool__*:8BboolH,"*
+
+î î(9 *
+î î(2
+ó ó("O9
+7
+
+ï ï(:"
+builtinsiter*:8Btyping.Iterator
+
+ï ï("=3
+1
+
+ò ò(0@"
+builtinsprint*:?BNoneType"˘*Üwarnings8Ü*}issues|}*frefinementsef*UimprovementsTU$*"Fperformance_issuesEF4
+2
+
+ï ï(;"
+builtins
+__has_next*::Bbool"" 
+
+ï ï(; *
+ï ï(H"p1
+/
+
+ñ ñ(!<warning"
+builtinsnext*::3
+1
+
+ñ ñ(!>"
+builtinsprint*:=BNoneType""·*áwarningsÜ8*~issues}|*grefinementsfe*VimprovementsUT$*"Gperformance_issuesFE0
+.
+
+ô ô(A"
+builtinsprint*BNoneType3
+1
+
+õ õ(0C"
+builtinsprint*:BBNoneType+
+)
+
+ú ú(H"
+__bool__*:GBboolH,"*
+
+ú ú(H *
+ú ú(2
+ü ü("O9
+7
+
+ù ù(&I"
+builtinsiter*:GBtyping.Iterator
+
+ù ù(&"=3
+1
+
+† †(7O"
+builtinsprint*:NBNoneType"¸&*$èperformance_issuesGè*àwarningsáà*issues~*hrefinementsgh*WimprovementsVW4
+2
+
+ù ù(&J"
+builtins
+__has_next*:IBbool"" 
+
+ù ù(&J *
+ù ù(H"m.
+,
+
+û û(Kperf"
+builtinsnext*:I3
+1
+
+û û(M"
+builtinsprint*:LBNoneType""Â&*$êperformance_issuesèG*âwarningsàá*Äissues~*irefinementshg*XimprovementsWV0
+.
+
+° °(P"
+builtinsprint*BNoneType3
+1
+
+£ £((R"
+builtinsprint*:QBNoneType+
+)
+
+§ §(Y"
+__bool__*:XBboolH,"*
+
+§ §(Y *
+§ §(2
+ß ß("O9
+7
+
+• •('Z"
+builtinsiter*:XBtyping.Iterator
+
+• •('"=3
+1
+
+® ®(*`"
+builtinsprint*:_BNoneType "‡'*%ëperformance_issuesêë*äwarningsâä*ÅissuesÄÅ*jrefinementsij4
+2
+
+• •('["
+builtins
+__has_next*:ZBbool"" 
+
+• •('[ *
+• •(H"t5
+3
+
+¶ ¶(%\improvement"
+builtinsnext*:Z3
+1
+
+¶ ¶(%^"
+builtinsprint*:]BNoneType" "∫ '*%íperformance_issuesëê*ãwarningsäâ*ÇissuesÅÄ*krefinementsji0
+.
+
+© ©(a"
+builtinsprint*BNoneType3
+1
+
+´ ´(+c"
+builtinsprint*:bBNoneType9
+7
+
+¨ ¨(!l"
+builtinsiter*:kBtyping.Iterator
+
+¨ ¨(!!"¡!'*%ìperformance_issues í&î*åwarnings ã&ç*Éissues Ç&Ñ4
+2
+
+¨ ¨(!m"
+builtins
+__has_next*:lBbool"" 
+
+¨ ¨(!m" #*
+¨ ¨(H"‡"4
+2
+
+≠ ±(n
+refinement"
+builtinsnext*:l3
+1
+
+≠ ≠(1p"
+builtinsprint*:oBNoneType$
+"
+
+Æ Æ(/r"#array-read#:nq9
+7
+
+Æ Æ(/s"
+builtinsiter*:rBtyping.Iterator
+
+Æ Æ(/$"ø#0
+.
+
+± ±(x"
+builtinsprint*BNoneType'
+%
+
+≤
+ ≤(y"	#binop *#*2*:3
+1
+
+≤ ≤(z"
+builtinsprint*:yBNoneType.
+,
+
+µ µ(Ö"
+builtinslen*:ÉBint.
+,
+
+µ! µ(.é"
+builtinslen*:åBint.
+,
+
+µ1 µ(Hï"
+builtinslen*:ìBint<
+:
+
+µ µ(Hñtotal_issues"	#binop +#2+:ÖéïBint.
+,
+
+∂ ∂(ó"
+#binop ==#2==:ñBbool-"+
+
+∂ ∂(ó' (*
+∂ ∂(2
+∏ ∏("¡$'*%îperformance_issues"ì%î*çwarnings"å%ç*Ñissues"É%Ñ4
+2
+
+Æ Æ(/t"
+builtins
+__has_next*:sBbool"" 
+
+Æ Æ(/t% &*
+Æ Æ(H"q%2
+0
+
+Ø Ø("usugestao"
+builtinsnext*:s3
+1
+
+Ø Ø("w"
+builtinsprint*:vBNoneType$"&!"?'5
+3
+
+∑ ∑(Aô"
+builtinsprint*:òBNoneType+"b(/
+-
+
+∏	 ∏(õ"
+#binop <=#2<=:ñöBbool-"+
+
+∏	 ∏(õ) **
+∏ ∏(2
+∫ ∫("?)5
+3
+
+π π(Nù"
+builtinsprint*:úBNoneType+"?*5
+3
+
+ª ª(Wü"
+builtinsprint*:ûBNoneType+"E+.
+,
+
+Ω Ω(†"
+#binop ==#2==:ñBbool
+
+Ω Ω(†*FC:\Users\mauri\git\SSA_Consulta_Rapida\tests\analisar_contradictoes.py

@@ -1,0 +1,71 @@
+
+1.0PythonFrontend"1769122857864*py2.B˜
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_default_filter_mode.py9
+$
+tests.test_default_filter_mode11
+
+interface.cli12
+?
+9tests.test_default_filter_mode.test_default_mode_contains14
+=
+7tests.test_default_filter_mode.test_default_mode_suffix16
+W
+Qtests.test_default_filter_mode.test_marker_overrides_default_mode_negative_suffix18
+<
+6tests.test_default_filter_mode.test_default_mode_regex20
+,
+&tests.test_default_filter_mode.make_df22
+=
+7tests.test_default_filter_mode.test_default_mode_prefix24
+M
+Gtests.test_default_filter_mode.test_default_mode_exact_case_insensitive26J
+
+8
+89 jä
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210r
+
+10131*
+8 (1

@@ -1,0 +1,372 @@
+
+O"grayscale"str
+o"tokyo-night"str
+6"Catppuccin (Mocha)"str
+"Paper"str
+%
+"windows7"str
+_"nord"str
+N"Grayscale"str
+^"Nord"str
+n"Tokyo Night"str
+$"Windows 7"str
+7"catppuccin"str
+
+"Classico"str
+"Mint Light"str
+
+0int
+"solarized-light"str
+"paper"str
+V	"Gruvbox"str
+F	"Dracula"str
+"mint-light"str
+"Solarized Light"str
+f"Solarized Dark"str
+G	"dracula"str
+g"solarized-dark"str
+W	"gruvbox"str
+?"dark"str
+
+"classico"str
+>"Dark"strself
+Ê Ê(	tuple-list"–#*
+(
+
+Ì Ì($"#unknown-value#Btuple(
+&
+
+Ì Ì($"
+#is-exact#:Bbool
+
+
+Ì Ì($"
+#assume#::
+8
+
+Ì Ì($	"#set-field# __collection_size:Bint(
+&
+
+Ì Ì($
+"#array-add-last#:(
+&
+
+Ì Ì($"#array-add-last#:*
+(
+
+Í Í(("#unknown-value#Btuple(
+&
+
+Í Í(("
+#is-exact#:Bbool
+
+
+Í Í(("
+#assume#::
+8
+
+Í Í(("#set-field# __collection_size:Bint(
+&
+
+Í Í(("#array-add-last#:(
+&
+
+Í Í(("#array-add-last#:*
+(
+
+Î Î("#unknown-value#Btuple(
+&
+
+Î Î("
+#is-exact#:Bbool
+
+
+Î Î("
+#assume#::
+8
+
+Î Î("#set-field# __collection_size:Bint(
+&
+
+Î Î("#array-add-last#:(
+&
+
+Î Î("#array-add-last#:*
+(
+
+Ï Ï(2"#unknown-value#Btuple(
+&
+
+Ï Ï(2"
+#is-exact#:Bbool
+
+
+Ï Ï(2 "
+#assume#::
+8
+
+Ï Ï(2!"#set-field# __collection_size:Bint(
+&
+
+Ï Ï(2""#array-add-last#:(
+&
+
+Ï Ï(2#"#array-add-last#:*
+(
+
+Ğ Ğ(%&"#unknown-value#Btuple(
+&
+
+Ğ Ğ(%'"
+#is-exact#:&Bbool
+
+
+Ğ Ğ(%("
+#assume#:':
+8
+
+Ğ Ğ(%)"#set-field# __collection_size:&Bint(
+&
+
+Ğ Ğ(%*"#array-add-last#:&$(
+&
+
+Ğ Ğ(%+"#array-add-last#:&%7
+5
+
+Ë Ñ(	,light_themes"#unknown-value#Blist(
+&
+
+Ë Ñ(	."
+#is-exact#:,-Bbool
+
+
+Ë Ñ(	/"
+#assume#:.:
+8
+
+Ë Ñ(	0"#set-field# __collection_size:,Bint(
+&
+
+Ë Ñ(	1"#array-add-last#:,(
+&
+
+Ë Ñ(	2"#array-add-last#:,(
+&
+
+Ë Ñ(	3"#array-add-last#:,(
+&
+
+Ë Ñ(	4"#array-add-last#:,(
+&
+
+Ë Ñ(	5"#array-add-last#:,&*
+(
+
+Ó Ó(08"#unknown-value#Btuple(
+&
+
+Ó Ó(09"
+#is-exact#:8Bbool
+
+
+Ó Ó(0:"
+#assume#:9:
+8
+
+Ó Ó(0;"#set-field# __collection_size:8Bint(
+&
+
+Ó Ó(0<"#array-add-last#:86(
+&
+
+Ó Ó(0="#array-add-last#:87*
+(
+
+Ô Ô(@"#unknown-value#Btuple(
+&
+
+Ô Ô(A"
+#is-exact#:@Bbool
+
+
+Ô Ô(B"
+#assume#:A:
+8
+
+Ô Ô(C"#set-field# __collection_size:@Bint(
+&
+
+Ô Ô(D"#array-add-last#:@>(
+&
+
+Ô Ô(E"#array-add-last#:@?*
+(
+
+Õ Õ("H"#unknown-value#Btuple(
+&
+
+Õ Õ("I"
+#is-exact#:HBbool
+
+
+Õ Õ("J"
+#assume#:I:
+8
+
+Õ Õ("K"#set-field# __collection_size:HBint(
+&
+
+Õ Õ("L"#array-add-last#:HF(
+&
+
+Õ Õ("M"#array-add-last#:HG*
+(
+
+Ö Ö(&P"#unknown-value#Btuple(
+&
+
+Ö Ö(&Q"
+#is-exact#:PBbool
+
+
+Ö Ö(&R"
+#assume#:Q:
+8
+
+Ö Ö(&S"#set-field# __collection_size:PBint(
+&
+
+Ö Ö(&T"#array-add-last#:PN(
+&
+
+Ö Ö(&U"#array-add-last#:PO*
+(
+
+× ×("X"#unknown-value#Btuple(
+&
+
+× ×("Y"
+#is-exact#:XBbool
+
+
+× ×("Z"
+#assume#:Y:
+8
+
+× ×("["#set-field# __collection_size:XBint(
+&
+
+× ×("\"#array-add-last#:XV(
+&
+
+× ×("]"#array-add-last#:XW*
+(
+
+Ø Ø(`"#unknown-value#Btuple(
+&
+
+Ø Ø(a"
+#is-exact#:`Bbool
+
+
+Ø Ø(b"
+#assume#:a:
+8
+
+Ø Ø(c"#set-field# __collection_size:`Bint(
+&
+
+Ø Ø(d"#array-add-last#:`^(
+&
+
+Ø Ø(e"#array-add-last#:`_*
+(
+
+Ù Ù(0h"#unknown-value#Btuple(
+&
+
+Ù Ù(0i"
+#is-exact#:hBbool
+
+
+Ù Ù(0j"
+#assume#:i:
+8
+
+Ù Ù(0k"#set-field# __collection_size:hBint(
+&
+
+Ù Ù(0l"#array-add-last#:hf(
+&
+
+Ù Ù(0m"#array-add-last#:hg*
+(
+
+Ú Ú(*p"#unknown-value#Btuple(
+&
+
+Ú Ú(*q"
+#is-exact#:pBbool
+
+
+Ú Ú(*r"
+#assume#:q:
+8
+
+Ú Ú(*s"#set-field# __collection_size:pBint(
+&
+
+Ú Ú(*t"#array-add-last#:pn(
+&
+
+Ú Ú(*u"#array-add-last#:po6
+4
+
+Ò Û(	vdark_themes"#unknown-value#Blist(
+&
+
+Ò Û(	w"
+#is-exact#:v-Bbool
+
+
+Ò Û(	x"
+#assume#:w:
+8
+
+Ò Û(	y"#set-field# __collection_size:vBint(
+&
+
+Ò Û(	z"#array-add-last#:v8(
+&
+
+Ò Û(	{"#array-add-last#:v@(
+&
+
+Ò Û(	|"#array-add-last#:vH(
+&
+
+Ò Û(	}"#array-add-last#:vP(
+&
+
+Ò Û(	~"#array-add-last#:vX(
+&
+
+Ò Û(	"#array-add-last#:v`)
+'
+
+Ò Û(	€"#array-add-last#:vh)
+'
+
+Ò Û(	"#array-add-last#:vp+
+)
+
+Ü Ü((‚"#unknown-value#Btuple*
+(
+
+Ü Ü((ƒ"#array-add-last#:‚,*
+(
+
+Ü Ü((„"#array-add-last#:‚v
+
+Ü Ü((‚*5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.py

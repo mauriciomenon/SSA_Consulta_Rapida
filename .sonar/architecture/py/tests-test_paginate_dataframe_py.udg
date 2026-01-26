@@ -1,0 +1,61 @@
+
+1.0PythonFrontend"1769122850082*py2.Bó
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+%
+ tests/test_paginate_dataframe.py9
+#
+tests.test_paginate_dataframe11
+
+	interface12
+:
+4tests.test_paginate_dataframe.test_paginate_empty_df14
+1
++tests.test_paginate_dataframe.collect_pages16
+@
+:tests.test_paginate_dataframe.test_paginate_exact_division18
+?
+9tests.test_paginate_dataframe.test_paginate_page_size_one20
+@
+:tests.test_paginate_dataframe.test_paginate_with_remainder22J
+
+8
+89 j²
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210r
+
+10131*
+8 (*

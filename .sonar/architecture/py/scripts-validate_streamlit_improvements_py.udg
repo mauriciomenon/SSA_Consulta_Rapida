@@ -1,0 +1,156 @@
+
+1.0PythonFrontend"1769122854371*py2.B©
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+/
+*scripts/validate_streamlit_improvements.py9
+%
+validate_streamlit_improvements11
+
+hashlib12
+
+os14
+	
+sys16
+
+
+time18
+
+collections20
+
+core.app_logic22
+
+random24
+
+	traceback26
+H
+Bvalidate_streamlit_improvements.test_cache_with_different_datasets28
+<
+6validate_streamlit_improvements.test_filter_complexity30
+*
+$validate_streamlit_improvements.main32
+F
+@validate_streamlit_improvements.test_streamlit_cache_performance34
+=
+7validate_streamlit_improvements.apply_streamlit_filters36
+;
+5validate_streamlit_improvements.create_test_dataframe38
+7
+1validate_streamlit_improvements.SimpleFilterCache40
+@
+:validate_streamlit_improvements.SimpleFilterCache.__init__42
+;
+5validate_streamlit_improvements.SimpleFilterCache.get44
+;
+5validate_streamlit_improvements.SimpleFilterCache.put46
+E
+?validate_streamlit_improvements.SimpleFilterCache._generate_key48
+A
+;validate_streamlit_improvements.SimpleFilterCache.get_stats50J
+
+8
+89 jæ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35347 210
+
+37
+37367 210
+
+39
+39387 210
+
+41
+41406 210
+
+43
+43427 241
+
+45
+45447 241
+
+47
+47467 241
+
+49
+49487 241
+
+51
+51507 241rÒ
+
+10131*
+8 (
+
+10151*
+8	 	(
+
+
+10171*
+8
+ 
+(
+
+10191*
+8 (
+
+10211*
+8 ($
+
+10231*
+8 (@
+
+10251*
+8z z(
+
+10271*
+8Á Á(

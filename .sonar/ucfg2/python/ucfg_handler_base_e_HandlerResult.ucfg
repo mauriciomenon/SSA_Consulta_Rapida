@@ -1,0 +1,132 @@
+
+core.handler_base.HandlerResultE
+;C:\Users\mauri\git\SSA_Consulta_Rapida\core\handler_base.pyT T("1*Ë
+2] g(k
+i
+h h(.!
+core.handler_base.HandlerResult"	
+success"__id*'
+
+__unknown_file (
+	
+successe
+c
+i i(+!
+core.handler_base.HandlerResult"
+data"__id*$
+
+__unknown_file (
+
+datak
+i
+j j(.!
+core.handler_base.HandlerResult"	
+message"__id*'
+
+__unknown_file (
+	
+messages
+q
+k k(&2!
+core.handler_base.HandlerResult"
+output_text"__id*+
+
+__unknown_file (
+
+output_text*
+4
+5*[
+3
+handler_base.py1/
+o o(
+%2"core.handler_base.HandlerResult"
+o o(
+
+%2*S
+4l l(?
+=
+l l(
+%3"__id*%
+
+__unknown_file (	
+
+stats*
+6*j
+5l l( 
+l l( 
+%4"dict<
+:
+l l( 
+%3"__id*"
+
+__unknown_file (
+
+%4*
+6*{
+6l l( d
+b
+l l( ,!
+core.handler_base.HandlerResult"
+stats"__id*"
+
+__unknown_file (
+
+%3*
+7
+8*V
+7m m( B
+@
+m m( 
+%5"__id*(
+
+__unknown_file (
+
+
+metadata*
+9*j
+8m$ m(&
+m$ m(&
+%6"dict<
+:
+m$ m(&
+%5"__id*"
+
+__unknown_file (
+
+%6*
+9*{
+9m% m(&g
+e
+m m(&/!
+core.handler_base.HandlerResult"
+
+metadata"__id*"
+
+__unknown_file (
+
+%5*
+3*_
+1[ [(1K
+I
+W W(#
+%1"__id*1
+
+__unknown_file (*
+
+pd"
+	DataFrame*
+2:
+V V(	
+success:
+W W(+
+data:
+X X(	
+message:
+Y Y(
+output_text:
+Z Z(.
+stats:
+[ [(1
+
+metadataB#!
+core.handler_base.HandlerResultH

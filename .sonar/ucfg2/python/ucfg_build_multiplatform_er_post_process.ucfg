@@ -1,0 +1,194 @@
+
+5build_multiplatform.MultiPlatformBuilder.post_processS
+GC:\Users\mauri\git\SSA_Consulta_Rapida\launchers\build_multiplatform.py¡ ¡("2*¯
+2
+¬ ¬(/t
+r
+
+√ √(G
+%7"__concat*3
+
+√ √(7%#
+!Pos-processando executaveis para *
+
+√8 √(E
+
+platform_namefd
+
+√ √(H
+%8*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%72info
+
+≈/ ≈(1
+%9"dictìê
+
+≈ ≈(2
+%10*&
+
+__unknown_file (
+
+
+config**
+
+__unknown_file (
+
+post_build*"
+
+__unknown_file (
+
+%92getH
+F
+
+≈ ≈(2
+post_config"__id*#
+
+__unknown_file (
+
+%10s
+q
+
+∆ ∆(%
+%11"__id*V
+
+__unknown_file (:*8*
+(build_multiplatform.MultiPlatformBuilder"
+
+dist_dirvt
+
+∆ ∆(5
+%12*#
+
+__unknown_file (
+
+%11*-
+
+__unknown_file (
+
+platform_name2__truediv__J
+H
+
+∆ ∆(5
+platform_dist"__id*#
+
+__unknown_file (
+
+%12LJ
+
+» »(%
+%13*-
+
+__unknown_file (
+
+platform_dist2exists*
+6
+7*˘
+4
+— —(;œÃ
+
+— —(;
+%1*H
+
+__unknown_file (,*
+(build_multiplatform.MultiPlatformBuilder*-
+
+__unknown_file (
+
+platform_name*-
+
+__unknown_file (
+
+platform_dist2_create_manifest"
+
+” ”(
+
+True*º
+5
+Œ Œ(5•¢
+
+Œ Œ(5
+%2*H
+
+__unknown_file (,*
+(build_multiplatform.MultiPlatformBuilder*-
+
+__unknown_file (
+
+platform_dist2_compress_executables*
+4*’
+6
+Õ Õ(Pòï
+
+Õ Õ(-
+%3*+
+
+__unknown_file (
+
+post_config*(
+
+__unknown_file (
+
+compress*%
+
+__unknown_file (	
+
+False2get†
+ù
+
+Õ2 Õ(P
+%4"	__compare*"
+
+__unknown_file (
+!=*-
+
+__unknown_file (
+
+platform_name*+
+
+__unknown_file (
+macos_arm64*
+4
+5*á
+7
+… …(Mr
+p
+
+… …(L
+%5"__concat*1
+
+… …(<#!
+Diretorio dist nao encontrado: *
+
+…= …(J
+
+platform_distig
+
+… …(M
+%6*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%52warning"
+
+   (	
+
+False:
+
+¡ ¡((
+platform_name:
+
+¡* ¡(0
+configB,*
+(build_multiplatform.MultiPlatformBuilderH

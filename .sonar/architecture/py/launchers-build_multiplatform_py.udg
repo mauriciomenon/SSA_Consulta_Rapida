@@ -1,0 +1,197 @@
+
+1.0PythonFrontend"1769122856899*py2.B‚
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+%
+ launchers/build_multiplatform.py9
+
+build_multiplatform11
+	
+sys12
+
+
+json14
+
+platform16
+
+
+subprocess18
+
+shutil20
+
+argparse22
+
+logging24
+
+datetime26
+
+pathlib28
+
+build_multiplatform.main30
+'
+!build_multiplatform.setup_logging32
+.
+(build_multiplatform.MultiPlatformBuilder34
+<
+6build_multiplatform.MultiPlatformBuilder._load_version36
+7
+1build_multiplatform.MultiPlatformBuilder.__init__38
+D
+>build_multiplatform.MultiPlatformBuilder._compress_executables40
+4
+.build_multiplatform.MultiPlatformBuilder.clean42
+F
+@build_multiplatform.MultiPlatformBuilder.detect_current_platform44
+F
+@build_multiplatform.MultiPlatformBuilder.cleanup_build_artifacts46
+<
+6build_multiplatform.MultiPlatformBuilder.convert_icons48
+O
+Ibuild_multiplatform.MultiPlatformBuilder.cleanup_online_unnecessary_files50
+@
+:build_multiplatform.MultiPlatformBuilder.load_build_config52
+?
+9build_multiplatform.MultiPlatformBuilder.build_executable54
+B
+<build_multiplatform.MultiPlatformBuilder.git_add_commit_push56
+=
+7build_multiplatform.MultiPlatformBuilder.build_platform58
+H
+Bbuild_multiplatform.MultiPlatformBuilder.setup_virtual_environment60
+;
+5build_multiplatform.MultiPlatformBuilder.post_process62
+?
+9build_multiplatform.MultiPlatformBuilder._create_manifest64J
+
+8
+89 j
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35346 210
+
+37
+37367 235
+
+39
+39387 235
+
+41
+41407 235
+
+43
+43427 235
+
+45
+45447 235
+
+47
+47467 235
+
+49
+49487 235
+
+51
+51507 235
+
+53
+53527 235
+
+55
+55547 235
+
+57
+57567 235
+
+59
+59587 235
+
+61
+61607 235
+
+63
+63627 235
+
+65
+65647 235r†
+
+10131*
+8 (
+
+10151*
+8	 	(
+
+10171*
+8
+ 
+(
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 (
+
+10211*
+8 (

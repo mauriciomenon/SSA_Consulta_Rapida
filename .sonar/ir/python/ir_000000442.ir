@@ -1,0 +1,50 @@
+
+èÖ"
+    Retorna a query customizada para mapear colunas corretamente.
+    Usa os nomes de coluna normalizados da tabela atual.
+    "str
+Äˆ"
+    SELECT
+        numero_ssa,
+        situacao,
+        derivada_de,
+        localizacao_codigo,
+        descricao_localizacao,
+        equipamento,
+        semana_cadastro,
+        data_cadastro,
+        descricao_ssa,
+        setor_emissor,
+        setor_executor,
+        solicitante,
+        servico_origem,
+        grau_prioridade_emissao,
+        grau_prioridade_planejamento,
+        execucao_simples,
+        responsavel_programacao,
+        semana_programada,
+        responsavel_execucao,
+        descricao_execucao,
+        id,
+        sistema_origem,
+        prazo_limite,
+        tempo_disponivel,
+        data_limite,
+        tempo_excedido,
+        desde,
+        tempo_total,
+        desde_1,
+        total_tempo_tpe_planejado,
+        total_tempo_tex_planejado,
+        total_tempo_tpo_planejado,
+        total_horas_programadas,
+        execucao_parcial,
+        anomalia,
+        semana_executada,
+        num_reprogramacoes
+    FROM {table_name}
+    "str
+table_name
+Î Î(/"
+
+ ò(*7C:\Users\mauri\git\SSA_Consulta_Rapida\interface\cli.py

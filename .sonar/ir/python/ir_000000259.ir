@@ -1,0 +1,36 @@
+
+"warnings_count"str
+"processed_rows"str
+2)"Retorna estat√≠sticas do processamento."str
+
+"warnings"str
+
+"error_count"str
+"filtered_rows"strselfD D("Ò$
+"
+F L(	"#new-object#Bdict/
+-
+G G(1"#get-field# processed_rows: 
+
+G G(1"	#map-set#:.
+,
+H H(/"#get-field# filtered_rows: 
+
+H H(/	"	#map-set#:,
+*
+I I(+"#get-field# error_count: 
+
+I I(+"	#map-set#:
+)
+'
+J" J(/"#get-field# warnings:*
+(
+J J(0"
+builtinslen*:Bint 
+
+J J(0"	#map-set#:)
+'
+K K(%"#get-field# warnings: 
+
+K K(%"	#map-set#:
+F L(	*;C:\Users\mauri\git\SSA_Consulta_Rapida\core\handler_base.py

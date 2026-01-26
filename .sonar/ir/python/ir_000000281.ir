@@ -1,0 +1,68 @@
+
+
+	0intcols
+Ù Ù(list"‡#
+!
+
+Ú  Ú(+"#unknown-value#2
+0
+
+Ú  Ú(3head"
+#binop in#2in:Bbool,"*
+
+Ú  Ú(3 *
+Ú Ú(2
+Ú4 Ú(8"•#
+!
+
+Ú Ú("#unknown-value#)
+'
+
+Ú Ú("#unknown-value#Blist(
+&
+
+Ú Ú("
+#is-exact#:Bbool
+
+
+Ú Ú("
+#assume#::
+8
+
+Ú Ú(
+"#set-field# __collection_size:	Bint(
+&
+
+Ú Ú("#array-add-last#:
+
+Ú Ú(;"Æ)
+'
+
+Ú9 Ú(;"#unknown-value#Blist(
+&
+
+Ú9 Ú(;"
+#is-exact#:Bbool
+
+
+Ú9 Ú(;"
+#assume#::
+8
+
+Ú9 Ú(;"#set-field# __collection_size:	Bint
+
+Ú Ú(;"ò*head3
+1
+
+Û Û(4body"?python-unknown?:Blist2
+0
+
+Ü Ü(.pin"?python-unknown?:Blist4
+2
+
+Ý Ý(0tail"?python-unknown?:Blist%
+#
+
+Þ Þ( "	#binop +#2+:
+
+Þ Þ( *AC:\Users\mauri\git\SSA_Consulta_Rapida\interface\table_printer.py

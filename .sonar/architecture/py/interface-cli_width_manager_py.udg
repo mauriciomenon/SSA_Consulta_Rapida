@@ -1,0 +1,170 @@
+
+1.0PythonFrontend"1769122852463*py2.BÚ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+#
+interface/cli_width_manager.py9
+!
+interface.cli_width_manager11
+
+os12
+
+
+json14
+
+typing16
+1
++interface.cli_width_manager.CLIWidthManager18
+A
+;interface.cli_width_manager.CLIWidthManager.apply_word_wrap20
+
+
+list22
+	
+str24
+	
+int26
+?
+9interface.cli_width_manager.CLIWidthManager._project_root28
+F
+@interface.cli_width_manager.CLIWidthManager.normalize_ssa_number30
+D
+>interface.cli_width_manager.CLIWidthManager.compute_cli_widths32
+
+
+dict34
+B
+<interface.cli_width_manager.CLIWidthManager._load_gui_config36
+B
+<interface.cli_width_manager.CLIWidthManager.get_column_order38
+:
+4interface.cli_width_manager.CLIWidthManager.__init__40
+C
+=interface.cli_width_manager.CLIWidthManager.get_display_names42
+H
+Binterface.cli_width_manager.CLIWidthManager._load_display_mappings44
+D
+>interface.cli_width_manager.CLIWidthManager._load_cli_priority46J
+
+8
+89 jº
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19186 210
+
+21
+21207 219
+
+23
+23226
+
+25
+25246
+
+27
+27266
+
+29
+29287 219
+
+31
+31307 219
+
+33
+33327 219
+
+35
+35346
+
+37
+37367 219
+
+39
+39387 219
+
+41
+41407 219
+
+43
+43427 219
+
+45
+45447 219
+
+47
+47467 219rª
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8 (-
+
+21233*
+8¹	 ¹(
+
+21254*
+8¹	 ¹(
+
+21274*
+8¹	 ¹(
+
+21254*
+8¹	 ¹(
+
+29253*
+84	 4(
+
+31253*
+8ƒ	 ƒ(
+
+33353*
+8y	 y(
+
+33274*
+8y	 y(
+
+37353*
+87	 7(
+
+39233*
+8S	 S(
+
+43353*
+8p	 p(
+
+45353*
+8I	 I(
+
+47353*
+8@	 @(

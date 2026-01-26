@@ -1,0 +1,34 @@
+
+ª "Escolhe a melhor datetime para um arquivo, priorizando a existente no nome.
+
+    Se nÃ£o houver data no nome, usa mtime; na falta, ctime; senÃ£o None.
+    "str
+
+2int
+
+0int
+
+	1int	file_pathS S()"šO
+M
+X X(5by_name"3
+utils.file_metadataparse_datetime_from_filename:)
+'
+Y Y("
+__bool__*:BboolH"
+Y Y( *Y Y("
+Z Z("à?
+=
+[ [(,mtime"%
+utils.file_metadataget_file_times:-
++
+[ [(,mtime"#python-unpack#:-
++
+[ [(,
+ctime"#python-unpack#:	)
+'
+\ \("
+__bool__*:BboolH"
+\ \( "
+\ \("$*
+
+\ \(*=C:\Users\mauri\git\SSA_Consulta_Rapida\utils\file_metadata.py

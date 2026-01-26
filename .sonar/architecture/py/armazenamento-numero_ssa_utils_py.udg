@@ -1,0 +1,142 @@
+
+1.0PythonFrontend"1769122854458*py2.Bá
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!armazenamento/numero_ssa_utils.py9
+$
+armazenamento.numero_ssa_utils11
+
+
+__future__12
+
+typing14
+
+re16
+
+shared.numero_ssa18
+=
+7armazenamento.numero_ssa_utils.extract_candidate_digits20
+	
+str22
+@
+:armazenamento.numero_ssa_utils.normalize_numero_ssa_strict24
+5
+/armazenamento.numero_ssa_utils.bulk_int_or_none26
+
+
+list28
+
+typing.Iterable30
+;
+5armazenamento.numero_ssa_utils.batch_normalize_series32
+
+pandas.core.series.Series34
+C
+=armazenamento.numero_ssa_utils.normalize_numero_ssa_dataframe36
+!
+pandas.core.frame.DataFrame38
+@
+:armazenamento.numero_ssa_utils._normalize_numero_ssa_value40J
+
+8
+89 jã
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21207 210
+
+23
+23226
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29286
+
+31
+31306
+
+33
+33327 210
+
+35
+35346
+
+37
+37367 210
+
+39
+39386
+
+41
+41407 210r¸
+
+10131*
+8 (#
+
+10151*
+8 (
+
+10171*
+8 (
+
+
+10191*
+8 (:
+
+10191*
+8 (3
+
+21233*
+8\ \(
+
+27293*
+8f f(
+
+27314*
+8f f(
+
+33353*
+8S S(
+
+33354*
+8S S(
+
+37393*
+8j j(#
+
+37394*
+8j j(#

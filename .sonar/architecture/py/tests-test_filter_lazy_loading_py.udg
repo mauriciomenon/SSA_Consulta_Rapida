@@ -1,0 +1,108 @@
+
+1.0PythonFrontend"1769122851972*py2.B°
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_filter_lazy_loading.py9
+$
+tests.test_filter_lazy_loading11
+	
+sys12
+
+pathlib14
+
+inspect16
+
+gui.gui_ssa18
+A
+;tests.test_filter_lazy_loading.TestFilterLazyLoadingMethods20
+X
+Rtests.test_filter_lazy_loading.TestFilterLazyLoadingMethods.test_new_methods_exist22
+[
+Utests.test_filter_lazy_loading.TestFilterLazyLoadingMethods.test_methods_are_callable24
+g
+atests.test_filter_lazy_loading.TestFilterLazyLoadingMethods.test_populate_filter_buffer_signature26
+q
+ktests.test_filter_lazy_loading.TestFilterLazyLoadingMethods.test_update_multiselect_button_has_suffix_param28
+k
+etests.test_filter_lazy_loading.TestFilterLazyLoadingMethods.test_populate_full_filter_cache_signature30
+?
+9tests.test_filter_lazy_loading.TestFilterLogicIntegration32
+`
+Ztests.test_filter_lazy_loading.TestFilterLogicIntegration.test_module_imports_successfully34
+\
+Vtests.test_filter_lazy_loading.TestFilterLogicIntegration.test_class_can_be_referenced36J
+
+8
+89 jÏ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21206 210
+
+23
+23227 221
+
+25
+25247 221
+
+27
+27267 221
+
+29
+29287 221
+
+31
+31307 221
+
+33
+33326 210
+
+35
+35347 233
+
+37
+37367 233r‚
+
+10131*
+8 (
+
+10151*
+8 (
+
+10171*
+8	 	(
+
+10191*
+8 (&
+
+10191*
+8H H( 

@@ -1,0 +1,90 @@
+
+1.0PythonFrontend"1769122856054*py2.B¡
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+#
+tests/test_upsert_behaviors.py9
+!
+tests.test_upsert_behaviors11
+
+os12
+
+armazenamento.database14
+A
+;tests.test_upsert_behaviors.test_upsert_inserts_new_records16
+[
+Utests.test_upsert_behaviors.test_upsert_existing_has_date_new_missing_does_not_update18
+?
+9tests.test_upsert_behaviors.test_upsert_ignore_older_date20
+D
+>tests.test_upsert_behaviors.test_upsert_update_with_newer_date22
+8
+2tests.test_upsert_behaviors.test_upsert_insert_new24
+P
+Jtests.test_upsert_behaviors.test_upsert_existing_missing_date_new_has_date26
+,
+&tests.test_upsert_behaviors._fetch_all28
+@
+:tests.test_upsert_behaviors.test_upsert_both_missing_dates30
+*
+$tests.test_upsert_behaviors._init_db32J
+
+8
+89 j©
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210r4
+
+10131*
+8 (
+
+
+10151*
+8 	('

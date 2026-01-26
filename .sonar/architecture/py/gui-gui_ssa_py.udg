@@ -1,0 +1,1752 @@
+
+1.0PythonFrontend"1769122860847*py2.BöP
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+gui/gui_ssa.py9
+
+gui.gui_ssa11
+
+
+json12
+
+logging14
+
+os16
+
+re18
+
+
+subprocess20
+	
+sys22
+
+collections24
+
+
+time26
+
+utils.version28
+
+core.config_manager30
+
+gui.gui_config32
+
+gui.simple_width_manager34
+
+utils.themes36
+
+utils.robust_logging38
+
+hashlib40
+
+armazenamento.database42
+
+core.app_logic44
+
+utils.formatting46
+
+	PyQt6.sip48
+
+PyQt650
+
+PyQt6.QtCore.QEvent52
+
+PyQt6.QtCore.QPoint54
+
+PyQt6.QtCore.Qt56
+
+PyQt6.QtCore.QThread58
+
+PyQt6.QtCore.QTimer60
+
+PyQt6.QtCore.pyqtSignal62
+
+PyQt6.QtCore64
+
+PyQt6.QtGui.QAction66
+
+PyQt6.QtGui.QFont68
+
+PyQt6.QtGui70
+'
+!PyQt6.QtWidgets.QAbstractItemView72
+"
+PyQt6.QtWidgets.QApplication74
+
+PyQt6.QtWidgets.QCheckBox76
+
+PyQt6.QtWidgets.QComboBox78
+
+PyQt6.QtWidgets.QDialog80
+&
+ PyQt6.QtWidgets.QDialogButtonBox82
+!
+PyQt6.QtWidgets.QFileDialog84
+
+PyQt6.QtWidgets.QFrame86
+!
+PyQt6.QtWidgets.QGridLayout88
+
+PyQt6.QtWidgets.QGroupBox90
+!
+PyQt6.QtWidgets.QHBoxLayout92
+!
+PyQt6.QtWidgets.QHeaderView94
+
+PyQt6.QtWidgets.QLabel96
+
+PyQt6.QtWidgets.QLineEdit98
+"
+PyQt6.QtWidgets.QListWidget100
+&
+PyQt6.QtWidgets.QListWidgetItem102
+"
+PyQt6.QtWidgets.QMainWindow104
+
+PyQt6.QtWidgets.QMenu106
+"
+PyQt6.QtWidgets.QMessageBox108
+#
+PyQt6.QtWidgets.QProgressBar110
+"
+PyQt6.QtWidgets.QPushButton112
+"
+PyQt6.QtWidgets.QScrollArea114
+"
+PyQt6.QtWidgets.QSizePolicy116
+"
+PyQt6.QtWidgets.QSpacerItem118
+
+PyQt6.QtWidgets.QSpinBox120
+#
+PyQt6.QtWidgets.QTableWidget122
+'
+ PyQt6.QtWidgets.QTableWidgetItem124
+!
+PyQt6.QtWidgets.QTabWidget126
+#
+PyQt6.QtWidgets.QTextBrowser128
+ 
+PyQt6.QtWidgets.QTextEdit130
+"
+PyQt6.QtWidgets.QToolButton132
+"
+PyQt6.QtWidgets.QVBoxLayout134
+
+PyQt6.QtWidgets.QWidget136
+$
+PyQt6.QtWidgets.QWidgetAction138
+
+PyQt6.QtWidgets140
+
+gui.cache.FilterCache142
+
+	gui.cache144
++
+$gui.helpers.build_central_widget_qss146
+*
+#gui.helpers.build_global_widget_qss148
+&
+gui.helpers.build_group_box_qss150
+&
+gui.helpers.build_line_edit_qss152
+(
+!gui.helpers.format_search_display154
+!
+gui.helpers.highlight_text156
+,
+%gui.helpers.normalize_chunk_for_parse158
+&
+gui.helpers.normalize_ssa_value160
+
+gui.helpers162
+#
+gui.mixins.FilterGUISSAMixin164
+
+
+gui.mixins166
+&
+gui.widgets.ColumnManagerDialog168
+!
+gui.widgets.ColumnSelector170
+ 
+gui.widgets.DataPaginator172
+#
+gui.widgets.FilterHelpDialog174
+
+gui.widgets176
+&
+gui.widgets.details_tab_manager178
+#
+gui.workers.DataLoaderWorker180
+
+gui.workers.FilterWorker182
+
+gui.workers184
+
+PyQt6.QtGui.QIcon186
+
+datetime188
+
+shared.date_utils190
+%
+gui.workers.data_loader_worker192
+#
+PyQt6.QtWidgets.QInputDialog194
+
+	functools196
+$
+PyQt6.QtWidgets.QStyleFactory198
+'
+ gui.widgets.RescanProgressDialog200
+
+gui.workers.RescanWorker202
+#
+gui.gui_ssa._is_widget_valid204
+
+bool206
+ 
+gui.gui_ssa.SSAMainWindow208
+=
+6gui.gui_ssa.SSAMainWindow._has_active_advanced_filters210
+
+dict212
+,
+%gui.gui_ssa.SSAMainWindow.apply_theme214
+
+
+str216
+9
+2gui.gui_ssa.SSAMainWindow._remove_permanent_filter218
+5
+.gui.gui_ssa.SSAMainWindow._get_series_from_row220
+
+
+int222
+9
+2gui.gui_ssa.SSAMainWindow._on_macro_filter_changed224
+,
+%gui.gui_ssa.SSAMainWindow.eventFilter226
+8
+1gui.gui_ssa.SSAMainWindow._clear_advanced_filters228
+.
+'gui.gui_ssa.SSAMainWindow.copy_row_data230
+
+tuple232
+,
+%gui.gui_ssa.SSAMainWindow.rescan_data234
+5
+.gui.gui_ssa.SSAMainWindow._on_full_data_loaded236
+"
+pandas.core.frame.DataFrame238
+3
+,gui.gui_ssa.SSAMainWindow.on_columns_changed240
+9
+2gui.gui_ssa.SSAMainWindow._on_derivada_has_toggled242
+>
+7gui.gui_ssa.SSAMainWindow._ensure_nonzero_column_widths244
+>
+7gui.gui_ssa.SSAMainWindow._schedule_adv_options_refresh246
+:
+3gui.gui_ssa.SSAMainWindow._get_current_search_terms248
+<
+5gui.gui_ssa.SSAMainWindow._build_column_filters_panel250
+;
+4gui.gui_ssa.SSAMainWindow._restore_last_filter_state252
+?
+8gui.gui_ssa.SSAMainWindow._apply_divisao_to_setor_checks254
+9
+2gui.gui_ssa.SSAMainWindow._open_ssa_in_details_tab256
++
+$gui.gui_ssa.SSAMainWindow.closeEvent258
+6
+/gui.gui_ssa.SSAMainWindow._apply_macos_contrast260
+)
+"gui.gui_ssa.SSAMainWindow.__init__262
+9
+2gui.gui_ssa.SSAMainWindow.show_header_context_menu264
+0
+)gui.gui_ssa.SSAMainWindow._get_theme_keys266
+3
+,gui.gui_ssa.SSAMainWindow._get_theme_catalog268
+.
+'gui.gui_ssa.SSAMainWindow.on_load_error270
+0
+)gui.gui_ssa.SSAMainWindow._highlight_text272
+6
+/gui.gui_ssa.SSAMainWindow._show_derivadas_popup274
+=
+6gui.gui_ssa.SSAMainWindow._on_derivada_all_ste_toggled276
+8
+1gui.gui_ssa.SSAMainWindow._populate_filter_buffer278
+
+NoneType280
+3
+,gui.gui_ssa.SSAMainWindow.initiate_filtering282
+9
+2gui.gui_ssa.SSAMainWindow._sort_responsavel_values284
+1
+*gui.gui_ssa.SSAMainWindow.open_docs_folder286
+2
++gui.gui_ssa.SSAMainWindow.show_context_menu288
+9
+2gui.gui_ssa.SSAMainWindow._sync_multiselect_checks290
+9
+2gui.gui_ssa.SSAMainWindow._run_adv_options_refresh292
+5
+.gui.gui_ssa.SSAMainWindow.display_current_page294
+=
+6gui.gui_ssa.SSAMainWindow._refresh_responsavel_options296
+9
+2gui.gui_ssa.SSAMainWindow._sync_advanced_filter_ui298
+;
+4gui.gui_ssa.SSAMainWindow._compute_gui_column_widths300
+;
+4gui.gui_ssa.SSAMainWindow._debug_print_context_state302
+@
+9gui.gui_ssa.SSAMainWindow._apply_advanced_filters_from_ui304
+=
+6gui.gui_ssa.SSAMainWindow._update_col_filter_indicator306
+0
+)gui.gui_ssa.SSAMainWindow.auto_fit_column308
+2
++gui.gui_ssa.SSAMainWindow._on_buffer_loaded310
+1
+*gui.gui_ssa.SSAMainWindow._sector_sort_key312
+1
+*gui.gui_ssa.SSAMainWindow.show_filter_help314
+I
+Bgui.gui_ssa.SSAMainWindow.on_table_double_click_OLD_DIALOG_VERSION316
+=
+6gui.gui_ssa.SSAMainWindow._refresh_after_filter_change318
+9
+2gui.gui_ssa.SSAMainWindow._collect_divisao_setores320
+4
+-gui.gui_ssa.SSAMainWindow.load_other_database322
+2
++gui.gui_ssa.SSAMainWindow._bind_tab_context324
+:
+3gui.gui_ssa.SSAMainWindow._clear_all_column_filters326
+>
+7gui.gui_ssa.SSAMainWindow._set_safe_width_for_col_index328
+@
+9gui.gui_ssa.SSAMainWindow._calculate_max_chars_for_column330
+9
+2gui.gui_ssa.SSAMainWindow._attach_multiselect_menu332
+9
+2gui.gui_ssa.SSAMainWindow.remove_persistent_filter334
+-
+&gui.gui_ssa.SSAMainWindow.display_data336
+9
+2gui.gui_ssa.SSAMainWindow._collect_highlight_terms338
+*
+#gui.gui_ssa.SSAMainWindow.load_data340
+B
+;gui.gui_ssa.SSAMainWindow._reorganize_advanced_filters_grid342
+<
+5gui.gui_ssa.SSAMainWindow._on_exclude_ste_sca_toggled344
+0
+)gui.gui_ssa.SSAMainWindow._checkbox_value346
+9
+2gui.gui_ssa.SSAMainWindow._export_current_list_txt348
+9
+2gui.gui_ssa.SSAMainWindow._ensure_full_data_loaded350
+:
+3gui.gui_ssa.SSAMainWindow._update_undo_button_state352
+8
+1gui.gui_ssa.SSAMainWindow._update_filters_summary354
+6
+/gui.gui_ssa.SSAMainWindow.on_table_double_click356
+;
+4gui.gui_ssa.SSAMainWindow._on_details_anchor_clicked358
+;
+4gui.gui_ssa.SSAMainWindow._on_header_section_resized360
+;
+4gui.gui_ssa.SSAMainWindow._update_multiselect_button362
+8
+1gui.gui_ssa.SSAMainWindow._apply_advanced_filters364
+0
+)gui.gui_ssa.SSAMainWindow.copy_cell_value366
+2
++gui.gui_ssa.SSAMainWindow.toggle_theme_menu368
+-
+&gui.gui_ssa.SSAMainWindow._jump_to_ssa370
+.
+'gui.gui_ssa.SSAMainWindow._sort_sectors372
+?
+8gui.gui_ssa.SSAMainWindow._update_derivadas_button_state374
+/
+(gui.gui_ssa.SSAMainWindow.on_data_loaded376
+5
+.gui.gui_ssa.SSAMainWindow._save_page_size_pref378
+=
+6gui.gui_ssa.SSAMainWindow._open_add_column_filter_menu380
+7
+0gui.gui_ssa.SSAMainWindow._resolve_startup_theme382
+9
+2gui.gui_ssa.SSAMainWindow._on_full_data_load_error384
+?
+8gui.gui_ssa.SSAMainWindow._cleanup_old_permanent_filters386
+5
+.gui.gui_ssa.SSAMainWindow._clear_filters_dirty388
+<
+5gui.gui_ssa.SSAMainWindow._populate_full_filter_cache390
+6
+/gui.gui_ssa.SSAMainWindow._make_multiselect_box392
+5
+.gui.gui_ssa.SSAMainWindow._format_details_html394
+?
+8gui.gui_ssa.SSAMainWindow._on_adv_sector_exclude_changed396
+A
+:gui.gui_ssa.SSAMainWindow._on_adv_sector_selection_changed398
+4
+-gui.gui_ssa.SSAMainWindow._get_checked_values400
+6
+/gui.gui_ssa.SSAMainWindow.get_ssa_data_provider402
+1
+*gui.gui_ssa.SSAMainWindow.on_load_finished404
+>
+7gui.gui_ssa.SSAMainWindow._build_advanced_filters_panel406
+3
+,gui.gui_ssa.SSAMainWindow._build_tab_content408
+7
+0gui.gui_ssa.SSAMainWindow._get_derivadas_for_ssa410
+8
+1gui.gui_ssa.SSAMainWindow._clear_derivadas_filter412
+:
+3gui.gui_ssa.SSAMainWindow._rebuild_multiselect_menu414
+<
+5gui.gui_ssa.SSAMainWindow._apply_computed_widths_only416
+2
++gui.gui_ssa.SSAMainWindow.on_header_clicked418
+:
+3gui.gui_ssa.SSAMainWindow._normalize_highlight_term420
+(
+!gui.gui_ssa.SSAMainWindow.init_ui422
+?
+8gui.gui_ssa.SSAMainWindow._save_advanced_filters_default424
+-
+&gui.gui_ssa.SSAMainWindow.clear_filter426
+6
+/gui.gui_ssa.SSAMainWindow._start_full_data_load428
+A
+:gui.gui_ssa.SSAMainWindow._refresh_advanced_filter_options430
+<
+5gui.gui_ssa.SSAMainWindow._sync_checks_to_tab_context432
+9
+2gui.gui_ssa.SSAMainWindow._persist_gui_preferences434
+C
+<gui.gui_ssa.SSAMainWindow._recompute_column_widths_on_resize436
+:
+3gui.gui_ssa.SSAMainWindow._update_derivadas_counter438
+7
+0gui.gui_ssa.SSAMainWindow.remove_column_by_index440
+,
+%gui.gui_ssa.SSAMainWindow.resizeEvent442
+:
+3gui.gui_ssa.SSAMainWindow._remove_additional_filter444
+8
+1gui.gui_ssa.SSAMainWindow._apply_permanent_filter446
+0
+)gui.gui_ssa.SSAMainWindow._on_tab_changed448
+:
+3gui.gui_ssa.SSAMainWindow._clear_all_filters_global450
+8
+1gui.gui_ssa.SSAMainWindow._on_search_text_changed452
+5
+.gui.gui_ssa.SSAMainWindow._filter_by_derivadas454
+4
+-gui.gui_ssa.SSAMainWindow._mark_filters_dirty456
+5
+.gui.gui_ssa.SSAMainWindow._force_column_widths458
+>
+7gui.gui_ssa.SSAMainWindow.update_details_from_selection460
+,
+%gui.gui_ssa.SSAMainWindow._parse_week462
+&
+gui.gui_ssa.QItemSelectionModel464
+
+gui.gui_ssa._Sig466
+
+gui.gui_ssa._Sig.connect468
+
+gui.gui_ssa._Sig.emit470
+(
+!gui.gui_ssa.load_display_mappings472J
+
+8
+89 jÛ-
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41405
+
+43
+43425
+
+45
+45445
+
+47
+47465
+
+49
+49485
+
+51
+51505
+
+53
+53525
+
+55
+55545
+
+57
+57565
+
+59
+59585
+
+61
+61605
+
+63
+63625
+
+65
+65645
+
+67
+67665
+
+69
+69685
+
+71
+71705
+
+73
+73725
+
+75
+75745
+
+77
+77765
+
+79
+79785
+
+81
+81805
+
+83
+83825
+
+85
+85845
+
+87
+87865
+
+89
+89885
+
+91
+91905
+
+93
+93925
+
+95
+95945
+
+97
+97965
+
+99
+99985
+
+101
+1011005
+
+103
+1031025
+
+105
+1051045
+
+107
+1071065
+
+109
+1091085
+
+111
+1111105
+
+113
+1131125
+
+115
+1151145
+
+117
+1171165
+
+119
+1191185
+
+121
+1211205
+
+123
+1231225
+
+125
+1251245
+
+127
+1271265
+
+129
+1291285
+
+131
+1311305
+
+133
+1331325
+
+135
+1351345
+
+137
+1371365
+
+139
+1391385
+
+141
+1411405
+
+143
+1431425
+
+145
+1451445
+
+147
+1471465
+
+149
+1491485
+
+151
+1511505
+
+153
+1531525
+
+155
+1551545
+
+157
+1571565
+
+159
+1591585
+
+161
+1611605
+
+163
+1631625
+
+165
+1651645
+
+167
+1671665
+
+169
+1691685
+
+171
+1711705
+
+173
+1731725
+
+175
+1751745
+
+177
+1771765
+
+179
+1791785
+
+181
+1811805
+
+183
+1831825
+
+185
+1851845
+
+187
+1871865
+
+189
+1891885
+
+191
+1911905
+
+193
+1931925
+
+195
+1951945
+
+197
+1971965
+
+199
+1991985
+
+201
+2012005
+
+203
+2032025
+
+205
+2052047 210
+
+207
+2072066
+
+209
+2092086 210
+
+211
+2112107 2209
+
+213
+2132126
+
+215
+2152147 2209
+
+217
+2172166
+
+219
+2192187 2209
+
+221
+2212207 2209
+
+223
+2232226
+
+225
+2252247 2209
+
+227
+2272267 2209
+
+229
+2292287 2209
+
+231
+2312307 2209
+
+233
+2332326
+
+235
+2352347 2209
+
+237
+2372367 2209
+
+239
+2392386
+
+241
+2412407 2209
+
+243
+2432427 2209
+
+245
+2452447 2209
+
+247
+2472467 2209
+
+249
+2492487 2209
+
+251
+2512507 2209
+
+253
+2532527 2209
+
+255
+2552547 2209
+
+257
+2572567 2209
+
+259
+2592587 2209
+
+261
+2612607 2209
+
+263
+2632627 2209
+
+265
+2652647 2209
+
+267
+2672667 2209
+
+269
+2692687 2209
+
+271
+2712707 2209
+
+273
+2732727 2209
+
+275
+2752747 2209
+
+277
+2772767 2209
+
+279
+2792787 2209
+
+281
+2812806
+
+283
+2832827 2209
+
+285
+2852847 2209
+
+287
+2872867 2209
+
+289
+2892887 2209
+
+291
+2912907 2209
+
+293
+2932927 2209
+
+295
+2952947 2209
+
+297
+2972967 2209
+
+299
+2992987 2209
+
+301
+3013007 2209
+
+303
+3033027 2209
+
+305
+3053047 2209
+
+307
+3073067 2209
+
+309
+3093087 2209
+
+311
+3113107 2209
+
+313
+3133127 2209
+
+315
+3153147 2209
+
+317
+3173167 2209
+
+319
+3193187 2209
+
+321
+3213207 2209
+
+323
+3233227 2209
+
+325
+3253247 2209
+
+327
+3273267 2209
+
+329
+3293287 2209
+
+331
+3313307 2209
+
+333
+3333327 2209
+
+335
+3353347 2209
+
+337
+3373367 2209
+
+339
+3393387 2209
+
+341
+3413407 2209
+
+343
+3433427 2209
+
+345
+3453447 2209
+
+347
+3473467 2209
+
+349
+3493487 2209
+
+351
+3513507 2209
+
+353
+3533527 2209
+
+355
+3553547 2209
+
+357
+3573567 2209
+
+359
+3593587 2209
+
+361
+3613607 2209
+
+363
+3633627 2209
+
+365
+3653647 2209
+
+367
+3673667 2209
+
+369
+3693687 2209
+
+371
+3713707 2209
+
+373
+3733727 2209
+
+375
+3753747 2209
+
+377
+3773767 2209
+
+379
+3793787 2209
+
+381
+3813807 2209
+
+383
+3833827 2209
+
+385
+3853847 2209
+
+387
+3873867 2209
+
+389
+3893887 2209
+
+391
+3913907 2209
+
+393
+3933927 2209
+
+395
+3953947 2209
+
+397
+3973967 2209
+
+399
+3993987 2209
+
+401
+4014007 2209
+
+403
+4034027 2209
+
+405
+4054047 2209
+
+407
+4074067 2209
+
+409
+4094087 2209
+
+411
+4114107 2209
+
+413
+4134127 2209
+
+415
+4154147 2209
+
+417
+4174167 2209
+
+419
+4194187 2209
+
+421
+4214207 2209
+
+423
+4234227 2209
+
+425
+4254247 2209
+
+427
+4274267 2209
+
+429
+4294287 2209
+
+431
+4314307 2209
+
+433
+4334327 2209
+
+435
+4354347 2209
+
+437
+4374367 2209
+
+439
+4394387 2209
+
+441
+4414407 2209
+
+443
+4434427 2209
+
+445
+4454447 2209
+
+447
+4474467 2209
+
+449
+4494487 2209
+
+451
+4514507 2209
+
+453
+4534527 2209
+
+455
+4554547 2209
+
+457
+4574567 2209
+
+459
+4594587 2209
+
+461
+4614607 2209
+
+463
+4634627 2209
+
+465
+4654646 210
+
+467
+4674666 210
+
+469
+4694687 2467
+
+471
+4714707 2467
+
+473
+4734727 210rØ)
+
+10131*
+8 (
+
+10151*
+8 (
+
+10171*
+8 (
+
+
+10191*
+8 (
+
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 ($
+
+10271*
+8 (
+
+10291*
+8 (.
+
+10311*
+8+ +(9
+
+10331*
+8. .(0
+
+10351*
+81 3(
+
+10371*
+85 5(G
+
+10391*
+89 9(3
+
+10411*
+8G G(
+
+10431*
+8I I(,
+
+10451*
+8L L(@
+
+10471*
+8M M(G
+
+10491*
+8U U(
+
+10511*
+8U U(
+
+10531*
+8V V($
+
+10551*
+8V& V(,
+
+10571*
+8V. V(0
+
+10591*
+8V2 V(9
+
+10611*
+8V; V(A
+
+10631*
+8VC V(M
+
+10651*
+8V V(M
+
+10671*
+8W W($
+
+10691*
+8W& W(+
+
+10711*
+8W W(+
+
+10731*
+8Y	 Y(
+
+10751*
+8Z	 Z(
+
+10771*
+8[	 [(
+
+10791*
+8\	 \(
+
+10811*
+8]	 ](
+
+10831*
+8^	 ^(
+
+10851*
+8_	 _(
+
+10871*
+8`	 `(
+
+10891*
+8a	 a(
+
+10911*
+8b	 b(
+
+10931*
+8c	 c(
+
+10951*
+8d	 d(
+
+10971*
+8e	 e(
+
+10991*
+8f	 f(
+
+101011*
+8g	 g(
+
+101031*
+8h	 h(
+
+101051*
+8i	 i(
+
+101071*
+8j	 j(
+
+101091*
+8k	 k(
+
+101111*
+8l	 l(
+
+101131*
+8m	 m(
+
+101151*
+8n	 n(
+
+101171*
+8o	 o(
+
+101191*
+8p	 p(
+
+101211*
+8q	 q(
+
+101231*
+8r	 r(
+
+101251*
+8s	 s(
+
+101271*
+8t	 t(
+
+101291*
+8u	 u(
+
+101311*
+8v	 v(
+
+101331*
+8w	 w(
+
+101351*
+8x	 x(
+
+101371*
+8y	 y(
+
+101391*
+8z	 z(
+
+101411*
+8X z(
+
+101431*
+8} }(&
+
+101451*
+8} }(&
+
+101471*
+8	 (!
+
+101491*
+8Ä	 Ä( 
+
+101511*
+8Å	 Å(
+
+101531*
+8Ç	 Ç(
+
+101551*
+8É	 É(
+
+101571*
+8Ñ	 Ñ(
+
+101591*
+8Ö	 Ö("
+
+101611*
+8Ü	 Ü(
+
+101631*
+8~ Ü(
+
+101651*
+8ä ä(-
+
+101671*
+8ä ä(-
+
+101691*
+8å	 å(
+
+101711*
+8ç	 ç(
+
+101731*
+8é	 é(
+
+101751*
+8è	 è(
+
+101771*
+8ã è(
+
+101791*
+8ë í(
+
+101811*
+8ñ ñ(-
+
+101831*
+8ñ/ ñ(;
+
+101851*
+8ñ ñ(;
+
+101871*
+8Ü% Ü(*
+
+10711*
+8Ü Ü(*
+
+101891*
+8∆ ∆(&
+
+10231*
+8◊ ◊(
+
+101891*
+8ÿ ÿ(*
+
+10811*
+8Ï Ï(
+
+10831*
+8Ì Ì(!
+
+101311*
+8Ó Ó(
+
+101351*
+8Ô Ô(
+
+101411*
+8Î Ô(
+
+101911*
+8ê( ê((A
+
+10251*
+8è+	 è+(,
+
+10611*
+8Ã+" Ã+((
+
+10651*
+8Ã+	 Ã+((
+
+101931*
+8⁄+	 ⁄+(D
+
+101951*
+8œ-1 œ-(=
+
+101411*
+8œ- œ-(=
+
+101971*
+8ß.	 ß.(&
+
+10771*
+8©.% ©.(.
+
+101071*
+8©.0 ©.(5
+
+101391*
+8©.7 ©.(D
+
+101411*
+8©.	 ©.(D
+
+10751*
+8∞.) ∞.(5
+
+101411*
+8∞. ∞.(5
+
+101391*
+8î/- î/(:
+
+101411*
+8î/ î/(:
+
+10751*
+8Ÿ/) Ÿ/(5
+
+101991*
+8Ÿ/7 Ÿ/(D
+
+101411*
+8Ÿ/ Ÿ/(D
+
+101951*
+8ˇB% ˇB(1
+
+101411*
+8ˇB	 ˇB(1
+
+101091*
+8ˇC) ˇC(4
+
+101411*
+8ˇC ˇC(4
+
+102011*
+8≥D! ≥D(5
+
+101771*
+8≥D	 ≥D(5
+
+102031*
+8¥D! ¥D(-
+
+101851*
+8¥D	 ¥D(-
+
+2052073*
+8’ ’(
+
+2112073*
+8ç	 ç(%
+
+2112134*
+8ç	 ç(%
+
+2152174*
+8…/	 …/(
+
+2212234*
+8‘:	 ‘:(
+
+2312334*
+8ä=	 ä=(
+
+2372394*
+8Ô+	 Ô+(
+
+2432074*
+8Ï	 Ï(!
+
+2612174*
+8˜2	 ˜2(
+
+2632074*
+8˘	 ˘(
+
+2712174*
+8‡,	 ‡,(
+
+2772074*
+8˙	 ˙(%
+
+2792813*
+8ò*	 ò*( 
+
+2852174*
+8–	 –(!
+
+3012394*
+8é6	 é6(#
+
+3032174*
+8∆	 ∆(#
+
+3052074*
+8Ã	 Ã((
+
+3112394*
+8˘*	 ˘*(
+
+3132174*
+8¿	 ¿(
+
+3252813*
+8ˇ	 ˇ(
+
+3252134*
+8ˇ	 ˇ(
+
+3292234*
+8Ç6	 Ç6(&
+
+3292234*
+8Ç6	 Ç6(&
+
+3312233*
+8”6	 ”6((
+
+3312174*
+8”6	 ”6((
+
+3312234*
+8”6	 ”6((
+
+3432234*
+8ô	 ô(*
+
+3452074*
+8Ö	 Ö($
+
+3472173*
+8’	 ’(
+
+3512073*
+8Æ,	 Æ,(!
+
+3512174*
+8Æ,	 Æ,(!
+
+3612234*
+8Ú6	 Ú6(#
+
+3612234*
+8Ú6	 Ú6(#
+
+3612234*
+8Ú6	 Ú6(#
+
+3632174*
+8¢	 ¢(#
+
+3632174*
+8¢	 ¢(#
+
+3652393*
+8ì'	 ì'( 
+
+3652394*
+8ì'	 ì'( 
+
+3672334*
+8É=	 É=(
+
+3772394*
+8…)	 …)(
+
+3792234*
+8Œ:	 Œ:(
+
+3852174*
+8®,	 ®,(!
+
+3892813*
+8ì*	 ì*(
+
+3912813*
+8≈*	 ≈*($
+
+3912174*
+8≈*	 ≈*($
+
+3932174*
+8’	 ’(
+
+3932174*
+8’	 ’(
+
+3932074*
+8’	 ’(
+
+3972334*
+8ê	 ê('
+
+3992334*
+8Ï	 Ï()
+
+4032174*
+8é)	 é)(
+
+4092133*
+8®		 ®	(
+
+4092174*
+8®		 ®	(
+
+4192234*
+8¸,	 ¸,(
+
+4492813*
+8≈	 ≈(
+
+4492234*
+8≈	 ≈(
+
+4532174*
+8π	 π( 
+
+4572813*
+8é*	 é*(
+
+4632174*
+8…!	 …!(
+
+4692334*
+8† †(
+
+4692134*
+8† †(
+
+4712334*
+8ù ù(
+
+4712134*
+8ù ù(

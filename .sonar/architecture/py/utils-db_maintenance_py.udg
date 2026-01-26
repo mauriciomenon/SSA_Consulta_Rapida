@@ -1,0 +1,248 @@
+
+1.0PythonFrontend"1769122855939*py2.B€	
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+utils/db_maintenance.py9
+
+utils.db_maintenance11
+
+logging12
+
+os14
+
+shutil16
+
+sqlite318
+
+datetime20
+
+pathlib22
+
+typing24
+3
+-utils.db_maintenance.DatabaseMaintenanceError26
+
+	Exception28
+
+utils.db_maintenance.main30
++
+%utils.db_maintenance.DatabaseMigrator32
+E
+?utils.db_maintenance.DatabaseMigrator.migrate_duplicate_columns34
+
+
+dict36
+
+
+bool38
+4
+.utils.db_maintenance.DatabaseMigrator.__init__40
+	
+str42
+>
+8utils.db_maintenance.DatabaseMigrator._execute_migration44
+
+NoneType46
+
+
+list48
++
+%utils.db_maintenance.DatabaseAnalyzer50
+@
+:utils.db_maintenance.DatabaseAnalyzer.perform_sanity_check52
+9
+3utils.db_maintenance.DatabaseAnalyzer.create_backup54
+D
+>utils.db_maintenance.DatabaseAnalyzer._generate_report_content56
+4
+.utils.db_maintenance.DatabaseAnalyzer.__init__58
+C
+=utils.db_maintenance.DatabaseAnalyzer.analyze_table_structure60
+;
+5utils.db_maintenance.DatabaseAnalyzer.generate_report62
+G
+Autils.db_maintenance.DatabaseAnalyzer._identify_duplicate_columns64J
+
+8
+89 j÷
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27266 210
+
+29
+29286
+
+31
+31307 210
+
+33
+33326 210
+
+35
+35347 233
+
+37
+37366
+
+39
+39386
+
+41
+41407 233
+
+43
+43426
+
+45
+45447 233
+
+47
+47466
+
+49
+49486
+
+51
+51506 210
+
+53
+53527 251
+
+55
+55547 251
+
+57
+57567 251
+
+59
+59587 251
+
+61
+61607 251
+
+63
+63627 251
+
+65
+65647 251rÖ
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (*
+
+27292*
+8 (
+
+35373*
+8ü	 ü("
+
+35394*
+8ü	 ü("
+
+41434*
+8ø	 ø(
+
+45473*
+8¦	 ¦(
+
+45494*
+8¦	 ¦(
+
+53373*
+8–	 –(
+
+55433*
+8%	 %(
+
+55434*
+8%	 %(
+
+57433*
+8¤	 ¤(!
+
+57374*
+8¤	 ¤(!
+
+57374*
+8¤	 ¤(!
+
+57434*
+8¤	 ¤(!
+
+59434*
+8"	 "(
+
+61373*
+8<	 <( 
+
+63433*
+8†	 †(
+
+63434*
+8†	 †(
+
+65373*
+8c	 c($
+
+65494*
+8c	 c($
+
+65374*
+8c	 c($

@@ -1,0 +1,193 @@
+
+1.0PythonFrontend"1769122853737*py2.BÅ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+)
+$tests/test_gui_main_configuration.py9
+'
+!tests.test_gui_main_configuration11
+
+
+json12
+
+os14
+	
+sys16
+
+unittest.mock18
+
+gui.gui_config20
+
+core.config_manager22
+&
+ gui.gui_ssa.GUI_MAIN_PREFERENCES24
+
+gui.gui_ssa26
+@
+:tests.test_gui_main_configuration.TestGUIMainConfiguration28
+h
+btests.test_gui_main_configuration.TestGUIMainConfiguration.test_load_gui_main_preferences_fallback30
+b
+\tests.test_gui_main_configuration.TestGUIMainConfiguration.test_gui_main_import_independence32
+f
+`tests.test_gui_main_configuration.TestGUIMainConfiguration.test_gui_main_preferences_file_exists34
+i
+ctests.test_gui_main_configuration.TestGUIMainConfiguration.test_load_gui_main_preferences_structure36
+a
+[tests.test_gui_main_configuration.TestGUIMainConfiguration.test_column_widths_configuration38
+_
+Ytests.test_gui_main_configuration.TestGUIMainConfiguration.test_hidden_columns_validation40
+l
+ftests.test_gui_main_configuration.TestGUIMainConfiguration.test_load_gui_main_preferences_invalid_json42
+m
+gtests.test_gui_main_configuration.TestGUIMainConfiguration.test_gui_main_preferences_isolation_from_cli44
+`
+Ztests.test_gui_main_configuration.TestGUIMainConfiguration.test_display_columns_validation46
+]
+Wtests.test_gui_main_configuration.TestGUIMainConfiguration.test_gui_settings_validation48
+b
+\tests.test_gui_main_configuration.TestGUIMainConfiguration.test_column_display_names_mapping50J
+
+8
+89 jÊ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29286 210
+
+31
+31307 229
+
+33
+33327 229
+
+35
+35347 229
+
+37
+37367 229
+
+39
+39387 229
+
+41
+41407 229
+
+43
+43427 229
+
+45
+45447 229
+
+47
+47467 229
+
+49
+49487 229
+
+51
+51507 229r®
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8 (
+
+10191*
+8	 	(+
+
+10211*
+8 	  (=
+
+10211*
+81 1(A
+
+10211*
+8? ?(E
+
+10231*
+8K	 K(6
+
+10251*
+8L! L(5
+
+10271*
+8L	 L(5
+
+10251*
+8X! X(5
+
+10271*
+8X	 X(5
+
+10251*
+8a! a(5
+
+10271*
+8a	 a(5
+
+10251*
+8k! k(5
+
+10271*
+8k	 k(5
+
+10251*
+8w! w(5
+
+10271*
+8w	 w(5
+
+10251*
+8Ç! Ç(5
+
+10271*
+8Ç	 Ç(5
+
+10211*
+8ô ô(W

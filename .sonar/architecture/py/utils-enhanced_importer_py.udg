@@ -1,0 +1,111 @@
+
+1.0PythonFrontend"1769122856485*py2.B†
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+utils/enhanced_importer.py9
+
+utils.enhanced_importer11
+
+logging12
+
+typing14
+1
++utils.enhanced_importer.EnhancedAMSImporter16
+N
+Hutils.enhanced_importer.EnhancedAMSImporter.import_with_format_detection18
+	
+str20
+?
+9utils.enhanced_importer.EnhancedAMSImporter.detect_format22
+!
+pandas.core.frame.DataFrame24
+O
+Iutils.enhanced_importer.EnhancedAMSImporter._apply_format_transformations26
+:
+4utils.enhanced_importer.EnhancedAMSImporter.__init__28
+F
+@utils.enhanced_importer.EnhancedAMSImporter.safe_column_addition30J
+
+8
+89 j„
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17166 210
+
+19
+19187 217
+
+21
+21206
+
+23
+23227 217
+
+25
+25246
+
+27
+27267 217
+
+29
+29287 217
+
+31
+31307 217rž
+
+10131*
+8 (
+
+10151*
+8	 	(
+
+19214*
+8B	 B(%
+
+23213*
+8 	  (
+
+23254*
+8 	  (
+
+27253*
+8R	 R(&
+
+27254*
+8R	 R(&
+
+27214*
+8R	 R(&
+
+31253*
+83	 3(
+
+31254*
+83	 3(
+
+31254*
+83	 3(

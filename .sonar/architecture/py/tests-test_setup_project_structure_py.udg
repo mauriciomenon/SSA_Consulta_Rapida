@@ -1,0 +1,41 @@
+
+1.0PythonFrontend"1769122856095*py2.B«
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+*
+%tests/test_setup_project_structure.py9
+(
+"tests.test_setup_project_structure11
+#
+utils.setup_project_structure12
+L
+Ftests.test_setup_project_structure.test_setup_project_structure_basics14J
+
+8
+89 jN
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210r
+
+10131*
+8 (*

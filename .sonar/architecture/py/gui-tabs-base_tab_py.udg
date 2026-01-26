@@ -1,0 +1,82 @@
+
+1.0PythonFrontend"1769122856169*py2.Bö
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+gui/tabs/base_tab.py9
+
+gui.tabs.base_tab11
+
+PyQt6.QtWidgets.QWidget12
+!
+PyQt6.QtWidgets.QVBoxLayout14
+
+PyQt6.QtWidgets16
+
+gui.tabs.base_tab.BaseTab18
+0
+*gui.tabs.base_tab.BaseTab.on_tab_activated20
+(
+"gui.tabs.base_tab.BaseTab.setup_ui22
+(
+"gui.tabs.base_tab.BaseTab.__init__24
+2
+,gui.tabs.base_tab.BaseTab.on_tab_deactivated26
+*
+$gui.tabs.base_tab.BaseTab.get_layout28J
+
+8
+89 jñ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19186 210
+
+21
+21207 219
+
+23
+23227 219
+
+25
+25247 219
+
+27
+27267 219
+
+29
+29287 219rN
+
+10131*
+8 ($
+
+10151*
+8& (1
+
+10171*
+8 (1

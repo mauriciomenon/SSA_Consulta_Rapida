@@ -1,0 +1,177 @@
+
+1.0PythonFrontend"1769122852372*py2.B¼
+
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+$
+tests/test_gui_configuration.py9
+"
+tests.test_gui_configuration11
+
+
+json12
+
+os14
+	
+sys16
+
+unittest18
+
+pathlib20
+&
+ gui.gui_ssa.GUI_MAIN_PREFERENCES22
+
+gui.gui_ssa24
+
+
+main26
+7
+1tests.test_gui_configuration.TestGUIConfiguration28
+
+unittest.case.TestCase30
+=
+7tests.test_gui_configuration.TestGUIConfiguration.setUp32
+R
+Ltests.test_gui_configuration.TestGUIConfiguration.test_required_keys_present34
+W
+Qtests.test_gui_configuration.TestGUIConfiguration.test_critical_columns_in_memory36
+T
+Ntests.test_gui_configuration.TestGUIConfiguration.test_configuration_structure38
+U
+Otests.test_gui_configuration.TestGUIConfiguration.test_critical_columns_present40
+N
+Htests.test_gui_configuration.TestGUIConfiguration.test_column_priorities42
+I
+Ctests.test_gui_configuration.TestGUIConfiguration.test_json_loading44
+O
+Itests.test_gui_configuration.TestGUIConfiguration.test_config_file_exists46
+T
+Ntests.test_gui_configuration.TestGUIConfiguration.test_unwanted_columns_hidden48
+O
+Itests.test_gui_configuration.TestGUIConfiguration.test_gui_module_loading50
+M
+Gtests.test_gui_configuration.TestGUIConfiguration.test_cli_independence52
+5
+/tests.test_gui_configuration.print_test_summary54J
+
+8
+89 j’
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29286 210
+
+31
+31306
+
+33
+33327 229
+
+35
+35347 229
+
+37
+37367 229
+
+39
+39387 229
+
+41
+41407 229
+
+43
+43427 229
+
+45
+45447 229
+
+47
+47467 229
+
+49
+49487 229
+
+51
+51507 229
+
+53
+53527 229
+
+55
+55547 210rž
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8	 	(
+
+10191*
+8
+ 
+(
+
+10211*
+8 (
+
+10231*
+8Y% Y(9
+
+10251*
+8Y Y(9
+
+10231*
+8f% f(9
+
+10251*
+8f f(9
+
+10271*
+8r r(
+
+29312*
+8 (

@@ -1,0 +1,43 @@
+
+Gtests.test_gui_configuration.TestGUIConfiguration.test_cli_independenceP
+FC:\Users\mauri\git\SSA_Consulta_Rapida\tests\test_gui_configuration.pyn n("6*?
+3
+test_gui_configuration.py"
+{ {(
+implicit return*ê
+4y y(Di
+g
+y y(C
+%1"__concat*8
+y y(?,*
+(CLI foi afetado pelas mudan√ßas da GUI: *
+y@ y(A
+
+eêç
+y y(D
+%2*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*"
+
+__unknown_file (
+
+%12fail*
+3*Ï
+6r r(‘—
+v v(?
+%3*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*$
+
+__unknown_file (
+
+True*:
+
+__unknown_file (
+CLI carregou sem problemas2
+assertTrue*
+3
+4B53
+1tests.test_gui_configuration.TestGUIConfigurationH

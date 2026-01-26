@@ -1,0 +1,69 @@
+
+Cgui.gui_ssa.SSAMainWindow._rebuild_multiselect_menu._toggle_includeA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.pyê ê(#"2*_
+2
+ë ë(4FD
+
+ë# ë(4
+%4*%
+
+__unknown_file (	
+
+other2	isChecked*
+3
+6*2
+3
+
+gui_ssa.py"
+ò ò(
+implicit return*†
+4
+ð ð(5pn
+
+ð ð(5
+%1*%
+
+__unknown_file (	
+
+other*%
+
+__unknown_file (	
+
+False2blockSignals*
+3*„
+5
+î î(3nl
+
+î î(3
+%2*%
+
+__unknown_file (	
+
+other*%
+
+__unknown_file (	
+
+False2
+setChecked*
+4*…
+6
+ì ì(0om
+
+ì ì(0
+%3*%
+
+__unknown_file (	
+
+other*$
+
+__unknown_file (
+
+True2blockSignals*
+5:
+
+ê$ ê(+	
+checked:
+
+ê- ê(=
+otherB
+gui.gui_ssa.SSAMainWindow

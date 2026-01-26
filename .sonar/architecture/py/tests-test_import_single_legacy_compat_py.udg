@@ -1,0 +1,58 @@
+
+1.0PythonFrontend"1769122857471*py2.BÎ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+.
+)tests/test_import_single_legacy_compat.py9
+,
+&tests.test_import_single_legacy_compat11
+
+
+__future__12
+
+sqlite314
+
+armazenamento.database16
+M
+Gtests.test_import_single_legacy_compat.test_import_single_legacy_compat18J
+
+8
+89 jt
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19187 210rN
+
+10131*
+8 (#
+
+10151*
+8	 	(
+
+10171*
+8 (#

@@ -1,0 +1,92 @@
+
+1.0PythonFrontend"1769122849227*py2.Bê
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+9
+4scripts_manutencao/parar_importacao_e_diagnostico.py9
+$
+parar_importacao_e_diagnostico11
+
+os12
+
+sqlite314
+	
+sys16
+
+
+time18
+
+psutil20
+C
+=parar_importacao_e_diagnostico.find_and_kill_python_processes22
+:
+4parar_importacao_e_diagnostico.check_database_status24
+;
+5parar_importacao_e_diagnostico.check_system_resources26
+)
+#parar_importacao_e_diagnostico.main28J
+
+8
+89 jå
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210r‚
+
+10131*
+8 (
+
+
+10151*
+8 (
+
+10171*
+8	 	(
+
+10191*
+8
+ 
+(
+
+10211*
+8 (

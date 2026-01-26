@@ -1,0 +1,489 @@
+
+q"sugest√µes"str
+v"  {sugestao}"str
++û!"OK C√ìDIGO RELATIVAMENTE LIMPO!"str
+5A,"  OK Nenhuma redund√¢ncia √≥bvia detectada"str
+B™8" C√ìDIGO FRANKENSTEIN MODERADO ({total_issues} pontos)"str
+%8"RUN FUN√á√ïES REDUNDANTES:"str
+!"../SSA_Consulta_Rapida"str
+3
+"  {item}"str
+¢5int
+
+"3int
+
+$1int
+(b"FIX REFATORA√á√ïES SUGERIDAS:"str
+¨"FRANKENSTEIN"str
+@Æ6" C√ìDIGO FRANKENSTEIN SEVERO ({total_issues} pontos)"str
++o""\nIN {refactoring['categoria']}:"str
+ "./SSA_Consulta_Rapida"str
+
+0int
+55int
+"."str
+<53"  OK Nenhum c√≥digo frankenstein √≥bvio detectado"str
+¶"MELHORIAS"str
+®10int
+=4"Executa an√°lise completa de c√≥digo frankenstein."str
+'R"Ô∏è PROBLEMAS ARQUITETURAIS:"str
+/_&"  OK Arquitetura relativamente limpa"str
++-"" C√ìDIGO FRANKENSTEIN DETECTADO:"str
+"="str
+"SSA_Consulta_Rapida"str
+,#" DETECTOR DE C√ìDIGO FRANKENSTEIN"str
+G§="WARN ALGUMAS MELHORIAS NECESS√ÅRIAS ({total_issues} pontos)"str
+$D" PADR√ïES INCONSISTENTES:"str
+g≤]"Recomenda√ß√£o: {'Refatora√ß√£o necess√°ria' if total_issues > 5 else 'Melhorias pontuais'}"str
+
+&2int
+"gui"str
+"gui_ssa.py"str
+3O*"  OK Padr√µes relativamente consistentes"str
+∞"SEVERO"str
+†"LIMPO"strlist"‰3
+1
+
+‹ ‹(-"
+builtinsprint*:BNoneType'
+%
+
+›
+ ›("	#binop *#*2*:3
+1
+
+› ›("
+builtinsprint*:BNoneType0
+.
+
+ﬁ ﬁ("
+builtinsprint*BNoneType#
+!
+
+· ·(#	"
+osgetcwdBstr(
+&
+
+· ·($
+"
+os.pathbasename:	,
+*
+
+· ·(="
+#binop !=#2!=:
+Bbool "
+
+· ·(= *
+· ·("è9
+7
+
+‚ ‚(Qpossible_paths"#unknown-value#Blist(
+&
+
+‚ ‚(Q"
+#is-exact#:Bbool
+
+
+‚ ‚(Q"
+#assume#::
+8
+
+‚ ‚(Q"#set-field# __collection_size:Bint(
+&
+
+‚ ‚(Q"#array-add-last#:(
+&
+
+‚ ‚(Q"#array-add-last#:(
+&
+
+‚ ‚(Q"#array-add-last#:9
+7
+
+„ „(""
+builtinsiter*:Btyping.Iterator
+
+„ „(""øc
+a
+
+È* È(N!frankenstein_code">
+tests.debug_frankenstein"analisar_implementacoes_misturadas;
+9
+
+È È(N#frankenstein_code"#python-unpack#:!"0
+.
+
+È È(N%issues"#python-unpack#:!$"2
+0
+
+È È(N'warnings"#python-unpack#:!&"_
+]
+
+Í Í(8(redundant_functions"8
+tests.debug_frankensteinanalisar_funcoes_redundantes^
+\
+
+Î Î(7)inconsistencies";
+tests.debug_frankensteinanalisar_padroes_inconsistentes^
+\
+
+Ï Ï(7*architectural_issues"6
+tests.debug_frankensteinanalisar_arquitetura_mistaP
+N
+
+Ì Ì()+refactorings"0
+tests.debug_frankensteinsugerir_refatoracoes0
+.
+
+Ô Ô(,"
+builtinsprint*BNoneType3
+1
+
+ (,."
+builtinsprint*:-BNoneType+
+)
+
+Ò Ò(/"
+__bool__*:#BboolH,"*
+
+Ò Ò(/	 
+*
+Ò Ò(2
+Ù Ù("\4
+2
+
+„ „(""
+builtins
+__has_next*:Bbool"" 
+
+„ „(" *
+„ „(H"™.
+,
+
+‰ È(path"
+builtinsnext*:&
+$
+
+‰ ‰(E"
+os.pathjoin:,
+*
+
+‰ ‰(F"
+os.pathexists:Bbool "
+
+‰ ‰(F *
+‰ ‰(""@*
+(
+
+Â Â( "
+oschdir:BNoneType
+
+Ê Ê("""O	9
+7
+
+Ú Ú(%0"
+builtinsiter*:#Btyping.Iterator
+
+Ú Ú(%"=
+3
+1
+
+ı ı(@6"
+builtinsprint*:5BNoneType"ì#*!{frankenstein_code	#{*drefactorings	+d&*$Tarchitectural_issues	*T!*Finconsistencies	)F%*#:redundant_functions	(:4
+2
+
+Ú Ú(%1"
+builtins
+__has_next*:0Bbool"" 
+
+Ú Ú(%1 *
+Ú Ú(H"m.
+,
+
+Û Û(2item"
+builtinsnext*:03
+1
+
+Û Û(4"
+builtinsprint*:3BNoneType""˚#*!|frankenstein_code{
+#*erefactoringsd
++&*$Uarchitectural_issuesT
+*!*GinconsistenciesF
+)%*#;redundant_functions:
+(0
+.
+
+ˆ ˆ(7"
+builtinsprint*BNoneType3
+1
+
+¯ ¯(%9"
+builtinsprint*:8BNoneType+
+)
+
+˘ ˘(<"
+__bool__*:;BboolH,"*
+
+˘ ˘(< *
+˘ ˘(2
+¸ ¸("O9
+7
+
+˙ ˙('="
+builtinsiter*:;Btyping.Iterator
+
+˙ ˙('"=3
+1
+
+˝ ˝(9B"
+builtinsprint*:ABNoneType"ï'*%Üredundant_functions;Ü#*!}frankenstein_code|}*frefactoringsef&*$Varchitectural_issuesUV!*HinconsistenciesGH4
+2
+
+˙ ˙('>"
+builtins
+__has_next*:=Bbool"" 
+
+˙ ˙('> *
+˙ ˙(H"m.
+,
+
+˚ ˚(?item"
+builtinsnext*:=3
+1
+
+˚ ˚(@"
+builtinsprint*:3BNoneType""˝'*%áredundant_functionsÜ;#*!~frankenstein_code}|*grefactoringsfe&*$Warchitectural_issuesVU!*IinconsistenciesHG0
+.
+
+˛ ˛(C"
+builtinsprint*BNoneType3
+1
+
+Ä Ä(%E"
+builtinsprint*:DBNoneType+
+)
+
+Å Å(J"
+__bool__*:IBboolH,"*
+
+Å Å(J *
+Å Å(2
+Ñ Ñ("O9
+7
+
+Ç Ç(#K"
+builtinsiter*:IBtyping.Iterator
+
+Ç Ç(#"=3
+1
+
+Ö Ö(8P"
+builtinsprint*:OBNoneType"ò#*!èinconsistenciesIè(*&àredundant_functionsáà#*!frankenstein_code~*hrefactoringsgh&*$Xarchitectural_issuesWX4
+2
+
+Ç Ç(#L"
+builtins
+__has_next*:KBbool"" 
+
+Ç Ç(#L *
+Ç Ç(H"m.
+,
+
+É É(Mitem"
+builtinsnext*:K3
+1
+
+É É(N"
+builtinsprint*:3BNoneType""Å#*!êinconsistenciesèI(*&âredundant_functionsàá$*"Äfrankenstein_code~*irefactoringshg&*$Yarchitectural_issuesXW0
+.
+
+Ü Ü(Q"
+builtinsprint*BNoneType3
+1
+
+à à('S"
+builtinsprint*:RBNoneType+
+)
+
+â â(Z"
+__bool__*:YBboolH,"*
+
+â â(Z *
+â â(2
+å å("O9
+7
+
+ä ä((["
+builtinsiter*:YBtyping.Iterator
+
+ä ä(("=3
+1
+
+ç ç(5`"
+builtinsprint*:_BNoneType "û(*&ñarchitectural_issuesYñ$*"ëinconsistenciesêë(*&äredundant_functionsâä&*$Åfrankenstein_codeÄÅ*jrefactoringsij4
+2
+
+ä ä((\"
+builtins
+__has_next*:[Bbool"" 
+
+ä ä((\ *
+ä ä(H"m.
+,
+
+ã ã(]item"
+builtinsnext*:[3
+1
+
+ã ã(^"
+builtinsprint*:3BNoneType" "¯ (*&óarchitectural_issuesñY$*"íinconsistenciesëê(*&ãredundant_functionsäâ&*$Çfrankenstein_codeÅÄ*krefactoringsji0
+.
+
+é é(a"
+builtinsprint*BNoneType3
+1
+
+ê ê((c"
+builtinsprint*:bBNoneType9
+7
+
+ë ë(#l"
+builtinsiter*:kBtyping.Iterator
+
+ë ë(#!"ˇ!)*'òarchitectural_issues ó&ô$*"ìinconsistencies í&î(*&åredundant_functions ã&ç&*$Éfrankenstein_code Ç&Ñ4
+2
+
+ë ë(#m"
+builtins
+__has_next*:lBbool"" 
+
+ë ë(#m" #*
+ë ë(H"·"5
+3
+
+í ñ(nrefactoring"
+builtinsnext*:l3
+1
+
+í í(2p"
+builtinsprint*:oBNoneType$
+"
+
+ì ì(0r"#array-read#:nq9
+7
+
+ì ì(0s"
+builtinsiter*:rBtyping.Iterator
+
+ì ì(0$"ï#0
+.
+
+ñ ñ(x"
+builtinsprint*BNoneType'
+%
+
+ó
+ ó(y"	#binop *#*2*:3
+1
+
+ó ó(z"
+builtinsprint*:yBNoneType.
+,
+
+õ õ(Ö"
+builtinslen*:ÉBint.
+,
+
+ú
+ ú("é"
+builtinslen*:åBint.
+,
+
+ù
+ ù(ï"
+builtinslen*:ìBint.
+,
+
+û
+ û(#ö"
+builtinslen*:òBint0
+.
+
+õ û(#õ"	#binop +#2+:ÖéïöBint0
+.
+
+ö ü(útotal_issues"#id#:õBint.
+,
+
+° °(ù"
+#binop ==#2==:úBbool-"+
+
+° °(ù' (*
+° °(2
+§ §("ˇ$)*'ôarchitectural_issues"ò%ô$*"îinconsistencies"ì%î(*&çredundant_functions"å%ç&*$Ñfrankenstein_code"É%Ñ4
+2
+
+ì ì(0t"
+builtins
+__has_next*:sBbool"" 
+
+ì ì(0t% &*
+ì ì(H"q%2
+0
+
+î î("usugestao"
+builtinsnext*:s3
+1
+
+î î("w"
+builtinsprint*:vBNoneType$"&!"m'5
+3
+
+¢ ¢(/ü"
+builtinsprint*:ûBNoneType,
+*
+
+£ £(°severity"#id#:†Bstr-"b(/
+-
+
+§	 §(£"
+#binop <=#2<=:ú¢Bbool-"+
+
+§	 §(£) **
+§ §(2
+ß ß("m)5
+3
+
+• •(L•"
+builtinsprint*:§BNoneType,
+*
+
+¶ ¶(ßseverity"#id#:¶Bstr-"b*/
+-
+
+ß	 ß(©"
+#binop <=#2<=:ú®Bbool-"+
+
+ß	 ß(©+ ,*
+ß ß(2
+™ ™("m+5
+3
+
+® ®(G´"
+builtinsprint*:™BNoneType,
+*
+
+© ©(!≠severity"#id#:¨Bstr-"m,5
+3
+
+´ ´(EØ"
+builtinsprint*:ÆBNoneType,
+*
+
+¨ ¨(±severity"#id#:∞Bstr-"y-+*)¥severity'°)ß+≠,±5
+3
+
+Æ ∞(≥"
+builtinsprint*:≤BNoneType
+
+≤ ≤(¥*BC:\Users\mauri\git\SSA_Consulta_Rapida\tests\debug_frankenstein.py

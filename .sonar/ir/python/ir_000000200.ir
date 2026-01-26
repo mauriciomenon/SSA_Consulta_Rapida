@@ -1,0 +1,40 @@
+
+
+0intcsv_text
+… …(%list"|+
+)
+
+† †("
+__bool__*:BboolH+
+)
+
+† †("#unaryop !#2!:Bbool "
+
+† †( *
+† †("Æ)
+'
+
+‡ ‡("#unknown-value#Blist(
+&
+
+‡ ‡("
+#is-exact#:Bbool
+
+
+‡ ‡("
+#assume#::
+8
+
+‡ ‡(	"#set-field# __collection_size:Bint
+
+‡ ‡("y4
+2
+
+ˆ ˆ(F
+parts"?python-unknown?:Blist-
++
+
+‰ ‰(""?python-unknown?:
+Blist
+
+‰ ‰("*=C:\Users\mauri\git\SSA_Consulta_Rapida\utils\remote_itaipu.py

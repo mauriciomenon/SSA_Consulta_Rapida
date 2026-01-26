@@ -1,0 +1,52 @@
+
+Itests.test_gui_configuration.TestGUIConfiguration.test_config_file_existsP
+FC:\Users\mauri\git\SSA_Consulta_Rapida\tests\test_gui_configuration.py   ("2*ú
+2! !(7|
+z
+# #(
+%1"__id*b
+
+__unknown_file (F*D3
+1tests.test_gui_configuration.TestGUIConfiguration"
+config_path><
+# #(%
+%2*"
+
+__unknown_file (
+
+%12exists|
+z
+$7 $(G
+%3"__id*b
+
+__unknown_file (F*D3
+1tests.test_gui_configuration.TestGUIConfiguration"
+config_pathm
+k
+$ $(I
+%4"__concat*;
+$ $(6/-
++Arquivo de configuraÃ§Ã£o nÃ£o encontrado: *
+$7 $(G
+
+%3º·
+" %(	
+%5*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*"
+
+__unknown_file (
+
+%2*"
+
+__unknown_file (
+
+%42
+assertTrue*
+3*?
+3
+test_gui_configuration.py"
+' '(
+implicit returnB53
+1tests.test_gui_configuration.TestGUIConfigurationH

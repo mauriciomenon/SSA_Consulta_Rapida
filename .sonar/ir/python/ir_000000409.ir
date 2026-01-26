@@ -1,0 +1,27 @@
+
+truebool
+
+"docs_dir"str
+	"db_path"str
+E<"Normaliza e valida caminhos sensiveis antes da importacao."str
+
+falsebooldocs_dirY Y()db_pathY+ Y(7"õ!
+
+^ ^("#unknown-value#Q
+O
+[ a(docs_dir_path"+
+utils.path_safetyensure_path_is_allowed:!
+
+e e(	"#unknown-value#P
+N
+b h(db_path_path"+
+utils.path_safetyensure_path_is_allowed:	
+
+(
+&
+i i(&"#unknown-value#Btuple&
+$
+i i(&"#array-add-last#:&
+$
+i i(&"#array-add-last#:
+i i(&*8C:\Users\mauri\git\SSA_Consulta_Rapida\core\app_logic.py

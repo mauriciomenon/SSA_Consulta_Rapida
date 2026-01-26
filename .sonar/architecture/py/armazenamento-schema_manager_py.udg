@@ -1,0 +1,89 @@
+
+1.0PythonFrontend"1769122855526*py2.Bà
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+$
+armazenamento/schema_manager.py9
+"
+armazenamento.schema_manager11
+
+logging12
+$
+armazenamento.identifier_utils14
+
+sqlite316
+7
+1armazenamento.schema_manager.ensure_columns_exist18
+
+NoneType20
+
+sqlite3.dbapi2.Connection22
+	
+str24
+!
+pandas.core.frame.DataFrame26J
+
+8
+89 j¿
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19187 210
+
+21
+21206
+
+23
+23226
+
+25
+25246
+
+27
+27266r∂
+
+10131*
+8 (
+
+10151*
+8 (2
+
+10171*
+8 (
+
+19213*
+8 (
+
+19234*
+8 (
+
+19254*
+8 (
+
+19274*
+8 (

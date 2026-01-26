@@ -1,0 +1,157 @@
+
+1.0PythonFrontend"1769122856940*py2.B»
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+'
+"tests/test_gui_interaction_real.py9
+%
+tests.test_gui_interaction_real11
+
+os12
+	
+sys14
+
+PyQt6.QtCore.Qt16
+
+PyQt6.QtCore18
+
+PyQt6.QtTest.QTest20
+
+PyQt6.QtTest22
+"
+PyQt6.QtWidgets.QApplication24
+
+PyQt6.QtWidgets.QComboBox26
+!
+PyQt6.QtWidgets.QPushButton28
+ 
+PyQt6.QtWidgets.QTabWidget30
+
+PyQt6.QtWidgets32
+
+gui.gui_ssa34
+F
+@tests.test_gui_interaction_real.test_advanced_filters_components36
+=
+7tests.test_gui_interaction_real.test_search_interaction38
+/
+)tests.test_gui_interaction_real._get_qapp40
+C
+=tests.test_gui_interaction_real.test_clear_button_interaction42
+,
+&tests.test_gui_interaction_real.window44
+:
+4tests.test_gui_interaction_real.test_tab_interaction46J
+
+8
+89 jœ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37367 210
+
+39
+39387 210
+
+41
+41407 210
+
+43
+43427 210
+
+45
+45447 210
+
+47
+47467 210r¸
+
+10131*
+8	 	(
+
+
+10151*
+8
+ 
+(
+
+10171*
+8 (
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 ()
+
+10271*
+8+ (4
+
+10291*
+86 (A
+
+10311*
+8C (M
+
+10331*
+8 (M
+
+10351*
+8 (*

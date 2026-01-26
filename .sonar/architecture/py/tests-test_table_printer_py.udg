@@ -1,0 +1,121 @@
+
+1.0PythonFrontend"1769122850421*py2.B³
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+ 
+tests/test_table_printer.py9
+
+tests.test_table_printer11
+
+os12
+	
+sys14
+
+io16
+
+unittest.mock18
+
+interface.table_printer20
+.
+(tests.test_table_printer.sample_settings22
+C
+=tests.test_table_printer.test_pretty_print_df_empty_dataframe24
+<
+6tests.test_table_printer.test_select_columns_for_width26
+*
+$tests.test_table_printer.display_map28
+6
+0tests.test_table_printer.test_paginate_dataframe30
+9
+3tests.test_table_printer.test_estimate_column_width32
+?
+9tests.test_table_printer.test_pretty_print_df_auto_scroll34
+?
+9tests.test_table_printer.test_pretty_print_df_normal_flow36
+5
+/tests.test_table_printer.test_get_terminal_size38
+/
+)tests.test_table_printer.sample_dataframe40J
+
+8
+89 jû
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210
+
+31
+31307 210
+
+33
+33327 210
+
+35
+35347 210
+
+37
+37367 210
+
+39
+39387 210
+
+41
+41407 210r‚
+
+10131*
+8 (
+
+
+10151*
+8	 	(
+
+10171*
+8
+ 
+(
+
+10191*
+8 (+
+
+10211*
+8 (

@@ -1,0 +1,141 @@
+
+"cli.py"str
+
+"SSA_Consulta_Rapida"str
+
+0int
+W)N"ERR N√£o foi poss√≠vel encontrar o diret√≥rio do projeto SSA_Consulta_Rapida"str
+ "./SSA_Consulta_Rapida"str
+"."str
+65int
+E<"START VALIDADOR DE OTIMIZA√á√ïES CLI - ORDEM DE EXECU√á√ÉO"str
+"truebool
+falsebool
+"="str
+"interface"str
+!"../SSA_Consulta_Rapida"str
+/&"Fun√ß√£o principal do validador CLI."strlist"≤3
+1
+
+ö ö(C"
+builtinsprint*:BNoneType'
+%
+
+õ
+ õ("	#binop *#*2*:3
+1
+
+õ õ("
+builtinsprint*:BNoneType#
+!
+
+û û(#"
+osgetcwdBstr(
+&
+
+û û($	"
+os.pathbasename:,
+*
+
+û û(="
+#binop !=#2!=:	
+Bbool "
+
+û û(= *
+û û("π9
+7
+
+ü ü(Qpossible_paths"#unknown-value#Blist(
+&
+
+ü ü(Q"
+#is-exact#:Bbool
+
+
+ü ü(Q"
+#assume#::
+8
+
+ü ü(Q"#set-field# __collection_size:Bint(
+&
+
+ü ü(Q"#array-add-last#:(
+&
+
+ü ü(Q"#array-add-last#:(
+&
+
+ü ü(Q"#array-add-last#:(
+&
+
+° °(found"#id#:Bbool9
+7
+
+¢ ¢(""
+builtinsiter*:Btyping.Iterator
+
+¢ ¢(""ˇW
+U
+
+Ø Ø(++	resultado":
+tests.validar_otimizacoes_cliverificar_otimizacoes_cliF
+D
+
+∞ ∞(,"4
+tests.validar_otimizacoes_cliexibir_metricas_cliH
+F
+
+± ±(-"6
+tests.validar_otimizacoes_cliexibir_comparacao_cli
+
+≥ ≥(+"u*$found&4
+2
+
+¢ ¢(""
+builtins
+__has_next*:Bbool"" 
+
+¢ ¢(" *
+¢ ¢(H"™.
+,
+
+£ ®(path"
+builtinsnext*:&
+$
+
+£ £(G"
+os.pathjoin:,
+*
+
+£ £(H "
+os.pathexists:Bbool "
+
+£ £(H  *
+£ £("j*'found$#+
+)
+
+® ®(("#unaryop !#2!:'Bbool "
+
+® ®((	 
+*
+® ®(
+"j*
+(
+
+§ §(!"
+oschdir:BNoneType(
+&
+
+• •(#found"#id#:"Bbool
+
+¶ ¶("!*&found$%"-#
+!
+
+® ®(%"#unknown-value#"I	3
+1
+
+© ´(*"
+builtinsprint*:)BNoneType
+
+¨ ¨("
+*GC:\Users\mauri\git\SSA_Consulta_Rapida\tests\validar_otimizacoes_cli.py

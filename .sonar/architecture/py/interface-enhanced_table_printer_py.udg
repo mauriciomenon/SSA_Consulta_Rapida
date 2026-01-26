@@ -1,0 +1,322 @@
+
+1.0PythonFrontend"1769122852434*py2.Bç
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+(
+#interface/enhanced_table_printer.py9
+&
+ interface.enhanced_table_printer11
+
+typing12
+
+os14
+	
+sys16
+
+
+math18
+
+logging20
+
+builtins22
+
+tabulate24
+!
+interface.cli_width_manager26
+
+utils.formatting28
+
+re30
+?
+9interface.enhanced_table_printer.pretty_print_df_enhanced32
+
+
+dict34
+!
+pandas.core.frame.DataFrame36
+	
+int38
+H
+Binterface.enhanced_table_printer.format_dataframe_for_cli_enhanced40
+	
+str42
+;
+5interface.enhanced_table_printer.EnhancedTablePrinter44
+H
+Binterface.enhanced_table_printer.EnhancedTablePrinter._format_cell46
+P
+Jinterface.enhanced_table_printer.EnhancedTablePrinter._apply_default_order48
+T
+Ninterface.enhanced_table_printer.EnhancedTablePrinter.print_dataframe_enhanced50
+M
+Ginterface.enhanced_table_printer.EnhancedTablePrinter._render_paginated52
+D
+>interface.enhanced_table_printer.EnhancedTablePrinter.__init__54
+M
+Ginterface.enhanced_table_printer.EnhancedTablePrinter.get_terminal_size56
+O
+Iinterface.enhanced_table_printer.EnhancedTablePrinter._apply_highlighting58
+
+
+list60
+I
+Cinterface.enhanced_table_printer.EnhancedTablePrinter._clamp_widths62
+V
+Pinterface.enhanced_table_printer.EnhancedTablePrinter._apply_formatting_and_wrap64
+Q
+Kinterface.enhanced_table_printer.EnhancedTablePrinter._select_columns_smart66J
+
+8
+89 jÑ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33327 210
+
+35
+35346
+
+37
+37366
+
+39
+39386
+
+41
+41407 210
+
+43
+43426
+
+45
+45446 210
+
+47
+47467 245
+
+49
+49487 245
+
+51
+51507 245
+
+53
+53527 245
+
+55
+55547 245
+
+57
+57567 245
+
+59
+59587 245
+
+61
+61606
+
+63
+63627 245
+
+65
+65647 245
+
+67
+67667 245r¿
+
+
+10131*
+8 (-
+
+10151*
+8 (
+
+
+10171*
+8	 	(
+
+10191*
+8
+ 
+(
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 ("
+
+10271*
+8L L(8
+
+10291*
+8M M(:
+
+10311*
+8™ ™(
+
+10311*
+8Õ Õ(
+
+33353*
+8Í Í(
+
+33374*
+8Í Í(
+
+33354*
+8Í Í(
+
+33354*
+8Í Í(
+
+33394*
+8Í Í(
+
+41433*
+8è è(&
+
+41374*
+8è è(&
+
+47433*
+8±	 ±(
+
+47434*
+8±	 ±(
+
+47394*
+8±	 ±(
+
+47434*
+8±	 ±(
+
+49373*
+8∫	 ∫(
+
+49374*
+8∫	 ∫(
+
+51353*
+8i	 i(!
+
+51374*
+8i	 i(!
+
+51354*
+8i	 i(!
+
+51354*
+8i	 i(!
+
+51394*
+8i	 i(!
+
+53353*
+8œ	 œ(
+
+53374*
+8œ	 œ(
+
+53354*
+8œ	 œ(
+
+53354*
+8œ	 œ(
+
+53394*
+8œ	 œ(
+
+59433*
+8ü	 ü(
+
+59434*
+8ü	 ü(
+
+59614*
+8ü	 ü(
+
+63373*
+8‘	 ‘(
+
+63374*
+8‘	 ‘(
+
+63354*
+8‘	 ‘(
+
+65373*
+8Ç	 Ç(#
+
+65374*
+8Ç	 Ç(#
+
+65354*
+8Ç	 Ç(#
+
+65354*
+8Ç	 Ç(#
+
+67613*
+8…	 …(
+
+67374*
+8…	 …(
+
+67614*
+8…	 …(
+
+67394*
+8…	 …(
+
+67354*
+8…	 …(

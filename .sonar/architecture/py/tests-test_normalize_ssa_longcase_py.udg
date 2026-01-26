@@ -1,0 +1,48 @@
+
+1.0PythonFrontend"1769122854757*py2.Bå
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+)
+$tests/test_normalize_ssa_longcase.py9
+'
+!tests.test_normalize_ssa_longcase11
+
+	interface12
+K
+Etests.test_normalize_ssa_longcase.test_long_prefixed_value_idempotent14
+O
+Itests.test_normalize_ssa_longcase.test_long_prefixed_value_trims_expected16J
+
+8
+89 jg
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210
+
+17
+17167 210r
+
+10131*
+8
+ 
+(*

@@ -1,0 +1,95 @@
+
++utils.robust_logging.RobustLogger.log_errorJ
+>C:\Users\mauri\git\SSA_Consulta_Rapida\utils\robust_logging.py° °("2*Ÿ
+2
+± ±((j
+h
+
+² ²(
+%1"__id*N
+
+__unknown_file (2*0#
+!utils.robust_logging.RobustLogger"	
+metricsIG
+
+² ²(&
+%2*"
+
+__unknown_file (
+
+%12increment_errorº·
+
+³ ³(8
+%3*A
+
+__unknown_file (%#
+!utils.robust_logging.RobustLogger*)
+
+__unknown_file (
+	ssa.error*)
+
+__unknown_file (
+
+	component2
+get_loggerB
+@
+
+³ ³(8
+logger"__id*"
+
+__unknown_file (
+
+%3
+
+´7 ´(O
+%4"dict™
+–
+
+´8 ´(N
+%5"__mapSet*"
+
+__unknown_file (
+
+%4*)
+
+__unknown_file (
+	component*)
+
+__unknown_file (
+
+	component˜•
+
+´ ´(P
+%6*&
+
+__unknown_file (
+
+
+logger*'
+
+__unknown_file (
+	
+message2error:
+exc_info
+
+
+exc_info:
+extra
+
+%4*
+3*9
+3
+robust_logging.py"
+¶ ¶(
+implicit return:
+
+° °($	
+message:
+
+°& °(3
+
+exc_info:
+
+°5 °(M
+	componentB%#
+!utils.robust_logging.RobustLoggerH

@@ -1,0 +1,70 @@
+
+1.0PythonFrontend"1769122857814*py2.BÅ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+/
+*tests/test_numero_ssa_hyphen_repetition.py9
+-
+'tests.test_numero_ssa_hyphen_repetition11
+
+
+__future__12
+
+core.numero_ssa14
+
+utils.robust_importer16
+W
+Qtests.test_numero_ssa_hyphen_repetition.test_direct_normalize_strict_hyphen_cases18
+N
+Htests.test_numero_ssa_hyphen_repetition.test_series_cleaner_hyphen_cases20
+N
+Htests.test_numero_ssa_hyphen_repetition.test_importer_rejects_repetition22J
+
+8
+89 j¶
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210rN
+
+10131*
+8
+ 
+(#
+
+10151*
+8 (-
+
+10171*
+8 (P

@@ -1,0 +1,163 @@
+
+1.0PythonFrontend"1769122855330*py2.Bù
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+%
+ utils/setup_project_structure.py9
+#
+utils.setup_project_structure11
+
+
+__future__12
+
+importlib.util14
+
+logging16
+
+os18
+
+collections.abc20
+
+dataclasses22
+9
+3utils.setup_project_structure.SetupProjectStructure24
+D
+>utils.setup_project_structure.SetupProjectStructure.setup_dirs26
+/
+)utils.setup_project_structure.SetupResult28
+
+
+bool30
+B
+<utils.setup_project_structure.SetupProjectStructure.validate32
+2
+,utils.setup_project_structure.SetupResult.ok34
+>
+8utils.setup_project_structure._load_legacy_required_dirs36
+
+
+list38
+.
+(utils.setup_project_structure.setup_dirs40
+,
+&utils.setup_project_structure.validate42J
+
+8
+89 j‚
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25246 210
+
+27
+27267 225
+
+29
+29286 210
+
+31
+31306
+
+33
+33327 225
+
+35
+35347 229
+
+37
+37367 210
+
+39
+39386
+
+41
+41407 210
+
+43
+43427 210rÈ
+
+10131*
+8 (#
+
+10151*
+8 (
+
+10171*
+8 (
+
+10191*
+8 (
+
+
+10211*
+8 (%
+
+10231*
+8 ()
+
+27293*
+8 	  (
+
+27314*
+8 	  (
+
+33313*
+8¤	 ¤(
+
+35313*
+80	 0(
+
+27293*
+8 	  (
+
+27314*
+8 	  (
+
+33313*
+8¤	 ¤(
+
+37393*
+84 4(
+
+41293*
+8g g(
+
+41314*
+8g g(
+
+43313*
+8¹ ¹(

@@ -1,0 +1,11 @@
+
+/&"Subclasses must implement setup_ui()"str
+§"
+        Setup the tab's UI components.
+
+        This method should be overridden by subclasses to create
+        the tab-specific interface.
+        "strself ("R@
+>
+% %(I"NotImplementedError*:BNotImplementedError2
+% %(I*;C:\Users\mauri\git\SSA_Consulta_Rapida\gui\tabs\base_tab.py

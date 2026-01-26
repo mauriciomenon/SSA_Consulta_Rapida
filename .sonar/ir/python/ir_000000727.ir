@@ -1,0 +1,88 @@
+
+"S3518"bool
+"memory_used_mb"str
+90"Para monitoramento e calcula mÃ©tricas finais."str
+ "division by zero"bool
+falsebool
+"duration_seconds"str
+"avg_cpu_percent"str
+"a"bool
+
+0int
+"peak_memory_mb"str
+%"max_cpu_percent"strselfE E("Æ,
+*
+G G("#set-field# monitoring:#
+!
+H H(#"
+timetimeBfloat*
+(
+H H("#set-field# end_time:$
+"
+J R(	"#new-object#Bdict)
+'
+K  K(-	"#get-field# end_time:+
+)
+K0 K(?
+"#get-field# start_time:%
+#
+K  K(?"	#binop -#*2-:	
+ 
+
+K K(?"	#map-set#:/
+-
+L L(1"#get-field# peak_memory_mb:0
+.
+L4 L(H"#get-field# start_memory_mb:%
+#
+L L(H"	#binop -#*2-: 
+
+L L(H"	#map-set#:/
+-
+M M(1"#get-field# peak_memory_mb: 
+
+M M(1"	#map-set#:,
+*
+OA O(Q"#get-field# cpu_percent:)
+'
+OA O(Q"
+__bool__*:BboolH&"$
+OA O(Q *O> O(@2OR O(V"Â,
+*
+O O($"#get-field# cpu_percent:%
+#
+O O(%"
+builtinssum*:,
+*
+O, O(<"#get-field# cpu_percent:*
+(
+O( O(="
+builtinslen*:Bint*
+(
+O O(="
+#binop !=#2!=:Bbool 
+
+O O(=!"
+#assert#: 1
+/
+O O(=""#dependent-value#*:Bfloat
+O O(X"
+O O(X"·*#" 
+
+N P($"	#map-set#:#,
+*
+Q8 Q(H&"#get-field# cpu_percent:)
+'
+Q8 Q(H'"
+__bool__*:&BboolH&"$
+Q8 Q(H' *Q5 Q(72QI Q(M"g,
+*
+Q# Q(3("#get-field# cpu_percent:%
+#
+Q Q(4)"
+builtinsmax*:(
+Q Q(O"
+Q Q(O"F**) 
+
+Q Q(O+"	#map-set#:%*
+J R(	*AC:\Users\mauri\git\SSA_Consulta_Rapida\tests\performance_tests.py

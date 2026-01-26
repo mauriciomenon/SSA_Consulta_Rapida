@@ -1,0 +1,111 @@
+
+1.0PythonFrontend"1769122850468*py2.Bª
+
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+(
+#tests/test_database_verification.py9
+&
+ tests.test_database_verification11
+
+os12
+
+armazenamento.database14
+?
+9tests.test_database_verification.TestDatabaseVerification16
+`
+Ztests.test_database_verification.TestDatabaseVerification.test_verify_nonexistent_database18
+Z
+Ttests.test_database_verification.TestDatabaseVerification.test_verify_valid_database20
+_
+Ytests.test_database_verification.TestDatabaseVerification.test_verify_empty_file_database22
+^
+Xtests.test_database_verification.TestDatabaseVerification.test_verify_corrupted_database24
+9
+3tests.test_database_verification.TestDataValidation26
+U
+Otests.test_database_verification.TestDataValidation.test_validate_invalid_dates28
+[
+Utests.test_database_verification.TestDataValidation.test_validate_invalid_ssa_numbers30
+W
+Qtests.test_database_verification.TestDataValidation.test_validate_empty_dataframe32
+W
+Qtests.test_database_verification.TestDataValidation.test_validate_valid_dataframe34
+9
+3tests.test_database_verification.TestDatabaseRepair36
+Z
+Ttests.test_database_verification.TestDatabaseRepair.test_repair_nonexistent_database38
+T
+Ntests.test_database_verification.TestDatabaseRepair.test_repair_valid_database40J
+
+8
+89 j
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17166 210
+
+19
+19187 217
+
+21
+21207 217
+
+23
+23227 217
+
+25
+25247 217
+
+27
+27266 210
+
+29
+29287 227
+
+31
+31307 227
+
+33
+33327 227
+
+35
+35347 227
+
+37
+37366 210
+
+39
+39387 237
+
+41
+41407 237r4
+
+10131*
+8 (
+
+
+10151*
+8 (

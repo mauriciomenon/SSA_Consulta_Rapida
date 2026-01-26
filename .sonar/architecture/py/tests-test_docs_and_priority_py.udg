@@ -1,0 +1,60 @@
+
+1.0PythonFrontend"1769122857368*py2.B´
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+$
+tests/test_docs_and_priority.py9
+"
+tests.test_docs_and_priority11
+
+
+json12
+
+os14
+K
+Etests.test_docs_and_priority.test_readme_exists_and_has_core_sections16
+T
+Ntests.test_docs_and_priority.test_column_priority_has_required_keys_and_values18
+M
+Gtests.test_docs_and_priority.test_changelog_full_exists_and_has_history20J
+
+8
+89 j“
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210r4
+
+10131*
+8 (
+
+10151*
+8 (

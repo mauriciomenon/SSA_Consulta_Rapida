@@ -1,0 +1,61 @@
+
+1.0PythonFrontend"1769122852672*py2.B—
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+ 
+tests/test_normalize_ssa.py9
+
+tests.test_normalize_ssa11
+
+	interface12
+J
+Dtests.test_normalize_ssa.test_normalize_ssa_short_threshold_boundary14
+H
+Btests.test_normalize_ssa.test_normalize_ssa_full_length_non_prefix16
+7
+1tests.test_normalize_ssa.test_normalize_ssa_cases18
+J
+Dtests.test_normalize_ssa.test_normalize_ssa_large_with_prefix_middle20
+E
+?tests.test_normalize_ssa.test_normalize_ssa_idempotent_on_clean22J
+
+8
+89 j²
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15147 210
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210
+
+23
+23227 210r
+
+10131*
+8 (*

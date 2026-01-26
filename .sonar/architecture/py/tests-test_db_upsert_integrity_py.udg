@@ -1,0 +1,63 @@
+
+1.0PythonFrontend"1769122855668*py2.B€
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_db_upsert_integrity.py9
+$
+tests.test_db_upsert_integrity11
+
+
+__future__12
+
+sqlite314
+
+armazenamento.database16
+E
+?tests.test_db_upsert_integrity.test_upsert_newer_replaces_older18
+H
+Btests.test_db_upsert_integrity.test_upsert_older_does_not_override20J
+
+8
+89 j
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19187 210
+
+21
+21207 210rN
+
+10131*
+8	 	(#
+
+10151*
+8 (
+
+10171*
+8 (#

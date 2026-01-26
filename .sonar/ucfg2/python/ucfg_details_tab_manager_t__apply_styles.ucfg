@@ -1,0 +1,123 @@
+
+>gui.widgets.details_tab_manager.DetailsTabWidget._apply_stylesS
+IC:\Users\mauri\git\SSA_Consulta_Rapida\gui\widgets\details_tab_manager.pyn n("2*…
+2o o(1y
+w
+q q(
+%1"__id*_
+
+__unknown_file (C*A2
+0gui.widgets.details_tab_manager.DetailsTabWidget"
+	ssa_input¤¡
+q }(	
+%2*"
+
+__unknown_file (
+
+%1*Û
+
+__unknown_file (¾»
+¸
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid palette(mid);
+                border-radius: 3px;
+                background: palette(base);
+            }
+            QLineEdit:focus {
+                border: 1px solid palette(highlight);
+            }
+        2setStyleSheetŞ
+Û
+
+€ ‘(
+nav_button_style"__id*²
+
+__unknown_file (•’
+
+            QPushButton {
+                background: palette(button);
+                border: 1px solid palette(mid);
+                border-radius: 3px;
+                padding: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:pressed {
+                background: palette(dark);
+            }
+            QPushButton:disabled {
+                color: palette(mid);
+            }
+        z
+x
+
+’ ’(
+%3"__id*^
+
+__unknown_file (B*@2
+0gui.widgets.details_tab_manager.DetailsTabWidget"
+
+prev_btnyw
+
+’ ’(5
+%4*"
+
+__unknown_file (
+
+%3*0
+
+__unknown_file (
+
+nav_button_style2setStyleSheetz
+x
+
+“ “(
+%5"__id*^
+
+__unknown_file (B*@2
+0gui.widgets.details_tab_manager.DetailsTabWidget"
+
+next_btnyw
+
+“ “(5
+%6*"
+
+__unknown_file (
+
+%5*0
+
+__unknown_file (
+
+nav_button_style2setStyleSheety
+w
+
+– –(
+%7"__id*]
+
+__unknown_file (A*?2
+0gui.widgets.details_tab_manager.DetailsTabWidget"	
+tab_bar„
+
+– (	
+%8*"
+
+__unknown_file (
+
+%7*¹
+
+__unknown_file (œ™
+–
+            QWidget {
+                background: palette(window);
+                border-bottom: 1px solid palette(mid);
+            }
+        2setStyleSheet*
+3*>
+3
+details_tab_manager.py"
+Ÿ Ÿ(
+implicit returnB42
+0gui.widgets.details_tab_manager.DetailsTabWidget

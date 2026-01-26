@@ -1,0 +1,94 @@
+
+1.0PythonFrontend"1769122854703*py2.B–
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+$
+tests/test_filter_regression.py9
+"
+tests.test_filter_regression11
+	
+sys12
+
+pathlib14
+
+core.app_logic16
+7
+1tests.test_filter_regression.TestFilterRegression18
+Y
+Stests.test_filter_regression.TestFilterRegression.test_filter_dataframe_with_commas20
+d
+^tests.test_filter_regression.TestFilterRegression.test_filter_dataframe_column_filter_or_logic22
+U
+Otests.test_filter_regression.TestFilterRegression.test_no_old_operator_behavior24
+S
+Mtests.test_filter_regression.TestFilterRegression.test_comma_in_column_filter26
+Z
+Ttests.test_filter_regression.TestFilterRegression.test_comma_allowed_in_search_terms28
+b
+\tests.test_filter_regression.TestFilterRegression.test_logical_operators_treated_as_literals30
+R
+Ltests.test_filter_regression.TestFilterRegression.test_no_operator_splitting32J
+
+8
+89 j£
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19186 210
+
+21
+21207 219
+
+23
+23227 219
+
+25
+25247 219
+
+27
+27267 219
+
+29
+29287 219
+
+31
+31307 219
+
+33
+33327 219rN
+
+10131*
+8
+ 
+(
+
+10151*
+8 (
+
+10171*
+8 (@

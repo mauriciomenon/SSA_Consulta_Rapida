@@ -1,0 +1,10 @@
+
+xo"
+        Get the tab's main layout.
+
+        Returns:
+            QVBoxLayout: The tab's layout
+        "strself' '(":(
+&
+. .("#get-field# _layout:
+. .(*;C:\Users\mauri\git\SSA_Consulta_Rapida\gui\tabs\base_tab.py

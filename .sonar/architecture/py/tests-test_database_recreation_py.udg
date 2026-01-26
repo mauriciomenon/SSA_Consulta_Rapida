@@ -1,0 +1,231 @@
+
+1.0PythonFrontend"1769122851058*py2.BÚ
+
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_database_recreation.py9
+$
+tests.test_database_recreation11
+
+
+json12
+
+os14
+
+shutil16
+
+sqlite318
+	
+sys20
+
+tempfile22
+
+datetime24
+
+pathlib26
+
+armazenamento.database28
+
+core.app_logic30
+
+utils.db_maintenance32
+)
+#tests.test_database_recreation.main34
+=
+7tests.test_database_recreation.DatabaseRecreationTester36
+E
+?tests.test_database_recreation.DatabaseRecreationTester.cleanup38
+T
+Ntests.test_database_recreation.DatabaseRecreationTester.setup_test_environment40
+
+
+bool42
+Z
+Ttests.test_database_recreation.DatabaseRecreationTester.test_clean_database_creation44
+
+
+dict46
+Y
+Stests.test_database_recreation.DatabaseRecreationTester.test_performance_comparison48
+Z
+Ttests.test_database_recreation.DatabaseRecreationTester.run_complete_recreation_test50
+R
+Ltests.test_database_recreation.DatabaseRecreationTester.test_backup_creation52
+F
+@tests.test_database_recreation.DatabaseRecreationTester.__init__54
+	
+str56
+P
+Jtests.test_database_recreation.DatabaseRecreationTester.test_data_reimport58
+f
+`tests.test_database_recreation.DatabaseRecreationTester.test_database_integrity_after_recreation60
+X
+Rtests.test_database_recreation.DatabaseRecreationTester.generate_recreation_report62J
+
+8
+89 jØ
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35347 210
+
+37
+37366 210
+
+39
+39387 237
+
+41
+41407 237
+
+43
+43426
+
+45
+45447 237
+
+47
+47466
+
+49
+49487 237
+
+51
+51507 237
+
+53
+53527 237
+
+55
+55547 237
+
+57
+57566
+
+59
+59587 237
+
+61
+61607 237
+
+63
+63627 237rÌ
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8	 	(
+
+10191*
+8
+ 
+(
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 (J
+
+10311*
+8 (4
+
+10331*
+8 (2
+
+41433*
+8"	 "(
+
+45473*
+8Œ	 Œ(%
+
+49473*
+8·	 ·($
+
+51473*
+8	 (%
+
+53473*
+89	 9(
+
+55574*
+8	 (
+
+59473*
+8æ	 æ(
+
+61473*
+8è	 è(1
+
+63573*
+8à	 à(#
+
+63474*
+8à	 à(#
+
+63574*
+8à	 à(#

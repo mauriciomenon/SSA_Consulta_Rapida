@@ -1,0 +1,57 @@
+
+
+0int
+
+1int
+
+100intvalues< <(pct< <("t)
+'
+= =("
+__bool__*:BboolH)
+'
+= =("#unaryop !#2!:Bbool"
+= =( *= =("
+> >("ô4
+2
+? ?(vals"
+builtinssorted*:Blist*
+(
+@	 @("
+builtinslen*:Bint%
+#
+@	 @(	"	#binop -#*2-:*
+(
+@ @( "#dependent-value#*:
+(
+&
+@ @(!k"	#binop *#*2*:	#
+!
+A A(f"
+mathfloor:"
+ 
+B B(c"
+mathceil:*
+(
+C C("
+#binop ==#2==:Bbool"
+C C( *C C("f.
+,
+D D("#dependent-value#*:Bint"
+ 
+D D("#array-read#:
+D D("¢"
+ 
+E	 E("#array-read#:%
+#
+E E("	#binop -#*2-:)
+'
+E	 E(d0"	#binop *#*2*:"
+ 
+F	 F("#array-read#:%
+#
+F F("	#binop -#*2-:)
+'
+F	 F(d1"	#binop *#*2*:"
+ 
+G G("	#binop +#2+:
+G G(*FC:\Users\mauri\git\SSA_Consulta_Rapida\scripts\analyze_perf_history.py

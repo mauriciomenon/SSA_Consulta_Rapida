@@ -1,0 +1,193 @@
+
+1.0PythonFrontend"1769122856789*py2.B¶
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+*
+%gui/widgets/rescan_progress_dialog.py9
+(
+"gui.widgets.rescan_progress_dialog11
+
+PyQt6.QtWidgets.QDialog12
+!
+PyQt6.QtWidgets.QVBoxLayout14
+!
+PyQt6.QtWidgets.QHBoxLayout16
+
+PyQt6.QtWidgets.QTextEdit18
+!
+PyQt6.QtWidgets.QPushButton20
+"
+PyQt6.QtWidgets.QProgressBar22
+
+PyQt6.QtWidgets.QLabel24
+
+PyQt6.QtWidgets26
+
+PyQt6.QtCore.Qt28
+
+PyQt6.QtCore30
+
+PyQt6.QtGui.QFont32
+
+PyQt6.QtGui34
+=
+7gui.widgets.rescan_progress_dialog.RescanProgressDialog36
+F
+@gui.widgets.rescan_progress_dialog.RescanProgressDialog.setup_ui38
+J
+Dgui.widgets.rescan_progress_dialog.RescanProgressDialog.append_error40
+	
+str42
+J
+Dgui.widgets.rescan_progress_dialog.RescanProgressDialog.set_finished44
+
+
+bool46
+M
+Ggui.widgets.rescan_progress_dialog.RescanProgressDialog.update_progress48
+	
+int50
+K
+Egui.widgets.rescan_progress_dialog.RescanProgressDialog.append_output52
+F
+@gui.widgets.rescan_progress_dialog.RescanProgressDialog.__init__54J
+
+8
+89 jî
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37366 210
+
+39
+39387 237
+
+41
+41407 237
+
+43
+43426
+
+45
+45447 237
+
+47
+47466
+
+49
+49487 237
+
+51
+51506
+
+53
+53527 237
+
+55
+55547 237rÔ
+
+10131*
+8 (
+
+10151*
+8 (
+
+10171*
+8 (&
+
+10191*
+8( (1
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8  (&
+
+10271*
+8 (&
+
+10291*
+8 (
+
+10311*
+8 (
+
+10331*
+8	 	(
+
+10351*
+8	 	(
+
+41434*
+8\	 \(
+
+45474*
+8h	 h(
+
+45434*
+8h	 h(
+
+49514*
+8c	 c(
+
+49434*
+8c	 c(
+
+53434*
+8U	 U(

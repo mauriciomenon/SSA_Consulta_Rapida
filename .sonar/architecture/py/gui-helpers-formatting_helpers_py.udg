@@ -1,0 +1,110 @@
+
+1.0PythonFrontend"1769122852887*py2.B»
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!gui/helpers/formatting_helpers.py9
+$
+gui.helpers.formatting_helpers11
+
+
+html12
+
+re14
+3
+-gui.helpers.formatting_helpers.highlight_text16
+	
+str18
+
+
+list20
+8
+2gui.helpers.formatting_helpers.normalize_ssa_value22
+>
+8gui.helpers.formatting_helpers.normalize_chunk_for_parse24
+:
+4gui.helpers.formatting_helpers.format_search_display26J
+
+8
+89 j“
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19186
+
+21
+21206
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210r“
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+17193*
+84 4(
+
+17194*
+84 4(
+
+17214*
+84 4(
+
+17194*
+84 4(
+
+17194*
+84 4(
+
+17194*
+84 4(
+
+23193*
+8a a(
+
+25213*
+8 (
+
+25194*
+8 (
+
+27193*
+8 (
+
+27214*
+8 (

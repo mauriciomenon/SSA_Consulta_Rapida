@@ -1,0 +1,90 @@
+
+1.0PythonFrontend"1769122856119*py2.BŠ
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+(
+#tests/teste_simples_refinamentos.py9
+&
+ tests.teste_simples_refinamentos11
+
+
+json12
+
+os14
+	
+sys16
+
+
+time18
+:
+4tests.teste_simples_refinamentos.teste_hash_tracking20
+?
+9tests.teste_simples_refinamentos.teste_estrutura_arquivos22
++
+%tests.teste_simples_refinamentos.main24
+?
+9tests.teste_simples_refinamentos.teste_configuracoes_json26
+<
+6tests.teste_simples_refinamentos.teste_cache_operacoes28J
+
+8
+89 jë
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21207 210
+
+23
+23227 210
+
+25
+25247 210
+
+27
+27267 210
+
+29
+29287 210rh
+
+10131*
+8 (
+
+10151*
+8 (
+
+
+10171*
+8	 	(
+
+10191*
+8
+ 
+(

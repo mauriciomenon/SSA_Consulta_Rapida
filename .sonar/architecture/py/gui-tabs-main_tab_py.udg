@@ -1,0 +1,224 @@
+
+1.0PythonFrontend"1769122851821*py2.B’	
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+
+gui/tabs/main_tab.py9
+
+gui.tabs.main_tab11
+!
+PyQt6.QtWidgets.QVBoxLayout12
+!
+PyQt6.QtWidgets.QHBoxLayout14
+
+PyQt6.QtWidgets.QLabel16
+
+PyQt6.QtWidgets.QLineEdit18
+!
+PyQt6.QtWidgets.QPushButton20
+"
+PyQt6.QtWidgets.QTableWidget22
+
+PyQt6.QtWidgets.QGroupBox24
+
+PyQt6.QtWidgets.QTextEdit26
+
+PyQt6.QtWidgets.QWidget28
+
+PyQt6.QtWidgets.QSplitter30
+
+PyQt6.QtWidgets32
+
+PyQt6.QtCore.Qt34
+
+PyQt6.QtCore.pyqtSignal36
+
+PyQt6.QtCore38
+
+gui.tabs.base_tab40
+
+gui.tabs.main_tab.MainTab42
+
+gui.tabs.base_tab.BaseTab44
+)
+#gui.tabs.main_tab.MainTab._on_clear46
+(
+"gui.tabs.main_tab.MainTab.setup_ui48
+6
+0gui.tabs.main_tab.MainTab._create_search_section50
+*
+$gui.tabs.main_tab.MainTab._on_search52
+/
+)gui.tabs.main_tab.MainTab.set_search_text54
+	
+str56
+7
+1gui.tabs.main_tab.MainTab._create_details_section58
+5
+/gui.tabs.main_tab.MainTab._create_table_section60
+(
+"gui.tabs.main_tab.MainTab.__init__62
+/
+)gui.tabs.main_tab.MainTab.get_search_text64
+0
+*gui.tabs.main_tab.MainTab._on_row_selected66J
+
+8
+89 jø
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41405
+
+43
+43426 210
+
+45
+45446
+
+47
+47467 243
+
+49
+49487 243
+
+51
+51507 243
+
+53
+53527 243
+
+55
+55547 243
+
+57
+57566
+
+59
+59587 243
+
+61
+61607 243
+
+63
+63627 243
+
+65
+65647 243
+
+67
+67667 243rØ
+
+10131*
+8 (
+
+10151*
+8 (
+
+10171*
+8 (%
+
+10191*
+8' (0
+
+10211*
+82 (=
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 ('
+
+10291*
+8) (0
+
+10311*
+82 (;
+
+10331*
+8 (;
+
+10351*
+8 (
+
+10371*
+8 ((
+
+10391*
+8 ((
+
+10411*
+8
+ 
+(&
+
+43452*
+8 (
+
+55574*
+8‹	 ‹(
+
+65573*
+8‘	 ‘(

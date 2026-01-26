@@ -1,0 +1,66 @@
+
+Itests.test_gui_configuration.TestGUIConfiguration.test_gui_module_loadingP
+FC:\Users\mauri\git\SSA_Consulta_Rapida\tests\test_gui_configuration.pyV V("8*?
+3
+test_gui_configuration.py"
+c c(
+implicit return*‡
+4a a(<`
+^
+a a(;
+%1"__concat*/
+a a(7#!
+Erro ao validar GUI principal: *
+a8 a(9
+
+e
+a a(<
+%2*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*"
+
+__unknown_file (
+
+%12fail*
+3*‰
+6_ _(=^
+\
+_ _(<
+%3"__concat*-
+_ _(8!
+GUI principal indisponÃ­vel: *
+_9 _(:
+
+e”‘
+_ _(=
+%4*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*"
+
+__unknown_file (
+
+%32skipTest*
+3*³
+8Y Y(8˜•
+[ ](
+%5*Q
+
+__unknown_file (53
+1tests.test_gui_configuration.TestGUIConfiguration*4
+
+__unknown_file (
+
+GUI_MAIN_PREFERENCES*$
+
+__unknown_file (
+
+dict*B
+
+__unknown_file (&$
+"GUI_MAIN_PREFERENCES deve ser dict2assertIsInstance*	
+3
+4
+6B53
+1tests.test_gui_configuration.TestGUIConfigurationH

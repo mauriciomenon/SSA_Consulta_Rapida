@@ -1,0 +1,62 @@
+
+1.0PythonFrontend"1769122851618*py2.B£
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!tests/test_normalization_rules.py9
+$
+tests.test_normalization_rules11
+
+
+__future__12
+
+armazenamento.database14
+=
+7tests.test_normalization_rules.test_normalization_cases16
+/
+)tests.test_normalization_rules._normalize18
+Q
+Ktests.test_normalization_rules.test_normalization_idempotent_and_truncation20J
+
+8
+89 j“
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17167 210
+
+19
+19187 210
+
+21
+21207 210r4
+
+10131*
+8 (#
+
+10151*
+8
+ 
+(#

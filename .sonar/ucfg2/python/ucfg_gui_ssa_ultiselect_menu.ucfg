@@ -1,0 +1,71 @@
+
+2gui.gui_ssa.SSAMainWindow._attach_multiselect_menuA
+5C:\Users\mauri\git\SSA_Consulta_Rapida\gui\gui_ssa.pyý ý( "6"8*2
+3
+
+gui_ssa.py"
+¢ ¢(
+implicit return*õ
+4
+   (Ov
+t
+
+   (N
+%1"__concat*A
+
+   (J31
+/Erro ao conectar sinal button.clicked ao menu: *
+
+ K  (L
+
+ege
+
+   (O
+%2*&
+
+__unknown_file (
+
+
+logger*"
+
+__unknown_file (
+
+%12error*
+3*×
+6
+ž ž(.O
+M
+
+ž ž(
+%3"__id*3
+
+__unknown_file (*
+
+button"	
+clickedmk
+
+ž ž(.
+%4*"
+
+__unknown_file (
+
+%3**
+
+__unknown_file (
+
+
+_show_menu2connect*
+3
+4*'
+8
+ÿ ÿ("
+
+ÿ ÿ(
+void:
+
+ý' ý(-
+button:
+
+ý/ ý(3
+menuB
+gui.gui_ssa.SSAMainWindow

@@ -1,0 +1,105 @@
+
+1.0PythonFrontend"1769122855987*py2.B¿
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+&
+!gui/workers/data_loader_worker.py9
+$
+gui.workers.data_loader_worker11
+
+logging12
+
+PyQt6.QtCore.QThread14
+
+PyQt6.QtCore.pyqtSignal16
+
+PyQt6.QtCore18
+
+armazenamento.database20
+5
+/gui.workers.data_loader_worker.DataLoaderWorker22
+H
+Bgui.workers.data_loader_worker.DataLoaderWorker._validate_order_by24
+
+
+bool26
+	
+str28
+9
+3gui.workers.data_loader_worker.DataLoaderWorker.run30
+>
+8gui.workers.data_loader_worker.DataLoaderWorker.__init__32J
+
+8
+89 j‹
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23226 210
+
+25
+25247 223
+
+27
+27266
+
+29
+29286
+
+31
+31307 223
+
+33
+33327 223r¶
+
+10131*
+8 (
+
+10151*
+8 (!
+
+10171*
+8# (-
+
+10191*
+8 (-
+
+10211*
+8	 	(,
+
+25273*
+88	 8(
+
+25294*
+88	 8(

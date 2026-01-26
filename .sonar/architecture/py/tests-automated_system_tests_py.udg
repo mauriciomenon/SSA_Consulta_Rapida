@@ -1,0 +1,363 @@
+
+1.0PythonFrontend"1769122849238*py2.B¤
+
+imports1
+
+extends2
+
+returns3
+
+	has param4
+
+module5
+
+
+class6
+
+function7
+$
+tests/automated_system_tests.py9
+"
+tests.automated_system_tests11
+
+
+json12
+
+logging14
+
+os16
+
+shutil18
+
+sqlite320
+
+
+subprocess22
+	
+sys24
+
+tempfile26
+
+
+time28
+
+datetime30
+
+pathlib32
+
+typing34
+
+armazenamento.database36
+
+core.app_logic38
+
+extracao.extractor40
+
+utils.db_maintenance42
+
+gui.gui_ssa44
+
+gui.simple_width_manager46
+"
+PyQt6.QtWidgets.QApplication48
+
+PyQt6.QtWidgets50
+3
+-tests.automated_system_tests.SystemTestResult52
+;
+5tests.automated_system_tests.SystemTestResult.to_dict54
+
+
+dict56
+<
+6tests.automated_system_tests.SystemTestResult.complete58
+
+
+bool60
+	
+str62
+<
+6tests.automated_system_tests.SystemTestResult.__init__64
+'
+!tests.automated_system_tests.main66
+8
+2tests.automated_system_tests.AutomatedSystemTester68
+L
+Ftests.automated_system_tests.AutomatedSystemTester.test_data_filtering70
+A
+;tests.automated_system_tests.AutomatedSystemTester.__init__72
+I
+Ctests.automated_system_tests.AutomatedSystemTester.test_gui_startup74
+Q
+Ktests.automated_system_tests.AutomatedSystemTester.cleanup_test_environment76
+M
+Gtests.automated_system_tests.AutomatedSystemTester.test_file_extraction78
+O
+Itests.automated_system_tests.AutomatedSystemTester.test_database_creation80
+P
+Jtests.automated_system_tests.AutomatedSystemTester.test_database_integrity82
+U
+Otests.automated_system_tests.AutomatedSystemTester.test_configuration_integrity84
+Q
+Ktests.automated_system_tests.AutomatedSystemTester.test_full_import_process86
+O
+Itests.automated_system_tests.AutomatedSystemTester.test_cli_functionality88
+M
+Gtests.automated_system_tests.AutomatedSystemTester.generate_test_report90
+F
+@tests.automated_system_tests.AutomatedSystemTester.run_all_tests92
+O
+Itests.automated_system_tests.AutomatedSystemTester.setup_test_environment94J
+
+8
+89 j²
+ 
+10
+10115 *
+8 (
+
+13
+13125
+
+15
+15145
+
+17
+17165
+
+19
+19185
+
+21
+21205
+
+23
+23225
+
+25
+25245
+
+27
+27265
+
+29
+29285
+
+31
+31305
+
+33
+33325
+
+35
+35345
+
+37
+37365
+
+39
+39385
+
+41
+41405
+
+43
+43425
+
+45
+45445
+
+47
+47465
+
+49
+49485
+
+51
+51505
+
+53
+53526 210
+
+55
+55547 253
+
+57
+57566
+
+59
+59587 253
+
+61
+61606
+
+63
+63626
+
+65
+65647 253
+
+67
+67667 210
+
+69
+69686 210
+
+71
+71707 269
+
+73
+73727 269
+
+75
+75747 269
+
+77
+77767 269
+
+79
+79787 269
+
+81
+81807 269
+
+83
+83827 269
+
+85
+85847 269
+
+87
+87867 269
+
+89
+89887 269
+
+91
+91907 269
+
+93
+93927 269
+
+95
+95947 269r”
+
+10131*
+8	 	(
+
+10151*
+8
+ 
+(
+
+10171*
+8 (
+
+
+10191*
+8 (
+
+10211*
+8 (
+
+10231*
+8 (
+
+10251*
+8 (
+
+10271*
+8 (
+
+10291*
+8 (
+
+10311*
+8 (
+
+10331*
+8 (
+
+10351*
+8 (/
+
+10371*
+8 (J
+
+10391*
+8 (G
+
+10411*
+8 (Q
+
+10431*
+8 (2
+
+10451*
+8Ü! Ü((
+
+10471*
+8Ý! Ý(5
+
+10491*
+8ë- ë(9
+
+10511*
+8ë ë(9
+
+55573*
+87	 7(
+
+59614*
+8/	 /(
+
+59634*
+8/	 /(
+
+59574*
+8/	 /(
+
+65634*
+8&	 &(
+
+71533*
+8ü	 ü(
+
+73634*
+8I	 I(
+
+75533*
+8Í	 Í(
+
+79533*
+8‘	 ‘(
+
+81533*
+8o	 o(
+
+83533*
+8Ð	 Ð( 
+
+85533*
+8„	 „(%
+
+87533*
+8Ú	 Ú(!
+
+89533*
+8	 (
+
+91633*
+8¿	 ¿(
+
+91574*
+8¿	 ¿(
+
+91634*
+8¿	 ¿(
+
+93573*
+8Ù	 Ù(
+
+95613*
+8P	 P(

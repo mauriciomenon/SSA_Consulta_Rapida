@@ -1,0 +1,19 @@
+
+ôê"QLineEdit { color: {input_text}; background: {input_bg}; border:1px solid {input_border}; border-radius:4px; padding:3px 6px; }QLineEdit::placeholder { color: {input_placeholder}; }QLineEdit:focus { border:2px solid {input_focus}; }"str
+¿µ"
+    Build QSS for QLineEdit styling with focus and placeholder.
+
+    Used for search_input and other line edit widgets.
+
+    Args:
+        input_text: Hex color for text
+        input_bg: Hex color for background
+        input_border: Hex color for normal border
+        input_focus: Hex color for focus border
+        input_placeholder: Hex color for placeholder text
+
+    Returns:
+        QSS string for QLineEdit
+    "str
+input_textY Y('input_bgY) Y(6input_borderY8 Y(Iinput_focusZ Z((input_placeholderZ* Z(@"
+j t(*CC:\Users\mauri\git\SSA_Consulta_Rapida\gui\helpers\theme_helpers.py

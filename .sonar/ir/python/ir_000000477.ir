@@ -1,0 +1,266 @@
+
+/U&"Found {total_issues} critical issues"str
+
+Q0int
+&S"All critical checks passed!"str
+("1. Shared Module Purity Check"str
+,#"\n2. Backward Compatibility Check"str
+/"  - {issue}"str
+,5#"  ... and {len(unused) - 20} more"str
+*!"=== Code Quality Analysis ===\n"str
++""  OK: core re-exports are intact"str
+7."  OK: shared/ doesn't import from app layers"str
+"    - {issue}"str
+"  VIOLATIONS:"str
+9"\n=== Summary ==="str
+"  ISSUES:"str
+320int
+7"  None detected"str
+3'*"\n4. Potentially Unused Imports (top 20)"str
+0'"\n3. Armazenamento Independence Check"str
+-%$"  OK: armazenamento is independent"str"“3
+1
+
+œ œ(,"
+builtinsprint*:BNoneType3
+1
+
+ž ž(*"
+builtinsprint*:BNoneTypeL
+J
+
+Ÿ Ÿ()shared_issues"+
+analyze_code_qualitycheck_shared_purity+
+)
+
+   ("
+__bool__*:BboolH,"*
+
+   ( *
+   (2
+¤ ¤("„3
+1
+
+¡ ¡("
+builtinsprint*:BNoneType9
+7
+
+¢ ¢("	"
+builtinsiter*:Btyping.Iterator
+
+¢ ¢(""=3
+1
+
+¥ ¥(="
+builtinsprint*:BNoneType"}*;shared_issues;4
+2
+
+¢ ¢("
+"
+builtins
+__has_next*:	Bbool"" 
+
+¢ ¢("
+ *
+¢ ¢(H"n/
+-
+
+£ £(#issue"
+builtinsnext*:	3
+1
+
+£ £(#"
+builtinsprint*:BNoneType""ƒ*<shared_issues;3
+1
+
+§ §(."
+builtinsprint*:BNoneTypeN
+L
+
+¨ ¨(+compat_issues"-
+analyze_code_qualitycheck_backward_compat+
+)
+
+© ©("
+__bool__*:BboolH,"*
+
+© ©( *
+© ©(2
+­ ­("„3
+1
+
+ª ª("
+builtinsprint*:BNoneType9
+7
+
+« «(""
+builtinsiter*:Btyping.Iterator
+
+« «("	"=3
+1
+
+® ®(1"
+builtinsprint*:BNoneType"ž	*Dcompat_issues
+D*=shared_issues<
+=4
+2
+
+« «(""
+builtins
+__has_next*:Bbool"" 
+
+« «("
+ *
+« «(H"n
+/
+-
+
+¬ ¬(#issue"
+builtinsnext*:3
+1
+
+¬ ¬(#"
+builtinsprint*:BNoneType	""¶*Ecompat_issuesD*>shared_issues=<3
+1
+
+° °(2"
+builtinsprint*:BNoneType`
+^
+
+± ±(=armazenamento_issues"8
+analyze_code_quality check_armazenamento_independence+
+)
+
+² ²("
+__bool__*:BboolH,"*
+
+² ²( *
+² ²(2
+¶ ¶("„3
+1
+
+³ ³( "
+builtinsprint*:BNoneType9
+7
+
+´ ´()!"
+builtinsiter*:Btyping.Iterator
+
+´ ´()"=3
+1
+
+· ·(3&"
+builtinsprint*:%BNoneType"Æ&*$Karmazenamento_issuesK*Fcompat_issuesEF*?shared_issues>?4
+2
+
+´ ´()""
+builtins
+__has_next*:!Bbool"" 
+
+´ ´()" *
+´ ´(H"n/
+-
+
+µ µ(##issue"
+builtinsnext*:!3
+1
+
+µ µ(#$"
+builtinsprint*:BNoneType""Ä&*$Larmazenamento_issuesK*Gcompat_issuesFE*@shared_issues?>3
+1
+
+¹ ¹(5("
+builtinsprint*:'BNoneTypeF
+D
+
+º º(#)unused",
+analyze_code_qualitycheck_unused_imports+
+)
+
+» »(*"
+__bool__*:)BboolH,"*
+
+» »(* *
+» »(2
+À À("t#
+!
+
+¼ ¼( +"#unknown-value#9
+7
+
+¼ ¼( ,"
+builtinsiter*:+Btyping.Iterator
+
+¼ ¼( "=3
+1
+
+Á Á( 8"
+builtinsprint*:7BNoneType"à&*$Marmazenamento_issuesLM*Hcompat_issuesGH*Ashared_issues@A*1unused)14
+2
+
+¼ ¼( -"
+builtins
+__has_next*:,Bbool"" 
+
+¼ ¼( - *
+¼ ¼(H"n/
+-
+
+½ ½(!.issue"
+builtinsnext*:,3
+1
+
+½ ½(!0"
+builtinsprint*:/BNoneType"~,
+*
+
+¾ ¾(2"
+builtinslen*:1Bint*
+(
+
+¾ ¾(4"	#binop >#2>:23Bbool "
+
+¾ ¾(4 *
+¾ ¾(
+"=3
+1
+
+¿ ¿(76"
+builtinsprint*:5BNoneType""Á&*$Narmazenamento_issuesML*Icompat_issuesHG*Bshared_issuesA@3
+1
+
+Ã Ã(:"
+builtinsprint*:9BNoneType,
+*
+
+Ä Ä(%C"
+builtinslen*:BBint,
+*
+
+Ä( Ä(:J"
+builtinslen*:IBint,
+*
+
+Ä= Ä(VO"
+builtinslen*:NBint8
+6
+
+Ä Ä(VPtotal_issues"	#binop +#2+:CJOBint,
+*
+
+Å Å(R"
+#binop ==#2==:PQBbool,"*
+
+Å Å(R *
+Å Å(2
+Ç Ç("=3
+1
+
+Æ Æ(,T"
+builtinsprint*:SBNoneType"=3
+1
+
+È È(6V"
+builtinsprint*:UBNoneType"
+
+Ê Ê(Q*QC:\Users\mauri\git\SSA_Consulta_Rapida\scripts_manutencao\analyze_code_quality.py

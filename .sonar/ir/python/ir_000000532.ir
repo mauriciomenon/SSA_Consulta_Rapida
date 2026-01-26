@@ -1,0 +1,57 @@
+
+truebool
+
+"backfill"str
+"--"str
+"--acao"str
+
+0intargs (list"ä!
+
+ ( "#unknown-value#+
+)
+ (+"#get-field# executable:!
+
+1 (5"#unknown-value#.
+,
+- (6"#dependent-value#*:Bstr#
+!
+T (Y	"#unaryop *#2*:'
+%
+ (Z
+"#unknown-value#Blist&
+$
+ (Z"
+#is-exact#:
+Bbool
+
+ (Z"
+#assume#:8
+6
+ (Z"#set-field# __collection_size:
+Bint&
+$
+ (Z"#array-add-last#:
+&
+$
+ (Z"#array-add-last#:
+&
+$
+ (Z"#array-add-last#:
+&
+$
+ (Z"#array-add-last#:
+&
+$
+ (Z"#array-add-last#:
+&
+$
+ (Z"#array-add-all#:
+	!
+
+` (d"#unknown-value#M
+K
+	 (…result"
+
+subprocessrun:
+Bsubprocess.CompletedProcess
+ (*NC:\Users\mauri\git\SSA_Consulta_Rapida\tests\test_main_backfill_integration.py
