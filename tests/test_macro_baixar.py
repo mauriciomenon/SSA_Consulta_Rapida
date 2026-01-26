@@ -1,14 +1,17 @@
 """Teste para validar consistencia do macro 'Baixar' e evitar race conditions."""
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
+
 from PyQt6.QtWidgets import QApplication
+
 from gui.gui_ssa import SSAMainWindow
 
 
