@@ -3955,6 +3955,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
 
+        # Cancela pipeline de filtro em andamento para evitar mistura entre datasets.
+        try:
+            if hasattr(self, "_invalidate_active_filter_request"):
+                self._invalidate_active_filter_request("load_data_new_dataset")
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_cancel_active_filter_worker"):
+                self._cancel_active_filter_worker("load_data_new_dataset", wait_ms=0)
+        except Exception:
+            pass
+        # Evita disparo tardio de filtro por debounce enquanto o novo dataset carrega.
+        try:
+            self._debounce_timer.stop()
+        except Exception:
+            pass
+
         request_id = int(getattr(self, "_data_load_request_seq", 0) or 0) + 1
         self._data_load_request_seq = request_id
         self._active_data_load_request_id = request_id

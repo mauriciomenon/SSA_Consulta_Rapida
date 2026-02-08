@@ -907,6 +907,99 @@ class TestGUIFilterLogic:
         assert new_worker.start_called is True
         assert self.window._active_data_load_request_id == 6
 
+    def test_load_data_cancels_filter_pipeline_and_stops_debounce(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+        class _FakeLoaderWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self._running = False
+
+            def isRunning(self):
+                return self._running
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        class _FakeFilterSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowFilterWorker:
+            def __init__(self):
+                self.filter_finished = _FakeFilterSignal()
+                self.error_occurred = _FakeFilterSignal()
+                self.finished = _FakeFilterSignal()
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return False
+
+            def deleteLater(self):
+                self.deleted = True
+
+        self.window._filter_request_seq = 7
+        self.window._active_filter_request_id = 7
+        self.window.search_input.setText("Teste")
+        self.window._on_search_text_changed("Teste")
+        assert self.window._debounce_timer.isActive() is True
+
+        previous_filter_worker = _SlowFilterWorker()
+        self.window.filter_thread = previous_filter_worker
+        self.window._retired_filter_workers = []
+
+        with patch("gui.gui_ssa.os.path.exists", return_value=True), patch("gui.gui_ssa.DataLoaderWorker", _FakeLoaderWorker):
+            ORIGINAL_LOAD_DATA(self.window)
+
+        assert self.window._active_filter_request_id == 8
+        assert self.window.filter_thread is None
+        assert self.window._debounce_timer.isActive() is False
+        assert previous_filter_worker.quit_called is True
+        assert previous_filter_worker.wait_called_ms is None
+        assert previous_filter_worker in self.window._retired_filter_workers
+
     def test_load_data_keeps_slow_previous_worker_retained_until_finished(self):
         class _FakeSignal:
             def __init__(self):
