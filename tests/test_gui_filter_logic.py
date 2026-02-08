@@ -210,6 +210,22 @@ class TestGUIFilterLogic:
         assert width_after_clear_columns > 0
         assert width_after_clear_general > 0
 
+    def test_clear_filter_button_reflects_active_filters(self):
+        self.window.search_input.setText('')
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert self.window.clear_filter_button.isEnabled() is False
+
+        self.window.search_input.setText('Teste A')
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert self.window.clear_filter_button.isEnabled() is True
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+        assert self.window.search_input.text() == ''
+        assert self.window.clear_filter_button.isEnabled() is False
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
