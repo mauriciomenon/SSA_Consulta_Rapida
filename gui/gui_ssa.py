@@ -830,8 +830,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_sector_syncing = False
 
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
-        self._sector_debounce_timer = None
         self._sector_debounce_delay = 300  # ms
+        self._sector_debounce_timer = QTimer(self)
+        self._sector_debounce_timer.setSingleShot(True)
+        self._sector_debounce_timer.setInterval(self._sector_debounce_delay)
+        self._sector_debounce_timer.timeout.connect(self._refresh_responsavel_options)
 
         self._initialize_profile_filter_placeholders()
 
@@ -957,6 +960,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Threads iniciadas sob demanda
         self.data_loader_thread = None
         self.filter_thread = None
+        self._filter_request_seq = 0
+        self._active_filter_request_id = 0
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
         self._sync_filtering = os.environ.get("SSA_SYNC_FILTER", "").lower() in ("1", "true", "yes", "on")
         # Em ambiente de testes (pytest), force modo síncrono para previsibilidade
@@ -1541,6 +1546,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if button is None or menu is None:
             return
         def _show_menu():
+            if not _is_widget_valid(button) or not _is_widget_valid(menu):
+                return
             try:
                 rect = button.rect()
                 pos = button.mapToGlobal(rect.bottomLeft())
@@ -1562,7 +1569,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pass
 
     def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar", exclude_checks=None):
-        if button is None:
+        if not _is_widget_valid(button):
             return
         selected = []
         for cb in checks or []:
@@ -1786,10 +1793,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if exclude_cb is not None:
                 def _toggle_include(checked, other=exclude_cb):
                     if checked and _is_widget_valid(other) and other.isChecked():
+                        other.blockSignals(True)
                         other.setChecked(False)
+                        other.blockSignals(False)
                 def _toggle_exclude(checked, other=include_cb):
                     if checked and _is_widget_valid(other) and other.isChecked():
+                        other.blockSignals(True)
                         other.setChecked(False)
+                        other.blockSignals(False)
                 try:
                     include_cb.toggled.connect(_toggle_include)
                     exclude_cb.toggled.connect(_toggle_exclude)
@@ -1876,6 +1887,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if exclude_selected_set is not None:
             def _select_all_include():
                 for cb in checks:
+                    if not _is_widget_valid(cb):
+                        continue
                     cb.blockSignals(True)
                     cb.setChecked(True)
                     cb.blockSignals(False)
@@ -1888,6 +1901,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _deselect_all_include():
                 for cb in checks:
+                    if not _is_widget_valid(cb):
+                        continue
                     cb.blockSignals(True)
                     cb.setChecked(False)
                     cb.blockSignals(False)
@@ -1900,6 +1915,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _select_all_exclude():
                 for cb in exclude_checks:
+                    if not _is_widget_valid(cb):
+                        continue
                     cb.blockSignals(True)
                     cb.setChecked(True)
                     cb.blockSignals(False)
@@ -1912,6 +1929,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _deselect_all_exclude():
                 for cb in exclude_checks:
+                    if not _is_widget_valid(cb):
+                        continue
                     cb.blockSignals(True)
                     cb.setChecked(False)
                     cb.blockSignals(False)
@@ -2571,10 +2590,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except Exception:
             pass
-        try:
-            self._refresh_responsavel_options()
-        except Exception:
-            pass
+        self._schedule_sector_options_refresh()
 
     def _on_adv_sector_exclude_changed(self, *_):
         """Atualiza filtros de exclusão de setor com debouncing."""
@@ -2603,25 +2619,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
-        # Debounce: cancela timer anterior e agenda novo refresh
-        if self._sector_debounce_timer is not None:
-            try:
-                self._sector_debounce_timer.stop()
-            except Exception:
-                pass
+        self._schedule_sector_options_refresh()
 
-        try:
-            from PyQt6.QtCore import QTimer
-            self._sector_debounce_timer = QTimer()
-            self._sector_debounce_timer.setSingleShot(True)
-            self._sector_debounce_timer.timeout.connect(self._refresh_responsavel_options)
-            self._sector_debounce_timer.start(self._sector_debounce_delay)
-        except Exception:
-            # Fallback sem debounce se timer falhar
+    def _schedule_sector_options_refresh(self):
+        """Agenda refresh de opções dependentes de setor evitando rajadas de sinais."""
+        timer = getattr(self, "_sector_debounce_timer", None)
+        if timer is None:
             try:
                 self._refresh_responsavel_options()
             except Exception:
                 pass
+            return
+        try:
+            if _is_widget_valid(timer):
+                timer.stop()
+                timer.start()
+                return
+        except Exception:
+            pass
+        try:
+            self._refresh_responsavel_options()
+        except Exception:
+            pass
 
     def _collect_divisao_setores(self, divisao_values):
         setores = set()
