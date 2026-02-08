@@ -73,6 +73,7 @@ from armazenamento.database import query_db  # noqa: E402
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
 try:
+    from PyQt6 import sip
     from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
         QPushButton, QLineEdit, QLabel, QTableWidget, QTableWidgetItem,
@@ -96,6 +97,7 @@ try:
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
+    sip = None
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
     class _Sig:
@@ -506,6 +508,18 @@ except ImportError as exc:
     class FilterGUISSAMixin:
         """Stub mixin for headless testing."""
         pass
+
+
+def _is_widget_valid(widget) -> bool:
+    """Return True when a Qt widget reference still points to a live object."""
+    if widget is None:
+        return False
+    if sip is None:
+        return True
+    try:
+        return not sip.isdeleted(widget)
+    except Exception:
+        return False
 
 # --- Constantes ---
 DB_PATH = os.path.join(project_root, 'data', 'ssas.db')
@@ -1525,6 +1539,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         selected = []
         for cb in checks or []:
             try:
+                if not _is_widget_valid(cb):
+                    continue
                 if cb.isChecked():
                     value = self._checkbox_value(cb)
                     if value:
@@ -1534,6 +1550,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         excluded = []
         for cb in exclude_checks or []:
             try:
+                if not _is_widget_valid(cb):
+                    continue
                 if cb.isChecked():
                     value = self._checkbox_value(cb)
                     if value:
@@ -1742,10 +1760,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 exclude_checks.append(exclude_cb)
             if exclude_cb is not None:
                 def _toggle_include(checked, other=exclude_cb):
-                    if checked and other.isChecked():
+                    if checked and _is_widget_valid(other) and other.isChecked():
                         other.setChecked(False)
                 def _toggle_exclude(checked, other=include_cb):
-                    if checked and other.isChecked():
+                    if checked and _is_widget_valid(other) and other.isChecked():
                         other.setChecked(False)
                 try:
                     include_cb.toggled.connect(_toggle_include)
@@ -2645,6 +2663,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             for cb in getattr(self, "adv_executor_checks", None) or []:
                 try:
+                    if not _is_widget_valid(cb):
+                        continue
                     if cb.text().casefold() in setores_norm:
                         cb.blockSignals(True)
                         cb.setChecked(True)
@@ -2653,6 +2673,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     pass
             for cb in getattr(self, "adv_emissor_checks", None) or []:
                 try:
+                    if not _is_widget_valid(cb):
+                        continue
                     if cb.text().casefold() in setores_norm:
                         cb.blockSignals(True)
                         cb.setChecked(True)
@@ -3101,6 +3123,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if isinstance(source, list):
             for child in source:
                 try:
+                    if not _is_widget_valid(child):
+                        continue
                     if child.isChecked():
                         value = self._checkbox_value(child)
                         if value:
@@ -3115,6 +3139,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 children = []
             for child in children:
                 try:
+                    if not _is_widget_valid(child):
+                        continue
                     if child.isChecked():
                         value = self._checkbox_value(child)
                         if value:
