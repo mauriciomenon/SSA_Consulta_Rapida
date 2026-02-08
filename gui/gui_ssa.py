@@ -961,6 +961,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.data_loader_thread = None
         self._retired_data_loader_workers = []
         self.filter_thread = None
+        self._retired_filter_workers = []
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
         self._filter_request_seq = 0
@@ -5852,7 +5853,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if worker and hasattr(worker, 'isRunning') and worker.isRunning():
             try:
                 # Usa cleanup centralizado (desconecta todos os callbacks, inclusive lambdas)
-                self._cancel_active_filter_worker("closeEvent")
+                self._cancel_active_filter_worker("closeEvent", wait_ms=3000)
             except Exception as exc:
                 logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
                 try:

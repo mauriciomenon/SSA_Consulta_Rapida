@@ -18,6 +18,8 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 5. Troca de worker em `load_data()` é não bloqueante (`wait_ms=0`) para não congelar a UI.
 6. Worker lento/remanescente é mantido em `self._retired_data_loader_workers` até emitir `finished`.
 7. `closeEvent` usa cleanup bloqueante controlado (`wait_ms=3000`) para reduzir risco de `QThread` ativo no encerramento.
+8. Hand-off de `filter_thread` também é não bloqueante (`wait_ms=0`) em requisições rápidas.
+9. Worker de filtro lento/remanescente também é retido até `finished` em `self._retired_filter_workers`.
 
 ## Regras de Estado da UI
 
@@ -41,6 +43,18 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 - Destruir worker potencialmente ativo sem retenção/release explícito.
 - Repetir cleanup em múltiplos caminhos com lógica divergente.
 
+## Fluxo de Filtro Assíncrono
+
+- `initiate_filtering()`:
+  - incrementa `request_id` de filtro
+  - invalida requisições anteriores
+  - troca worker anterior sem bloquear UI
+- `on_filter_finished` / `on_filter_error`:
+  - só processam evento se `request_id` for o ativo
+- `on_filter_finished_cleanup`:
+  - libera UI e encerra worker da requisição vigente
+  - em evento obsoleto, faz cleanup apenas do worker stale
+
 ## Cobertura de Testes Mínima
 
 - Resultado obsoleto ignorado (`on_data_loaded`).
@@ -49,6 +63,8 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 - Substituição de worker anterior em `load_data`.
 - Worker lento anterior mantido até `finished`.
 - `closeEvent` limpa `data_loader_thread` e `filter_thread`.
+- Requisições rápidas de filtro não bloqueiam UI na troca de worker.
+- Worker de filtro lento é retido e liberado apenas em `finished`.
 
 ## Arquivos-chave
 
