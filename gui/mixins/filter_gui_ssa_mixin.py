@@ -18,10 +18,9 @@ import pandas as pd
 from collections import OrderedDict
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
-    QMessageBox, QHBoxLayout, QVBoxLayout, QLabel,
-    QLineEdit, QPushButton, QComboBox, QCheckBox,
-    QFrame, QGroupBox, QSpacerItem, QSizePolicy,
-    QWidget, QMenu
+    QMessageBox, QHBoxLayout, QLabel,
+    QLineEdit, QPushButton, QSizePolicy,
+    QWidget
 )
 
 # Imports condicionais (podem nao estar disponiveis em modo headless)
@@ -48,7 +47,7 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
 
 # Imports de utils
-from utils.themes import get_theme_roles, normalize_theme
+from utils.themes import get_theme_roles
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -123,6 +122,21 @@ class FilterGUISSAMixin:
             logger.debug("Filtro ativo invalidado (%s): request_id=%s", reason, next_request_id)
         return next_request_id
 
+    def _cancel_active_filter_worker(self, reason: str = "") -> None:
+        """Cancela worker anterior antes de iniciar uma nova filtragem assíncrona."""
+        worker = getattr(self, "filter_thread", None)
+        if worker is None:
+            return
+        try:
+            self._cleanup_filter_worker(worker)
+        except Exception as exc:
+            logger.debug("Falha ao cancelar worker ativo (%s): %s", reason or "sem_motivo", exc)
+        finally:
+            if getattr(self, "filter_thread", None) is worker:
+                self.filter_thread = None
+        if reason:
+            logger.debug("Worker anterior cancelado (%s)", reason)
+
     def initiate_filtering(self):
         if self.df_completo.empty:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
@@ -159,9 +173,8 @@ class FilterGUISSAMixin:
 
         # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
         if not hasattr(self, '_cached_default_mode'):
-            # Inline import para evitar ciclo (SSAMainWindow -> mixin -> gui_ssa). Mantido propositalmente.
-            from gui import gui_ssa  # noqa: WPS433
-            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            from gui.gui_config import GUI_MAIN_PREFERENCES
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
@@ -192,6 +205,8 @@ class FilterGUISSAMixin:
             finally:
                 self.on_filter_finished_cleanup(None, request_id=request_id)
             return
+
+        self._cancel_active_filter_worker("initiate_filtering_new_request")
 
         # Fallback defensivo para ambientes sem worker assíncrono disponível
         if FilterWorker is None:
@@ -1667,8 +1682,8 @@ class FilterGUISSAMixin:
 
         # Determina modo padrao a partir das preferencias
         if not hasattr(self, '_cached_default_mode'):
-            from gui import gui_ssa
-            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            from gui.gui_config import GUI_MAIN_PREFERENCES
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
