@@ -1349,15 +1349,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if name in ctx:
                 setattr(self, name, ctx[name])
         try:
-            active_text = self.search_input.text().strip()
-            self.clear_filter_button.setEnabled(bool(active_text))
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
         except Exception:
             pass
         try:
             if ctx.get("tab_kind") == "filters":
+                try:
+                    debounce_timer = getattr(self, "_debounce_timer", None)
+                    if debounce_timer is not None:
+                        debounce_timer.stop()
+                except Exception:
+                    pass
                 self.search_input.blockSignals(True)
                 self.search_input.clear()
-                self.clear_filter_button.setEnabled(False)
         except Exception:
             pass
         finally:
@@ -1366,6 +1370,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.search_input.blockSignals(False)
             except Exception:
                 pass
+        try:
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception:
+            pass
 
         tab_kind = ctx.get("tab_kind")
         try:
@@ -5794,6 +5802,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def resizeEvent(self, event):
         """Reotimiza larguras das colunas quando a janela eh redimensionada."""
         super().resizeEvent(event)
+
+        # Mantem grid da aba Filtros responsivo durante resize.
+        try:
+            if getattr(self, "_current_tab_kind", None) == "filters":
+                if hasattr(self, "adv_filters_group") and self.adv_filters_group:
+                    width = self.adv_filters_group.width()
+                    self._reorganize_advanced_filters_grid(width)
+        except Exception:
+            pass
 
         # So recalcula se ha dados carregados e uma mudanca significativa na largura
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and

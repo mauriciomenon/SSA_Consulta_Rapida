@@ -74,11 +74,55 @@ class FilterGUISSAMixin:
             else:
                 logger.warning("Falha ao salvar historico de filtros: %s", exc)
 
-    def _has_any_active_filters(self) -> bool:
+    def _iter_search_inputs(self):
+        """Itera por todos os campos de busca das abas sem duplicar referências."""
+        seen = set()
         try:
-            search_text = self.search_input.text().strip() if hasattr(self, "search_input") else ""
+            current = getattr(self, "search_input", None)
+            if current is not None:
+                seen.add(id(current))
+                yield current
         except Exception:
-            search_text = ""
+            pass
+
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            widget = ctx.get("search_input")
+            if widget is None:
+                continue
+            widget_id = id(widget)
+            if widget_id in seen:
+                continue
+            seen.add(widget_id)
+            yield widget
+
+    def _set_search_text_across_tabs(self, text: str) -> None:
+        """Aplica o mesmo texto em todos os campos de busca para evitar divergência entre abas."""
+        normalized_text = str(text or "")
+        for widget in self._iter_search_inputs():
+            try:
+                widget.blockSignals(True)
+                widget.setText(normalized_text)
+            finally:
+                try:
+                    widget.blockSignals(False)
+                except Exception:
+                    pass
+
+    def _has_any_active_filters(self) -> bool:
+        has_search = False
+        try:
+            for widget in self._iter_search_inputs():
+                text = widget.text().strip()
+                if text:
+                    has_search = True
+                    break
+        except Exception:
+            has_search = False
         try:
             column_filters = getattr(self, "_active_column_filters", {}) or {}
             has_column_filters = any(str(v).strip() for v in column_filters.values())
@@ -92,7 +136,7 @@ class FilterGUISSAMixin:
             has_advanced = bool(getattr(self, "_advanced_filters_active", False))
         except Exception:
             has_advanced = False
-        return bool(search_text or has_column_filters or has_exclude_ste or has_advanced)
+        return bool(has_search or has_column_filters or has_exclude_ste or has_advanced)
 
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
@@ -409,11 +453,17 @@ class FilterGUISSAMixin:
         except Exception:
             pass
         try:
-            self.search_input.blockSignals(True)
-            self.search_input.clear()
-            self.search_input.setText('')
-        finally:
-            self.search_input.blockSignals(False)
+            self._set_search_text_across_tabs("")
+        except Exception:
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.search_input.setText('')
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception:
+                    pass
         self._pending_search_display = None
         # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
         # Limpa o cache de filtros ao limpar filtros
@@ -857,14 +907,17 @@ class FilterGUISSAMixin:
         except Exception:
             pass
         try:
-            self.search_input.blockSignals(True)
-            self.search_input.clear()
-            self.search_input.setText('')
-        finally:
+            self._set_search_text_across_tabs("")
+        except Exception:
             try:
-                self.search_input.blockSignals(False)
-            except Exception:
-                pass
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.search_input.setText('')
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception:
+                    pass
         self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
@@ -1368,13 +1421,16 @@ class FilterGUISSAMixin:
         try:
             self._last_filter_state = None
             try:
-                self.search_input.blockSignals(True)
-                self.search_input.setText(state.get("search_text", "") or "")
-            finally:
+                self._set_search_text_across_tabs(state.get("search_text", "") or "")
+            except Exception:
                 try:
-                    self.search_input.blockSignals(False)
-                except Exception:
-                    pass
+                    self.search_input.blockSignals(True)
+                    self.search_input.setText(state.get("search_text", "") or "")
+                finally:
+                    try:
+                        self.search_input.blockSignals(False)
+                    except Exception:
+                        pass
             self._pending_search_display = state.get("pending_search_display")
             self._active_column_filters = OrderedDict(state.get("active_column_filters") or {})
             self._reset_or_groups()
