@@ -824,7 +824,7 @@ def filter_dataframe(
 
         # Se nenhuma coluna prioritaria existe, usar todas as de texto como fallback
         if not search_columns:
-            search_columns = df.select_dtypes(include=["object"]).columns.tolist()
+            search_columns = df.select_dtypes(include=["object", "string"]).columns.tolist()
 
     # Criar DataFrame base apenas com colunas de busca
     available_search_cols = [col for col in search_columns if col in df.columns]
@@ -834,7 +834,7 @@ def filter_dataframe(
 
     base_str_df = (
         df[available_search_cols]
-        .select_dtypes(include=["object"])
+        .select_dtypes(include=["object", "string"])
         .fillna("")
         .astype(str)
     )
