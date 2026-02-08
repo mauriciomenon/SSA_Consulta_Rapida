@@ -3903,6 +3903,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             worker.finished.connect(_release_worker_ref)
         except Exception:
             _release_worker_ref()
+        try:
+            worker.finished.connect(worker.deleteLater)
+        except Exception:
+            pass
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
         """Finaliza worker de carga com modo bloqueante opcional.

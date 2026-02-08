@@ -897,6 +897,7 @@ class TestGUIFilterLogic:
 
         previous_worker.finish_now()
         assert previous_worker not in self.window._retired_data_loader_workers
+        assert previous_worker.deleted is True
 
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
