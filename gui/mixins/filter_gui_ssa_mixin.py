@@ -60,6 +60,26 @@ class FilterGUISSAMixin:
     Methods extracted from SSAMainWindow to improve code organization.
     """
 
+    def _has_any_active_filters(self) -> bool:
+        try:
+            search_text = self.search_input.text().strip() if hasattr(self, "search_input") else ""
+        except Exception:
+            search_text = ""
+        try:
+            column_filters = getattr(self, "_active_column_filters", {}) or {}
+            has_column_filters = any(str(v).strip() for v in column_filters.values())
+        except Exception:
+            has_column_filters = False
+        try:
+            has_exclude_ste = bool(getattr(self, "_exclude_ste_sca", False))
+        except Exception:
+            has_exclude_ste = False
+        try:
+            has_advanced = bool(getattr(self, "_advanced_filters_active", False))
+        except Exception:
+            has_advanced = False
+        return bool(search_text or has_column_filters or has_exclude_ste or has_advanced)
+
     def initiate_filtering(self):
         if self.df_completo.empty:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
@@ -74,8 +94,7 @@ class FilterGUISSAMixin:
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
 
         if hasattr(self, 'clear_filter_button'):
-            has_terms = bool(chunk_terms_lists or search_text or any(str(v).strip() for v in self._active_column_filters.values()))
-            self.clear_filter_button.setEnabled(has_terms)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
 
         if chunk_terms_lists:
             display_text = self._format_search_display(chunk_terms_lists)
@@ -152,7 +171,7 @@ class FilterGUISSAMixin:
         else:
             self.status_label.setText(f"Status: {total_filtrado} SSAs encontradas.")
         if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(True)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
         self._apply_search_display()
         # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
         try:
@@ -262,6 +281,11 @@ class FilterGUISSAMixin:
         (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
         self._build_column_filters_panel()
+        try:
+            if hasattr(self, 'clear_filter_button'):
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception:
+            pass
         # Atualizar resumo de filtros
         try:
             self._update_filters_summary()
@@ -1181,8 +1205,7 @@ class FilterGUISSAMixin:
             except Exception:
                 pass
             try:
-                has_terms = bool(self.search_input.text().strip() or any(str(v).strip() for v in self._active_column_filters.values()))
-                self.clear_filter_button.setEnabled(has_terms)
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
             except Exception:
                 pass
             selector = getattr(self, 'profile_selector', None)
