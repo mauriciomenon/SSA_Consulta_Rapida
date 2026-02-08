@@ -621,7 +621,7 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 1500
+        assert worker.wait_called_ms == 3000
         assert worker.deleted is True
         assert self.window.data_loader_thread is None
 
@@ -811,10 +811,92 @@ class TestGUIFilterLogic:
         new_worker = self.window.data_loader_thread
         assert new_worker is not previous_worker
         assert previous_worker.quit_called is True
-        assert previous_worker.wait_called_ms == 1500
+        assert previous_worker.wait_called_ms is None
         assert previous_worker.deleted is True
         assert new_worker.start_called is True
         assert self.window._active_data_load_request_id == 6
+
+    def test_load_data_keeps_slow_previous_worker_retained_until_finished(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                # Simula worker que continua em execução após quit()
+                self._running = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return False
+
+            def deleteLater(self):
+                self.deleted = True
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        class _NewLoaderWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self._running = False
+
+            def isRunning(self):
+                return self._running
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        previous_worker = _SlowLoaderWorker()
+        self.window.data_loader_thread = previous_worker
+        self.window._retired_data_loader_workers = []
+
+        with patch("gui.gui_ssa.os.path.exists", return_value=True), patch("gui.gui_ssa.DataLoaderWorker", _NewLoaderWorker):
+            ORIGINAL_LOAD_DATA(self.window)
+
+        assert previous_worker.quit_called is True
+        assert previous_worker.wait_called_ms is None
+        assert previous_worker in self.window._retired_data_loader_workers
+
+        previous_worker.finish_now()
+        assert previous_worker not in self.window._retired_data_loader_workers
 
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:

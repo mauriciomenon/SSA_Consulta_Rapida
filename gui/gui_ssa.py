@@ -959,6 +959,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # --- Conecta Workers / Flags ---
         # Threads iniciadas sob demanda
         self.data_loader_thread = None
+        self._retired_data_loader_workers = []
         self.filter_thread = None
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
@@ -3880,9 +3881,37 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return df
         return df[mask]
 
-    def _cleanup_data_loader_worker(self, worker) -> None:
+    def _retain_data_loader_worker_until_finished(self, worker) -> None:
         if worker is None:
             return
+        retired = getattr(self, "_retired_data_loader_workers", None)
+        if retired is None:
+            retired = []
+            self._retired_data_loader_workers = retired
+        if worker in retired:
+            return
+        retired.append(worker)
+
+        def _release_worker_ref(w=worker):
+            try:
+                if w in self._retired_data_loader_workers:
+                    self._retired_data_loader_workers.remove(w)
+            except Exception:
+                pass
+
+        try:
+            worker.finished.connect(_release_worker_ref)
+        except Exception:
+            _release_worker_ref()
+
+    def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
+        """Finaliza worker de carga com modo bloqueante opcional.
+
+        Retorna True quando o worker já está parado e pronto para descarte.
+        Retorna False quando permanece em execução após tentativa de encerramento.
+        """
+        if worker is None:
+            return True
         try:
             try:
                 worker.data_loaded.disconnect()
@@ -3896,18 +3925,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 worker.finished.disconnect()
             except Exception:
                 pass
+            still_running = False
             try:
                 if hasattr(worker, "isRunning") and worker.isRunning():
                     worker.quit()
-                    worker.wait(1500)
+                    if int(wait_ms or 0) > 0:
+                        worker.wait(int(wait_ms))
+                still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
             except Exception:
-                pass
+                still_running = True
+            if still_running:
+                self._retain_data_loader_worker_until_finished(worker)
+                return False
             try:
                 worker.deleteLater()
             except Exception:
                 pass
         except Exception:
-            pass
+            return False
+        return True
 
     def load_data(self):
         if not os.path.exists(DB_PATH):
@@ -3925,7 +3961,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         previous_worker = getattr(self, "data_loader_thread", None)
         if previous_worker is not None:
-            self._cleanup_data_loader_worker(previous_worker)
+            self._cleanup_data_loader_worker(previous_worker, wait_ms=0)
             if getattr(self, "data_loader_thread", None) is previous_worker:
                 self.data_loader_thread = None
 
@@ -5800,7 +5836,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         data_worker = getattr(self, "data_loader_thread", None)
         if data_worker is not None:
             try:
-                self._cleanup_data_loader_worker(data_worker)
+                self._cleanup_data_loader_worker(data_worker, wait_ms=3000)
             except Exception:
                 pass
             finally:
