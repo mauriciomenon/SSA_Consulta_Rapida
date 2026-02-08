@@ -960,6 +960,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Threads iniciadas sob demanda
         self.data_loader_thread = None
         self.filter_thread = None
+        self._data_load_request_seq = 0
+        self._active_data_load_request_id = 0
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
@@ -3878,27 +3880,71 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return df
         return df[mask]
 
+    def _cleanup_data_loader_worker(self, worker) -> None:
+        if worker is None:
+            return
+        try:
+            try:
+                worker.data_loaded.disconnect()
+            except Exception:
+                pass
+            try:
+                worker.error_occurred.disconnect()
+            except Exception:
+                pass
+            try:
+                worker.finished.disconnect()
+            except Exception:
+                pass
+            try:
+                if hasattr(worker, "isRunning") and worker.isRunning():
+                    worker.quit()
+                    worker.wait(1500)
+            except Exception:
+                pass
+            try:
+                worker.deleteLater()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def load_data(self):
         if not os.path.exists(DB_PATH):
             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
+
+        request_id = int(getattr(self, "_data_load_request_seq", 0) or 0) + 1
+        self._data_load_request_seq = request_id
+        self._active_data_load_request_id = request_id
 
         self.status_label.setText("Status: Carregando dados...")
         self.progress_bar.setVisible(True)
         self.load_button.setEnabled(False)
         self.search_button.setEnabled(False)
 
-        self.data_loader_thread = DataLoaderWorker(DB_PATH, TABLE_NAME)
-        self.data_loader_thread.data_loaded.connect(self.on_data_loaded)
-        self.data_loader_thread.error_occurred.connect(self.on_load_error)
-        self.data_loader_thread.finished.connect(self.on_load_finished)
+        previous_worker = getattr(self, "data_loader_thread", None)
+        if previous_worker is not None:
+            self._cleanup_data_loader_worker(previous_worker)
+            if getattr(self, "data_loader_thread", None) is previous_worker:
+                self.data_loader_thread = None
+
+        worker = DataLoaderWorker(DB_PATH, TABLE_NAME)
+        self.data_loader_thread = worker
+        worker.data_loaded.connect(lambda df, rid=request_id: self.on_data_loaded(df, request_id=rid))
+        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_load_error(msg, request_id=rid))
+        worker.finished.connect(lambda w=worker, rid=request_id: self.on_load_finished(worker=w, request_id=rid))
         try:
-            self.data_loader_thread.finished.connect(self.data_loader_thread.deleteLater)
+            worker.finished.connect(worker.deleteLater)
         except Exception:
             pass
-        self.data_loader_thread.start()
+        worker.start()
 
-    def on_data_loaded(self, df: pd.DataFrame):
+    def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
+        active_id = getattr(self, "_active_data_load_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         self.df_completo = df.copy()
         self._adv_options_dirty = True
         self._adv_values_cache = None
@@ -3936,33 +3982,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
 
-    def on_load_error(self, error_msg: str):
+    def on_load_error(self, error_msg: str, request_id: int | None = None):
+        active_id = getattr(self, "_active_data_load_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando erro de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         QMessageBox.critical(self, "Erro de Carregamento", error_msg)
         self.status_label.setText("Status: Erro ao carregar dados.")
         self.load_button.setEnabled(True)
         self.search_button.setEnabled(True)
         self.progress_bar.setVisible(False)
 
-    def on_load_finished(self):
+    def on_load_finished(self, worker=None, request_id: int | None = None):
+        active_id = getattr(self, "_active_data_load_request_id", None)
+        is_stale = request_id is not None and active_id is not None and request_id != active_id
+        target_worker = worker if worker is not None else getattr(self, "data_loader_thread", None)
+        if is_stale:
+            self._cleanup_data_loader_worker(target_worker)
+            if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
+                self.data_loader_thread = None
+            return
+
         self.progress_bar.setVisible(False)
         self.load_button.setEnabled(True)
         self.search_button.setEnabled(True)
         # Finalização segura do loader
         try:
-            worker = getattr(self, 'data_loader_thread', None)
-            if worker is not None:
-                try:
-                    if hasattr(worker, 'isRunning') and worker.isRunning():
-                        worker.quit()
-                        worker.wait(1500)
-                except Exception:
-                    pass
-                try:
-                    worker.deleteLater()
-                except Exception:
-                    pass
+            self._cleanup_data_loader_worker(target_worker)
         finally:
-            self.data_loader_thread = None
+            if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
+                self.data_loader_thread = None
 
     def on_header_clicked(self, logical_index: int):
         try:
@@ -5745,9 +5794,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         'QThread: Destroyed while thread is still running'
         """
         # Aguarda finalizacao do data loader thread se estiver rodando
-        if hasattr(self, 'data_loader_thread') and self.data_loader_thread and self.data_loader_thread.isRunning():
-            self.data_loader_thread.quit()
-            self.data_loader_thread.wait(3000)  # Aguarda ate 3 segundos
+        data_worker = getattr(self, "data_loader_thread", None)
+        if data_worker is not None:
+            try:
+                self._cleanup_data_loader_worker(data_worker)
+            except Exception:
+                pass
+            finally:
+                if getattr(self, "data_loader_thread", None) is data_worker:
+                    self.data_loader_thread = None
 
         # Aguarda finalizacao do filter thread se estiver rodando
         worker = getattr(self, 'filter_thread', None)

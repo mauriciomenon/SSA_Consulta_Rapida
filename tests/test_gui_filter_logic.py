@@ -582,6 +582,118 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert self.window.filter_thread is None
 
+    def test_on_data_loaded_ignores_stale_request(self):
+        original_df = self.window.df_completo.copy()
+        stale_df = self.base_df.iloc[:1].copy()
+        self.window._active_data_load_request_id = 10
+
+        self.window.on_data_loaded(stale_df, request_id=9)
+
+        assert self.window.df_completo.equals(original_df)
+
+    def test_on_load_error_ignores_stale_request(self):
+        self.window._active_data_load_request_id = 10
+        self.window.status_label.setText("Status: OK")
+
+        with patch("gui.gui_ssa.QMessageBox.critical") as critical:
+            self.window.on_load_error("erro", request_id=9)
+
+        assert critical.called is False
+        assert self.window.status_label.text() == "Status: OK"
+
+    def test_on_load_finished_stale_request_only_cleans_stale_worker(self):
+        class _FakeSignal:
+            def disconnect(self, _callback=None):
+                return None
+
+        class _FakeLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        active_worker = object()
+        stale_worker = _FakeLoaderWorker()
+        self.window.data_loader_thread = active_worker
+        self.window._active_data_load_request_id = 10
+        self.window.progress_bar.setVisible(True)
+        self.window.load_button.setEnabled(False)
+        self.window.search_button.setEnabled(False)
+
+        self.window.on_load_finished(worker=stale_worker, request_id=9)
+
+        assert stale_worker.quit_called is True
+        assert stale_worker.wait_called_ms == 1500
+        assert stale_worker.deleted is True
+        assert self.window.data_loader_thread is active_worker
+        assert self.window.progress_bar.isVisible() is True
+        assert self.window.load_button.isEnabled() is False
+        assert self.window.search_button.isEnabled() is False
+
+    def test_on_load_finished_current_request_cleans_worker_and_restores_ui(self):
+        class _FakeSignal:
+            def disconnect(self, _callback=None):
+                return None
+
+        class _FakeLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        worker = _FakeLoaderWorker()
+        self.window.data_loader_thread = worker
+        self.window._active_data_load_request_id = 11
+        self.window.progress_bar.setVisible(True)
+        self.window.load_button.setEnabled(False)
+        self.window.search_button.setEnabled(False)
+
+        self.window.on_load_finished(worker=worker, request_id=11)
+
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 1500
+        assert worker.deleted is True
+        assert self.window.data_loader_thread is None
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
             checkbox = ctx.get("exclude_ste_checkbox")
