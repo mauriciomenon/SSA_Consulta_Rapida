@@ -591,6 +591,28 @@ class TestGUIFilterLogic:
 
         assert self.window.df_completo.equals(original_df)
 
+    def test_on_data_loaded_syncs_clear_button_to_active_filters(self):
+        self.window._active_data_load_request_id = 10
+        self.window.search_input.setText("")
+        self.window._exclude_ste_sca = False
+        self.window._advanced_filters_active = False
+        for key in list(self.window._active_column_filters.keys()):
+            self.window._active_column_filters[key] = ""
+        self.window.clear_filter_button.setEnabled(True)
+
+        self.window.on_data_loaded(self.base_df.copy(), request_id=10)
+
+        assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_on_data_loaded_keeps_clear_button_enabled_when_filters_active(self):
+        self.window._active_data_load_request_id = 11
+        self.window.search_input.setText("Teste")
+        self.window.clear_filter_button.setEnabled(False)
+
+        self.window.on_data_loaded(self.base_df.copy(), request_id=11)
+
+        assert self.window.clear_filter_button.isEnabled() is True
+
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10
         self.window.status_label.setText("Status: OK")

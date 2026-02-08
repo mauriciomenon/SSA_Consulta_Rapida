@@ -3969,7 +3969,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_exibido = base
         self._df_last_search_filtered = df.copy()
         self._widths_computed_for_df_hash = None
-        self.clear_filter_button.setEnabled(True)
+        try:
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception:
+            self.clear_filter_button.setEnabled(True)
         self._refresh_after_filter_change()
         try:
             self._refresh_advanced_filter_options()
