@@ -482,6 +482,64 @@ class TestGUIFilterLogic:
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
 
+    def test_initiate_filtering_cancels_previous_async_worker(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste")
+
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+        class _FakeWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = False
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker):
+            self.window.initiate_filtering()
+            first_worker = self.window.filter_thread
+            assert first_worker.start_called is True
+
+            self.window.search_input.setText("Teste A")
+            self.window.initiate_filtering()
+            second_worker = self.window.filter_thread
+
+        assert second_worker is not first_worker
+        assert first_worker.quit_called is True
+        assert first_worker.wait_called_ms == 1500
+        assert first_worker.deleted is True
+        assert second_worker.start_called is True
+
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
             checkbox = ctx.get("exclude_ste_checkbox")
