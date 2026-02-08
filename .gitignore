@@ -246,9 +246,11 @@ docs/~$*.xlsx
 
 # -- SSA local ignores --
 # SQLite + backups locais
-# data/ssas.db
+data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
+# Preferencias locais da GUI (descomentar/remover quando houver mudanca estrutural real)
+config/gui_main_preferences.json
 data/historico_backups/
 data/historico_backups/**
 # Artefatos de recuperacao
