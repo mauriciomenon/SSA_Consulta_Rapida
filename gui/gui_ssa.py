@@ -4186,23 +4186,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
-    # Garante menu de contexto no cabeçalho em qualquer tema/estilo
-    def resizeEvent(self, event):
-        """Detecta mudancas de tamanho da janela para adaptar layout."""
-        try:
-            super().resizeEvent(event)
-        except Exception:
-            pass
-
-        # Reorganiza grid de filtros avancados se estiver na aba Filtros
-        try:
-            if getattr(self, "_current_tab_kind", None) == "filters":
-                if hasattr(self, "adv_filters_group") and self.adv_filters_group:
-                    width = self.adv_filters_group.width()
-                    self._reorganize_advanced_filters_grid(width)
-        except Exception:
-            pass
-
     def eventFilter(self, obj, event):
         try:
             header = self.table_widget.horizontalHeader()
