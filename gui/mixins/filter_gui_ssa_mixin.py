@@ -60,6 +60,21 @@ class FilterGUISSAMixin:
     Methods extracted from SSAMainWindow to improve code organization.
     """
 
+    def _safe_store_last_filter_state(self, reason: str = "") -> None:
+        """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
+        try:
+            self._store_last_filter_state()
+        except AttributeError as exc:
+            if reason:
+                logger.debug("Historico de filtros indisponivel (%s): %s", reason, exc)
+            else:
+                logger.debug("Historico de filtros indisponivel: %s", exc)
+        except Exception as exc:
+            if reason:
+                logger.warning("Falha ao salvar historico de filtros (%s): %s", reason, exc)
+            else:
+                logger.warning("Falha ao salvar historico de filtros: %s", exc)
+
     def _has_any_active_filters(self) -> bool:
         try:
             search_text = self.search_input.text().strip() if hasattr(self, "search_input") else ""
@@ -85,7 +100,7 @@ class FilterGUISSAMixin:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
             return
 
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("initiate_filtering")
 
         search_text = self.search_input.text().strip()
         raw_chunks = self._split_search_expression(search_text) if search_text else []
@@ -264,7 +279,7 @@ class FilterGUISSAMixin:
 
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("clear_filter")
         try:
             self.search_input.blockSignals(True)
             self.search_input.clear()
@@ -493,12 +508,17 @@ class FilterGUISSAMixin:
                 def _inner():
                     # Simplified: use text directly (comma-separated terms = OR logic)
                     new_text = str(tb.text()).strip()
-                    self._store_last_filter_state()
+                    self._safe_store_last_filter_state("apply_column_filter")
                     self._active_column_filters[c] = new_text
                     self._sync_or_group_values(c, new_text)
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
+                    try:
+                        if hasattr(self, "clear_filter_button"):
+                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+                    except Exception:
+                        pass
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botão para remover a linha da exibição (não altera o valor do filtro)
@@ -608,7 +628,7 @@ class FilterGUISSAMixin:
                     return
             except Exception:
                 pass
-            self._store_last_filter_state()
+            self._safe_store_last_filter_state("clear_single_column_filter")
             if col_name in self._column_to_or_group:
                 self._sync_or_group_values(col_name, "")
             elif col_name in self._active_column_filters:
@@ -616,11 +636,16 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
+            try:
+                if hasattr(self, "clear_filter_button"):
+                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
+            except Exception:
+                pass
 
 
     def _clear_all_column_filters(self):
         if self._active_column_filters:
-            self._store_last_filter_state()
+            self._safe_store_last_filter_state("clear_all_column_filters")
             for group in getattr(self, '_column_or_groups', []):
                 group['values'] = []
                 for col in group.get('columns', []):
@@ -638,10 +663,15 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
+            try:
+                if hasattr(self, "clear_filter_button"):
+                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
+            except Exception:
+                pass
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("toggle_exclude_ste")
         checked_bool = bool(checked)
         self._exclude_ste_sca = checked_bool
         try:
@@ -681,7 +711,7 @@ class FilterGUISSAMixin:
 
     def _clear_all_filters_global(self):
         """Limpa todos os filtros: busca geral + filtros de coluna"""
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("clear_all_filters_global")
         # Limpar filtro de busca geral
         self.search_input.clear()
         self._df_last_search_filtered = pd.DataFrame()
@@ -691,6 +721,34 @@ class FilterGUISSAMixin:
             self._active_column_filters.clear()
             for k in ("situacao", "setor_executor", "descricao_ssa"):
                 self._active_column_filters[k] = ""
+
+        # Limpar filtros auxiliares/avancados
+        self._exclude_ste_sca = False
+        self._advanced_filters = {}
+        self._advanced_filters_active = False
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if isinstance(tab_contexts, list):
+            for ctx in tab_contexts:
+                if not isinstance(ctx, dict):
+                    continue
+                checkbox = ctx.get("exclude_ste_checkbox")
+                if checkbox is None:
+                    continue
+                try:
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(False)
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception:
+                        pass
+        try:
+            if hasattr(self, "_sync_advanced_filter_ui"):
+                self._sync_advanced_filter_ui()
+        except Exception:
+            pass
 
         # Resetar para dataset completo
         self.df_exibido = self.df_completo.copy()
@@ -708,7 +766,7 @@ class FilterGUISSAMixin:
         # Atualizar interface
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas. Pronto para filtrar.")
         if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(False)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
 
         # Atualizar resumo de filtros
         self._update_filters_summary()
@@ -1473,7 +1531,7 @@ class FilterGUISSAMixin:
         selector = getattr(self, 'profile_selector', None)
         if selector is None:
             return
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("on_profile_changed")
         profile_name = selector.itemData(index)
         if profile_name:
             self._apply_filter_profile(profile_name, update_selector=False)
