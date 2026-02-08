@@ -21,6 +21,8 @@ from PyQt6.QtGui import QCloseEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 
+ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
+
 
 class TestGUIFilterLogic:
     """Valida filtros com perfis OR e exclusões complementares."""
@@ -715,6 +717,63 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
+
+    def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+        class _FakeLoaderWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = False
+                self.start_called = False
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        previous_worker = _FakeLoaderWorker()
+        previous_worker._running = True
+        self.window.data_loader_thread = previous_worker
+        self.window._data_load_request_seq = 5
+        self.window._active_data_load_request_id = 5
+
+        with patch("gui.gui_ssa.os.path.exists", return_value=True), patch("gui.gui_ssa.DataLoaderWorker", _FakeLoaderWorker):
+            ORIGINAL_LOAD_DATA(self.window)
+
+        new_worker = self.window.data_loader_thread
+        assert new_worker is not previous_worker
+        assert previous_worker.quit_called is True
+        assert previous_worker.wait_called_ms == 1500
+        assert previous_worker.deleted is True
+        assert new_worker.start_called is True
+        assert self.window._active_data_load_request_id == 6
 
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
