@@ -101,6 +101,13 @@ class FilterGUISSAMixin:
             return
 
         self._safe_store_last_filter_state("initiate_filtering")
+        try:
+            self._debounce_timer.stop()
+        except Exception:
+            pass
+        request_id = int(getattr(self, "_filter_request_seq", 0)) + 1
+        self._filter_request_seq = request_id
+        self._active_filter_request_id = request_id
 
         search_text = self.search_input.text().strip()
         raw_chunks = self._split_search_expression(search_text) if search_text else []
@@ -141,7 +148,7 @@ class FilterGUISSAMixin:
                     df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True) if frames else self.df_completo.copy()
                 else:
                     df_filtrado = self.df_completo.copy()
-                self.on_filter_finished(df_filtrado)
+                self.on_filter_finished(df_filtrado, request_id=request_id)
                 # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
                 try:
                     self._ensure_nonzero_column_widths()
@@ -153,25 +160,30 @@ class FilterGUISSAMixin:
                 except Exception:
                     pass
             except Exception as e:  # noqa: BLE001
-                self.on_filter_error(f"Erro ao filtrar dados: {e}")
+                self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
             finally:
-                self.on_filter_finished_cleanup()
+                self.on_filter_finished_cleanup(None, request_id=request_id)
             return
 
         # Inicia a thread de filtragem (modo padrão assíncrono)
-        self.filter_thread = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
-        self.filter_thread.filter_finished.connect(self.on_filter_finished)
-        self.filter_thread.error_occurred.connect(self.on_filter_error)
-        self.filter_thread.finished.connect(self.on_filter_finished_cleanup)
+        worker = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
+        self.filter_thread = worker
+        worker.filter_finished.connect(lambda df, rid=request_id: self.on_filter_finished(df, request_id=rid))
+        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_filter_error(msg, request_id=rid))
+        worker.finished.connect(lambda w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid))
         # Garante destruição segura do objeto thread após terminar
         try:
-            self.filter_thread.finished.connect(self.filter_thread.deleteLater)
+            worker.finished.connect(worker.deleteLater)
         except Exception:
             pass
-        self.filter_thread.start()
+        worker.start()
 
 
-    def on_filter_finished(self, df_filtrado: pd.DataFrame):
+    def on_filter_finished(self, df_filtrado: pd.DataFrame, request_id: int | None = None):
+        active_id = getattr(self, "_active_filter_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando resultado de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         # Atualiza baseline do resultado da busca global
         self._df_last_search_filtered = df_filtrado.copy()
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
@@ -213,12 +225,46 @@ class FilterGUISSAMixin:
             pass
 
 
-    def on_filter_error(self, error_msg: str):
+    def on_filter_error(self, error_msg: str, request_id: int | None = None):
+        active_id = getattr(self, "_active_filter_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando erro de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         QMessageBox.critical(self, "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
 
-    def on_filter_finished_cleanup(self):
+    def _cleanup_filter_worker(self, worker) -> None:
+        if worker is None:
+            return
+        try:
+            try:
+                worker.filter_finished.disconnect()
+            except Exception:
+                pass
+            try:
+                worker.error_occurred.disconnect()
+            except Exception:
+                pass
+            try:
+                worker.finished.disconnect()
+            except Exception:
+                pass
+            try:
+                if hasattr(worker, 'isRunning') and worker.isRunning():
+                    worker.quit()
+                    worker.wait(1500)
+            except Exception:
+                pass
+            try:
+                worker.deleteLater()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+
+    def on_filter_finished_cleanup(self, worker=None, request_id: int | None = None):
         """Limpa estado pós-thread de filtragem com checagens defensivas.
 
         Em execuções headless/CI alguns widgets podem já ter sido destruídos
@@ -226,6 +272,13 @@ class FilterGUISSAMixin:
         abort em chamadas Qt nativas. Garantimos que os atributos existem e que
         o thread já não está em execução antes de manipular.
         """
+        active_id = getattr(self, "_active_filter_request_id", None)
+        is_stale = request_id is not None and active_id is not None and request_id != active_id
+        if is_stale:
+            self._cleanup_filter_worker(worker)
+            if worker is not None and getattr(self, "filter_thread", None) is worker:
+                self.filter_thread = None
+            return
         # Debug trace para investigação de estabilidade em testes headless
         try:
             progress_bar = getattr(self, "progress_bar", None)
@@ -241,37 +294,10 @@ class FilterGUISSAMixin:
                         btn.setEnabled(True)
                     except Exception:
                         pass
-            # Garantir finalização adequada do worker de filtro
-            worker = getattr(self, "filter_thread", None)
-            if worker is not None:
-                try:
-                    # Desconectar sinais para evitar callbacks tardios
-                    try:
-                        worker.filter_finished.disconnect(self.on_filter_finished)
-                    except Exception:
-                        pass
-                    try:
-                        worker.error_occurred.disconnect(self.on_filter_error)
-                    except Exception:
-                        pass
-                    try:
-                        worker.finished.disconnect(self.on_filter_finished_cleanup)
-                    except Exception:
-                        pass
-                    # Solicita término e aguarda brevemente
-                    try:
-                        if hasattr(worker, 'isRunning') and worker.isRunning():
-                            worker.quit()
-                            worker.wait(1500)
-                    except Exception:
-                        pass
-                    # Deleta o objeto de forma segura
-                    try:
-                        worker.deleteLater()
-                    except Exception:
-                        pass
-                finally:
-                    self.filter_thread = None
+            target_worker = worker if worker is not None else getattr(self, "filter_thread", None)
+            self._cleanup_filter_worker(target_worker)
+            if target_worker is not None and getattr(self, "filter_thread", None) is target_worker:
+                self.filter_thread = None
         except Exception:
             # Nunca propagar exceção daqui; log mínimo opcional futuro
             self.filter_thread = None
@@ -713,7 +739,25 @@ class FilterGUISSAMixin:
         """Limpa todos os filtros: busca geral + filtros de coluna"""
         self._safe_store_last_filter_state("clear_all_filters_global")
         # Limpar filtro de busca geral
-        self.search_input.clear()
+        try:
+            self._debounce_timer.stop()
+        except Exception:
+            pass
+        try:
+            sector_timer = getattr(self, "_sector_debounce_timer", None)
+            if sector_timer is not None:
+                sector_timer.stop()
+        except Exception:
+            pass
+        try:
+            self.search_input.blockSignals(True)
+            self.search_input.clear()
+            self.search_input.setText('')
+        finally:
+            try:
+                self.search_input.blockSignals(False)
+            except Exception:
+                pass
         self._df_last_search_filtered = pd.DataFrame()
 
         # Limpar todos os filtros de coluna
@@ -1227,16 +1271,33 @@ class FilterGUISSAMixin:
             for group in state.get("column_or_groups") or []:
                 self._register_or_group(list(group.get("columns") or []), list(group.get("values") or []))
             self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
-            try:
-                self.exclude_ste_checkbox.blockSignals(True)
-                self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
-            except Exception:
-                pass
-            finally:
+            tab_contexts = getattr(self, "_tab_contexts", None)
+            if isinstance(tab_contexts, list):
+                for ctx in tab_contexts:
+                    checkbox = ctx.get("exclude_ste_checkbox") if isinstance(ctx, dict) else None
+                    if checkbox is None:
+                        continue
+                    try:
+                        checkbox.blockSignals(True)
+                        checkbox.setChecked(self._exclude_ste_sca)
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            checkbox.blockSignals(False)
+                        except Exception:
+                            pass
+            else:
                 try:
-                    self.exclude_ste_checkbox.blockSignals(False)
+                    self.exclude_ste_checkbox.blockSignals(True)
+                    self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
                 except Exception:
                     pass
+                finally:
+                    try:
+                        self.exclude_ste_checkbox.blockSignals(False)
+                    except Exception:
+                        pass
             self._advanced_filters = state.get("advanced_filters") or {}
             self._advanced_filters_active = bool(state.get("advanced_filters_active"))
             df_last = state.get("df_last_search_filtered")

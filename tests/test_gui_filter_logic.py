@@ -418,3 +418,49 @@ class TestGUIFilterLogic:
             assert saved == ["STE"]
         finally:
             gui_ssa.GUI_MAIN_PREFERENCES["gui_settings"] = original_settings
+
+    def test_on_filter_finished_ignores_stale_request(self):
+        self.window._active_filter_request_id = 10
+        original = self.window._df_last_search_filtered.copy()
+        stale_df = self.base_df.iloc[:1].copy()
+
+        self.window.on_filter_finished(stale_df, request_id=9)
+
+        assert self.window._df_last_search_filtered.equals(original)
+
+    def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                checkbox.setChecked(False)
+        self.window._exclude_ste_sca = False
+        self.window._safe_store_last_filter_state("test_restore_sync")
+
+        self.window._on_exclude_ste_sca_toggled(True)
+        QApplication.processEvents()
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._exclude_ste_sca is False
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                assert checkbox.isChecked() is False
+
+    def test_clear_all_filters_global_stops_pending_debounce(self):
+        self.window.search_input.setText("Teste")
+        self.window._on_search_text_changed("Teste")
+        assert self.window._debounce_timer.isActive() is True
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._debounce_timer.isActive() is False
+
+    def test_sector_exclude_debounce_reuses_same_timer_instance(self):
+        timer_before = self.window._sector_debounce_timer
+        self.window._on_adv_sector_exclude_changed()
+        QApplication.processEvents()
+
+        assert self.window._sector_debounce_timer is timer_before
