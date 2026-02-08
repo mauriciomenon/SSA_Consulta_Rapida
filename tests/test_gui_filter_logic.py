@@ -346,3 +346,75 @@ class TestGUIFilterLogic:
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
+
+    def test_clear_all_filters_global_resets_exclude_and_advanced_filters(self):
+        self.window._exclude_ste_sca = True
+        self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
+        self.window._advanced_filters_active = True
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                checkbox.setChecked(True)
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window._exclude_ste_sca is False
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                assert checkbox.isChecked() is False
+        assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["SSA-101", "102", "102", "103", "104", "", None],
+                "derivada_de": ["100", "100", "100", "None", "nan", "100", "100"],
+            }
+        )
+
+        mae_filhas, filha_mae = self.window._build_derivadas_tree(df, "numero_ssa", "derivada_de")
+
+        assert mae_filhas == {"100": ["101", "102"]}
+        assert filha_mae == {"101": "100", "102": "100"}
+
+    def test_update_derivadas_button_state_ignores_invalid_values(self):
+        btn = getattr(self.window, "adv_derivadas_especificas_button", None)
+        if btn is None:
+            btn = self.window._adv_ctx["adv_derivadas_especificas_button"]
+
+        self.window._df_last_search_filtered = pd.DataFrame(
+            {
+                "numero_ssa": ["1", "2", "3"],
+                "derivada_de": ["None", "nan", "   "],
+            }
+        )
+        self.window._update_derivadas_button_state()
+        assert btn.isEnabled() is False
+
+        self.window._df_last_search_filtered = pd.DataFrame(
+            {
+                "numero_ssa": ["1", "2"],
+                "derivada_de": ["None", "1001"],
+            }
+        )
+        self.window._update_derivadas_button_state()
+        assert btn.isEnabled() is True
+
+    def test_save_advanced_filters_default_keeps_snapshot_immutable(self):
+        from gui import gui_ssa
+
+        original_settings = dict(gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {}))
+        try:
+            self.window._advanced_filters = {"situacao": ["STE"]}
+            with patch.object(self.window, "_apply_advanced_filters_from_ui", return_value=None), patch.object(self.window, "_persist_gui_preferences", return_value=None):
+                self.window._save_advanced_filters_default()
+            self.window._advanced_filters["situacao"].append("SCA")
+
+            saved = gui_ssa.GUI_MAIN_PREFERENCES["gui_settings"]["advanced_filters_default"]["situacao"]
+            assert saved == ["STE"]
+        finally:
+            gui_ssa.GUI_MAIN_PREFERENCES["gui_settings"] = original_settings

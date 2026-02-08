@@ -23,6 +23,7 @@ import json
 import subprocess
 import re
 import logging
+import copy
 from collections import OrderedDict
 from time import perf_counter
 
@@ -675,6 +676,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "adv_derivada_has",
         "adv_derivada_all_ste",
         "adv_derivada_is",
+        "adv_derivadas_especificas_button",
         "adv_macro_combo",
         "adv_responsavel_solicitante_button",
         "adv_responsavel_solicitante_menu",
@@ -1328,6 +1330,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             }
         )
         if tab_kind == "filters":
+            self._adv_ctx = adv_ctx
             ctx.update(adv_ctx)
         return ctx
 
@@ -1722,9 +1725,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 background-color: #4a90d9;
                 border: 1px solid #2a70b9;
                 image: none;
-            }
-            QCheckBox::indicator:checked::after {
-                content: "";
             }
         """
         cb_style_exclude = """
@@ -2302,18 +2302,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if derivada_col is None or numero_col is None:
                 return
 
-            # Construir mapeamento mae -> filhas
-            mae_filhas = {}  # mae -> [filhas]
-            filha_mae = {}   # filha -> mae
-
-            for _, row in df.iterrows():
-                numero = str(row.get(numero_col, "")).strip()
-                derivada_de = str(row.get(derivada_col, "")).strip()
-                if numero and derivada_de and derivada_de.lower() not in ("nan", "none", ""):
-                    filha_mae[numero] = derivada_de
-                    if derivada_de not in mae_filhas:
-                        mae_filhas[derivada_de] = []
-                    mae_filhas[derivada_de].append(numero)
+            mae_filhas, filha_mae = self._build_derivadas_tree(df, numero_col, derivada_col)
 
             if not mae_filhas and not filha_mae:
                 return
@@ -2372,10 +2361,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.warning("Erro ao mostrar popup de derivadas: %s", e)
 
+    def _build_derivadas_tree(self, df: pd.DataFrame, numero_col: str, derivada_col: str):
+        """Constroi arvore de derivadas com normalizacao robusta de SSA."""
+        mae_filhas: dict[str, list[str]] = {}
+        filha_mae: dict[str, str] = {}
+        if df is None or df.empty:
+            return mae_filhas, filha_mae
+        if numero_col not in df.columns or derivada_col not in df.columns:
+            return mae_filhas, filha_mae
+
+        try:
+            df_work = df[[numero_col, derivada_col]].copy()
+        except Exception:
+            return mae_filhas, filha_mae
+
+        for _, row in df_work.iterrows():
+            numero = self._normalize_ssa_value(row.get(numero_col))
+            derivada_de = self._normalize_ssa_value(row.get(derivada_col))
+            if not numero or not derivada_de:
+                continue
+            filha_mae[numero] = derivada_de
+            mae_filhas.setdefault(derivada_de, set()).add(numero)
+
+        for mae, filhas in list(mae_filhas.items()):
+            mae_filhas[mae] = sorted(filhas, key=lambda value: str(value).casefold())
+
+        return mae_filhas, filha_mae
+
     def _update_derivadas_button_state(self):
         """Habilita/desabilita botao Especificas baseado em existencia de derivadas."""
         try:
-            btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
+            btn = getattr(self, "adv_derivadas_especificas_button", None)
+            if btn is None:
+                btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
             if btn is None:
                 return
 
@@ -2395,8 +2413,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 btn.setEnabled(False)
                 return
 
-            # Verificar se ha valores nao nulos
-            has_derivadas = df[derivada_col].dropna().astype(str).str.strip().replace("", pd.NA).dropna().any()
+            # Verificar se ha valores normalizados validos (ignora '', None, NaN)
+            normalized = df[derivada_col].apply(self._normalize_ssa_value)
+            has_derivadas = normalized.ne("").any()
             btn.setEnabled(bool(has_derivadas))
         except Exception:
             pass
@@ -2405,7 +2424,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._apply_advanced_filters_from_ui(store_only=True)
         try:
             gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-            gui_settings["advanced_filters_default"] = dict(self._advanced_filters or {})
+            gui_settings["advanced_filters_default"] = copy.deepcopy(self._advanced_filters or {})
             self._persist_gui_preferences()
         except Exception as e:
             logger.warning("Falha ao salvar filtros avancados default: %s", e)
