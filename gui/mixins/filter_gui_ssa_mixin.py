@@ -371,6 +371,10 @@ class FilterGUISSAMixin:
         self._invalidate_active_filter_request("clear_filter")
         self._set_filter_ui_idle()
         try:
+            self._debounce_timer.stop()
+        except Exception:
+            pass
+        try:
             self.search_input.blockSignals(True)
             self.search_input.clear()
             self.search_input.setText('')
