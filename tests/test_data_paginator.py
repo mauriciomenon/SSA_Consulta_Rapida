@@ -1,0 +1,51 @@
+"""Testes unitários para robustez de paginação da GUI."""
+
+import os
+import sys
+
+import pandas as pd
+import pytest
+
+pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from PyQt6.QtWidgets import QApplication  # noqa: E402
+
+from gui.widgets.data_paginator import DataPaginator  # noqa: E402
+
+
+class TestDataPaginator:
+    @classmethod
+    def setup_class(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_update_pagination_info_clamps_page_upper_bound(self):
+        df = pd.DataFrame({"numero_ssa": list(range(1, 121))})
+        paginator = DataPaginator(df, page_size=50)
+
+        paginator.current_page = 5
+        paginator.update_pagination_info()
+        paginator.update_buttons()
+
+        assert paginator.total_pages == 3
+        assert paginator.current_page == 3
+        assert paginator.page_info_label.text() == "Pagina 3 de 3"
+        assert paginator.prev_button.isEnabled() is True
+        assert paginator.next_button.isEnabled() is False
+
+    def test_update_pagination_info_clamps_page_lower_bound(self):
+        df = pd.DataFrame({"numero_ssa": [1, 2, 3]})
+        paginator = DataPaginator(df, page_size=10)
+
+        paginator.current_page = 0
+        paginator.update_pagination_info()
+        paginator.update_buttons()
+
+        assert paginator.total_pages == 1
+        assert paginator.current_page == 1
+        assert paginator.page_info_label.text() == "Pagina 1 de 1"
+        assert paginator.prev_button.isEnabled() is False
+        assert paginator.next_button.isEnabled() is False
