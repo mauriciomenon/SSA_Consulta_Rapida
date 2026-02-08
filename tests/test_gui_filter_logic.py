@@ -17,6 +17,7 @@ if project_root not in sys.path:
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtCore import Qt  # noqa: E402
+from PyQt6.QtGui import QCloseEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 
@@ -539,6 +540,47 @@ class TestGUIFilterLogic:
         assert first_worker.wait_called_ms == 1500
         assert first_worker.deleted is True
         assert second_worker.start_called is True
+
+    def test_close_event_cleans_filter_worker_with_centralized_cleanup(self):
+        class _FakeSignal:
+            def disconnect(self, _callback=None):
+                return None
+
+        class _FakeWorker:
+            def __init__(self):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        worker = _FakeWorker()
+        self.window.filter_thread = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 1500
+        assert worker.deleted is True
+        assert self.window.filter_thread is None
 
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:

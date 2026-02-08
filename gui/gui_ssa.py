@@ -5750,22 +5750,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.data_loader_thread.wait(3000)  # Aguarda ate 3 segundos
 
         # Aguarda finalizacao do filter thread se estiver rodando
-        if hasattr(self, 'filter_thread') and self.filter_thread and self.filter_thread.isRunning():
-            # Desconecta sinais para evitar callbacks tardios durante teardown
+        worker = getattr(self, 'filter_thread', None)
+        if worker and hasattr(worker, 'isRunning') and worker.isRunning():
             try:
-                self.filter_thread.finished.disconnect(self.on_filter_finished_cleanup)
-            except (TypeError, RuntimeError, AttributeError) as exc:
-                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
-            try:
-                self.filter_thread.filter_finished.disconnect(self.on_filter_finished)
-            except (TypeError, RuntimeError, AttributeError) as exc:
-                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
-            try:
-                self.filter_thread.error_occurred.disconnect(self.on_filter_error)
-            except (TypeError, RuntimeError, AttributeError) as exc:
-                logger.debug("Signal disconnect skipped during close cleanup: %s", exc)
-            self.filter_thread.quit()
-            self.filter_thread.wait(3000)  # Aguarda ate 3 segundos
+                # Usa cleanup centralizado (desconecta todos os callbacks, inclusive lambdas)
+                self._cancel_active_filter_worker("closeEvent")
+            except Exception as exc:
+                logger.debug("Filter cleanup fallback in closeEvent: %s", exc)
+                try:
+                    worker.quit()
+                    worker.wait(3000)  # Aguarda ate 3 segundos
+                except Exception:
+                    pass
 
         # Aceita o evento de fechamento
         event.accept()
