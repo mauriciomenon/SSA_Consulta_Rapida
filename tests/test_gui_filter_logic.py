@@ -428,6 +428,60 @@ class TestGUIFilterLogic:
 
         assert self.window._df_last_search_filtered.equals(original)
 
+    def test_clear_filter_invalidates_pending_async_result(self):
+        self.window._filter_request_seq = 20
+        self.window._active_filter_request_id = 20
+        self.window.progress_bar.setVisible(True)
+        self.window.load_button.setEnabled(False)
+        self.window.search_button.setEnabled(False)
+        stale_df = self.base_df.iloc[:1].copy()
+
+        self.window.search_input.setText("Teste A")
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window._active_filter_request_id == 21
+        assert self.window.search_input.text() == ""
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
+        self.window.on_filter_finished(stale_df, request_id=20)
+        assert self.window._df_last_search_filtered.equals(self.base_df)
+
+    def test_clear_all_filters_global_invalidates_pending_async_result(self):
+        self.window._filter_request_seq = 30
+        self.window._active_filter_request_id = 30
+        self.window.progress_bar.setVisible(True)
+        self.window.load_button.setEnabled(False)
+        self.window.search_button.setEnabled(False)
+        self.window._active_column_filters["situacao"] = "STE"
+        stale_df = self.base_df.iloc[:2].copy()
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window._active_filter_request_id == 31
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
+        self.window.on_filter_finished(stale_df, request_id=30)
+        assert self.window.df_exibido.equals(self.base_df)
+
+    def test_initiate_filtering_fallback_when_filter_worker_missing(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A")
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", None):
+            self.window.initiate_filtering()
+            QApplication.processEvents()
+
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
             checkbox = ctx.get("exclude_ste_checkbox")

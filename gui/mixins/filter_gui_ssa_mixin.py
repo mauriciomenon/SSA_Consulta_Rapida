@@ -95,6 +95,34 @@ class FilterGUISSAMixin:
             has_advanced = False
         return bool(search_text or has_column_filters or has_exclude_ste or has_advanced)
 
+    def _set_filter_ui_idle(self) -> None:
+        """Garante estado visual de ociosidade após abortar/limpar filtros."""
+        try:
+            progress_bar = getattr(self, "progress_bar", None)
+            if progress_bar is not None:
+                progress_bar.setVisible(False)
+        except Exception:
+            pass
+        for btn_attr in ("load_button", "search_button"):
+            try:
+                button = getattr(self, btn_attr, None)
+                if button is not None:
+                    button.setEnabled(True)
+            except Exception:
+                pass
+
+    def _invalidate_active_filter_request(self, reason: str = "") -> int:
+        """Invalida resultados assíncronos pendentes para evitar sobrescrita tardia."""
+        try:
+            next_request_id = int(getattr(self, "_filter_request_seq", 0) or 0) + 1
+        except Exception:
+            next_request_id = 1
+        self._filter_request_seq = next_request_id
+        self._active_filter_request_id = next_request_id
+        if reason:
+            logger.debug("Filtro ativo invalidado (%s): request_id=%s", reason, next_request_id)
+        return next_request_id
+
     def initiate_filtering(self):
         if self.df_completo.empty:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
@@ -159,6 +187,25 @@ class FilterGUISSAMixin:
                         self.table_widget.setColumnWidth(1, 80)
                 except Exception:
                     pass
+            except Exception as e:  # noqa: BLE001
+                self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
+            finally:
+                self.on_filter_finished_cleanup(None, request_id=request_id)
+            return
+
+        # Fallback defensivo para ambientes sem worker assíncrono disponível
+        if FilterWorker is None:
+            logger.warning("FilterWorker indisponivel; aplicando filtro em modo sincrono")
+            try:
+                if chunk_terms_lists:
+                    frames = []
+                    for terms in chunk_terms_lists:
+                        parsed = parse_search_terms(terms, default_mode=default_mode)
+                        frames.append(filter_dataframe(self.df_completo, parsed))
+                    df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True) if frames else self.df_completo.copy()
+                else:
+                    df_filtrado = self.df_completo.copy()
+                self.on_filter_finished(df_filtrado, request_id=request_id)
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
             finally:
@@ -306,6 +353,8 @@ class FilterGUISSAMixin:
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
         self._safe_store_last_filter_state("clear_filter")
+        self._invalidate_active_filter_request("clear_filter")
+        self._set_filter_ui_idle()
         try:
             self.search_input.blockSignals(True)
             self.search_input.clear()
@@ -338,7 +387,10 @@ class FilterGUISSAMixin:
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
         # Chamar start() novamente reinicia o QTimer automaticamente
-        self._debounce_timer.start()
+        try:
+            self._debounce_timer.start()
+        except Exception:
+            pass
     
 
     def clear_filter_cache(self):
@@ -738,6 +790,8 @@ class FilterGUISSAMixin:
     def _clear_all_filters_global(self):
         """Limpa todos os filtros: busca geral + filtros de coluna"""
         self._safe_store_last_filter_state("clear_all_filters_global")
+        self._invalidate_active_filter_request("clear_all_filters_global")
+        self._set_filter_ui_idle()
         # Limpar filtro de busca geral
         try:
             self._debounce_timer.stop()
@@ -758,6 +812,7 @@ class FilterGUISSAMixin:
                 self.search_input.blockSignals(False)
             except Exception:
                 pass
+        self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
         # Limpar todos os filtros de coluna
@@ -1254,6 +1309,8 @@ class FilterGUISSAMixin:
         state = getattr(self, "_last_filter_state", None)
         if not state:
             return
+        self._invalidate_active_filter_request("restore_last_filter_state")
+        self._set_filter_ui_idle()
         self._restoring_filter_state = True
         try:
             self._last_filter_state = None
