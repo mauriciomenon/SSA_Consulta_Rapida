@@ -1,23 +1,16 @@
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra --strict-markers --ignore=tests/legacy_tests -p no:pylama"
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "performance: marks performance / import throughput tests",
-    "smoke: marca smoke tests rapidos",
-    "stress: marca testes de stress"
+[project]
+name = "ssa-consulta-rapida"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas",
+    "openpyxl",
+    "ruff",
+    "pyqt6",
+    "flake8",
+    "pytest",
+    "ty",
+    "numpy",
+    "scypy",
+    "tabulate",
 ]
-
-[tool.black]
-line-length = 100
-target-version = ["py313"]
-skip-string-normalization = true
-
-# Changelog:
-# [2025-12-05] - Otimização de requirements: mantido como está (não afetado)
