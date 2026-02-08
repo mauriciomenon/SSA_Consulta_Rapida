@@ -16,8 +16,8 @@ if project_root not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
-from PyQt6.QtCore import Qt  # noqa: E402
-from PyQt6.QtGui import QCloseEvent  # noqa: E402
+from PyQt6.QtCore import Qt, QSize  # noqa: E402
+from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 
@@ -319,6 +319,66 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
+
+    def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+
+        # Agenda um novo filtro via debounce, mas troca para a aba Filtros antes do timeout.
+        self.window.search_input.setText("Teste A, Teste D")
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QTest.qWait(int(self.window._debounce_timer.interval()) + 80)
+        QApplication.processEvents()
+
+        # O dataset nao pode ser resetado por disparo tardio no contexto da aba errada.
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+
+    def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        main_ctx = next(
+            ctx for ctx in self.window._tab_contexts
+            if ctx.get("tab_kind") == "main"
+        )
+        assert main_ctx["search_input"].text().strip() == "Teste A"
+
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        for ctx in self.window._tab_contexts:
+            assert ctx["search_input"].text().strip() == ""
+        assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_resize_event_reorganizes_advanced_grid_on_filters_tab(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        captured_widths = []
+        with patch.object(self.window, "_reorganize_advanced_filters_grid", side_effect=lambda width: captured_widths.append(width)):
+            event = QResizeEvent(QSize(1280, 800), QSize(1200, 760))
+            self.window.resizeEvent(event)
+
+        assert captured_widths
+        assert captured_widths[0] >= 0
 
     def test_details_html_hides_internal_columns(self):
         series = self.base_df.iloc[0].copy()
