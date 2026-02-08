@@ -243,6 +243,7 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
 
+    @pytest.mark.skip(reason="exclude_ste_checkbox está oculto na UI atual; efeito funcional coberto por test_exclude_ste_sca_combined_with_or_group")
     def test_exclude_checkbox_and_clear_filter_button(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
