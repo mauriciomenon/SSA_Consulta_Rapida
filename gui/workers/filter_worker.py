@@ -23,8 +23,40 @@ class FilterWorker(QThread):
         self.search_chunks = search_chunks or []
         self.default_mode = default_mode
 
-        # Gera hash do DataFrame para cache
-        self.df_hash = hashlib.md5(str(df_completo.shape).encode()).hexdigest()[:16]
+        # Gera fingerprint estrutural+amostral para reduzir colisões de cache
+        self.df_hash = self._build_df_hash(df_completo)
+
+    @staticmethod
+    def _build_df_hash(df_completo: pd.DataFrame) -> str:
+        """Cria hash estável do DataFrame para chave de cache de filtros."""
+        try:
+            if df_completo is None:
+                return hashlib.md5(b"none").hexdigest()[:16]
+
+            row_count = len(df_completo)
+            if row_count <= 24:
+                sample_df = df_completo
+            else:
+                sample_df = pd.concat(
+                    [df_completo.head(12), df_completo.tail(12)],
+                    axis=0,
+                    ignore_index=True,
+                )
+
+            sample_records = tuple(
+                tuple(str(value) for value in row_values)
+                for row_values in sample_df.itertuples(index=False, name=None)
+            )
+            payload = (
+                tuple(df_completo.shape),
+                tuple(str(column) for column in df_completo.columns),
+                tuple(str(dtype) for dtype in df_completo.dtypes),
+                sample_records,
+            )
+            return hashlib.md5(repr(payload).encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            fallback = str(getattr(df_completo, "shape", "unknown"))
+            return hashlib.md5(fallback.encode("utf-8")).hexdigest()[:16]
 
     def run(self):
         try:
