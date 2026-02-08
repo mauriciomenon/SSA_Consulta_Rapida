@@ -1440,6 +1440,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
 
+    def _sync_checks_to_tab_context(self):
+        """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""
+        try:
+            if not hasattr(self, "_tab_contexts"):
+                return
+            filters_ctx = None
+            for ctx in self._tab_contexts:
+                if ctx.get("tab_kind") == "filters":
+                    filters_ctx = ctx
+                    break
+            if filters_ctx is None:
+                return
+
+            synced = 0
+            for attr, value in vars(self).items():
+                if not attr.startswith("adv_") or not attr.endswith("_checks"):
+                    continue
+                if value is None:
+                    continue
+                filters_ctx[attr] = value
+                synced += 1
+            logger.debug("_sync_checks_to_tab_context: %s atributos sincronizados", synced)
+        except Exception as e:
+            logger.error("Erro em _sync_checks_to_tab_context: %s", e)
+
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
             return
@@ -3585,6 +3610,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.adv_prioridade_planejamento_exclude_checks = prio_exclude
 
         self._refresh_responsavel_options()
+        self._sync_checks_to_tab_context()
         self._sync_advanced_filter_ui()
         try:
             elapsed_ms = (perf_counter() - start) * 1000.0

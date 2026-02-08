@@ -278,3 +278,24 @@ class TestGUIFilterLogic:
 
         names = [f['name'] for f in self.window.persistent_filters]
         assert names == sorted(names, key=lambda n: n.casefold())
+
+    def test_advanced_filter_checks_survive_tab_switch(self):
+        """Rebuild dos menus avançados deve persistir listas *_checks no tab_context."""
+        self.window._adv_options_dirty = True
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+        assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
+
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
