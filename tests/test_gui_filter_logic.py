@@ -539,7 +539,7 @@ class TestGUIFilterLogic:
 
         assert second_worker is not first_worker
         assert first_worker.quit_called is True
-        assert first_worker.wait_called_ms == 1500
+        assert first_worker.wait_called_ms is None
         assert first_worker.deleted is True
         assert second_worker.start_called is True
 
@@ -580,9 +580,100 @@ class TestGUIFilterLogic:
 
         assert event.isAccepted() is True
         assert worker.quit_called is True
-        assert worker.wait_called_ms == 1500
+        assert worker.wait_called_ms == 3000
         assert worker.deleted is True
         assert self.window.filter_thread is None
+
+    def test_initiate_filtering_keeps_slow_previous_worker_retained_until_finished(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste")
+
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowWorker:
+            def __init__(self):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = True
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                # Simula worker que continua rodando após quit
+                self._running = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return False
+
+            def deleteLater(self):
+                self.deleted = True
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        class _NewWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self._running = False
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        previous_worker = _SlowWorker()
+        self.window.filter_thread = previous_worker
+        self.window._retired_filter_workers = []
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _NewWorker):
+            self.window.initiate_filtering()
+
+        assert previous_worker.quit_called is True
+        assert previous_worker.wait_called_ms is None
+        assert previous_worker in self.window._retired_filter_workers
+
+        previous_worker.finish_now()
+        assert previous_worker.deleted is True
+        assert previous_worker not in self.window._retired_filter_workers
 
     def test_close_event_cleans_data_loader_worker(self):
         class _FakeSignal:

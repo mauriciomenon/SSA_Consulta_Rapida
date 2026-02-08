@@ -122,13 +122,13 @@ class FilterGUISSAMixin:
             logger.debug("Filtro ativo invalidado (%s): request_id=%s", reason, next_request_id)
         return next_request_id
 
-    def _cancel_active_filter_worker(self, reason: str = "") -> None:
+    def _cancel_active_filter_worker(self, reason: str = "", wait_ms: int = 1500) -> None:
         """Cancela worker anterior antes de iniciar uma nova filtragem assíncrona."""
         worker = getattr(self, "filter_thread", None)
         if worker is None:
             return
         try:
-            self._cleanup_filter_worker(worker)
+            self._cleanup_filter_worker(worker, wait_ms=wait_ms)
         except Exception as exc:
             logger.debug("Falha ao cancelar worker ativo (%s): %s", reason or "sem_motivo", exc)
         finally:
@@ -206,7 +206,7 @@ class FilterGUISSAMixin:
                 self.on_filter_finished_cleanup(None, request_id=request_id)
             return
 
-        self._cancel_active_filter_worker("initiate_filtering_new_request")
+        self._cancel_active_filter_worker("initiate_filtering_new_request", wait_ms=0)
 
         # Fallback defensivo para ambientes sem worker assíncrono disponível
         if FilterWorker is None:
@@ -296,9 +296,36 @@ class FilterGUISSAMixin:
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
 
-    def _cleanup_filter_worker(self, worker) -> None:
+    def _retain_filter_worker_until_finished(self, worker) -> None:
         if worker is None:
             return
+        retired = getattr(self, "_retired_filter_workers", None)
+        if retired is None:
+            retired = []
+            self._retired_filter_workers = retired
+        if worker in retired:
+            return
+        retired.append(worker)
+
+        def _release_worker_ref(w=worker):
+            try:
+                if w in self._retired_filter_workers:
+                    self._retired_filter_workers.remove(w)
+            except Exception:
+                pass
+
+        try:
+            worker.finished.connect(_release_worker_ref)
+        except Exception:
+            _release_worker_ref()
+        try:
+            worker.finished.connect(worker.deleteLater)
+        except Exception:
+            pass
+
+    def _cleanup_filter_worker(self, worker, wait_ms: int = 1500) -> bool:
+        if worker is None:
+            return True
         try:
             try:
                 worker.filter_finished.disconnect()
@@ -312,18 +339,25 @@ class FilterGUISSAMixin:
                 worker.finished.disconnect()
             except Exception:
                 pass
+            still_running = False
             try:
                 if hasattr(worker, 'isRunning') and worker.isRunning():
                     worker.quit()
-                    worker.wait(1500)
+                    if int(wait_ms or 0) > 0:
+                        worker.wait(int(wait_ms))
+                still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
             except Exception:
-                pass
+                still_running = True
+            if still_running:
+                self._retain_filter_worker_until_finished(worker)
+                return False
             try:
                 worker.deleteLater()
             except Exception:
                 pass
         except Exception:
-            pass
+            return False
+        return True
 
 
     def on_filter_finished_cleanup(self, worker=None, request_id: int | None = None):
