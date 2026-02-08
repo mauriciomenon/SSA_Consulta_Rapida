@@ -618,7 +618,39 @@ class FilterGUISSAMixin:
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
         self._store_last_filter_state()
-        self._exclude_ste_sca = bool(checked)
+        checked_bool = bool(checked)
+        self._exclude_ste_sca = checked_bool
+        try:
+            tab_contexts = getattr(self, "_tab_contexts", None)
+            if isinstance(tab_contexts, list):
+                for ctx in tab_contexts:
+                    if not isinstance(ctx, dict):
+                        continue
+                    checkbox = ctx.get("exclude_ste_checkbox")
+                    if checkbox is None:
+                        continue
+                    try:
+                        if checkbox.isChecked() != checked_bool:
+                            checkbox.blockSignals(True)
+                            checkbox.setChecked(checked_bool)
+                    finally:
+                        try:
+                            checkbox.blockSignals(False)
+                        except Exception:
+                            pass
+            elif hasattr(self, "exclude_ste_checkbox") and self.exclude_ste_checkbox is not None:
+                checkbox = self.exclude_ste_checkbox
+                try:
+                    if checkbox.isChecked() != checked_bool:
+                        checkbox.blockSignals(True)
+                        checkbox.setChecked(checked_bool)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         self._mark_profile_as_custom()
         self._refresh_after_filter_change()
 

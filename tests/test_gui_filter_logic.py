@@ -300,3 +300,21 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
+
+    def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
+        """Toggle programático deve manter estado interno e checkboxes em sincronia."""
+        self.window._on_exclude_ste_sca_toggled(True)
+        QApplication.processEvents()
+        assert self.window._exclude_ste_sca is True
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                assert checkbox.isChecked() is True
+
+        self.window._on_exclude_ste_sca_toggled(False)
+        QApplication.processEvents()
+        assert self.window._exclude_ste_sca is False
+        for ctx in self.window._tab_contexts:
+            checkbox = ctx.get("exclude_ste_checkbox")
+            if checkbox is not None:
+                assert checkbox.isChecked() is False
