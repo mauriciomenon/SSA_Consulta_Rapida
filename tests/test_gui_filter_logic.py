@@ -1083,6 +1083,167 @@ class TestGUIFilterLogic:
         assert previous_worker not in self.window._retired_data_loader_workers
         assert previous_worker.deleted is True
 
+    def test_repeated_load_data_handoffs_release_retired_workers(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = True
+
+            def wait(self, _ms):
+                return False
+
+            def deleteLater(self):
+                return None
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        class _NewLoaderWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = False
+
+            def isRunning(self):
+                return self._running
+
+            def start(self):
+                self._running = True
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        self.window._retired_data_loader_workers = []
+        self.window._data_load_request_seq = 0
+        slow_workers = []
+
+        with patch("gui.gui_ssa.os.path.exists", return_value=True), patch("gui.gui_ssa.DataLoaderWorker", _NewLoaderWorker):
+            for _ in range(10):
+                slow = _SlowLoaderWorker()
+                slow_workers.append(slow)
+                self.window.data_loader_thread = slow
+                ORIGINAL_LOAD_DATA(self.window)
+                assert slow in self.window._retired_data_loader_workers
+                slow.finish_now()
+
+        assert self.window._retired_data_loader_workers == []
+        assert self.window._active_data_load_request_id == 10
+        assert all(worker.quit_called for worker in slow_workers)
+
+    def test_repeated_filter_handoffs_release_retired_workers(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste")
+
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowFilterWorker:
+            def __init__(self):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = True
+
+            def wait(self, _ms):
+                return False
+
+            def deleteLater(self):
+                return None
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        class _NewFilterWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = False
+
+            def isRunning(self):
+                return self._running
+
+            def start(self):
+                self._running = True
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        self.window._retired_filter_workers = []
+        self.window._filter_request_seq = 0
+        slow_workers = []
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _NewFilterWorker):
+            for _ in range(10):
+                slow = _SlowFilterWorker()
+                slow_workers.append(slow)
+                self.window.filter_thread = slow
+                self.window.initiate_filtering()
+                assert slow in self.window._retired_filter_workers
+                slow.finish_now()
+
+        assert self.window._retired_filter_workers == []
+        assert self.window._active_filter_request_id == 10
+        assert all(worker.quit_called for worker in slow_workers)
+
     def test_restore_filter_state_syncs_exclude_checkbox_all_tabs(self):
         for ctx in self.window._tab_contexts:
             checkbox = ctx.get("exclude_ste_checkbox")
