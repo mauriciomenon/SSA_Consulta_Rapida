@@ -584,6 +584,47 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert self.window.filter_thread is None
 
+    def test_close_event_cleans_data_loader_worker(self):
+        class _FakeSignal:
+            def disconnect(self, _callback=None):
+                return None
+
+        class _FakeLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        worker = _FakeLoaderWorker()
+        self.window.data_loader_thread = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 1500
+        assert worker.deleted is True
+        assert self.window.data_loader_thread is None
+
     def test_on_data_loaded_ignores_stale_request(self):
         original_df = self.window.df_completo.copy()
         stale_df = self.base_df.iloc[:1].copy()
