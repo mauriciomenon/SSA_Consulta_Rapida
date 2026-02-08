@@ -42,6 +42,11 @@ if project_root not in sys.path:
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
 from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
+from gui.gui_config import (  # noqa: E402
+    GUI_MAIN_PREFERENCES,
+    REQUIRED_DISPLAY_COLUMNS,
+    load_gui_main_preferences,  # noqa: F401 - re-export for compatibility
+)
 
 # Inicializar logging robusto
 try:
@@ -55,57 +60,6 @@ except Exception as e:
     logger.error(f"Falha ao inicializar logging robusto: {e}")
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-# --- Função para Carregar Configurações da GUI Principal ---
-def load_gui_main_preferences():
-    """Carrega configuracoes especificas da GUI Principal do arquivo JSON."""
-    config_path = os.path.join(project_root, 'config', 'gui_main_preferences.json')
-
-    default_config = {
-        "display_columns": [
-            "numero_ssa", "setor_executor", "situacao", "descricao_ssa",
-            "data_cadastro", "semana_cadastro", "localizacao_codigo", "grau_prioridade_emissao"
-        ],
-        "hidden_columns": ["descricao_localizacao", "equipamento", "servico_origem"],
-        "column_display_names": {
-            "numero_ssa": "Numero SSA", "setor_executor": "Exec.",
-            "situacao": "Sit.", "descricao_ssa": "Desc.",
-            "data_cadastro": "Data Cad.", "semana_cadastro": "Sem.Cad.",
-            "localizacao_codigo": "Loc.", "grau_prioridade_emissao": "Prio.Emis."
-        },
-        "column_widths": {
-            "#": 50, "numero_ssa": 120, "setor_executor": 150, "situacao": 120,
-            "descricao_ssa": 300, "data_cadastro": 110, "semana_cadastro": 100
-        },
-        "gui_settings": {
-            "page_size": 50, "auto_load": False, "debounce_delay": 250,
-            "default_filter_mode": "contains", "show_progress_bar": True,
-            "theme": "gruvbox", "theme_default": None
-        },
-        "version": "1.0.0"
-    }
-
-    if not os.path.exists(config_path):
-        logger.warning("Gui main preferences not found at %s, using defaults.", config_path)
-        return default_config
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as handle:
-            loaded_config = json.load(handle)
-    except json.JSONDecodeError as exc:
-        logger.error("Unable to parse gui main preferences at %s: %s", config_path, exc)
-        return default_config
-    except OSError as exc:
-        logger.error("Unable to read gui main preferences at %s: %s", config_path, exc)
-        return default_config
-
-    if not isinstance(loaded_config, dict) or 'display_columns' not in loaded_config:
-        logger.warning("Invalid gui main preferences structure at %s, using defaults.", config_path)
-        return default_config
-
-    return loaded_config
-# Carrega as configurações globalmente
-GUI_MAIN_PREFERENCES = load_gui_main_preferences()
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
 
@@ -618,15 +572,16 @@ DETAIL_DISPLAY_OVERRIDES = {
 }
 
 TABLE_NAME = 'ssas'
-CONFIG_DIR = os.path.join(project_root, 'config')
-DISPLAY_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'display_mappings.json')
 
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
     """Carrega o mapeamento de nomes internos para nomes de exibiçção independente do CLI."""
-    # Usa configurações da GUI Main em vez de display_mappings.json
-    return GUI_MAIN_PREFERENCES.get("column_display_names", {})
+    # Defensive merge keeps legacy aliases and stable labels even on partial JSON configs.
+    merged_mappings = dict(DEFAULT_DISPLAY_MAPPINGS)
+    merged_mappings.update(GUI_MAIN_PREFERENCES.get("column_display_names", {}))
+    merged_mappings.update(GUI_MAIN_PREFERENCES.get("display_mappings", {}))
+    return merged_mappings
 
 # --- Worker Threads ---
 
@@ -806,10 +761,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
 
         # Colunas padrção para exibiçção (das configurações JSON)
-        self.default_columns = GUI_MAIN_PREFERENCES.get("display_columns", [
-            'numero_ssa', 'setor_executor', 'situacao', 'descricao_ssa',
-            'data_cadastro', 'semana_cadastro'
-        ])
+        self.default_columns = GUI_MAIN_PREFERENCES.get(
+            "display_columns", list(REQUIRED_DISPLAY_COLUMNS)
+        )
+        for required_col in REQUIRED_DISPLAY_COLUMNS:
+            if required_col not in self.default_columns:
+                self.default_columns.append(required_col)
 
         # Garante que colunas padrção existam no mapeamento
         self.visible_columns = [col for col in self.default_columns if col in self.internal_to_display or col == '#']
@@ -5729,4 +5686,3 @@ if __name__ == '__main__':
     window = SSAMainWindow()
     window.show()
     sys.exit(app.exec())
-
