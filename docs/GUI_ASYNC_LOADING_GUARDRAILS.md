@@ -20,6 +20,8 @@ Este documento define as regras de segurança para o carregamento assíncrono da
 7. `closeEvent` usa cleanup bloqueante controlado (`wait_ms=3000`) para reduzir risco de `QThread` ativo no encerramento.
 8. Hand-off de `filter_thread` também é não bloqueante (`wait_ms=0`) em requisições rápidas.
 9. Worker de filtro lento/remanescente também é retido até `finished` em `self._retired_filter_workers`.
+10. `load_data()` invalida e cancela o pipeline de filtro vigente antes de iniciar novo carregamento.
+11. `load_data()` para o debounce de busca para evitar disparo tardio com dataset antigo.
 
 ## Regras de Estado da UI
 
