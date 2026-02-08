@@ -5123,7 +5123,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
 
         for col, value in sorted_items:
-            if col in HIDDEN_DETAIL_FIELDS:
+            if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
                 continue
             # Formata valor
             formatted_value = format_cell(value, col)
@@ -5311,7 +5311,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         sorted_items = sorted(series.items(), key=field_sort_key)
         lines = []
         for col, value in sorted_items:
-            if col in {"id", "derivada_de"}:
+            if col in {"id", "derivada_de"} or str(col).startswith("_"):
                 continue
             formatted_value = format_cell(value, col)
             if not formatted_value:

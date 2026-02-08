@@ -317,6 +317,18 @@ class TestGUIFilterLogic:
 
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
 
+    def test_details_html_hides_internal_columns(self):
+        series = self.base_df.iloc[0].copy()
+        series["_norm_ssa"] = "INTERNAL_SENTINEL_NORM"
+        series["_debug_value"] = "INTERNAL_SENTINEL_DEBUG"
+
+        html = self.window._format_details_html(series, highlight_search_terms=False, linkify=False)
+
+        assert "_norm_ssa" not in html
+        assert "_debug_value" not in html
+        assert "INTERNAL_SENTINEL_NORM" not in html
+        assert "INTERNAL_SENTINEL_DEBUG" not in html
+
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
         self.window._on_exclude_ste_sca_toggled(True)
