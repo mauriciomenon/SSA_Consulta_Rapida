@@ -2197,14 +2197,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text = checkbox.text()
             if text:
                 return text
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao obter texto do checkbox em _checkbox_value: %s", exc)
         try:
             value = checkbox.property("value")
             if value is not None:
                 return str(value)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao obter propriedade 'value' do checkbox em _checkbox_value: %s", exc)
         return ""
 
     def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None, exclude_selected=None):
@@ -2212,14 +2212,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         for cb in checks or []:
             try:
                 cb.setChecked(self._checkbox_value(cb).casefold() in selected_set)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar checkbox include em multiselect: %s", exc)
         exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
         for cb in exclude_checks or []:
             try:
                 cb.setChecked(self._checkbox_value(cb).casefold() in exclude_set)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar checkbox exclude em multiselect: %s", exc)
         self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
 
     def _build_advanced_filters_panel(self):
@@ -5936,8 +5936,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._active_column_filters["derivada_de"] = num_norm
         try:
             self._build_column_filters_panel()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc)
         self._refresh_after_filter_change()
 
     def _clear_derivadas_filter(self):
@@ -5945,8 +5945,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._active_column_filters.pop("derivada_de", None)
         try:
             self._build_column_filters_panel()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s", exc)
         self._refresh_after_filter_change()
         if self._last_derivada_origem:
             self._jump_to_ssa(self._last_derivada_origem)
