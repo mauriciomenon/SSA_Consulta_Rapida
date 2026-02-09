@@ -52,6 +52,9 @@ from utils.themes import get_theme_roles
 # Module logger
 logger = logging.getLogger(__name__)
 
+# Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
+GLOBAL_RETIRED_FILTER_WORKERS = []
+
 class FilterGUISSAMixin:
     """
     Mixin containing all filter-related methods.
@@ -350,11 +353,18 @@ class FilterGUISSAMixin:
         if worker in retired:
             return
         retired.append(worker)
+        if worker not in GLOBAL_RETIRED_FILTER_WORKERS:
+            GLOBAL_RETIRED_FILTER_WORKERS.append(worker)
 
         def _release_worker_ref(w=worker):
             try:
                 if w in self._retired_filter_workers:
                     self._retired_filter_workers.remove(w)
+            except Exception:
+                pass
+            try:
+                if w in GLOBAL_RETIRED_FILTER_WORKERS:
+                    GLOBAL_RETIRED_FILTER_WORKERS.remove(w)
             except Exception:
                 pass
 
