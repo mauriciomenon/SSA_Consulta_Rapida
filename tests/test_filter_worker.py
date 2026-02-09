@@ -2,6 +2,7 @@
 
 import os
 import sys
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -62,3 +63,42 @@ class TestFilterWorker:
         assert len(results_second) == 1
         assert results_first[0]["texto"].tolist() == ["alfa"]
         assert results_second[0].empty is True
+
+    def test_run_honors_interruption_before_processing(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta"]})
+        worker = FilterWorker(df, [["alfa"]])
+        emitted = []
+        errors = []
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        worker.cancel()
+        with patch("gui.workers.filter_worker.filter_dataframe") as filter_mock:
+            worker.run()
+
+        assert emitted == []
+        assert errors == []
+        filter_mock.assert_not_called()
+
+    def test_run_stops_between_chunks_when_interrupted(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta", "gama"]})
+        worker = FilterWorker(df, [["alfa"], ["beta"]])
+        emitted = []
+        errors = []
+        calls = {"count": 0}
+
+        def _fake_filter(dataframe, _parsed):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                worker.cancel()
+            return dataframe.iloc[:1].copy()
+
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter):
+            worker.run()
+
+        assert calls["count"] == 1
+        assert emitted == []
+        assert errors == []

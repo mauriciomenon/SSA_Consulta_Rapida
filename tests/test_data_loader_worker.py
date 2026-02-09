@@ -70,3 +70,37 @@ def test_run_emits_error_for_invalid_order_by():
 
     assert errors
     query_mock.assert_not_called()
+
+
+def test_run_skips_query_when_interrupted_before_start():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+    worker.cancel()
+
+    with patch("gui.workers.data_loader_worker.query_db") as query_mock:
+        worker.run()
+
+    assert emitted == []
+    assert errors == []
+    query_mock.assert_not_called()
+
+
+def test_run_skips_emit_when_interrupted_after_query():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    def _fake_query(_db_path, _table_name, _query):
+        worker.cancel()
+        return pd.DataFrame({"numero_ssa": ["1"]})
+
+    with patch("gui.workers.data_loader_worker.query_db", side_effect=_fake_query):
+        worker.run()
+
+    assert emitted == []
+    assert errors == []

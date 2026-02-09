@@ -31,6 +31,22 @@ class DataLoaderWorker(QThread):
         self.limit = limit
         self.offset = offset
         self.order_by = order_by
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        try:
+            self.requestInterruption()
+        except Exception:
+            pass
+
+    def _is_cancelled(self) -> bool:
+        if bool(getattr(self, "_cancel_requested", False)):
+            return True
+        try:
+            return bool(self.isInterruptionRequested())
+        except Exception:
+            return False
 
     def _sanitize_identifier(self, value: str) -> str:
         text = str(value or "").strip()
@@ -87,6 +103,8 @@ class DataLoaderWorker(QThread):
 
     def run(self):
         try:
+            if self._is_cancelled():
+                return
             target_table = self._resolve_target_table()
             query = f"SELECT * FROM {target_table}"
 
@@ -109,7 +127,11 @@ class DataLoaderWorker(QThread):
                     query += " LIMIT -1"
                 query += f" OFFSET {offset_int}"
 
+            if self._is_cancelled():
+                return
             df = query_db(self.db_path, '', query)
+            if self._is_cancelled():
+                return
             if not df.empty:
                 self.data_loaded.emit(df)
             else:
