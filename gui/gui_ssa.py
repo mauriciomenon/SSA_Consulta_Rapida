@@ -748,6 +748,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def __init__(self):
         super().__init__()
+        try:
+            # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
+            self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
         self.setWindowTitle("Consulta Rapida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
         # Icone da janela (prioriza .ico no Windows)
@@ -833,6 +838,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_sector_syncing = False
         self._responsavel_options_dirty = True
         self._responsavel_filters_materialized = False
+        self._responsavel_all_prefixes = (
+            "adv_responsavel_solicitante",
+            "adv_responsavel_programacao",
+            "adv_responsavel_execucao",
+            "adv_responsavel_emissor",
+        )
+        self._responsavel_materialized_prefixes = set()
+        self._responsavel_dirty_prefixes = set(self._responsavel_all_prefixes)
         self._menu_pre_show_hooks = {}
 
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
@@ -840,7 +853,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._sector_debounce_timer = QTimer(self)
         self._sector_debounce_timer.setSingleShot(True)
         self._sector_debounce_timer.setInterval(self._sector_debounce_delay)
-        self._sector_debounce_timer.timeout.connect(self._refresh_responsavel_options)
+        self._sector_debounce_timer.timeout.connect(self._on_sector_debounce_timeout)
 
         self._initialize_profile_filter_placeholders()
 
@@ -1581,30 +1594,90 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao preparar menu antes de abrir: %s", exc)
 
-    def _ensure_responsavel_options_materialized(self, force: bool = False) -> None:
-        """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
-        if not force and not getattr(self, "_responsavel_options_dirty", True):
+    def _sync_responsavel_flags(self) -> None:
+        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
+        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
+        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        self._responsavel_filters_materialized = bool(all_prefixes) and all_prefixes.issubset(built)
+        self._responsavel_options_dirty = bool(dirty)
+
+    def _mark_responsavel_dirty(self, prefixes=None) -> None:
+        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
+        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
+        if prefixes is None:
+            dirty |= all_prefixes
+        else:
+            dirty |= {p for p in prefixes if p in all_prefixes}
+        self._responsavel_dirty_prefixes = dirty
+        self._sync_responsavel_flags()
+
+    def _on_sector_debounce_timeout(self) -> None:
+        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
+        target = built & dirty
+        if not target:
             return
-        if not force and getattr(self, "_responsavel_filters_materialized", False):
+        try:
+            self._refresh_responsavel_options(target_prefixes=target)
+        except Exception:
+            pass
+
+    def _ensure_responsavel_options_materialized(self, target_prefix: str | None = None, force: bool = False) -> None:
+        """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
+        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
+        if target_prefix:
+            if target_prefix not in all_prefixes:
+                return
+            target_prefixes = {target_prefix}
+        else:
+            target_prefixes = set(all_prefixes)
+        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
+        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        if not force and target_prefixes.issubset(built) and not (target_prefixes & dirty):
             return
         if getattr(self, "_responsavel_refreshing", False):
             return
         self._responsavel_refreshing = True
         try:
-            self._refresh_responsavel_options()
+            self._refresh_responsavel_options(target_prefixes=target_prefixes)
         finally:
             self._responsavel_refreshing = False
 
-    def _sync_responsavel_button_summaries(self) -> None:
+    def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         """Atualiza resumo dos botões de responsavel sem materializar menus completos."""
+        selected_prefixes = None
+        if only_prefixes is not None:
+            selected_prefixes = {p for p in only_prefixes}
         filters = self._advanced_filters or {}
         pairs = (
-            ("adv_responsavel_solicitante_button", "solicitante", "solicitante_exclude_values"),
-            ("adv_responsavel_programacao_button", "responsavel_programacao", "responsavel_programacao_exclude_values"),
-            ("adv_responsavel_execucao_button", "responsavel_execucao", "responsavel_execucao_exclude_values"),
-            ("adv_responsavel_emissor_button", "responsavel_emissor", "responsavel_emissor_exclude_values"),
+            (
+                "adv_responsavel_solicitante",
+                "adv_responsavel_solicitante_button",
+                "solicitante",
+                "solicitante_exclude_values",
+            ),
+            (
+                "adv_responsavel_programacao",
+                "adv_responsavel_programacao_button",
+                "responsavel_programacao",
+                "responsavel_programacao_exclude_values",
+            ),
+            (
+                "adv_responsavel_execucao",
+                "adv_responsavel_execucao_button",
+                "responsavel_execucao",
+                "responsavel_execucao_exclude_values",
+            ),
+            (
+                "adv_responsavel_emissor",
+                "adv_responsavel_emissor_button",
+                "responsavel_emissor",
+                "responsavel_emissor_exclude_values",
+            ),
         )
-        for button_attr, include_key, exclude_key in pairs:
+        for prefix, button_attr, include_key, exclude_key in pairs:
+            if selected_prefixes is not None and prefix not in selected_prefixes:
+                continue
             button = getattr(self, button_attr, None)
             if button is None:
                 continue
@@ -2246,8 +2319,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
         exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Exec")
         emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emis")
-        for button in (sol_button, prog_button, exec_resp_button, emis_resp_button):
-            self._set_menu_pre_show_hook(button, self._ensure_responsavel_options_materialized)
+        self._set_menu_pre_show_hook(
+            sol_button,
+            lambda prefix="adv_responsavel_solicitante": self._ensure_responsavel_options_materialized(
+                target_prefix=prefix
+            ),
+        )
+        self._set_menu_pre_show_hook(
+            prog_button,
+            lambda prefix="adv_responsavel_programacao": self._ensure_responsavel_options_materialized(
+                target_prefix=prefix
+            ),
+        )
+        self._set_menu_pre_show_hook(
+            exec_resp_button,
+            lambda prefix="adv_responsavel_execucao": self._ensure_responsavel_options_materialized(
+                target_prefix=prefix
+            ),
+        )
+        self._set_menu_pre_show_hook(
+            emis_resp_button,
+            lambda prefix="adv_responsavel_emissor": self._ensure_responsavel_options_materialized(
+                target_prefix=prefix
+            ),
+        )
 
         main_grid = QGridLayout()
         main_grid.setContentsMargins(0, 0, 0, 0)
@@ -2719,17 +2814,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _schedule_sector_options_refresh(self):
         """Agenda refresh de opções dependentes de setor evitando rajadas de sinais."""
         timer = getattr(self, "_sector_debounce_timer", None)
-        if not getattr(self, "_responsavel_filters_materialized", False):
-            self._responsavel_options_dirty = True
+        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        if not built:
+            self._mark_responsavel_dirty()
             try:
                 if timer is not None and _is_widget_valid(timer):
                     timer.stop()
             except Exception:
                 pass
             return
+        self._mark_responsavel_dirty(prefixes=built)
         if timer is None:
             try:
-                self._refresh_responsavel_options()
+                self._on_sector_debounce_timeout()
             except Exception:
                 pass
             return
@@ -2741,7 +2838,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             pass
         try:
-            self._refresh_responsavel_options()
+            self._on_sector_debounce_timeout()
         except Exception:
             pass
 
@@ -2850,9 +2947,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         finally:
             self._adv_sector_syncing = False
 
-    def _refresh_responsavel_options(self):
+    def _refresh_responsavel_options(self, target_prefixes=None):
+        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
+        if target_prefixes is None:
+            requested_prefixes = set(all_prefixes)
+        else:
+            requested_prefixes = {p for p in target_prefixes if p in all_prefixes}
+        if not requested_prefixes:
+            return
         if self.df_completo is None or self.df_completo.empty:
-            self._responsavel_options_dirty = True
+            self._mark_responsavel_dirty(prefixes=requested_prefixes)
             return
         exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
         emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
@@ -2925,7 +3029,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ("responsavel_execucao", "adv_responsavel_execucao"),
             ("responsavel_emissor", "adv_responsavel_emissor"),
         ]
+        processed_prefixes = set()
         for col, prefix in resp_cols:
+            if prefix not in requested_prefixes:
+                continue
             box = getattr(self, f"{prefix}_box", None)
             button = getattr(self, f"{prefix}_button", None)
             menu = getattr(self, f"{prefix}_menu", None)
@@ -2939,6 +3046,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 _set_enabled(exclude, False)
                 setattr(self, checks_attr, [])
                 setattr(self, exclude_checks_attr, [])
+                processed_prefixes.add(prefix)
                 continue
             values = _unique_sorted(col)
             try:
@@ -2969,6 +3077,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             setattr(self, checks_attr, include_checks)
             setattr(self, exclude_checks_attr, exclude_checks)
+            processed_prefixes.add(prefix)
 
         # Reprogramacoes (código duplicado removido)
         reprog_values = getattr(self, "_adv_values_cache", {}).get("reprog_vals", [])
@@ -3014,8 +3123,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self._adv_values_cache = adv_cache
             except Exception:
                 pass
-        self._responsavel_filters_materialized = True
-        self._responsavel_options_dirty = False
+        materialized = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        materialized |= processed_prefixes
+        self._responsavel_materialized_prefixes = materialized
+        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
+        dirty -= processed_prefixes
+        self._responsavel_dirty_prefixes = dirty
+        self._sync_responsavel_flags()
 
     def _clear_advanced_filters(self):
         try:
@@ -3183,44 +3297,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             data["derivada_is"] = False
         # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
         adv_current = getattr(self, "_advanced_filters", None) or {}
-        responsavel_materialized = bool(getattr(self, "_responsavel_filters_materialized", False))
+        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
 
-        def _collect_responsavel_values(checks_attr: str, key_name: str) -> list[str]:
-            if not responsavel_materialized:
+        def _collect_responsavel_values(checks_attr: str, key_name: str, prefix: str) -> list[str]:
+            if prefix not in built_prefixes:
                 return list(adv_current.get(key_name) or [])
             try:
                 return self._get_checked_values(getattr(self, checks_attr, None))
             except Exception:
                 return []
 
-        data["solicitante"] = _collect_responsavel_values("adv_responsavel_solicitante_checks", "solicitante")
+        data["solicitante"] = _collect_responsavel_values(
+            "adv_responsavel_solicitante_checks",
+            "solicitante",
+            "adv_responsavel_solicitante",
+        )
         data["solicitante_exclude_values"] = _collect_responsavel_values(
             "adv_responsavel_solicitante_exclude_checks",
             "solicitante_exclude_values",
+            "adv_responsavel_solicitante",
         )
         data["responsavel_programacao"] = _collect_responsavel_values(
             "adv_responsavel_programacao_checks",
             "responsavel_programacao",
+            "adv_responsavel_programacao",
         )
         data["responsavel_programacao_exclude_values"] = _collect_responsavel_values(
             "adv_responsavel_programacao_exclude_checks",
             "responsavel_programacao_exclude_values",
+            "adv_responsavel_programacao",
         )
         data["responsavel_execucao"] = _collect_responsavel_values(
             "adv_responsavel_execucao_checks",
             "responsavel_execucao",
+            "adv_responsavel_execucao",
         )
         data["responsavel_execucao_exclude_values"] = _collect_responsavel_values(
             "adv_responsavel_execucao_exclude_checks",
             "responsavel_execucao_exclude_values",
+            "adv_responsavel_execucao",
         )
         data["responsavel_emissor"] = _collect_responsavel_values(
             "adv_responsavel_emissor_checks",
             "responsavel_emissor",
+            "adv_responsavel_emissor",
         )
         data["responsavel_emissor_exclude_values"] = _collect_responsavel_values(
             "adv_responsavel_emissor_exclude_checks",
             "responsavel_emissor_exclude_values",
+            "adv_responsavel_emissor",
         )
         try:
             data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
@@ -3342,37 +3467,55 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             getattr(self, "adv_status_exclude_checks", None),
             data.get("situacao_exclude_values"),
         )
-        if getattr(self, "_responsavel_filters_materialized", False):
-            self._sync_multiselect_checks(
-                getattr(self, "adv_responsavel_solicitante_button", None),
-                getattr(self, "adv_responsavel_solicitante_checks", None),
-                data.get("solicitante"),
-                getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
-                data.get("solicitante_exclude_values"),
-            )
-            self._sync_multiselect_checks(
-                getattr(self, "adv_responsavel_programacao_button", None),
-                getattr(self, "adv_responsavel_programacao_checks", None),
-                data.get("responsavel_programacao"),
-                getattr(self, "adv_responsavel_programacao_exclude_checks", None),
-                data.get("responsavel_programacao_exclude_values"),
-            )
-            self._sync_multiselect_checks(
-                getattr(self, "adv_responsavel_execucao_button", None),
-                getattr(self, "adv_responsavel_execucao_checks", None),
-                data.get("responsavel_execucao"),
-                getattr(self, "adv_responsavel_execucao_exclude_checks", None),
-                data.get("responsavel_execucao_exclude_values"),
-            )
-            self._sync_multiselect_checks(
-                getattr(self, "adv_responsavel_emissor_button", None),
-                getattr(self, "adv_responsavel_emissor_checks", None),
-                data.get("responsavel_emissor"),
-                getattr(self, "adv_responsavel_emissor_exclude_checks", None),
-                data.get("responsavel_emissor_exclude_values"),
-            )
-        else:
-            self._sync_responsavel_button_summaries()
+        responsavel_cfg = (
+            (
+                "adv_responsavel_solicitante",
+                "adv_responsavel_solicitante_button",
+                "adv_responsavel_solicitante_checks",
+                "solicitante",
+                "adv_responsavel_solicitante_exclude_checks",
+                "solicitante_exclude_values",
+            ),
+            (
+                "adv_responsavel_programacao",
+                "adv_responsavel_programacao_button",
+                "adv_responsavel_programacao_checks",
+                "responsavel_programacao",
+                "adv_responsavel_programacao_exclude_checks",
+                "responsavel_programacao_exclude_values",
+            ),
+            (
+                "adv_responsavel_execucao",
+                "adv_responsavel_execucao_button",
+                "adv_responsavel_execucao_checks",
+                "responsavel_execucao",
+                "adv_responsavel_execucao_exclude_checks",
+                "responsavel_execucao_exclude_values",
+            ),
+            (
+                "adv_responsavel_emissor",
+                "adv_responsavel_emissor_button",
+                "adv_responsavel_emissor_checks",
+                "responsavel_emissor",
+                "adv_responsavel_emissor_exclude_checks",
+                "responsavel_emissor_exclude_values",
+            ),
+        )
+        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        unbuilt_prefixes = set()
+        for prefix, button_attr, checks_attr, key_name, excl_checks_attr, excl_key_name in responsavel_cfg:
+            if prefix in built_prefixes:
+                self._sync_multiselect_checks(
+                    getattr(self, button_attr, None),
+                    getattr(self, checks_attr, None),
+                    data.get(key_name),
+                    getattr(self, excl_checks_attr, None),
+                    data.get(excl_key_name),
+                )
+            else:
+                unbuilt_prefixes.add(prefix)
+        if unbuilt_prefixes:
+            self._sync_responsavel_button_summaries(only_prefixes=unbuilt_prefixes)
         self._sync_multiselect_checks(
             getattr(self, "adv_prioridade_emissao_button", None),
             getattr(self, "adv_prioridade_emissao_checks", None),
@@ -3750,9 +3893,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.adv_prioridade_planejamento_checks = prio_include
             self.adv_prioridade_planejamento_exclude_checks = prio_exclude
 
-        self._responsavel_options_dirty = True
-        if getattr(self, "_responsavel_filters_materialized", False):
-            self._refresh_responsavel_options()
+        self._mark_responsavel_dirty()
+        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
+        if built_prefixes:
+            self._refresh_responsavel_options(target_prefixes=built_prefixes)
         else:
             self._sync_responsavel_button_summaries()
         self._sync_checks_to_tab_context()
@@ -4120,8 +4264,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_completo = df.copy()
         self._adv_options_dirty = True
         self._adv_values_cache = None
-        self._responsavel_options_dirty = True
-        self._responsavel_filters_materialized = False
+        self._responsavel_materialized_prefixes = set()
+        self._mark_responsavel_dirty()
         try:
             timer = getattr(self, "_sector_debounce_timer", None)
             if timer is not None:
@@ -4477,35 +4621,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # ============================================================
         # Normalize theme name and load QPalette from utils.themes
         normalized = normalize_theme(name)
+        current_theme = normalize_theme(getattr(self, "_current_theme", "") or "")
+        same_theme = bool(current_theme and normalized == current_theme)
         roles = get_theme_roles(normalized)
-        try:
-            from PyQt6.QtWidgets import QApplication, QStyleFactory
-            app = QApplication.instance()
-            pal = get_palette(normalized)
-            # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
-            # Para consistencia, force "Fusion" em todos os temas.
+        if same_theme:
+            # Fast path: evita repolish global caro sem pular atualizacao local de estilos.
+            pal = self.palette()
+        else:
             try:
-                if app is not None:
-                    styles = QStyleFactory.keys()
-                    if styles and 'Fusion' in styles:
-                        app.setStyle('Fusion')
-            except Exception:
-                pass
-            # Aplica paleta no aplicativo inteiro para garantir consistência
-            if app is not None:
-                app.setPalette(pal)
-                # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
+                from PyQt6.QtWidgets import QApplication, QStyleFactory
+                app = QApplication.instance()
+                pal = get_palette(normalized)
+                # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
+                # Para consistencia, force "Fusion" em todos os temas.
                 try:
-                    app.setStyleSheet("")
-                    block = build_global_widget_qss(pal)
-                    app.setStyleSheet(block)
+                    if app is not None:
+                        styles = QStyleFactory.keys()
+                        if styles and 'Fusion' in styles:
+                            app.setStyle('Fusion')
                 except Exception:
                     pass
-            # Garante também na janela atual
-            self.setPalette(pal)
-        except Exception:  # noqa: BLE001
-            pal = get_palette(normalized)
-            self.setPalette(pal)
+                # Aplica paleta no aplicativo inteiro para garantir consistência
+                if app is not None:
+                    app.setPalette(pal)
+                    # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
+                    try:
+                        app.setStyleSheet("")
+                        block = build_global_widget_qss(pal)
+                        app.setStyleSheet(block)
+                    except Exception:
+                        pass
+                # Garante também na janela atual
+                self.setPalette(pal)
+            except Exception:  # noqa: BLE001
+                pal = get_palette(normalized)
+                self.setPalette(pal)
 
         # ============================================================
         # SECTION 2: Application-Wide Widget Settings
@@ -4812,9 +4962,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Save theme preference and apply macOS-specific contrast fixes
         try:
             # Persistencia simples do tema sem normalizacao adicional
-            GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = normalized
-            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+            gui_settings = GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})
+            if gui_settings.get('theme') != normalized:
+                gui_settings['theme'] = normalized
+                with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
+                    json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
         self._apply_macos_contrast(normalized)
