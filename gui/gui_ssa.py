@@ -1514,12 +1514,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_options_scheduled = True
         try:
             QTimer.singleShot(0, self._run_adv_options_refresh)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha ao agendar refresh de filtros avancados: %s", exc)
             self._adv_options_scheduled = False
             try:
                 self._run_adv_options_refresh()
-            except Exception:
-                pass
+            except Exception as fallback_exc:
+                logger.warning("Falha no fallback de refresh de filtros avancados: %s", fallback_exc)
 
     def _run_adv_options_refresh(self):
         self._adv_options_scheduled = False
@@ -1530,8 +1531,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             self._refresh_advanced_filter_options()
             self._adv_options_dirty = False
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
 
     def _on_tab_changed(self, index: int) -> None:
         if not hasattr(self, "_tab_contexts"):
@@ -1739,8 +1740,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     button.setToolTip(tooltip)
                 else:
                     button.setToolTip("Selecionar")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar resumo de botao de responsavel (%s): %s", button_attr, exc)
 
     def _attach_multiselect_menu(self, button, menu):
         if button is None or menu is None:
@@ -1750,8 +1751,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
             try:
                 self._run_menu_pre_show_hook(button)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha no pre-show do menu multiselect: %s", exc)
             try:
                 rect = button.rect()
                 pos = button.mapToGlobal(rect.bottomLeft())
@@ -1761,16 +1762,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if menu_size and screen and pos.y() + menu_size.height() > screen.bottom():
                         pos = button.mapToGlobal(rect.topLeft())
                         pos.setY(pos.y() - menu_size.height())
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao ajustar posicao do menu multiselect na tela: %s", exc)
                 menu.exec(pos)
                 return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao abrir menu multiselect: %s", exc)
         try:
             button.clicked.connect(_show_menu)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao conectar abertura de menu multiselect: %s", exc)
 
     def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar", exclude_checks=None):
         if not _is_widget_valid(button):
@@ -2517,8 +2518,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
                     self.adv_derivada_all_ste.setChecked(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desmarcar filtro derivada STE ao desabilitar 'Tem': %s", exc)
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
         if not checked:
@@ -2526,8 +2527,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             if hasattr(self, "adv_derivada_has"):
                 self.adv_derivada_has.setChecked(True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao forcar 'Tem derivada' quando STE foi marcado: %s", exc)
 
     def _show_derivadas_popup(self):
         """Mostra popup com arvore de derivadas em texto plano."""
@@ -2664,8 +2665,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             normalized = df[derivada_col].apply(self._normalize_ssa_value)
             has_derivadas = normalized.ne("").any()
             btn.setEnabled(bool(has_derivadas))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar estado do botao de derivadas especificas: %s", exc)
 
     def _save_advanced_filters_default(self):
         self._apply_advanced_filters_from_ui(store_only=True)
@@ -2687,8 +2688,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.adv_derivada_has.setChecked(True)
                 if hasattr(self, "adv_derivada_all_ste"):
                     self.adv_derivada_all_ste.setChecked(True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar preset de derivadas no macro filtro: %s", exc)
             try:
                 self._sync_multiselect_checks(
                     getattr(self, "adv_status_button", None),
@@ -2697,13 +2698,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     getattr(self, "adv_status_exclude_checks", None),
                     ["STE", "SCA"],
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
             try:
                 if hasattr(self, "adv_executor_button"):
                     self.adv_executor_button.showMenu()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao abrir menu de executor apos macro filtro: %s", exc)
         self._apply_advanced_filters_from_ui()
 
     def _reorganize_advanced_filters_grid(self, width: int):
@@ -3168,8 +3169,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     )
                     adv_cache["derivadas_vals"] = derivadas_numbers
                     self._adv_values_cache = adv_cache
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar cache de derivadas em filtros avancados: %s", exc)
         materialized = set(getattr(self, "_responsavel_materialized_prefixes", set()))
         materialized |= processed_prefixes
         self._responsavel_materialized_prefixes = materialized
@@ -3181,18 +3182,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _clear_advanced_filters(self):
         try:
             self._store_last_filter_state()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao salvar estado antes de limpar filtros avancados: %s", exc)
         self._advanced_filters = {}
         self._advanced_filters_active = False
         try:
             self._sync_advanced_filter_ui()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
         try:
             self._refresh_after_filter_change()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reaplicar filtros apos limpeza de avancados: %s", exc)
 
     def _has_active_advanced_filters(self, data: dict) -> bool:
         if not isinstance(data, dict) or not data:
@@ -3247,8 +3248,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not store_only:
             try:
                 self._store_last_filter_state()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao salvar estado antes de aplicar filtros avancados: %s", exc)
         data = {}
         try:
             data["setor_executor"] = self._get_checked_values(getattr(self, "adv_executor_checks", None))
@@ -3438,8 +3439,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._advanced_filters_active = self._has_active_advanced_filters(data)
         try:
             self._refresh_after_filter_change()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar resultado apos aplicar filtros avancados: %s", exc)
 
     def _parse_week(self, raw: str):
         s = str(raw or "").strip()
@@ -3591,8 +3592,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 getattr(self, "adv_year_emissao_exclude_checks", None),
                 emissao_exclude,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar filtro avancado de ano de emissao: %s", exc)
         try:
             execucao_values = data.get("ano_execucao_values")
             execucao_exclude = data.get("ano_execucao_exclude_values")
@@ -3607,15 +3608,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 getattr(self, "adv_year_execucao_exclude_checks", None),
                 execucao_exclude,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar filtro avancado de ano de execucao: %s", exc)
         try:
             self.adv_week_emissao_start.setText("" if data.get("semana_emissao_inicio") is None else str(data.get("semana_emissao_inicio")))
             self.adv_week_emissao_end.setText("" if data.get("semana_emissao_fim") is None else str(data.get("semana_emissao_fim")))
             self.adv_week_execucao_start.setText("" if data.get("semana_execucao_inicio") is None else str(data.get("semana_execucao_inicio")))
             self.adv_week_execucao_end.setText("" if data.get("semana_execucao_fim") is None else str(data.get("semana_execucao_fim")))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc)
         try:
             if hasattr(self, "adv_derivada_has"):
                 if data.get("derivada_all_ste"):
@@ -3626,25 +3627,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
             if hasattr(self, "adv_derivada_is"):
                 self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar toggles de derivadas nos filtros avancados: %s", exc)
         try:
             if hasattr(self, "adv_macro_combo"):
                 self.adv_macro_combo.blockSignals(True)
                 idx = self.adv_macro_combo.findData(data.get("macro_filter"))
                 self.adv_macro_combo.setCurrentIndex(max(0, idx))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar seletor macro dos filtros avancados: %s", exc)
         finally:
             try:
                 if hasattr(self, "adv_macro_combo"):
                     self.adv_macro_combo.blockSignals(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao reativar sinais do seletor macro apos sync: %s", exc)
         try:
             self._apply_divisao_to_setor_checks()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reaplicar sincronizacao divisao->setor apos sync de filtros avancados: %s", exc)
 
     def _refresh_advanced_filter_options(self):
         """Atualiza opcoes de filtros avancados com cache granular otimizado."""
