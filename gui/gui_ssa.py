@@ -2166,14 +2166,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ok_btn.setToolTip("Confirmar selecao (use botao Aplicar para filtrar)")
             try:
                 cancel_btn.clicked.connect(menu.close)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao Cancelar no menu multiselect: %s", exc)
             try:
                 ok_btn.clicked.connect(menu.close)
                 # REMOVIDO: ok_btn.clicked.connect(on_apply)
                 # Agora o filtro so e aplicado pelo botao "Aplicar" geral
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao OK no menu multiselect: %s", exc)
             ok_row = QWidget()
             ok_layout = QHBoxLayout(ok_row)
             ok_layout.setContentsMargins(6, 4, 6, 6)
@@ -2185,8 +2185,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ok_act.setDefaultWidget(ok_row)
             try:
                 menu.addAction(ok_act)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao adicionar rodape de acoes no menu multiselect: %s", exc)
         self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
         if exclude_selected_set is not None:
             return checks, exclude_checks
