@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from collections import Counter
 
 import pandas as pd
@@ -70,6 +71,29 @@ class TestGUIFilterLogic:
 
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido['numero_ssa'])
+
+    def _build_heavy_filters_df(self, rows: int = 1200) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "numero_ssa": list(range(100000, 100000 + rows)),
+                "situacao": ["APV", "STE", "SCA", "AMP"] * (rows // 4) + ["APV"] * (rows % 4),
+                "derivada_de": [""] * rows,
+                "localizacao_codigo": [f"LOC{i % 250:04d}" for i in range(rows)],
+                "descricao_localizacao": ["Desc"] * rows,
+                "equipamento": [f"EQ{i % 350:04d}" for i in range(rows)],
+                "semana_cadastro": [202501 + (i % 52) for i in range(rows)],
+                "semana_programada": [202510 + (i % 52) for i in range(rows)],
+                "data_cadastro": ["2025-01-01"] * rows,
+                "descricao_ssa": [f"Descricao {i}" for i in range(rows)],
+                "setor_executor": [f"SETOR_{i % 35:02d}" for i in range(rows)],
+                "setor_emissor": [f"SETOR_{i % 35:02d}" for i in range(rows)],
+                "descricao_execucao": [f"Execucao {i}" for i in range(rows)],
+                "solicitante": [f"SOL_{i % 1500:04d}" for i in range(rows)],
+                "responsavel_programacao": [f"PROG_{i % 1700:04d}" for i in range(rows)],
+                "responsavel_execucao": [f"EXEC_{i % 1800:04d}" for i in range(rows)],
+                "responsavel_emissor": [f"EMIS_{i % 1600:04d}" for i in range(rows)],
+            }
+        )
 
     def _get_column_filter_controls(self):
         controls = {}
@@ -363,6 +387,7 @@ class TestGUIFilterLogic:
             "responsavel_emissor": ["EmisA"],
             "responsavel_emissor_exclude_values": ["EmisB"],
         }
+        self.window._responsavel_materialized_prefixes = set()
         self.window._responsavel_filters_materialized = False
 
         self.window._apply_advanced_filters_from_ui(store_only=True)
@@ -417,6 +442,94 @@ class TestGUIFilterLogic:
             QApplication.processEvents()
 
         assert apply_mock.call_count == 0
+
+    def test_filters_tab_switch_and_responsavel_materialization_smoke_latency(self):
+        heavy_df = self._build_heavy_filters_df(rows=1200)
+        self.window._active_data_load_request_id = 33
+        self.window.on_data_loaded(heavy_df, request_id=33)
+        QApplication.processEvents()
+
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+
+        t0 = time.perf_counter()
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+        switch_ms = (time.perf_counter() - t0) * 1000.0
+
+        assert self.window._responsavel_filters_materialized is False
+        assert switch_ms < 3000.0
+
+        target_prefix = "adv_responsavel_solicitante"
+        t1 = time.perf_counter()
+        self.window._ensure_responsavel_options_materialized(target_prefix=target_prefix)
+        QApplication.processEvents()
+        materialize_ms = (time.perf_counter() - t1) * 1000.0
+
+        assert target_prefix in getattr(self.window, "_responsavel_materialized_prefixes", set())
+        assert self.window._responsavel_filters_materialized is False
+        assert self.window._responsavel_options_dirty is True
+        assert materialize_ms < 5000.0
+
+    def test_theme_cycle_smoke_latency_on_filters_tab(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
+        other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
+
+        t0 = time.perf_counter()
+        self.window.apply_theme(current_theme)
+        QApplication.processEvents()
+        same_ms = (time.perf_counter() - t0) * 1000.0
+
+        t1 = time.perf_counter()
+        self.window.apply_theme(other_theme)
+        QApplication.processEvents()
+        other_ms = (time.perf_counter() - t1) * 1000.0
+
+        t2 = time.perf_counter()
+        self.window.apply_theme(current_theme)
+        QApplication.processEvents()
+        back_ms = (time.perf_counter() - t2) * 1000.0
+
+        assert same_ms < 4000.0
+        assert other_ms < 4000.0
+        assert back_ms < 4000.0
+
+    def test_repeated_filters_tab_and_theme_actions_keep_state_consistent(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        main_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "main"
+        )
+        current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
+        other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
+
+        for i in range(5):
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            QApplication.processEvents()
+            if i % 2 == 0:
+                self.window.apply_theme(other_theme)
+            else:
+                self.window.apply_theme(current_theme)
+            QApplication.processEvents()
+            self.window.main_tabs.setCurrentIndex(main_tab_idx)
+            QApplication.processEvents()
+
+        self.window.apply_theme(current_theme)
+        QApplication.processEvents()
+        assert getattr(self.window, "_current_theme", None) == current_theme
+        assert self.window.main_tabs.currentIndex() == main_tab_idx
 
     def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
         self.window.search_input.setText("Teste A")
