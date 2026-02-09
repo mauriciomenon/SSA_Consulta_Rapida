@@ -136,10 +136,10 @@ class DataLoaderWorker(QThread):
             df = query_db(self.db_path, '', query)
             if self._is_cancelled():
                 return
-            if not df.empty:
-                self.data_loaded.emit(df)
-            else:
-                self.error_occurred.emit("Falha ao carregar dados do banco.")
+            if not isinstance(df, pd.DataFrame):
+                raise TypeError("query_db retornou tipo invalido para DataLoaderWorker")
+            # Resultado vazio eh valido com paginacao (pagina sem linhas).
+            self.data_loaded.emit(df)
         except Exception:
             logger.exception("Erro interno no DataLoaderWorker durante carregamento")
             self.error_occurred.emit("Falha ao carregar dados do banco.")

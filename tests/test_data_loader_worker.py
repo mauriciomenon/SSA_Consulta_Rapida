@@ -72,6 +72,24 @@ def test_run_emits_error_for_invalid_order_by():
     query_mock.assert_not_called()
 
 
+def test_run_emits_empty_dataframe_without_error_for_empty_page():
+    emitted = []
+    errors = []
+    worker = DataLoaderWorker("dummy.db", "ssa_table", limit=10, offset=9999)
+    worker.data_loaded.connect(lambda df: emitted.append(df))
+    worker.error_occurred.connect(lambda msg: errors.append(msg))
+
+    with patch(
+        "gui.workers.data_loader_worker.query_db",
+        return_value=pd.DataFrame(columns=["numero_ssa"]),
+    ):
+        worker.run()
+
+    assert errors == []
+    assert len(emitted) == 1
+    assert emitted[0].empty
+
+
 def test_run_skips_query_when_interrupted_before_start():
     emitted = []
     errors = []
