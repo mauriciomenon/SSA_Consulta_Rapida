@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 # Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
 GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
+MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
 logger.addHandler(logging.NullHandler())
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
@@ -86,7 +87,7 @@ try:
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
         QScrollArea, QToolButton, QWidgetAction
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker
     from PyQt6.QtGui import QAction, QFont
 
     # Import workers, cache, widgets, and helpers from separate modules
@@ -505,6 +506,8 @@ except ImportError as exc:
         def __init__(self, *a, **k): pass
         def start(self): pass
         def run(self): pass
+    class QSignalBlocker:
+        def __init__(self, *_args, **_kwargs): pass
     class Qt:
         AlignLeft = 0
 
@@ -836,6 +839,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_options_dirty = True
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
+        self._adv_sector_handler_running = False
         self._responsavel_options_dirty = True
         self._responsavel_filters_materialized = False
         self._responsavel_all_prefixes = (
@@ -1593,6 +1597,40 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             callback()
         except Exception as exc:
             logger.debug("Falha ao preparar menu antes de abrir: %s", exc)
+
+    def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> bool:
+        """Atualiza estado de checkbox sem propagar sinais e sem deixar bloqueio preso."""
+        if not _is_widget_valid(checkbox):
+            return False
+        try:
+            desired = bool(checked)
+            if bool(checkbox.isChecked()) == desired:
+                return False
+        except Exception:
+            desired = bool(checked)
+        blocker = None
+        used_signal_blocker = False
+        try:
+            blocker = QSignalBlocker(checkbox)
+            used_signal_blocker = True
+        except Exception:
+            try:
+                checkbox.blockSignals(True)
+            except Exception:
+                pass
+        changed = False
+        try:
+            checkbox.setChecked(desired)
+            changed = True
+        except Exception:
+            changed = False
+        finally:
+            if not used_signal_blocker:
+                try:
+                    checkbox.blockSignals(False)
+                except Exception:
+                    pass
+        return changed
 
     def _sync_responsavel_flags(self) -> None:
         all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
@@ -2752,38 +2790,48 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _on_adv_sector_selection_changed(self, *_):
         if getattr(self, "_adv_sector_syncing", False):
             return
+        if getattr(self, "_adv_sector_handler_running", False):
+            return
+        self._adv_sector_handler_running = True
         try:
-            self._apply_divisao_to_setor_checks()
-        except Exception:
-            pass
-        try:
-            self._update_multiselect_button(
-                self.adv_executor_button,
-                self.adv_executor_checks,
-                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
-            )
-        except Exception:
-            pass
-        try:
-            self._update_multiselect_button(
-                self.adv_emissor_button,
-                self.adv_emissor_checks,
-                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
-            )
-        except Exception:
-            pass
-        try:
-            self._update_multiselect_button(
-                self.adv_divisao_button,
-                self.adv_divisao_checks,
-                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
-            )
-        except Exception:
-            pass
-        self._schedule_sector_options_refresh()
+            try:
+                self._apply_divisao_to_setor_checks()
+            except Exception:
+                pass
+            try:
+                self._update_multiselect_button(
+                    self.adv_executor_button,
+                    self.adv_executor_checks,
+                    exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
+                )
+            except Exception:
+                pass
+            try:
+                self._update_multiselect_button(
+                    self.adv_emissor_button,
+                    self.adv_emissor_checks,
+                    exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
+                )
+            except Exception:
+                pass
+            try:
+                self._update_multiselect_button(
+                    self.adv_divisao_button,
+                    self.adv_divisao_checks,
+                    exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
+                )
+            except Exception:
+                pass
+            self._schedule_sector_options_refresh()
+        finally:
+            self._adv_sector_handler_running = False
 
     def _on_adv_sector_exclude_changed(self, *_):
         """Atualiza filtros de exclusão de setor com debouncing."""
+        if getattr(self, "_adv_sector_syncing", False):
+            return
+        if getattr(self, "_adv_sector_handler_running", False):
+            return
         try:
             self._update_multiselect_button(
                 self.adv_executor_button,
@@ -2913,10 +2961,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _apply_divisao_to_setor_checks(self):
         """Aplica selecao de divisao aos checkboxes de setor.
-        
+
         CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
         de signals que causava travamento da interface.
         """
+        if getattr(self, "_adv_sector_syncing", False):
+            return
         selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
         setores = self._collect_divisao_setores(selected_div)
         if not setores:
@@ -2929,9 +2979,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if not _is_widget_valid(cb):
                         continue
                     if cb.text().casefold() in setores_norm:
-                        cb.blockSignals(True)
-                        cb.setChecked(True)
-                        cb.blockSignals(False)
+                        self._set_checkbox_checked_quietly(cb, True)
                 except Exception:
                     pass
             for cb in getattr(self, "adv_emissor_checks", None) or []:
@@ -2939,9 +2987,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if not _is_widget_valid(cb):
                         continue
                     if cb.text().casefold() in setores_norm:
-                        cb.blockSignals(True)
-                        cb.setChecked(True)
-                        cb.blockSignals(False)
+                        self._set_checkbox_checked_quietly(cb, True)
                 except Exception:
                     pass
         finally:
@@ -4132,6 +4178,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _retain_data_loader_worker_until_finished(self, worker) -> None:
         if worker is None:
             return
+        self._prune_retired_data_loader_workers()
         retired = getattr(self, "_retired_data_loader_workers", None)
         if retired is None:
             retired = []
@@ -4159,9 +4206,50 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             _release_worker_ref()
         try:
+            worker.destroyed.connect(_release_worker_ref)
+        except Exception:
+            pass
+        try:
             worker.finished.connect(worker.deleteLater)
         except Exception:
             pass
+        self._prune_retired_data_loader_workers()
+
+    def _is_data_loader_worker_alive(self, worker) -> bool:
+        if worker is None:
+            return False
+        if sip is None:
+            return True
+        try:
+            return not sip.isdeleted(worker)
+        except TypeError:
+            # Objetos de teste podem nao ser QObject reais.
+            return True
+        except Exception:
+            return False
+
+    def _is_data_loader_worker_running(self, worker) -> bool:
+        if not self._is_data_loader_worker_alive(worker):
+            return False
+        try:
+            if hasattr(worker, "isRunning"):
+                return bool(worker.isRunning())
+        except Exception:
+            return False
+        return False
+
+    def _prune_retired_data_loader_workers(self) -> None:
+        """Remove referencias globais/locais para workers ja finalizados."""
+        retired_local = list(getattr(self, "_retired_data_loader_workers", []) or [])
+        if retired_local:
+            self._retired_data_loader_workers = [w for w in retired_local if self._is_data_loader_worker_running(w)]
+        else:
+            self._retired_data_loader_workers = []
+
+        running_global = [w for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS if self._is_data_loader_worker_running(w)]
+        if len(running_global) > MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            running_global = running_global[-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:]
+        GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = running_global
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
         """Finaliza worker de carga com modo bloqueante opcional.
@@ -4205,10 +4293,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             except Exception:
                 pass
         except Exception:
+            try:
+                self._prune_retired_data_loader_workers()
+            except Exception:
+                pass
             return False
+        try:
+            self._prune_retired_data_loader_workers()
+        except Exception:
+            pass
         return True
 
     def load_data(self):
+        try:
+            self._prune_retired_data_loader_workers()
+        except Exception:
+            pass
         if not os.path.exists(DB_PATH):
             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
@@ -4319,15 +4419,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.load_button.setEnabled(True)
         self.search_button.setEnabled(True)
         self.progress_bar.setVisible(False)
+        try:
+            self._prune_retired_data_loader_workers()
+        except Exception:
+            pass
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
         active_id = getattr(self, "_active_data_load_request_id", None)
         is_stale = request_id is not None and active_id is not None and request_id != active_id
         target_worker = worker if worker is not None else getattr(self, "data_loader_thread", None)
         if is_stale:
-            self._cleanup_data_loader_worker(target_worker)
-            if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
-                self.data_loader_thread = None
+            try:
+                self._cleanup_data_loader_worker(target_worker)
+            finally:
+                if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
+                    self.data_loader_thread = None
+                try:
+                    self._prune_retired_data_loader_workers()
+                except Exception:
+                    pass
             return
 
         self.progress_bar.setVisible(False)
@@ -4339,6 +4449,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         finally:
             if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
                 self.data_loader_thread = None
+            try:
+                self._prune_retired_data_loader_workers()
+            except Exception:
+                pass
 
     def on_header_clicked(self, logical_index: int):
         try:
@@ -6154,6 +6268,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     worker.wait(3000)  # Aguarda ate 3 segundos
                 except Exception:
                     pass
+
+        try:
+            self._prune_retired_data_loader_workers()
+        except Exception:
+            pass
 
         # Aceita o evento de fechamento
         event.accept()
