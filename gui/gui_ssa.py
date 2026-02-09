@@ -1026,8 +1026,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         search_input.setMaximumWidth(950)
         try:
             search_input.setMinimumHeight(26)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura minima no campo de pesquisa: %s", exc)
         search_input.returnPressed.connect(self.initiate_filtering)
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("Aplicar")
@@ -1063,13 +1063,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         search_help.setWordWrap(False)
         try:
             search_help.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar size policy na ajuda de pesquisa: %s", exc)
         search_help.setStyleSheet("color: palette(mid); margin:0; padding:0;")
         try:
             search_help.setVisible(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ocultar texto de ajuda da pesquisa: %s", exc)
         tab_layout.addSpacing(4)
 
         # Pagination and persistent filters
@@ -1088,8 +1088,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             profile_selector.setMinimumWidth(150)
             profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar seletor de perfil de filtro: %s", exc)
         profile_selector.addItem("Personalizado", None)
         for profile_name in self.filter_profiles.keys():
             profile_selector.addItem(profile_name, profile_name)
@@ -1114,16 +1114,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
         try:
             exclude_ste_checkbox.setChecked(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao inicializar estado do checkbox excluir STE/SCA: %s", exc)
         try:
             exclude_ste_checkbox.setVisible(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ocultar checkbox excluir STE/SCA na aba: %s", exc)
         try:
             exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc)
         persistent_filters_layout.addWidget(exclude_ste_checkbox)
 
         filter_tags_widget = QWidget()
@@ -1139,16 +1139,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             if self._info_font is not None:
                 col_filter_indicator.setFont(QFont(self._info_font))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
         col_filter_indicator.setToolTip(
             "Filtros por coluna acumulam com a Pesquisa Geral (logica E entre filtros). "
             "Dentro de cada filtro, use virgulas para alternativas (logica OU). Consulte a ajuda para outros atalhos."
         )
         try:
             col_filter_indicator.setVisible(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
 
         tab_layout.addLayout(pagination_filters_layout)
 
@@ -1167,31 +1167,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if self._info_font is not None:
                 try:
                     filters_summary_label.setFont(QFont(self._info_font))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
             clear_all_filters_btn.setMaximumWidth(200)
             clear_all_filters_btn.clicked.connect(self._clear_all_filters_global)
             try:
                 clear_all_filters_btn.setStyleSheet(self._week_label_style)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao limpar todos os filtros: %s", exc)
             export_list_btn = QPushButton("Exportar lista")
             export_list_btn.setMaximumWidth(160)
             export_list_btn.setToolTip("Exportar lista atual para arquivo txt")
             export_list_btn.clicked.connect(self._export_current_list_txt)
             try:
                 export_list_btn.setStyleSheet(self._week_label_style)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao exportar lista: %s", exc)
             undo_filter_btn = QPushButton("Undo")
             undo_filter_btn.setMaximumWidth(160)
             undo_filter_btn.setToolTip("Desfaz o ultimo filtro aplicado")
             undo_filter_btn.clicked.connect(self._restore_last_filter_state)
             try:
                 undo_filter_btn.setStyleSheet(self._week_label_style)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao undo de filtros: %s", exc)
             summary_layout.addWidget(clear_all_filters_btn, 0)
             summary_layout.addWidget(export_list_btn, 0)
             summary_layout.addWidget(undo_filter_btn, 0)
@@ -1200,20 +1200,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             filters_summary_frame.setVisible(True)
             try:
                 self._update_undo_button_state()
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar estado inicial do botao undo: %s", exc)
+        except Exception as exc:
+            logger.warning("Falha ao construir painel de resumo de filtros da aba: %s", exc)
 
         if isinstance(self._restored_page_size, int) and 10 <= self._restored_page_size <= 500:
             try:
                 paginator.page_size_spinbox.setValue(self._restored_page_size)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao restaurar page size na paginacao: %s", exc)
         try:
             paginator.page_size_spinbox.valueChanged.connect(self._save_page_size_pref)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao conectar persistencia de page size na paginacao: %s", exc)
 
         # Table
         table_widget = QTableWidget()
@@ -1235,21 +1235,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 header.setMinimumSectionSize(80)
                 header.setDefaultSectionSize(100)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
             try:
                 f = header.font()
                 f.setBold(False)
                 header.setFont(f)
                 header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo/fonte no header da tabela: %s", exc)
             header.sectionClicked.connect(self.on_header_clicked)
             header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             header.customContextMenuRequested.connect(self.show_header_context_menu)
             header.installEventFilter(self)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao configurar comportamento do header da tabela: %s", exc)
 
         table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table_widget.customContextMenuRequested.connect(self.show_context_menu)
@@ -1265,18 +1265,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         details_text = QTextBrowser()
         try:
             details_text.setFrameShape(QFrame.Shape.NoFrame)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
         try:
             details_text.viewport().setAutoFillBackground(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar preenchimento do viewport de detalhes: %s", exc)
         details_text.setReadOnly(True)
         try:
             details_text.setOpenExternalLinks(False)
             details_text.anchorClicked.connect(self._on_details_anchor_clicked)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
         details_layout.addWidget(details_text)
         bottom_layout.addWidget(details_group, 2)
 
@@ -1285,8 +1285,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
         try:
             col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo da dica de filtros por coluna: %s", exc)
         col_filters_outer.addWidget(col_filters_hint)
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
@@ -1373,30 +1373,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 setattr(self, name, ctx[name])
         try:
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar estado do botao limpar filtro no bind de aba: %s", exc)
         try:
             if ctx.get("tab_kind") == "filters":
                 try:
                     debounce_timer = getattr(self, "_debounce_timer", None)
                     if debounce_timer is not None:
                         debounce_timer.stop()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao parar debounce no bind da aba de filtros: %s", exc)
                 self.search_input.blockSignals(True)
                 self.search_input.clear()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao limpar busca durante bind da aba de filtros: %s", exc)
         finally:
             try:
                 if ctx.get("tab_kind") == "filters":
                     self.search_input.blockSignals(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao reativar sinais da busca no bind da aba de filtros: %s", exc)
         try:
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao limpar apos bind de aba: %s", exc)
 
         tab_kind = ctx.get("tab_kind")
         try:
@@ -1405,16 +1405,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     try:
                         self._refresh_advanced_filter_options()
                         self._adv_options_dirty = False
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as exc:
+                        logger.warning("Falha ao atualizar opcoes avancadas no bind da aba filtros: %s", exc)
+        except Exception as exc:
+            logger.debug("Falha no bloco de refresh de opcoes avancadas no bind de aba: %s", exc)
 
         try:
             if hasattr(self, "exclude_ste_checkbox") and not self.exclude_ste_checkbox.isVisible():
                 self._exclude_ste_sca = False
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao normalizar estado exclude_ste no bind de aba: %s", exc)
 
         try:
             if self.current_filter_profile:
@@ -1424,64 +1424,64 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if idx >= 0:
                 self.profile_selector.blockSignals(True)
                 self.profile_selector.setCurrentIndex(idx)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
         finally:
             try:
                 self.profile_selector.blockSignals(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
 
         try:
             self.column_selector.set_selected_columns(self.visible_columns)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar colunas visiveis no seletor da aba: %s", exc)
 
         try:
             df_id = id(self.df_exibido)
             if ctx.get("_paginator_df_id") != df_id:
                 self.paginator.set_dataframe(self.df_exibido)
                 ctx["_paginator_df_id"] = df_id
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar dataframe no paginator durante bind de aba: %s", exc)
         try:
             if tab_kind != "filters":
                 self._build_column_filters_panel()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reconstruir painel de filtros por coluna no bind de aba: %s", exc)
         try:
             if tab_kind != "filters":
                 self._update_col_filter_indicator()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar indicador de filtros por coluna no bind de aba: %s", exc)
         try:
             self._update_filters_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros no bind de aba: %s", exc)
         try:
             self._update_undo_button_state()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao undo no bind de aba: %s", exc)
         try:
             if tab_kind != "filters":
                 self.update_filter_tags()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar tags de filtros no bind de aba: %s", exc)
         try:
             current_theme = getattr(self, "_current_theme", None)
             if current_theme and ctx.get("_theme_name") != current_theme:
                 self.apply_theme(current_theme)
                 ctx["_theme_name"] = current_theme
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reaplicar tema no bind de aba: %s", exc)
         try:
             current_page = max(1, getattr(self.paginator, "current_page", 1))
             render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
             if ctx.get("_last_render_key") != render_key:
                 ctx["_last_render_key"] = render_key
                 self.display_current_page(current_page)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao renderizar pagina no bind de aba: %s", exc)
 
     def _sync_checks_to_tab_context(self):
         """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""
