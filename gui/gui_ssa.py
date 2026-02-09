@@ -4562,8 +4562,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if self._active_column_filters:
                 menu.addAction(clear_all_action)
             menu.exec(header.mapToGlobal(pos))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
 
     def eventFilter(self, obj, event):
         try:
@@ -4585,8 +4585,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             p = event.pos()
                         self.show_header_context_menu(p)
                         return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha no eventFilter do header da tabela: %s", exc)
         return super().eventFilter(obj, event)
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
@@ -4605,8 +4605,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 menu.setPalette(pal)
             try:
                 menu.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao habilitar styled background no menu de temas: %s", exc)
             win = pal.color(_QPal.ColorRole.Window).name()
             wtxt = pal.color(_QPal.ColorRole.WindowText).name()
             mid = pal.color(_QPal.ColorRole.Mid).name()
@@ -4617,8 +4617,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}"
                 f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}"
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo/paleta no menu de temas: %s", exc)
         light_themes, dark_themes = self._get_theme_catalog()
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         theme_default = gui_settings.get("theme_default")
@@ -4642,8 +4642,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
             try:
                 check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao estilizar checkbox do menu de temas: %s", exc)
             def _toggle_default(checked):
                 gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
                 if checked:
@@ -4655,7 +4655,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             check_widget.toggled.connect(_toggle_default)
             check_action.setDefaultWidget(check_widget)
             menu.addAction(check_action)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao construir checkbox de tema padrao; usando fallback de action: %s", exc)
             default_action = menu.addAction("Usar tema atual como padrao")
             if default_action is not None:
                 try:
@@ -4670,8 +4671,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             gui_settings.pop("theme_default", None)
                         self._persist_gui_preferences()
                     default_action.triggered.connect(_toggle_default_action)
-                except Exception:
-                    pass
+                except Exception as fallback_exc:
+                    logger.debug("Falha no fallback de action para tema padrao: %s", fallback_exc)
         menu.addSeparator()
 
         def _add_label(text: str):
@@ -4683,18 +4684,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     label.setStyleSheet(
                         f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao estilizar label de grupo no menu de temas: %s", exc)
                 action = QWidgetAction(menu)
                 action.setDefaultWidget(label)
                 menu.addAction(action)
-            except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao criar label custom no menu de temas; usando action simples: %s", exc)
                 act = menu.addAction(text)
                 if act is not None:
                     try:
                         act.setEnabled(False)
-                    except Exception:
-                        pass
+                    except Exception as disable_exc:
+                        logger.debug("Falha ao desabilitar action de label no menu de temas: %s", disable_exc)
 
         def _add_group(items):
             for label, key in items:
@@ -4704,8 +4706,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if trigger is not None:
                         try:
                             trigger.connect(partial(self.apply_theme, key))
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.warning("Falha ao conectar action de tema %s: %s", key, exc)
 
         _add_label("Light")
         _add_group(sorted(light_themes, key=lambda item: item[0].lower()))
@@ -4718,14 +4720,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             fm = menu.fontMetrics()
             widest = max(fm.horizontalAdvance(lbl) for lbl in labels)
             menu.setMinimumWidth(widest + 48)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao calcular largura minima do menu de temas: %s", exc)
         btn = self.sender()
         try:
             if btn is not None:
                 menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao abrir menu de temas: %s", exc)
 
     def apply_theme(self, name: str):
         """
@@ -4760,8 +4762,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         styles = QStyleFactory.keys()
                         if styles and 'Fusion' in styles:
                             app.setStyle('Fusion')
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
                 # Aplica paleta no aplicativo inteiro para garantir consistência
                 if app is not None:
                     app.setPalette(pal)
@@ -4770,8 +4772,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         app.setStyleSheet("")
                         block = build_global_widget_qss(pal)
                         app.setStyleSheet(block)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
                 # Garante também na janela atual
                 self.setPalette(pal)
             except Exception:  # noqa: BLE001
@@ -4788,8 +4790,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if central is not None:
                 try:
                     central.setStyleSheet("")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao limpar stylesheet do central widget antes de reaplicar tema: %s", exc)
                 existing = central.styleSheet() or ""
                 start = existing.find("/* SSA_MAIN_BG_START */")
                 if start != -1:
@@ -4813,8 +4815,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     central.setStyleSheet(new_css)
                 else:
                     central.setStyleSheet(existing)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao aplicar tema no central widget: %s", exc)
         try:
             if hasattr(self, "main_tabs") and self.main_tabs is not None:
                 from PyQt6.QtGui import QPalette as _QPal
@@ -4843,13 +4845,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     " }"
                 )
                 self.main_tabs.setStyleSheet(tab_css)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao aplicar estilo de tabs no tema atual: %s", exc)
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc)
 
         # ============================================================
         # SECTION 3: Extract Theme Color Roles
@@ -4863,8 +4865,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 for ctx in tab_contexts:
                     if isinstance(ctx, dict):
                         ctx["_theme_name"] = normalized
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
         try:
             light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
             selector = getattr(self, 'column_selector', None)
@@ -4893,7 +4895,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             panel_border = roles.get('panel_border', input_border)
             try:
                 highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
-            except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao obter cor de texto destacado da paleta: %s", exc)
                 highlight_fg = None
             self._highlight_bg_color = high or HIGHLIGHT_BACKGROUND_COLOR
             self._highlight_text_color = highlight_fg or None
@@ -4937,8 +4940,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if btn is not None:
                     try:
                         btn.setStyleSheet(tool_btn_css)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao aplicar estilo no botao avancado %s: %s", name, exc)
             adv_line_edits = [
                 "adv_week_emissao_start",
                 "adv_week_emissao_end",
@@ -4952,8 +4955,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         widget.setStyleSheet(
                             build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao aplicar estilo no campo avancado %s: %s", name, exc)
 
             # ============================================================
             # SECTION 5: Details Panel
@@ -4970,8 +4973,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         if size > 0:
                             small_font.setPointSizeF(max(size - 1.5, 1.0))
                         self.details_text.setFont(small_font)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc)
                 if normalized in light_themes:
                     self.details_text.setStyleSheet('')
                 else:
@@ -5030,8 +5033,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if hasattr(self, 'status_label'):
                     try:
                         self.search_help.setFont(self.status_label.font())
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao sincronizar fonte de search_help com status_label: %s", exc)
                 self.search_help.setStyleSheet(css)
 
             if hasattr(self, 'col_filter_indicator'):
@@ -5068,8 +5071,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             if hasattr(self, 'col_filters_hint'):
                 self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
 
         # ============================================================
         # SECTION 11: Dynamic Column Filter Widgets
@@ -5088,13 +5091,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 gui_settings['theme'] = normalized
                 with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
                     json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
         self._apply_macos_contrast(normalized)
         try:
             self.update_details_from_selection()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
 
     def _apply_macos_contrast(self, theme_name: str):
         if sys.platform != 'darwin':
@@ -5124,8 +5127,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     existing = existing[:start] + existing[end:]
                 new_qss = (existing + ("\n" if existing and not existing.endswith("\n") else "") + block).strip()
                 central.setStyleSheet(new_qss)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar ajustes de contraste macOS no tema %s: %s", normalized, exc)
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
