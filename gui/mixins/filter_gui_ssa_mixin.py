@@ -627,8 +627,8 @@ class FilterGUISSAMixin:
             self._active_column_filters[col_name] = ""
             try:
                 self._mark_profile_as_custom()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao marcar perfil como custom ao ativar filtro de coluna %s: %s", col_name, exc)
         self._pending_filter_focus = col_name
         self._build_column_filters_panel()
 
@@ -654,8 +654,8 @@ class FilterGUISSAMixin:
             return
         try:
             self._mark_profile_as_custom()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao marcar perfil como custom ao desativar filtro de coluna %s: %s", col_name, exc)
         self._pending_filter_focus = None
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
@@ -762,8 +762,8 @@ class FilterGUISSAMixin:
                     try:
                         if hasattr(self, "clear_filter_button"):
                             self.clear_filter_button.setEnabled(self._has_any_active_filters())
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botão para remover a linha da exibição (não altera o valor do filtro)
@@ -793,15 +793,15 @@ class FilterGUISSAMixin:
                 return _inner
             try:
                 clear_btn.clicked.connect(_mk_remove_line())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao remover para filtro de coluna %s: %s", col, exc)
             # Oculta o botão para colunas fixas que não devem ser removidas da exibição
             try:
                 fixed_cols = {"descricao_ssa", "setor_executor", "situacao", "localizacao_codigo", "descricao_localizacao"}
                 if col in fixed_cols:
                     clear_btn.setVisible(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao ajustar visibilidade do botao remover da coluna %s: %s", col, exc)
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
@@ -818,8 +818,8 @@ class FilterGUISSAMixin:
                 widget = self._column_filter_inputs[focus_col]
                 widget.setFocus()
                 widget.selectAll()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao focar campo do filtro de coluna %s: %s", focus_col, exc)
         self._pending_filter_focus = None
         self._refresh_column_filter_widgets()
         # Botção limpar todos
@@ -884,8 +884,8 @@ class FilterGUISSAMixin:
             try:
                 if hasattr(self, "clear_filter_button"):
                     self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar botao limpar apos limpar filtro de coluna %s: %s", col_name, exc)
 
 
     def _clear_all_column_filters(self):
@@ -911,8 +911,8 @@ class FilterGUISSAMixin:
             try:
                 if hasattr(self, "clear_filter_button"):
                     self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
@@ -935,8 +935,8 @@ class FilterGUISSAMixin:
                     finally:
                         try:
                             checkbox.blockSignals(False)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais de checkbox exclude_ste por aba: %s", exc)
             elif hasattr(self, "exclude_ste_checkbox") and self.exclude_ste_checkbox is not None:
                 checkbox = self.exclude_ste_checkbox
                 try:
@@ -946,10 +946,10 @@ class FilterGUISSAMixin:
                 finally:
                     try:
                         checkbox.blockSignals(False)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais de checkbox exclude_ste principal: %s", exc)
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar toggle de excluir STE/SCA entre abas: %s", exc)
         self._mark_profile_as_custom()
         self._refresh_after_filter_change()
 
@@ -963,17 +963,18 @@ class FilterGUISSAMixin:
         # Limpar filtro de busca geral
         try:
             self._debounce_timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce principal em clear_all_filters_global: %s", exc)
         try:
             sector_timer = getattr(self, "_sector_debounce_timer", None)
             if sector_timer is not None:
                 sector_timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de setor em clear_all_filters_global: %s", exc)
         try:
             self._set_search_text_across_tabs("")
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha ao limpar busca em todas as abas em clear_all_filters_global: %s", exc)
             try:
                 self.search_input.blockSignals(True)
                 self.search_input.clear()
@@ -981,8 +982,8 @@ class FilterGUISSAMixin:
             finally:
                 try:
                     self.search_input.blockSignals(False)
-                except Exception:
-                    pass
+                except Exception as unblock_exc:
+                    logger.debug("Falha ao reativar sinais do campo principal em clear_all_filters_global: %s", unblock_exc)
         self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
@@ -1007,18 +1008,18 @@ class FilterGUISSAMixin:
                 try:
                     checkbox.blockSignals(True)
                     checkbox.setChecked(False)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao limpar checkbox exclude_ste em contexto de aba: %s", exc)
                 finally:
                     try:
                         checkbox.blockSignals(False)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais de checkbox exclude_ste em clear_all_filters_global: %s", exc)
         try:
             if hasattr(self, "_sync_advanced_filter_ui"):
                 self._sync_advanced_filter_ui()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar UI de filtros avancados em clear_all_filters_global: %s", exc)
 
         # Resetar para dataset completo
         self.df_exibido = self.df_completo.copy()
