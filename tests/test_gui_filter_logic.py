@@ -20,6 +20,8 @@ from PyQt6.QtCore import Qt, QSize  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
+from gui import gui_ssa  # noqa: E402
+from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
 
@@ -863,6 +865,128 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.isVisible() is True
         assert self.window.load_button.isEnabled() is False
         assert self.window.search_button.isEnabled() is False
+
+    def test_close_event_retains_slow_data_loader_globally_until_finished(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowLoaderWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                # Simula worker que nao encerra imediatamente.
+                self._running = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return False
+
+            def deleteLater(self):
+                self.deleted = True
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        worker = _SlowLoaderWorker()
+        if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+        self.window.data_loader_thread = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 3000
+        assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+
+        worker.finish_now()
+        assert worker.deleted is True
+        assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+
+    def test_close_event_retains_slow_filter_worker_globally_until_finished(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SlowFilterWorker:
+            def __init__(self):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                # Simula worker que nao encerra imediatamente.
+                self._running = True
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return False
+
+            def deleteLater(self):
+                self.deleted = True
+
+            def finish_now(self):
+                self._running = False
+                self.finished.emit()
+
+        worker = _SlowFilterWorker()
+        if worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS:
+            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.remove(worker)
+        self.window.filter_thread = worker
+
+        event = QCloseEvent()
+        self.window.closeEvent(event)
+
+        assert event.isAccepted() is True
+        assert worker.quit_called is True
+        assert worker.wait_called_ms == 3000
+        assert worker in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+
+        worker.finish_now()
+        assert worker.deleted is True
+        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
 
     def test_on_load_finished_current_request_cleans_worker_and_restores_ui(self):
         class _FakeSignal:

@@ -60,6 +60,9 @@ except Exception as e:
     logger = logging.getLogger(__name__)
     logger.error(f"Falha ao inicializar logging robusto: {e}")
 logger = logging.getLogger(__name__)
+
+# Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
+GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
 logger.addHandler(logging.NullHandler())
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
@@ -3900,11 +3903,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if worker in retired:
             return
         retired.append(worker)
+        if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
 
         def _release_worker_ref(w=worker):
             try:
                 if w in self._retired_data_loader_workers:
                     self._retired_data_loader_workers.remove(w)
+            except Exception:
+                pass
+            try:
+                if w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+                    GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
             except Exception:
                 pass
 
