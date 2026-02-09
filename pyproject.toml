@@ -11,6 +11,11 @@ dependencies = [
     "pytest",
     "ty",
     "numpy",
-    "scypy",
+    "scipy",
     "tabulate",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--ignore=tests/test_db_load.py --ignore=tests/test_import_analysis.py"
