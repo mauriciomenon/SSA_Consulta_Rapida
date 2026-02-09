@@ -193,8 +193,8 @@ class FilterGUISSAMixin:
         self._safe_store_last_filter_state("initiate_filtering")
         try:
             self._debounce_timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
         request_id = int(getattr(self, "_filter_request_seq", 0)) + 1
         self._filter_request_seq = request_id
         self._active_filter_request_id = request_id
@@ -708,8 +708,8 @@ class FilterGUISSAMixin:
             name_lbl.setMinimumWidth(100)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no label do filtro de coluna %s: %s", col, exc)
             # Exibe 'OU' no campo (apenas visual). Internamente continuamos usando vírgulas.
             try:
                 display_text = self._format_column_filter_display_value(str(term), column=col)
@@ -723,32 +723,32 @@ class FilterGUISSAMixin:
             term_box.setMinimumWidth(220)
             try:
                 term_box.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no input do filtro de coluna %s: %s", col, exc)
             try:
                 term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no input do filtro de coluna %s: %s", col, exc)
             self._apply_filter_widget_theme(name_lbl, term_box)
             # Enter aplica o filtro desta coluna
             try:
                 term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar Enter no filtro de coluna %s: %s", col, exc)
             # Botao Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             try:
                 apply_btn.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Aplicar da coluna %s: %s", col, exc)
             try:
                 apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Aplicar da coluna %s: %s", col, exc)
             try:
                 apply_btn.setFixedWidth(72)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Aplicar da coluna %s: %s", col, exc)
             def _mk_apply(c=col, tb=term_box):
                 def _inner():
                     # Simplified: use text directly (comma-separated terms = OR logic)
@@ -770,16 +770,16 @@ class FilterGUISSAMixin:
             clear_btn = QPushButton("Remover")  # Corrigido capitalização
             try:
                 clear_btn.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Remover da coluna %s: %s", col, exc)
             try:
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Remover da coluna %s: %s", col, exc)
             try:
                 clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Remover da coluna %s: %s", col, exc)
             
             def _mk_remove_line(c=col):
                 def _inner():
@@ -871,8 +871,8 @@ class FilterGUISSAMixin:
             try:
                 if str(self._active_column_filters.get(col_name, '')).strip() == '' and (current_text is None or str(current_text).strip() == ''):
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao verificar estado atual do filtro de coluna %s antes de limpar: %s", col_name, exc)
             self._safe_store_last_filter_state("clear_single_column_filter")
             if col_name in self._column_to_or_group:
                 self._sync_or_group_values(col_name, "")
@@ -1261,8 +1261,8 @@ class FilterGUISSAMixin:
                 if isinstance(data, dict):
                     self._filter_alias_map = data
                     return self._filter_alias_map
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao carregar aliases de filtro em arquivo local: %s", exc)
         self._filter_alias_map = {}
         return self._filter_alias_map
 
@@ -1273,15 +1273,15 @@ class FilterGUISSAMixin:
         try:
             if not self.col_filter_indicator.isVisible():
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao consultar visibilidade do indicador de filtro de coluna: %s", exc)
         # Ativo quando existe ao menos um termo nao vazio em filtros por coluna
         active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
         txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
         try:
             self.col_filter_indicator.setText(txt)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar texto do indicador de filtro de coluna: %s", exc)
 
 
     def show_filter_help(self):
@@ -1927,8 +1927,8 @@ class FilterGUISSAMixin:
     def filter_data(self):  # chama o fluxo novo de filtragem
         try:
             self.initiate_filtering()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha inesperada ao iniciar filtro via atalho filter_data: %s", exc)
 
 
     def load_persistent_filters(self):
