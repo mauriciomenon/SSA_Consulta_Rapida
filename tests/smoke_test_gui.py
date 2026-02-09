@@ -1,20 +1,47 @@
 #!/usr/bin/env python3
-"""
-Smoke test para GUI apos integracao do mixin.
+"""Smoke tests de sanidade da GUI principal em modo headless."""
 
-Testa se a GUI pode ser instanciada e metodos basicos funcionam.
-"""
-
-import sys
 import os
+import sys
+from unittest.mock import patch
 
-# Adiciona o diretorio raiz ao path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+import pytest
+
+pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+from PyQt6.QtWidgets import QApplication  # noqa: E402
+
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-def test_gui_instantiation():
+@pytest.fixture(scope="module")
+def qapp():
+    """Garante QApplication única para evitar aborts de Qt no pytest."""
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
+@pytest.fixture
+def window(qapp):  # noqa: ARG001
+    """Instancia janela sem auto-load assíncrono para smoke determinístico."""
+    from gui.gui_ssa import SSAMainWindow  # noqa: E402
+
+    with patch.object(SSAMainWindow, "load_data", lambda self: None):
+        win = SSAMainWindow()
+    win.show()
+    QApplication.processEvents()
+    try:
+        yield win
+    finally:
+        try:
+            win.close()
+        except Exception:
+            pass
+
+
+def test_gui_instantiation(window):
     """Testa se a GUI pode ser instanciada (modo headless)."""
     print("[TEST] Testando instanciacao da GUI...")
 
@@ -24,64 +51,37 @@ def test_gui_instantiation():
 
         print(f"  Qt disponivel: {QT_AVAILABLE}")
 
-        # Tenta criar instancia (modo headless)
-        try:
-            window = SSAMainWindow()
-            print("  [OK] SSAMainWindow instanciada com sucesso")
+        assert isinstance(window, SSAMainWindow)
+        print("  [OK] SSAMainWindow instanciada com sucesso")
 
-            # Verifica alguns atributos basicos
-            if hasattr(window, 'df_completo'):
-                print("  [OK] Atributo 'df_completo' existe")
-            if hasattr(window, 'initiate_filtering'):
-                print("  [OK] Metodo 'initiate_filtering' acessivel")
-            if hasattr(window, '_apply_column_filters'):
-                print("  [OK] Metodo '_apply_column_filters' acessivel")
-
-            return True
-
-        except Exception as e:
-            print(f"  [ERRO] Falha ao instanciar: {e}")
-            return False
+        # Verifica alguns atributos basicos
+        if hasattr(window, "df_completo"):
+            print("  [OK] Atributo 'df_completo' existe")
+        if hasattr(window, "initiate_filtering"):
+            print("  [OK] Metodo 'initiate_filtering' acessivel")
+        if hasattr(window, "_apply_column_filters"):
+            print("  [OK] Metodo '_apply_column_filters' acessivel")
 
     except ImportError as e:
-        print(f"  [ERRO] Falha ao importar: {e}")
-        return False
+        pytest.fail(f"Falha ao importar: {e}")
 
 
-def test_mixin_methods_callable():
+def test_mixin_methods_callable(window):
     """Testa se metodos do mixin sao chamaveis."""
     print("\n[TEST] Testando se metodos do mixin sao chamaveis...")
 
-    try:
-        from gui.gui_ssa import SSAMainWindow
+    filter_methods = [
+        "initiate_filtering",
+        "_split_search_expression",
+        "_apply_column_filters",
+        "clear_filter",
+    ]
 
-        window = SSAMainWindow()
-
-        # Testa alguns metodos do mixin
-        filter_methods = [
-            'initiate_filtering',
-            '_split_search_expression',
-            '_apply_column_filters',
-            'clear_filter',
-        ]
-
-        for method_name in filter_methods:
-            if hasattr(window, method_name):
-                method = getattr(window, method_name)
-                if callable(method):
-                    print(f"  [OK] {method_name} e chamavel")
-                else:
-                    print(f"  [ERRO] {method_name} nao e chamavel")
-                    return False
-            else:
-                print(f"  [ERRO] {method_name} nao existe")
-                return False
-
-        return True
-
-    except Exception as e:
-        print(f"  [ERRO] Falha: {e}")
-        return False
+    for method_name in filter_methods:
+        assert hasattr(window, method_name), f"{method_name} nao existe"
+        method = getattr(window, method_name)
+        assert callable(method), f"{method_name} nao e chamavel"
+        print(f"  [OK] {method_name} e chamavel")
 
 
 def test_no_method_conflicts():
@@ -112,38 +112,17 @@ def test_no_method_conflicts():
 
         if len(inherited) == len(mixin_method_names):
             print("  [OK] Todos os metodos do mixin estao presentes")
-            return True
         else:
             missing = mixin_method_names - inherited
-            print(f"  [ERRO] Metodos faltando: {missing}")
-            return False
+            pytest.fail(f"Metodos faltando: {missing}")
 
     except Exception as e:
-        print(f"  [ERRO] Falha: {e}")
-        return False
+        pytest.fail(f"Falha: {e}")
 
 
 def main():
-    """Executa todos os smoke tests."""
-    print("="*60)
-    print("SMOKE TEST: GUI apos integracao do mixin")
-    print("="*60)
-
-    all_passed = True
-
-    all_passed &= test_gui_instantiation()
-    all_passed &= test_mixin_methods_callable()
-    all_passed &= test_no_method_conflicts()
-
-    # Resultado final
-    print("\n" + "="*60)
-    if all_passed:
-        print("[SUCESSO] Todos os smoke tests passaram!")
-    else:
-        print("[FALHA] Alguns smoke tests falharam.")
-    print("="*60)
-
-    return 0 if all_passed else 1
+    """Permite executar este arquivo diretamente via pytest."""
+    return pytest.main([__file__, "-q"])
 
 
 if __name__ == '__main__':
