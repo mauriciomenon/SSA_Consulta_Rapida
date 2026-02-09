@@ -19,10 +19,17 @@ if project_root not in sys.path:
 class TestGUIMainConfiguration:
     """Testes para o sistema de configuracao da GUI Principal."""
 
-    def test_gui_main_preferences_file_exists(self):
-        """Verifica se o arquivo de configuracao existe."""
-        config_path = os.path.join(project_root, "config", "gui_main_preferences.json")
-        assert os.path.exists(config_path), "Arquivo gui_main_preferences.json deve existir"
+    def test_gui_main_preferences_contract_available_without_file(self):
+        """Contrato de configuracao deve existir mesmo sem arquivo local versionado."""
+        with patch("os.path.exists", return_value=False):
+            from gui.gui_config import load_gui_main_preferences
+
+            config = load_gui_main_preferences()
+
+        assert "display_columns" in config
+        assert "column_display_names" in config
+        assert "display_mappings" in config
+        assert "column_widths" in config
 
     def test_load_gui_main_preferences_structure(self):
         """Testa se a funcao de carregamento funciona e estrutura e valida."""
