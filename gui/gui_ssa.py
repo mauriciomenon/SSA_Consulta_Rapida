@@ -1616,8 +1616,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             try:
                 checkbox.blockSignals(True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao bloquear sinais de checkbox sem QSignalBlocker: %s", exc)
         changed = False
         try:
             checkbox.setChecked(desired)
@@ -1628,8 +1628,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not used_signal_blocker:
                 try:
                     checkbox.blockSignals(False)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s", exc)
         return changed
 
     def _sync_responsavel_flags(self) -> None:
@@ -1657,8 +1657,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         try:
             self._refresh_responsavel_options(target_prefixes=target)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha no refresh de responsaveis apos debounce de setor: %s", exc)
 
     def _ensure_responsavel_options_materialized(self, target_prefix: str | None = None, force: bool = False) -> None:
         """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
@@ -2796,32 +2796,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             try:
                 self._apply_divisao_to_setor_checks()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao sincronizar divisao->setor: %s", exc)
             try:
                 self._update_multiselect_button(
                     self.adv_executor_button,
                     self.adv_executor_checks,
                     exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao atualizar botao de setor executor: %s", exc)
             try:
                 self._update_multiselect_button(
                     self.adv_emissor_button,
                     self.adv_emissor_checks,
                     exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao atualizar botao de setor emissor: %s", exc)
             try:
                 self._update_multiselect_button(
                     self.adv_divisao_button,
                     self.adv_divisao_checks,
                     exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao atualizar botao de divisao: %s", exc)
             self._schedule_sector_options_refresh()
         finally:
             self._adv_sector_handler_running = False
@@ -2838,24 +2838,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.adv_executor_checks,
                 exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar botao de setor executor (exclude): %s", exc)
         try:
             self._update_multiselect_button(
                 self.adv_emissor_button,
                 self.adv_emissor_checks,
                 exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar botao de setor emissor (exclude): %s", exc)
         try:
             self._update_multiselect_button(
                 self.adv_divisao_button,
                 self.adv_divisao_checks,
                 exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar botao de divisao (exclude): %s", exc)
 
         self._schedule_sector_options_refresh()
 
@@ -2868,35 +2868,35 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 if timer is not None and _is_widget_valid(timer):
                     timer.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao parar debounce de setores sem prefixos materializados: %s", exc)
             return
         self._mark_responsavel_dirty(prefixes=built)
         if timer is None:
             try:
                 self._on_sector_debounce_timeout()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha no refresh imediato de setores (sem timer): %s", exc)
             return
         try:
             if _is_widget_valid(timer):
                 timer.stop()
                 timer.start()
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao reiniciar timer de debounce de setores: %s", exc)
         try:
             self._on_sector_debounce_timeout()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha no fallback de refresh de setores: %s", exc)
 
     def _collect_divisao_setores(self, divisao_values):
         setores = set()
         for div in divisao_values or []:
             try:
                 setores.update(DIVISAO_SETORES.get(str(div), []))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao coletar setores para divisao %r: %s", div, exc)
         return setores
 
     def _sector_sort_key(self, sector: str):
@@ -2923,7 +2923,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         for col in sector_cols:
             try:
                 pairs = df_subset[[col, resp_col]].dropna()
-            except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao montar pares responsavel/setor (%s, %s): %s", col, resp_col, exc)
                 continue
             for sec, person in pairs.itertuples(index=False):
                 sec_str = str(sec).strip()
@@ -2980,16 +2981,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         continue
                     if cb.text().casefold() in setores_norm:
                         self._set_checkbox_checked_quietly(cb, True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao marcar checkbox de setor executor: %s", exc)
             for cb in getattr(self, "adv_emissor_checks", None) or []:
                 try:
                     if not _is_widget_valid(cb):
                         continue
                     if cb.text().casefold() in setores_norm:
                         self._set_checkbox_checked_quietly(cb, True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao marcar checkbox de setor emissor: %s", exc)
         finally:
             self._adv_sector_syncing = False
 
@@ -3018,16 +3019,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
             try:
                 widget.setEnabled(bool(enabled))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao ajustar estado enabled de widget %r: %s", widget, exc)
 
         def _set_visible(widget, visible):
             if widget is None:
                 return
             try:
                 widget.setVisible(bool(visible))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao ajustar visibilidade de widget %r: %s", widget, exc)
 
         df = self.df_completo
         exec_col = "setor_executor"
@@ -4193,26 +4194,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 if w in self._retired_data_loader_workers:
                     self._retired_data_loader_workers.remove(w)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao remover worker de carga da lista local aposentada: %s", exc)
             try:
                 if w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
                     GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
 
         try:
             worker.finished.connect(_release_worker_ref)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao conectar cleanup no signal finished do worker de carga: %s", exc)
             _release_worker_ref()
         try:
             worker.destroyed.connect(_release_worker_ref)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar cleanup no signal destroyed do worker de carga: %s", exc)
         try:
             worker.finished.connect(worker.deleteLater)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no worker de carga: %s", exc)
         self._prune_retired_data_loader_workers()
 
     def _is_data_loader_worker_alive(self, worker) -> bool:
@@ -4262,16 +4264,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             try:
                 worker.data_loaded.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar data_loaded do worker de carga: %s", exc)
             try:
                 worker.error_occurred.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar error_occurred do worker de carga: %s", exc)
             try:
                 worker.finished.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar finished do worker de carga: %s", exc)
             still_running = False
             try:
                 if hasattr(worker, "cancel"):
@@ -4283,32 +4285,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     if int(wait_ms or 0) > 0:
                         worker.wait(int(wait_ms))
                 still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
-            except Exception:
+            except Exception as exc:
+                logger.warning("Falha ao solicitar encerramento do worker de carga: %s", exc)
                 still_running = True
             if still_running:
                 self._retain_data_loader_worker_until_finished(worker)
                 return False
             try:
                 worker.deleteLater()
-            except Exception:
-                pass
-        except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao chamar deleteLater no worker de carga: %s", exc)
+        except Exception as exc:
+            logger.warning("Falha durante cleanup do worker de carga: %s", exc)
             try:
                 self._prune_retired_data_loader_workers()
-            except Exception:
-                pass
+            except Exception as prune_exc:
+                logger.debug("Falha ao podar workers de carga apos erro de cleanup: %s", prune_exc)
             return False
         try:
             self._prune_retired_data_loader_workers()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao podar workers de carga apos cleanup: %s", exc)
         return True
 
     def load_data(self):
         try:
             self._prune_retired_data_loader_workers()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao podar workers de carga antes de novo load: %s", exc)
         if not os.path.exists(DB_PATH):
             QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
             return
@@ -4317,18 +4321,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             if hasattr(self, "_invalidate_active_filter_request"):
                 self._invalidate_active_filter_request("load_data_new_dataset")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao invalidar request de filtro antes do load: %s", exc)
         try:
             if hasattr(self, "_cancel_active_filter_worker"):
                 self._cancel_active_filter_worker("load_data_new_dataset", wait_ms=0)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao cancelar worker de filtro antes do load: %s", exc)
         # Evita disparo tardio de filtro por debounce enquanto o novo dataset carrega.
         try:
             self._debounce_timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de filtro antes do load: %s", exc)
 
         request_id = int(getattr(self, "_data_load_request_seq", 0) or 0) + 1
         self._data_load_request_seq = request_id
@@ -4352,8 +4356,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         worker.finished.connect(lambda w=worker, rid=request_id: self.on_load_finished(worker=w, request_id=rid))
         try:
             worker.finished.connect(worker.deleteLater)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no worker de carga atual: %s", exc)
         worker.start()
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
@@ -4370,8 +4374,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             timer = getattr(self, "_sector_debounce_timer", None)
             if timer is not None:
                 timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
         # Inicialmente, exibimos todos os dados
         base = df.copy()
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
@@ -4404,8 +4408,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
         try:
             self._update_derivadas_button_state()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao atualizar estado do botao de derivadas: %s", exc)
         profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
 
@@ -4438,8 +4442,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self.data_loader_thread = None
                 try:
                     self._prune_retired_data_loader_workers()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao podar workers de carga no cleanup de request obsoleto: %s", exc)
             return
 
         self.progress_bar.setVisible(False)
@@ -4453,8 +4457,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.data_loader_thread = None
             try:
                 self._prune_retired_data_loader_workers()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
 
     def on_header_clicked(self, logical_index: int):
         try:

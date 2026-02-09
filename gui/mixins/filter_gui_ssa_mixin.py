@@ -86,8 +86,8 @@ class FilterGUISSAMixin:
             if current is not None:
                 seen.add(id(current))
                 yield current
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao obter campo de busca principal: %s", exc)
 
         tab_contexts = getattr(self, "_tab_contexts", None)
         if not isinstance(tab_contexts, list):
@@ -114,8 +114,8 @@ class FilterGUISSAMixin:
             finally:
                 try:
                     widget.blockSignals(False)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao reativar sinais do campo de busca sincronizado: %s", exc)
 
     def _has_any_active_filters(self) -> bool:
         has_search = False
@@ -148,15 +148,15 @@ class FilterGUISSAMixin:
             progress_bar = getattr(self, "progress_bar", None)
             if progress_bar is not None:
                 progress_bar.setVisible(False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ocultar progress bar em estado idle de filtro: %s", exc)
         for btn_attr in ("load_button", "search_button"):
             try:
                 button = getattr(self, btn_attr, None)
                 if button is not None:
                     button.setEnabled(True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao habilitar botao %s em estado idle de filtro: %s", btn_attr, exc)
 
     def _invalidate_active_filter_request(self, reason: str = "") -> int:
         """Invalida resultados assíncronos pendentes para evitar sobrescrita tardia."""
@@ -241,13 +241,13 @@ class FilterGUISSAMixin:
                 # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
                 try:
                     self._ensure_nonzero_column_widths()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao reforcar largura minima no filtro sincrono: %s", exc)
                 try:
                     if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
                         self.table_widget.setColumnWidth(1, 80)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao ajustar largura da coluna principal no filtro sincrono: %s", exc)
             except Exception as e:  # noqa: BLE001
                 self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
             finally:
@@ -284,8 +284,8 @@ class FilterGUISSAMixin:
         # Garante destruição segura do objeto thread após terminar
         try:
             worker.finished.connect(worker.deleteLater)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no worker de filtro atual: %s", exc)
         worker.start()
 
 
@@ -313,26 +313,26 @@ class FilterGUISSAMixin:
         # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
         try:
             self._ensure_nonzero_column_widths()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reforcar largura minima apos filtro: %s", exc)
         # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
         try:
             if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
                 self._compute_gui_column_widths(self.df_para_tabela)
                 self._apply_computed_widths_only()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao recalcular/aplicar larguras apos filtro: %s", exc)
         # Garantia específica: coluna 1 (primeira após '#') nunca deve ficar com largura 0
         try:
             if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
                 self.table_widget.setColumnWidth(1, 80)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar largura de seguranca na coluna principal: %s", exc)
         # Agenda um ajuste seguro pós-loop de eventos
         try:
             QTimer.singleShot(0, lambda: self._set_safe_width_for_col_index(1, 80))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao agendar ajuste deferido de largura da coluna principal: %s", exc)
 
 
     def on_filter_error(self, error_msg: str, request_id: int | None = None):
@@ -416,16 +416,16 @@ class FilterGUISSAMixin:
         try:
             try:
                 worker.filter_finished.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar filter_finished do worker de filtro: %s", exc)
             try:
                 worker.error_occurred.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar error_occurred do worker de filtro: %s", exc)
             try:
                 worker.finished.disconnect()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao desconectar finished do worker de filtro: %s", exc)
             still_running = False
             try:
                 if hasattr(worker, "cancel"):
@@ -437,20 +437,22 @@ class FilterGUISSAMixin:
                     if int(wait_ms or 0) > 0:
                         worker.wait(int(wait_ms))
                 still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
-            except Exception:
+            except Exception as exc:
+                logger.warning("Falha ao solicitar encerramento do worker de filtro: %s", exc)
                 still_running = True
             if still_running:
                 self._retain_filter_worker_until_finished(worker)
                 return False
             try:
                 worker.deleteLater()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao chamar deleteLater no worker de filtro: %s", exc)
             try:
                 self._prune_retired_filter_workers()
             except Exception as exc:
                 logger.debug("Falha ao podar workers de filtro apos cleanup: %s", exc)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha durante cleanup do worker de filtro: %s", exc)
             return False
         return True
 
@@ -480,15 +482,15 @@ class FilterGUISSAMixin:
             if progress_bar is not None:
                 try:
                     progress_bar.setVisible(False)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao ocultar progress bar em cleanup de filtro: %s", exc)
             for btn_attr in ("load_button", "search_button"):
                 btn = getattr(self, btn_attr, None)
                 if btn is not None:
                     try:
                         btn.setEnabled(True)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao habilitar botao %s em cleanup de filtro: %s", btn_attr, exc)
             target_worker = worker if worker is not None else getattr(self, "filter_thread", None)
             self._cleanup_filter_worker(target_worker)
             if target_worker is not None and getattr(self, "filter_thread", None) is target_worker:
@@ -497,8 +499,9 @@ class FilterGUISSAMixin:
                 self._prune_retired_filter_workers()
             except Exception as exc:
                 logger.debug("Falha ao podar workers de filtro em finalizacao: %s", exc)
-        except Exception:
+        except Exception as exc:
             # Nunca propagar exceção daqui; log mínimo opcional futuro
+            logger.warning("Falha inesperada no cleanup final de filtro: %s", exc)
             self.filter_thread = None
 
 
@@ -510,11 +513,12 @@ class FilterGUISSAMixin:
         self._set_filter_ui_idle()
         try:
             self._debounce_timer.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce em clear_filter: %s", exc)
         try:
             self._set_search_text_across_tabs("")
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar campos de busca no clear_filter: %s", exc)
             try:
                 self.search_input.blockSignals(True)
                 self.search_input.clear()
@@ -522,8 +526,8 @@ class FilterGUISSAMixin:
             finally:
                 try:
                     self.search_input.blockSignals(False)
-                except Exception:
-                    pass
+                except Exception as unblock_exc:
+                    logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
         # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
         # Limpa o cache de filtros ao limpar filtros
@@ -537,13 +541,13 @@ class FilterGUISSAMixin:
         try:
             if hasattr(self, 'clear_filter_button'):
                 self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao limpar filtro: %s", exc)
         # Atualizar resumo de filtros
         try:
             self._update_filters_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros em clear_filter: %s", exc)
 
     # --- Ordenaçção por clique no cabeçalho ---
 
@@ -552,8 +556,8 @@ class FilterGUISSAMixin:
         # Chamar start() novamente reinicia o QTimer automaticamente
         try:
             self._debounce_timer.start()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reiniciar debounce na busca: %s", exc)
     
 
     def clear_filter_cache(self):
