@@ -1828,8 +1828,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 )
             else:
                 button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo/tooltip do botao multiselect: %s", exc)
 
     def _rebuild_multiselect_menu(
         self,
@@ -1844,8 +1844,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     ):
         try:
             menu.clear()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
         selected_norm = {str(v).casefold() for v in (selected_set or [])}
         exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
         checks = []
@@ -1863,8 +1863,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         filter_name = candidate
                         break
                 parent = parent.parent()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
 
         try:
             try:
@@ -1874,8 +1874,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             computed = max_label_len * 8 + 70
             min_width = max(int(getattr(button, "width", lambda: 0)() or 0), min(360, max(160, computed)))
             menu.setMinimumWidth(min_width)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ajustar largura minima do menu multiselect: %s", exc)
 
         container = QWidget()
         grid = QGridLayout(container)
@@ -1884,8 +1884,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         grid.setVerticalSpacing(4)
         try:
             grid.setAlignment(Qt.AlignmentFlag.AlignTop)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
@@ -1909,8 +1909,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     label_exc.setStyleSheet("font-size: 10px; color: #555;")
                     label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                     label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao estilizar header include/exclude do menu multiselect: %s", exc)
                 grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
                 grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
             row_idx += 1
@@ -1963,30 +1963,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             label = QLabel(label_text)
             try:
                 label.setStyleSheet("font-size: 11px;")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
             include_cb = QCheckBox()
             exclude_cb = QCheckBox() if exclude_selected_set is not None else None
             try:
                 include_cb.setProperty("value", str(cb_value))
                 include_cb.setStyleSheet(cb_style_include)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao configurar checkbox include do menu multiselect: %s", exc)
             if exclude_cb is not None:
                 try:
                     exclude_cb.setProperty("value", str(cb_value))
                     exclude_cb.setStyleSheet(cb_style_exclude)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao configurar checkbox exclude do menu multiselect: %s", exc)
             try:
                 include_cb.setChecked(str(cb_value).casefold() in selected_norm)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estado inicial do checkbox include: %s", exc)
             if exclude_cb is not None:
                 try:
                     exclude_cb.setChecked(str(cb_value).casefold() in exclude_norm)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estado inicial do checkbox exclude: %s", exc)
             grid.addWidget(label, row_idx, 0)
             grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
             if exclude_cb is not None:
@@ -2009,18 +2009,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     include_cb.toggled.connect(_toggle_include)
                     exclude_cb.toggled.connect(_toggle_exclude)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Falha ao conectar mutual exclusion include/exclude no menu multiselect: %s", exc)
             if on_toggle is not None:
                 try:
                     include_cb.toggled.connect(on_toggle)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Falha ao conectar callback on_toggle do menu multiselect: %s", exc)
             if exclude_cb is not None and on_exclude_toggle is not None:
                 try:
                     exclude_cb.toggled.connect(on_exclude_toggle)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Falha ao conectar callback on_exclude_toggle do menu multiselect: %s", exc)
 
         # Separador antes de Selecionar/Desmarcar
         if exclude_selected_set is not None:
@@ -2046,8 +2046,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             try:
                 label_select.setStyleSheet("font-size: 11px;")
                 label_deselect.setStyleSheet("font-size: 11px;")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao estilizar labels de selecionar/desmarcar no menu multiselect: %s", exc)
 
             grid.addWidget(label_select, row_idx, 0)
             grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -2065,8 +2065,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         try:
             scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao alinhar scroll do menu multiselect no topo: %s", exc)
         try:
             from PyQt6.QtGui import QPalette as _QPal
             pal = (button or scroll).palette()
@@ -2074,18 +2074,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             bg = pal.color(_QPal.ColorRole.Base).name()
             container.setStyleSheet(f"QWidget {{ background: {bg}; }} QLabel {{ font-size: 11px; }}")
             scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {border}; }}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc)
         try:
             scroll.setFixedHeight(320)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura fixa do scroll no menu multiselect: %s", exc)
         scroll_act = QWidgetAction(menu)
         scroll_act.setDefaultWidget(scroll)
         try:
             menu.addAction(scroll_act)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
 
         # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals
         # CORRECAO 2026-01-08: Reset do checkbox apos acao para feedback visual correto
