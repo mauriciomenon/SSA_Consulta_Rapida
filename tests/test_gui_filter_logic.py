@@ -382,6 +382,29 @@ class TestGUIFilterLogic:
         assert captured_widths
         assert captured_widths[0] >= 0
 
+    def test_apply_theme_updates_tab_stylesheet_in_normal_flow(self):
+        self.window.main_tabs.setStyleSheet("")
+
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+
+        tab_css = self.window.main_tabs.styleSheet()
+        assert "QTabWidget::pane" in tab_css
+        assert "QTabBar::tab:selected" in tab_css
+
+    def test_apply_theme_switches_central_background_block_by_theme_family(self):
+        central = self.window.centralWidget()
+        assert central is not None
+
+        central.setStyleSheet("")
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        assert "SSA_MAIN_BG_START" in (central.styleSheet() or "")
+
+        self.window.apply_theme("windows7")
+        QApplication.processEvents()
+        assert "SSA_MAIN_BG_START" not in (central.styleSheet() or "")
+
     def test_details_html_hides_internal_columns(self):
         series = self.base_df.iloc[0].copy()
         series["_norm_ssa"] = "INTERNAL_SENTINEL_NORM"
