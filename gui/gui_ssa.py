@@ -4414,15 +4414,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando erro de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
-        QMessageBox.critical(self, "Erro de Carregamento", error_msg)
+        safe_error_msg = "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
+        logger.error("Erro no carregamento de dados (request_id=%s): %s", request_id, error_msg)
+        QMessageBox.critical(self, "Erro de Carregamento", safe_error_msg)
         self.status_label.setText("Status: Erro ao carregar dados.")
         self.load_button.setEnabled(True)
         self.search_button.setEnabled(True)
         self.progress_bar.setVisible(False)
         try:
             self._prune_retired_data_loader_workers()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao podar workers de carga aposentados apos erro: %s", exc)
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
         active_id = getattr(self, "_active_data_load_request_id", None)
