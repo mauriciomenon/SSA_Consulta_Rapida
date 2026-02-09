@@ -2251,14 +2251,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         reprog_mode.addItem(">= Maior", "gte")
         try:
             reprog_mode.setFixedWidth(80)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir largura fixa do seletor de reprogramacoes: %s", exc)
         reprog_layout.addWidget(reprog_mode)
         reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
         try:
             reprog_button.setFixedWidth(80)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir largura fixa do botao de reprogramacoes: %s", exc)
         reprog_layout.addWidget(reprog_button, 1)
         self.adv_reprog_mode = reprog_mode
         self.adv_reprog_button = reprog_button
@@ -2279,18 +2279,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             derivadas_select_btn.setMaximumWidth(100)
             derivadas_select_btn.setEnabled(False)  # Habilitado quando existir derivadas
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar botao de derivadas especificas: %s", exc)
         derivadas_select_btn.setToolTip("Ver arvore de derivadas (habilitado quando existirem derivadas na lista)")
         try:
             derivadas_select_btn.clicked.connect(self._show_derivadas_popup)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar evento de popup de derivadas: %s", exc)
         try:
             deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
             deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar handlers de filtros de derivadas: %s", exc)
         deriv_layout.addWidget(deriv_has)
         deriv_layout.addWidget(deriv_all_ste)
         deriv_layout.addWidget(deriv_is)
@@ -2306,15 +2306,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             week_emissao_start.setMaxLength(6)
             week_emissao_start.setFixedWidth(60)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar campo de semana inicial de emissao: %s", exc)
         week_emissao_end = QLineEdit()
         week_emissao_end.setPlaceholderText("Fim")
         try:
             week_emissao_end.setMaxLength(6)
             week_emissao_end.setFixedWidth(60)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar campo de semana final de emissao: %s", exc)
         week_emissao_exclude = None
         week_emis_layout.addWidget(week_emissao_start)
         week_emis_layout.addWidget(week_emissao_end)
@@ -2328,15 +2328,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             week_exec_start.setMaxLength(6)
             week_exec_start.setFixedWidth(60)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar campo de semana inicial de execucao: %s", exc)
         week_exec_end = QLineEdit()
         week_exec_end.setPlaceholderText("Fim")
         try:
             week_exec_end.setMaxLength(6)
             week_exec_end.setFixedWidth(60)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao configurar campo de semana final de execucao: %s", exc)
         week_exec_exclude = None
         week_exec_layout.addWidget(week_exec_start)
         week_exec_layout.addWidget(week_exec_end)
@@ -2347,8 +2347,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         macro_combo = QComboBox()
         try:
             macro_combo.setMinimumWidth(100)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir largura minima do filtro macro: %s", exc)
         macro_combo.addItem("Nenhum", None)
         macro_combo.addItem("Baixar", "ssas_para_baixar")
         macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
@@ -4489,8 +4489,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     ascending=self.sort_ascending,
                     na_position='last'
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao ordenar coluna '%s' (ascending=%s): %s",
+                    self.sort_column,
+                    self.sort_ascending,
+                    exc,
+                )
 
             self.paginator.set_dataframe(self.df_exibido)
             (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
@@ -4501,10 +4506,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 order = Qt.SortOrder.AscendingOrder if self.sort_ascending else Qt.SortOrder.DescendingOrder
                 header.setSortIndicatorShown(True)
                 header.setSortIndicator(logical_index, order)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar indicador visual de ordenacao: %s", exc)
+        except Exception as exc:
+            logger.exception("Erro ao processar clique no cabecalho da tabela: %s", exc)
 
     # --- Filtro por coluna via clique direito no cabeçalho ---
     def show_header_context_menu(self, pos):
@@ -5136,8 +5141,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if hasattr(self, 'column_selector') and self.column_selector is not None:
             try:
                 self.column_selector.set_selected_columns(new_columns)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar colunas selecionadas no selector: %s", exc)
         # Reexibe a pãgina atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
@@ -5152,7 +5157,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             header = self.table_widget.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao congelar modo de resize do header: %s", exc)
             header = None
 
         if self.df_para_tabela.empty:
@@ -5164,7 +5170,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 base_cols = list(getattr(self, 'df_exibido', pd.DataFrame()).columns)
                 if base_cols:
                     valid_cols = [c for c in self.visible_columns if c in base_cols]
-            except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao resolver colunas validas para tabela vazia: %s", exc)
                 valid_cols = list(self.visible_columns)
 
             if not valid_cols:
@@ -5181,8 +5188,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 headers.append(f"[f] {base}" if has_filter else base)
             try:
                 self.table_widget.setHorizontalHeaderLabels(headers)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar cabecalhos da tabela vazia: %s", exc)
 
             # Aplica larguras salvas ou fallbacks seguros
             for i, col_name in enumerate(self._current_display_columns):
@@ -5212,15 +5219,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         px = 80
                 try:
                     self.table_widget.setColumnWidth(i, max(30, int(px)))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar largura da coluna %s em tabela vazia: %s", col_name, exc)
 
             # Garantia extra para a primeira coluna de dados
             try:
                 if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
                     self.table_widget.setColumnWidth(1, 80)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao reforcar largura da primeira coluna de dados em tabela vazia: %s", exc)
 
             # Restaura modo interativo com limites mínimos após aplicar larguras
             try:
@@ -5228,8 +5235,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
                     header.setMinimumSectionSize(80)
                     header.setDefaultSectionSize(100)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
             return
 
         # Seleciona apenas as colunas visáveis
@@ -5271,9 +5278,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 formatted_df = format_dataframe_for_display(display_df)
                 self.cache_manager.cache_formatted_df(display_df_hash, formatted_df)
                 display_df = formatted_df
-            except Exception:
-                # falha de formataçção nção deve quebrar a GUI; segue sem formatar
-                pass
+            except Exception as exc:
+                # Falha de formatacao nao deve quebrar a GUI; segue sem formatar.
+                logger.debug("Falha ao formatar DataFrame para exibicao na tabela: %s", exc)
         else:
             # Usa versção formatada do cache
             display_df = cached_formatted
@@ -5378,14 +5385,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Reforça larguras após preencher dados para evitar zeragem em ambientes headless/CI
         try:
             self._force_column_widths()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reforcar larguras salvas da tabela: %s", exc)
 
         # Garantia final: se alguma coluna ainda ficou com largura 0, aplica fallback seguro
         try:
             self._ensure_nonzero_column_widths()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
 
         # Após aplicar larguras, restaura modo interativo com limites mínimos
         try:
@@ -5393,8 +5400,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
                 header.setMinimumSectionSize(80)
                 header.setDefaultSectionSize(100)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
         # Seleciona a primeira linha (se houver) e atualiza detalhes
         if self.table_widget.rowCount() > 0:
@@ -5404,8 +5411,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Reaplica garantia de larguras não zeradas após eventos de layout pendentes
         try:
             QTimer.singleShot(0, self._ensure_nonzero_column_widths)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao agendar reforco de largura de colunas: %s", exc)
 
     # --- Wrappers de compatibilidade com testes antigos (PoC) ---
     def display_data(self, df):  # usado em testes legados
@@ -5416,8 +5423,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.df_exibido = df.copy()
             self.paginator.set_dataframe(self.df_exibido)
             self.display_current_page(getattr(self.paginator, 'current_page', 1))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha ao exibir DataFrame via display_data de compatibilidade: %s", exc)
 
     def _force_column_widths(self):
         """Força reaplicaçção das larguras das colunas para garantir que sejam respeitadas."""
@@ -5445,12 +5452,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     # Primeiro tenta dimensionar pelo conteúdo
                     try:
                         self.table_widget.resizeColumnToContents(i)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao redimensionar coluna %s por conteudo: %s", i, exc)
                     if self.table_widget.columnWidth(i) == 0:
                         self.table_widget.setColumnWidth(i, 80)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
 
     def _set_safe_width_for_col_index(self, idx: int, px: int = 80):
         """Define uma largura segura para um índice de coluna, se possível."""
@@ -5461,8 +5468,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
             if self.table_widget.columnWidth(idx) == 0:
                 self.table_widget.setColumnWidth(idx, max(30, int(px)))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar largura segura para coluna %s: %s", idx, exc)
 
     def _compute_gui_column_widths(self, df: pd.DataFrame):
         """
@@ -5836,8 +5843,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
             self.details_text.setHtml(html_content)
             return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
 
         # Fallback para texto simples se HTML nao estiver disponivel
         def field_sort_key(item):
@@ -5860,8 +5867,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         details_str = "\n".join(lines)
         try:
             self.details_text.setPlainText(details_str)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
 
     def _get_derivadas_for_ssa(self, numero_ssa):
         if self.df_completo is None or self.df_completo.empty:
@@ -5881,7 +5888,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if formatted:
                     derived.append(formatted)
             return derived
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
             return []
 
     def _jump_to_ssa(self, numero_ssa):
@@ -5903,16 +5911,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             page = int(pos // page_size + 1)
             try:
                 self.paginator.current_page = page
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
             self.display_current_page(page)
             row_in_page = int(pos % page_size)
             try:
                 self.table_widget.selectRow(row_in_page)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as exc:
+                logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
+        except Exception as exc:
+            logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
 
     def _on_details_anchor_clicked(self, url):
         try:
@@ -6192,8 +6200,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if hasattr(self, "adv_filters_group") and self.adv_filters_group:
                     width = self.adv_filters_group.width()
                     self._reorganize_advanced_filters_grid(width)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reorganizar grid de filtros durante resize: %s", exc)
 
         # So recalcula se ha dados carregados e uma mudanca significativa na largura
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and
@@ -6259,8 +6267,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if data_worker is not None:
             try:
                 self._cleanup_data_loader_worker(data_worker, wait_ms=3000)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha no cleanup do data loader durante closeEvent: %s", exc)
             finally:
                 if getattr(self, "data_loader_thread", None) is data_worker:
                     self.data_loader_thread = None
@@ -6276,13 +6284,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 try:
                     worker.quit()
                     worker.wait(3000)  # Aguarda ate 3 segundos
-                except Exception:
-                    pass
+                except Exception as fallback_exc:
+                    logger.debug("Falha no fallback de encerramento do filter worker: %s", fallback_exc)
 
         try:
             self._prune_retired_data_loader_workers()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
 
         # Aceita o evento de fechamento
         event.accept()
