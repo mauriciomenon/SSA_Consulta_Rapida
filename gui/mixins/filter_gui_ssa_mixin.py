@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
 GLOBAL_RETIRED_FILTER_WORKERS = []
+MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
 
 class FilterGUISSAMixin:
     """
@@ -355,27 +356,59 @@ class FilterGUISSAMixin:
         retired.append(worker)
         if worker not in GLOBAL_RETIRED_FILTER_WORKERS:
             GLOBAL_RETIRED_FILTER_WORKERS.append(worker)
+        try:
+            self._prune_retired_filter_workers()
+        except Exception as exc:
+            logger.debug("Falha ao podar lista de workers de filtro aposentados: %s", exc)
 
         def _release_worker_ref(w=worker):
             try:
                 if w in self._retired_filter_workers:
                     self._retired_filter_workers.remove(w)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao remover worker da lista local de aposentados: %s", exc)
             try:
                 if w in GLOBAL_RETIRED_FILTER_WORKERS:
                     GLOBAL_RETIRED_FILTER_WORKERS.remove(w)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao remover worker da lista global de aposentados: %s", exc)
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar lista de workers de filtro apos release: %s", exc)
 
         try:
             worker.finished.connect(_release_worker_ref)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao conectar release de worker finalizado: %s", exc)
             _release_worker_ref()
         try:
             worker.finished.connect(worker.deleteLater)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater do worker de filtro: %s", exc)
+
+    def _is_filter_worker_running(self, worker) -> bool:
+        if worker is None:
+            return False
+        try:
+            if hasattr(worker, "isRunning"):
+                return bool(worker.isRunning())
+        except Exception as exc:
+            logger.debug("Falha ao verificar estado do worker de filtro: %s", exc)
+            return False
+        return False
+
+    def _prune_retired_filter_workers(self) -> None:
+        retired_local = list(getattr(self, "_retired_filter_workers", []) or [])
+        if retired_local:
+            self._retired_filter_workers = [w for w in retired_local if self._is_filter_worker_running(w)]
+        else:
+            self._retired_filter_workers = []
+
+        running_global = [w for w in GLOBAL_RETIRED_FILTER_WORKERS if self._is_filter_worker_running(w)]
+        if len(running_global) > MAX_GLOBAL_RETIRED_FILTER_WORKERS:
+            running_global = running_global[-MAX_GLOBAL_RETIRED_FILTER_WORKERS:]
+        GLOBAL_RETIRED_FILTER_WORKERS[:] = running_global
 
     def _cleanup_filter_worker(self, worker, wait_ms: int = 1500) -> bool:
         if worker is None:
@@ -413,6 +446,10 @@ class FilterGUISSAMixin:
                 worker.deleteLater()
             except Exception:
                 pass
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro apos cleanup: %s", exc)
         except Exception:
             return False
         return True
@@ -432,6 +469,10 @@ class FilterGUISSAMixin:
             self._cleanup_filter_worker(worker)
             if worker is not None and getattr(self, "filter_thread", None) is worker:
                 self.filter_thread = None
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro em cleanup obsoleto: %s", exc)
             return
         # Debug trace para investigação de estabilidade em testes headless
         try:
@@ -452,6 +493,10 @@ class FilterGUISSAMixin:
             self._cleanup_filter_worker(target_worker)
             if target_worker is not None and getattr(self, "filter_thread", None) is target_worker:
                 self.filter_thread = None
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro em finalizacao: %s", exc)
         except Exception:
             # Nunca propagar exceção daqui; log mínimo opcional futuro
             self.filter_thread = None
