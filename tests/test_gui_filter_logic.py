@@ -1732,3 +1732,69 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         assert self.window._sector_debounce_timer is timer_before
+
+    def test_sector_selection_handler_blocks_reentrant_recursion(self):
+        reentry_attempts = {"count": 0}
+
+        def _recursive_apply():
+            reentry_attempts["count"] += 1
+            # Simula callback encadeado durante o processamento atual.
+            self.window._on_adv_sector_selection_changed()
+
+        with patch.object(self.window, "_apply_divisao_to_setor_checks", side_effect=_recursive_apply) as apply_mock:
+            with patch.object(self.window, "_schedule_sector_options_refresh") as schedule_mock:
+                self.window._on_adv_sector_selection_changed()
+
+        assert apply_mock.call_count == 1
+        assert reentry_attempts["count"] == 1
+        schedule_mock.assert_called_once()
+
+    def test_prune_retired_loader_workers_removes_stale_refs_without_finished_signal(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _SilentWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self._running = False
+
+            def wait(self, _ms):
+                return True
+
+            def deleteLater(self):
+                return None
+
+        worker = _SilentWorker()
+        self.window._retired_data_loader_workers = []
+        if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+
+        self.window._retain_data_loader_worker_until_finished(worker)
+        assert worker in self.window._retired_data_loader_workers
+        assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+
+        # Simula finalização silenciosa sem emissao de finished().
+        worker._running = False
+        self.window._prune_retired_data_loader_workers()
+
+        assert worker not in self.window._retired_data_loader_workers
+        assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
