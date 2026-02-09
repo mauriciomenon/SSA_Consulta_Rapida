@@ -4373,6 +4373,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # ============================================================
         # Normalize theme name and load QPalette from utils.themes
         normalized = normalize_theme(name)
+        roles = get_theme_roles(normalized)
         try:
             from PyQt6.QtWidgets import QApplication, QStyleFactory
             app = QApplication.instance()
@@ -4402,72 +4403,73 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pal = get_palette(normalized)
             self.setPalette(pal)
 
-            # ============================================================
-            # SECTION 2: Application-Wide Widget Settings
-            # ============================================================
-            # Set central widget background and table header styling
-            # Ensure central widget background matches the palette to avoid white boxes
-            try:
-                central = self.centralWidget()
-                if central is not None:
-                    try:
-                        central.setStyleSheet("")
-                    except Exception:
-                        pass
-                    existing = central.styleSheet() or ""
-                    start = existing.find("/* SSA_MAIN_BG_START */")
-                    if start != -1:
-                        end = existing.find("/* SSA_MAIN_BG_END */", start)
-                        if end != -1:
-                            end += len("/* SSA_MAIN_BG_END */")
-                            existing = (existing[:start] + existing[end:]).rstrip()
-                        else:
-                            existing = existing[:start].rstrip()
-                    normalized_name = normalize_theme(normalized)
-                    if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
-                        bg = pal.window().color().name()
-                        block = build_central_widget_qss(bg)
-                        new_css = existing
-                        if new_css:
-                            if not new_css.endswith("\n"):
-                                new_css += "\n"
-                            new_css += block
-                        else:
-                            new_css = block
-                        central.setStyleSheet(new_css)
+        # ============================================================
+        # SECTION 2: Application-Wide Widget Settings
+        # ============================================================
+        # Set central widget background and table header styling
+        # Ensure central widget background matches the palette to avoid white boxes
+        try:
+            central = self.centralWidget()
+            if central is not None:
+                try:
+                    central.setStyleSheet("")
+                except Exception:
+                    pass
+                existing = central.styleSheet() or ""
+                start = existing.find("/* SSA_MAIN_BG_START */")
+                if start != -1:
+                    end = existing.find("/* SSA_MAIN_BG_END */", start)
+                    if end != -1:
+                        end += len("/* SSA_MAIN_BG_END */")
+                        existing = (existing[:start] + existing[end:]).rstrip()
                     else:
-                        central.setStyleSheet(existing)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, "main_tabs") and self.main_tabs is not None:
-                    tab_bg = pal.color(_QPal.ColorRole.Window).name()
-                    tab_text = pal.color(_QPal.ColorRole.WindowText).name()
-                    tab_mid = pal.color(_QPal.ColorRole.Mid).name()
-                    accent = roles.get('accent', tab_text)
-                    support_color = roles.get('support_text_color', tab_text)
-                    tab_css = (
-                        "QTabWidget::pane {"
-                        f" border:1px solid {tab_mid};"
-                        f" background:{tab_bg};"
-                        " margin:0; padding:0;"
-                        " }"
-                        "QTabBar::tab {"
-                        f" color:{support_color}; background:{tab_bg};"
-                        " padding:4px 10px; font-weight:500; border:1px solid transparent;"
-                        " }"
-                        "QTabBar::tab:selected {"
-                        f" color:{tab_text}; font-weight:600; background:{tab_bg};"
-                        f" border:1px solid {accent}; border-bottom:2px solid {accent};"
-                        " margin-bottom:-1px; margin-top:1px;"
-                        " }"
-                        "QTabBar::tab:!selected {"
-                        f" color:{support_color};"
-                        " }"
-                    )
-                    self.main_tabs.setStyleSheet(tab_css)
-            except Exception:
-                pass
+                        existing = existing[:start].rstrip()
+                normalized_name = normalize_theme(normalized)
+                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
+                    bg = pal.window().color().name()
+                    block = build_central_widget_qss(bg)
+                    new_css = existing
+                    if new_css:
+                        if not new_css.endswith("\n"):
+                            new_css += "\n"
+                        new_css += block
+                    else:
+                        new_css = block
+                    central.setStyleSheet(new_css)
+                else:
+                    central.setStyleSheet(existing)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "main_tabs") and self.main_tabs is not None:
+                from PyQt6.QtGui import QPalette as _QPal
+                tab_bg = pal.color(_QPal.ColorRole.Window).name()
+                tab_text = pal.color(_QPal.ColorRole.WindowText).name()
+                tab_mid = pal.color(_QPal.ColorRole.Mid).name()
+                accent = roles.get('accent', tab_text)
+                support_color = roles.get('support_text_color', tab_text)
+                tab_css = (
+                    "QTabWidget::pane {"
+                    f" border:1px solid {tab_mid};"
+                    f" background:{tab_bg};"
+                    " margin:0; padding:0;"
+                    " }"
+                    "QTabBar::tab {"
+                    f" color:{support_color}; background:{tab_bg};"
+                    " padding:4px 10px; font-weight:500; border:1px solid transparent;"
+                    " }"
+                    "QTabBar::tab:selected {"
+                    f" color:{tab_text}; font-weight:600; background:{tab_bg};"
+                    f" border:1px solid {accent}; border-bottom:2px solid {accent};"
+                    " margin-bottom:-1px; margin-top:1px;"
+                    " }"
+                    "QTabBar::tab:!selected {"
+                    f" color:{support_color};"
+                    " }"
+                )
+                self.main_tabs.setStyleSheet(tab_css)
+        except Exception:
+            pass
         try:
             header = self.table_widget.horizontalHeader()
             header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
