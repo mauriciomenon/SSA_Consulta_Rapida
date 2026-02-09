@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 pytest.importorskip("PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste")
+from PyQt6.QtWidgets import QApplication
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -16,12 +17,17 @@ if project_root not in sys.path:
 from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 
+@pytest.fixture(scope="module", autouse=True)
+def qapp():
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
 class TestFilterWorker:
     def setup_method(self):
-        try:
-            FilterWorker._cache.clear()
-        except Exception:
-            pass
+        cache = getattr(FilterWorker, "_cache", None)
+        if hasattr(cache, "clear"):
+            cache.clear()
 
     def test_build_df_hash_is_stable_for_same_content(self):
         df = pd.DataFrame({"texto": ["alfa", "beta"], "situacao": ["APV", "STE"]})
