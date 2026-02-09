@@ -37,8 +37,8 @@ class DataLoaderWorker(QThread):
         self._cancel_requested = True
         try:
             self.requestInterruption()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao solicitar interrupcao do DataLoaderWorker: %s", exc)
 
     def _is_cancelled(self) -> bool:
         if bool(getattr(self, "_cancel_requested", False)):
@@ -55,6 +55,10 @@ class DataLoaderWorker(QThread):
         if not self._IDENTIFIER_RE.match(text):
             return ""
         return text
+
+    def _quote_identifier(self, value: str) -> str:
+        identifier = str(value or "").replace('"', '""')
+        return f'"{identifier}"'
 
     def _resolve_target_table(self) -> str:
         requested = self._sanitize_identifier(self.table_name)
@@ -106,7 +110,7 @@ class DataLoaderWorker(QThread):
             if self._is_cancelled():
                 return
             target_table = self._resolve_target_table()
-            query = f"SELECT * FROM {target_table}"
+            query = f"SELECT * FROM {self._quote_identifier(target_table)}"
 
             order_clause = self._normalize_order_by(self.order_by)
             if order_clause:
@@ -136,5 +140,6 @@ class DataLoaderWorker(QThread):
                 self.data_loaded.emit(df)
             else:
                 self.error_occurred.emit("Falha ao carregar dados do banco.")
-        except Exception as e:
-            self.error_occurred.emit(f"Erro ao carregar dados: {e}")
+        except Exception:
+            logger.exception("Erro interno no DataLoaderWorker durante carregamento")
+            self.error_occurred.emit("Falha ao carregar dados do banco.")
