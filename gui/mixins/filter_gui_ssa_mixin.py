@@ -1403,33 +1403,34 @@ class FilterGUISSAMixin:
         if hasattr(self, "_apply_advanced_filters"):
             try:
                 filtered = self._apply_advanced_filters(filtered)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar filtros avancados no refresh de filtros: %s", exc)
         filtered = self._apply_column_filters(filtered)
         if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
             try:
                 mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
                 filtered = filtered[mask]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar exclusao STE/SCA no refresh de filtros: %s", exc)
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
         if not filtered.empty and 'numero_ssa' in filtered.columns:
             try:
                 filtered = filtered.sort_values('numero_ssa', ascending=False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao ordenar numero_ssa no refresh de filtros: %s", exc)
         self.df_exibido = filtered
         self.paginator.set_dataframe(self.df_exibido)
         try:
             current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
             self.display_current_page(current)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s", exc)
             (lambda cp=max(1, min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1))): self.display_current_page(cp))()
         self._update_col_filter_indicator()
         try:
             self._update_filters_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
 
 
     def _snapshot_filter_state(self) -> dict:
@@ -1472,7 +1473,8 @@ class FilterGUISSAMixin:
             return
         try:
             self._last_filter_state = self._snapshot_filter_state()
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha ao gerar snapshot de estado de filtros: %s", exc)
             self._last_filter_state = None
         self._update_undo_button_state()
 
@@ -1488,15 +1490,16 @@ class FilterGUISSAMixin:
             self._last_filter_state = None
             try:
                 self._set_search_text_across_tabs(state.get("search_text", "") or "")
-            except Exception:
+            except Exception as exc:
+                logger.warning("Falha ao restaurar texto de busca entre abas: %s", exc)
                 try:
                     self.search_input.blockSignals(True)
                     self.search_input.setText(state.get("search_text", "") or "")
                 finally:
                     try:
                         self.search_input.blockSignals(False)
-                    except Exception:
-                        pass
+                    except Exception as unblock_exc:
+                        logger.debug("Falha ao reativar sinais do campo de busca ao restaurar estado: %s", unblock_exc)
             self._pending_search_display = state.get("pending_search_display")
             self._active_column_filters = OrderedDict(state.get("active_column_filters") or {})
             self._reset_or_groups()
@@ -1512,24 +1515,24 @@ class FilterGUISSAMixin:
                     try:
                         checkbox.blockSignals(True)
                         checkbox.setChecked(self._exclude_ste_sca)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao restaurar checkbox exclude_ste em aba: %s", exc)
                     finally:
                         try:
                             checkbox.blockSignals(False)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais de checkbox exclude_ste em aba: %s", exc)
             else:
                 try:
                     self.exclude_ste_checkbox.blockSignals(True)
                     self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao restaurar checkbox exclude_ste principal: %s", exc)
                 finally:
                     try:
                         self.exclude_ste_checkbox.blockSignals(False)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais do checkbox exclude_ste principal: %s", exc)
             self._advanced_filters = state.get("advanced_filters") or {}
             self._advanced_filters_active = bool(state.get("advanced_filters_active"))
             df_last = state.get("df_last_search_filtered")
@@ -1543,22 +1546,22 @@ class FilterGUISSAMixin:
             self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
             try:
                 self._sync_advanced_filter_ui()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao sincronizar UI de filtros avancados no restore: %s", exc)
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
             try:
                 self.update_filter_tags()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar tags de filtros no restore: %s", exc)
             try:
                 self._update_filters_summary()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
             try:
                 self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar estado do botao limpar no restore: %s", exc)
             selector = getattr(self, 'profile_selector', None)
             if selector is not None:
                 idx = selector.findData(self.current_filter_profile) if self.current_filter_profile else selector.findData(None)
@@ -1579,10 +1582,8 @@ class FilterGUISSAMixin:
             return
         try:
             btn.setEnabled(bool(getattr(self, "_last_filter_state", None)))
-        except Exception:
-            pass
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao de desfazer filtros: %s", exc)
 
 
     def _apply_search_display(self):
