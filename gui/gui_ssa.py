@@ -831,6 +831,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._adv_options_dirty = True
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
+        self._responsavel_options_dirty = True
+        self._responsavel_filters_materialized = False
+        self._menu_pre_show_hooks = {}
 
         # Timer de debounce para otimização de filtros de setor (evita rebuilds excessivos)
         self._sector_debounce_delay = 300  # ms
@@ -1557,12 +1560,87 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         layout.addWidget(button, 1)
         return box, button, menu, exclude
 
+    def _set_menu_pre_show_hook(self, button, callback) -> None:
+        if button is None:
+            return
+        hooks = getattr(self, "_menu_pre_show_hooks", None)
+        if not isinstance(hooks, dict):
+            hooks = {}
+            self._menu_pre_show_hooks = hooks
+        hooks[id(button)] = callback
+
+    def _run_menu_pre_show_hook(self, button) -> None:
+        hooks = getattr(self, "_menu_pre_show_hooks", None)
+        if not isinstance(hooks, dict) or button is None:
+            return
+        callback = hooks.get(id(button))
+        if not callable(callback):
+            return
+        try:
+            callback()
+        except Exception as exc:
+            logger.debug("Falha ao preparar menu antes de abrir: %s", exc)
+
+    def _ensure_responsavel_options_materialized(self, force: bool = False) -> None:
+        """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
+        if not force and not getattr(self, "_responsavel_options_dirty", True):
+            return
+        if not force and getattr(self, "_responsavel_filters_materialized", False):
+            return
+        if getattr(self, "_responsavel_refreshing", False):
+            return
+        self._responsavel_refreshing = True
+        try:
+            self._refresh_responsavel_options()
+        finally:
+            self._responsavel_refreshing = False
+
+    def _sync_responsavel_button_summaries(self) -> None:
+        """Atualiza resumo dos botões de responsavel sem materializar menus completos."""
+        filters = self._advanced_filters or {}
+        pairs = (
+            ("adv_responsavel_solicitante_button", "solicitante", "solicitante_exclude_values"),
+            ("adv_responsavel_programacao_button", "responsavel_programacao", "responsavel_programacao_exclude_values"),
+            ("adv_responsavel_execucao_button", "responsavel_execucao", "responsavel_execucao_exclude_values"),
+            ("adv_responsavel_emissor_button", "responsavel_emissor", "responsavel_emissor_exclude_values"),
+        )
+        for button_attr, include_key, exclude_key in pairs:
+            button = getattr(self, button_attr, None)
+            if button is None:
+                continue
+            include_values = [str(v) for v in (filters.get(include_key) or []) if str(v).strip()]
+            exclude_values = [str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()]
+            if include_values and exclude_values:
+                text = f"{len(include_values)} inc, {len(exclude_values)} dif"
+            elif include_values:
+                text = f"{len(include_values)} incluir"
+            elif exclude_values:
+                text = f"{len(exclude_values)} diferente"
+            else:
+                text = "Selecionar"
+            try:
+                button.setText(text)
+                button.setEnabled(True)
+                if include_values or exclude_values:
+                    tooltip = "Incluir: " + ", ".join(include_values)
+                    if exclude_values:
+                        tooltip += "\nDiferente: " + ", ".join(exclude_values)
+                    button.setToolTip(tooltip)
+                else:
+                    button.setToolTip("Selecionar")
+            except Exception:
+                pass
+
     def _attach_multiselect_menu(self, button, menu):
         if button is None or menu is None:
             return
         def _show_menu():
             if not _is_widget_valid(button) or not _is_widget_valid(menu):
                 return
+            try:
+                self._run_menu_pre_show_hook(button)
+            except Exception:
+                pass
             try:
                 rect = button.rect()
                 pos = button.mapToGlobal(rect.bottomLeft())
@@ -2168,6 +2246,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
         exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Exec")
         emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emis")
+        for button in (sol_button, prog_button, exec_resp_button, emis_resp_button):
+            self._set_menu_pre_show_hook(button, self._ensure_responsavel_options_materialized)
 
         main_grid = QGridLayout()
         main_grid.setContentsMargins(0, 0, 0, 0)
@@ -2639,6 +2719,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _schedule_sector_options_refresh(self):
         """Agenda refresh de opções dependentes de setor evitando rajadas de sinais."""
         timer = getattr(self, "_sector_debounce_timer", None)
+        if not getattr(self, "_responsavel_filters_materialized", False):
+            self._responsavel_options_dirty = True
+            try:
+                if timer is not None and _is_widget_valid(timer):
+                    timer.stop()
+            except Exception:
+                pass
+            return
         if timer is None:
             try:
                 self._refresh_responsavel_options()
@@ -2764,6 +2852,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _refresh_responsavel_options(self):
         if self.df_completo is None or self.df_completo.empty:
+            self._responsavel_options_dirty = True
             return
         exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
         emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
@@ -2925,6 +3014,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     self._adv_values_cache = adv_cache
             except Exception:
                 pass
+        self._responsavel_filters_materialized = True
+        self._responsavel_options_dirty = False
 
     def _clear_advanced_filters(self):
         try:
@@ -3091,52 +3182,46 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             data["derivada_is"] = False
         # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
-        try:
-            data["solicitante"] = self._get_checked_values(getattr(self, "adv_responsavel_solicitante_checks", None))
-        except Exception:
-            data["solicitante"] = []
-        try:
-            data["solicitante_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_solicitante_exclude_checks", None)
-            )
-        except Exception:
-            data["solicitante_exclude_values"] = []
-        try:
-            data["responsavel_programacao"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_programacao_checks", None)
-            )
-        except Exception:
-            data["responsavel_programacao"] = []
-        try:
-            data["responsavel_programacao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_programacao_exclude_checks", None)
-            )
-        except Exception:
-            data["responsavel_programacao_exclude_values"] = []
-        try:
-            data["responsavel_execucao"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_execucao_checks", None)
-            )
-        except Exception:
-            data["responsavel_execucao"] = []
-        try:
-            data["responsavel_execucao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_execucao_exclude_checks", None)
-            )
-        except Exception:
-            data["responsavel_execucao_exclude_values"] = []
-        try:
-            data["responsavel_emissor"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_emissor_checks", None)
-            )
-        except Exception:
-            data["responsavel_emissor"] = []
-        try:
-            data["responsavel_emissor_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_responsavel_emissor_exclude_checks", None)
-            )
-        except Exception:
-            data["responsavel_emissor_exclude_values"] = []
+        adv_current = getattr(self, "_advanced_filters", None) or {}
+        responsavel_materialized = bool(getattr(self, "_responsavel_filters_materialized", False))
+
+        def _collect_responsavel_values(checks_attr: str, key_name: str) -> list[str]:
+            if not responsavel_materialized:
+                return list(adv_current.get(key_name) or [])
+            try:
+                return self._get_checked_values(getattr(self, checks_attr, None))
+            except Exception:
+                return []
+
+        data["solicitante"] = _collect_responsavel_values("adv_responsavel_solicitante_checks", "solicitante")
+        data["solicitante_exclude_values"] = _collect_responsavel_values(
+            "adv_responsavel_solicitante_exclude_checks",
+            "solicitante_exclude_values",
+        )
+        data["responsavel_programacao"] = _collect_responsavel_values(
+            "adv_responsavel_programacao_checks",
+            "responsavel_programacao",
+        )
+        data["responsavel_programacao_exclude_values"] = _collect_responsavel_values(
+            "adv_responsavel_programacao_exclude_checks",
+            "responsavel_programacao_exclude_values",
+        )
+        data["responsavel_execucao"] = _collect_responsavel_values(
+            "adv_responsavel_execucao_checks",
+            "responsavel_execucao",
+        )
+        data["responsavel_execucao_exclude_values"] = _collect_responsavel_values(
+            "adv_responsavel_execucao_exclude_checks",
+            "responsavel_execucao_exclude_values",
+        )
+        data["responsavel_emissor"] = _collect_responsavel_values(
+            "adv_responsavel_emissor_checks",
+            "responsavel_emissor",
+        )
+        data["responsavel_emissor_exclude_values"] = _collect_responsavel_values(
+            "adv_responsavel_emissor_exclude_checks",
+            "responsavel_emissor_exclude_values",
+        )
         try:
             data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
         except Exception:
@@ -3257,34 +3342,37 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             getattr(self, "adv_status_exclude_checks", None),
             data.get("situacao_exclude_values"),
         )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_responsavel_solicitante_button", None),
-            getattr(self, "adv_responsavel_solicitante_checks", None),
-            data.get("solicitante"),
-            getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
-            data.get("solicitante_exclude_values"),
-        )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_responsavel_programacao_button", None),
-            getattr(self, "adv_responsavel_programacao_checks", None),
-            data.get("responsavel_programacao"),
-            getattr(self, "adv_responsavel_programacao_exclude_checks", None),
-            data.get("responsavel_programacao_exclude_values"),
-        )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_responsavel_execucao_button", None),
-            getattr(self, "adv_responsavel_execucao_checks", None),
-            data.get("responsavel_execucao"),
-            getattr(self, "adv_responsavel_execucao_exclude_checks", None),
-            data.get("responsavel_execucao_exclude_values"),
-        )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_responsavel_emissor_button", None),
-            getattr(self, "adv_responsavel_emissor_checks", None),
-            data.get("responsavel_emissor"),
-            getattr(self, "adv_responsavel_emissor_exclude_checks", None),
-            data.get("responsavel_emissor_exclude_values"),
-        )
+        if getattr(self, "_responsavel_filters_materialized", False):
+            self._sync_multiselect_checks(
+                getattr(self, "adv_responsavel_solicitante_button", None),
+                getattr(self, "adv_responsavel_solicitante_checks", None),
+                data.get("solicitante"),
+                getattr(self, "adv_responsavel_solicitante_exclude_checks", None),
+                data.get("solicitante_exclude_values"),
+            )
+            self._sync_multiselect_checks(
+                getattr(self, "adv_responsavel_programacao_button", None),
+                getattr(self, "adv_responsavel_programacao_checks", None),
+                data.get("responsavel_programacao"),
+                getattr(self, "adv_responsavel_programacao_exclude_checks", None),
+                data.get("responsavel_programacao_exclude_values"),
+            )
+            self._sync_multiselect_checks(
+                getattr(self, "adv_responsavel_execucao_button", None),
+                getattr(self, "adv_responsavel_execucao_checks", None),
+                data.get("responsavel_execucao"),
+                getattr(self, "adv_responsavel_execucao_exclude_checks", None),
+                data.get("responsavel_execucao_exclude_values"),
+            )
+            self._sync_multiselect_checks(
+                getattr(self, "adv_responsavel_emissor_button", None),
+                getattr(self, "adv_responsavel_emissor_checks", None),
+                data.get("responsavel_emissor"),
+                getattr(self, "adv_responsavel_emissor_exclude_checks", None),
+                data.get("responsavel_emissor_exclude_values"),
+            )
+        else:
+            self._sync_responsavel_button_summaries()
         self._sync_multiselect_checks(
             getattr(self, "adv_prioridade_emissao_button", None),
             getattr(self, "adv_prioridade_emissao_checks", None),
@@ -3662,7 +3750,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self.adv_prioridade_planejamento_checks = prio_include
             self.adv_prioridade_planejamento_exclude_checks = prio_exclude
 
-        self._refresh_responsavel_options()
+        self._responsavel_options_dirty = True
+        if getattr(self, "_responsavel_filters_materialized", False):
+            self._refresh_responsavel_options()
+        else:
+            self._sync_responsavel_button_summaries()
         self._sync_checks_to_tab_context()
         self._sync_advanced_filter_ui()
         try:
@@ -3950,6 +4042,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 pass
             still_running = False
             try:
+                if hasattr(worker, "cancel"):
+                    worker.cancel()
+                elif hasattr(worker, "requestInterruption"):
+                    worker.requestInterruption()
                 if hasattr(worker, "isRunning") and worker.isRunning():
                     worker.quit()
                     if int(wait_ms or 0) > 0:
@@ -4024,6 +4120,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.df_completo = df.copy()
         self._adv_options_dirty = True
         self._adv_values_cache = None
+        self._responsavel_options_dirty = True
+        self._responsavel_filters_materialized = False
+        try:
+            timer = getattr(self, "_sector_debounce_timer", None)
+            if timer is not None:
+                timer.stop()
+        except Exception:
+            pass
         # Inicialmente, exibimos todos os dados
         base = df.copy()
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
@@ -4482,6 +4586,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Load all color roles from theme for widget styling
         # These variables are used in subsequent sections
         self._current_theme = normalized
+        try:
+            tab_contexts = getattr(self, "_tab_contexts", None)
+            if isinstance(tab_contexts, list):
+                for ctx in tab_contexts:
+                    if isinstance(ctx, dict):
+                        ctx["_theme_name"] = normalized
+        except Exception:
+            pass
         try:
             light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
             selector = getattr(self, 'column_selector', None)

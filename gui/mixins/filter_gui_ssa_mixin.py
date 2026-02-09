@@ -395,6 +395,10 @@ class FilterGUISSAMixin:
                 pass
             still_running = False
             try:
+                if hasattr(worker, "cancel"):
+                    worker.cancel()
+                elif hasattr(worker, "requestInterruption"):
+                    worker.requestInterruption()
                 if hasattr(worker, 'isRunning') and worker.isRunning():
                     worker.quit()
                     if int(wait_ms or 0) > 0:
@@ -457,6 +461,7 @@ class FilterGUISSAMixin:
         """Limpa o filtro e mostra todos os dados."""
         self._safe_store_last_filter_state("clear_filter")
         self._invalidate_active_filter_request("clear_filter")
+        self._cancel_active_filter_worker("clear_filter", wait_ms=0)
         self._set_filter_ui_idle()
         try:
             self._debounce_timer.stop()
@@ -904,6 +909,7 @@ class FilterGUISSAMixin:
         """Limpa todos os filtros: busca geral + filtros de coluna"""
         self._safe_store_last_filter_state("clear_all_filters_global")
         self._invalidate_active_filter_request("clear_all_filters_global")
+        self._cancel_active_filter_worker("clear_all_filters_global", wait_ms=0)
         self._set_filter_ui_idle()
         # Limpar filtro de busca geral
         try:

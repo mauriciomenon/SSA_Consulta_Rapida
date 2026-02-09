@@ -322,6 +322,102 @@ class TestGUIFilterLogic:
 
         assert len(getattr(self.window, "adv_executor_checks", []) or []) > 0
 
+    def test_refresh_advanced_options_does_not_eager_load_responsavel(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._advanced_filters = {
+            "solicitante": ["User1", "User2"],
+            "solicitante_exclude_values": ["User5"],
+        }
+        self.window._adv_options_dirty = True
+        self.window._adv_values_cache = None
+        self.window._responsavel_filters_materialized = False
+        self.window._responsavel_options_dirty = True
+
+        with patch.object(self.window, "_refresh_responsavel_options", wraps=self.window._refresh_responsavel_options) as refresh_mock:
+            self.window._refresh_advanced_filter_options()
+            QApplication.processEvents()
+
+        assert refresh_mock.call_count == 0
+        assert self.window._responsavel_filters_materialized is False
+        assert self.window._responsavel_options_dirty is True
+        button = getattr(self.window, "adv_responsavel_solicitante_button", None)
+        if button is None:
+            button = getattr(self.window, "_adv_ctx", {}).get("adv_responsavel_solicitante_button")
+        assert button is not None
+        assert "inc" in button.text()
+
+    def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
+        self.window._advanced_filters = {
+            "solicitante": ["User1"],
+            "solicitante_exclude_values": ["User2"],
+            "responsavel_programacao": ["ProgA"],
+            "responsavel_programacao_exclude_values": ["ProgB"],
+            "responsavel_execucao": ["ExecA"],
+            "responsavel_execucao_exclude_values": ["ExecB"],
+            "responsavel_emissor": ["EmisA"],
+            "responsavel_emissor_exclude_values": ["EmisB"],
+        }
+        self.window._responsavel_filters_materialized = False
+
+        self.window._apply_advanced_filters_from_ui(store_only=True)
+
+        assert self.window._advanced_filters["solicitante"] == ["User1"]
+        assert self.window._advanced_filters["solicitante_exclude_values"] == ["User2"]
+        assert self.window._advanced_filters["responsavel_programacao"] == ["ProgA"]
+        assert self.window._advanced_filters["responsavel_programacao_exclude_values"] == ["ProgB"]
+        assert self.window._advanced_filters["responsavel_execucao"] == ["ExecA"]
+        assert self.window._advanced_filters["responsavel_execucao_exclude_values"] == ["ExecB"]
+        assert self.window._advanced_filters["responsavel_emissor"] == ["EmisA"]
+        assert self.window._advanced_filters["responsavel_emissor_exclude_values"] == ["EmisB"]
+
+    def test_ensure_responsavel_options_materialized_runs_once_when_dirty(self):
+        self.window._responsavel_filters_materialized = False
+        self.window._responsavel_options_dirty = True
+
+        with patch.object(self.window, "_refresh_responsavel_options", wraps=self.window._refresh_responsavel_options) as refresh_mock:
+            self.window._ensure_responsavel_options_materialized()
+            self.window._ensure_responsavel_options_materialized()
+
+        assert refresh_mock.call_count == 1
+        assert self.window._responsavel_filters_materialized is True
+        assert self.window._responsavel_options_dirty is False
+
+    def test_switch_to_filters_tab_does_not_materialize_responsavel_eagerly(self):
+        self.window._adv_options_dirty = True
+        self.window._adv_values_cache = None
+        self.window._responsavel_filters_materialized = False
+        self.window._responsavel_options_dirty = True
+
+        with patch.object(self.window, "_refresh_responsavel_options", wraps=self.window._refresh_responsavel_options) as refresh_mock:
+            filter_tab_idx = next(
+                idx for idx, ctx in enumerate(self.window._tab_contexts)
+                if ctx.get("tab_kind") == "filters"
+            )
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            QApplication.processEvents()
+
+        assert refresh_mock.call_count == 0
+        assert self.window._responsavel_filters_materialized is False
+        assert self.window._responsavel_options_dirty is True
+
+    def test_switch_to_filters_tab_does_not_reapply_same_theme(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+
+        with patch.object(self.window, "apply_theme", wraps=self.window.apply_theme) as apply_mock:
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            QApplication.processEvents()
+
+        assert apply_mock.call_count == 0
+
     def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
         self.window.search_input.setText("Teste A")
         self.window.initiate_filtering()
@@ -809,6 +905,15 @@ class TestGUIFilterLogic:
         self.window.on_data_loaded(stale_df, request_id=9)
 
         assert self.window.df_completo.equals(original_df)
+
+    def test_on_data_loaded_stops_pending_sector_timer(self):
+        self.window._active_data_load_request_id = 12
+        self.window._sector_debounce_timer.start()
+        assert self.window._sector_debounce_timer.isActive() is True
+
+        self.window.on_data_loaded(self.base_df.copy(), request_id=12)
+
+        assert self.window._sector_debounce_timer.isActive() is False
 
     def test_on_data_loaded_syncs_clear_button_to_active_filters(self):
         self.window._active_data_load_request_id = 10
@@ -1480,6 +1585,33 @@ class TestGUIFilterLogic:
 
         assert self.window.search_input.text() == ""
         assert self.window._debounce_timer.isActive() is False
+
+    def test_clear_filter_cancels_active_filter_worker(self):
+        with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
+            self.window.clear_filter()
+
+        cancel_mock.assert_called_once_with("clear_filter", wait_ms=0)
+
+    def test_clear_all_filters_global_cancels_active_filter_worker(self):
+        with patch.object(self.window, "_cancel_active_filter_worker") as cancel_mock:
+            self.window._clear_all_filters_global()
+
+        cancel_mock.assert_called_once_with("clear_all_filters_global", wait_ms=0)
+
+    def test_schedule_sector_refresh_stops_pending_timer_when_not_materialized(self):
+        self.window._responsavel_filters_materialized = False
+        self.window._responsavel_options_dirty = False
+        self.window._sector_debounce_timer.start()
+        assert self.window._sector_debounce_timer.isActive() is True
+
+        with patch.object(self.window, "_refresh_responsavel_options", wraps=self.window._refresh_responsavel_options) as refresh_mock:
+            self.window._schedule_sector_options_refresh()
+            QTest.qWait(int(self.window._sector_debounce_timer.interval()) + 80)
+            QApplication.processEvents()
+
+        assert self.window._responsavel_options_dirty is True
+        assert self.window._sector_debounce_timer.isActive() is False
+        assert refresh_mock.call_count == 0
 
     def test_sector_exclude_debounce_reuses_same_timer_instance(self):
         timer_before = self.window._sector_debounce_timer

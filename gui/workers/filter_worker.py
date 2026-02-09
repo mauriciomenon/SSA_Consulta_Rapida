@@ -22,9 +22,25 @@ class FilterWorker(QThread):
         self.df_completo = df_completo
         self.search_chunks = search_chunks or []
         self.default_mode = default_mode
+        self._cancel_requested = False
 
         # Gera fingerprint estrutural+amostral para reduzir colisões de cache
         self.df_hash = self._build_df_hash(df_completo)
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        try:
+            self.requestInterruption()
+        except Exception:
+            pass
+
+    def _is_cancelled(self) -> bool:
+        if bool(getattr(self, "_cancel_requested", False)):
+            return True
+        try:
+            return bool(self.isInterruptionRequested())
+        except Exception:
+            return False
 
     @staticmethod
     def _build_df_hash(df_completo: pd.DataFrame) -> str:
@@ -60,9 +76,13 @@ class FilterWorker(QThread):
 
     def run(self):
         try:
+            if self._is_cancelled():
+                return
             # Verifica cache primeiro
             cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
             if cached_result is not None:
+                if self._is_cancelled():
+                    return
                 self.filter_finished.emit(cached_result)
                 return
 
@@ -70,11 +90,17 @@ class FilterWorker(QThread):
             if self.search_chunks:
                 frames = []
                 for terms in self.search_chunks:
+                    if self._is_cancelled():
+                        return
                     if terms:
                         parsed = parse_search_terms(terms, default_mode=self.default_mode)
+                        if self._is_cancelled():
+                            return
                         frames.append(filter_dataframe(self.df_completo, parsed))
                     else:
                         frames.append(self.df_completo.copy())
+                    if self._is_cancelled():
+                        return
                 if frames:
                     df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True)
                 else:
@@ -82,9 +108,13 @@ class FilterWorker(QThread):
             else:
                 df_filtrado = self.df_completo.copy()
 
+            if self._is_cancelled():
+                return
             # Armazena no cache
             self._cache.put(self.df_hash, self.search_chunks, self.default_mode, df_filtrado)
 
+            if self._is_cancelled():
+                return
             self.filter_finished.emit(df_filtrado)
         except Exception as e:
             self.error_occurred.emit(f"Erro ao filtrar dados: {e}")
