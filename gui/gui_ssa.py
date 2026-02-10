@@ -1793,8 +1793,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     value = self._checkbox_value(cb)
                     if value:
                         selected.append(value)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to read include checkbox state in multiselect summary: %s", exc)
         excluded = []
         for cb in exclude_checks or []:
             try:
@@ -1804,8 +1804,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     value = self._checkbox_value(cb)
                     if value:
                         excluded.append(value)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to read exclude checkbox state in multiselect summary: %s", exc)
         total = len(checks or [])
         if total == 0:
             text = "Sem dados"
@@ -1904,8 +1904,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             label_filter = QLabel(filter_name)
             try:
                 label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to style multiselect menu header label: %s", exc)
             grid.addWidget(label_filter, row_idx, 0)
 
             if exclude_selected_set is not None:
@@ -2159,8 +2159,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 deselect_all_include.toggled.connect(lambda checked: _deselect_all_include() if checked else None)
                 select_all_exclude.toggled.connect(lambda checked: _select_all_exclude() if checked else None)
                 deselect_all_exclude.toggled.connect(lambda checked: _deselect_all_exclude() if checked else None)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to connect select-all toggles in multiselect menu: %s", exc)
 
         # Botoes OK e Cancelar - OK sempre a direita
         # OTIMIZACAO 2026-01-08: OK apenas fecha o menu, NAO aplica filtro
@@ -3107,8 +3107,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             values = _unique_sorted(col)
             try:
                 values = self._sort_responsavel_values(df, values, col)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to sort responsavel values for column '%s': %s", col, exc)
             _set_enabled(button, True)
             _set_enabled(exclude, True)
             selected = set((self._advanced_filters or {}).get(col) or [])
@@ -3158,9 +3158,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     idx = getattr(self, "adv_reprog_mode").findData(mode)
                     if idx >= 0:
                         getattr(self, "adv_reprog_mode").setCurrentIndex(idx)
-            except Exception:
-                pass
-        except Exception:
+            except Exception as exc:
+                logger.debug("Failed to restore reprogramacoes mode in advanced filter UI: %s", exc)
+        except Exception as exc:
+            logger.debug("Failed to rebuild reprogramacoes menu in advanced filter UI: %s", exc)
             self.adv_reprog_checks = []
 
         # SSAs Derivadas Específicas (novo filtro granular)
@@ -3473,8 +3474,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         value = self._checkbox_value(child)
                         if value:
                             values.append(value)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to read checkbox from list source in _get_checked_values: %s", exc)
             return values
         if hasattr(source, "findChildren"):
             try:
@@ -3489,8 +3490,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         value = self._checkbox_value(child)
                         if value:
                             values.append(value)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to read checkbox from widget source in _get_checked_values: %s", exc)
         return values
 
     def _sync_advanced_filter_ui(self):
@@ -3960,8 +3961,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             elapsed_ms = (perf_counter() - start) * 1000.0
             logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to log advanced filter options refresh timing: %s", exc)
 
     def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
         if df is None or df.empty:
@@ -3986,8 +3987,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if exclude_values:
                     exclude_norm = {str(v).casefold() for v in exclude_values}
                     mask &= ~series_norm.isin(exclude_norm)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to apply include/exclude filter for column '%s': %s", col, exc)
 
         exec_values = filters.get("setor_executor") or []
         emis_values = filters.get("setor_emissor") or []
@@ -4008,8 +4009,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     mask &= series_norm.isin(allowed_norm)
                 if excluded_norm:
                     mask &= ~series_norm.isin(excluded_norm)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to apply setor_executor advanced filters: %s", exc)
 
         _apply_in("setor_emissor", emis_values, emis_excluded)
 
@@ -4061,8 +4062,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 elif mode == "gte":
                     threshold = min(vals)
                     mask &= series >= threshold
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
 
         def _to_int_set(values):
             result = set()
@@ -4090,8 +4091,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         mask &= years.isin(emissao_inc)
                     if emissao_exc:
                         mask &= ~years.isin(emissao_exc)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to apply ano emissao filter from data_cadastro: %s", exc)
             elif "semana_cadastro" in df.columns:
                 try:
                     nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").astype("Int64")
@@ -4100,8 +4101,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         mask &= years.isin(emissao_inc)
                     if emissao_exc:
                         mask &= ~years.isin(emissao_exc)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to apply ano emissao filter from semana_cadastro: %s", exc)
 
         execucao_inc = _to_int_set(filters.get("ano_execucao_values") or [])
         execucao_exc = _to_int_set(filters.get("ano_execucao_exclude_values") or [])
@@ -4118,8 +4119,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     mask &= years.isin(execucao_inc)
                 if execucao_exc:
                     mask &= ~years.isin(execucao_exc)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to apply ano execucao filter from semana_executada: %s", exc)
 
         def _apply_week_range(col, start_key, end_key, exclude_key):
             nonlocal mask
@@ -4140,8 +4141,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     mask &= ~range_mask
                 else:
                     mask &= range_mask
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to apply week range filter '%s': %s", col, exc)
 
         _apply_week_range("semana_cadastro", "semana_emissao_inicio", "semana_emissao_fim", "semana_emissao_exclude")
         _apply_week_range("semana_executada", "semana_execucao_inicio", "semana_execucao_fim", "semana_execucao_exclude")
@@ -4169,15 +4170,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                             lambda s: s.astype(str).str.upper().eq("STE").all()
                         )
                         origins = set(grouped[grouped].index.astype(str).tolist())
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug("Failed to compute derivada_all_ste origin set: %s", exc)
                         origins = set()
                 if origins:
                     try:
                         origin_norm = {str(o) for o in origins if str(o).strip()}
                         numero_norm = df["numero_ssa"].apply(self._normalize_ssa_value)
                         mask &= numero_norm.isin(origin_norm)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)
                 else:
                     mask &= False
 
