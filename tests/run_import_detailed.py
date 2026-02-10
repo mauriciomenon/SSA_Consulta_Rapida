@@ -146,10 +146,11 @@ def test_import_cli():
         if retcode != 0:
             raise RuntimeError(f"Importacao falhou com codigo {retcode}")
         print("\n[SUCESSO] Importacao via CLI concluida")
+        return True
     except Exception as e:
         print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")
         traceback.print_exc()
-        assert False, f"Falha no teste de importacao via CLI: {e}"
+        return False
 
 
 def analyze_database():

@@ -191,7 +191,10 @@ def test_upsert_logic():
                 elif count_after > count_before:
                     print(f"ℹ️  {count_after - count_before} novos registros adicionados")
                 else:
-                    print("WARN  Registros foram removidos - comportamento inesperado")
+                    raise AssertionError(
+                        "Falha no upsert: registros removidos apos reprocessamento. "
+                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
+                    )
 
                 if not success:
                     raise AssertionError(

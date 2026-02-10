@@ -22,11 +22,19 @@ if TYPE_CHECKING:
     import aiohttp
     import threading
 
-BASE_PENDING = os.getenv(
+def _env_url_or_default(name: str, default_url: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default_url
+    normalized = str(value).strip()
+    return normalized or default_url
+
+
+BASE_PENDING = _env_url_or_default(
     "ITAIPU_BASE_PENDING",
     "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange",
 )
-BASE_DETAIL = os.getenv(
+BASE_DETAIL = _env_url_or_default(
     "ITAIPU_BASE_DETAIL",
     "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber",
 )
