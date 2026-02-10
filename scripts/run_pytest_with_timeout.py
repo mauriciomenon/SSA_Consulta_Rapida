@@ -10,9 +10,11 @@ This script writes a combined stdout/stderr log to `local_ai_private/pytest_term
 
 import argparse
 import os
+import shutil
+import signal
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def ensure_local_ai_dir():
@@ -35,13 +37,26 @@ def main():
     if extra:
         cmd.extend(extra)
 
-    header = f"=== pytest wrapper run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    header = (
+        f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    )
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
         logf.flush()
+        proc = None
         try:
-            proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            popen_kwargs = {}
+            if os.name != 'nt':
+                # Isolate child process group so killpg does not target this wrapper process.
+                popen_kwargs["start_new_session"] = True
+            proc = subprocess.Popen(
+                cmd,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+                **popen_kwargs,
+            )
             try:
                 proc.wait(timeout=args.timeout)
                 logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
@@ -79,11 +94,52 @@ def main():
                     except Exception:
                         pass
 
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    try:
+                        if os.name != 'nt':
+                            try:
+                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                            except Exception:
+                                proc.kill()
+                        else:
+                            proc.kill()
+                    except Exception:
+                        pass
+                    try:
+                        proc.wait(timeout=5)
+                    except Exception:
+                        pass
+
                 logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
-        except Exception as e:
-            logf.write(f"\n=== ERROR: {e} ===\n")
+        except BaseException as e:
+            try:
+                logf.write(f"\n=== ERROR: {e} ===\n")
+                logf.flush()
+            except Exception:
+                print(f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr)
+            if proc is not None and proc.poll() is None:
+                try:
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
             raise
 
 

@@ -13,12 +13,31 @@ Note: Do not disable SSL verification in production. Pass verify_ssl=True when p
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Dict, Any, Optional, Tuple
+from typing import Iterable, List, Dict, Any, Optional, TYPE_CHECKING
 import time
 import json
+import os
 
-BASE_PENDING = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange"
-BASE_DETAIL = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber"
+if TYPE_CHECKING:
+    import aiohttp
+    import threading
+
+def _env_url_or_default(name: str, default_url: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default_url
+    normalized = str(value).strip()
+    return normalized or default_url
+
+
+BASE_PENDING = _env_url_or_default(
+    "ITAIPU_BASE_PENDING",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange",
+)
+BASE_DETAIL = _env_url_or_default(
+    "ITAIPU_BASE_DETAIL",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber",
+)
 
 
 @dataclass

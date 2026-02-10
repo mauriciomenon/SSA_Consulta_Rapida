@@ -246,9 +246,11 @@ docs/~$*.xlsx
 
 # -- SSA local ignores --
 # SQLite + backups locais
-# data/ssas.db
+data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
+# Preferencias locais da GUI (descomentar/remover quando houver mudanca estrutural real)
+config/gui_main_preferences.json
 data/historico_backups/
 data/historico_backups/**
 # Artefatos de recuperacao
@@ -411,11 +413,19 @@ launchers/SISTEMA_*.md
 
 # Code quality tools (local cache and configs)
 .codacy/
+.sonar/
 .trunk/
 trunk.ps1
 mypy.ini
 pyrightconfig.json
 eslint.config.mjs
+
+# GUI backup snapshots and temporary variants
+gui/**/*.backup_*
+*.py.backup_*
+*.py.bak_*
+*.py.planv*
+*_bkp_*.py
 
 # VS Code backup local (contem configs pessoais do usuario)
 vscode_bkp/
