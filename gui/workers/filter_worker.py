@@ -2,11 +2,14 @@
 # Worker thread for filtering data asynchronously with cache
 
 import hashlib
+import logging
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from gui.cache import FilterCache
 from core.app_logic import filter_dataframe, parse_search_terms
+
+logger = logging.getLogger(__name__)
 
 
 class FilterWorker(QThread):
@@ -31,8 +34,8 @@ class FilterWorker(QThread):
         self._cancel_requested = True
         try:
             self.requestInterruption()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao solicitar interrupcao do FilterWorker: %s", exc)
 
     def _is_cancelled(self) -> bool:
         if bool(getattr(self, "_cancel_requested", False)):
