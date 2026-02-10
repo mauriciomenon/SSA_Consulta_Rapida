@@ -34,6 +34,13 @@ def test_reuseaddr_flag_roundtrip(loopback_addr: LoopbackAddr) -> None:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) > 0
         sock.bind(loopback_addr)
+        sock.listen(1)
+
+    try:
+        with contextlib.closing(_bind_socket(loopback_addr, reuse=True)) as rebound:
+            assert rebound.getsockname()[1] == loopback_addr[1]
+    except OSError as exc:  # pragma: no cover - guard for exotic OSes
+        pytest.skip(f"Plataforma nao permite reuso imediato da porta: {exc}")
 
 def test_reuseaddr_allows_immediate_rebind(loopback_addr: LoopbackAddr) -> None:
     with contextlib.closing(_bind_socket(loopback_addr, reuse=True)):

@@ -49,6 +49,11 @@ def test_basic_import_dataframe(temp_db, sample_import_dataframe):
     situacoes = [r[situacao_idx] for r in rows]
     assert set(situacoes) == {"ABERTA", "EM ANDAMENTO"}
 
+    roundtrip_df = pd.DataFrame(rows, columns=cols)
+    assert "numero_ssa" in roundtrip_df.columns
+    assert str(roundtrip_df["numero_ssa"].dtype) in {"object", "str", "string"}
+    assert all(isinstance(v, str) for v in roundtrip_df["numero_ssa"].tolist())
+
     # Verifica dtypes esperados para subconjunto presente
     for col in ["numero_ssa", "situacao", "data_cadastro", "descricao_ssa", "setor_executor"]:
         if col in df.columns:  # DataFrame original

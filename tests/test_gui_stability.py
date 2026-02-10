@@ -162,8 +162,11 @@ class TestGUIStability(unittest.TestCase):
         self.assertGreater(self.window.table_widget.rowCount(), 0, "Nenhuma linha foi exibida")
 
         # Verifica colunas especificas mencionadas pelo usuario
-        headers = [self.window.table_widget.horizontalHeaderItem(i).text()
-                  for i in range(self.window.table_widget.columnCount())]
+        headers = []
+        for i in range(self.window.table_widget.columnCount()):
+            item = self.window.table_widget.horizontalHeaderItem(i)
+            if item is not None:
+                headers.append(item.text())
 
         # Contrato atual da GUI: labels em ASCII, sem acentos.
         colunas_obrigatorias = ["Numero SSA", "Cadastro", "Descricao Execucao"]

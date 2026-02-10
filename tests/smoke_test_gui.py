@@ -3,6 +3,7 @@
 
 import os
 import sys
+from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
@@ -30,15 +31,13 @@ def window(qapp):  # noqa: ARG001
 
     with patch.object(SSAMainWindow, "load_data", lambda self: None):
         win = SSAMainWindow()
-    win.show()
-    QApplication.processEvents()
-    try:
-        yield win
-    finally:
+        win.show()
+        QApplication.processEvents()
         try:
-            win.close()
-        except Exception:
-            pass
+            yield win
+        finally:
+            with suppress(Exception):
+                win.close()
 
 
 def test_gui_instantiation(window):
@@ -55,12 +54,12 @@ def test_gui_instantiation(window):
         print("  [OK] SSAMainWindow instanciada com sucesso")
 
         # Verifica alguns atributos basicos
-        if hasattr(window, "df_completo"):
-            print("  [OK] Atributo 'df_completo' existe")
-        if hasattr(window, "initiate_filtering"):
-            print("  [OK] Metodo 'initiate_filtering' acessivel")
-        if hasattr(window, "_apply_column_filters"):
-            print("  [OK] Metodo '_apply_column_filters' acessivel")
+        assert hasattr(window, "df_completo"), "Atributo 'df_completo' ausente"
+        print("  [OK] Atributo 'df_completo' existe")
+        assert hasattr(window, "initiate_filtering"), "Metodo 'initiate_filtering' ausente"
+        print("  [OK] Metodo 'initiate_filtering' acessivel")
+        assert hasattr(window, "_apply_column_filters"), "Metodo '_apply_column_filters' ausente"
+        print("  [OK] Metodo '_apply_column_filters' acessivel")
 
     except ImportError as e:
         pytest.fail(f"Falha ao importar: {e}")

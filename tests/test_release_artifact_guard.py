@@ -46,25 +46,11 @@ def test_backup_artifacts_are_not_tracked():
     )
     assert tracked_result.returncode == 0, f"git ls-files falhou: {tracked_result.stderr}"
 
-    deleted_result = subprocess.run(
-        ["git", "ls-files", "--deleted"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert (
-        deleted_result.returncode == 0
-    ), f"git ls-files --deleted falhou: {deleted_result.stderr}"
-
     tracked_files = {
         line.strip() for line in tracked_result.stdout.splitlines() if line.strip()
     }
-    deleted_files = {
-        line.strip() for line in deleted_result.stdout.splitlines() if line.strip()
-    }
-    effective_tracked = sorted(tracked_files - deleted_files)
     forbidden_tokens = [".backup_", ".py.bak_", ".py.planv", "_bkp_"]
     offenders = [
-        path for path in effective_tracked if any(token in path for token in forbidden_tokens)
+        path for path in sorted(tracked_files) if any(token in path for token in forbidden_tokens)
     ]
     assert offenders == [], f"Arquivos de backup nao devem ser versionados: {offenders[:10]}"

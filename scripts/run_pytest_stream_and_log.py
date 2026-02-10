@@ -135,7 +135,19 @@ def main():
 
         except Exception:
             try:
-                p.kill()
+                if os.name == "nt":
+                    res = subprocess.run(
+                        ["taskkill", "/PID", str(p.pid), "/T", "/F"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    if res.returncode != 0:
+                        p.kill()
+                else:
+                    try:
+                        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                    except Exception:
+                        p.kill()
             except Exception:
                 pass
             raise
