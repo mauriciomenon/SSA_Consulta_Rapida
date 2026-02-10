@@ -1,6 +1,8 @@
 # gui/workers/data_loader_worker.py
 # Worker thread for loading data from database asynchronously
 
+from __future__ import annotations
+
 import logging
 import re
 import sqlite3

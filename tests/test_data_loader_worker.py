@@ -59,6 +59,7 @@ def test_run_builds_safe_paginated_query_and_emits_data():
         worker.run()
 
     assert emitted and not emitted[0].empty
+    assert emitted[0]["numero_ssa"].tolist() == ["1"]
     assert "ORDER BY numero_ssa DESC" in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
 

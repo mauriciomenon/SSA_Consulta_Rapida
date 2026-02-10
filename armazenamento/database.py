@@ -8,7 +8,6 @@ Responsavel por criar tabelas, inserir DataFrames e consultar dados.
 
 import logging
 import os
-import re
 import sqlite3
 import time
 from contextlib import contextmanager, suppress
@@ -170,7 +169,14 @@ def query_db(
         pd.DataFrame: Resultado da consulta.
     """
     if not query:
-        query = f"SELECT * FROM {table_name}"  # noqa: S608 table name trusted
+        safe_table_name = str(table_name or "").strip()
+        if not is_valid_identifier(safe_table_name):
+            error_msg = f"Nome de tabela invalido para query_db: {table_name!r}"
+            logger.error(error_msg)
+            if raise_on_error:
+                raise ValueError(error_msg)
+            return pd.DataFrame()
+        query = f'SELECT * FROM "{safe_table_name}"'
 
     logger.debug(f"Executando consulta: {query} com params: {params}")
     try:
@@ -180,10 +186,13 @@ def query_db(
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except Exception as e:
-        logger.error(f"Erro ao executar consulta '{query}': {e}")
+        logger.exception("Erro ao executar consulta '%s' com params=%s: %s", query, params, e)
         if raise_on_error:
             raise
-        # Retorna DataFrame vazio em caso de erro
+        logger.warning(
+            "query_db retornando DataFrame vazio apos falha (raise_on_error=False). "
+            "Ative raise_on_error para falhar explicitamente."
+        )
         return pd.DataFrame()
 
 IfExistsPolicy = Literal['fail', 'replace', 'append']
@@ -530,7 +539,6 @@ def insert_dataframe_with_smart_upsert(
 
 from .numero_ssa_utils import (
     _normalize_numero_ssa_value,  # legado (int)
-    normalize_numero_ssa_strict as _normalize_numero_ssa_strict,
     normalize_numero_ssa as _normalize_numero_ssa_display,
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,
 )
