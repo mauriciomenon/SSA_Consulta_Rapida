@@ -754,8 +754,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             # Evita acumulo de janelas/widgets fechados (impacta performance ao reaplicar tema global).
             self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self.setWindowTitle("Consulta Rapida de SSAs")
         self.setGeometry(100, 100, 1200, 800)
         # Icone da janela (prioriza .ico no Windows)
@@ -768,8 +768,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 svg_path = os.path.join(project_root, 'resources', 'app_icon.svg')
                 if os.path.exists(svg_path):
                     self.setWindowIcon(QIcon(svg_path))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to load window icon resources: %s", exc)
 
         self.df_completo = pd.DataFrame()
         self.df_exibido = pd.DataFrame()  # DataFrame filtrado
@@ -884,8 +884,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})['theme'] = preferred_theme
             self._persist_gui_preferences()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to persist preferred startup theme: %s", exc)
         # Aplica perfil inicial de filtros por setor
         self._apply_initial_filter_profile()
 
@@ -2605,8 +2605,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_edit.setReadOnly(True)
             try:
                 text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to style derivadas popup text editor: %s", exc)
             layout.addWidget(text_edit)
 
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
