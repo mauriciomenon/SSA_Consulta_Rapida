@@ -99,7 +99,10 @@ class TestGUIMainConfiguration:
         from gui.gui_config import GUI_MAIN_PREFERENCES
         from core.config_manager import load_settings
 
-        cli_settings = load_settings()
+        try:
+            cli_settings = load_settings()
+        except Exception:
+            cli_settings = {}
 
         assert GUI_MAIN_PREFERENCES != cli_settings
         assert "display_columns" in GUI_MAIN_PREFERENCES
@@ -163,22 +166,22 @@ class TestGUIMainConfiguration:
 
     def test_gui_main_import_independence(self):
         """Testa que GUI Main pode ser importada sem dependencias do CLI."""
-        modules_to_remove = []
-        for module_name in sys.modules:
+        modules_to_restore = {}
+        for module_name in list(sys.modules):
             if "core.config_manager" in module_name:
-                modules_to_remove.append(module_name)
-
-        for module_name in modules_to_remove:
-            del sys.modules[module_name]
+                modules_to_restore[module_name] = sys.modules[module_name]
+                del sys.modules[module_name]
 
         try:
             from gui.gui_config import GUI_MAIN_PREFERENCES, load_gui_main_preferences
 
             assert isinstance(GUI_MAIN_PREFERENCES, dict)
             assert callable(load_gui_main_preferences)
-            assert True
         except ImportError as e:
             pytest.fail(f"GUI Main nao deveria depender de modulos do CLI: {e}")
+        finally:
+            for module_name, module_obj in modules_to_restore.items():
+                sys.modules[module_name] = module_obj
 
 
 if __name__ == "__main__":

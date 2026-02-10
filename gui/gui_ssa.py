@@ -104,6 +104,9 @@ except ImportError as exc:
     QT_AVAILABLE = False
     sip = None
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
+    DataLoaderWorker = None
+    FilterWorker = None
+    FilterCache = None
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
     class _Sig:
         def emit(self, *a, **k):
@@ -998,7 +1001,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Configura cache size da configuração
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         cache_size = gui_settings.get("filter_cache_size", 50)
-        FilterWorker._cache = FilterCache(max_size=cache_size)
+        if FilterWorker is not None and FilterCache is not None:
+            FilterWorker._cache = FilterCache(max_size=cache_size)
+        else:
+            logger.warning("FilterWorker/FilterCache indisponivel; cache de filtro nao inicializado")
 
     def _build_tab_content(self, page: QWidget, tab_kind: str = "main") -> dict:
         tab_layout = QVBoxLayout(page)
@@ -4360,6 +4366,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if getattr(self, "data_loader_thread", None) is previous_worker:
                 self.data_loader_thread = None
 
+        if DataLoaderWorker is None:
+            logger.error("DataLoaderWorker indisponivel para load_data")
+            QMessageBox.critical(
+                self,
+                "Erro de Carregamento",
+                "Data loader indisponivel neste ambiente. Consulte os logs.",
+            )
+            self.status_label.setText("Status: Erro ao carregar dados.")
+            self.progress_bar.setVisible(False)
+            self.load_button.setEnabled(True)
+            self.search_button.setEnabled(True)
+            return
+
         worker = DataLoaderWorker(DB_PATH, TABLE_NAME)
         self.data_loader_thread = worker
         worker.data_loaded.connect(lambda df, rid=request_id: self.on_data_loaded(df, request_id=rid))
@@ -4396,8 +4415,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 is_ste = pd.Series([False]*len(base), index=base.index)
             if 'numero_ssa' in base.columns:
-                ssa_str = base['numero_ssa'].astype(str).str.replace(r'\D', '', regex=True)
-                ssa_int = ssa_str.apply(lambda s: int(s) if s.isdigit() else -1)
+                ssa_str = (
+                    base["numero_ssa"]
+                    .fillna("")
+                    .astype(str)
+                    .str.replace(r"\D", "", regex=True)
+                )
+                ssa_int = ssa_str.apply(lambda s: int(s) if s else -1)
             else:
                 ssa_int = pd.Series([-1]*len(base), index=base.index)
             base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
