@@ -6,16 +6,16 @@ Teste abrangente da importação de arquivos e verificação da integridade dos 
 
 import sys
 import os
-import pandas as pd
-import sqlite3
 from datetime import datetime
 import logging
 
-sys.path.insert(0, '.')
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-from core.app_logic import import_files_to_database
-from armazenamento.database import get_db_connection, query_db, verify_database_integrity
-from extracao.extractor import extract_data_from_excel
+from core.app_logic import import_files_to_database  # noqa: E402
+from armazenamento.database import get_db_connection, verify_database_integrity  # noqa: E402
+from extracao.extractor import extract_data_from_excel  # noqa: E402
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -46,6 +46,7 @@ def test_import_all_files():
     success = import_files_to_database(docs_dir, db_path, force_import=True)
     assert success, "Falha na importação"
     print("OK Importação concluída com sucesso")
+    return True
 
 def analyze_database_content():
     """Analisa o conteúdo do banco após importação."""
@@ -186,18 +187,30 @@ def test_upsert_logic():
                 print(f"INFO Registros depois: {count_after}")
                 print(f"INFO Diferença: {count_after - count_before}")
 
+                if not success:
+                    raise AssertionError(
+                        "Falha no upsert: "
+                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
+                    )
+
                 if count_after == count_before:
                     print("OK Upsert funcionando corretamente - nenhum registro duplicado")
                 elif count_after > count_before:
                     print(f"ℹ️  {count_after - count_before} novos registros adicionados")
                 else:
-                    print("WARN  Registros foram removidos - comportamento inesperado")
-
-                assert success, "Falha no upsert"
+                    raise AssertionError(
+                        "Falha no upsert: registros removidos apos reprocessamento. "
+                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
+                    )
             else:
-                assert False, "Falha ao extrair dados do arquivo"
+                raise AssertionError(f"Falha ao extrair dados do arquivo: {file_path}")
         else:
-            assert False, "Nenhum arquivo encontrado para teste"
+            raise AssertionError(f"Nenhum arquivo encontrado para teste em {docs_dir}")
+    except AssertionError:
+        raise
+    except Exception as e:
+        print(f"ERR Erro no teste de upsert: {e}")
+        raise AssertionError(f"Falha no teste de upsert: {e}") from e
 
 def verify_column_mapping():
     """Verifica se todas as colunas estão sendo mapeadas corretamente."""
@@ -268,6 +281,13 @@ def main():
     print("=" * 60)
 
     try:
+        status = {
+            "import": False,
+            "analyze": False,
+            "upsert": False,
+            "mapping": False,
+        }
+
         # 1. Verificar integridade do banco
         print("INFO Verificando integridade do banco...")
         integrity_report = verify_database_integrity("data/ssas.db")
@@ -278,24 +298,33 @@ def main():
 
         # 2. Testar importação
         import_success = test_import_all_files()
+        status["import"] = bool(import_success)
 
         # 3. Analisar conteúdo
         if import_success:
-            analyze_database_content()
+            status["analyze"] = bool(analyze_database_content())
+        else:
+            status["analyze"] = False
 
         # 4. Testar lógica de upsert
         test_upsert_logic()
+        status["upsert"] = True
 
         # 5. Verificar mapeamento de colunas
-        verify_column_mapping()
+        status["mapping"] = bool(verify_column_mapping())
 
         print("\n" + "=" * 60)
         print("OK VERIFICAÇÃO COMPLETA CONCLUÍDA")
+        if all(status.values()):
+            return 0
+        print("WARN Verificacao concluida com falhas em etapas pontuais:", status)
+        return 1
 
     except Exception as e:
         print(f"\nERR ERRO CRÍTICO: {e}")
         import traceback
         traceback.print_exc()
+        return 1
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

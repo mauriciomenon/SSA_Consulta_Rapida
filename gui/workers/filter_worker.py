@@ -2,11 +2,14 @@
 # Worker thread for filtering data asynchronously with cache
 
 import hashlib
+import logging
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from gui.cache import FilterCache
 from core.app_logic import filter_dataframe, parse_search_terms
+
+logger = logging.getLogger(__name__)
 
 
 class FilterWorker(QThread):
@@ -22,15 +25,95 @@ class FilterWorker(QThread):
         self.df_completo = df_completo
         self.search_chunks = search_chunks or []
         self.default_mode = default_mode
+        self._cancel_requested = False
 
-        # Gera hash do DataFrame para cache
-        self.df_hash = hashlib.md5(str(df_completo.shape).encode()).hexdigest()[:16]
+        # Gera fingerprint estrutural+amostral para reduzir colisões de cache
+        self.df_hash = self._build_df_hash(df_completo)
+
+    def cancel(self) -> None:
+        self._cancel_requested = True
+        try:
+            self.requestInterruption()
+        except Exception as exc:
+            logger.debug("Falha ao solicitar interrupcao do FilterWorker: %s", exc)
+
+    def _is_cancelled(self) -> bool:
+        if bool(getattr(self, "_cancel_requested", False)):
+            return True
+        try:
+            return bool(self.isInterruptionRequested())
+        except Exception as exc:
+            logger.debug("Falha ao consultar estado de interrupcao do FilterWorker: %s", exc)
+            return False
+
+    @staticmethod
+    def _build_df_hash(df_completo: pd.DataFrame) -> str:
+        """Cria hash estável do DataFrame para chave de cache de filtros."""
+        try:
+            if df_completo is None:
+                return hashlib.md5(b"none").hexdigest()[:16]
+
+            row_count = len(df_completo)
+            if row_count <= 24:
+                sample_df = df_completo
+            else:
+                head_count = 8
+                tail_count = 8
+                mid_count = 8
+                head_df = df_completo.head(head_count)
+                tail_df = df_completo.tail(tail_count)
+                mid_start = head_count
+                mid_end = max(mid_start, row_count - tail_count - 1)
+                mid_indices = []
+                span = (mid_end - mid_start) + 1
+                if span > 0:
+                    if span <= mid_count:
+                        mid_indices = list(range(mid_start, mid_start + span))
+                    else:
+                        step = float(span - 1) / float(max(mid_count - 1, 1))
+                        for idx in range(mid_count):
+                            candidate = mid_start + int(round(idx * step))
+                            if not mid_indices or candidate != mid_indices[-1]:
+                                mid_indices.append(candidate)
+                mid_df = df_completo.iloc[mid_indices] if mid_indices else df_completo.iloc[0:0]
+                sample_df = pd.concat(
+                    [head_df, mid_df, tail_df],
+                    axis=0,
+                    ignore_index=True,
+                )
+
+            sample_records = tuple(
+                tuple(str(value) for value in row_values)
+                for row_values in sample_df.itertuples(index=False, name=None)
+            )
+            payload = (
+                tuple(df_completo.shape),
+                tuple(str(column) for column in df_completo.columns),
+                tuple(str(dtype) for dtype in df_completo.dtypes),
+                sample_records,
+            )
+            return hashlib.md5(repr(payload).encode("utf-8")).hexdigest()[:16]
+        except Exception as exc:
+            logger.debug(
+                "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
+                exc,
+            )
+            fallback = str(getattr(df_completo, "shape", "unknown"))
+            return hashlib.md5(fallback.encode("utf-8")).hexdigest()[:16]
 
     def run(self):
         try:
+            if self._is_cancelled():
+                return
+            if self.df_completo is None:
+                logger.warning("FilterWorker recebeu df_completo=None; emitindo resultado vazio")
+                self.filter_finished.emit(pd.DataFrame())
+                return
             # Verifica cache primeiro
             cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
             if cached_result is not None:
+                if self._is_cancelled():
+                    return
                 self.filter_finished.emit(cached_result)
                 return
 
@@ -38,11 +121,17 @@ class FilterWorker(QThread):
             if self.search_chunks:
                 frames = []
                 for terms in self.search_chunks:
+                    if self._is_cancelled():
+                        return
                     if terms:
                         parsed = parse_search_terms(terms, default_mode=self.default_mode)
+                        if self._is_cancelled():
+                            return
                         frames.append(filter_dataframe(self.df_completo, parsed))
                     else:
                         frames.append(self.df_completo.copy())
+                    if self._is_cancelled():
+                        return
                 if frames:
                     df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True)
                 else:
@@ -50,9 +139,13 @@ class FilterWorker(QThread):
             else:
                 df_filtrado = self.df_completo.copy()
 
+            if self._is_cancelled():
+                return
             # Armazena no cache
             self._cache.put(self.df_hash, self.search_chunks, self.default_mode, df_filtrado)
 
+            if self._is_cancelled():
+                return
             self.filter_finished.emit(df_filtrado)
         except Exception as e:
             self.error_occurred.emit(f"Erro ao filtrar dados: {e}")

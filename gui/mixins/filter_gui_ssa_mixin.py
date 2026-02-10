@@ -18,10 +18,9 @@ import pandas as pd
 from collections import OrderedDict
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
-    QMessageBox, QHBoxLayout, QVBoxLayout, QLabel,
-    QLineEdit, QPushButton, QComboBox, QCheckBox,
-    QFrame, QGroupBox, QSpacerItem, QSizePolicy,
-    QWidget, QMenu
+    QMessageBox, QHBoxLayout, QLabel,
+    QLineEdit, QPushButton, QSizePolicy,
+    QWidget
 )
 
 # Imports condicionais (podem nao estar disponiveis em modo headless)
@@ -48,10 +47,14 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
 
 # Imports de utils
-from utils.themes import get_theme_roles, normalize_theme
+from utils.themes import get_theme_roles
 
 # Module logger
 logger = logging.getLogger(__name__)
+
+# Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
+GLOBAL_RETIRED_FILTER_WORKERS = []
+MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
 
 class FilterGUISSAMixin:
     """
@@ -60,12 +63,139 @@ class FilterGUISSAMixin:
     Methods extracted from SSAMainWindow to improve code organization.
     """
 
+    def _safe_store_last_filter_state(self, reason: str = "") -> None:
+        """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
+        try:
+            self._store_last_filter_state()
+        except AttributeError as exc:
+            if reason:
+                logger.debug("Historico de filtros indisponivel (%s): %s", reason, exc)
+            else:
+                logger.debug("Historico de filtros indisponivel: %s", exc)
+        except Exception as exc:
+            if reason:
+                logger.warning("Falha ao salvar historico de filtros (%s): %s", reason, exc)
+            else:
+                logger.warning("Falha ao salvar historico de filtros: %s", exc)
+
+    def _iter_search_inputs(self):
+        """Itera por todos os campos de busca das abas sem duplicar referências."""
+        seen = set()
+        try:
+            current = getattr(self, "search_input", None)
+            if current is not None:
+                seen.add(id(current))
+                yield current
+        except Exception as exc:
+            logger.debug("Falha ao obter campo de busca principal: %s", exc)
+
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            widget = ctx.get("search_input")
+            if widget is None:
+                continue
+            widget_id = id(widget)
+            if widget_id in seen:
+                continue
+            seen.add(widget_id)
+            yield widget
+
+    def _set_search_text_across_tabs(self, text: str) -> None:
+        """Aplica o mesmo texto em todos os campos de busca para evitar divergência entre abas."""
+        normalized_text = str(text or "")
+        for widget in self._iter_search_inputs():
+            try:
+                widget.blockSignals(True)
+                widget.setText(normalized_text)
+            finally:
+                try:
+                    widget.blockSignals(False)
+                except Exception as exc:
+                    logger.debug("Falha ao reativar sinais do campo de busca sincronizado: %s", exc)
+
+    def _has_any_active_filters(self) -> bool:
+        has_search = False
+        try:
+            for widget in self._iter_search_inputs():
+                text = widget.text().strip()
+                if text:
+                    has_search = True
+                    break
+        except Exception:
+            has_search = False
+        try:
+            column_filters = getattr(self, "_active_column_filters", {}) or {}
+            has_column_filters = any(str(v).strip() for v in column_filters.values())
+        except Exception:
+            has_column_filters = False
+        try:
+            has_exclude_ste = bool(getattr(self, "_exclude_ste_sca", False))
+        except Exception:
+            has_exclude_ste = False
+        try:
+            has_advanced = bool(getattr(self, "_advanced_filters_active", False))
+        except Exception:
+            has_advanced = False
+        return bool(has_search or has_column_filters or has_exclude_ste or has_advanced)
+
+    def _set_filter_ui_idle(self) -> None:
+        """Garante estado visual de ociosidade após abortar/limpar filtros."""
+        try:
+            progress_bar = getattr(self, "progress_bar", None)
+            if progress_bar is not None:
+                progress_bar.setVisible(False)
+        except Exception as exc:
+            logger.debug("Falha ao ocultar progress bar em estado idle de filtro: %s", exc)
+        for btn_attr in ("load_button", "search_button"):
+            try:
+                button = getattr(self, btn_attr, None)
+                if button is not None:
+                    button.setEnabled(True)
+            except Exception as exc:
+                logger.debug("Falha ao habilitar botao %s em estado idle de filtro: %s", btn_attr, exc)
+
+    def _invalidate_active_filter_request(self, reason: str = "") -> int:
+        """Invalida resultados assíncronos pendentes para evitar sobrescrita tardia."""
+        try:
+            next_request_id = int(getattr(self, "_filter_request_seq", 0) or 0) + 1
+        except Exception:
+            next_request_id = 1
+        self._filter_request_seq = next_request_id
+        self._active_filter_request_id = next_request_id
+        if reason:
+            logger.debug("Filtro ativo invalidado (%s): request_id=%s", reason, next_request_id)
+        return next_request_id
+
+    def _cancel_active_filter_worker(self, reason: str = "", wait_ms: int = 1500) -> None:
+        """Cancela worker anterior antes de iniciar uma nova filtragem assíncrona."""
+        worker = getattr(self, "filter_thread", None)
+        if worker is None:
+            return
+        try:
+            self._cleanup_filter_worker(worker, wait_ms=wait_ms)
+        except Exception as exc:
+            logger.debug("Falha ao cancelar worker ativo (%s): %s", reason or "sem_motivo", exc)
+        finally:
+            if getattr(self, "filter_thread", None) is worker:
+                self.filter_thread = None
+        if reason:
+            logger.debug("Worker anterior cancelado (%s)", reason)
+
     def initiate_filtering(self):
         if self.df_completo.empty:
             QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
             return
 
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("initiate_filtering")
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
+        request_id = self._invalidate_active_filter_request("initiate_filtering")
 
         search_text = self.search_input.text().strip()
         raw_chunks = self._split_search_expression(search_text) if search_text else []
@@ -74,8 +204,7 @@ class FilterGUISSAMixin:
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
 
         if hasattr(self, 'clear_filter_button'):
-            has_terms = bool(chunk_terms_lists or search_text or any(str(v).strip() for v in self._active_column_filters.values()))
-            self.clear_filter_button.setEnabled(has_terms)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
 
         if chunk_terms_lists:
             display_text = self._format_search_display(chunk_terms_lists)
@@ -90,9 +219,8 @@ class FilterGUISSAMixin:
 
         # Descobre default_mode nas configuracoes JSON (OTIMIZACAO: usando cache)
         if not hasattr(self, '_cached_default_mode'):
-            # Inline import para evitar ciclo (SSAMainWindow -> mixin -> gui_ssa). Mantido propositalmente.
-            from gui import gui_ssa  # noqa: WPS433
-            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            from gui.gui_config import GUI_MAIN_PREFERENCES
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
@@ -107,37 +235,63 @@ class FilterGUISSAMixin:
                     df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True) if frames else self.df_completo.copy()
                 else:
                     df_filtrado = self.df_completo.copy()
-                self.on_filter_finished(df_filtrado)
+                self.on_filter_finished(df_filtrado, request_id=request_id)
                 # Em modo síncrono, garanta larguras válidas imediatamente após aplicar o filtro
                 try:
                     self._ensure_nonzero_column_widths()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao reforcar largura minima no filtro sincrono: %s", exc)
                 try:
                     if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
                         self.table_widget.setColumnWidth(1, 80)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao ajustar largura da coluna principal no filtro sincrono: %s", exc)
             except Exception as e:  # noqa: BLE001
-                self.on_filter_error(f"Erro ao filtrar dados: {e}")
+                self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
             finally:
-                self.on_filter_finished_cleanup()
+                self.on_filter_finished_cleanup(None, request_id=request_id)
+            return
+
+        self._cancel_active_filter_worker("initiate_filtering_new_request", wait_ms=0)
+
+        # Fallback defensivo para ambientes sem worker assíncrono disponível
+        if FilterWorker is None:
+            logger.warning("FilterWorker indisponivel; aplicando filtro em modo sincrono")
+            try:
+                if chunk_terms_lists:
+                    frames = []
+                    for terms in chunk_terms_lists:
+                        parsed = parse_search_terms(terms, default_mode=default_mode)
+                        frames.append(filter_dataframe(self.df_completo, parsed))
+                    df_filtrado = pd.concat(frames, axis=0, ignore_index=False).drop_duplicates().reset_index(drop=True) if frames else self.df_completo.copy()
+                else:
+                    df_filtrado = self.df_completo.copy()
+                self.on_filter_finished(df_filtrado, request_id=request_id)
+            except Exception as e:  # noqa: BLE001
+                self.on_filter_error(f"Erro ao filtrar dados: {e}", request_id=request_id)
+            finally:
+                self.on_filter_finished_cleanup(None, request_id=request_id)
             return
 
         # Inicia a thread de filtragem (modo padrão assíncrono)
-        self.filter_thread = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
-        self.filter_thread.filter_finished.connect(self.on_filter_finished)
-        self.filter_thread.error_occurred.connect(self.on_filter_error)
-        self.filter_thread.finished.connect(self.on_filter_finished_cleanup)
+        worker = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
+        self.filter_thread = worker
+        worker.filter_finished.connect(lambda df, rid=request_id: self.on_filter_finished(df, request_id=rid))
+        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_filter_error(msg, request_id=rid))
+        worker.finished.connect(lambda w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid))
         # Garante destruição segura do objeto thread após terminar
         try:
-            self.filter_thread.finished.connect(self.filter_thread.deleteLater)
-        except Exception:
-            pass
-        self.filter_thread.start()
+            worker.finished.connect(worker.deleteLater)
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no worker de filtro atual: %s", exc)
+        worker.start()
 
 
-    def on_filter_finished(self, df_filtrado: pd.DataFrame):
+    def on_filter_finished(self, df_filtrado: pd.DataFrame, request_id: int | None = None):
+        active_id = getattr(self, "_active_filter_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando resultado de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         # Atualiza baseline do resultado da busca global
         self._df_last_search_filtered = df_filtrado.copy()
         # OTIMIZACAO: Sinaliza que larguras precisam ser recalculadas para novo dataset
@@ -152,39 +306,156 @@ class FilterGUISSAMixin:
         else:
             self.status_label.setText(f"Status: {total_filtrado} SSAs encontradas.")
         if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(True)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
         self._apply_search_display()
         # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
         try:
             self._ensure_nonzero_column_widths()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao reforcar largura minima apos filtro: %s", exc)
         # Recalcula e aplica larguras com base no slice atual exibido para garantir consistência imediata
         try:
             if hasattr(self, 'df_para_tabela') and not self.df_para_tabela.empty:
                 self._compute_gui_column_widths(self.df_para_tabela)
                 self._apply_computed_widths_only()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao recalcular/aplicar larguras apos filtro: %s", exc)
         # Garantia específica: coluna 1 (primeira após '#') nunca deve ficar com largura 0
         try:
             if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
                 self.table_widget.setColumnWidth(1, 80)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao aplicar largura de seguranca na coluna principal: %s", exc)
         # Agenda um ajuste seguro pós-loop de eventos
         try:
             QTimer.singleShot(0, lambda: self._set_safe_width_for_col_index(1, 80))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao agendar ajuste deferido de largura da coluna principal: %s", exc)
 
 
-    def on_filter_error(self, error_msg: str):
+    def on_filter_error(self, error_msg: str, request_id: int | None = None):
+        active_id = getattr(self, "_active_filter_request_id", None)
+        if request_id is not None and active_id is not None and request_id != active_id:
+            logger.debug("Ignorando erro de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
+            return
         QMessageBox.critical(self, "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
 
-    def on_filter_finished_cleanup(self):
+    def _retain_filter_worker_until_finished(self, worker) -> None:
+        if worker is None:
+            return
+        retired = getattr(self, "_retired_filter_workers", None)
+        if retired is None:
+            retired = []
+            self._retired_filter_workers = retired
+        if worker in retired:
+            return
+        retired.append(worker)
+        if worker not in GLOBAL_RETIRED_FILTER_WORKERS:
+            GLOBAL_RETIRED_FILTER_WORKERS.append(worker)
+        try:
+            self._prune_retired_filter_workers()
+        except Exception as exc:
+            logger.debug("Falha ao podar lista de workers de filtro aposentados: %s", exc)
+
+        def _release_worker_ref(w=worker):
+            try:
+                if w in self._retired_filter_workers:
+                    self._retired_filter_workers.remove(w)
+            except Exception as exc:
+                logger.debug("Falha ao remover worker da lista local de aposentados: %s", exc)
+            try:
+                if w in GLOBAL_RETIRED_FILTER_WORKERS:
+                    GLOBAL_RETIRED_FILTER_WORKERS.remove(w)
+            except Exception as exc:
+                logger.debug("Falha ao remover worker da lista global de aposentados: %s", exc)
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar lista de workers de filtro apos release: %s", exc)
+
+        try:
+            worker.finished.connect(_release_worker_ref)
+        except Exception as exc:
+            logger.debug("Falha ao conectar release de worker finalizado: %s", exc)
+            _release_worker_ref()
+        try:
+            worker.finished.connect(worker.deleteLater)
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater do worker de filtro: %s", exc)
+
+    def _is_filter_worker_running(self, worker) -> bool:
+        if worker is None:
+            return False
+        try:
+            if hasattr(worker, "isRunning"):
+                return bool(worker.isRunning())
+        except Exception as exc:
+            logger.debug("Falha ao verificar estado do worker de filtro: %s", exc)
+            return False
+        return False
+
+    def _prune_retired_filter_workers(self) -> None:
+        retired_local = list(getattr(self, "_retired_filter_workers", []) or [])
+        if retired_local:
+            self._retired_filter_workers = [w for w in retired_local if self._is_filter_worker_running(w)]
+        else:
+            self._retired_filter_workers = []
+
+        running_global = [w for w in GLOBAL_RETIRED_FILTER_WORKERS if self._is_filter_worker_running(w)]
+        if len(running_global) > MAX_GLOBAL_RETIRED_FILTER_WORKERS:
+            running_global = running_global[-MAX_GLOBAL_RETIRED_FILTER_WORKERS:]
+        GLOBAL_RETIRED_FILTER_WORKERS[:] = running_global
+
+    def _cleanup_filter_worker(self, worker, wait_ms: int = 1500) -> bool:
+        if worker is None:
+            return True
+        try:
+            try:
+                worker.filter_finished.disconnect()
+            except Exception as exc:
+                logger.debug("Falha ao desconectar filter_finished do worker de filtro: %s", exc)
+            try:
+                worker.error_occurred.disconnect()
+            except Exception as exc:
+                logger.debug("Falha ao desconectar error_occurred do worker de filtro: %s", exc)
+            try:
+                worker.finished.disconnect()
+            except Exception as exc:
+                logger.debug("Falha ao desconectar finished do worker de filtro: %s", exc)
+            still_running = False
+            try:
+                if hasattr(worker, "cancel"):
+                    worker.cancel()
+                elif hasattr(worker, "requestInterruption"):
+                    worker.requestInterruption()
+                if hasattr(worker, 'isRunning') and worker.isRunning():
+                    worker.quit()
+                    if int(wait_ms or 0) > 0:
+                        worker.wait(int(wait_ms))
+                still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
+            except Exception as exc:
+                logger.warning("Falha ao solicitar encerramento do worker de filtro: %s", exc)
+                still_running = True
+            if still_running:
+                self._retain_filter_worker_until_finished(worker)
+                return False
+            try:
+                worker.deleteLater()
+            except Exception as exc:
+                logger.debug("Falha ao chamar deleteLater no worker de filtro: %s", exc)
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro apos cleanup: %s", exc)
+        except Exception as exc:
+            logger.warning("Falha durante cleanup do worker de filtro: %s", exc)
+            return False
+        return True
+
+
+    def on_filter_finished_cleanup(self, worker=None, request_id: int | None = None):
         """Limpa estado pós-thread de filtragem com checagens defensivas.
 
         Em execuções headless/CI alguns widgets podem já ter sido destruídos
@@ -192,66 +463,69 @@ class FilterGUISSAMixin:
         abort em chamadas Qt nativas. Garantimos que os atributos existem e que
         o thread já não está em execução antes de manipular.
         """
+        active_id = getattr(self, "_active_filter_request_id", None)
+        is_stale = request_id is not None and active_id is not None and request_id != active_id
+        if is_stale:
+            self._cleanup_filter_worker(worker)
+            if worker is not None and getattr(self, "filter_thread", None) is worker:
+                self.filter_thread = None
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro em cleanup obsoleto: %s", exc)
+            return
         # Debug trace para investigação de estabilidade em testes headless
         try:
             progress_bar = getattr(self, "progress_bar", None)
             if progress_bar is not None:
                 try:
                     progress_bar.setVisible(False)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Falha ao ocultar progress bar em cleanup de filtro: %s", exc)
             for btn_attr in ("load_button", "search_button"):
                 btn = getattr(self, btn_attr, None)
                 if btn is not None:
                     try:
                         btn.setEnabled(True)
-                    except Exception:
-                        pass
-            # Garantir finalização adequada do worker de filtro
-            worker = getattr(self, "filter_thread", None)
-            if worker is not None:
-                try:
-                    # Desconectar sinais para evitar callbacks tardios
-                    try:
-                        worker.filter_finished.disconnect(self.on_filter_finished)
-                    except Exception:
-                        pass
-                    try:
-                        worker.error_occurred.disconnect(self.on_filter_error)
-                    except Exception:
-                        pass
-                    try:
-                        worker.finished.disconnect(self.on_filter_finished_cleanup)
-                    except Exception:
-                        pass
-                    # Solicita término e aguarda brevemente
-                    try:
-                        if hasattr(worker, 'isRunning') and worker.isRunning():
-                            worker.quit()
-                            worker.wait(1500)
-                    except Exception:
-                        pass
-                    # Deleta o objeto de forma segura
-                    try:
-                        worker.deleteLater()
-                    except Exception:
-                        pass
-                finally:
-                    self.filter_thread = None
-        except Exception:
+                    except Exception as exc:
+                        logger.debug("Falha ao habilitar botao %s em cleanup de filtro: %s", btn_attr, exc)
+            target_worker = worker if worker is not None else getattr(self, "filter_thread", None)
+            self._cleanup_filter_worker(target_worker)
+            if target_worker is not None and getattr(self, "filter_thread", None) is target_worker:
+                self.filter_thread = None
+            try:
+                self._prune_retired_filter_workers()
+            except Exception as exc:
+                logger.debug("Falha ao podar workers de filtro em finalizacao: %s", exc)
+        except Exception as exc:
             # Nunca propagar exceção daqui; log mínimo opcional futuro
+            logger.warning("Falha inesperada no cleanup final de filtro: %s", exc)
             self.filter_thread = None
 
 
     def clear_filter(self):
         """Limpa o filtro e mostra todos os dados."""
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("clear_filter")
+        self._invalidate_active_filter_request("clear_filter")
+        self._cancel_active_filter_worker("clear_filter", wait_ms=0)
+        self._set_filter_ui_idle()
         try:
-            self.search_input.blockSignals(True)
-            self.search_input.clear()
-            self.search_input.setText('')
-        finally:
-            self.search_input.blockSignals(False)
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce em clear_filter: %s", exc)
+        try:
+            self._set_search_text_across_tabs("")
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar campos de busca no clear_filter: %s", exc)
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.search_input.setText('')
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception as unblock_exc:
+                    logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
         # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
         # Limpa o cache de filtros ao limpar filtros
@@ -262,18 +536,26 @@ class FilterGUISSAMixin:
         (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
         self._build_column_filters_panel()
+        try:
+            if hasattr(self, 'clear_filter_button'):
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao limpar filtro: %s", exc)
         # Atualizar resumo de filtros
         try:
             self._update_filters_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros em clear_filter: %s", exc)
 
     # --- Ordenaçção por clique no cabeçalho ---
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
         # Chamar start() novamente reinicia o QTimer automaticamente
-        self._debounce_timer.start()
+        try:
+            self._debounce_timer.start()
+        except Exception as exc:
+            logger.debug("Falha ao reiniciar debounce na busca: %s", exc)
     
 
     def clear_filter_cache(self):
@@ -343,8 +625,8 @@ class FilterGUISSAMixin:
             self._active_column_filters[col_name] = ""
             try:
                 self._mark_profile_as_custom()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao marcar perfil como custom ao ativar filtro de coluna %s: %s", col_name, exc)
         self._pending_filter_focus = col_name
         self._build_column_filters_panel()
 
@@ -370,8 +652,8 @@ class FilterGUISSAMixin:
             return
         try:
             self._mark_profile_as_custom()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao marcar perfil como custom ao desativar filtro de coluna %s: %s", col_name, exc)
         self._pending_filter_focus = None
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
@@ -424,8 +706,8 @@ class FilterGUISSAMixin:
             name_lbl.setMinimumWidth(100)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no label do filtro de coluna %s: %s", col, exc)
             # Exibe 'OU' no campo (apenas visual). Internamente continuamos usando vírgulas.
             try:
                 display_text = self._format_column_filter_display_value(str(term), column=col)
@@ -439,58 +721,63 @@ class FilterGUISSAMixin:
             term_box.setMinimumWidth(220)
             try:
                 term_box.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no input do filtro de coluna %s: %s", col, exc)
             try:
                 term_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no input do filtro de coluna %s: %s", col, exc)
             self._apply_filter_widget_theme(name_lbl, term_box)
             # Enter aplica o filtro desta coluna
             try:
                 term_box.returnPressed.connect(lambda c=col, tb=term_box: _mk_apply(c, tb)())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar Enter no filtro de coluna %s: %s", col, exc)
             # Botao Aplicar atualiza o filtro com o texto da caixa
             apply_btn = QPushButton("Aplicar")
             try:
                 apply_btn.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Aplicar da coluna %s: %s", col, exc)
             try:
                 apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Aplicar da coluna %s: %s", col, exc)
             try:
                 apply_btn.setFixedWidth(72)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Aplicar da coluna %s: %s", col, exc)
             def _mk_apply(c=col, tb=term_box):
                 def _inner():
                     # Simplified: use text directly (comma-separated terms = OR logic)
                     new_text = str(tb.text()).strip()
-                    self._store_last_filter_state()
+                    self._safe_store_last_filter_state("apply_column_filter")
                     self._active_column_filters[c] = new_text
                     self._sync_or_group_values(c, new_text)
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
+                    try:
+                        if hasattr(self, "clear_filter_button"):
+                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+                    except Exception as exc:
+                        logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botão para remover a linha da exibição (não altera o valor do filtro)
             clear_btn = QPushButton("Remover")  # Corrigido capitalização
             try:
                 clear_btn.setMinimumHeight(26)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Remover da coluna %s: %s", col, exc)
             try:
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Remover da coluna %s: %s", col, exc)
             try:
                 clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Remover da coluna %s: %s", col, exc)
             
             def _mk_remove_line(c=col):
                 def _inner():
@@ -504,15 +791,15 @@ class FilterGUISSAMixin:
                 return _inner
             try:
                 clear_btn.clicked.connect(_mk_remove_line())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao remover para filtro de coluna %s: %s", col, exc)
             # Oculta o botão para colunas fixas que não devem ser removidas da exibição
             try:
                 fixed_cols = {"descricao_ssa", "setor_executor", "situacao", "localizacao_codigo", "descricao_localizacao"}
                 if col in fixed_cols:
                     clear_btn.setVisible(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao ajustar visibilidade do botao remover da coluna %s: %s", col, exc)
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
@@ -529,8 +816,8 @@ class FilterGUISSAMixin:
                 widget = self._column_filter_inputs[focus_col]
                 widget.setFocus()
                 widget.selectAll()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao focar campo do filtro de coluna %s: %s", focus_col, exc)
         self._pending_filter_focus = None
         self._refresh_column_filter_widgets()
         # Botção limpar todos
@@ -582,9 +869,9 @@ class FilterGUISSAMixin:
             try:
                 if str(self._active_column_filters.get(col_name, '')).strip() == '' and (current_text is None or str(current_text).strip() == ''):
                     return
-            except Exception:
-                pass
-            self._store_last_filter_state()
+            except Exception as exc:
+                logger.debug("Falha ao verificar estado atual do filtro de coluna %s antes de limpar: %s", col_name, exc)
+            self._safe_store_last_filter_state("clear_single_column_filter")
             if col_name in self._column_to_or_group:
                 self._sync_or_group_values(col_name, "")
             elif col_name in self._active_column_filters:
@@ -592,11 +879,16 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
+            try:
+                if hasattr(self, "clear_filter_button"):
+                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
+            except Exception as exc:
+                logger.debug("Falha ao atualizar botao limpar apos limpar filtro de coluna %s: %s", col_name, exc)
 
 
     def _clear_all_column_filters(self):
         if self._active_column_filters:
-            self._store_last_filter_state()
+            self._safe_store_last_filter_state("clear_all_column_filters")
             for group in getattr(self, '_column_or_groups', []):
                 group['values'] = []
                 for col in group.get('columns', []):
@@ -614,20 +906,83 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
+            try:
+                if hasattr(self, "clear_filter_button"):
+                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
+            except Exception as exc:
+                logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
-        self._store_last_filter_state()
-        self._exclude_ste_sca = bool(checked)
+        self._safe_store_last_filter_state("toggle_exclude_ste")
+        checked_bool = bool(checked)
+        self._exclude_ste_sca = checked_bool
+        try:
+            tab_contexts = getattr(self, "_tab_contexts", None)
+            if isinstance(tab_contexts, list):
+                for ctx in tab_contexts:
+                    if not isinstance(ctx, dict):
+                        continue
+                    checkbox = ctx.get("exclude_ste_checkbox")
+                    if checkbox is None:
+                        continue
+                    try:
+                        if checkbox.isChecked() != checked_bool:
+                            checkbox.blockSignals(True)
+                            checkbox.setChecked(checked_bool)
+                    finally:
+                        try:
+                            checkbox.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais de checkbox exclude_ste por aba: %s", exc)
+            elif hasattr(self, "exclude_ste_checkbox") and self.exclude_ste_checkbox is not None:
+                checkbox = self.exclude_ste_checkbox
+                try:
+                    if checkbox.isChecked() != checked_bool:
+                        checkbox.blockSignals(True)
+                        checkbox.setChecked(checked_bool)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais de checkbox exclude_ste principal: %s", exc)
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar toggle de excluir STE/SCA entre abas: %s", exc)
         self._mark_profile_as_custom()
         self._refresh_after_filter_change()
 
 
     def _clear_all_filters_global(self):
         """Limpa todos os filtros: busca geral + filtros de coluna"""
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("clear_all_filters_global")
+        self._invalidate_active_filter_request("clear_all_filters_global")
+        self._cancel_active_filter_worker("clear_all_filters_global", wait_ms=0)
+        self._set_filter_ui_idle()
         # Limpar filtro de busca geral
-        self.search_input.clear()
+        try:
+            self._debounce_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce principal em clear_all_filters_global: %s", exc)
+        try:
+            sector_timer = getattr(self, "_sector_debounce_timer", None)
+            if sector_timer is not None:
+                sector_timer.stop()
+        except Exception as exc:
+            logger.debug("Falha ao parar debounce de setor em clear_all_filters_global: %s", exc)
+        try:
+            self._set_search_text_across_tabs("")
+        except Exception as exc:
+            logger.warning("Falha ao limpar busca em todas as abas em clear_all_filters_global: %s", exc)
+            try:
+                self.search_input.blockSignals(True)
+                self.search_input.clear()
+                self.search_input.setText('')
+            finally:
+                try:
+                    self.search_input.blockSignals(False)
+                except Exception as unblock_exc:
+                    logger.debug("Falha ao reativar sinais do campo principal em clear_all_filters_global: %s", unblock_exc)
+        self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
         # Limpar todos os filtros de coluna
@@ -635,6 +990,34 @@ class FilterGUISSAMixin:
             self._active_column_filters.clear()
             for k in ("situacao", "setor_executor", "descricao_ssa"):
                 self._active_column_filters[k] = ""
+
+        # Limpar filtros auxiliares/avancados
+        self._exclude_ste_sca = False
+        self._advanced_filters = {}
+        self._advanced_filters_active = False
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if isinstance(tab_contexts, list):
+            for ctx in tab_contexts:
+                if not isinstance(ctx, dict):
+                    continue
+                checkbox = ctx.get("exclude_ste_checkbox")
+                if checkbox is None:
+                    continue
+                try:
+                    checkbox.blockSignals(True)
+                    checkbox.setChecked(False)
+                except Exception as exc:
+                    logger.debug("Falha ao limpar checkbox exclude_ste em contexto de aba: %s", exc)
+                finally:
+                    try:
+                        checkbox.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais de checkbox exclude_ste em clear_all_filters_global: %s", exc)
+        try:
+            if hasattr(self, "_sync_advanced_filter_ui"):
+                self._sync_advanced_filter_ui()
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar UI de filtros avancados em clear_all_filters_global: %s", exc)
 
         # Resetar para dataset completo
         self.df_exibido = self.df_completo.copy()
@@ -652,7 +1035,7 @@ class FilterGUISSAMixin:
         # Atualizar interface
         self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas. Pronto para filtrar.")
         if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(False)
+            self.clear_filter_button.setEnabled(self._has_any_active_filters())
 
         # Atualizar resumo de filtros
         self._update_filters_summary()
@@ -876,8 +1259,8 @@ class FilterGUISSAMixin:
                 if isinstance(data, dict):
                     self._filter_alias_map = data
                     return self._filter_alias_map
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao carregar aliases de filtro em arquivo local: %s", exc)
         self._filter_alias_map = {}
         return self._filter_alias_map
 
@@ -888,15 +1271,15 @@ class FilterGUISSAMixin:
         try:
             if not self.col_filter_indicator.isVisible():
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao consultar visibilidade do indicador de filtro de coluna: %s", exc)
         # Ativo quando existe ao menos um termo nao vazio em filtros por coluna
         active = any((str(v).strip() != "") for _, v in (self._active_column_filters or {}).items())
         txt = "Filtros por coluna: Ativo" if active else "Filtros por coluna: Nao ativo"
         try:
             self.col_filter_indicator.setText(txt)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar texto do indicador de filtro de coluna: %s", exc)
 
 
     def show_filter_help(self):
@@ -1018,33 +1401,34 @@ class FilterGUISSAMixin:
         if hasattr(self, "_apply_advanced_filters"):
             try:
                 filtered = self._apply_advanced_filters(filtered)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar filtros avancados no refresh de filtros: %s", exc)
         filtered = self._apply_column_filters(filtered)
         if getattr(self, '_exclude_ste_sca', False) and not filtered.empty and 'situacao' in filtered.columns:
             try:
                 mask = ~filtered['situacao'].astype(str).str.upper().isin({'STE', 'SCA'})
                 filtered = filtered[mask]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao aplicar exclusao STE/SCA no refresh de filtros: %s", exc)
         # CORRECAO 2026-01-08: Ordenar por numero_ssa decrescente apos filtro
         if not filtered.empty and 'numero_ssa' in filtered.columns:
             try:
                 filtered = filtered.sort_values('numero_ssa', ascending=False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao ordenar numero_ssa no refresh de filtros: %s", exc)
         self.df_exibido = filtered
         self.paginator.set_dataframe(self.df_exibido)
         try:
             current = max(1, min(self.paginator.current_page, self.paginator.total_pages))
             self.display_current_page(current)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao renderizar pagina atual diretamente no refresh; usando fallback: %s", exc)
             (lambda cp=max(1, min(getattr(self.paginator, 'current_page', 1), getattr(self.paginator, 'total_pages', 1))): self.display_current_page(cp))()
         self._update_col_filter_indicator()
         try:
             self._update_filters_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
 
 
     def _snapshot_filter_state(self) -> dict:
@@ -1087,7 +1471,8 @@ class FilterGUISSAMixin:
             return
         try:
             self._last_filter_state = self._snapshot_filter_state()
-        except Exception:
+        except Exception as exc:
+            logger.warning("Falha ao gerar snapshot de estado de filtros: %s", exc)
             self._last_filter_state = None
         self._update_undo_button_state()
 
@@ -1096,33 +1481,56 @@ class FilterGUISSAMixin:
         state = getattr(self, "_last_filter_state", None)
         if not state:
             return
+        self._invalidate_active_filter_request("restore_last_filter_state")
+        self._set_filter_ui_idle()
         self._restoring_filter_state = True
         try:
             self._last_filter_state = None
             try:
-                self.search_input.blockSignals(True)
-                self.search_input.setText(state.get("search_text", "") or "")
-            finally:
+                self._set_search_text_across_tabs(state.get("search_text", "") or "")
+            except Exception as exc:
+                logger.warning("Falha ao restaurar texto de busca entre abas: %s", exc)
                 try:
-                    self.search_input.blockSignals(False)
-                except Exception:
-                    pass
+                    self.search_input.blockSignals(True)
+                    self.search_input.setText(state.get("search_text", "") or "")
+                finally:
+                    try:
+                        self.search_input.blockSignals(False)
+                    except Exception as unblock_exc:
+                        logger.debug("Falha ao reativar sinais do campo de busca ao restaurar estado: %s", unblock_exc)
             self._pending_search_display = state.get("pending_search_display")
             self._active_column_filters = OrderedDict(state.get("active_column_filters") or {})
             self._reset_or_groups()
             for group in state.get("column_or_groups") or []:
                 self._register_or_group(list(group.get("columns") or []), list(group.get("values") or []))
             self._exclude_ste_sca = bool(state.get("exclude_ste_sca"))
-            try:
-                self.exclude_ste_checkbox.blockSignals(True)
-                self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
-            except Exception:
-                pass
-            finally:
+            tab_contexts = getattr(self, "_tab_contexts", None)
+            if isinstance(tab_contexts, list):
+                for ctx in tab_contexts:
+                    checkbox = ctx.get("exclude_ste_checkbox") if isinstance(ctx, dict) else None
+                    if checkbox is None:
+                        continue
+                    try:
+                        checkbox.blockSignals(True)
+                        checkbox.setChecked(self._exclude_ste_sca)
+                    except Exception as exc:
+                        logger.debug("Falha ao restaurar checkbox exclude_ste em aba: %s", exc)
+                    finally:
+                        try:
+                            checkbox.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais de checkbox exclude_ste em aba: %s", exc)
+            else:
                 try:
-                    self.exclude_ste_checkbox.blockSignals(False)
-                except Exception:
-                    pass
+                    self.exclude_ste_checkbox.blockSignals(True)
+                    self.exclude_ste_checkbox.setChecked(self._exclude_ste_sca)
+                except Exception as exc:
+                    logger.debug("Falha ao restaurar checkbox exclude_ste principal: %s", exc)
+                finally:
+                    try:
+                        self.exclude_ste_checkbox.blockSignals(False)
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais do checkbox exclude_ste principal: %s", exc)
             self._advanced_filters = state.get("advanced_filters") or {}
             self._advanced_filters_active = bool(state.get("advanced_filters_active"))
             df_last = state.get("df_last_search_filtered")
@@ -1136,23 +1544,22 @@ class FilterGUISSAMixin:
             self._dedicated_or_text = str(state.get("dedicated_or_text") or "")
             try:
                 self._sync_advanced_filter_ui()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Falha ao sincronizar UI de filtros avancados no restore: %s", exc)
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
             try:
                 self.update_filter_tags()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar tags de filtros no restore: %s", exc)
             try:
                 self._update_filters_summary()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
             try:
-                has_terms = bool(self.search_input.text().strip() or any(str(v).strip() for v in self._active_column_filters.values()))
-                self.clear_filter_button.setEnabled(has_terms)
-            except Exception:
-                pass
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
+            except Exception as exc:
+                logger.debug("Falha ao atualizar estado do botao limpar no restore: %s", exc)
             selector = getattr(self, 'profile_selector', None)
             if selector is not None:
                 idx = selector.findData(self.current_filter_profile) if self.current_filter_profile else selector.findData(None)
@@ -1173,10 +1580,8 @@ class FilterGUISSAMixin:
             return
         try:
             btn.setEnabled(bool(getattr(self, "_last_filter_state", None)))
-        except Exception:
-            pass
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao de desfazer filtros: %s", exc)
 
 
     def _apply_search_display(self):
@@ -1418,7 +1823,7 @@ class FilterGUISSAMixin:
         selector = getattr(self, 'profile_selector', None)
         if selector is None:
             return
-        self._store_last_filter_state()
+        self._safe_store_last_filter_state("on_profile_changed")
         profile_name = selector.itemData(index)
         if profile_name:
             self._apply_filter_profile(profile_name, update_selector=False)
@@ -1436,8 +1841,8 @@ class FilterGUISSAMixin:
 
         # Determina modo padrao a partir das preferencias
         if not hasattr(self, '_cached_default_mode'):
-            from gui import gui_ssa
-            gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.get("gui_settings", {})
+            from gui.gui_config import GUI_MAIN_PREFERENCES
+            gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
@@ -1520,8 +1925,8 @@ class FilterGUISSAMixin:
     def filter_data(self):  # chama o fluxo novo de filtragem
         try:
             self.initiate_filtering()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Falha inesperada ao iniciar filtro via atalho filter_data: %s", exc)
 
 
     def load_persistent_filters(self):

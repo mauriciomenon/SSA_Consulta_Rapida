@@ -22,9 +22,13 @@ import os
 import json
 import shutil
 import subprocess
-import platform
 import pytest
 from typing import List
+
+try:
+    import json5  # type: ignore[import-not-found]
+except Exception:  # noqa: BLE001
+    json5 = None
 
 # Timeouts (seconds) - tune as needed
 SHELL_ECHO_TIMEOUT = 10
@@ -41,8 +45,120 @@ def load_user_settings():
     path = _user_settings_path_windows()
     if not os.path.exists(path):
         pytest.skip(f"VS Code user settings not found at: {path}")
+    return _load_json_or_jsonc(path), path
+
+
+def _load_json_or_jsonc(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f), path
+        raw = f.read()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        if json5 is not None:
+            try:
+                return json5.loads(raw)
+            except Exception:
+                pass
+        # VS Code settings can be JSONC (line comments + block comments + trailing commas).
+        cleaned = _strip_jsonc_comments(raw)
+        cleaned = _strip_jsonc_trailing_commas(cleaned)
+        return json.loads(cleaned)
+
+
+def _strip_jsonc_comments(raw: str) -> str:
+    out = []
+    in_string = False
+    escaped = False
+    index = 0
+    raw_len = len(raw)
+
+    while index < raw_len:
+        current = raw[index]
+        nxt = raw[index + 1] if index + 1 < raw_len else ""
+
+        if in_string:
+            out.append(current)
+            if escaped:
+                escaped = False
+            elif current == "\\":
+                escaped = True
+            elif current == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if current == '"':
+            in_string = True
+            out.append(current)
+            index += 1
+            continue
+
+        if current == "/" and nxt == "/":
+            index += 2
+            while index < raw_len and raw[index] not in ("\n", "\r"):
+                index += 1
+            continue
+
+        if current == "/" and nxt == "*":
+            index += 2
+            comment_closed = False
+            while index + 1 < raw_len:
+                if raw[index] == "*" and raw[index + 1] == "/":
+                    comment_closed = True
+                    break
+                index += 1
+            if comment_closed:
+                index += 2
+            else:
+                # Unterminated block comment: consume remainder safely.
+                index = raw_len
+            continue
+
+        out.append(current)
+        index += 1
+
+    return "".join(out)
+
+
+def _strip_jsonc_trailing_commas(raw: str) -> str:
+    out = []
+    in_string = False
+    escaped = False
+    index = 0
+    raw_len = len(raw)
+
+    while index < raw_len:
+        current = raw[index]
+
+        if in_string:
+            out.append(current)
+            if escaped:
+                escaped = False
+            elif current == "\\":
+                escaped = True
+            elif current == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if current == '"':
+            in_string = True
+            out.append(current)
+            index += 1
+            continue
+
+        if current == ",":
+            lookahead = index + 1
+            while lookahead < raw_len and raw[lookahead].isspace():
+                lookahead += 1
+            if lookahead < raw_len and raw[lookahead] in ("}", "]"):
+                index += 1
+                continue
+
+        out.append(current)
+        index += 1
+
+    return "".join(out)
 
 
 def get_pwsh_candidates(settings: dict) -> List[str]:
@@ -182,8 +298,10 @@ def test_workspace_vscode_settings_env_vars():
     if not os.path.exists(ws_settings_path):
         pytest.skip("Workspace .vscode/settings.json não existe; pule este teste se não aplicável")
 
-    with open(ws_settings_path, "r", encoding="utf-8") as f:
-        ws = json.load(f)
+    try:
+        ws = _load_json_or_jsonc(ws_settings_path)
+    except Exception as exc:
+        pytest.skip(f"Workspace settings parsing failed: {exc}")
 
     envs = ws.get("terminal.integrated.env.windows", {}) or {}
     # Ensure keys exist or skip

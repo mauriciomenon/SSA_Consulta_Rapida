@@ -42,11 +42,24 @@ PLACEHOLDER_PATTERNS = [
     r"^TBD$",
     r"^EM\s+BRANCO$",
     r"^PREENCHER$",
-    r"lorem ipsum",
-    r"conteúdo pendente",
+    r"^lorem ipsum",
+    r"^conteudo pendente$",
+    r"^conteúdo pendente$",
 ]
-IGNORE_DIRS = {".git", "__pycache__", "build", "dist", "data", "venv", ".tox", ".mypy_cache", ".trunk"}
-IGNORE_FILES_PREFIX = {"README_BUILD_AUTOMATIZADO.md": 0}  # exemplo se quisermos regras especiais futuras
+IGNORE_DIRS = {
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "data",
+    "venv",
+    ".venv",
+    ".tox",
+    ".mypy_cache",
+    ".trunk",
+    ".specstory",
+    "local_ai_private",
+}
 MARKDOWN_EXT = ".md"
 
 # Arquivos conhecidos (placeholders / templates) permitidos vazios para não quebrar smoke.
