@@ -21,9 +21,8 @@ class TestGUIMainConfiguration:
 
     def test_gui_main_preferences_contract_available_without_file(self):
         """Contrato de configuracao deve existir mesmo sem arquivo local versionado."""
-        with patch("os.path.exists", return_value=False):
-            from gui.gui_config import load_gui_main_preferences
-
+        from gui.gui_config import load_gui_main_preferences
+        with patch("gui.gui_config.os.path.exists", return_value=False):
             config = load_gui_main_preferences()
 
         assert "display_columns" in config
@@ -50,9 +49,8 @@ class TestGUIMainConfiguration:
 
     def test_load_gui_main_preferences_fallback(self):
         """Testa fallback quando arquivo nao existe."""
-        with patch("os.path.exists", return_value=False):
-            from gui.gui_config import load_gui_main_preferences
-
+        from gui.gui_config import load_gui_main_preferences
+        with patch("gui.gui_config.os.path.exists", return_value=False):
             config = load_gui_main_preferences()
             assert "display_columns" in config
             assert len(config["display_columns"]) > 0
@@ -62,10 +60,9 @@ class TestGUIMainConfiguration:
 
     def test_load_gui_main_preferences_invalid_json(self):
         """Testa comportamento com JSON invalido."""
-        with patch("builtins.open", mock_open(read_data="invalid json")):
-            with patch("os.path.exists", return_value=True):
-                from gui.gui_config import load_gui_main_preferences
-
+        from gui.gui_config import load_gui_main_preferences
+        with patch("gui.gui_config.open", mock_open(read_data="invalid json")):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
                 assert "display_columns" in config
                 assert config["version"] == "1.0.0"
@@ -79,10 +76,9 @@ class TestGUIMainConfiguration:
             "gui_settings": {"page_size": 25},
         }
 
-        with patch("builtins.open", mock_open(read_data=json.dumps(partial_config))):
-            with patch("os.path.exists", return_value=True):
-                from gui.gui_config import REQUIRED_DISPLAY_COLUMNS, load_gui_main_preferences
-
+        from gui.gui_config import REQUIRED_DISPLAY_COLUMNS, load_gui_main_preferences
+        with patch("gui.gui_config.open", mock_open(read_data=json.dumps(partial_config))):
+            with patch("gui.gui_config.os.path.exists", return_value=True):
                 config = load_gui_main_preferences()
 
         for required in REQUIRED_DISPLAY_COLUMNS:

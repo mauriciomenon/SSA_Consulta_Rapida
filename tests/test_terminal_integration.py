@@ -20,9 +20,9 @@ Notas:
 
 import os
 import json
+import re
 import shutil
 import subprocess
-import platform
 import pytest
 from typing import List
 
@@ -41,8 +41,67 @@ def load_user_settings():
     path = _user_settings_path_windows()
     if not os.path.exists(path):
         pytest.skip(f"VS Code user settings not found at: {path}")
+    return _load_json_or_jsonc(path), path
+
+
+def _load_json_or_jsonc(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f), path
+        raw = f.read()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # VS Code settings can be JSONC (line comments + block comments + trailing commas).
+        cleaned = _strip_jsonc_comments(raw)
+        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+        return json.loads(cleaned)
+
+
+def _strip_jsonc_comments(raw: str) -> str:
+    out = []
+    in_string = False
+    escaped = False
+    index = 0
+    raw_len = len(raw)
+
+    while index < raw_len:
+        current = raw[index]
+        nxt = raw[index + 1] if index + 1 < raw_len else ""
+
+        if in_string:
+            out.append(current)
+            if escaped:
+                escaped = False
+            elif current == "\\":
+                escaped = True
+            elif current == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if current == '"':
+            in_string = True
+            out.append(current)
+            index += 1
+            continue
+
+        if current == "/" and nxt == "/":
+            index += 2
+            while index < raw_len and raw[index] not in ("\n", "\r"):
+                index += 1
+            continue
+
+        if current == "/" and nxt == "*":
+            index += 2
+            while index + 1 < raw_len and not (raw[index] == "*" and raw[index + 1] == "/"):
+                index += 1
+            if index + 1 < raw_len:
+                index += 2
+            continue
+
+        out.append(current)
+        index += 1
+
+    return "".join(out)
 
 
 def get_pwsh_candidates(settings: dict) -> List[str]:
@@ -182,8 +241,7 @@ def test_workspace_vscode_settings_env_vars():
     if not os.path.exists(ws_settings_path):
         pytest.skip("Workspace .vscode/settings.json não existe; pule este teste se não aplicável")
 
-    with open(ws_settings_path, "r", encoding="utf-8") as f:
-        ws = json.load(f)
+    ws = _load_json_or_jsonc(ws_settings_path)
 
     envs = ws.get("terminal.integrated.env.windows", {}) or {}
     # Ensure keys exist or skip
