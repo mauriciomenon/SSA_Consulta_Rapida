@@ -69,7 +69,7 @@ def _normalize_highlight_terms(terms: list[str]) -> list[str]:
 
 
 def highlight_text(
-    text: str,
+    text: str | None,
     terms: list[str],
     bg_color: str = "yellow",
     font_weight: str = "bold",
