@@ -85,6 +85,10 @@ class FilterWorker(QThread):
         try:
             if self._is_cancelled():
                 return
+            if self.df_completo is None:
+                logger.warning("FilterWorker recebeu df_completo=None; emitindo resultado vazio")
+                self.filter_finished.emit(pd.DataFrame())
+                return
             # Verifica cache primeiro
             cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
             if cached_result is not None:

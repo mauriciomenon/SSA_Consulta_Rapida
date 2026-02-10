@@ -96,7 +96,20 @@ def main():
                 try:
                     proc.wait(timeout=5)
                 except Exception:
-                    pass
+                    try:
+                        if os.name != 'nt':
+                            try:
+                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                            except Exception:
+                                proc.kill()
+                        else:
+                            proc.kill()
+                    except Exception:
+                        pass
+                    try:
+                        proc.wait(timeout=5)
+                    except Exception:
+                        pass
 
                 logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")

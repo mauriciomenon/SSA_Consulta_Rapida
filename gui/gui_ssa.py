@@ -4405,6 +4405,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
         self.df_completo = df.copy()
+        try:
+            self.clear_filter_cache()
+        except Exception as exc:
+            logger.debug("Falha ao limpar cache de filtros apos recarga de dados: %s", exc)
         self._adv_options_dirty = True
         self._adv_values_cache = None
         self._responsavel_materialized_prefixes = set()
