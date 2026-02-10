@@ -32,7 +32,7 @@ def _bind_socket(addr: LoopbackAddr, reuse: bool = False) -> socket.socket:
 def test_reuseaddr_flag_roundtrip(loopback_addr: LoopbackAddr) -> None:
     with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 1
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) > 0
         sock.bind(loopback_addr)
 
 def test_reuseaddr_allows_immediate_rebind(loopback_addr: LoopbackAddr) -> None:

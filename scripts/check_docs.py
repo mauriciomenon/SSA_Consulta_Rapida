@@ -45,7 +45,20 @@ PLACEHOLDER_PATTERNS = [
     r"lorem ipsum",
     r"conteúdo pendente",
 ]
-IGNORE_DIRS = {".git", "__pycache__", "build", "dist", "data", "venv", ".tox", ".mypy_cache", ".trunk"}
+IGNORE_DIRS = {
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "data",
+    "venv",
+    ".venv",
+    ".tox",
+    ".mypy_cache",
+    ".trunk",
+    ".specstory",
+    "local_ai_private",
+}
 IGNORE_FILES_PREFIX = {"README_BUILD_AUTOMATIZADO.md": 0}  # exemplo se quisermos regras especiais futuras
 MARKDOWN_EXT = ".md"
 
