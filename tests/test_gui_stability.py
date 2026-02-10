@@ -150,10 +150,10 @@ class TestGUIStability(unittest.TestCase):
         print(f"OK Dataset de {len(large_data)} registros carregado em {load_time:.3f}s")
 
     def test_colunas_obrigatorias(self):
-        """Verifica se as colunas obrigatórias estão sendo exibidas."""
-        print("\nTEST Testando exibição de colunas obrigatórias...")
+        """Verifica se as colunas obrigatorias estao sendo exibidas."""
+        print("\nTEST Testando exibicao de colunas obrigatorias...")
 
-        # Força exibição dos dados
+        # Forca exibicao dos dados
         self.window.display_data(self.window.df_exibido)
         QApplication.processEvents()
 
@@ -161,14 +161,14 @@ class TestGUIStability(unittest.TestCase):
         self.assertGreater(self.window.table_widget.columnCount(), 0, "Nenhuma coluna foi exibida")
         self.assertGreater(self.window.table_widget.rowCount(), 0, "Nenhuma linha foi exibida")
 
-        # Verifica colunas específicas mencionadas pelo usuário
+        # Verifica colunas especificas mencionadas pelo usuario
         headers = [self.window.table_widget.horizontalHeaderItem(i).text()
                   for i in range(self.window.table_widget.columnCount())]
 
-        # Colunas obrigatórias ajustadas ao conjunto exibido atualmente
-        colunas_obrigatorias = ['Número SSA', 'Cadastro', 'Descrição Execução']
+        # Contrato atual da GUI: labels em ASCII, sem acentos.
+        colunas_obrigatorias = ["Numero SSA", "Cadastro", "Descricao Execucao"]
         for coluna in colunas_obrigatorias:
-            self.assertIn(coluna, headers, f"Coluna obrigatória '{coluna}' não encontrada. Headers: {headers}")
+            self.assertIn(coluna, headers, f"Coluna obrigatoria '{coluna}' nao encontrada. Headers: {headers}")
             print(f"  OK Coluna '{coluna}' presente")
 
     def test_menu_contexto(self):
