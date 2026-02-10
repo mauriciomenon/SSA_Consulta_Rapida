@@ -56,24 +56,22 @@ def main():
     # If requested, list discovered pwsh candidates and exit
     if getattr(args, "list_candidates", False):
         try:
-            import pwsh_discovery
             c = pwsh_discovery.find_pwsh_candidates(os.getcwd())
             for p in c:
                 print(p)
-        except Exception:
-            print("pwsh_discovery not available or failed")
+        except Exception as exc:
+            print(f"pwsh_discovery not available or failed: {exc}")
         return 0
 
     # If verbose, print discovered candidates before proceeding
     if getattr(args, "verbose", False):
         try:
-            import pwsh_discovery
             c = pwsh_discovery.find_pwsh_candidates(os.getcwd())
             print("Detected pwsh/powershell candidates:")
             for p in c:
                 print(" -", p)
-        except Exception:
-            print("pwsh_discovery not available or failed to list candidates")
+        except Exception as exc:
+            print(f"pwsh_discovery not available or failed to list candidates: {exc}")
 
     # Dry-run: print header and command, write header to log, but do not execute
     if getattr(args, "dry_run", False):
@@ -88,6 +86,7 @@ def main():
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
         logf.flush()
+        proc = None
         try:
             popen_kwargs = {}
             if os.name != "nt":
@@ -161,7 +160,30 @@ def main():
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
         except BaseException as e:
-            logf.write(f"\n=== ERROR: {e} ===\n")
+            try:
+                logf.write(f"\n=== ERROR: {e} ===\n")
+                logf.flush()
+            except Exception:
+                print(f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr)
+            if proc is not None and proc.poll() is None:
+                try:
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
             raise
 
 

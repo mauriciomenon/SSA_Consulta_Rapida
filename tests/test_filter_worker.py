@@ -46,6 +46,17 @@ class TestFilterWorker:
 
         assert hash1 != hash2
 
+    def test_build_df_hash_changes_when_only_middle_rows_change(self):
+        base_rows = [{"texto": f"valor_{idx}", "situacao": "APV"} for idx in range(80)]
+        df1 = pd.DataFrame(base_rows)
+        df2 = df1.copy()
+        df2.loc[35, "texto"] = "valor_meio_alterado"
+
+        hash1 = FilterWorker._build_df_hash(df1)
+        hash2 = FilterWorker._build_df_hash(df2)
+
+        assert hash1 != hash2
+
     def test_cache_does_not_reuse_result_for_different_df_same_shape(self):
         df1 = pd.DataFrame({"texto": ["alfa", "omega"]})
         df2 = pd.DataFrame({"texto": ["beta", "gamma"]})

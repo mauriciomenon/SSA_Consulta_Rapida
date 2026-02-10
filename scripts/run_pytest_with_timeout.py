@@ -45,6 +45,7 @@ def main():
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
         logf.flush()
+        proc = None
         try:
             popen_kwargs = {}
             if os.name != 'nt':
@@ -115,7 +116,30 @@ def main():
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
         except BaseException as e:
-            logf.write(f"\n=== ERROR: {e} ===\n")
+            try:
+                logf.write(f"\n=== ERROR: {e} ===\n")
+                logf.flush()
+            except Exception:
+                print(f"[ERR] failed to write wrapper error to log: {e}", file=sys.stderr)
+            if proc is not None and proc.poll() is None:
+                try:
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
             raise
 
 
