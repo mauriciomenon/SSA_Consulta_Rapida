@@ -102,10 +102,17 @@ def _strip_jsonc_comments(raw: str) -> str:
 
         if current == "/" and nxt == "*":
             index += 2
-            while index + 1 < raw_len and not (raw[index] == "*" and raw[index + 1] == "/"):
+            comment_closed = False
+            while index + 1 < raw_len:
+                if raw[index] == "*" and raw[index + 1] == "/":
+                    comment_closed = True
+                    break
                 index += 1
-            if index + 1 < raw_len:
+            if comment_closed:
                 index += 2
+            else:
+                # Unterminated block comment: consume remainder safely.
+                index = raw_len
             continue
 
         out.append(current)

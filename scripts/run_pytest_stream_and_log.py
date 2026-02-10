@@ -123,7 +123,7 @@ def main():
                     f.flush()
 
                     if fallback_to_tee:
-                        print("Fallback: to stream+log use (PowerShell):\npython -m pytest tests/test_terminal_integration.py 2>&1 | Tee-Object -FilePath local_ai_private\pytest_terminal_integration.log")
+                        print("Fallback: to stream+log use (PowerShell):\npython -m pytest tests/test_terminal_integration.py 2>&1 | Tee-Object -FilePath local_ai_private\\pytest_terminal_integration.log")
 
                     return 124
 
@@ -133,7 +133,7 @@ def main():
             print(footer)
             return ret
 
-        except Exception as exc:
+        except BaseException as exc:
             err_msg = f"[ERR] unexpected failure while streaming pytest output: {exc}"
             print(err_msg, file=sys.stderr, flush=True)
             f.write(err_msg + "\n")

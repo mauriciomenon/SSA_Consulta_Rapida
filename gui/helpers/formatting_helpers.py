@@ -88,10 +88,13 @@ def highlight_text(
     Returns:
         HTML string with highlighted terms
     """
-    if not text or not terms:
-        return text
+    if text is None:
+        return ""
 
     escaped_text = html.escape(str(text))
+    if not terms:
+        return escaped_text
+
     normalized_terms = _normalize_highlight_terms(terms)
     if not normalized_terms:
         return escaped_text

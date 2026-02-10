@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from unittest.mock import patch
 
 import pandas as pd
@@ -30,7 +31,7 @@ def test_normalize_order_by_rejects_non_whitelisted_column():
 
 def test_resolve_target_table_falls_back_to_ssa_table(tmp_path):
     db_path = tmp_path / "test.db"
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
         conn.commit()
 

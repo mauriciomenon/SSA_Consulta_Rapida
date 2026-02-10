@@ -10,8 +10,8 @@ def test_highlight_text_handles_overlapping_terms_without_nested_spans():
 
 def test_highlight_text_matches_html_special_char_terms():
     result = highlight_text("<tag> alpha & beta", ["<tag>", "&"])
-    assert "&lt;tag&gt;" in result
-    assert "&amp;" in result
+    assert ">&lt;tag&gt;</span>" in result
+    assert ">&amp;</span>" in result
     assert result.count("<span") == 2
 
 
