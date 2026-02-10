@@ -13,9 +13,13 @@ Note: Do not disable SSL verification in production. Pass verify_ssl=True when p
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Dict, Any, Optional, Tuple
+from typing import Iterable, List, Dict, Any, Optional, TYPE_CHECKING
 import time
 import json
+
+if TYPE_CHECKING:
+    import aiohttp
+    import threading
 
 BASE_PENDING = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange"
 BASE_DETAIL = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber"

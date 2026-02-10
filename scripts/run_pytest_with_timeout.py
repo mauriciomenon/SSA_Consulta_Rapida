@@ -10,6 +10,8 @@ This script writes a combined stdout/stderr log to `local_ai_private/pytest_term
 
 import argparse
 import os
+import shutil
+import signal
 import subprocess
 import sys
 from datetime import datetime

@@ -15,7 +15,6 @@ import sys
 import os
 import traceback
 from datetime import datetime
-import pandas as pd
 
 # Adiciona o diretorio raiz ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -146,6 +145,10 @@ def test_import_cli():
 
         assert retcode == 0, f"Importacao falhou com codigo {retcode}"
         print("\n[SUCESSO] Importacao via CLI concluida")
+    except Exception as e:
+        print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")
+        traceback.print_exc()
+        assert False, f"Falha no teste de importacao via CLI: {e}"
 
 
 def analyze_database():
