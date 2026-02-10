@@ -7,6 +7,11 @@ Usage:
 
 This shows output live (for interactive debugging) and also saves it to
 `local_ai_private/pytest_terminal_integration_stream.log`.
+
+Exit codes:
+  0: pytest finished successfully
+  >0: pytest failure or runner error
+  124: timeout reached and process was terminated
 """
 
 import argparse
