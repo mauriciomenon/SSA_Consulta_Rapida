@@ -14,7 +14,7 @@ import subprocess
 import sys
 import signal
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Ensure scripts directory is importable for helper modules
 _SCRIPT_DIR = os.path.dirname(__file__)
@@ -49,7 +49,10 @@ def main():
     if extra:
         cmd.extend(extra)
 
-    header = f"=== pytest wrapper run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    header = (
+        f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    )
     # If requested, list discovered pwsh candidates and exit
     if getattr(args, "list_candidates", False):
         try:
@@ -86,7 +89,15 @@ def main():
         logf.write(header)
         logf.flush()
         try:
-            proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            popen_kwargs = {}
+            if os.name != "nt":
+                popen_kwargs["start_new_session"] = True
+            proc = subprocess.Popen(
+                cmd,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+                **popen_kwargs,
+            )
             try:
                 proc.wait(timeout=args.timeout)
                 logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
@@ -128,10 +139,28 @@ def main():
                     except Exception:
                         pass
 
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    try:
+                        if os.name != "nt":
+                            try:
+                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                            except Exception:
+                                proc.kill()
+                        else:
+                            proc.kill()
+                    except Exception:
+                        pass
+                    try:
+                        proc.wait(timeout=5)
+                    except Exception:
+                        pass
+
                 logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
-        except Exception as e:
+        except BaseException as e:
             logf.write(f"\n=== ERROR: {e} ===\n")
             raise
 
