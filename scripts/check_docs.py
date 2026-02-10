@@ -42,7 +42,7 @@ PLACEHOLDER_PATTERNS = [
     r"^TBD$",
     r"^EM\s+BRANCO$",
     r"^PREENCHER$",
-    r"^lorem ipsum$",
+    r"^lorem ipsum",
     r"^conteudo pendente$",
     r"^conteúdo pendente$",
 ]

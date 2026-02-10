@@ -81,16 +81,41 @@ def main():
             start_new_session=True,
         )
 
-    line_queue: "queue.Queue[str | None]" = queue.Queue()
+    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=4096)
+
+    def _safe_queue_put(value: str | None) -> None:
+        while True:
+            try:
+                line_queue.put(value, timeout=0.1)
+                return
+            except queue.Full:
+                # Avoid unbounded memory growth when producer is faster than consumer.
+                if p.poll() is not None:
+                    try:
+                        line_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                    try:
+                        line_queue.put_nowait(value)
+                    except queue.Full:
+                        pass
+                    return
 
     def _reader_worker() -> None:
         try:
             if p.stdout is None:
                 return
-            for raw_line in iter(p.stdout.readline, ""):
-                line_queue.put(raw_line)
+            while True:
+                try:
+                    raw_line = p.stdout.readline()
+                except BaseException as exc:
+                    _safe_queue_put(f"[WARN] reader thread error: {exc}\n")
+                    break
+                if raw_line == "":
+                    break
+                _safe_queue_put(raw_line)
         finally:
-            line_queue.put(None)
+            _safe_queue_put(None)
 
     reader_thread = threading.Thread(target=_reader_worker, daemon=True)
     reader_thread.start()
@@ -187,6 +212,7 @@ def main():
                             "local_ai_private\\pytest_terminal_integration.log"
                         )
 
+                    reader_thread.join(timeout=1.0)
                     return 124
 
                 try:
@@ -208,6 +234,7 @@ def main():
             footer = f"\n=== Process exited with code {ret} ===\n"
             f.write(footer)
             print(footer)
+            reader_thread.join(timeout=1.0)
             return ret
 
         except BaseException as exc:
@@ -233,6 +260,10 @@ def main():
                 pass
             try:
                 p.wait(timeout=5)
+            except Exception:
+                pass
+            try:
+                reader_thread.join(timeout=1.0)
             except Exception:
                 pass
             raise

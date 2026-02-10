@@ -6,6 +6,7 @@ Valida carregamento, estrutura e isolamento das configuracoes.
 import json
 import os
 import sys
+import importlib
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -164,19 +165,27 @@ class TestGUIMainConfiguration:
         """Testa que GUI Main pode ser importada sem dependencias do CLI."""
         modules_to_restore = {}
         for module_name in list(sys.modules):
-            if "core.config_manager" in module_name:
+            if (
+                module_name == "gui"
+                or module_name.startswith("gui.gui_config")
+                or module_name.startswith("core.config_manager")
+            ):
                 modules_to_restore[module_name] = sys.modules[module_name]
                 del sys.modules[module_name]
 
         try:
-            from gui.gui_config import GUI_MAIN_PREFERENCES, load_gui_main_preferences
+            importlib.invalidate_caches()
+            gui_config = importlib.import_module("gui.gui_config")
+            GUI_MAIN_PREFERENCES = gui_config.GUI_MAIN_PREFERENCES
+            load_gui_main_preferences = gui_config.load_gui_main_preferences
 
             assert isinstance(GUI_MAIN_PREFERENCES, dict)
             assert callable(load_gui_main_preferences)
         except ImportError as e:
             pytest.fail(f"GUI Main nao deveria depender de modulos do CLI: {e}")
         finally:
-            for module_name, module_obj in modules_to_restore.items():
+            for module_name in sorted(modules_to_restore.keys(), key=lambda item: item.count(".")):
+                module_obj = modules_to_restore[module_name]
                 sys.modules[module_name] = module_obj
 
 

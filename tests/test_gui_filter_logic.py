@@ -68,6 +68,14 @@ class TestGUIFilterLogic:
     def teardown_method(self):
         self._load_patch.stop()
         self.window.close()
+        try:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.clear()
+        except Exception:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = []
+        try:
+            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS.clear()
+        except Exception:
+            filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
 
     def _extract_visible_ssa(self):
         return list(self.window.df_exibido['numero_ssa'])
@@ -1788,13 +1796,17 @@ class TestGUIFilterLogic:
         if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
 
-        self.window._retain_data_loader_worker_until_finished(worker)
-        assert worker in self.window._retired_data_loader_workers
-        assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+        try:
+            self.window._retain_data_loader_worker_until_finished(worker)
+            assert worker in self.window._retired_data_loader_workers
+            assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
 
-        # Simula finalização silenciosa sem emissao de finished().
-        worker._running = False
-        self.window._prune_retired_data_loader_workers()
+            # Simula finalização silenciosa sem emissao de finished().
+            worker._running = False
+            self.window._prune_retired_data_loader_workers()
 
-        assert worker not in self.window._retired_data_loader_workers
-        assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+            assert worker not in self.window._retired_data_loader_workers
+            assert worker not in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)

@@ -57,8 +57,27 @@ class FilterWorker(QThread):
             if row_count <= 24:
                 sample_df = df_completo
             else:
+                head_count = 8
+                tail_count = 8
+                mid_count = 8
+                head_df = df_completo.head(head_count)
+                tail_df = df_completo.tail(tail_count)
+                mid_start = head_count
+                mid_end = max(mid_start, row_count - tail_count - 1)
+                mid_indices = []
+                span = (mid_end - mid_start) + 1
+                if span > 0:
+                    if span <= mid_count:
+                        mid_indices = list(range(mid_start, mid_start + span))
+                    else:
+                        step = float(span - 1) / float(max(mid_count - 1, 1))
+                        for idx in range(mid_count):
+                            candidate = mid_start + int(round(idx * step))
+                            if not mid_indices or candidate != mid_indices[-1]:
+                                mid_indices.append(candidate)
+                mid_df = df_completo.iloc[mid_indices] if mid_indices else df_completo.iloc[0:0]
                 sample_df = pd.concat(
-                    [df_completo.head(12), df_completo.tail(12)],
+                    [head_df, mid_df, tail_df],
                     axis=0,
                     ignore_index=True,
                 )
