@@ -150,7 +150,7 @@ def test_import_cli():
     except Exception as e:
         print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")
         traceback.print_exc()
-        return False
+        raise AssertionError(f"Falha no teste de importacao via CLI: {e}") from e
 
 
 def analyze_database():
