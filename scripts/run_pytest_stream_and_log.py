@@ -17,12 +17,14 @@ Exit codes:
 import argparse
 import json
 import os
+import queue
 import signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def ensure_log_path(logpath: str):
@@ -61,55 +63,88 @@ def main():
 
     cmd = [sys.executable, "-m", "pytest", args.test]
 
-    header = f"=== pytest streaming run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    header = (
+        f"=== pytest streaming run at {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    )
 
     start = time.time()
     # Start process in a new process group on Unix so we can kill the group; on Windows we'll use taskkill
     if os.name == 'nt':
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     else:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, preexec_fn=os.setsid)
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+    line_queue: "queue.Queue[str | None]" = queue.Queue()
+
+    def _reader_worker() -> None:
+        try:
+            if p.stdout is None:
+                return
+            for raw_line in iter(p.stdout.readline, ""):
+                line_queue.put(raw_line)
+        finally:
+            line_queue.put(None)
+
+    reader_thread = threading.Thread(target=_reader_worker, daemon=True)
+    reader_thread.start()
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as f:
         f.write(header)
         f.flush()
 
         try:
+            reader_done = False
             while True:
-                # Read line by line to stream output
-                line = p.stdout.readline()
-                if line:
-                    print(line, end='')
-                    f.write(line)
-                    f.flush()
-                else:
-                    # No data available
-                    if p.poll() is not None:
-                        break
-
-                # Timeout check
+                # Timeout must be enforced independently from child stdout flow.
                 if time.time() - start > args.timeout:
                     # Attempt graceful shutdown of process tree
                     try:
-                        if os.name == 'nt' and kill_tree_default:
-                            # Use taskkill to kill process tree on Windows
-                            res = subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            if res.returncode != 0:
-                                # fallback to PowerShell Stop-Process
-                                pwsh = shutil.which("pwsh") or shutil.which("powershell")
-                                if pwsh:
-                                    try:
-                                        subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", f"Stop-Process -Id {p.pid} -Force -ErrorAction SilentlyContinue"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                                    except Exception:
+                        if os.name == 'nt':
+                            if kill_tree_default:
+                                # Use taskkill to kill process tree on Windows
+                                res = subprocess.run(
+                                    ["taskkill", "/PID", str(p.pid), "/T", "/F"],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                                if res.returncode != 0:
+                                    # fallback to PowerShell Stop-Process
+                                    pwsh = shutil.which("pwsh") or shutil.which("powershell")
+                                    if pwsh:
+                                        try:
+                                            subprocess.run(
+                                                [
+                                                    pwsh,
+                                                    "-NoProfile",
+                                                    "-NonInteractive",
+                                                    "-Command",
+                                                    f"Stop-Process -Id {p.pid} -Force -ErrorAction SilentlyContinue",
+                                                ],
+                                                stdout=subprocess.DEVNULL,
+                                                stderr=subprocess.DEVNULL,
+                                            )
+                                        except Exception:
+                                            try:
+                                                p.kill()
+                                            except Exception:
+                                                pass
+                                    else:
                                         try:
                                             p.kill()
                                         except Exception:
                                             pass
-                                else:
-                                    try:
-                                        p.kill()
-                                    except Exception:
-                                        pass
+                            else:
+                                try:
+                                    p.kill()
+                                except Exception:
+                                    pass
                         else:
                             # Unix: kill process group
                             try:
@@ -136,6 +171,21 @@ def main():
                         print("Fallback: to stream+log use (PowerShell):\npython -m pytest tests/test_terminal_integration.py 2>&1 | Tee-Object -FilePath local_ai_private\\pytest_terminal_integration.log")
 
                     return 124
+
+                try:
+                    queued_line = line_queue.get(timeout=0.2)
+                except queue.Empty:
+                    queued_line = ""
+
+                if queued_line is None:
+                    reader_done = True
+                elif queued_line:
+                    print(queued_line, end="")
+                    f.write(queued_line)
+                    f.flush()
+
+                if reader_done and p.poll() is not None:
+                    break
 
             ret = p.wait()
             footer = f"\n=== Process exited with code {ret} ===\n"

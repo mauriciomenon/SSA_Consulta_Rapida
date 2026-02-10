@@ -73,7 +73,11 @@ class FilterWorker(QThread):
                 sample_records,
             )
             return hashlib.md5(repr(payload).encode("utf-8")).hexdigest()[:16]
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Fallback to shape-only DataFrame hash due to fingerprint error: %s",
+                exc,
+            )
             fallback = str(getattr(df_completo, "shape", "unknown"))
             return hashlib.md5(fallback.encode("utf-8")).hexdigest()[:16]
 

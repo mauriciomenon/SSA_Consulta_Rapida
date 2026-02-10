@@ -14,7 +14,7 @@ import shutil
 import signal
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def ensure_local_ai_dir():
@@ -37,7 +37,10 @@ def main():
     if extra:
         cmd.extend(extra)
 
-    header = f"=== pytest wrapper run at {datetime.utcnow().isoformat()}Z ===\nCommand: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    header = (
+        f"=== pytest wrapper run at {datetime.now(timezone.utc).isoformat()} ===\n"
+        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    )
 
     with open(logpath, "w", encoding="utf-8", errors="replace") as logf:
         logf.write(header)
@@ -98,7 +101,7 @@ def main():
                 logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
                 return 124
-        except Exception as e:
+        except BaseException as e:
             logf.write(f"\n=== ERROR: {e} ===\n")
             raise
 

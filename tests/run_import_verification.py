@@ -46,6 +46,7 @@ def test_import_all_files():
     success = import_files_to_database(docs_dir, db_path, force_import=True)
     assert success, "Falha na importação"
     print("OK Importação concluída com sucesso")
+    return True
 
 def analyze_database_content():
     """Analisa o conteúdo do banco após importação."""
@@ -205,9 +206,9 @@ def test_upsert_logic():
                 raise AssertionError(f"Falha ao extrair dados do arquivo: {file_path}")
         else:
             raise AssertionError(f"Nenhum arquivo encontrado para teste em {docs_dir}")
+    except AssertionError:
+        raise
     except Exception as e:
-        if isinstance(e, AssertionError):
-            raise
         print(f"ERR Erro no teste de upsert: {e}")
         raise AssertionError(f"Falha no teste de upsert: {e}") from e
 
