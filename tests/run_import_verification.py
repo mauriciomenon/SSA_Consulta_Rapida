@@ -206,6 +206,8 @@ def test_upsert_logic():
         else:
             raise AssertionError(f"Nenhum arquivo encontrado para teste em {docs_dir}")
     except Exception as e:
+        if isinstance(e, AssertionError):
+            raise
         print(f"ERR Erro no teste de upsert: {e}")
         raise AssertionError(f"Falha no teste de upsert: {e}") from e
 
