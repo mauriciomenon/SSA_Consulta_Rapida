@@ -108,3 +108,16 @@ class TestFilterWorker:
         assert calls["count"] == 1
         assert emitted == []
         assert errors == []
+
+    def test_run_emits_empty_result_when_df_is_none(self):
+        worker = FilterWorker(None, [["alfa"]])
+        emitted = []
+        errors = []
+        worker.filter_finished.connect(lambda frame: emitted.append(frame))
+        worker.error_occurred.connect(errors.append)
+
+        worker.run()
+
+        assert len(emitted) == 1
+        assert emitted[0].empty
+        assert errors == []

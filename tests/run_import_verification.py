@@ -187,6 +187,12 @@ def test_upsert_logic():
                 print(f"INFO Registros depois: {count_after}")
                 print(f"INFO Diferença: {count_after - count_before}")
 
+                if not success:
+                    raise AssertionError(
+                        "Falha no upsert: "
+                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
+                    )
+
                 if count_after == count_before:
                     print("OK Upsert funcionando corretamente - nenhum registro duplicado")
                 elif count_after > count_before:
@@ -194,12 +200,6 @@ def test_upsert_logic():
                 else:
                     raise AssertionError(
                         "Falha no upsert: registros removidos apos reprocessamento. "
-                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
-                    )
-
-                if not success:
-                    raise AssertionError(
-                        "Falha no upsert: "
                         f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
                     )
             else:

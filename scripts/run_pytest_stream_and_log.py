@@ -160,7 +160,20 @@ def main():
                     try:
                         p.wait(timeout=5)
                     except Exception:
-                        pass
+                        try:
+                            if os.name == "nt":
+                                p.kill()
+                            else:
+                                try:
+                                    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+                                except Exception:
+                                    p.kill()
+                        except Exception:
+                            pass
+                        try:
+                            p.wait(timeout=5)
+                        except Exception:
+                            pass
 
                     msg = f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
                     print(msg)
@@ -168,7 +181,11 @@ def main():
                     f.flush()
 
                     if fallback_to_tee:
-                        print("Fallback: to stream+log use (PowerShell):\npython -m pytest tests/test_terminal_integration.py 2>&1 | Tee-Object -FilePath local_ai_private\\pytest_terminal_integration.log")
+                        print(
+                            "Fallback: to stream+log use (PowerShell):\n"
+                            f'python -m pytest "{args.test}" 2>&1 | Tee-Object -FilePath '
+                            "local_ai_private\\pytest_terminal_integration.log"
+                        )
 
                     return 124
 
