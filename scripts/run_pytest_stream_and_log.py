@@ -122,6 +122,11 @@ def main():
                         except Exception:
                             pass
 
+                    try:
+                        p.wait(timeout=5)
+                    except Exception:
+                        pass
+
                     msg = f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
                     print(msg)
                     f.write(msg)
@@ -157,6 +162,10 @@ def main():
                         os.killpg(os.getpgid(p.pid), signal.SIGKILL)
                     except Exception:
                         p.kill()
+            except Exception:
+                pass
+            try:
+                p.wait(timeout=5)
             except Exception:
                 pass
             raise

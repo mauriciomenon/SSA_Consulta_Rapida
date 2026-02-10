@@ -18,13 +18,13 @@ def qapp():
 
 
 def test_normalize_order_by_accepts_whitelisted_columns():
-    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker = DataLoaderWorker(":memory:", "ssa_table")
     clause = worker._normalize_order_by("numero_ssa DESC, situacao asc")
     assert clause == "numero_ssa DESC, situacao ASC"
 
 
 def test_normalize_order_by_rejects_non_whitelisted_column():
-    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker = DataLoaderWorker(":memory:", "ssa_table")
     with pytest.raises(ValueError):
         worker._normalize_order_by("drop_table DESC")
 
@@ -48,7 +48,7 @@ def test_run_builds_safe_paginated_query_and_emits_data():
         return pd.DataFrame({"numero_ssa": ["1"]})
 
     worker = DataLoaderWorker(
-        "dummy.db",
+        ":memory:",
         "ssa_table",
         limit=10,
         offset=5,
@@ -68,7 +68,7 @@ def test_run_builds_safe_paginated_query_and_emits_data():
 def test_run_emits_error_for_invalid_order_by():
     errors = []
     worker = DataLoaderWorker(
-        "dummy.db",
+        ":memory:",
         "ssa_table",
         order_by="numero_ssa; DROP TABLE ssa_table",
     )
@@ -84,7 +84,7 @@ def test_run_emits_error_for_invalid_order_by():
 def test_run_emits_error_when_query_fails():
     emitted = []
     errors = []
-    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker = DataLoaderWorker(":memory:", "ssa_table")
     worker.data_loaded.connect(lambda df: emitted.append(df))
     worker.error_occurred.connect(lambda msg: errors.append(msg))
 
@@ -101,7 +101,7 @@ def test_run_emits_error_when_query_fails():
 def test_run_emits_empty_dataframe_without_error_for_empty_page():
     emitted = []
     errors = []
-    worker = DataLoaderWorker("dummy.db", "ssa_table", limit=10, offset=9999)
+    worker = DataLoaderWorker(":memory:", "ssa_table", limit=10, offset=9999)
     worker.data_loaded.connect(lambda df: emitted.append(df))
     worker.error_occurred.connect(lambda msg: errors.append(msg))
 
@@ -119,7 +119,7 @@ def test_run_emits_empty_dataframe_without_error_for_empty_page():
 def test_run_skips_query_when_interrupted_before_start():
     emitted = []
     errors = []
-    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker = DataLoaderWorker(":memory:", "ssa_table")
     worker.data_loaded.connect(lambda df: emitted.append(df))
     worker.error_occurred.connect(lambda msg: errors.append(msg))
     worker.cancel()
@@ -135,7 +135,7 @@ def test_run_skips_query_when_interrupted_before_start():
 def test_run_skips_emit_when_interrupted_after_query():
     emitted = []
     errors = []
-    worker = DataLoaderWorker("dummy.db", "ssa_table")
+    worker = DataLoaderWorker(":memory:", "ssa_table")
     worker.data_loaded.connect(lambda df: emitted.append(df))
     worker.error_occurred.connect(lambda msg: errors.append(msg))
 

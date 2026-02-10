@@ -43,7 +43,16 @@ def main():
         logf.write(header)
         logf.flush()
         try:
-            proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            popen_kwargs = {}
+            if os.name != 'nt':
+                # Isolate child process group so killpg does not target this wrapper process.
+                popen_kwargs["start_new_session"] = True
+            proc = subprocess.Popen(
+                cmd,
+                stdout=logf,
+                stderr=subprocess.STDOUT,
+                **popen_kwargs,
+            )
             try:
                 proc.wait(timeout=args.timeout)
                 logf.write(f"\n=== Process exited with code {proc.returncode} ===\n")
@@ -80,6 +89,11 @@ def main():
                         proc.kill()
                     except Exception:
                         pass
+
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
 
                 logf.write(f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n")
                 print(f"TIMEOUT: pytest exceeded {args.timeout}s; log: {logpath}")
