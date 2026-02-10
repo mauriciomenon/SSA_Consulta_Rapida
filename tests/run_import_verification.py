@@ -9,11 +9,13 @@ import os
 from datetime import datetime
 import logging
 
-sys.path.insert(0, '.')
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-from core.app_logic import import_files_to_database
-from armazenamento.database import get_db_connection, verify_database_integrity
-from extracao.extractor import extract_data_from_excel
+from core.app_logic import import_files_to_database  # noqa: E402
+from armazenamento.database import get_db_connection, verify_database_integrity  # noqa: E402
+from extracao.extractor import extract_data_from_excel  # noqa: E402
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -193,12 +195,12 @@ def test_upsert_logic():
 
                 assert success, "Falha no upsert"
             else:
-                assert False, "Falha ao extrair dados do arquivo"
+                raise AssertionError(f"Falha ao extrair dados do arquivo: {file_path}")
         else:
-            assert False, "Nenhum arquivo encontrado para teste"
+            raise AssertionError(f"Nenhum arquivo encontrado para teste em {docs_dir}")
     except Exception as e:
         print(f"ERR Erro no teste de upsert: {e}")
-        assert False, f"Falha no teste de upsert: {e}"
+        raise AssertionError(f"Falha no teste de upsert: {e}") from e
 
 def verify_column_mapping():
     """Verifica se todas as colunas estão sendo mapeadas corretamente."""

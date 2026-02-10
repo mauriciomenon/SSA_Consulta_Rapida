@@ -143,7 +143,8 @@ def test_import_cli():
         print(f"[INFO] Codigo de retorno: {retcode}")
         print(f"[INFO] Linhas de output: {linha_count}")
 
-        assert retcode == 0, f"Importacao falhou com codigo {retcode}"
+        if retcode != 0:
+            raise RuntimeError(f"Importacao falhou com codigo {retcode}")
         print("\n[SUCESSO] Importacao via CLI concluida")
     except Exception as e:
         print(f"\n[ERRO] Falha no teste de importacao via CLI: {e}")

@@ -5,14 +5,18 @@ requires-python = ">=3.13"
 dependencies = [
     "pandas",
     "openpyxl",
-    "ruff",
     "pyqt6",
-    "flake8",
-    "pytest",
-    "ty",
     "numpy",
     "scipy",
     "tabulate",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "flake8",
+    "pytest",
+    "ty",
 ]
 
 [tool.pytest.ini_options]

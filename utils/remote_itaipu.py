@@ -16,13 +16,20 @@ from dataclasses import dataclass
 from typing import Iterable, List, Dict, Any, Optional, TYPE_CHECKING
 import time
 import json
+import os
 
 if TYPE_CHECKING:
     import aiohttp
     import threading
 
-BASE_PENDING = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange"
-BASE_DETAIL = "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber"
+BASE_PENDING = os.getenv(
+    "ITAIPU_BASE_PENDING",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetPendingSSAsByLocalizationRange",
+)
+BASE_DETAIL = os.getenv(
+    "ITAIPU_BASE_DETAIL",
+    "https://apps.itaipu.gov.br/SAM_SMA_API/rest/SSA_API/GetSSABySSANumber",
+)
 
 
 @dataclass

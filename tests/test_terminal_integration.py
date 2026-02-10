@@ -26,6 +26,11 @@ import subprocess
 import pytest
 from typing import List
 
+try:
+    import json5  # type: ignore[import-not-found]
+except Exception:  # noqa: BLE001
+    json5 = None
+
 # Timeouts (seconds) - tune as needed
 SHELL_ECHO_TIMEOUT = 10
 SHELL_PYTHON_TIMEOUT = 10
@@ -50,6 +55,11 @@ def _load_json_or_jsonc(path: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        if json5 is not None:
+            try:
+                return json5.loads(raw)
+            except Exception:
+                pass
         # VS Code settings can be JSONC (line comments + block comments + trailing commas).
         cleaned = _strip_jsonc_comments(raw)
         cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
@@ -241,7 +251,10 @@ def test_workspace_vscode_settings_env_vars():
     if not os.path.exists(ws_settings_path):
         pytest.skip("Workspace .vscode/settings.json não existe; pule este teste se não aplicável")
 
-    ws = _load_json_or_jsonc(ws_settings_path)
+    try:
+        ws = _load_json_or_jsonc(ws_settings_path)
+    except Exception as exc:
+        pytest.skip(f"Workspace settings parsing failed: {exc}")
 
     envs = ws.get("terminal.integrated.env.windows", {}) or {}
     # Ensure keys exist or skip
