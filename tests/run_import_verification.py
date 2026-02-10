@@ -6,15 +6,13 @@ Teste abrangente da importação de arquivos e verificação da integridade dos 
 
 import sys
 import os
-import pandas as pd
-import sqlite3
 from datetime import datetime
 import logging
 
 sys.path.insert(0, '.')
 
 from core.app_logic import import_files_to_database
-from armazenamento.database import get_db_connection, query_db, verify_database_integrity
+from armazenamento.database import get_db_connection, verify_database_integrity
 from extracao.extractor import extract_data_from_excel
 
 # Configurar logging
@@ -198,6 +196,9 @@ def test_upsert_logic():
                 assert False, "Falha ao extrair dados do arquivo"
         else:
             assert False, "Nenhum arquivo encontrado para teste"
+    except Exception as e:
+        print(f"ERR Erro no teste de upsert: {e}")
+        assert False, f"Falha no teste de upsert: {e}"
 
 def verify_column_mapping():
     """Verifica se todas as colunas estão sendo mapeadas corretamente."""
