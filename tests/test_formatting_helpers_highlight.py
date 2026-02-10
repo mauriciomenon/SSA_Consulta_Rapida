@@ -19,3 +19,4 @@ def test_highlight_text_applies_optional_text_color():
     result = highlight_text("alpha", ["alpha"], bg_color="#000", font_weight="600", text_color="#fff")
     assert 'color: #fff;' in result
     assert "background-color: #000;" in result
+    assert "font-weight: 600;" in result
