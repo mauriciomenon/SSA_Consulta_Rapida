@@ -1450,6 +1450,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao reconstruir painel de filtros por coluna no bind de aba: %s", exc)
         try:
+            if tab_kind != "filters" and getattr(self, "_pending_theme_refresh_column_filters", None):
+                self._refresh_column_filter_widgets()
+                self._pending_theme_refresh_column_filters = None
+        except Exception as exc:
+            logger.debug("Falha ao aplicar refresh pendente de tema nos filtros por coluna: %s", exc)
+        try:
             if tab_kind != "filters":
                 self._update_col_filter_indicator()
         except Exception as exc:
@@ -1551,30 +1557,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         button.setText(placeholder)
         try:
             button.setMaximumWidth(100)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir largura maxima do botao multiselect '%s': %s", title, exc)
         try:
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
         menu = QMenu(button)
         try:
             menu.setMaximumHeight(360)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir altura maxima do menu multiselect '%s': %s", title, exc)
         self._attach_multiselect_menu(button, menu)
         button.setToolTip(placeholder)
         try:
             box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao definir size policy do groupbox multiselect '%s': %s", title, exc)
         exclude = None
         if with_exclude:
             exclude = QCheckBox("Diferente")
             try:
                 exclude.setVisible(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao ocultar checkbox de exclusao no multiselect '%s': %s", title, exc)
         layout.addWidget(button, 1)
         return box, button, menu, exclude
 
@@ -1607,7 +1613,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             desired = bool(checked)
             if bool(checkbox.isChecked()) == desired:
                 return False
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao ler estado atual de checkbox em _set_checkbox_checked_quietly: %s", exc)
             desired = bool(checked)
         blocker = None
         used_signal_blocker = False
@@ -1623,7 +1630,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             checkbox.setChecked(desired)
             changed = True
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc)
             changed = False
         finally:
             if not used_signal_blocker:
@@ -4634,7 +4642,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             pal = menu.palette()
             wtxt = pal.color(_QPal.ColorRole.WindowText).name()
             win = pal.color(_QPal.ColorRole.Window).name()
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
             wtxt = "#ffffff"
             win = "#000000"
         support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
@@ -4774,14 +4783,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     app.setPalette(pal)
                     # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
                     try:
-                        app.setStyleSheet("")
                         block = build_global_widget_qss(pal)
-                        app.setStyleSheet(block)
+                        if getattr(self, "_last_global_theme_qss", None) != block:
+                            app.setStyleSheet(block)
+                            self._last_global_theme_qss = block
                     except Exception as exc:
                         logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
                 # Garante também na janela atual
                 self.setPalette(pal)
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Falha ao aplicar paleta global do tema '%s'; seguindo fallback local: %s", normalized, exc)
                 pal = get_palette(normalized)
                 self.setPalette(pal)
 
@@ -4793,10 +4804,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             central = self.centralWidget()
             if central is not None:
-                try:
-                    central.setStyleSheet("")
-                except Exception as exc:
-                    logger.debug("Falha ao limpar stylesheet do central widget antes de reaplicar tema: %s", exc)
                 existing = central.styleSheet() or ""
                 start = existing.find("/* SSA_MAIN_BG_START */")
                 if start != -1:
@@ -4817,9 +4824,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         new_css += block
                     else:
                         new_css = block
-                    central.setStyleSheet(new_css)
+                    if central.styleSheet() != new_css:
+                        central.setStyleSheet(new_css)
                 else:
-                    central.setStyleSheet(existing)
+                    if central.styleSheet() != existing:
+                        central.setStyleSheet(existing)
         except Exception as exc:
             logger.warning("Falha ao aplicar tema no central widget: %s", exc)
         try:
@@ -5083,7 +5092,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # SECTION 11: Dynamic Column Filter Widgets
         # ============================================================
         # Refresh all dynamically created column filter input widgets
-        self._refresh_column_filter_widgets()
+        try:
+            if getattr(self, "_current_tab_kind", None) == "filters":
+                # Evita custo alto na aba de filtros; reaplica quando voltar para SSAs.
+                self._pending_theme_refresh_column_filters = normalized
+            else:
+                self._refresh_column_filter_widgets()
+                self._pending_theme_refresh_column_filters = None
+        except Exception as exc:
+            logger.debug("Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc)
 
         # ============================================================
         # SECTION 12: Persistence and Platform Adjustments
