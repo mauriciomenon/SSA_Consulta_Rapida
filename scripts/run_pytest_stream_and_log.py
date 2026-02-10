@@ -228,7 +228,7 @@ def main():
                     f.write(queued_line)
                     f.flush()
 
-                if reader_done and p.poll() is not None:
+                if reader_done and p.poll() is not None and line_queue.empty():
                     break
 
             ret = p.wait()
