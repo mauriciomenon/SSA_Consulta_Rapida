@@ -133,7 +133,11 @@ def main():
             print(footer)
             return ret
 
-        except Exception:
+        except Exception as exc:
+            err_msg = f"[ERR] unexpected failure while streaming pytest output: {exc}"
+            print(err_msg, file=sys.stderr, flush=True)
+            f.write(err_msg + "\n")
+            f.flush()
             try:
                 if os.name == "nt":
                     res = subprocess.run(
