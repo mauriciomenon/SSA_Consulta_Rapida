@@ -4331,7 +4331,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao podar workers de carga antes de novo load: %s", exc)
         if not os.path.exists(DB_PATH):
-            QMessageBox.warning(self, "Erro", f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro.")
+            missing_db_msg = f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro."
+            logger.warning(missing_db_msg)
+            try:
+                self.status_label.setText("Status: Banco de dados nao encontrado.")
+            except Exception:
+                pass
+            # Evita deadlock por dialogo modal durante testes automatizados.
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", missing_db_msg)
             return
 
         # Cancela pipeline de filtro em andamento para evitar mistura entre datasets.
@@ -4415,13 +4424,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 is_ste = pd.Series([False]*len(base), index=base.index)
             if 'numero_ssa' in base.columns:
-                ssa_str = (
-                    base["numero_ssa"]
-                    .fillna("")
-                    .astype(str)
-                    .str.replace(r"\D", "", regex=True)
-                )
-                ssa_int = ssa_str.apply(lambda s: int(s) if s else -1)
+                def _ssa_sort_key(raw_value):
+                    text_value = str(raw_value or "")
+                    digits = "".join(ch for ch in text_value if ch.isdigit())
+                    if not digits:
+                        return -1
+                    try:
+                        return int(digits)
+                    except Exception:
+                        return -1
+
+                ssa_int = base["numero_ssa"].apply(_ssa_sort_key)
             else:
                 ssa_int = pd.Series([-1]*len(base), index=base.index)
             base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
@@ -5683,7 +5696,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
         except TypeError:
             # Compat with legacy helper signatures (without text_color).
-            return highlight_text(text, terms, bg, weight)
+            try:
+                return highlight_text(text, terms, bg, weight)
+            except TypeError:
+                return highlight_text(text, terms)
 
     def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
         """Formata dados da SSA como HTML com highlight opcional."""

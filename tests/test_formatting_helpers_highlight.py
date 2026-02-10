@@ -1,0 +1,21 @@
+from gui.helpers.formatting_helpers import highlight_text
+
+
+def test_highlight_text_handles_overlapping_terms_without_nested_spans():
+    result = highlight_text("catapult", ["cat", "at"])
+    assert result.count("<span") == 1
+    assert "<span" in result
+    assert "cat" in result
+
+
+def test_highlight_text_matches_html_special_char_terms():
+    result = highlight_text("<tag> alpha & beta", ["<tag>", "&"])
+    assert "&lt;tag&gt;" in result
+    assert "&amp;" in result
+    assert result.count("<span") == 2
+
+
+def test_highlight_text_applies_optional_text_color():
+    result = highlight_text("alpha", ["alpha"], bg_color="#000", font_weight="600", text_color="#fff")
+    assert 'color: #fff;' in result
+    assert "background-color: #000;" in result
