@@ -42,7 +42,8 @@ class FilterWorker(QThread):
             return True
         try:
             return bool(self.isInterruptionRequested())
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao consultar estado de interrupcao do FilterWorker: %s", exc)
             return False
 
     @staticmethod

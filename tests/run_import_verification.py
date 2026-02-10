@@ -281,6 +281,13 @@ def main():
     print("=" * 60)
 
     try:
+        status = {
+            "import": False,
+            "analyze": False,
+            "upsert": False,
+            "mapping": False,
+        }
+
         # 1. Verificar integridade do banco
         print("INFO Verificando integridade do banco...")
         integrity_report = verify_database_integrity("data/ssas.db")
@@ -291,24 +298,33 @@ def main():
 
         # 2. Testar importação
         import_success = test_import_all_files()
+        status["import"] = bool(import_success)
 
         # 3. Analisar conteúdo
         if import_success:
-            analyze_database_content()
+            status["analyze"] = bool(analyze_database_content())
+        else:
+            status["analyze"] = False
 
         # 4. Testar lógica de upsert
         test_upsert_logic()
+        status["upsert"] = True
 
         # 5. Verificar mapeamento de colunas
-        verify_column_mapping()
+        status["mapping"] = bool(verify_column_mapping())
 
         print("\n" + "=" * 60)
         print("OK VERIFICAÇÃO COMPLETA CONCLUÍDA")
+        if all(status.values()):
+            return 0
+        print("WARN Verificacao concluida com falhas em etapas pontuais:", status)
+        return 1
 
     except Exception as e:
         print(f"\nERR ERRO CRÍTICO: {e}")
         import traceback
         traceback.print_exc()
+        return 1
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
