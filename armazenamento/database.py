@@ -149,7 +149,13 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
     logger.info("Banco de dados inicializado com sucesso.")
     return True
 
-def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ()) -> pd.DataFrame:
+def query_db(
+    db_path: str,
+    table_name: str,
+    query: str = "",
+    params: tuple = (),
+    raise_on_error: bool = False,
+) -> pd.DataFrame:
     """
     Consulta o banco de dados e retorna um DataFrame.
 
@@ -158,6 +164,7 @@ def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ())
         table_name (str): Nome da tabela (usado se `query` estiver vazio).
         query (str, optional): Query SQL customizada. Se vazia, seleciona tudo da tabela.
         params (tuple, optional): Parametros para a query.
+        raise_on_error (bool, optional): Se True, propaga excecao em caso de erro.
 
     Returns:
         pd.DataFrame: Resultado da consulta.
@@ -174,6 +181,8 @@ def query_db(db_path: str, table_name: str, query: str = "", params: tuple = ())
         return df
     except Exception as e:
         logger.error(f"Erro ao executar consulta '{query}': {e}")
+        if raise_on_error:
+            raise
         # Retorna DataFrame vazio em caso de erro
         return pd.DataFrame()
 

@@ -195,9 +195,7 @@ class FilterGUISSAMixin:
             self._debounce_timer.stop()
         except Exception as exc:
             logger.debug("Falha ao parar debounce antes de iniciar filtragem: %s", exc)
-        request_id = int(getattr(self, "_filter_request_seq", 0)) + 1
-        self._filter_request_seq = request_id
-        self._active_filter_request_id = request_id
+        request_id = self._invalidate_active_filter_request("initiate_filtering")
 
         search_text = self.search_input.text().strip()
         raw_chunks = self._split_search_expression(search_text) if search_text else []

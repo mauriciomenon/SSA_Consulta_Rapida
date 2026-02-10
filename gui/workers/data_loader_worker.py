@@ -4,6 +4,7 @@
 import logging
 import re
 import sqlite3
+from contextlib import closing
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 from armazenamento.database import query_db
@@ -69,7 +70,7 @@ class DataLoaderWorker(QThread):
             candidates.append("ssa_table")
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with closing(sqlite3.connect(self.db_path)) as conn:
                 rows = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type IN ('table','view')"
                 ).fetchall()
@@ -133,7 +134,7 @@ class DataLoaderWorker(QThread):
 
             if self._is_cancelled():
                 return
-            df = query_db(self.db_path, '', query)
+            df = query_db(self.db_path, '', query, raise_on_error=True)
             if self._is_cancelled():
                 return
             if not isinstance(df, pd.DataFrame):
