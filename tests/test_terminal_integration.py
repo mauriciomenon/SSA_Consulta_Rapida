@@ -20,7 +20,6 @@ Notas:
 
 import os
 import json
-import re
 import shutil
 import subprocess
 import pytest
@@ -62,7 +61,7 @@ def _load_json_or_jsonc(path: str) -> dict:
                 pass
         # VS Code settings can be JSONC (line comments + block comments + trailing commas).
         cleaned = _strip_jsonc_comments(raw)
-        cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+        cleaned = _strip_jsonc_trailing_commas(cleaned)
         return json.loads(cleaned)
 
 
@@ -114,6 +113,47 @@ def _strip_jsonc_comments(raw: str) -> str:
                 # Unterminated block comment: consume remainder safely.
                 index = raw_len
             continue
+
+        out.append(current)
+        index += 1
+
+    return "".join(out)
+
+
+def _strip_jsonc_trailing_commas(raw: str) -> str:
+    out = []
+    in_string = False
+    escaped = False
+    index = 0
+    raw_len = len(raw)
+
+    while index < raw_len:
+        current = raw[index]
+
+        if in_string:
+            out.append(current)
+            if escaped:
+                escaped = False
+            elif current == "\\":
+                escaped = True
+            elif current == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if current == '"':
+            in_string = True
+            out.append(current)
+            index += 1
+            continue
+
+        if current == ",":
+            lookahead = index + 1
+            while lookahead < raw_len and raw[lookahead].isspace():
+                lookahead += 1
+            if lookahead < raw_len and raw[lookahead] in ("}", "]"):
+                index += 1
+                continue
 
         out.append(current)
         index += 1

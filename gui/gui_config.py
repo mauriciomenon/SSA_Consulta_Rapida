@@ -212,7 +212,43 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in loaded_settings.items():
             if not isinstance(key, str):
                 continue
-            settings[key] = copy.deepcopy(value)
+            key_clean = key.strip()
+            if not key_clean:
+                continue
+
+            # Keep unknown keys for forward compatibility.
+            if key_clean not in DEFAULT_GUI_SETTINGS:
+                settings[key_clean] = copy.deepcopy(value)
+                continue
+
+            expected = DEFAULT_GUI_SETTINGS[key_clean]
+            is_valid_type = True
+
+            if isinstance(expected, bool):
+                is_valid_type = isinstance(value, bool)
+            elif isinstance(expected, int):
+                is_valid_type = isinstance(value, int) and not isinstance(value, bool)
+            elif isinstance(expected, float):
+                is_valid_type = isinstance(value, (int, float))
+            elif isinstance(expected, str):
+                is_valid_type = isinstance(value, str)
+            elif isinstance(expected, dict):
+                is_valid_type = isinstance(value, dict)
+            elif isinstance(expected, list):
+                is_valid_type = isinstance(value, list)
+            elif expected is None:
+                is_valid_type = value is None or isinstance(value, str)
+
+            if not is_valid_type:
+                logger.warning(
+                    "Ignoring invalid gui_settings type for key '%s': expected %s got %s",
+                    key_clean,
+                    type(expected).__name__,
+                    type(value).__name__,
+                )
+                continue
+
+            settings[key_clean] = copy.deepcopy(value)
     merged["gui_settings"] = settings
 
     merged["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
