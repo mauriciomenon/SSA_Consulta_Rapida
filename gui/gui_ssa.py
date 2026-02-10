@@ -5673,7 +5673,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
         fg = getattr(self, '_highlight_text_color', None)
         weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
-        return highlight_text(text, terms, bg, weight, fg)
+        try:
+            return highlight_text(
+                text,
+                terms,
+                bg_color=bg,
+                font_weight=weight,
+                text_color=fg,
+            )
+        except TypeError:
+            # Compat with legacy helper signatures (without text_color).
+            return highlight_text(text, terms, bg, weight)
 
     def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
         """Formata dados da SSA como HTML com highlight opcional."""
