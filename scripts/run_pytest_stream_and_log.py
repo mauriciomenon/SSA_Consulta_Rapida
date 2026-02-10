@@ -206,10 +206,11 @@ def main():
                     f.flush()
 
                     if fallback_to_tee:
+                        logpath_ps = logpath.replace("/", "\\")
                         print(
                             "Fallback: to stream+log use (PowerShell):\n"
                             f'python -m pytest "{args.test}" 2>&1 | Tee-Object -FilePath '
-                            "local_ai_private\\pytest_terminal_integration.log"
+                            f'"{logpath_ps}"'
                         )
 
                     reader_thread.join(timeout=1.0)
