@@ -4,8 +4,8 @@ from gui.helpers.formatting_helpers import highlight_text
 def test_highlight_text_handles_overlapping_terms_without_nested_spans():
     result = highlight_text("catapult", ["cat", "at"])
     assert result.count("<span") == 1
-    assert "<span" in result
-    assert "cat" in result
+    assert ">cat</span>apult" in result
+    assert ">at</span>" not in result
 
 
 def test_highlight_text_matches_html_special_char_terms():

@@ -3,6 +3,7 @@
 
 import os
 import sys
+import inspect
 from contextlib import suppress
 from unittest.mock import patch
 
@@ -114,6 +115,20 @@ def test_no_method_conflicts():
         else:
             missing = mixin_method_names - inherited
             pytest.fail(f"Metodos faltando: {missing}")
+
+        signature_mismatch = []
+        for method_name in sorted(inherited):
+            mixin_sig = inspect.signature(mixin_methods[method_name])
+            ssa_sig = inspect.signature(ssa_methods[method_name])
+            if str(mixin_sig) != str(ssa_sig):
+                signature_mismatch.append((method_name, str(mixin_sig), str(ssa_sig)))
+
+        if signature_mismatch:
+            details = "; ".join(
+                f"{name}: mixin={mixin_sig} ssa={ssa_sig}"
+                for name, mixin_sig, ssa_sig in signature_mismatch
+            )
+            pytest.fail(f"Assinaturas divergentes em metodos herdados: {details}")
 
     except Exception as e:
         pytest.fail(f"Falha: {e}")

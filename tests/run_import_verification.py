@@ -193,7 +193,11 @@ def test_upsert_logic():
                 else:
                     print("WARN  Registros foram removidos - comportamento inesperado")
 
-                assert success, "Falha no upsert"
+                if not success:
+                    raise AssertionError(
+                        "Falha no upsert: "
+                        f"arquivo={file_path}, count_before={count_before}, count_after={count_after}"
+                    )
             else:
                 raise AssertionError(f"Falha ao extrair dados do arquivo: {file_path}")
         else:
