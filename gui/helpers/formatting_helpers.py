@@ -1,8 +1,8 @@
 # gui/helpers/formatting_helpers.py
 # Pure formatting helper functions
 
-import re
 import html
+import re
 
 
 def normalize_chunk_for_parse(chunk: str) -> list[str]:
@@ -49,6 +49,23 @@ def format_search_display(chunks: list[list[str]]) -> str:
     return ""
 
 
+def _normalize_highlight_terms(terms: list[str]) -> list[str]:
+    """Normalize terms for one-pass highlight matching."""
+    normalized_terms: list[str] = []
+    seen_terms: set[str] = set()
+
+    for raw_term in terms:
+        escaped_term = html.escape(str(raw_term or "")).strip()
+        if not escaped_term:
+            continue
+        term_key = escaped_term.casefold()
+        if term_key in seen_terms:
+            continue
+        seen_terms.add(term_key)
+        normalized_terms.append(escaped_term)
+
+    normalized_terms.sort(key=len, reverse=True)
+    return normalized_terms
 
 
 def highlight_text(
@@ -74,26 +91,25 @@ def highlight_text(
     if not text or not terms:
         return text
 
-    # Escape HTML
-    text_escaped = html.escape(str(text))
+    escaped_text = html.escape(str(text))
+    normalized_terms = _normalize_highlight_terms(terms)
+    if not normalized_terms:
+        return escaped_text
 
-    # Apply highlight for each term
-    for term in terms:
-        if not term:
-            continue
-        # Case-insensitive search
-        pattern = re.compile(re.escape(term), re.IGNORECASE)
-        if text_color:
-            style = (
-                f"background-color: {bg_color}; "
-                f"font-weight: {font_weight}; "
-                f"color: {text_color};"
-            )
-        else:
-            style = f"background-color: {bg_color}; font-weight: {font_weight};"
-        text_escaped = pattern.sub(
-            lambda m: f'<span style="{style}">{m.group()}</span>',
-            text_escaped,
+    if text_color:
+        style = (
+            f"background-color: {bg_color}; "
+            f"font-weight: {font_weight}; "
+            f"color: {text_color};"
         )
+    else:
+        style = f"background-color: {bg_color}; font-weight: {font_weight};"
 
-    return text_escaped
+    pattern = re.compile(
+        "|".join(re.escape(term) for term in normalized_terms),
+        re.IGNORECASE,
+    )
+    return pattern.sub(
+        lambda match: f'<span style="{style}">{match.group(0)}</span>',
+        escaped_text,
+    )
