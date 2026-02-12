@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from armazenamento.derivadas_schema import (
     ensure_derivadas_schema,
+    has_derivadas_schema,
     scan_derivadas_read_schema_readiness_from_path,
     scan_derivadas_schema_readiness_from_path,
 )
@@ -56,3 +59,9 @@ def test_read_schema_scan_reports_ready_after_schema_bootstrap(temp_db):
     assert report["is_ready"] is True
     assert report["missing_tables"] == []
     assert report["missing_columns"] == {}
+
+
+def test_has_derivadas_schema_rejects_invalid_identifier(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        with pytest.raises(ValueError):
+            has_derivadas_schema(conn, required=("ssa_derivada_matrix;drop",))

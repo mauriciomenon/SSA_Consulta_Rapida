@@ -236,6 +236,13 @@ def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") ->
 
 
 def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> list[pd.DataFrame]:
+    if not isinstance(sheet_file, str) or not sheet_file.strip():
+        raise ValueError("sheet_file must be a non-empty path string")
+    if not os.path.exists(sheet_file):
+        raise FileNotFoundError(f"Sheet source file not found: {sheet_file}")
+    if not os.path.isfile(sheet_file):
+        raise ValueError(f"sheet_file must be a file path: {sheet_file}")
+
     ext = os.path.splitext(sheet_file)[1].lower()
     if ext in {".csv", ".txt"}:
         return [pd.read_csv(sheet_file)]

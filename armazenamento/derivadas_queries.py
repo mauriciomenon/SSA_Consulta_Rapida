@@ -19,10 +19,23 @@ ALLOWED_TOP_METRICS = {
     "levels_above": "levels_above_max",
 }
 DERIVADAS_QUERY_BUSY_TIMEOUT_MS = 3000
+DERIVADAS_MAX_DISTANCE_LIMIT = 64
 
 
 def _normalize_or_none(value: Any) -> str | None:
     return normalize_strict(value)
+
+
+def _normalize_max_distance(max_distance: int | None) -> int | None:
+    if max_distance is None:
+        return None
+    try:
+        parsed = int(max_distance)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("max_distance must be an integer or None") from exc
+    if parsed < 1:
+        raise ValueError("max_distance must be >= 1 when provided")
+    return min(parsed, DERIVADAS_MAX_DISTANCE_LIMIT)
 
 
 @contextmanager
@@ -92,8 +105,9 @@ def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) ->
     descendant_ssa = _normalize_or_none(ssa)
     if not descendant_ssa:
         return []
+    safe_max_distance = _normalize_max_distance(max_distance)
     with _open_derivadas_connection(db_path) as conn:
-        if max_distance is not None:
+        if safe_max_distance is not None:
             rows = conn.execute(
                 """
                 SELECT ancestor_ssa, min_distance, max_distance, path_count
@@ -101,7 +115,7 @@ def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) ->
                 WHERE descendant_ssa = ? AND min_distance <= ?
                 ORDER BY min_distance, ancestor_ssa
                 """,
-                (descendant_ssa, max_distance),
+                (descendant_ssa, safe_max_distance),
             ).fetchall()
         else:
             rows = conn.execute(
@@ -128,8 +142,9 @@ def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) 
     ancestor_ssa = _normalize_or_none(ssa)
     if not ancestor_ssa:
         return []
+    safe_max_distance = _normalize_max_distance(max_distance)
     with _open_derivadas_connection(db_path) as conn:
-        if max_distance is not None:
+        if safe_max_distance is not None:
             rows = conn.execute(
                 """
                 SELECT descendant_ssa, min_distance, max_distance, path_count
@@ -137,7 +152,7 @@ def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) 
                 WHERE ancestor_ssa = ? AND min_distance <= ?
                 ORDER BY min_distance, descendant_ssa
                 """,
-                (ancestor_ssa, max_distance),
+                (ancestor_ssa, safe_max_distance),
             ).fetchall()
         else:
             rows = conn.execute(
@@ -371,6 +386,7 @@ def get_ssa_hierarchy_snapshot(
             "ancestors": [],
             "descendants": [],
         }
+    safe_max_distance = _normalize_max_distance(max_distance)
 
     with _open_derivadas_connection(db_path) as conn:
         parents_rows = conn.execute(
@@ -446,7 +462,7 @@ def get_ssa_hierarchy_snapshot(
                 "last_sync_at": None,
             }
 
-        if max_distance is not None:
+        if safe_max_distance is not None:
             ancestor_rows = conn.execute(
                 """
                 SELECT ancestor_ssa, min_distance, max_distance, path_count
@@ -454,7 +470,7 @@ def get_ssa_hierarchy_snapshot(
                 WHERE descendant_ssa = ? AND min_distance <= ?
                 ORDER BY min_distance, ancestor_ssa
                 """,
-                (target_ssa, max_distance),
+                (target_ssa, safe_max_distance),
             ).fetchall()
             descendant_rows = conn.execute(
                 """
@@ -463,7 +479,7 @@ def get_ssa_hierarchy_snapshot(
                 WHERE ancestor_ssa = ? AND min_distance <= ?
                 ORDER BY min_distance, descendant_ssa
                 """,
-                (target_ssa, max_distance),
+                (target_ssa, safe_max_distance),
             ).fetchall()
         else:
             ancestor_rows = conn.execute(

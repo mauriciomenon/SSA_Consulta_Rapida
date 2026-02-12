@@ -4,6 +4,8 @@ import sqlite3
 import threading
 import time
 
+import pytest
+
 from armazenamento.derivadas_queries import (
     get_ssa_hierarchy_snapshot,
     get_ancestors,
@@ -115,3 +117,13 @@ def test_snapshot_returns_empty_for_invalid_ssa(temp_db):
     assert snapshot["ssa"] is None
     assert snapshot["parents"] == []
     assert snapshot["children"] == []
+
+
+def test_queries_reject_invalid_max_distance(temp_db):
+    _seed_graph(temp_db)
+    with pytest.raises(ValueError):
+        get_ancestors(temp_db, "202500003", max_distance=0)
+    with pytest.raises(ValueError):
+        get_descendants(temp_db, "202500001", max_distance=-1)
+    with pytest.raises(ValueError):
+        get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=0)
