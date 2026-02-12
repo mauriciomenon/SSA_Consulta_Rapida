@@ -458,3 +458,8 @@ profile.bkp
 .envrc.backup
 .envrc.multi
 .envrc.new
+
+# Local logs/transcripts (must never be committed)
+.specstory/
+source_ssaconsultarapida*.txt
+omp.cache
