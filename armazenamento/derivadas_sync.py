@@ -151,6 +151,13 @@ def _begin_derivadas_write_transaction(conn: sqlite3.Connection) -> None:
     conn.execute("BEGIN IMMEDIATE")
 
 
+def _is_sqlite_locked_error(exc: BaseException) -> bool:
+    if not isinstance(exc, sqlite3.Error):
+        return False
+    message = str(exc).casefold()
+    return "database is locked" in message or "database schema is locked" in message
+
+
 def _clean_relation_label(value: Any) -> str | None:
     if value is None:
         return None
@@ -995,7 +1002,6 @@ def sync_derivadas(
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_on_connection(conn)
 
         source_edges: list[SourceEdge] = []
         db_stats: dict[str, Any] = {"accepted_edges": 0}
@@ -1047,6 +1053,10 @@ def sync_derivadas(
 
         if verify_only:
             return report
+
+        ensure_derivadas_schema_on_connection(conn)
+        if conn.in_transaction:
+            conn.commit()
 
         started_at = timestamp
         _begin_derivadas_write_transaction(conn)
@@ -1458,21 +1468,31 @@ def run_derivadas_maintenance(
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
-    with _open_derivadas_read_connection(db_path) as conn:
-        schema_readiness = scan_derivadas_read_schema_readiness(conn)
-        latest = (
-            conn.execute(
-                """
-                SELECT finished_at
-                FROM ssa_derivada_sync_run
-                WHERE status = 'ok'
-                ORDER BY sync_run_id DESC
-                LIMIT 1
-                """
-            ).fetchone()
-            if schema_readiness["is_ready"]
-            else None
-        )
+    try:
+        with _open_derivadas_read_connection(db_path) as conn:
+            schema_readiness = scan_derivadas_read_schema_readiness(conn)
+            latest = (
+                conn.execute(
+                    """
+                    SELECT finished_at
+                    FROM ssa_derivada_sync_run
+                    WHERE status = 'ok'
+                    ORDER BY sync_run_id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if schema_readiness["is_ready"]
+                else None
+            )
+    except sqlite3.OperationalError as exc:
+        if _is_sqlite_locked_error(exc):
+            return {
+                "ran": False,
+                "reason": "database_locked",
+                "phase": "read_latest_sync",
+                "error": str(exc),
+            }
+        raise
 
     now = datetime.now(timezone.utc)
     last_finished = _parse_utc_str(latest[0] if latest else None)
@@ -1485,7 +1505,17 @@ def run_derivadas_maintenance(
                 "next_in_seconds": int(max(0, int(min_interval_seconds) - delta.total_seconds())),
             }
 
-    scan_report = scan_derivadas_consistency(db_path)
+    try:
+        scan_report = scan_derivadas_consistency(db_path)
+    except sqlite3.OperationalError as exc:
+        if _is_sqlite_locked_error(exc):
+            return {
+                "ran": False,
+                "reason": "database_locked",
+                "phase": "scan",
+                "error": str(exc),
+            }
+        raise
     if not scan_report.get("schema_ready", True):
         return {
             "ran": True,
@@ -1501,11 +1531,21 @@ def run_derivadas_maintenance(
     if not auto_heal:
         return {"ran": True, "scan_only": True, "is_consistent": False, "scan": scan_report}
 
-    heal_report = self_heal_derivadas(
-        db_path=db_path,
-        table_name=table_name,
-        full_rebuild=full_rebuild,
-    )
+    try:
+        heal_report = self_heal_derivadas(
+            db_path=db_path,
+            table_name=table_name,
+            full_rebuild=full_rebuild,
+        )
+    except sqlite3.OperationalError as exc:
+        if _is_sqlite_locked_error(exc):
+            return {
+                "ran": False,
+                "reason": "database_locked",
+                "phase": "self_heal",
+                "error": str(exc),
+            }
+        raise
     return {
         "ran": True,
         "scan_only": False,

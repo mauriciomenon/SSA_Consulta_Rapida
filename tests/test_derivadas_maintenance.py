@@ -4,6 +4,7 @@ import sqlite3
 import threading
 import time
 
+import armazenamento.derivadas_sync as derivadas_sync_module
 from armazenamento.derivadas_sync import (
     run_derivadas_maintenance,
     scan_derivadas_consistency,
@@ -183,3 +184,29 @@ def test_maintenance_on_fresh_db_reports_schema_not_ready(temp_db):
     assert result["scan_only"] is True
     assert result["reason"] == "schema_not_ready"
     assert result["scan"]["schema_ready"] is False
+
+
+def test_maintenance_returns_database_locked_state_on_exclusive_lock(temp_db, monkeypatch):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
+    monkeypatch.setattr(derivadas_sync_module, "DERIVADAS_BUSY_TIMEOUT_MS", 200)
+
+    lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
+    lock_conn.execute("BEGIN EXCLUSIVE")
+
+    def _release_lock() -> None:
+        time.sleep(0.6)
+        lock_conn.rollback()
+        lock_conn.close()
+
+    releaser = threading.Thread(target=_release_lock)
+    releaser.start()
+    try:
+        result = run_derivadas_maintenance(temp_db, min_interval_seconds=0, auto_heal=False)
+    finally:
+        releaser.join(timeout=2.0)
+
+    assert result["ran"] is False
+    assert result["reason"] == "database_locked"
+    assert result["phase"] in {"read_latest_sync", "scan"}
+    assert "locked" in result["error"].lower()

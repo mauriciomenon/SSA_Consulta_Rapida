@@ -79,8 +79,13 @@ def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_p
     assert report["reconciliation"]["db_vs_sheet_conflict_count"] == 1
 
     with sqlite3.connect(temp_db) as conn:
-        matrix_count = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
-    assert matrix_count == 0
+        derivadas_tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ssa_derivada_%'"
+            ).fetchall()
+        }
+    assert derivadas_tables == set()
 
 
 def test_sync_resolves_sheet_column_aliases(temp_db, tmp_path: Path):
