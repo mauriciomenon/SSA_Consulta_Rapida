@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # SECRET SCAN HOOK MARKER
 set -euo pipefail
+export LC_ALL=C
+export LANG=C
 
 TOKEN_REGEXES=(
   'sk-[A-Za-z0-9]{24,}'
@@ -28,18 +30,21 @@ info(){
   return 0
 }
 
-DIFF=$(git diff --cached --unified=0 --no-color --text || true)
+DIFF=$(git diff --cached --unified=0 --no-color || true)
 [[ -z $DIFF ]] && exit 0
 
-ADDED=$(echo "$DIFF" | grep -E '^\+' | grep -vE '^\+\+\+' | grep -vE '^\+Binary files ' || true)
+ADDED=$(
+  printf '%s\n' "$DIFF" \
+    | awk '/^\+/ && $0 !~ /^\+\+\+/ && $0 !~ /^\+Binary files / {sub(/^\+/, "", $0); print}' \
+    || true
+)
 [[ -z $ADDED ]] && exit 0
-ADDED_STRIPPED=$(echo "$ADDED" | sed 's/^+//')
 
 FOUND=0
 
 # Tokens diretos
 for rgx in "${TOKEN_REGEXES[@]}"; do
-  if echo "$ADDED_STRIPPED" | grep -E -q "$rgx"; then
+  if printf '%s\n' "$ADDED" | grep -E -q "$rgx"; then
     err "Token suspeito: $rgx"
     FOUND=1
   else
@@ -48,12 +53,12 @@ for rgx in "${TOKEN_REGEXES[@]}"; do
 done
 
 # Linhas com API_KEY=
-api_key_candidates=$(echo "$ADDED_STRIPPED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
+api_key_candidates=$(printf '%s\n' "$ADDED" | grep -E '\b[A-Z0-9_]*API_KEY[[:space:]]*=' || true)
 while IFS= read -r line; do
   [[ -z "${line// }" ]] && continue
   val_part="${line#*=}"
-  val_part="$(echo "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  val_clean="$(echo "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
+  val_part="$(printf '%s' "$val_part" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  val_clean="$(printf '%s' "$val_part" | sed -E "s/^['\"]//; s/['\"]$//")"
   val_clean="${val_clean//$'\r'/}"
 
   for av in "${ALLOW_VALUES[@]}"; do

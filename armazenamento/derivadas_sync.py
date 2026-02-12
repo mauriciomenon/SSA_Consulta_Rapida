@@ -49,6 +49,7 @@ SOURCE_PRIORITY: dict[str, int] = {
 RELATION_TYPE_UNKNOWN = 0
 RELATION_TYPE_DB_DERIVADA_DE = 1
 RELATION_TYPE_SHEET = 2
+DERIVADAS_BUSY_TIMEOUT_MS = 5000
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +99,12 @@ def _graph_fingerprint(edges: list[tuple[str, str, int]]) -> str:
 
 def _normalize_ssa(value: Any) -> str | None:
     return normalize_strict(value)
+
+
+def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
+    """Apply low-cost connection guards for derivadas operations."""
+
+    conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_BUSY_TIMEOUT_MS}")
 
 
 def _clean_relation_label(value: Any) -> str | None:
@@ -867,6 +874,7 @@ def sync_derivadas(
     timestamp = _now_utc_str()
 
     with get_db_connection(db_path) as conn:
+        _configure_derivadas_connection(conn)
         ensure_derivadas_schema_on_connection(conn)
 
         source_edges: list[SourceEdge] = []
@@ -1016,7 +1024,12 @@ def sync_derivadas(
                     message=str(exc),
                 )
                 conn.commit()
-            except Exception:
+            except sqlite3.Error as sync_run_error:
+                logger.error(
+                    "Unable to persist failed sync_run metadata (run_id=%s): %s",
+                    run_id,
+                    sync_run_error,
+                )
                 conn.rollback()
             raise
 
@@ -1025,6 +1038,7 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
     """Return compact stats for matrix, closure, summary and latest sync run."""
 
     with get_db_connection(db_path) as conn:
+        _configure_derivadas_connection(conn)
         ensure_derivadas_schema_on_connection(conn)
         matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
         matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
@@ -1094,6 +1108,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
     """
 
     with get_db_connection(db_path) as conn:
+        _configure_derivadas_connection(conn)
         ensure_derivadas_schema_on_connection(conn)
 
         matrix_rows = conn.execute(
@@ -1280,6 +1295,7 @@ def run_derivadas_maintenance(
     """Background-friendly maintenance trigger with interval guard."""
 
     with get_db_connection(db_path) as conn:
+        _configure_derivadas_connection(conn)
         ensure_derivadas_schema_on_connection(conn)
         latest = conn.execute(
             """
