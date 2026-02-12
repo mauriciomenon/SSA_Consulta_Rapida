@@ -15,7 +15,7 @@ It does not change GUI behavior.
     `ssa_table` is confirmed missing.
   - If table presence check is unknown (for example temporary DB lock), guard keeps
     `sync --verify-only` enabled.
-  - Validate schema readiness without writes:
+- Validate schema readiness without writes:
   - `python scripts/derivadas_cli.py --db data/ssas.db --output json schema-scan`
 - Validate consistency without writes:
   - `python scripts/derivadas_cli.py --db data/ssas.db --output json scan`
