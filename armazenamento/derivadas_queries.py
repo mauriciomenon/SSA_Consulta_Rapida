@@ -294,7 +294,9 @@ def _collect_paths(
             break
         visited_steps += 1
         children = adjacency.get(node, [])
-        if not children or len(path) > depth:
+        # Depth is measured in edges; the node path has length edge_depth + 1.
+        edge_depth = len(path) - 1
+        if not children or edge_depth >= depth:
             paths.append(path)
             continue
         for nxt in reversed(children):
@@ -302,9 +304,6 @@ def _collect_paths(
                 paths.append(path + [nxt])
                 continue
             next_path = path + [nxt]
-            if len(next_path) > depth + 1:
-                paths.append(next_path)
-                continue
             stack.append((nxt, next_path, seen | {nxt}))
 
     if not paths:
@@ -347,21 +346,32 @@ def get_paths_up(
 
 
 def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dict[str, Any]]:
-    metric_col = ALLOWED_TOP_METRICS.get(metric)
-    if not metric_col:
+    if metric not in ALLOWED_TOP_METRICS:
         raise ValueError(f"Unsupported top metric: {metric}")
     safe_limit = max(1, min(int(limit), 500))
     with _open_derivadas_connection(db_path) as (conn, schema_ready):
         if not schema_ready:
             return []
         rows = conn.execute(
-            f"""
-            SELECT ssa, {metric_col}, direct_parents_count, direct_children_count, ancestors_count, descendants_count
+            """
+            SELECT
+                ssa,
+                CASE ?
+                    WHEN 'direct_children' THEN direct_children_count
+                    WHEN 'descendants' THEN descendants_count
+                    WHEN 'ancestors' THEN ancestors_count
+                    WHEN 'levels_below' THEN levels_below_max
+                    WHEN 'levels_above' THEN levels_above_max
+                END AS metric_value,
+                direct_parents_count,
+                direct_children_count,
+                ancestors_count,
+                descendants_count
             FROM ssa_derivada_summary
-            ORDER BY {metric_col} DESC, ssa
+            ORDER BY metric_value DESC, ssa
             LIMIT ?
             """,
-            (safe_limit,),
+            (metric, safe_limit),
         ).fetchall()
         return [
             {
