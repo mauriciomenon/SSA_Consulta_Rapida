@@ -27,6 +27,7 @@ from armazenamento.derivadas_queries import (
     get_paths_up,
     get_top_by_metric,
 )  # noqa: E402
+from armazenamento.derivadas_schema import scan_derivadas_schema_readiness_from_path  # noqa: E402
 from armazenamento.derivadas_sync import (  # noqa: E402
     get_sync_stats,
     run_derivadas_maintenance,
@@ -70,6 +71,10 @@ def _handle_stats(args: argparse.Namespace) -> dict[str, Any]:
 
 def _handle_scan(args: argparse.Namespace) -> dict[str, Any]:
     return scan_derivadas_consistency(db_path=args.db)
+
+
+def _handle_schema_scan(args: argparse.Namespace) -> dict[str, Any]:
+    return scan_derivadas_schema_readiness_from_path(db_path=args.db)
 
 
 def _handle_heal(args: argparse.Namespace) -> dict[str, Any]:
@@ -165,6 +170,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     scan_parser = sub.add_parser("scan", help="Run independent consistency scan")
     scan_parser.set_defaults(func=_handle_scan)
+
+    schema_scan_parser = sub.add_parser("schema-scan", help="Run schema readiness scan without migration")
+    schema_scan_parser.set_defaults(func=_handle_schema_scan)
 
     heal_parser = sub.add_parser("heal", help="Run self-heal based on consistency scan")
     heal_parser.add_argument("--sheet-file", help="Optional sheet/csv source path")

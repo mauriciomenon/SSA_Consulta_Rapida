@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from typing import Iterable
+from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection
 
@@ -329,6 +329,46 @@ def ensure_derivadas_schema(db_path: str) -> None:
     with get_db_connection(db_path) as conn:
         ensure_derivadas_schema_on_connection(conn)
         conn.commit()
+
+
+def scan_derivadas_schema_readiness(
+    conn: sqlite3.Connection,
+    required: Iterable[str] = DERIVADAS_TABLES,
+) -> dict[str, Any]:
+    """Return schema readiness status without mutating the database."""
+
+    required_tables = [str(name) for name in required]
+    missing_tables: list[str] = []
+    missing_columns: dict[str, list[str]] = {}
+    existing_columns: dict[str, list[str]] = {}
+
+    for table_name in required_tables:
+        cols = _existing_columns(conn, table_name)
+        if not cols:
+            missing_tables.append(table_name)
+            continue
+        existing_columns[table_name] = sorted(cols)
+        expected = set(EXPECTED_COLUMNS.get(table_name, {}).keys())
+        if expected:
+            missing = sorted(expected - cols)
+            if missing:
+                missing_columns[table_name] = missing
+
+    is_ready = not missing_tables and not missing_columns
+    return {
+        "is_ready": is_ready,
+        "required_tables": required_tables,
+        "missing_tables": sorted(missing_tables),
+        "missing_columns": missing_columns,
+        "existing_columns": existing_columns,
+    }
+
+
+def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
+    """Run schema readiness scan from DB path without applying migrations."""
+
+    with get_db_connection(db_path) as conn:
+        return scan_derivadas_schema_readiness(conn)
 
 
 def has_derivadas_schema(conn: sqlite3.Connection, required: Iterable[str] = DERIVADAS_TABLES) -> bool:
