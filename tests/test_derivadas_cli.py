@@ -132,3 +132,13 @@ def test_cli_maintenance_scan_only_when_auto_heal_disabled(temp_db, capsys):
     assert parsed["scan_only"] is True
     assert parsed["is_consistent"] is False
     assert parsed["scan"]["issue_counts"]["flag_mismatch_pairs"] >= 1
+
+
+def test_cli_sync_requires_one_enabled_source(temp_db):
+    _seed_cli_data(temp_db)
+    try:
+        main(["--db", temp_db, "--output", "json", "sync", "--no-db-source"])
+    except ValueError as exc:
+        assert "at least one source" in str(exc)
+    else:
+        assert False, "CLI sync should fail when all sources are disabled"

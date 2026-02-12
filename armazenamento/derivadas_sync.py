@@ -889,6 +889,11 @@ def sync_derivadas(
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
+    if not include_db_source and not sheet_file:
+        raise ValueError(
+            "sync_derivadas requires at least one source: include_db_source=True or sheet_file provided"
+        )
+
     mode = "full_rebuild" if full_rebuild else "sync"
     timestamp = _now_utc_str()
 
@@ -1220,6 +1225,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             "invalid_matrix_pairs": len(invalid_matrix_pairs),
             "closure_self_rows": closure_self,
             "summary_missing_nodes": len(summary_missing_nodes),
+            "summary_extra_nodes": len(summary_extra_nodes),
             "fingerprint_mismatch": fingerprint_mismatch,
         }
         is_consistent = all(count == 0 for count in issue_counts.values())

@@ -214,3 +214,20 @@ def test_get_sync_stats_remains_read_only_under_write_lock(temp_db):
 
     assert stats["matrix_active"] == 1
     assert elapsed < 0.5
+
+
+def test_sync_requires_at_least_one_source(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    try:
+        sync_derivadas(temp_db, include_db_source=False, sheet_file=None)
+    except ValueError as exc:
+        assert "at least one source" in str(exc)
+    else:
+        assert False, "sync_derivadas should fail when all sources are disabled"
