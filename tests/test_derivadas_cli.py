@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+import pytest
+
 from scripts.derivadas_cli import main
 
 
@@ -136,12 +138,8 @@ def test_cli_maintenance_scan_only_when_auto_heal_disabled(temp_db, capsys):
 
 def test_cli_sync_requires_one_enabled_source(temp_db):
     _seed_cli_data(temp_db)
-    try:
+    with pytest.raises(ValueError, match="at least one source"):
         main(["--db", temp_db, "--output", "json", "sync", "--no-db-source"])
-    except ValueError as exc:
-        assert "at least one source" in str(exc)
-    else:
-        assert False, "CLI sync should fail when all sources are disabled"
 
 
 def test_cli_schema_scan_reports_missing_on_fresh_db(temp_db, capsys):

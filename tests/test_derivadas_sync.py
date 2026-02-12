@@ -219,16 +219,26 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN EXCLUSIVE")
 
+    begin_called = threading.Event()
+    original_begin = derivadas_sync._begin_derivadas_write_transaction
+
+    def patched_begin(conn: sqlite3.Connection) -> None:
+        begin_called.set()
+        return original_begin(conn)
+
+    derivadas_sync._begin_derivadas_write_transaction = patched_begin  # type: ignore[assignment]
+
     def release_lock() -> None:
-        time.sleep(0.2)
+        begin_called.wait(timeout=2.0)
         lock_conn.rollback()
         lock_conn.close()
 
-    releaser = threading.Thread(target=release_lock)
+    releaser = threading.Thread(target=release_lock, daemon=True)
     releaser.start()
     try:
         report = sync_derivadas(temp_db)
     finally:
+        derivadas_sync._begin_derivadas_write_transaction = original_begin  # type: ignore[assignment]
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
@@ -246,20 +256,13 @@ def test_get_sync_stats_remains_read_only_under_write_lock(temp_db):
 
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN IMMEDIATE")
-
-    def release_lock() -> None:
-        time.sleep(1.0)
-        lock_conn.rollback()
-        lock_conn.close()
-
-    releaser = threading.Thread(target=release_lock)
-    releaser.start()
     started_at = time.perf_counter()
     try:
         stats = get_sync_stats(temp_db)
         elapsed = time.perf_counter() - started_at
     finally:
-        releaser.join(timeout=2.0)
+        lock_conn.rollback()
+        lock_conn.close()
 
     assert stats["matrix_active"] == 1
     assert elapsed < 0.5
@@ -274,12 +277,8 @@ def test_sync_requires_at_least_one_source(temp_db):
         ],
     )
 
-    try:
+    with pytest.raises(ValueError, match="at least one source"):
         sync_derivadas(temp_db, include_db_source=False, sheet_file=None)
-    except ValueError as exc:
-        assert "at least one source" in str(exc)
-    else:
-        assert False, "sync_derivadas should fail when all sources are disabled"
 
 
 def test_get_sync_stats_on_fresh_db_reports_schema_not_ready(temp_db):
