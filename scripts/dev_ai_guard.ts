@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Local pre/post PR guard runner for derivadas workflows.
+ * ACTIVE runner: keep this TypeScript/Bun version as the primary one.
+ * Python equivalent exists as fallback at `scripts/dev_ai_guard.py`.
  *
  * Examples:
  *   bun scripts/dev_ai_guard.ts --mode pre-pr --db data/ssas.db
