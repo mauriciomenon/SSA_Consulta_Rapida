@@ -11,13 +11,14 @@ Scope:
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import logging
 import os
 import sqlite3
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd  # type: ignore[import-not-found]
@@ -71,6 +72,28 @@ class MatrixEdge:
 
 def _now_utc_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_utc_str(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        return parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _graph_fingerprint(edges: list[tuple[str, str, int]]) -> str:
+    digest = hashlib.sha256()
+    for parent, child, source_flags in sorted(edges):
+        digest.update(parent.encode("ascii", errors="ignore"))
+        digest.update(b"->")
+        digest.update(child.encode("ascii", errors="ignore"))
+        digest.update(b":")
+        digest.update(str(int(source_flags)).encode("ascii"))
+        digest.update(b";")
+    return digest.hexdigest()
 
 
 def _normalize_ssa(value: Any) -> str | None:
@@ -790,6 +813,7 @@ def _finish_sync_run(
     reconciliation: dict[str, Any],
     active_edges: int,
     status: str = "ok",
+    graph_fingerprint: str | None = None,
     message: str | None = None,
 ) -> None:
     conn.execute(
@@ -804,6 +828,7 @@ def _finish_sync_run(
             orphan_parent_count = ?,
             orphan_child_count = ?,
             cycle_node_count = ?,
+            graph_fingerprint = ?,
             message = ?
         WHERE sync_run_id = ?
         """,
@@ -816,6 +841,7 @@ def _finish_sync_run(
             int(reconciliation.get("orphan_parents_count", 0)),
             int(reconciliation.get("orphan_children_count", 0)),
             int(reconciliation.get("cycle_node_count", 0)),
+            graph_fingerprint,
             message,
             sync_run_id,
         ),
@@ -930,6 +956,9 @@ def sync_derivadas(
                 for row in active_rows
             ]
             edge_pairs = [(edge.parent_ssa, edge.child_ssa) for edge in active_matrix_edges]
+            edge_fingerprint = _graph_fingerprint(
+                [(edge.parent_ssa, edge.child_ssa, edge.source_flags) for edge in active_matrix_edges]
+            )
 
             closure_rows, cycle_nodes = _build_closure_rows(edge_pairs)
             _replace_closure(conn, closure_rows=closure_rows, timestamp=timestamp)
@@ -956,7 +985,8 @@ def sync_derivadas(
                 reconciliation=reconciliation_post,
                 active_edges=len(active_matrix_edges),
                 status="ok",
-                message=None,
+                graph_fingerprint=edge_fingerprint,
+                message=json.dumps({"graph_fingerprint": edge_fingerprint}, ensure_ascii=False),
             )
             conn.commit()
 
@@ -967,6 +997,7 @@ def sync_derivadas(
                     "closure_rows": len(closure_rows),
                     "summary_rows": len(summary_rows),
                     "reconciliation": reconciliation_post,
+                    "graph_fingerprint": edge_fingerprint,
                     "finished_at": finished_at,
                 }
             )
@@ -1016,7 +1047,8 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
                 multiparent_count,
                 orphan_parent_count,
                 orphan_child_count,
-                cycle_node_count
+                cycle_node_count,
+                graph_fingerprint
             FROM ssa_derivada_sync_run
             ORDER BY sync_run_id DESC
             LIMIT 1
@@ -1040,6 +1072,7 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
                 "orphan_parent_count": latest[12],
                 "orphan_child_count": latest[13],
                 "cycle_node_count": latest[14],
+                "graph_fingerprint": latest[15],
             }
             if latest
             else None
@@ -1052,6 +1085,241 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
             "summary_total": int(summary_total),
             "latest_sync": latest_row,
         }
+
+
+def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
+    """Independent low-cost consistency scan for derivadas materialization.
+
+    This scan does not read source spreadsheets and does not modify data.
+    """
+
+    with get_db_connection(db_path) as conn:
+        ensure_derivadas_schema_on_connection(conn)
+
+        matrix_rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa, source_flags
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            """
+        ).fetchall()
+        source_rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa, source_flag
+            FROM ssa_derivada_source
+            WHERE is_active = 1
+            """
+        ).fetchall()
+
+        matrix_pairs: dict[tuple[str, str], int] = {
+            (row[0], row[1]): int(row[2]) for row in matrix_rows
+        }
+        source_flags_by_pair: dict[tuple[str, str], int] = defaultdict(int)
+        for parent, child, source_flag in source_rows:
+            source_flags_by_pair[(parent, child)] |= int(source_flag or 0)
+
+        missing_source_pairs = sorted(
+            [pair for pair in matrix_pairs if pair not in source_flags_by_pair]
+        )
+        source_without_matrix_pairs = sorted(
+            [pair for pair in source_flags_by_pair if pair not in matrix_pairs]
+        )
+        flag_mismatch_pairs = sorted(
+            [
+                pair
+                for pair in matrix_pairs
+                if pair in source_flags_by_pair and matrix_pairs[pair] != source_flags_by_pair[pair]
+            ]
+        )
+        invalid_matrix_pairs = sorted(
+            [
+                pair
+                for pair in matrix_pairs
+                if pair[0] == pair[1] or not _normalize_ssa(pair[0]) or not _normalize_ssa(pair[1])
+            ]
+        )
+
+        closure_self = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM ssa_derivada_closure WHERE ancestor_ssa = descendant_ssa"
+            ).fetchone()[0]
+        )
+
+        nodes_in_matrix: set[str] = set()
+        for parent, child, _flags in matrix_rows:
+            nodes_in_matrix.add(parent)
+            nodes_in_matrix.add(child)
+        summary_nodes = {
+            row[0]
+            for row in conn.execute("SELECT ssa FROM ssa_derivada_summary").fetchall()
+        }
+        summary_missing_nodes = sorted(nodes_in_matrix - summary_nodes)
+        summary_extra_nodes = sorted(summary_nodes - nodes_in_matrix)
+
+        latest = conn.execute(
+            """
+            SELECT sync_run_id, finished_at, status, message, graph_fingerprint
+            FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        edge_fingerprint = _graph_fingerprint(
+            [(row[0], row[1], int(row[2])) for row in matrix_rows]
+        )
+        latest_fingerprint: str | None = None
+        if latest:
+            latest_fingerprint = latest[4]
+            if not latest_fingerprint and latest[3]:
+                try:
+                    payload = json.loads(latest[3])
+                except (TypeError, ValueError):
+                    payload = {}
+                latest_fingerprint = payload.get("graph_fingerprint")
+        fingerprint_mismatch = (
+            int(bool(latest_fingerprint and latest_fingerprint != edge_fingerprint))
+            if latest
+            else 0
+        )
+
+        issue_counts = {
+            "missing_source_pairs": len(missing_source_pairs),
+            "source_without_matrix_pairs": len(source_without_matrix_pairs),
+            "flag_mismatch_pairs": len(flag_mismatch_pairs),
+            "invalid_matrix_pairs": len(invalid_matrix_pairs),
+            "closure_self_rows": closure_self,
+            "summary_missing_nodes": len(summary_missing_nodes),
+            "fingerprint_mismatch": fingerprint_mismatch,
+        }
+        is_consistent = all(count == 0 for count in issue_counts.values())
+
+        return {
+            "is_consistent": is_consistent,
+            "issue_counts": issue_counts,
+            "matrix_active_edges": len(matrix_rows),
+            "source_active_edges": len(source_rows),
+            "summary_nodes": len(summary_nodes),
+            "graph_fingerprint": edge_fingerprint,
+            "latest_sync": (
+                {
+                    "sync_run_id": int(latest[0]),
+                    "finished_at": latest[1],
+                    "status": latest[2],
+                    "message": latest[3],
+                    "graph_fingerprint": latest_fingerprint,
+                }
+                if latest
+                else None
+            ),
+            "samples": {
+                "missing_source_pairs": [f"{parent}->{child}" for parent, child in missing_source_pairs[:20]],
+                "source_without_matrix_pairs": [
+                    f"{parent}->{child}" for parent, child in source_without_matrix_pairs[:20]
+                ],
+                "flag_mismatch_pairs": [f"{parent}->{child}" for parent, child in flag_mismatch_pairs[:20]],
+                "invalid_matrix_pairs": [f"{parent}->{child}" for parent, child in invalid_matrix_pairs[:20]],
+                "summary_missing_nodes": summary_missing_nodes[:20],
+                "summary_extra_nodes": summary_extra_nodes[:20],
+                "fingerprint": {
+                    "current": edge_fingerprint,
+                    "latest_sync": latest_fingerprint,
+                },
+            },
+        }
+
+
+def self_heal_derivadas(
+    db_path: str,
+    table_name: str = "ssa_table",
+    *,
+    sheet_file: str | None = None,
+    sheet_parent_col: str = "parent_ssa",
+    sheet_child_col: str = "child_ssa",
+    sheet_label_col: str | None = "relation_label",
+    sheet_name: str | None = None,
+    include_db_source: bool = True,
+    full_rebuild: bool = False,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Attempt self-healing by running sync only when scan indicates issues."""
+
+    before = scan_derivadas_consistency(db_path)
+    if before["is_consistent"] and not force:
+        return {"healed": False, "reason": "already_consistent", "before": before}
+
+    sync_report = sync_derivadas(
+        db_path=db_path,
+        table_name=table_name,
+        sheet_file=sheet_file,
+        sheet_parent_col=sheet_parent_col,
+        sheet_child_col=sheet_child_col,
+        sheet_label_col=sheet_label_col,
+        sheet_name=sheet_name,
+        include_db_source=include_db_source,
+        full_rebuild=full_rebuild,
+        verify_only=False,
+    )
+    after = scan_derivadas_consistency(db_path)
+    return {
+        "healed": True,
+        "before": before,
+        "sync": sync_report,
+        "after": after,
+    }
+
+
+def run_derivadas_maintenance(
+    db_path: str,
+    table_name: str = "ssa_table",
+    *,
+    min_interval_seconds: int = 3600,
+    auto_heal: bool = True,
+    full_rebuild: bool = False,
+) -> dict[str, Any]:
+    """Background-friendly maintenance trigger with interval guard."""
+
+    with get_db_connection(db_path) as conn:
+        ensure_derivadas_schema_on_connection(conn)
+        latest = conn.execute(
+            """
+            SELECT finished_at
+            FROM ssa_derivada_sync_run
+            WHERE status = 'ok'
+            ORDER BY sync_run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    now = datetime.now(timezone.utc)
+    last_finished = _parse_utc_str(latest[0] if latest else None)
+    if last_finished is not None:
+        delta = now - last_finished
+        if delta < timedelta(seconds=max(0, int(min_interval_seconds))):
+            return {
+                "ran": False,
+                "reason": "interval_guard",
+                "next_in_seconds": int(max(0, int(min_interval_seconds) - delta.total_seconds())),
+            }
+
+    scan_report = scan_derivadas_consistency(db_path)
+    if scan_report["is_consistent"]:
+        return {"ran": True, "scan_only": True, "is_consistent": True, "scan": scan_report}
+
+    if not auto_heal:
+        return {"ran": True, "scan_only": True, "is_consistent": False, "scan": scan_report}
+
+    heal_report = self_heal_derivadas(
+        db_path=db_path,
+        table_name=table_name,
+        full_rebuild=full_rebuild,
+    )
+    return {
+        "ran": True,
+        "scan_only": False,
+        "is_consistent": bool(heal_report.get("after", {}).get("is_consistent")),
+        "heal": heal_report,
+    }
 
 
 def export_reconciliation_csv(report: dict[str, Any], output_file: str) -> None:

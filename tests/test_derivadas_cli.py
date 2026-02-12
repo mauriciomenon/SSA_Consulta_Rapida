@@ -58,3 +58,77 @@ def test_cli_parents_and_top(temp_db, capsys):
     assert parsed_top["rows"]
     assert parsed_top["rows"][0]["ssa"] == "202500001"
 
+
+def test_cli_scan_reports_consistent_after_sync(temp_db, capsys):
+    _seed_cli_data(temp_db)
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    assert main(["--db", temp_db, "--output", "json", "scan"]) == 0
+    parsed_scan = json.loads(capsys.readouterr().out)
+    assert parsed_scan["is_consistent"] is True
+    assert parsed_scan["issue_counts"]["fingerprint_mismatch"] == 0
+    assert parsed_scan["graph_fingerprint"]
+
+
+def test_cli_heal_repairs_inconsistent_flags(temp_db, capsys):
+    _seed_cli_data(temp_db)
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute("UPDATE ssa_derivada_matrix SET source_flags = 0 WHERE active = 1")
+        conn.commit()
+
+    assert main(["--db", temp_db, "--output", "json", "heal"]) == 0
+    parsed_heal = json.loads(capsys.readouterr().out)
+    assert parsed_heal["healed"] is True
+    assert parsed_heal["after"]["is_consistent"] is True
+
+
+def test_cli_maintenance_interval_guard(temp_db, capsys):
+    _seed_cli_data(temp_db)
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    assert main(["--db", temp_db, "--output", "json", "maintenance", "--min-interval-seconds", "3600"]) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["ran"] is False
+    assert parsed["reason"] == "interval_guard"
+
+
+def test_cli_maintenance_scan_only_when_auto_heal_disabled(temp_db, capsys):
+    _seed_cli_data(temp_db)
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            """
+            UPDATE ssa_derivada_matrix
+            SET source_flags = 0
+            WHERE parent_ssa = '202500001' AND child_ssa = '202500002'
+            """
+        )
+        conn.commit()
+
+    assert (
+        main(
+            [
+                "--db",
+                temp_db,
+                "--output",
+                "json",
+                "maintenance",
+                "--min-interval-seconds",
+                "0",
+                "--no-auto-heal",
+            ]
+        )
+        == 0
+    )
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["ran"] is True
+    assert parsed["scan_only"] is True
+    assert parsed["is_consistent"] is False
+    assert parsed["scan"]["issue_counts"]["flag_mismatch_pairs"] >= 1

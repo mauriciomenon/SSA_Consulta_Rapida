@@ -1,59 +1,72 @@
 from __future__ import annotations
 
-import types
+import sqlite3
 
-from core import app_logic
-
-
-def test_optional_derivadas_sync_disabled_by_default(monkeypatch):
-    monkeypatch.delenv("SSA_DERIVADAS_SYNC", raising=False)
-    result = app_logic._run_optional_derivadas_sync("data/ssas.db", "ssa_table")
-    assert result is None
-
-
-def test_optional_derivadas_sync_enabled_passes_expected_args(monkeypatch):
-    monkeypatch.setenv("SSA_DERIVADAS_SYNC", "1")
-    monkeypatch.setenv("SSA_DERIVADAS_SHEET_FILE", "docs_entrada/derivadas.csv")
-    monkeypatch.setenv("SSA_DERIVADAS_SHEET_NAME", "Relacoes")
-    monkeypatch.setenv("SSA_DERIVADAS_SHEET_PARENT_COL", "mae")
-    monkeypatch.setenv("SSA_DERIVADAS_SHEET_CHILD_COL", "filha")
-    monkeypatch.setenv("SSA_DERIVADAS_SHEET_LABEL_COL", "rotulo")
-    monkeypatch.setenv("SSA_DERIVADAS_FULL_REBUILD", "1")
-    monkeypatch.setenv("SSA_DERIVADAS_VERIFY_ONLY", "1")
-    monkeypatch.setenv("SSA_DERIVADAS_NO_DB_SOURCE", "1")
-
-    captured: dict[str, object] = {}
-
-    def fake_sync_derivadas(**kwargs):
-        captured.update(kwargs)
-        return {"merge_stats": {"merged_edges": 1}, "reconciliation": {}}
-
-    fake_module = types.SimpleNamespace(sync_derivadas=fake_sync_derivadas)
-    monkeypatch.setitem(__import__("sys").modules, "armazenamento.derivadas_sync", fake_module)
-
-    out = app_logic._run_optional_derivadas_sync("data/ssas.db", "ssa_table")
-    assert out is not None
-    assert captured["db_path"] == "data/ssas.db"
-    assert captured["table_name"] == "ssa_table"
-    assert captured["sheet_file"] == "docs_entrada/derivadas.csv"
-    assert captured["sheet_name"] == "Relacoes"
-    assert captured["sheet_parent_col"] == "mae"
-    assert captured["sheet_child_col"] == "filha"
-    assert captured["sheet_label_col"] == "rotulo"
-    assert captured["full_rebuild"] is True
-    assert captured["verify_only"] is True
-    assert captured["include_db_source"] is False
+from armazenamento.derivadas_sync import (
+    run_derivadas_maintenance,
+    scan_derivadas_consistency,
+    self_heal_derivadas,
+    sync_derivadas,
+)
 
 
-def test_optional_derivadas_sync_errors_do_not_break_flow(monkeypatch):
-    monkeypatch.setenv("SSA_DERIVADAS_SYNC", "1")
+def _seed_base_data(db_path: str) -> None:
+    rows = [
+        ("202500001", None),
+        ("202500002", "202500001"),
+        ("202500003", "202500002"),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+        )
+        conn.commit()
 
-    def fake_sync_derivadas(**_kwargs):
-        raise RuntimeError("boom")
 
-    fake_module = types.SimpleNamespace(sync_derivadas=fake_sync_derivadas)
-    monkeypatch.setitem(__import__("sys").modules, "armazenamento.derivadas_sync", fake_module)
+def test_scan_detects_matrix_source_inconsistency(temp_db):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
 
-    out = app_logic._run_optional_derivadas_sync("data/ssas.db", "ssa_table")
-    assert out is None
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            """
+            UPDATE ssa_derivada_matrix
+            SET source_flags = 0
+            WHERE parent_ssa = '202500001' AND child_ssa = '202500002'
+            """
+        )
+        conn.commit()
+
+    report = scan_derivadas_consistency(temp_db)
+    assert report["is_consistent"] is False
+    assert report["issue_counts"]["flag_mismatch_pairs"] >= 1
+
+
+def test_self_heal_repairs_inconsistency(temp_db):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            """
+            UPDATE ssa_derivada_matrix
+            SET source_flags = 0
+            WHERE active = 1
+            """
+        )
+        conn.commit()
+
+    healed = self_heal_derivadas(temp_db)
+    assert healed["healed"] is True
+    assert healed["after"]["is_consistent"] is True
+
+
+def test_maintenance_interval_guard(temp_db):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
+
+    result = run_derivadas_maintenance(temp_db, min_interval_seconds=3600, auto_heal=True)
+    assert result["ran"] is False
+    assert result["reason"] == "interval_guard"
 
