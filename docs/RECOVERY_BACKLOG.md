@@ -10,6 +10,12 @@ Scope is split by priority to keep delivery safe and incremental.
 
 ## P1 hardening targets
 
+- Derivadas c2 follow-up (db and related tools only):
+  - Keep `SSA_DERIVADAS_SYNC` opt-in by default until one full production cycle is observed.
+  - Add controlled runbook for `scripts/derivadas_cli.py sync --full-rebuild` with rollback notes.
+  - Validate external sheet column aliases (`parent_ssa`, `child_ssa`, `relation_label`) against real files.
+  - Add focused regression test for mixed-source conflict reporting (db vs sheet) with stable fixtures.
+  - Add migration smoke check for legacy `ssa_derivada_matrix` variants before enabling auto-sync broadly.
 - Extract shared process termination helper for:
   - `scripts/run_pytest_stream_and_log.py`
   - `scripts/run_pytest_stream_and_log_v2.py`
@@ -49,4 +55,3 @@ Scope is split by priority to keep delivery safe and incremental.
 - Use atomic commits per topic.
 - Keep rollback easy by changing one concern at a time.
 - Prefer low-risk defensive changes first, then structural cleanup.
-
