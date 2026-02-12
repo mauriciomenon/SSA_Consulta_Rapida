@@ -142,3 +142,10 @@ def test_cli_sync_requires_one_enabled_source(temp_db):
         assert "at least one source" in str(exc)
     else:
         assert False, "CLI sync should fail when all sources are disabled"
+
+
+def test_cli_schema_scan_reports_missing_on_fresh_db(temp_db, capsys):
+    assert main(["--db", temp_db, "--output", "json", "schema-scan"]) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["is_ready"] is False
+    assert "ssa_derivada_matrix" in parsed["missing_tables"]
