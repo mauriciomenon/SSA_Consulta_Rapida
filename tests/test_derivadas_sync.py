@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
+from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
 
 
 def _insert_ssa_rows(db_path: str, rows: list[tuple[str, str | None]]) -> None:
@@ -110,3 +111,46 @@ def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     assert stats["matrix_active"] == 1
     assert stats["latest_sync"] is not None
 
+
+def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute("DROP TABLE IF EXISTS ssa_derivada_matrix")
+        conn.execute(
+            """
+            CREATE TABLE ssa_derivada_matrix (
+                parent_ssa TEXT NOT NULL,
+                child_ssa TEXT NOT NULL,
+                source_flags INTEGER NOT NULL DEFAULT 0,
+                relation_label TEXT,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                last_sync_at TEXT NOT NULL,
+                PRIMARY KEY (parent_ssa, child_ssa)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO ssa_derivada_matrix (
+                parent_ssa, child_ssa, source_flags, relation_label, first_seen_at, last_seen_at, last_sync_at
+            ) VALUES (
+                '202500001', '202500002', 1, 'Derivada da', '2026-01-01 00:00:00', '2026-01-01 00:00:00', '2026-01-01 00:00:00'
+            )
+            """
+        )
+        ensure_derivadas_schema_on_connection(conn)
+        conn.commit()
+
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(ssa_derivada_matrix)").fetchall()]
+        row = conn.execute(
+            """
+            SELECT relation_type, relation_raw_label, active
+            FROM ssa_derivada_matrix
+            WHERE parent_ssa='202500001' AND child_ssa='202500002'
+            """
+        ).fetchone()
+
+    assert "relation_type" in cols
+    assert "relation_raw_label" in cols
+    assert "active" in cols
+    assert row == (0, "Derivada da", 1)
