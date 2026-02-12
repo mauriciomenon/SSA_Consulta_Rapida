@@ -183,3 +183,34 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
+
+
+def test_get_sync_stats_remains_read_only_under_write_lock(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+    sync_derivadas(temp_db)
+
+    lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
+    lock_conn.execute("BEGIN IMMEDIATE")
+
+    def release_lock() -> None:
+        time.sleep(1.0)
+        lock_conn.rollback()
+        lock_conn.close()
+
+    releaser = threading.Thread(target=release_lock)
+    releaser.start()
+    started_at = time.perf_counter()
+    try:
+        stats = get_sync_stats(temp_db)
+        elapsed = time.perf_counter() - started_at
+    finally:
+        releaser.join(timeout=2.0)
+
+    assert stats["matrix_active"] == 1
+    assert elapsed < 0.5

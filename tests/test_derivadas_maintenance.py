@@ -94,3 +94,29 @@ def test_scan_remains_read_only_under_write_lock(temp_db):
 
     assert report["matrix_active_edges"] == 2
     assert op_elapsed < 0.5
+
+
+def test_maintenance_interval_guard_remains_read_only_under_write_lock(temp_db):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
+
+    lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
+    lock_conn.execute("BEGIN IMMEDIATE")
+
+    def _release_lock() -> None:
+        time.sleep(1.0)
+        lock_conn.rollback()
+        lock_conn.close()
+
+    releaser = threading.Thread(target=_release_lock)
+    releaser.start()
+    started_at = time.perf_counter()
+    try:
+        result = run_derivadas_maintenance(temp_db, min_interval_seconds=3600, auto_heal=True)
+        op_elapsed = time.perf_counter() - started_at
+    finally:
+        releaser.join(timeout=2.0)
+
+    assert result["ran"] is False
+    assert result["reason"] == "interval_guard"
+    assert op_elapsed < 0.5

@@ -30,6 +30,8 @@ def _open_derivadas_connection(db_path: str):
     with get_db_connection(db_path) as conn:
         conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_QUERY_BUSY_TIMEOUT_MS}")
         ensure_derivadas_schema_for_read(conn)
+        # Guardrail: query helpers are strictly read-only.
+        conn.execute("PRAGMA query_only = ON")
         yield conn
 
 
