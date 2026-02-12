@@ -54,6 +54,29 @@ RELATION_TYPE_UNKNOWN = 0
 RELATION_TYPE_DB_DERIVADA_DE = 1
 RELATION_TYPE_SHEET = 2
 DERIVADAS_BUSY_TIMEOUT_MS = 5000
+SHEET_PARENT_ALIASES: tuple[str, ...] = (
+    "parent",
+    "ssa_mae",
+    "ssa_pai",
+    "numero_ssa_mae",
+    "numero_mae",
+)
+SHEET_CHILD_ALIASES: tuple[str, ...] = (
+    "child",
+    "ssa_filha",
+    "ssa_derivada",
+    "numero_ssa_filha",
+    "numero_filha",
+    "numero_ssa",
+)
+SHEET_LABEL_ALIASES: tuple[str, ...] = (
+    "relacao",
+    "tipo_relacao",
+    "relation",
+    "label",
+    "descricao_relacao",
+    "relation_raw_label",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +250,53 @@ def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> lis
     raise ValueError(f"Unsupported sheet format for derivadas sync: {sheet_file}")
 
 
+def _normalize_sheet_column_name(value: Any) -> str:
+    text = str(value).strip().casefold()
+    return "".join(ch for ch in text if ch.isalnum())
+
+
+def _resolve_sheet_column_name(
+    columns: list[str],
+    requested: str | None,
+    *,
+    aliases: tuple[str, ...],
+) -> str | None:
+    if requested is None:
+        return None
+    if requested in columns:
+        return requested
+
+    normalized_map: dict[str, str] = {}
+    for column in columns:
+        key = _normalize_sheet_column_name(column)
+        if key and key not in normalized_map:
+            normalized_map[key] = column
+
+    requested_norm = _normalize_sheet_column_name(requested)
+    if requested_norm in normalized_map:
+        return normalized_map[requested_norm]
+
+    for alias in aliases:
+        alias_norm = _normalize_sheet_column_name(alias)
+        if alias_norm in normalized_map:
+            return normalized_map[alias_norm]
+    return None
+
+
+def _resolve_sheet_columns(
+    frame: pd.DataFrame,
+    *,
+    parent_col: str,
+    child_col: str,
+    label_col: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    columns = [str(col) for col in frame.columns]
+    resolved_parent = _resolve_sheet_column_name(columns, parent_col, aliases=SHEET_PARENT_ALIASES)
+    resolved_child = _resolve_sheet_column_name(columns, child_col, aliases=SHEET_CHILD_ALIASES)
+    resolved_label = _resolve_sheet_column_name(columns, label_col, aliases=SHEET_LABEL_ALIASES)
+    return resolved_parent, resolved_child, resolved_label
+
+
 def collect_sheet_edges(
     sheet_file: str,
     parent_col: str = "parent_ssa",
@@ -249,19 +319,39 @@ def collect_sheet_edges(
         "self_loop": 0,
         "duplicated": 0,
         "missing_columns": 0,
+        "missing_label_column_rows": 0,
+        "resolved_parent_alias_rows": 0,
+        "resolved_child_alias_rows": 0,
+        "resolved_label_alias_rows": 0,
     }
 
     for frame in frames:
         if frame is None or frame.empty:
             continue
-        if parent_col not in frame.columns or child_col not in frame.columns:
+
+        resolved_parent_col, resolved_child_col, resolved_label_col = _resolve_sheet_columns(
+            frame,
+            parent_col=parent_col,
+            child_col=child_col,
+            label_col=label_col,
+        )
+        if not resolved_parent_col or not resolved_child_col:
             stats["missing_columns"] += int(len(frame))
             continue
+        if resolved_parent_col != parent_col:
+            stats["resolved_parent_alias_rows"] += int(len(frame))
+        if resolved_child_col != child_col:
+            stats["resolved_child_alias_rows"] += int(len(frame))
+        if label_col:
+            if resolved_label_col and resolved_label_col != label_col:
+                stats["resolved_label_alias_rows"] += int(len(frame))
+            if not resolved_label_col:
+                stats["missing_label_column_rows"] += int(len(frame))
 
         stats["input_rows"] += int(len(frame))
         for _, row in frame.iterrows():
-            parent_norm = _normalize_ssa(row.get(parent_col))
-            child_norm = _normalize_ssa(row.get(child_col))
+            parent_norm = _normalize_ssa(row.get(resolved_parent_col))
+            child_norm = _normalize_ssa(row.get(resolved_child_col))
             if not parent_norm:
                 stats["invalid_parent"] += 1
                 continue
@@ -277,7 +367,7 @@ def collect_sheet_edges(
                 continue
             seen_pairs.add(key)
             child_to_parents[child_norm].add(parent_norm)
-            relation_label = _clean_relation_label(row.get(label_col)) if label_col else None
+            relation_label = _clean_relation_label(row.get(resolved_label_col)) if resolved_label_col else None
             edges.append(
                 SourceEdge(
                     parent_ssa=parent_norm,

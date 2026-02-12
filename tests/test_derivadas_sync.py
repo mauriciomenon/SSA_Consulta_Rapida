@@ -83,6 +83,47 @@ def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_p
     assert matrix_count == 0
 
 
+def test_sync_resolves_sheet_column_aliases(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "derivadas_alias.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["SSA Mae", "SSA Filha", "Relacao"])
+        writer.writeheader()
+        writer.writerow({"SSA Mae": "202500001", "SSA Filha": "202500002", "Relacao": "Derivada da"})
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+        sheet_parent_col="parent_ssa",
+        sheet_child_col="child_ssa",
+        sheet_label_col="relation_label",
+    )
+
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["sheet_stats"]["resolved_parent_alias_rows"] == 1
+    assert report["sheet_stats"]["resolved_child_alias_rows"] == 1
+    assert report["sheet_stats"]["resolved_label_alias_rows"] == 1
+
+    with sqlite3.connect(temp_db) as conn:
+        row = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa, source_flags, relation_raw_label
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            """
+        ).fetchone()
+
+    assert row == ("202500001", "202500002", 2, "Derivada da")
+
+
 def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     _insert_ssa_rows(
         temp_db,
