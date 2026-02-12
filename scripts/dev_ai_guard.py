@@ -77,6 +77,14 @@ def sqlite_table_presence(db_path: str, table_name: str) -> TablePresence:
         return "unknown"
 
 
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return value
+
+
 def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> list[Step]:
     lint_targets = [
         "armazenamento/derivadas_schema.py",
@@ -212,14 +220,17 @@ def run_step(step: Step) -> StepResult:
         )
     except subprocess.TimeoutExpired as exc:
         duration_ms = int((time.time() - started_at) * 1000)
-        stderr = exc.stderr or f"Timeout after {DEFAULT_STEP_TIMEOUT_SECONDS}s"
+        stdout = _as_text(exc.stdout)
+        stderr = _as_text(exc.stderr)
+        if not stderr:
+            stderr = f"Timeout after {DEFAULT_STEP_TIMEOUT_SECONDS}s"
         return StepResult(
             name=step.name,
             command=" ".join(step.cmd),
             exit_code=124,
             duration_ms=duration_ms,
-            stdout=exc.stdout or "",
-            stderr=str(stderr),
+            stdout=stdout,
+            stderr=stderr,
         )
 
 
