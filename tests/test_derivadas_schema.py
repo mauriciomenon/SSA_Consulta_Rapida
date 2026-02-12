@@ -4,6 +4,7 @@ import sqlite3
 
 from armazenamento.derivadas_schema import (
     ensure_derivadas_schema,
+    scan_derivadas_read_schema_readiness_from_path,
     scan_derivadas_schema_readiness_from_path,
 )
 
@@ -40,3 +41,18 @@ def test_schema_scan_detects_legacy_missing_columns(temp_db):
     assert report["is_ready"] is False
     assert "ssa_derivada_matrix" in report["missing_columns"]
     assert "source_flags" in report["missing_columns"]["ssa_derivada_matrix"]
+
+
+def test_read_schema_scan_reports_missing_tables_on_fresh_db(temp_db):
+    report = scan_derivadas_read_schema_readiness_from_path(temp_db)
+    assert report["is_ready"] is False
+    assert "ssa_derivada_matrix" in report["missing_tables"]
+    assert "ssa_derivada_closure" in report["missing_tables"]
+
+
+def test_read_schema_scan_reports_ready_after_schema_bootstrap(temp_db):
+    ensure_derivadas_schema(temp_db)
+    report = scan_derivadas_read_schema_readiness_from_path(temp_db)
+    assert report["is_ready"] is True
+    assert report["missing_tables"] == []
+    assert report["missing_columns"] == {}
