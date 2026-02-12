@@ -14,6 +14,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import time
@@ -53,7 +54,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def build_steps(options: argparse.Namespace) -> list[Step]:
+def sqlite_table_exists(db_path: str, table_name: str) -> bool:
+    if not db_path or not table_name or not os.path.exists(db_path):
+        return False
+    try:
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+                (table_name,),
+            ).fetchone()
+            return row is not None
+    except sqlite3.Error:
+        return False
+
+
+def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> list[Step]:
     lint_targets = [
         "armazenamento/derivadas_schema.py",
         "armazenamento/derivadas_queries.py",
@@ -101,7 +116,7 @@ def build_steps(options: argparse.Namespace) -> list[Step]:
                     cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
                 )
             )
-            if not options.skip_sync_verify:
+            if include_sync_verify:
                 steps.append(
                     Step(
                         name="sync_verify_only",
@@ -205,7 +220,18 @@ def write_report(options: argparse.Namespace, results: list[StepResult]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     options = parse_args(list(argv or sys.argv[1:]))
-    steps = build_steps(options)
+    has_base_table = sqlite_table_exists(options.db_path, "ssa_table")
+    auto_skipped_sync_verify = (
+        options.mode == "pre-pr"
+        and not options.skip_health
+        and not options.skip_sync_verify
+        and not has_base_table
+    )
+    if auto_skipped_sync_verify:
+        print("Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB.")
+
+    include_sync_verify = not auto_skipped_sync_verify and not options.skip_sync_verify
+    steps = build_steps(options, include_sync_verify=include_sync_verify)
 
     print(f"Mode: {options.mode}")
     print(f"DB:   {options.db_path}")
