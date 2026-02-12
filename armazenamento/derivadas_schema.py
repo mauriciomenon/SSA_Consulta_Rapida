@@ -90,6 +90,25 @@ EXPECTED_COLUMNS: dict[str, dict[str, str]] = {
     },
 }
 
+READ_REQUIRED_COLUMNS: dict[str, set[str]] = {
+    "ssa_derivada_matrix": {"parent_ssa", "child_ssa", "source_flags", "active"},
+    "ssa_derivada_closure": {"ancestor_ssa", "descendant_ssa", "min_distance", "max_distance", "path_count"},
+    "ssa_derivada_summary": {
+        "ssa",
+        "direct_parents_count",
+        "direct_children_count",
+        "ancestors_count",
+        "descendants_count",
+        "level_from_root_min",
+        "level_from_root_max",
+        "levels_above_max",
+        "levels_below_max",
+        "component_size",
+        "has_cycle",
+        "last_sync_at",
+    },
+}
+
 DERIVADAS_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS ssa_derivada_matrix (
     parent_ssa TEXT NOT NULL,
@@ -227,11 +246,20 @@ CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_ru
 """
 
 
-def ensure_derivadas_schema_on_connection(conn: sqlite3.Connection) -> None:
-    """Create derivadas schema objects if they do not exist."""
+def ensure_derivadas_schema_on_connection(
+    conn: sqlite3.Connection,
+    *,
+    include_legacy_backfill: bool = True,
+) -> None:
+    """Create derivadas schema objects if they do not exist.
+
+    include_legacy_backfill:
+      - True: applies data backfill for legacy relation_label column.
+      - False: schema-only checks/migrations without data updates.
+    """
 
     conn.executescript(DERIVADAS_TABLES_SQL)
-    _ensure_derivadas_columns(conn)
+    _ensure_derivadas_columns(conn, include_legacy_backfill=include_legacy_backfill)
     conn.executescript(DERIVADAS_INDEXES_SQL)
 
 
@@ -240,7 +268,7 @@ def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {row[1] for row in rows}
 
 
-def _ensure_derivadas_columns(conn: sqlite3.Connection) -> None:
+def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfill: bool) -> None:
     for table_name, expected in EXPECTED_COLUMNS.items():
         existing = _existing_columns(conn, table_name)
         if not existing:
@@ -255,6 +283,9 @@ def _ensure_derivadas_columns(conn: sqlite3.Connection) -> None:
                 if "duplicate column name" not in str(exc).lower():
                     raise
 
+    if not include_legacy_backfill:
+        return
+
     # Compatibilidade com schema antigo: relation_label -> relation_raw_label
     matrix_cols = _existing_columns(conn, "ssa_derivada_matrix")
     if "relation_label" in matrix_cols and "relation_raw_label" in matrix_cols:
@@ -267,6 +298,29 @@ def _ensure_derivadas_columns(conn: sqlite3.Connection) -> None:
               AND trim(relation_label) <> ''
             """
         )
+
+
+def has_derivadas_read_schema(conn: sqlite3.Connection) -> bool:
+    """Return True when tables/columns required by query API are present."""
+
+    if not has_derivadas_schema(conn, required=READ_REQUIRED_COLUMNS.keys()):
+        return False
+    for table_name, required_columns in READ_REQUIRED_COLUMNS.items():
+        existing = _existing_columns(conn, table_name)
+        if not required_columns.issubset(existing):
+            return False
+    return True
+
+
+def ensure_derivadas_schema_for_read(conn: sqlite3.Connection) -> None:
+    """Ensure derivadas read-path schema with minimal write contention.
+
+    Fast path performs only metadata checks. DDL is executed only when required.
+    """
+
+    if has_derivadas_read_schema(conn):
+        return
+    ensure_derivadas_schema_on_connection(conn, include_legacy_backfill=False)
 
 
 def ensure_derivadas_schema(db_path: str) -> None:
