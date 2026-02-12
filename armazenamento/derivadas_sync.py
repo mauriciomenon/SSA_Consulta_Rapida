@@ -17,6 +17,7 @@ import logging
 import os
 import sqlite3
 from collections import defaultdict, deque
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -108,6 +109,24 @@ def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
     """Apply low-cost connection guards for derivadas operations."""
 
     conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_BUSY_TIMEOUT_MS}")
+
+
+@contextmanager
+def _open_derivadas_read_connection(db_path: str):
+    with get_db_connection(db_path) as conn:
+        _configure_derivadas_connection(conn)
+        ensure_derivadas_schema_for_read(conn)
+        # Guardrail: scan/stats helpers must remain read-only.
+        conn.execute("PRAGMA query_only = ON")
+        yield conn
+
+
+def _begin_derivadas_write_transaction(conn: sqlite3.Connection) -> None:
+    """Acquire a write lock early to avoid lock escalation mid-sync."""
+
+    if conn.in_transaction:
+        return
+    conn.execute("BEGIN IMMEDIATE")
 
 
 def _clean_relation_label(value: Any) -> str | None:
@@ -929,6 +948,7 @@ def sync_derivadas(
             return report
 
         started_at = timestamp
+        _begin_derivadas_write_transaction(conn)
         run_id = _start_sync_run(
             conn,
             mode=mode,
@@ -1036,9 +1056,7 @@ def sync_derivadas(
 def get_sync_stats(db_path: str) -> dict[str, Any]:
     """Return compact stats for matrix, closure, summary and latest sync run."""
 
-    with get_db_connection(db_path) as conn:
-        _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_for_read(conn)
+    with _open_derivadas_read_connection(db_path) as conn:
         matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
         matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
         closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
@@ -1106,9 +1124,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
     This scan does not read source spreadsheets and does not modify data.
     """
 
-    with get_db_connection(db_path) as conn:
-        _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_for_read(conn)
+    with _open_derivadas_read_connection(db_path) as conn:
 
         matrix_rows = conn.execute(
             """
@@ -1293,9 +1309,7 @@ def run_derivadas_maintenance(
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
-    with get_db_connection(db_path) as conn:
-        _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_for_read(conn)
+    with _open_derivadas_read_connection(db_path) as conn:
         latest = conn.execute(
             """
             SELECT finished_at
