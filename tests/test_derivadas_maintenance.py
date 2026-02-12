@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
 import time
 
 import armazenamento.derivadas_sync as derivadas_sync_module
@@ -80,18 +79,13 @@ def test_scan_remains_read_only_under_write_lock(temp_db):
 
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN IMMEDIATE")
-
-    def _release_lock() -> None:
-        time.sleep(1.0)
+    started_at = time.perf_counter()
+    try:
+        report = scan_derivadas_consistency(temp_db)
+        op_elapsed = time.perf_counter() - started_at
+    finally:
         lock_conn.rollback()
         lock_conn.close()
-
-    releaser = threading.Thread(target=_release_lock)
-    releaser.start()
-    started_at = time.perf_counter()
-    report = scan_derivadas_consistency(temp_db)
-    op_elapsed = time.perf_counter() - started_at
-    releaser.join(timeout=2.0)
 
     assert report["matrix_active_edges"] == 2
     assert op_elapsed < 0.5
@@ -103,20 +97,13 @@ def test_maintenance_interval_guard_remains_read_only_under_write_lock(temp_db):
 
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN IMMEDIATE")
-
-    def _release_lock() -> None:
-        time.sleep(1.0)
-        lock_conn.rollback()
-        lock_conn.close()
-
-    releaser = threading.Thread(target=_release_lock)
-    releaser.start()
     started_at = time.perf_counter()
     try:
         result = run_derivadas_maintenance(temp_db, min_interval_seconds=3600, auto_heal=True)
         op_elapsed = time.perf_counter() - started_at
     finally:
-        releaser.join(timeout=2.0)
+        lock_conn.rollback()
+        lock_conn.close()
 
     assert result["ran"] is False
     assert result["reason"] == "interval_guard"
@@ -193,18 +180,11 @@ def test_maintenance_returns_database_locked_state_on_exclusive_lock(temp_db, mo
 
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN EXCLUSIVE")
-
-    def _release_lock() -> None:
-        time.sleep(0.6)
-        lock_conn.rollback()
-        lock_conn.close()
-
-    releaser = threading.Thread(target=_release_lock)
-    releaser.start()
     try:
         result = run_derivadas_maintenance(temp_db, min_interval_seconds=0, auto_heal=False)
     finally:
-        releaser.join(timeout=2.0)
+        lock_conn.rollback()
+        lock_conn.close()
 
     assert result["ran"] is False
     assert result["reason"] == "database_locked"

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
 import time
 
 import pytest
@@ -78,21 +77,14 @@ def test_queries_remain_read_only_under_write_lock(temp_db):
 
     lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
     lock_conn.execute("BEGIN IMMEDIATE")
-
-    def _release_lock() -> None:
-        time.sleep(1.0)
-        lock_conn.rollback()
-        lock_conn.close()
-
-    releaser = threading.Thread(target=_release_lock)
-    releaser.start()
     started_at = time.perf_counter()
     op_elapsed = 0.0
     try:
         children = get_children(temp_db, "202500001")
         op_elapsed = time.perf_counter() - started_at
     finally:
-        releaser.join(timeout=2.0)
+        lock_conn.rollback()
+        lock_conn.close()
 
     assert children == ["202500002", "202500004"]
     assert op_elapsed < 0.5
