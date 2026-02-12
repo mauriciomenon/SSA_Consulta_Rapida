@@ -26,8 +26,8 @@ import pandas as pd  # type: ignore[import-not-found]
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import (
-    ensure_derivadas_schema_for_read,
     ensure_derivadas_schema_on_connection,
+    scan_derivadas_read_schema_readiness,
 )
 from armazenamento.identifier_utils import is_valid_identifier
 from shared.numero_ssa import normalize_strict
@@ -138,7 +138,6 @@ def _configure_derivadas_connection(conn: sqlite3.Connection) -> None:
 def _open_derivadas_read_connection(db_path: str):
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_for_read(conn)
         # Guardrail: scan/stats helpers must remain read-only.
         conn.execute("PRAGMA query_only = ON")
         yield conn
@@ -1152,6 +1151,18 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
     """Return compact stats for matrix, closure, summary and latest sync run."""
 
     with _open_derivadas_read_connection(db_path) as conn:
+        schema_readiness = scan_derivadas_read_schema_readiness(conn)
+        if not schema_readiness["is_ready"]:
+            return {
+                "schema_ready": False,
+                "schema_readiness": schema_readiness,
+                "matrix_total": 0,
+                "matrix_active": 0,
+                "closure_total": 0,
+                "summary_total": 0,
+                "latest_sync": None,
+            }
+
         matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
         matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
         closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
@@ -1205,6 +1216,7 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
         )
 
         return {
+            "schema_ready": True,
             "matrix_total": int(matrix_total),
             "matrix_active": int(matrix_active),
             "closure_total": int(closure_total),
@@ -1220,6 +1232,39 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
     """
 
     with _open_derivadas_read_connection(db_path) as conn:
+        schema_readiness = scan_derivadas_read_schema_readiness(conn)
+        if not schema_readiness["is_ready"]:
+            return {
+                "schema_ready": False,
+                "is_consistent": False,
+                "issue_counts": {
+                    "schema_not_ready": 1,
+                    "missing_source_pairs": 0,
+                    "source_without_matrix_pairs": 0,
+                    "flag_mismatch_pairs": 0,
+                    "invalid_matrix_pairs": 0,
+                    "closure_self_rows": 0,
+                    "summary_missing_nodes": 0,
+                    "summary_extra_nodes": 0,
+                    "fingerprint_mismatch": 0,
+                },
+                "schema_readiness": schema_readiness,
+                "matrix_active_edges": 0,
+                "source_active_edges": 0,
+                "summary_nodes": 0,
+                "graph_fingerprint": None,
+                "latest_sync": None,
+                "samples": {
+                    "missing_source_pairs": [],
+                    "source_without_matrix_pairs": [],
+                    "flag_mismatch_pairs": [],
+                    "invalid_matrix_pairs": [],
+                    "summary_missing_nodes": [],
+                    "summary_extra_nodes": [],
+                    "fingerprint": {"current": None, "latest_sync": None},
+                },
+            }
+
 
         matrix_rows = conn.execute(
             """
@@ -1321,6 +1366,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
         is_consistent = all(count == 0 for count in issue_counts.values())
 
         return {
+            "schema_ready": True,
             "is_consistent": is_consistent,
             "issue_counts": issue_counts,
             "matrix_active_edges": len(matrix_rows),
@@ -1406,15 +1452,20 @@ def run_derivadas_maintenance(
     """Background-friendly maintenance trigger with interval guard."""
 
     with _open_derivadas_read_connection(db_path) as conn:
-        latest = conn.execute(
-            """
-            SELECT finished_at
-            FROM ssa_derivada_sync_run
-            WHERE status = 'ok'
-            ORDER BY sync_run_id DESC
-            LIMIT 1
-            """
-        ).fetchone()
+        schema_readiness = scan_derivadas_read_schema_readiness(conn)
+        latest = (
+            conn.execute(
+                """
+                SELECT finished_at
+                FROM ssa_derivada_sync_run
+                WHERE status = 'ok'
+                ORDER BY sync_run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if schema_readiness["is_ready"]
+            else None
+        )
 
     now = datetime.now(timezone.utc)
     last_finished = _parse_utc_str(latest[0] if latest else None)
@@ -1428,6 +1479,15 @@ def run_derivadas_maintenance(
             }
 
     scan_report = scan_derivadas_consistency(db_path)
+    if not scan_report.get("schema_ready", True):
+        return {
+            "ran": True,
+            "scan_only": True,
+            "is_consistent": False,
+            "reason": "schema_not_ready",
+            "scan": scan_report,
+        }
+
     if scan_report["is_consistent"]:
         return {"ran": True, "scan_only": True, "is_consistent": True, "scan": scan_report}
 

@@ -371,6 +371,38 @@ def scan_derivadas_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
         return scan_derivadas_schema_readiness(conn)
 
 
+def scan_derivadas_read_schema_readiness(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Return read-path schema readiness without mutating the database."""
+
+    required_tables = sorted(READ_REQUIRED_COLUMNS.keys())
+    missing_tables: list[str] = []
+    missing_columns: dict[str, list[str]] = {}
+
+    for table_name in required_tables:
+        existing = _existing_columns(conn, table_name)
+        if not existing:
+            missing_tables.append(table_name)
+            continue
+        required_cols = READ_REQUIRED_COLUMNS[table_name]
+        missing = sorted(required_cols - existing)
+        if missing:
+            missing_columns[table_name] = missing
+
+    return {
+        "is_ready": not missing_tables and not missing_columns,
+        "required_tables": required_tables,
+        "missing_tables": sorted(missing_tables),
+        "missing_columns": missing_columns,
+    }
+
+
+def scan_derivadas_read_schema_readiness_from_path(db_path: str) -> dict[str, Any]:
+    """Run read-path schema readiness scan from DB path without migration."""
+
+    with get_db_connection(db_path) as conn:
+        return scan_derivadas_read_schema_readiness(conn)
+
+
 def has_derivadas_schema(conn: sqlite3.Connection, required: Iterable[str] = DERIVADAS_TABLES) -> bool:
     """Return True when all required derivadas tables exist."""
 

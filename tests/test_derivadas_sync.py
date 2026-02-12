@@ -272,3 +272,10 @@ def test_sync_requires_at_least_one_source(temp_db):
         assert "at least one source" in str(exc)
     else:
         assert False, "sync_derivadas should fail when all sources are disabled"
+
+
+def test_get_sync_stats_on_fresh_db_reports_schema_not_ready(temp_db):
+    stats = get_sync_stats(temp_db)
+    assert stats["schema_ready"] is False
+    assert stats["matrix_total"] == 0
+    assert stats["latest_sync"] is None
