@@ -24,7 +24,10 @@ from typing import Any
 import pandas as pd  # type: ignore[import-not-found]
 
 from armazenamento.database import get_db_connection
-from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
+from armazenamento.derivadas_schema import (
+    ensure_derivadas_schema_for_read,
+    ensure_derivadas_schema_on_connection,
+)
 from armazenamento.identifier_utils import is_valid_identifier
 from shared.numero_ssa import normalize_strict
 
@@ -1035,7 +1038,7 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_on_connection(conn)
+        ensure_derivadas_schema_for_read(conn)
         matrix_active = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
         matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
         closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
@@ -1105,7 +1108,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_on_connection(conn)
+        ensure_derivadas_schema_for_read(conn)
 
         matrix_rows = conn.execute(
             """
@@ -1292,7 +1295,7 @@ def run_derivadas_maintenance(
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
-        ensure_derivadas_schema_on_connection(conn)
+        ensure_derivadas_schema_for_read(conn)
         latest = conn.execute(
             """
             SELECT finished_at
