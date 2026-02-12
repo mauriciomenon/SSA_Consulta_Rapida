@@ -11,7 +11,10 @@ It does not change GUI behavior.
   - Active (Bun/TS): `bun scripts/dev_ai_guard.ts --mode pre-pr --db data/ssas.db`
   - Fallback (Python): `python scripts/dev_ai_guard.py --mode pre-pr --db data/ssas.db`
   - Note: keep TS version as primary and Python as compatibility fallback.
-  - In `pre-pr`, the guard auto-skips `sync --verify-only` when base table `ssa_table` is missing.
+  - In `pre-pr`, the guard auto-skips `sync --verify-only` only when base table
+    `ssa_table` is confirmed missing.
+  - If table presence check is unknown (for example temporary DB lock), guard keeps
+    `sync --verify-only` enabled.
   - Validate schema readiness without writes:
   - `python scripts/derivadas_cli.py --db data/ssas.db --output json schema-scan`
 - Validate consistency without writes:
@@ -57,7 +60,7 @@ It does not change GUI behavior.
   - DB source enabled, or
   - `--sheet-file` provided.
 - Guard runners keep the failure signal strict, but auto-skip only the `sync --verify-only`
-  health step when `ssa_table` does not exist in the target DB.
+  health step when `ssa_table` is confirmed absent in the target DB.
 - Sheet import accepts resilient column aliases for parent, child, and relation label.
 - `scan` is independent from import flow and does not perform writes.
 - `maintenance` is interval-guarded and can run as a lightweight background check.

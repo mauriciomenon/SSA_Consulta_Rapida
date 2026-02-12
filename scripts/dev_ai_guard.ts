@@ -13,7 +13,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Database } from "bun:sqlite";
 
 type Mode = "pre-pr" | "post-pr";
 
@@ -40,6 +39,8 @@ type Options = {
   skipSyncVerify: boolean;
   outputDir: string;
 };
+
+type TablePresence = "present" | "absent" | "unknown";
 
 function usage(): string {
   return [
@@ -123,20 +124,47 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-function sqliteTableExists(dbPath: string, tableName: string): boolean {
+function sqliteTablePresence(dbPath: string, tableName: string): TablePresence {
   if (!dbPath || !tableName || !existsSync(dbPath)) {
-    return false;
+    return "absent";
   }
-  let db: Database | null = null;
-  try {
-    db = new Database(dbPath, { readonly: true });
-    const row = db.query("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1").get(tableName);
-    return Boolean(row);
-  } catch {
-    return false;
-  } finally {
-    db?.close();
+  const probeScript = [
+    "import os, sqlite3, sys",
+    "db_path = sys.argv[1]",
+    "table_name = sys.argv[2]",
+    "if not db_path or not table_name or not os.path.exists(db_path):",
+    "    print('absent')",
+    "    raise SystemExit(0)",
+    "try:",
+    "    with sqlite3.connect(db_path) as conn:",
+    "        row = conn.execute(",
+    "            \"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1\",",
+    "            (table_name,),",
+    "        ).fetchone()",
+    "    print('present' if row is not None else 'absent')",
+    "except sqlite3.Error as exc:",
+    "    print('unknown')",
+    "    print(str(exc), file=sys.stderr)",
+  ].join("\n");
+
+  const probe = spawnSync("python", ["-c", probeScript, dbPath, tableName], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  const value = (probe.stdout ?? "").trim().split(/\s+/)[0];
+  if (probe.status === 0 && (value === "present" || value === "absent" || value === "unknown")) {
+    return value;
   }
+  const stderr = (probe.stderr ?? "").trim();
+  if (stderr) {
+    console.error(`Warning: unable to verify table presence (${tableName}) in ${dbPath}: ${stderr}`);
+  } else {
+    console.error(`Warning: unable to verify table presence (${tableName}) in ${dbPath}: probe failed`);
+  }
+  if (value === "unknown") {
+    return "unknown";
+  }
+  return "unknown";
 }
 
 function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
@@ -283,14 +311,22 @@ function writeReport(options: Options, results: StepResult[]): string {
 
 function main(): number {
   const options = parseArgs(process.argv.slice(2));
-  const hasBaseTable = sqliteTableExists(options.dbPath, "ssa_table");
+  const tablePresence = sqliteTablePresence(options.dbPath, "ssa_table");
   const autoSkippedSyncVerify =
     options.mode === "pre-pr" &&
     !options.skipHealth &&
     !options.skipSyncVerify &&
-    !hasBaseTable;
+    tablePresence === "absent";
   if (autoSkippedSyncVerify) {
     console.log("Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB.");
+  }
+  if (
+    options.mode === "pre-pr" &&
+    !options.skipHealth &&
+    !options.skipSyncVerify &&
+    tablePresence === "unknown"
+  ) {
+    console.log("Notice: table presence check returned unknown; keeping sync_verify_only enabled.");
   }
   const includeSyncVerifyStep = !autoSkippedSyncVerify && !options.skipSyncVerify;
   const steps = buildSteps(options, includeSyncVerifyStep);

@@ -24,6 +24,7 @@ from typing import Literal
 
 
 Mode = Literal["pre-pr", "post-pr"]
+TablePresence = Literal["present", "absent", "unknown"]
 
 
 @dataclass(frozen=True)
@@ -54,18 +55,22 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def sqlite_table_exists(db_path: str, table_name: str) -> bool:
+def sqlite_table_presence(db_path: str, table_name: str) -> TablePresence:
     if not db_path or not table_name or not os.path.exists(db_path):
-        return False
+        return "absent"
     try:
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
                 (table_name,),
             ).fetchone()
-            return row is not None
-    except sqlite3.Error:
-        return False
+            return "present" if row is not None else "absent"
+    except sqlite3.Error as exc:
+        print(
+            f"Warning: unable to verify table presence ({table_name}) in {db_path}: {exc}",
+            file=sys.stderr,
+        )
+        return "unknown"
 
 
 def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> list[Step]:
@@ -220,15 +225,22 @@ def write_report(options: argparse.Namespace, results: list[StepResult]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     options = parse_args(list(argv or sys.argv[1:]))
-    has_base_table = sqlite_table_exists(options.db_path, "ssa_table")
+    table_presence = sqlite_table_presence(options.db_path, "ssa_table")
     auto_skipped_sync_verify = (
         options.mode == "pre-pr"
         and not options.skip_health
         and not options.skip_sync_verify
-        and not has_base_table
+        and table_presence == "absent"
     )
     if auto_skipped_sync_verify:
         print("Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB.")
+    if (
+        options.mode == "pre-pr"
+        and not options.skip_health
+        and not options.skip_sync_verify
+        and table_presence == "unknown"
+    ):
+        print("Notice: table presence check returned unknown; keeping sync_verify_only enabled.")
 
     include_sync_verify = not auto_skipped_sync_verify and not options.skip_sync_verify
     steps = build_steps(options, include_sync_verify=include_sync_verify)
