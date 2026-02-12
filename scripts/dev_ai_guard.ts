@@ -125,8 +125,11 @@ function parseArgs(argv: string[]): Options {
 }
 
 function sqliteTablePresence(dbPath: string, tableName: string): TablePresence {
-  if (!dbPath || !tableName || !existsSync(dbPath)) {
-    return "absent";
+  if (!dbPath || !tableName) {
+    return "unknown";
+  }
+  if (!existsSync(dbPath)) {
+    return "unknown";
   }
   const probeScript = [
     "import os, sqlite3, sys",
@@ -161,10 +164,16 @@ function sqliteTablePresence(dbPath: string, tableName: string): TablePresence {
   } else {
     console.error(`Warning: unable to verify table presence (${tableName}) in ${dbPath}: probe failed`);
   }
-  if (value === "unknown") {
-    return "unknown";
-  }
   return "unknown";
+}
+
+function guardStepTimeoutMs(): number {
+  const raw = (process.env.SSA_DEV_GUARD_STEP_TIMEOUT_SECONDS ?? "900").trim();
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 900_000;
+  }
+  return Math.min(Math.floor(parsed * 1000), 3_600_000);
 }
 
 function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
@@ -280,15 +289,18 @@ function runStep(step: Step): StepResult {
   const result = spawnSync(step.cmd[0], step.cmd.slice(1), {
     cwd: process.cwd(),
     encoding: "utf8",
+    timeout: guardStepTimeoutMs(),
   });
   const durationMs = Date.now() - startedAt;
+  const timedOut = Boolean(result.error) && (result.error as any)?.code === "ETIMEDOUT";
+  const stderr = [result.stderr ?? "", result.error ? String(result.error) : ""].filter(Boolean).join("\n");
   return {
     name: step.name,
     command: step.cmd.join(" "),
-    exitCode: result.status ?? -1,
+    exitCode: timedOut ? 124 : (result.status ?? -1),
     durationMs,
     stdout: result.stdout ?? "",
-    stderr: result.stderr ?? "",
+    stderr,
   };
 }
 

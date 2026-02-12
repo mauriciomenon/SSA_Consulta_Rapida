@@ -26,6 +26,8 @@ from typing import Literal
 Mode = Literal["pre-pr", "post-pr"]
 TablePresence = Literal["present", "absent", "unknown"]
 
+DEFAULT_STEP_TIMEOUT_SECONDS = int(os.environ.get("SSA_DEV_GUARD_STEP_TIMEOUT_SECONDS", "900"))
+
 
 @dataclass(frozen=True)
 class Step:
@@ -56,8 +58,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def sqlite_table_presence(db_path: str, table_name: str) -> TablePresence:
-    if not db_path or not table_name or not os.path.exists(db_path):
-        return "absent"
+    if not db_path or not table_name:
+        return "unknown"
+    if not os.path.exists(db_path):
+        return "unknown"
     try:
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
@@ -188,22 +192,35 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
 
 def run_step(step: Step) -> StepResult:
     started_at = time.time()
-    result = subprocess.run(
-        step.cmd,
-        cwd=os.getcwd(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    duration_ms = int((time.time() - started_at) * 1000)
-    return StepResult(
-        name=step.name,
-        command=" ".join(step.cmd),
-        exit_code=int(result.returncode),
-        duration_ms=duration_ms,
-        stdout=result.stdout or "",
-        stderr=result.stderr or "",
-    )
+    try:
+        result = subprocess.run(
+            step.cmd,
+            cwd=os.getcwd(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=DEFAULT_STEP_TIMEOUT_SECONDS,
+        )
+        duration_ms = int((time.time() - started_at) * 1000)
+        return StepResult(
+            name=step.name,
+            command=" ".join(step.cmd),
+            exit_code=int(result.returncode),
+            duration_ms=duration_ms,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
+        )
+    except subprocess.TimeoutExpired as exc:
+        duration_ms = int((time.time() - started_at) * 1000)
+        stderr = exc.stderr or f"Timeout after {DEFAULT_STEP_TIMEOUT_SECONDS}s"
+        return StepResult(
+            name=step.name,
+            command=" ".join(step.cmd),
+            exit_code=124,
+            duration_ms=duration_ms,
+            stdout=exc.stdout or "",
+            stderr=str(stderr),
+        )
 
 
 def write_report(options: argparse.Namespace, results: list[StepResult]) -> str:
