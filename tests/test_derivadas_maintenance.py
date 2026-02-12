@@ -151,3 +151,35 @@ def test_scan_detects_summary_extra_nodes(temp_db):
     report = scan_derivadas_consistency(temp_db)
     assert report["is_consistent"] is False
     assert report["issue_counts"]["summary_extra_nodes"] >= 1
+
+
+def test_scan_on_fresh_db_does_not_create_derivadas_tables(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        before = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ssa_derivada_%'"
+            ).fetchall()
+        }
+    assert before == set()
+
+    report = scan_derivadas_consistency(temp_db)
+    assert report["schema_ready"] is False
+    assert report["issue_counts"]["schema_not_ready"] == 1
+
+    with sqlite3.connect(temp_db) as conn:
+        after = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ssa_derivada_%'"
+            ).fetchall()
+        }
+    assert after == set()
+
+
+def test_maintenance_on_fresh_db_reports_schema_not_ready(temp_db):
+    result = run_derivadas_maintenance(temp_db, min_interval_seconds=0, auto_heal=True)
+    assert result["ran"] is True
+    assert result["scan_only"] is True
+    assert result["reason"] == "schema_not_ready"
+    assert result["scan"]["schema_ready"] is False
