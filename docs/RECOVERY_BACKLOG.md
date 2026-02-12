@@ -11,7 +11,7 @@ Scope is split by priority to keep delivery safe and incremental.
 ## P1 hardening targets
 
 - Derivadas c2 follow-up (db and related tools only):
-  - Keep `SSA_DERIVADAS_SYNC` opt-in by default until one full production cycle is observed.
+  - Keep derivadas sync/maintenance decoupled from import flow; trigger via `scripts/derivadas_cli.py` or scheduler only.
   - Add controlled runbook for `scripts/derivadas_cli.py sync --full-rebuild` with rollback notes.
   - Validate external sheet column aliases (`parent_ssa`, `child_ssa`, `relation_label`) against real files.
   - Add focused regression test for mixed-source conflict reporting (db vs sheet) with stable fixtures.
