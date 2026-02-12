@@ -6,7 +6,7 @@ This handoff is meant to be pasted into a new conversation with any agent that f
 
 - Recovery and hardening cycle was merged.
 - Backlog for deferred work is tracked at:
-  - `/Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md`
+  - `docs/RECOVERY_BACKLOG.md`
 - Quality baseline from last cycle:
   - Atomic commits only
   - Focused fixes before refactors
@@ -57,7 +57,7 @@ Use the same execution discipline from the last recovery cycle:
 - No GUI layout/button position changes unless explicitly requested.
 - Fix high-risk issues first, defer broad refactors.
 - Re-check PR bot comments and checks after each push.
-- Track deferred items in /Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md.
+- Track deferred items in docs/RECOVERY_BACKLOG.md.
 Current focus changed: preserve quality process, apply it to the new scope.
 ```
 
