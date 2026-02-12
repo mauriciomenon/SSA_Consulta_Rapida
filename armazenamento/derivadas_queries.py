@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from armazenamento.database import get_db_connection
-from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
+from armazenamento.derivadas_schema import ensure_derivadas_schema_for_read
 from shared.numero_ssa import normalize_strict
 
 ALLOWED_TOP_METRICS = {
@@ -29,7 +29,7 @@ def _normalize_or_none(value: Any) -> str | None:
 def _open_derivadas_connection(db_path: str):
     with get_db_connection(db_path) as conn:
         conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_QUERY_BUSY_TIMEOUT_MS}")
-        ensure_derivadas_schema_on_connection(conn)
+        ensure_derivadas_schema_for_read(conn)
         yield conn
 
 
