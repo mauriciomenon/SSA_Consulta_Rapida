@@ -11,6 +11,7 @@ import sqlite3
 from typing import Any, Iterable
 
 from armazenamento.database import get_db_connection
+from armazenamento.identifier_utils import is_valid_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,9 @@ def ensure_derivadas_schema_on_connection(
 
 
 def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
-    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    if not is_valid_identifier(table_name):
+        raise ValueError(f"Invalid table identifier for schema scan: {table_name!r}")
+    rows = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
     return {row[1] for row in rows}
 
 
@@ -409,6 +412,9 @@ def has_derivadas_schema(conn: sqlite3.Connection, required: Iterable[str] = DER
     names = {str(name) for name in required}
     if not names:
         return True
+    invalid_names = sorted(name for name in names if not is_valid_identifier(name))
+    if invalid_names:
+        raise ValueError(f"Invalid table identifier(s): {invalid_names}")
     cur = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name IN ({})".format(
             ",".join("?" for _ in names)

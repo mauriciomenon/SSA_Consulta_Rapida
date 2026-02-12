@@ -279,3 +279,24 @@ def test_get_sync_stats_on_fresh_db_reports_schema_not_ready(temp_db):
     assert stats["schema_ready"] is False
     assert stats["matrix_total"] == 0
     assert stats["latest_sync"] is None
+
+
+def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+    missing = tmp_path / "does_not_exist.csv"
+    try:
+        sync_derivadas(
+            temp_db,
+            include_db_source=False,
+            sheet_file=str(missing),
+        )
+    except FileNotFoundError as exc:
+        assert "not found" in str(exc).lower()
+    else:
+        assert False, "sync_derivadas should fail for non-existing sheet_file"
