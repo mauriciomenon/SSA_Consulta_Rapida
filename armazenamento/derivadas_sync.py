@@ -115,9 +115,9 @@ def _parse_utc_str(value: str | None) -> datetime | None:
 def _graph_fingerprint(edges: list[tuple[str, str, int]]) -> str:
     digest = hashlib.sha256()
     for parent, child, source_flags in sorted(edges):
-        digest.update(parent.encode("ascii", errors="ignore"))
+        digest.update(parent.encode("utf-8"))
         digest.update(b"->")
-        digest.update(child.encode("ascii", errors="ignore"))
+        digest.update(child.encode("utf-8"))
         digest.update(b":")
         digest.update(str(int(source_flags)).encode("ascii"))
         digest.update(b";")
@@ -625,6 +625,20 @@ def _fetch_all_ssa(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return out
 
 
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    safe_table = _validate_table_name(table_name)
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+        """,
+        (safe_table,),
+    ).fetchone()
+    return row is not None
+
+
 def _analyze_reconciliation(
     all_ssa: set[str],
     matrix_edges: list[MatrixEdge],
@@ -1029,7 +1043,10 @@ def sync_derivadas(
 
         merged_edges = _merge_edges(source_edges)
 
-        all_ssa = _fetch_all_ssa(conn, table_name=table_name)
+        if include_db_source or _table_exists(conn, table_name=table_name):
+            all_ssa = _fetch_all_ssa(conn, table_name=table_name)
+        else:
+            all_ssa = set()
         reconciliation_pre = _analyze_reconciliation(all_ssa, merged_edges, source_edges)
         managed_sources = sorted({edge.source_name for edge in source_edges})
 
@@ -1069,8 +1086,10 @@ def sync_derivadas(
             sheet_edges=int(sheet_stats.get("accepted_edges", 0)),
             merged_edges=len(merged_edges),
         )
+        conn.commit()
 
         try:
+            _begin_derivadas_write_transaction(conn)
             _upsert_source_rows(conn, source_edges, managed_sources=managed_sources, timestamp=timestamp)
 
             matrix_edges = _matrix_from_active_sources(conn)
@@ -1143,7 +1162,10 @@ def sync_derivadas(
         except Exception as exc:
             logger.exception("Derivadas sync failed: %s", exc)
             finished_at = _now_utc_str()
+            if conn.in_transaction:
+                conn.rollback()
             try:
+                _begin_derivadas_write_transaction(conn)
                 _finish_sync_run(
                     conn,
                     sync_run_id=run_id,

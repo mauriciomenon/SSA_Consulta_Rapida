@@ -6,6 +6,9 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
+import armazenamento.derivadas_sync as derivadas_sync
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
 from armazenamento.derivadas_schema import ensure_derivadas_schema_on_connection
 
@@ -305,3 +308,64 @@ def test_sync_rejects_missing_sheet_file(temp_db, tmp_path: Path):
         assert "not found" in str(exc).lower()
     else:
         assert False, "sync_derivadas should fail for non-existing sheet_file"
+
+
+def test_sync_sheet_only_verify_only_works_without_ssa_table(tmp_path: Path):
+    db_path = tmp_path / "sheet_only_no_ssa_table.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE only_dummy_table (id INTEGER PRIMARY KEY)")
+        conn.commit()
+
+    sheet_file = tmp_path / "derivadas_sheet_only.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+
+    report = sync_derivadas(
+        str(db_path),
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+        verify_only=True,
+    )
+
+    assert report["verify_only"] is True
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["reconciliation"]["orphan_parents_count"] == 1
+    assert report["reconciliation"]["orphan_children_count"] == 1
+
+
+def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    def _raise_on_summary(*args, **kwargs):
+        raise RuntimeError("forced summary failure")
+
+    monkeypatch.setattr(derivadas_sync, "_replace_summary", _raise_on_summary)
+
+    with pytest.raises(RuntimeError, match="forced summary failure"):
+        sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
+        closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
+        summary_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
+        latest_run = conn.execute(
+            """
+            SELECT status, active_edges
+            FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    assert matrix_total == 0
+    assert closure_total == 0
+    assert summary_total == 0
+    assert latest_run == ("error", 0)
