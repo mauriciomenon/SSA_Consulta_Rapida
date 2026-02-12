@@ -158,6 +158,22 @@ def _is_sqlite_locked_error(exc: BaseException) -> bool:
     return "database is locked" in message or "database schema is locked" in message
 
 
+def _safe_sync_run_error_message(exc: BaseException) -> str:
+    """Return a safe, non-sensitive error string for persistence.
+
+    Full exception details are logged via logger.exception, but should not be
+    stored in the DB because they may contain paths or other sensitive data.
+    """
+
+    kind = exc.__class__.__name__
+    locked = _is_sqlite_locked_error(exc)
+    digest = hashlib.sha256(f"{kind}:{exc}".encode("utf-8", "replace")).hexdigest()[:16]
+    payload: dict[str, Any] = {"error": "sync_failed", "kind": kind, "digest": digest}
+    if locked:
+        payload["locked"] = True
+    return json.dumps(payload, ensure_ascii=True)
+
+
 def _clean_relation_label(value: Any) -> str | None:
     if value is None:
         return None
@@ -1173,7 +1189,7 @@ def sync_derivadas(
                     reconciliation=reconciliation_pre,
                     active_edges=0,
                     status="error",
-                    message=str(exc),
+                    message=_safe_sync_run_error_message(exc),
                 )
                 conn.commit()
             except sqlite3.Error as sync_run_error:
