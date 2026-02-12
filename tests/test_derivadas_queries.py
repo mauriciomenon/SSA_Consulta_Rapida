@@ -5,6 +5,7 @@ import threading
 import time
 
 from armazenamento.derivadas_queries import (
+    get_ssa_hierarchy_snapshot,
     get_ancestors,
     get_children,
     get_descendants,
@@ -93,3 +94,24 @@ def test_queries_remain_read_only_under_write_lock(temp_db):
 
     assert children == ["202500002", "202500004"]
     assert op_elapsed < 0.5
+
+
+def test_snapshot_returns_gui_friendly_payload(temp_db):
+    _seed_graph(temp_db)
+
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=5)
+    assert snapshot["ssa"] == "202500001"
+    assert snapshot["parent"] is None
+    assert snapshot["children"] == ["202500002", "202500004"]
+    assert snapshot["children_count"] == 2
+    assert snapshot["has_children"] is True
+    assert snapshot["hierarchy_profile"]["descendants_count"] == 3
+    assert [row["ssa"] for row in snapshot["descendants"]] == ["202500002", "202500004", "202500003"]
+
+
+def test_snapshot_returns_empty_for_invalid_ssa(temp_db):
+    _seed_graph(temp_db)
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, "invalid", max_distance=5)
+    assert snapshot["ssa"] is None
+    assert snapshot["parents"] == []
+    assert snapshot["children"] == []

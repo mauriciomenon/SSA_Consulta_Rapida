@@ -17,6 +17,7 @@ if PROJECT_ROOT not in sys.path:
 
 from armazenamento.derivadas_queries import (
     ALLOWED_TOP_METRICS,
+    get_ssa_hierarchy_snapshot,
     get_ancestors,
     get_children,
     get_descendants,
@@ -113,6 +114,10 @@ def _handle_info(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _handle_snapshot(args: argparse.Namespace) -> dict[str, Any]:
+    return get_ssa_hierarchy_snapshot(args.db, args.ssa, max_distance=args.depth)
+
+
 def _handle_parents(args: argparse.Namespace) -> dict[str, Any]:
     parents = get_parents(args.db, args.ssa)
     return {
@@ -199,6 +204,11 @@ def _build_parser() -> argparse.ArgumentParser:
     info_parser.add_argument("--with-lineage", action="store_true", help="Include ancestor/descendant rows")
     info_parser.add_argument("--depth", type=int, default=5, help="Depth cap for lineage retrieval")
     info_parser.set_defaults(func=_handle_info)
+
+    snapshot_parser = sub.add_parser("snapshot", help="Single-call hierarchy payload for one SSA")
+    snapshot_parser.add_argument("ssa", help="SSA number")
+    snapshot_parser.add_argument("--depth", type=int, default=5, help="Max ancestor/descendant distance")
+    snapshot_parser.set_defaults(func=_handle_snapshot)
 
     parents_parser = sub.add_parser("parents", help="List direct parents")
     parents_parser.add_argument("ssa", help="SSA number")
