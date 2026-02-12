@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections import defaultdict
+from contextlib import contextmanager
 from typing import Any
 
 from armazenamento.database import get_db_connection
@@ -17,25 +18,26 @@ ALLOWED_TOP_METRICS = {
     "levels_below": "levels_below_max",
     "levels_above": "levels_above_max",
 }
+DERIVADAS_QUERY_BUSY_TIMEOUT_MS = 3000
 
 
 def _normalize_or_none(value: Any) -> str | None:
     return normalize_strict(value)
 
 
-def _ensure_and_connect(db_path: str):
-    conn_ctx = get_db_connection(db_path)
-    conn = conn_ctx.__enter__()
-    ensure_derivadas_schema_on_connection(conn)
-    return conn_ctx, conn
+@contextmanager
+def _open_derivadas_connection(db_path: str):
+    with get_db_connection(db_path) as conn:
+        conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_QUERY_BUSY_TIMEOUT_MS}")
+        ensure_derivadas_schema_on_connection(conn)
+        yield conn
 
 
 def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> list[str]:
     child_ssa = _normalize_or_none(ssa)
     if not child_ssa:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         if include_inactive:
             query = "SELECT parent_ssa FROM ssa_derivada_matrix WHERE child_ssa = ? ORDER BY parent_ssa"
             rows = conn.execute(query, (child_ssa,)).fetchall()
@@ -43,8 +45,6 @@ def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> li
             query = "SELECT parent_ssa FROM ssa_derivada_matrix WHERE child_ssa = ? AND active = 1 ORDER BY parent_ssa"
             rows = conn.execute(query, (child_ssa,)).fetchall()
         return [row[0] for row in rows]
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_parent(db_path: str, ssa: Any, *, include_inactive: bool = False) -> str | None:
@@ -58,8 +58,7 @@ def get_children(db_path: str, ssa: Any, *, include_inactive: bool = False) -> l
     parent_ssa = _normalize_or_none(ssa)
     if not parent_ssa:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         if include_inactive:
             query = "SELECT child_ssa FROM ssa_derivada_matrix WHERE parent_ssa = ? ORDER BY child_ssa"
             rows = conn.execute(query, (parent_ssa,)).fetchall()
@@ -67,8 +66,6 @@ def get_children(db_path: str, ssa: Any, *, include_inactive: bool = False) -> l
             query = "SELECT child_ssa FROM ssa_derivada_matrix WHERE parent_ssa = ? AND active = 1 ORDER BY child_ssa"
             rows = conn.execute(query, (parent_ssa,)).fetchall()
         return [row[0] for row in rows]
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def has_children(db_path: str, ssa: Any, *, include_inactive: bool = False) -> bool:
@@ -79,8 +76,7 @@ def children_count(db_path: str, ssa: Any, *, include_inactive: bool = False) ->
     parent_ssa = _normalize_or_none(ssa)
     if not parent_ssa:
         return 0
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         if include_inactive:
             query = "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE parent_ssa = ?"
             value = conn.execute(query, (parent_ssa,)).fetchone()[0]
@@ -88,16 +84,13 @@ def children_count(db_path: str, ssa: Any, *, include_inactive: bool = False) ->
             query = "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE parent_ssa = ? AND active = 1"
             value = conn.execute(query, (parent_ssa,)).fetchone()[0]
         return int(value)
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) -> list[dict[str, Any]]:
     descendant_ssa = _normalize_or_none(ssa)
     if not descendant_ssa:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         if max_distance is not None:
             rows = conn.execute(
                 """
@@ -127,16 +120,13 @@ def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) ->
             }
             for row in rows
         ]
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) -> list[dict[str, Any]]:
     ancestor_ssa = _normalize_or_none(ssa)
     if not ancestor_ssa:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         if max_distance is not None:
             rows = conn.execute(
                 """
@@ -166,16 +156,13 @@ def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) 
             }
             for row in rows
         ]
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_hierarchy_profile(db_path: str, ssa: Any) -> dict[str, Any]:
     target_ssa = _normalize_or_none(ssa)
     if not target_ssa:
         return {}
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         row = conn.execute(
             """
             SELECT
@@ -235,8 +222,6 @@ def get_hierarchy_profile(db_path: str, ssa: Any) -> dict[str, Any]:
             "has_cycle": False,
             "last_sync_at": None,
         }
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def _load_adjacency(conn: sqlite3.Connection, direction: str) -> dict[str, list[str]]:
@@ -308,12 +293,9 @@ def get_paths_down(
     root = _normalize_or_none(ssa)
     if not root:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         adjacency = _load_adjacency(conn, direction="down")
         return _collect_paths(adjacency, root, depth=depth, max_nodes=max_nodes)
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_paths_up(
@@ -326,12 +308,9 @@ def get_paths_up(
     child = _normalize_or_none(ssa)
     if not child:
         return []
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         adjacency = _load_adjacency(conn, direction="up")
         return _collect_paths(adjacency, child, depth=depth, max_nodes=max_nodes)
-    finally:
-        conn_ctx.__exit__(None, None, None)
 
 
 def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dict[str, Any]]:
@@ -339,8 +318,7 @@ def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dic
     if not metric_col:
         raise ValueError(f"Unsupported top metric: {metric}")
     safe_limit = max(1, min(int(limit), 500))
-    conn_ctx, conn = _ensure_and_connect(db_path)
-    try:
+    with _open_derivadas_connection(db_path) as conn:
         rows = conn.execute(
             f"""
             SELECT ssa, {metric_col}, direct_parents_count, direct_children_count, ancestors_count, descendants_count
@@ -361,6 +339,3 @@ def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dic
             }
             for row in rows
         ]
-    finally:
-        conn_ctx.__exit__(None, None, None)
-

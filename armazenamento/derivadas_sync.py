@@ -273,14 +273,14 @@ def collect_sheet_edges(
     return {"edges": edges, "stats": stats, "multiparent_detail": multiparent}
 
 
-def _merge_edges(source_edges: list[SourceEdge]) -> dict[str, Any]:
+def _merge_edges(source_edges: list[SourceEdge]) -> list[MatrixEdge]:
     merged: dict[tuple[str, str], MatrixEdge] = {}
-    source_by_edge: dict[tuple[str, str], list[SourceEdge]] = defaultdict(list)
+    best_priority_by_pair: dict[tuple[str, str], int] = {}
 
     for edge in source_edges:
         key = (edge.parent_ssa, edge.child_ssa)
-        source_by_edge[key].append(edge)
         prev = merged.get(key)
+        source_priority = SOURCE_PRIORITY.get(edge.source_name, 0)
         if prev is None:
             merged[key] = MatrixEdge(
                 parent_ssa=edge.parent_ssa,
@@ -289,14 +289,14 @@ def _merge_edges(source_edges: list[SourceEdge]) -> dict[str, Any]:
                 relation_type=edge.relation_type,
                 relation_raw_label=edge.relation_raw_label,
             )
+            best_priority_by_pair[key] = source_priority
             continue
 
-        prev_priority = max(SOURCE_PRIORITY.get(se.source_name, 0) for se in source_by_edge[key][:-1]) if source_by_edge[key][:-1] else 0
-        new_priority = SOURCE_PRIORITY.get(edge.source_name, 0)
         keep_label = prev.relation_raw_label
         keep_type = prev.relation_type
 
-        if new_priority >= prev_priority:
+        if source_priority >= best_priority_by_pair.get(key, -1):
+            best_priority_by_pair[key] = source_priority
             if edge.relation_raw_label:
                 keep_label = edge.relation_raw_label
             if edge.relation_type:
@@ -310,10 +310,7 @@ def _merge_edges(source_edges: list[SourceEdge]) -> dict[str, Any]:
             relation_raw_label=keep_label,
         )
 
-    return {
-        "edges": list(merged.values()),
-        "source_by_edge": source_by_edge,
-    }
+    return list(merged.values())
 
 
 def _build_child_parent_map(edges: list[tuple[str, str]]) -> dict[str, set[str]]:
@@ -901,8 +898,7 @@ def sync_derivadas(
             sheet_stats = sheet_result["stats"]
             sheet_multiparent = sheet_result["multiparent_detail"]
 
-        merge_result = _merge_edges(source_edges)
-        merged_edges: list[MatrixEdge] = merge_result["edges"]
+        merged_edges = _merge_edges(source_edges)
 
         all_ssa = _fetch_all_ssa(conn, table_name=table_name)
         reconciliation_pre = _analyze_reconciliation(all_ssa, merged_edges, source_edges)
