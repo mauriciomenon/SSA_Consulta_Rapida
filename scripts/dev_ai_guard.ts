@@ -11,8 +11,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Database } from "bun:sqlite";
 
 type Mode = "pre-pr" | "post-pr";
 
@@ -122,7 +123,23 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-function buildSteps(options: Options): Step[] {
+function sqliteTableExists(dbPath: string, tableName: string): boolean {
+  if (!dbPath || !tableName || !existsSync(dbPath)) {
+    return false;
+  }
+  let db: Database | null = null;
+  try {
+    db = new Database(dbPath, { readonly: true });
+    const row = db.query("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1").get(tableName);
+    return Boolean(row);
+  } catch {
+    return false;
+  } finally {
+    db?.close();
+  }
+}
+
+function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
   const lintTargets = [
     "armazenamento/derivadas_schema.py",
     "armazenamento/derivadas_queries.py",
@@ -178,7 +195,7 @@ function buildSteps(options: Options): Step[] {
         name: "consistency_scan",
         cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "scan"],
       });
-      if (!options.skipSyncVerify) {
+      if (includeSyncVerifyStep) {
         steps.push({
           name: "sync_verify_only",
           cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "sync", "--verify-only"],
@@ -266,7 +283,17 @@ function writeReport(options: Options, results: StepResult[]): string {
 
 function main(): number {
   const options = parseArgs(process.argv.slice(2));
-  const steps = buildSteps(options);
+  const hasBaseTable = sqliteTableExists(options.dbPath, "ssa_table");
+  const autoSkippedSyncVerify =
+    options.mode === "pre-pr" &&
+    !options.skipHealth &&
+    !options.skipSyncVerify &&
+    !hasBaseTable;
+  if (autoSkippedSyncVerify) {
+    console.log("Notice: skipping sync_verify_only because table 'ssa_table' is missing in DB.");
+  }
+  const includeSyncVerifyStep = !autoSkippedSyncVerify && !options.skipSyncVerify;
+  const steps = buildSteps(options, includeSyncVerifyStep);
   console.log(`Mode: ${options.mode}`);
   console.log(`DB:   ${options.dbPath}`);
   console.log(`Steps planned: ${steps.length}`);
