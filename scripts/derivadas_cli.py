@@ -27,7 +27,13 @@ from armazenamento.derivadas_queries import (
     get_paths_up,
     get_top_by_metric,
 )  # noqa: E402
-from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas  # noqa: E402
+from armazenamento.derivadas_sync import (  # noqa: E402
+    get_sync_stats,
+    run_derivadas_maintenance,
+    scan_derivadas_consistency,
+    self_heal_derivadas,
+    sync_derivadas,
+)
 
 
 def _as_json(data: Any) -> None:
@@ -60,6 +66,35 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
 
 def _handle_stats(args: argparse.Namespace) -> dict[str, Any]:
     return get_sync_stats(db_path=args.db)
+
+
+def _handle_scan(args: argparse.Namespace) -> dict[str, Any]:
+    return scan_derivadas_consistency(db_path=args.db)
+
+
+def _handle_heal(args: argparse.Namespace) -> dict[str, Any]:
+    return self_heal_derivadas(
+        db_path=args.db,
+        table_name=args.table_name,
+        sheet_file=args.sheet_file,
+        sheet_parent_col=args.sheet_parent_col,
+        sheet_child_col=args.sheet_child_col,
+        sheet_label_col=args.sheet_label_col,
+        sheet_name=args.sheet_name,
+        include_db_source=not args.no_db_source,
+        full_rebuild=args.full_rebuild,
+        force=args.force,
+    )
+
+
+def _handle_maintenance(args: argparse.Namespace) -> dict[str, Any]:
+    return run_derivadas_maintenance(
+        db_path=args.db,
+        table_name=args.table_name,
+        min_interval_seconds=args.min_interval_seconds,
+        auto_heal=not args.no_auto_heal,
+        full_rebuild=args.full_rebuild,
+    )
 
 
 def _handle_info(args: argparse.Namespace) -> dict[str, Any]:
@@ -127,6 +162,29 @@ def _build_parser() -> argparse.ArgumentParser:
 
     stats_parser = sub.add_parser("stats", help="Show derivadas sync/materialization stats")
     stats_parser.set_defaults(func=_handle_stats)
+
+    scan_parser = sub.add_parser("scan", help="Run independent consistency scan")
+    scan_parser.set_defaults(func=_handle_scan)
+
+    heal_parser = sub.add_parser("heal", help="Run self-heal based on consistency scan")
+    heal_parser.add_argument("--sheet-file", help="Optional sheet/csv source path")
+    heal_parser.add_argument("--sheet-name", help="Optional sheet name when using xlsx")
+    heal_parser.add_argument("--sheet-parent-col", default="parent_ssa", help="Sheet parent column")
+    heal_parser.add_argument("--sheet-child-col", default="child_ssa", help="Sheet child column")
+    heal_parser.add_argument("--sheet-label-col", default="relation_label", help="Sheet relation label column")
+    heal_parser.add_argument("--full-rebuild", action="store_true", help="Hard cleanup stale matrix rows")
+    heal_parser.add_argument("--no-db-source", action="store_true", help="Ignore DB derivada_de source")
+    heal_parser.add_argument("--force", action="store_true", help="Force healing even when scan is consistent")
+    heal_parser.set_defaults(func=_handle_heal)
+
+    maintenance_parser = sub.add_parser(
+        "maintenance",
+        help="Run interval-guarded low-cost maintenance (scan + optional heal)",
+    )
+    maintenance_parser.add_argument("--min-interval-seconds", type=int, default=3600)
+    maintenance_parser.add_argument("--no-auto-heal", action="store_true")
+    maintenance_parser.add_argument("--full-rebuild", action="store_true")
+    maintenance_parser.set_defaults(func=_handle_maintenance)
 
     info_parser = sub.add_parser("info", help="Show hierarchy profile for one SSA")
     info_parser.add_argument("ssa", help="SSA number")

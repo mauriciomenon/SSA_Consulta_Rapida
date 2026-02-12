@@ -307,60 +307,6 @@ def _update_cache_after_import(
         raise CacheError("Falha ao atualizar o cache apos importacao.") from e
 
 
-def _env_truthy(name: str) -> bool:
-    value = os.environ.get(name, "")
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _run_optional_derivadas_sync(db_path: str, table_name: str) -> dict[str, Any] | None:
-    """Executa sync de derivadas apos importacao quando habilitado via env.
-
-    Variaveis suportadas:
-      - SSA_DERIVADAS_SYNC=1 habilita execucao.
-      - SSA_DERIVADAS_SHEET_FILE caminho opcional da fonte planilha.
-      - SSA_DERIVADAS_SHEET_NAME aba opcional.
-      - SSA_DERIVADAS_SHEET_PARENT_COL (default parent_ssa).
-      - SSA_DERIVADAS_SHEET_CHILD_COL (default child_ssa).
-      - SSA_DERIVADAS_SHEET_LABEL_COL (default relation_label).
-      - SSA_DERIVADAS_FULL_REBUILD=1 para remocao hard de arestas stale.
-      - SSA_DERIVADAS_VERIFY_ONLY=1 para somente validar/relatar.
-      - SSA_DERIVADAS_NO_DB_SOURCE=1 para ignorar fonte derivada_de do DB.
-    """
-    if not _env_truthy("SSA_DERIVADAS_SYNC"):
-        return None
-    try:
-        from armazenamento.derivadas_sync import sync_derivadas
-
-        report = sync_derivadas(
-            db_path=db_path,
-            table_name=table_name,
-            sheet_file=os.environ.get("SSA_DERIVADAS_SHEET_FILE") or None,
-            sheet_name=os.environ.get("SSA_DERIVADAS_SHEET_NAME") or None,
-            sheet_parent_col=os.environ.get("SSA_DERIVADAS_SHEET_PARENT_COL", "parent_ssa"),
-            sheet_child_col=os.environ.get("SSA_DERIVADAS_SHEET_CHILD_COL", "child_ssa"),
-            sheet_label_col=os.environ.get("SSA_DERIVADAS_SHEET_LABEL_COL", "relation_label") or None,
-            include_db_source=not _env_truthy("SSA_DERIVADAS_NO_DB_SOURCE"),
-            full_rebuild=_env_truthy("SSA_DERIVADAS_FULL_REBUILD"),
-            verify_only=_env_truthy("SSA_DERIVADAS_VERIFY_ONLY"),
-        )
-        rec = report.get("reconciliation") or {}
-        logger.info(
-            "Sync derivadas concluido: merged_edges=%s active_edges=%s conflicts=%s multiparent=%s orphans(parent=%s child=%s) cycles=%s",
-            (report.get("merge_stats") or {}).get("merged_edges", 0),
-            report.get("active_edges", 0),
-            rec.get("db_vs_sheet_conflict_count", 0),
-            rec.get("multiparent_children_count", 0),
-            rec.get("orphan_parents_count", 0),
-            rec.get("orphan_children_count", 0),
-            rec.get("cycle_node_count", 0),
-        )
-        return report
-    except Exception as exc:
-        logger.warning("Falha no sync opcional de derivadas apos importacao: %s", exc)
-        logger.debug("Detalhes da falha no sync opcional de derivadas", exc_info=True)
-        return None
-
-
 # --- Funcao Principal Refatorada ---
 
 
@@ -684,7 +630,6 @@ def run_importer_logic(
             _update_cache_after_import(
                 successfully_processed_files, cache_file, docs_dir
             )
-            _run_optional_derivadas_sync(db_path=db_path, table_name=table_name)
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
             return True
         else:

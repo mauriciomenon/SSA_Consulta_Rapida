@@ -259,6 +259,7 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_sync_run (
     orphan_parent_count INTEGER NOT NULL DEFAULT 0,
     orphan_child_count INTEGER NOT NULL DEFAULT 0,
     cycle_node_count INTEGER NOT NULL DEFAULT 0,
+    graph_fingerprint TEXT,
     message TEXT
 );
 
