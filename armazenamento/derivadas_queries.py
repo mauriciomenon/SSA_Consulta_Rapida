@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from armazenamento.database import get_db_connection
-from armazenamento.derivadas_schema import ensure_derivadas_schema_for_read
+from armazenamento.derivadas_schema import scan_derivadas_read_schema_readiness
 from shared.numero_ssa import normalize_strict
 
 ALLOWED_TOP_METRICS = {
@@ -42,17 +42,19 @@ def _normalize_max_distance(max_distance: int | None) -> int | None:
 def _open_derivadas_connection(db_path: str):
     with get_db_connection(db_path) as conn:
         conn.execute(f"PRAGMA busy_timeout = {DERIVADAS_QUERY_BUSY_TIMEOUT_MS}")
-        ensure_derivadas_schema_for_read(conn)
         # Guardrail: query helpers are strictly read-only.
         conn.execute("PRAGMA query_only = ON")
-        yield conn
+        readiness = scan_derivadas_read_schema_readiness(conn)
+        yield conn, bool(readiness.get("is_ready"))
 
 
 def get_parents(db_path: str, ssa: Any, *, include_inactive: bool = False) -> list[str]:
     child_ssa = _normalize_or_none(ssa)
     if not child_ssa:
         return []
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         if include_inactive:
             query = "SELECT parent_ssa FROM ssa_derivada_matrix WHERE child_ssa = ? ORDER BY parent_ssa"
             rows = conn.execute(query, (child_ssa,)).fetchall()
@@ -73,7 +75,9 @@ def get_children(db_path: str, ssa: Any, *, include_inactive: bool = False) -> l
     parent_ssa = _normalize_or_none(ssa)
     if not parent_ssa:
         return []
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         if include_inactive:
             query = "SELECT child_ssa FROM ssa_derivada_matrix WHERE parent_ssa = ? ORDER BY child_ssa"
             rows = conn.execute(query, (parent_ssa,)).fetchall()
@@ -91,7 +95,9 @@ def children_count(db_path: str, ssa: Any, *, include_inactive: bool = False) ->
     parent_ssa = _normalize_or_none(ssa)
     if not parent_ssa:
         return 0
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return 0
         if include_inactive:
             query = "SELECT COUNT(*) FROM ssa_derivada_matrix WHERE parent_ssa = ?"
             value = conn.execute(query, (parent_ssa,)).fetchone()[0]
@@ -106,7 +112,9 @@ def get_ancestors(db_path: str, ssa: Any, *, max_distance: int | None = None) ->
     if not descendant_ssa:
         return []
     safe_max_distance = _normalize_max_distance(max_distance)
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         if safe_max_distance is not None:
             rows = conn.execute(
                 """
@@ -143,7 +151,9 @@ def get_descendants(db_path: str, ssa: Any, *, max_distance: int | None = None) 
     if not ancestor_ssa:
         return []
     safe_max_distance = _normalize_max_distance(max_distance)
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         if safe_max_distance is not None:
             rows = conn.execute(
                 """
@@ -179,7 +189,9 @@ def get_hierarchy_profile(db_path: str, ssa: Any) -> dict[str, Any]:
     target_ssa = _normalize_or_none(ssa)
     if not target_ssa:
         return {}
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return {}
         row = conn.execute(
             """
             SELECT
@@ -310,7 +322,9 @@ def get_paths_down(
     root = _normalize_or_none(ssa)
     if not root:
         return []
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         adjacency = _load_adjacency(conn, direction="down")
         return _collect_paths(adjacency, root, depth=depth, max_nodes=max_nodes)
 
@@ -325,7 +339,9 @@ def get_paths_up(
     child = _normalize_or_none(ssa)
     if not child:
         return []
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         adjacency = _load_adjacency(conn, direction="up")
         return _collect_paths(adjacency, child, depth=depth, max_nodes=max_nodes)
 
@@ -335,7 +351,9 @@ def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dic
     if not metric_col:
         raise ValueError(f"Unsupported top metric: {metric}")
     safe_limit = max(1, min(int(limit), 500))
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return []
         rows = conn.execute(
             f"""
             SELECT ssa, {metric_col}, direct_parents_count, direct_children_count, ancestors_count, descendants_count
@@ -388,7 +406,20 @@ def get_ssa_hierarchy_snapshot(
         }
     safe_max_distance = _normalize_max_distance(max_distance)
 
-    with _open_derivadas_connection(db_path) as conn:
+    with _open_derivadas_connection(db_path) as (conn, schema_ready):
+        if not schema_ready:
+            return {
+                "ssa": target_ssa,
+                "parent": None,
+                "parents": [],
+                "children": [],
+                "children_count": 0,
+                "has_children": False,
+                "is_multiparent": False,
+                "hierarchy_profile": {},
+                "ancestors": [],
+                "descendants": [],
+            }
         parents_rows = conn.execute(
             """
             SELECT parent_ssa

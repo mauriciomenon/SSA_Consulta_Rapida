@@ -127,3 +127,29 @@ def test_queries_reject_invalid_max_distance(temp_db):
         get_descendants(temp_db, "202500001", max_distance=-1)
     with pytest.raises(ValueError):
         get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=0)
+
+
+def test_queries_on_fresh_db_do_not_create_derivadas_tables(temp_db):
+    with sqlite3.connect(temp_db) as conn:
+        before = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ssa_derivada_%'"
+            ).fetchall()
+        }
+    assert before == set()
+
+    assert get_children(temp_db, "202500001") == []
+    assert get_hierarchy_profile(temp_db, "202500001") == {}
+    snapshot = get_ssa_hierarchy_snapshot(temp_db, "202500001", max_distance=5)
+    assert snapshot["ssa"] == "202500001"
+    assert snapshot["children"] == []
+
+    with sqlite3.connect(temp_db) as conn:
+        after = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'ssa_derivada_%'"
+            ).fetchall()
+        }
+    assert after == set()
