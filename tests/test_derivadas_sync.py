@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import csv
 import sqlite3
+import threading
+import time
 from pathlib import Path
 
 from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
@@ -154,3 +156,30 @@ def test_schema_migration_handles_legacy_matrix_without_active_column(temp_db):
     assert "relation_raw_label" in cols
     assert "active" in cols
     assert row == (0, "Derivada da", 1)
+
+
+def test_sync_succeeds_after_short_write_lock_contention(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    lock_conn = sqlite3.connect(temp_db, timeout=0.1, check_same_thread=False)
+    lock_conn.execute("BEGIN EXCLUSIVE")
+
+    def release_lock() -> None:
+        time.sleep(0.2)
+        lock_conn.rollback()
+        lock_conn.close()
+
+    releaser = threading.Thread(target=release_lock)
+    releaser.start()
+    try:
+        report = sync_derivadas(temp_db)
+    finally:
+        releaser.join(timeout=2.0)
+
+    assert report["active_edges"] == 1

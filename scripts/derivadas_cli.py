@@ -248,8 +248,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as exc:  # pragma: no cover
-        print(f"ERRO: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+    raise SystemExit(main())
