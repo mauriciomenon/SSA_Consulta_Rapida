@@ -149,3 +149,15 @@ def test_cli_schema_scan_reports_missing_on_fresh_db(temp_db, capsys):
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["is_ready"] is False
     assert "ssa_derivada_matrix" in parsed["missing_tables"]
+
+
+def test_cli_snapshot_returns_hierarchy_payload(temp_db, capsys):
+    _seed_cli_data(temp_db)
+    assert main(["--db", temp_db, "--output", "json", "sync"]) == 0
+    _ = capsys.readouterr()
+
+    assert main(["--db", temp_db, "--output", "json", "snapshot", "202500001", "--depth", "5"]) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["ssa"] == "202500001"
+    assert parsed["children_count"] == 1
+    assert parsed["hierarchy_profile"]["descendants_count"] >= 1

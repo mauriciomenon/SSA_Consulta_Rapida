@@ -341,3 +341,178 @@ def get_top_by_metric(db_path: str, metric: str, *, limit: int = 20) -> list[dic
             }
             for row in rows
         ]
+
+
+def get_ssa_hierarchy_snapshot(
+    db_path: str,
+    ssa: Any,
+    *,
+    max_distance: int | None = 5,
+) -> dict[str, Any]:
+    """Return GUI-friendly hierarchy payload in a single call.
+
+    This helper keeps reads in one DB connection and returns:
+      - direct parent(s) and children
+      - hierarchy profile (levels, counts, cycle/component info)
+      - ancestors/descendants up to `max_distance` (or full when None)
+    """
+
+    target_ssa = _normalize_or_none(ssa)
+    if not target_ssa:
+        return {
+            "ssa": None,
+            "parent": None,
+            "parents": [],
+            "children": [],
+            "children_count": 0,
+            "has_children": False,
+            "is_multiparent": False,
+            "hierarchy_profile": {},
+            "ancestors": [],
+            "descendants": [],
+        }
+
+    with _open_derivadas_connection(db_path) as conn:
+        parents_rows = conn.execute(
+            """
+            SELECT parent_ssa
+            FROM ssa_derivada_matrix
+            WHERE child_ssa = ? AND active = 1
+            ORDER BY parent_ssa
+            """,
+            (target_ssa,),
+        ).fetchall()
+        parents = [row[0] for row in parents_rows]
+
+        children_rows = conn.execute(
+            """
+            SELECT child_ssa
+            FROM ssa_derivada_matrix
+            WHERE parent_ssa = ? AND active = 1
+            ORDER BY child_ssa
+            """,
+            (target_ssa,),
+        ).fetchall()
+        children = [row[0] for row in children_rows]
+
+        profile_row = conn.execute(
+            """
+            SELECT
+                ssa,
+                direct_parents_count,
+                direct_children_count,
+                ancestors_count,
+                descendants_count,
+                level_from_root_min,
+                level_from_root_max,
+                levels_above_max,
+                levels_below_max,
+                component_size,
+                has_cycle,
+                last_sync_at
+            FROM ssa_derivada_summary
+            WHERE ssa = ?
+            """,
+            (target_ssa,),
+        ).fetchone()
+        if profile_row is not None:
+            hierarchy_profile = {
+                "ssa": profile_row[0],
+                "direct_parents_count": int(profile_row[1]),
+                "direct_children_count": int(profile_row[2]),
+                "ancestors_count": int(profile_row[3]),
+                "descendants_count": int(profile_row[4]),
+                "level_from_root_min": profile_row[5],
+                "level_from_root_max": profile_row[6],
+                "levels_above_max": int(profile_row[7]),
+                "levels_below_max": int(profile_row[8]),
+                "component_size": int(profile_row[9]),
+                "has_cycle": bool(profile_row[10]),
+                "last_sync_at": profile_row[11],
+            }
+        else:
+            hierarchy_profile = {
+                "ssa": target_ssa,
+                "direct_parents_count": len(parents),
+                "direct_children_count": len(children),
+                "ancestors_count": 0,
+                "descendants_count": 0,
+                "level_from_root_min": None,
+                "level_from_root_max": None,
+                "levels_above_max": 0,
+                "levels_below_max": 0,
+                "component_size": 1,
+                "has_cycle": False,
+                "last_sync_at": None,
+            }
+
+        if max_distance is not None:
+            ancestor_rows = conn.execute(
+                """
+                SELECT ancestor_ssa, min_distance, max_distance, path_count
+                FROM ssa_derivada_closure
+                WHERE descendant_ssa = ? AND min_distance <= ?
+                ORDER BY min_distance, ancestor_ssa
+                """,
+                (target_ssa, max_distance),
+            ).fetchall()
+            descendant_rows = conn.execute(
+                """
+                SELECT descendant_ssa, min_distance, max_distance, path_count
+                FROM ssa_derivada_closure
+                WHERE ancestor_ssa = ? AND min_distance <= ?
+                ORDER BY min_distance, descendant_ssa
+                """,
+                (target_ssa, max_distance),
+            ).fetchall()
+        else:
+            ancestor_rows = conn.execute(
+                """
+                SELECT ancestor_ssa, min_distance, max_distance, path_count
+                FROM ssa_derivada_closure
+                WHERE descendant_ssa = ?
+                ORDER BY min_distance, ancestor_ssa
+                """,
+                (target_ssa,),
+            ).fetchall()
+            descendant_rows = conn.execute(
+                """
+                SELECT descendant_ssa, min_distance, max_distance, path_count
+                FROM ssa_derivada_closure
+                WHERE ancestor_ssa = ?
+                ORDER BY min_distance, descendant_ssa
+                """,
+                (target_ssa,),
+            ).fetchall()
+
+        ancestors = [
+            {
+                "ssa": row[0],
+                "min_distance": int(row[1]),
+                "max_distance": int(row[2]),
+                "path_count": int(row[3]),
+            }
+            for row in ancestor_rows
+        ]
+        descendants = [
+            {
+                "ssa": row[0],
+                "min_distance": int(row[1]),
+                "max_distance": int(row[2]),
+                "path_count": int(row[3]),
+            }
+            for row in descendant_rows
+        ]
+
+        return {
+            "ssa": target_ssa,
+            "parent": parents[0] if len(parents) == 1 else None,
+            "parents": parents,
+            "children": children,
+            "children_count": len(children),
+            "has_children": bool(children),
+            "is_multiparent": len(parents) > 1,
+            "hierarchy_profile": hierarchy_profile,
+            "ancestors": ancestors,
+            "descendants": descendants,
+        }
