@@ -271,36 +271,64 @@ def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {row[1] for row in rows}
 
 
+def _validate_ddl_sql_type(sql_type: str, *, table_name: str, column_name: str) -> str:
+    if not isinstance(sql_type, str) or not sql_type.strip():
+        raise ValueError(f"Invalid sql_type for {table_name}.{column_name}: {sql_type!r}")
+    lowered = sql_type.casefold()
+    if any(token in lowered for token in (";", "--", "/*", "*/")):
+        raise ValueError(f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}")
+    if "\n" in sql_type or "\r" in sql_type:
+        raise ValueError(f"Unsafe sql_type for {table_name}.{column_name}: {sql_type!r}")
+    return sql_type.strip()
+
+
 def _ensure_derivadas_columns(conn: sqlite3.Connection, *, include_legacy_backfill: bool) -> None:
-    for table_name, expected in EXPECTED_COLUMNS.items():
-        existing = _existing_columns(conn, table_name)
-        if not existing:
-            continue
-        for column_name, sql_type in expected.items():
-            if column_name in existing:
+    conn.execute("SAVEPOINT derivadas_ensure_columns")
+    try:
+        for table_name, expected in EXPECTED_COLUMNS.items():
+            if not is_valid_identifier(table_name):
+                raise ValueError(f"Invalid table identifier for schema migration: {table_name!r}")
+            existing = _existing_columns(conn, table_name)
+            if not existing:
                 continue
-            try:
-                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {sql_type}")
-                logger.info("Derivadas schema migration: added column %s.%s", table_name, column_name)
-            except sqlite3.OperationalError as exc:
-                if "duplicate column name" not in str(exc).lower():
-                    raise
-
-    if not include_legacy_backfill:
-        return
-
-    # Compatibilidade com schema antigo: relation_label -> relation_raw_label
-    matrix_cols = _existing_columns(conn, "ssa_derivada_matrix")
-    if "relation_label" in matrix_cols and "relation_raw_label" in matrix_cols:
-        conn.execute(
-            """
-            UPDATE ssa_derivada_matrix
-            SET relation_raw_label = relation_label
-            WHERE (relation_raw_label IS NULL OR trim(relation_raw_label) = '')
-              AND relation_label IS NOT NULL
-              AND trim(relation_label) <> ''
-            """
-        )
+            for column_name, sql_type in expected.items():
+                if not is_valid_identifier(column_name):
+                    raise ValueError(
+                        f"Invalid column identifier for schema migration: {table_name}.{column_name!r}"
+                    )
+                if column_name in existing:
+                    continue
+                safe_type = _validate_ddl_sql_type(
+                    sql_type, table_name=table_name, column_name=column_name
+                )
+                try:
+                    conn.execute(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {safe_type}'
+                    )
+                    logger.info(
+                        "Derivadas schema migration: added column %s.%s", table_name, column_name
+                    )
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
+        if include_legacy_backfill:
+            # Compatibilidade com schema antigo: relation_label -> relation_raw_label
+            matrix_cols = _existing_columns(conn, "ssa_derivada_matrix")
+            if "relation_label" in matrix_cols and "relation_raw_label" in matrix_cols:
+                conn.execute(
+                    """
+                    UPDATE ssa_derivada_matrix
+                    SET relation_raw_label = relation_label
+                    WHERE (relation_raw_label IS NULL OR trim(relation_raw_label) = '')
+                      AND relation_label IS NOT NULL
+                      AND trim(relation_label) <> ''
+                    """
+                )
+    except Exception:
+        conn.execute("ROLLBACK TO derivadas_ensure_columns")
+        conn.execute("RELEASE derivadas_ensure_columns")
+        raise
+    conn.execute("RELEASE derivadas_ensure_columns")
 
 
 def has_derivadas_read_schema(conn: sqlite3.Connection) -> bool:
