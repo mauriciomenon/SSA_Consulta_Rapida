@@ -23,7 +23,73 @@ DERIVADAS_TABLES: tuple[str, ...] = (
     "ssa_derivada_sync_run",
 )
 
-DERIVADAS_SCHEMA_SQL = """
+EXPECTED_COLUMNS: dict[str, dict[str, str]] = {
+    "ssa_derivada_matrix": {
+        "parent_ssa": "TEXT NOT NULL",
+        "child_ssa": "TEXT NOT NULL",
+        "source_flags": "INTEGER NOT NULL DEFAULT 0",
+        "relation_type": "INTEGER NOT NULL DEFAULT 0",
+        "relation_raw_label": "TEXT",
+        "active": "INTEGER NOT NULL DEFAULT 1",
+        "first_seen_at": "TEXT NOT NULL",
+        "last_seen_at": "TEXT NOT NULL",
+        "last_sync_at": "TEXT NOT NULL",
+    },
+    "ssa_derivada_source": {
+        "parent_ssa": "TEXT NOT NULL",
+        "child_ssa": "TEXT NOT NULL",
+        "source_name": "TEXT NOT NULL",
+        "source_flag": "INTEGER NOT NULL DEFAULT 0",
+        "relation_type": "INTEGER NOT NULL DEFAULT 0",
+        "relation_raw_label": "TEXT",
+        "is_active": "INTEGER NOT NULL DEFAULT 1",
+        "first_seen_at": "TEXT NOT NULL",
+        "last_seen_at": "TEXT NOT NULL",
+        "last_sync_at": "TEXT NOT NULL",
+    },
+    "ssa_derivada_closure": {
+        "ancestor_ssa": "TEXT NOT NULL",
+        "descendant_ssa": "TEXT NOT NULL",
+        "min_distance": "INTEGER NOT NULL",
+        "max_distance": "INTEGER NOT NULL",
+        "path_count": "INTEGER NOT NULL DEFAULT 1",
+        "last_sync_at": "TEXT NOT NULL",
+    },
+    "ssa_derivada_summary": {
+        "ssa": "TEXT",
+        "direct_parents_count": "INTEGER NOT NULL DEFAULT 0",
+        "direct_children_count": "INTEGER NOT NULL DEFAULT 0",
+        "ancestors_count": "INTEGER NOT NULL DEFAULT 0",
+        "descendants_count": "INTEGER NOT NULL DEFAULT 0",
+        "level_from_root_min": "INTEGER",
+        "level_from_root_max": "INTEGER",
+        "levels_above_max": "INTEGER NOT NULL DEFAULT 0",
+        "levels_below_max": "INTEGER NOT NULL DEFAULT 0",
+        "component_size": "INTEGER NOT NULL DEFAULT 1",
+        "has_cycle": "INTEGER NOT NULL DEFAULT 0",
+        "last_sync_at": "TEXT NOT NULL",
+    },
+    "ssa_derivada_sync_run": {
+        "sync_run_id": "INTEGER",
+        "mode": "TEXT NOT NULL",
+        "managed_sources": "TEXT NOT NULL DEFAULT ''",
+        "started_at": "TEXT NOT NULL",
+        "finished_at": "TEXT",
+        "status": "TEXT NOT NULL DEFAULT 'running'",
+        "db_edges": "INTEGER NOT NULL DEFAULT 0",
+        "sheet_edges": "INTEGER NOT NULL DEFAULT 0",
+        "merged_edges": "INTEGER NOT NULL DEFAULT 0",
+        "active_edges": "INTEGER NOT NULL DEFAULT 0",
+        "conflict_count": "INTEGER NOT NULL DEFAULT 0",
+        "multiparent_count": "INTEGER NOT NULL DEFAULT 0",
+        "orphan_parent_count": "INTEGER NOT NULL DEFAULT 0",
+        "orphan_child_count": "INTEGER NOT NULL DEFAULT 0",
+        "cycle_node_count": "INTEGER NOT NULL DEFAULT 0",
+        "message": "TEXT",
+    },
+}
+
+DERIVADAS_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS ssa_derivada_matrix (
     parent_ssa TEXT NOT NULL,
     child_ssa TEXT NOT NULL,
@@ -43,13 +109,6 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_matrix (
     CHECK (source_flags >= 0),
     CHECK (active IN (0, 1))
 );
-
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_parent ON ssa_derivada_matrix (parent_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_child ON ssa_derivada_matrix (child_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_flags ON ssa_derivada_matrix (source_flags);
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active ON ssa_derivada_matrix (active);
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active_parent ON ssa_derivada_matrix (active, parent_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active_child ON ssa_derivada_matrix (active, child_ssa);
 
 CREATE TABLE IF NOT EXISTS ssa_derivada_source (
     parent_ssa TEXT NOT NULL,
@@ -73,12 +132,6 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_source (
     CHECK (is_active IN (0, 1))
 );
 
-CREATE INDEX IF NOT EXISTS idx_derivada_source_name ON ssa_derivada_source (source_name);
-CREATE INDEX IF NOT EXISTS idx_derivada_source_active ON ssa_derivada_source (is_active);
-CREATE INDEX IF NOT EXISTS idx_derivada_source_parent ON ssa_derivada_source (parent_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_source_child ON ssa_derivada_source (child_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_source_name_active ON ssa_derivada_source (source_name, is_active);
-
 CREATE TABLE IF NOT EXISTS ssa_derivada_closure (
     ancestor_ssa TEXT NOT NULL,
     descendant_ssa TEXT NOT NULL,
@@ -96,11 +149,6 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_closure (
     CHECK (max_distance >= min_distance),
     CHECK (path_count >= 1)
 );
-
-CREATE INDEX IF NOT EXISTS idx_derivada_closure_ancestor ON ssa_derivada_closure (ancestor_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_closure_descendant ON ssa_derivada_closure (descendant_ssa);
-CREATE INDEX IF NOT EXISTS idx_derivada_closure_min_distance ON ssa_derivada_closure (min_distance);
-CREATE INDEX IF NOT EXISTS idx_derivada_closure_max_distance ON ssa_derivada_closure (max_distance);
 
 CREATE TABLE IF NOT EXISTS ssa_derivada_summary (
     ssa TEXT PRIMARY KEY,
@@ -127,12 +175,6 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_summary (
     CHECK (has_cycle IN (0, 1))
 );
 
-CREATE INDEX IF NOT EXISTS idx_derivada_summary_direct_children ON ssa_derivada_summary (direct_children_count);
-CREATE INDEX IF NOT EXISTS idx_derivada_summary_descendants ON ssa_derivada_summary (descendants_count);
-CREATE INDEX IF NOT EXISTS idx_derivada_summary_ancestors ON ssa_derivada_summary (ancestors_count);
-CREATE INDEX IF NOT EXISTS idx_derivada_summary_levels_below ON ssa_derivada_summary (levels_below_max);
-CREATE INDEX IF NOT EXISTS idx_derivada_summary_levels_above ON ssa_derivada_summary (levels_above_max);
-
 CREATE TABLE IF NOT EXISTS ssa_derivada_sync_run (
     sync_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mode TEXT NOT NULL,
@@ -151,6 +193,32 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_sync_run (
     cycle_node_count INTEGER NOT NULL DEFAULT 0,
     message TEXT
 );
+"""
+
+DERIVADAS_INDEXES_SQL = """
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_parent ON ssa_derivada_matrix (parent_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_child ON ssa_derivada_matrix (child_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_flags ON ssa_derivada_matrix (source_flags);
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active ON ssa_derivada_matrix (active);
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active_parent ON ssa_derivada_matrix (active, parent_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_matrix_active_child ON ssa_derivada_matrix (active, child_ssa);
+
+CREATE INDEX IF NOT EXISTS idx_derivada_source_name ON ssa_derivada_source (source_name);
+CREATE INDEX IF NOT EXISTS idx_derivada_source_active ON ssa_derivada_source (is_active);
+CREATE INDEX IF NOT EXISTS idx_derivada_source_parent ON ssa_derivada_source (parent_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_source_child ON ssa_derivada_source (child_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_source_name_active ON ssa_derivada_source (source_name, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_derivada_closure_ancestor ON ssa_derivada_closure (ancestor_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_closure_descendant ON ssa_derivada_closure (descendant_ssa);
+CREATE INDEX IF NOT EXISTS idx_derivada_closure_min_distance ON ssa_derivada_closure (min_distance);
+CREATE INDEX IF NOT EXISTS idx_derivada_closure_max_distance ON ssa_derivada_closure (max_distance);
+
+CREATE INDEX IF NOT EXISTS idx_derivada_summary_direct_children ON ssa_derivada_summary (direct_children_count);
+CREATE INDEX IF NOT EXISTS idx_derivada_summary_descendants ON ssa_derivada_summary (descendants_count);
+CREATE INDEX IF NOT EXISTS idx_derivada_summary_ancestors ON ssa_derivada_summary (ancestors_count);
+CREATE INDEX IF NOT EXISTS idx_derivada_summary_levels_below ON ssa_derivada_summary (levels_below_max);
+CREATE INDEX IF NOT EXISTS idx_derivada_summary_levels_above ON ssa_derivada_summary (levels_above_max);
 
 CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_status ON ssa_derivada_sync_run (status);
 CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_run (started_at);
@@ -160,7 +228,43 @@ CREATE INDEX IF NOT EXISTS idx_derivada_sync_run_started ON ssa_derivada_sync_ru
 def ensure_derivadas_schema_on_connection(conn: sqlite3.Connection) -> None:
     """Create derivadas schema objects if they do not exist."""
 
-    conn.executescript(DERIVADAS_SCHEMA_SQL)
+    conn.executescript(DERIVADAS_TABLES_SQL)
+    _ensure_derivadas_columns(conn)
+    conn.executescript(DERIVADAS_INDEXES_SQL)
+
+
+def _existing_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {row[1] for row in rows}
+
+
+def _ensure_derivadas_columns(conn: sqlite3.Connection) -> None:
+    for table_name, expected in EXPECTED_COLUMNS.items():
+        existing = _existing_columns(conn, table_name)
+        if not existing:
+            continue
+        for column_name, sql_type in expected.items():
+            if column_name in existing:
+                continue
+            try:
+                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {sql_type}")
+                logger.info("Derivadas schema migration: added column %s.%s", table_name, column_name)
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
+
+    # Compatibilidade com schema antigo: relation_label -> relation_raw_label
+    matrix_cols = _existing_columns(conn, "ssa_derivada_matrix")
+    if "relation_label" in matrix_cols and "relation_raw_label" in matrix_cols:
+        conn.execute(
+            """
+            UPDATE ssa_derivada_matrix
+            SET relation_raw_label = relation_label
+            WHERE (relation_raw_label IS NULL OR trim(relation_raw_label) = '')
+              AND relation_label IS NOT NULL
+              AND trim(relation_label) <> ''
+            """
+        )
 
 
 def ensure_derivadas_schema(db_path: str) -> None:
@@ -185,4 +289,3 @@ def has_derivadas_schema(conn: sqlite3.Connection, required: Iterable[str] = DER
     )
     existing = {row[0] for row in cur.fetchall()}
     return names.issubset(existing)
-

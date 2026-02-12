@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """CLI utilitario para sincronizacao e consulta de derivadas."""
+# ruff: noqa: E402
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
+
+# Resolve imports when executed as `python scripts/derivadas_cli.py`.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from armazenamento.derivadas_queries import (
     ALLOWED_TOP_METRICS,
@@ -19,8 +26,8 @@ from armazenamento.derivadas_queries import (
     get_paths_down,
     get_paths_up,
     get_top_by_metric,
-)
-from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas
+)  # noqa: E402
+from armazenamento.derivadas_sync import get_sync_stats, sync_derivadas  # noqa: E402
 
 
 def _as_json(data: Any) -> None:
@@ -188,4 +195,3 @@ if __name__ == "__main__":
     except Exception as exc:  # pragma: no cover
         print(f"ERRO: {exc}", file=sys.stderr)
         raise SystemExit(1)
-
