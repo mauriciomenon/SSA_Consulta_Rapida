@@ -120,3 +120,34 @@ def test_maintenance_interval_guard_remains_read_only_under_write_lock(temp_db):
     assert result["ran"] is False
     assert result["reason"] == "interval_guard"
     assert op_elapsed < 0.5
+
+
+def test_scan_detects_summary_extra_nodes(temp_db):
+    _seed_base_data(temp_db)
+    sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        conn.execute(
+            """
+            INSERT INTO ssa_derivada_summary (
+                ssa,
+                direct_parents_count,
+                direct_children_count,
+                ancestors_count,
+                descendants_count,
+                level_from_root_min,
+                level_from_root_max,
+                levels_above_max,
+                levels_below_max,
+                component_size,
+                has_cycle,
+                last_sync_at
+            ) VALUES (?, 0, 0, 0, 0, NULL, NULL, 0, 0, 1, 0, ?)
+            """,
+            ("202599999", "2026-02-12 00:00:00"),
+        )
+        conn.commit()
+
+    report = scan_derivadas_consistency(temp_db)
+    assert report["is_consistent"] is False
+    assert report["issue_counts"]["summary_extra_nodes"] >= 1
