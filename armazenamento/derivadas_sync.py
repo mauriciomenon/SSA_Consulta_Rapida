@@ -498,29 +498,39 @@ def _build_closure_rows(edges: list[tuple[str, str]], depth_cap: int = 32) -> tu
     cycle_nodes = _kahn_cycle_nodes(edges)
     metrics: dict[tuple[str, str], list[int]] = {}
 
+    # Avoid enumerating all simple paths (can explode in DAGs with merges). We compute:
+    # - min_distance: shortest path length (BFS)
+    # - max_distance: currently equals min_distance (stable and cheap)
+    # - path_count: number of distinct shortest paths (saturated to cap)
+    path_count_cap = 1_000_000
+
     for ancestor in adjacency.keys():
-        stack: list[tuple[str, int, frozenset[str]]] = [(ancestor, 0, frozenset((ancestor,)))]
-        while stack:
-            node, depth, visited = stack.pop()
+        dist: dict[str, int] = {ancestor: 0}
+        count: dict[str, int] = {ancestor: 1}
+        queue = deque((ancestor,))
+        while queue:
+            node = queue.popleft()
+            depth = dist[node]
             if depth >= depth_cap:
                 continue
             for child in adjacency.get(node, ()):
-                if child in visited:
-                    cycle_nodes.add(child)
-                    cycle_nodes.add(node)
-                    continue
                 next_depth = depth + 1
-                key = (ancestor, child)
-                if key not in metrics:
-                    metrics[key] = [next_depth, next_depth, 1]
-                else:
-                    current = metrics[key]
-                    if next_depth < current[0]:
-                        current[0] = next_depth
-                    if next_depth > current[1]:
-                        current[1] = next_depth
-                    current[2] += 1
-                stack.append((child, next_depth, visited.union((child,))))
+                prev_depth = dist.get(child)
+                if prev_depth is None:
+                    dist[child] = next_depth
+                    count[child] = count.get(node, 1)
+                    queue.append(child)
+                    continue
+                if next_depth == prev_depth:
+                    updated = count.get(child, 1) + count.get(node, 1)
+                    count[child] = updated if updated < path_count_cap else path_count_cap
+
+        for descendant, min_distance in dist.items():
+            if descendant == ancestor:
+                continue
+            key = (ancestor, descendant)
+            shortest_paths = count.get(descendant, 1)
+            metrics[key] = [min_distance, min_distance, shortest_paths]
 
     closure_rows = [
         (ancestor, descendant, values[0], values[1], values[2])
