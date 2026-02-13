@@ -340,7 +340,7 @@ class FilterGUISSAMixin:
             return
         # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
         if os.environ.get("PYTEST_CURRENT_TEST"):
-            logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
+            logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog: %s", error_msg)
         else:
             QMessageBox.critical(self, "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")

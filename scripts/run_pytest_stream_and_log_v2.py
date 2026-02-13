@@ -137,26 +137,25 @@ def main():
                     try:
                         line_queue.get_nowait()
                     except queue.Empty:
-                        pass
-            return
+                        time.sleep(0.005)
+                return
 
         try:
             line_queue.put_nowait(value)
             return
         except queue.Full:
-            dropped_lines += 1
             # Drop the oldest line to make room (best-effort).
             try:
                 line_queue.get_nowait()
             except queue.Empty:
                 return
+            dropped_lines += 1
 
             # Occasionally report that output was dropped to preserve transparency.
             if dropped_lines % 200 == 1:
                 warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
                 try:
                     line_queue.put_nowait(warn)
-                    return
                 except queue.Full:
                     pass
 
@@ -164,7 +163,11 @@ def main():
                 line_queue.put_nowait(value)
             except queue.Full:
                 # Still no space, drop the line.
+                dropped_lines += 1
                 return
+            else:
+                # Count only if we actually had to evict and still enqueue the new value.
+                dropped_lines += 1
 
     def _reader_worker() -> None:
         try:

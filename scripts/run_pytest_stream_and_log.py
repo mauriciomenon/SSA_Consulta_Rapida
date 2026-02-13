@@ -98,19 +98,19 @@ def main():
                     try:
                         line_queue.get_nowait()
                     except queue.Empty:
-                        pass
+                        time.sleep(0.005)
             return
 
         try:
             line_queue.put_nowait(value)
             return
         except queue.Full:
-            dropped_lines += 1
             # Drop the oldest line to make room (best-effort).
             try:
                 line_queue.get_nowait()
             except queue.Empty:
                 return
+            dropped_lines += 1
 
             # Occasionally report that output was dropped to preserve transparency.
             if dropped_lines % 200 == 1:
@@ -124,7 +124,10 @@ def main():
                 line_queue.put_nowait(value)
             except queue.Full:
                 # Still no space, drop the line.
+                dropped_lines += 1
                 return
+            else:
+                dropped_lines += 1
 
     def _reader_worker() -> None:
         try:

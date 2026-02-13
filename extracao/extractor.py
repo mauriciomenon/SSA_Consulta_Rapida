@@ -9,7 +9,7 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 import os
 import pandas as pd
 import re
-from typing import Optional, Dict, Any, Callable
+from typing import Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
 
@@ -210,8 +210,8 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
 def extract_data_from_excel(
     file_path: str,
     *,
-    should_cancel: Optional[Callable[[], bool]] = None,
-) -> Optional[pd.DataFrame]:
+    should_cancel: Callable[[], bool] | None = None,
+) -> pd.DataFrame:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
 
@@ -219,8 +219,7 @@ def extract_data_from_excel(
         file_path (str): Caminho completo para o arquivo Excel.
 
     Returns:
-        Optional[pd.DataFrame]: Um DataFrame com os dados extraídos e normalizados,
-                                ou None em caso de erro.
+        pd.DataFrame: Dados extraídos e normalizados. Erros levantam ExtractionError.
     """
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
     base_name = os.path.basename(file_path) if file_path else "arquivo"
@@ -410,7 +409,7 @@ def extract_data_from_excel(
         logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
         raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
 
-def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
 
