@@ -7,7 +7,6 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 """
 
 import pandas as pd
-import os
 import re
 from typing import Optional, Dict, Any
 import logging
@@ -219,6 +218,7 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
                                 ou None em caso de erro.
     """
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
+    saw_header = False
     try:
         all_sheets_data = []
         xl_file = pd.ExcelFile(file_path, engine='openpyxl')
@@ -227,6 +227,9 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
             logger.debug(f"Processando planilha '{sheet_name}'...")
             # Le a planilha inteira
             sheet_df = xl_file.parse(sheet_name, header=None)
+            if sheet_df.empty or sheet_df.shape[1] == 0:
+                logger.debug("Planilha '%s' vazia; ignorando.", sheet_name)
+                continue
 
             # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
             header_row_idx = None
@@ -236,6 +239,7 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
                     break
 
             if header_row_idx is not None:
+                saw_header = True
                 # Define os cabecalhos
                 sheet_df.columns = sheet_df.iloc[header_row_idx]
                 # Remove linhas anteriores ao cabecalho e o proprio cabecalho
@@ -251,11 +255,22 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
                 else:
                     logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
             else:
-                 logger.warning(f"Planilha '{sheet_name}' em '{file_path}' não possui cabeçalho identificável.")
+                logger.warning(
+                    "Planilha '%s' em '%s' nao possui cabecalho identificavel.",
+                    sheet_name,
+                    file_path,
+                )
 
         if not all_sheets_data:
-             logger.warning(f"Nenhum dado válido encontrado em '{file_path}'.")
-             return None
+            if saw_header:
+                logger.info(
+                    "Arquivo '%s' sem linhas de dados apos cabecalho; retornando vazio.",
+                    file_path,
+                )
+                return pd.DataFrame()
+            raise ExtractionError(
+                f"No header found in any sheet for file: {file_path}"
+            )
 
         # Combina dados de todas as planilhas
         combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False)
@@ -268,8 +283,11 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
             logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
 
         if combined_df.empty:
-            logger.warning(f"Nenhum dado válido encontrado em '{file_path}' após combinação.")
-            return None
+            logger.warning(
+                "Nenhum dado valido encontrado em '%s' apos combinacao; retornando vazio.",
+                file_path,
+            )
+            return pd.DataFrame()
 
         # Carrega o mapeamento de colunas
         column_mappings = _load_column_mappings()
@@ -360,15 +378,21 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas válidas extraídas.")
         return combined_df
 
-    except FileNotFoundError:
-        logger.error(f"Arquivo '{file_path}' não encontrado.")
-        return None
+    except ExtractionError:
+        raise
+    except FileNotFoundError as e:
+        logger.error("Arquivo '%s' nao encontrado.", file_path)
+        raise ExtractionError(f"File not found: {file_path}") from e
     except pd.errors.ParserError as e:
-        logger.error(f"Erro ao ler '{file_path}': Problema ao analisar o arquivo Excel. Detalhes: {e}")
-        return None
+        logger.error(
+            "Erro ao ler '%s': problema ao analisar arquivo Excel: %s",
+            file_path,
+            e,
+        )
+        raise ExtractionError(f"Parser error reading Excel file: {file_path}") from e
     except Exception as e:
-        logger.error(f"Erro inesperado ao processar '{file_path}': {e}", exc_info=True)
-        return None
+        logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
+        raise ExtractionError(f"Unexpected error processing Excel file: {file_path}") from e
 
 def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
     """

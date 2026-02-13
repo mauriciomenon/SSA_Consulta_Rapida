@@ -174,6 +174,10 @@ def _import_single_file(
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path)
+        if df is None:
+            raise ExtractionError(
+                f"Extractor returned None for file: {os.path.basename(file_path)}"
+            )
         if df is not None and not df.empty:
             df = df.copy()
             # NOVA: Validar dados antes da insercao
@@ -275,9 +279,9 @@ def _import_single_file(
         else:
             logger.warning(f"Nenhum dado valido extraido de '{file_path}'. Pulando.")
             return True, 0  # Nao e um erro critico, apenas nao ha dados
-    except extractor.ExtractionError:
-        # Re-levanta erros especificos de extracao
-        raise
+    except extractor.ExtractionError as e:
+        # Normalize extractor error type into core.app_logic.ExtractionError
+        raise ExtractionError(str(e)) from e
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
         raise ExtractionError(f"Erro ao importar {file_path}") from e
