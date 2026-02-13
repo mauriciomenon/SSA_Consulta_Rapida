@@ -42,6 +42,29 @@ type Options = {
 
 type TablePresence = "present" | "absent" | "unknown";
 
+function guardPythonExecutable(): string {
+  const override = (process.env.SSA_DEV_GUARD_PYTHON ?? "").trim();
+  if (override) {
+    return override;
+  }
+
+  const venvPosix = resolve(process.cwd(), ".venv", "bin", "python");
+  if (existsSync(venvPosix)) {
+    return venvPosix;
+  }
+
+  const venvWindows = resolve(process.cwd(), ".venv", "Scripts", "python.exe");
+  if (existsSync(venvWindows)) {
+    return venvWindows;
+  }
+
+  if (spawnSync("python3", ["-c", "print('ok')"], { encoding: "utf8" }).status === 0) {
+    return "python3";
+  }
+
+  return "python";
+}
+
 function usage(): string {
   return [
     "Usage: bun scripts/dev_ai_guard.ts [options]",
@@ -124,7 +147,7 @@ function parseArgs(argv: string[]): Options {
   return options;
 }
 
-function sqliteTablePresence(dbPath: string, tableName: string): TablePresence {
+function sqliteTablePresence(pythonExe: string, dbPath: string, tableName: string): TablePresence {
   if (!dbPath || !tableName) {
     return "unknown";
   }
@@ -150,7 +173,7 @@ function sqliteTablePresence(dbPath: string, tableName: string): TablePresence {
     "    print(str(exc), file=sys.stderr)",
   ].join("\n");
 
-  const probe = spawnSync("python", ["-c", probeScript, dbPath, tableName], {
+  const probe = spawnSync(pythonExe, ["-c", probeScript, dbPath, tableName], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -176,7 +199,7 @@ function guardStepTimeoutMs(): number {
   return Math.min(Math.floor(parsed * 1000), 3_600_000);
 }
 
-function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
+function buildSteps(pythonExe: string, options: Options, includeSyncVerifyStep: boolean): Step[] {
   const lintTargets = [
     "armazenamento/derivadas_schema.py",
     "armazenamento/derivadas_queries.py",
@@ -208,11 +231,11 @@ function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
   if (!options.skipLint) {
     steps.push({
       name: "py_compile",
-      cmd: ["python", "-m", "py_compile", ...lintTargets],
+      cmd: [pythonExe, "-m", "py_compile", ...lintTargets],
     });
     steps.push({
       name: "ruff_check",
-      cmd: ["ruff", "check", ...lintTargets],
+      cmd: [pythonExe, "-m", "ruff", "check", ...lintTargets],
     });
   }
 
@@ -220,27 +243,27 @@ function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
     if (!options.skipTests) {
       steps.push({
         name: "pytest_derivadas_suite",
-        cmd: ["pytest", "-q", ...derivadasTests],
+        cmd: [pythonExe, "-m", "pytest", "-q", ...derivadasTests],
       });
     }
     if (!options.skipHealth) {
       steps.push({
         name: "schema_scan",
-        cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "schema-scan"],
+        cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "schema-scan"],
       });
       steps.push({
         name: "consistency_scan",
-        cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "scan"],
+        cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "scan"],
       });
       if (includeSyncVerifyStep) {
         steps.push({
           name: "sync_verify_only",
-          cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "sync", "--verify-only"],
+          cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "sync", "--verify-only"],
         });
       }
       steps.push({
         name: "sync_stats",
-        cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "stats"],
+        cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "stats"],
       });
     }
     return steps;
@@ -249,22 +272,22 @@ function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
   if (!options.skipTests) {
     steps.push({
       name: "pytest_post_pr_smoke",
-      cmd: ["pytest", "-q", ...postPrTests],
+      cmd: [pythonExe, "-m", "pytest", "-q", ...postPrTests],
     });
   }
   if (!options.skipHealth) {
     steps.push({
       name: "schema_scan",
-      cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "schema-scan"],
+      cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "schema-scan"],
     });
     steps.push({
       name: "consistency_scan",
-      cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "scan"],
+      cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "scan"],
     });
     steps.push({
       name: "maintenance_scan_only",
       cmd: [
-        "python",
+        pythonExe,
         "scripts/derivadas_cli.py",
         "--db",
         options.dbPath,
@@ -278,7 +301,7 @@ function buildSteps(options: Options, includeSyncVerifyStep: boolean): Step[] {
     });
     steps.push({
       name: "sync_stats",
-      cmd: ["python", "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "stats"],
+      cmd: [pythonExe, "scripts/derivadas_cli.py", "--db", options.dbPath, "--output", "json", "stats"],
     });
   }
   return steps;
@@ -292,8 +315,9 @@ function runStep(step: Step): StepResult {
     timeout: guardStepTimeoutMs(),
   });
   const durationMs = Date.now() - startedAt;
-  const timedOut = Boolean(result.error) && (result.error as any)?.code === "ETIMEDOUT";
-  const stderr = [result.stderr ?? "", result.error ? String(result.error) : ""].filter(Boolean).join("\n");
+  const maybeError = result.error as NodeJS.ErrnoException | undefined;
+  const timedOut = maybeError?.code === "ETIMEDOUT";
+  const stderr = [result.stderr ?? "", maybeError ? String(maybeError) : ""].filter(Boolean).join("\n");
   return {
     name: step.name,
     command: step.cmd.join(" "),
@@ -323,7 +347,8 @@ function writeReport(options: Options, results: StepResult[]): string {
 
 function main(): number {
   const options = parseArgs(process.argv.slice(2));
-  const tablePresence = sqliteTablePresence(options.dbPath, "ssa_table");
+  const pythonExe = guardPythonExecutable();
+  const tablePresence = sqliteTablePresence(pythonExe, options.dbPath, "ssa_table");
   const autoSkippedSyncVerify =
     options.mode === "pre-pr" &&
     !options.skipHealth &&
@@ -341,9 +366,10 @@ function main(): number {
     console.log("Notice: table presence check returned unknown; keeping sync_verify_only enabled.");
   }
   const includeSyncVerifyStep = !autoSkippedSyncVerify && !options.skipSyncVerify;
-  const steps = buildSteps(options, includeSyncVerifyStep);
+  const steps = buildSteps(pythonExe, options, includeSyncVerifyStep);
   console.log(`Mode: ${options.mode}`);
   console.log(`DB:   ${options.dbPath}`);
+  console.log(`Python: ${pythonExe}`);
   console.log(`Steps planned: ${steps.length}`);
 
   const results: StepResult[] = [];
