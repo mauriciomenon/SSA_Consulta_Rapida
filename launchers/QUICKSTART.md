@@ -33,7 +33,7 @@ launchers/
 cd /Users/menon/git/SSA_Consulta_Rapida
 
 # Instalar dependencias de build
-pip install pyinstaller pillow cairosvg
+pip install pyinstaller "pillow>=12.1.1" cairosvg
 
 # Executar build para plataforma atual
 python launchers/build_multiplatform.py
@@ -53,7 +53,7 @@ python launchers/build_multiplatform.py --detect-platform
 - PyQt6==6.8.0
 - pandas==2.2.3
 - openpyxl==3.1.5
-- Pillow==10.4.0
+- Pillow>=12.1.1
 - packaging==24.2
 - pyinstaller==6.0.0
 

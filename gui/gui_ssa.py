@@ -4472,7 +4472,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return
         safe_error_msg = "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
         logger.error("Erro no carregamento de dados (request_id=%s): %s", request_id, error_msg)
-        QMessageBox.critical(self, "Erro de Carregamento", safe_error_msg)
+        # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            logger.debug("PYTEST_CURRENT_TEST set; skipping modal load error dialog.")
+        else:
+            QMessageBox.critical(self, "Erro de Carregamento", safe_error_msg)
         self.status_label.setText("Status: Erro ao carregar dados.")
         self.load_button.setEnabled(True)
         self.search_button.setEnabled(True)
