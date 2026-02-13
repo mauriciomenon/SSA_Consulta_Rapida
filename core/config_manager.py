@@ -440,6 +440,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
         logger.warning(f"display_mappings.json foi recriado em '{path}' com valores padrão.")
     except Exception as e:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
+        raise RuntimeError(f"Falha ao restaurar display_mappings.json em '{path}'") from e
     return DEFAULT_DISPLAY_MAPPINGS.copy()
 
 def load_column_mappings_integrity() -> Dict[str, list]:
@@ -470,6 +471,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
         logger.warning(f"column_mappings.json foi recriado em '{path}' com valores padrão.")
     except Exception as e:
         logger.error(f"Falha ao restaurar column_mappings.json: {e}")
+        raise RuntimeError(f"Falha ao restaurar column_mappings.json em '{path}'") from e
     return DEFAULT_COLUMN_MAPPINGS.copy()
 
 def load_settings() -> Dict[str, Any]:
