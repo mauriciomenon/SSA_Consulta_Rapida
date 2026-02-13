@@ -8,7 +8,7 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 
 import pandas as pd
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
 
@@ -206,7 +206,11 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
 
-def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
+def extract_data_from_excel(
+    file_path: str,
+    *,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> Optional[pd.DataFrame]:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
 
@@ -220,10 +224,16 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
     saw_header = False
     try:
+        def _check_cancel() -> None:
+            if should_cancel is not None and should_cancel():
+                raise ExtractionError("operation cancelled")
+
+        _check_cancel()
         all_sheets_data = []
         xl_file = pd.ExcelFile(file_path, engine='openpyxl')
 
         for sheet_name in xl_file.sheet_names:
+            _check_cancel()
             logger.debug(f"Processando planilha '{sheet_name}'...")
             # Le a planilha inteira
             sheet_df = xl_file.parse(sheet_name, header=None)
@@ -234,6 +244,8 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
             # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
             header_row_idx = None
             for idx, value in enumerate(sheet_df.iloc[:, 0]):
+                if idx % 250 == 0:
+                    _check_cancel()
                 if pd.notna(value) and str(value).strip() != '':
                     header_row_idx = idx
                     break
@@ -318,11 +330,13 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         logger.debug(f"Colunas renomeadas. Novas colunas: {list(combined_df.columns)}")
 
         # Normaliza os tipos de dados
+        _check_cancel()
         combined_df = _normalize_datatypes(combined_df)
 
         # --- Sanitizacao Basica e Robusta de Strings ---
         logger.debug("Iniciando sanitização de strings...")
         for col in combined_df.columns:
+            _check_cancel()
             # Verifica se a coluna é de tipo 'object' (pandas usa para strings e mixed types)
             if pd.api.types.is_object_dtype(combined_df[col]):
                 # 1. Converte para string, tratando valores NA
