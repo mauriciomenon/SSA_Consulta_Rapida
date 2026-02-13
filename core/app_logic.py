@@ -184,6 +184,8 @@ def _import_single_file(
             )
         if df is not None and not df.empty:
             df = df.copy()
+            if should_cancel and should_cancel():
+                raise extractor.ExtractionError("operation cancelled")
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(
@@ -267,6 +269,8 @@ def _import_single_file(
             record_count = len(df)
 
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
+            if should_cancel and should_cancel():
+                raise extractor.ExtractionError("operation cancelled")
             success = database.insert_dataframe_with_smart_upsert(
                 df, db_path, table_name
             )
