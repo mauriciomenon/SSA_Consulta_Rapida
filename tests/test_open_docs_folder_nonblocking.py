@@ -34,6 +34,9 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
 def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path):
     from gui import gui_ssa
 
+    if not getattr(gui_ssa, "QT_AVAILABLE", False):
+        pytest.skip("Qt not available in this test environment")
+
     # Ensure the guard condition is active even if pytest env var is not set for some runner.
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
 
@@ -41,4 +44,3 @@ def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path
     monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
 
     gui_ssa.SSAMainWindow.open_docs_folder(object())
-
