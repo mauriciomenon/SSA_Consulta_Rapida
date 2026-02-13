@@ -36,6 +36,21 @@ def _seed_graph(db_path: str) -> None:
     sync_derivadas(db_path)
 
 
+def _seed_cycle_graph(db_path: str) -> None:
+    # Minimal cycle A <-> B to validate path collection behavior.
+    rows = [
+        ("202500001", "202500002"),
+        ("202500002", "202500001"),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO ssa_table (numero_ssa, derivada_de, descricao_ssa) VALUES (?, ?, ?)",
+            [(numero_ssa, derivada_de, f"SSA {numero_ssa}") for numero_ssa, derivada_de in rows],
+        )
+        conn.commit()
+    sync_derivadas(db_path)
+
+
 def test_parents_and_children_queries(temp_db):
     _seed_graph(temp_db)
 
@@ -70,6 +85,15 @@ def test_paths_and_top_metrics(temp_db):
     assert top_rows
     assert top_rows[0]["ssa"] == "202500001"
     assert top_rows[0]["metric"] >= 2
+
+
+def test_paths_do_not_include_spurious_partial_path_when_cycle_only(temp_db):
+    _seed_cycle_graph(temp_db)
+
+    down_paths = get_paths_down(temp_db, "202500001", depth=5, max_nodes=100)
+
+    assert ["202500001", "202500002", "202500001"] in down_paths
+    assert ["202500001", "202500002"] not in down_paths
 
 
 def test_queries_remain_read_only_under_write_lock(temp_db):

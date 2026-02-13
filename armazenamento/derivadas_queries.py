@@ -314,21 +314,22 @@ def _collect_paths(
             paths.append(path)
             continue
 
-        enqueued_any = False
+        produced_any = False
         for nxt in reversed(children):
             if len(paths) >= max_paths:
                 break
             if nxt in seen:
                 paths.append(path + [nxt])
+                produced_any = True
                 continue
             if states_seen >= max_states:
                 break
             next_path = path + [nxt]
             stack.append((nxt, next_path, seen | {nxt}))
             states_seen += 1
-            enqueued_any = True
+            produced_any = True
 
-        if not enqueued_any and len(paths) < max_paths:
+        if not produced_any and len(paths) < max_paths:
             # No expansion possible due to caps; keep a partial path so callers have deterministic output.
             paths.append(path)
 
