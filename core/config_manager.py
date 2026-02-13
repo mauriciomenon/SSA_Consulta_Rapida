@@ -39,6 +39,16 @@ def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: 
             with suppress(Exception):
                 os.remove(tmp_path)
 
+def atomic_write_json_file(
+    path: str,
+    data: Any,
+    *,
+    indent: int = 2,
+    ensure_ascii: bool = False,
+) -> None:
+    """Public helper to write JSON atomically."""
+    _atomic_write_json_file(path, data, indent=indent, ensure_ascii=ensure_ascii)
+
 def _atomic_copy_file(src: str, dst: str) -> None:
     """Copy a file atomically to avoid partial writes when creating defaults."""
     target_dir = os.path.dirname(dst) or "."

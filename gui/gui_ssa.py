@@ -42,7 +42,7 @@ if project_root not in sys.path:
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
 from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -735,8 +735,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _persist_gui_preferences(self):
         try:
-            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+            atomic_write_json_file(
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                GUI_MAIN_PREFERENCES,
+                indent=2,
+                ensure_ascii=False,
+            )
         except Exception as e:
             logger.warning("Falha ao persistir preferencias GUI: %s", e)
 
@@ -5158,8 +5162,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             gui_settings = GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})
             if gui_settings.get('theme') != normalized:
                 gui_settings['theme'] = normalized
-                with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                    json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+                atomic_write_json_file(
+                    os.path.join(project_root, "config", "gui_main_preferences.json"),
+                    GUI_MAIN_PREFERENCES,
+                    indent=2,
+                    ensure_ascii=False,
+                )
         except Exception as exc:
             logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
         self._apply_macos_contrast(normalized)
