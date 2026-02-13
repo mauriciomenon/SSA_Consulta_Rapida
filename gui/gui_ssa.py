@@ -4070,16 +4070,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             reprog_vals = filters.get("num_reprogramacoes_values") or []
             mode = filters.get("num_reprogramacoes_mode")
             if reprog_vals and mode and "num_reprogramacoes" in df.columns:
-                series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
-                vals = [int(v) for v in reprog_vals if pd.notna(v)]
-                if mode == "eq":
-                    mask &= series.isin(vals)
-                elif mode == "lte":
-                    threshold = max(vals)
-                    mask &= series <= threshold
-                elif mode == "gte":
-                    threshold = min(vals)
-                    mask &= series >= threshold
+                nums = pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
+                vals = []
+                for raw in reprog_vals:
+                    text = str(raw).strip()
+                    if text.isdigit():
+                        vals.append(int(text))
+                if vals:
+                    if mode == "eq":
+                        mask &= nums.isin(vals)
+                    elif mode == "lte":
+                        threshold = max(vals)
+                        mask &= nums <= threshold
+                    elif mode == "gte":
+                        threshold = min(vals)
+                        mask &= nums >= threshold
         except Exception as exc:
             logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
 
