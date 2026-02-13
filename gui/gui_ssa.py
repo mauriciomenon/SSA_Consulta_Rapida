@@ -64,6 +64,11 @@ logger = logging.getLogger(__name__)
 # Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
 GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
 MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
+
+# Retencao global defensiva para workers de reescaneamento (importacao) que podem
+# continuar por alguns instantes apos o fechamento do dialogo modal.
+GLOBAL_RETIRED_RESCAN_WORKERS = []
+MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 8
 logger.addHandler(logging.NullHandler())
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
@@ -6225,6 +6230,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         from gui.workers import RescanWorker
         from gui.widgets import RescanProgressDialog
 
+        active_worker = getattr(self, "_active_rescan_worker", None)
+        if active_worker is not None:
+            try:
+                if hasattr(active_worker, "isRunning") and active_worker.isRunning():
+                    self.status_label.setText("Status: Reescaneamento ja em andamento.")
+                    return
+            except Exception as exc:
+                logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
+
         # Check if main.py exists
         main_py_path = os.path.join(project_root, 'main.py')
         if not os.path.exists(main_py_path):
@@ -6236,26 +6250,59 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Create and configure worker
         worker = RescanWorker(main_py_path, project_root)
+        self._active_rescan_worker = worker
 
         # Connect signals
         worker.output_line.connect(progress_dialog.append_output)
         worker.error_line.connect(progress_dialog.append_error)
         worker.progress.connect(progress_dialog.update_progress)
 
+        cancelled = False
+
+        def _release_worker_ref(*_args) -> None:
+            try:
+                if getattr(self, "_active_rescan_worker", None) is worker:
+                    self._active_rescan_worker = None
+            except Exception as exc:
+                logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
+            try:
+                if worker in GLOBAL_RETIRED_RESCAN_WORKERS:
+                    GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            except Exception as exc:
+                logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
+
         def on_success():
+            _release_worker_ref()
             progress_dialog.set_finished(True)
             self.status_label.setText("Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar.")
 
         def on_error(error_msg):
+            nonlocal cancelled
+            if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
+                cancelled = True
+                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+                self.status_label.setText("Status: Reescaneamento cancelado.")
+                _release_worker_ref()
+                return
             progress_dialog.set_finished(False, error_msg)
             self.status_label.setText("Status: Erro no reescaneamento.")
+            _release_worker_ref()
 
         worker.finished_success.connect(on_success)
         worker.finished_error.connect(on_error)
+        try:
+            worker.finished.connect(_release_worker_ref)
+        except Exception as exc:
+            logger.debug("Falha ao conectar signal finished do RescanWorker: %s", exc)
+        try:
+            worker.finished.connect(worker.deleteLater)
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no RescanWorker: %s", exc)
 
-        # Cancelamento cooperativo: nao fecha o dialogo imediatamente.
-        # Solicita cancelamento e aguarda o worker finalizar com seguranca.
+        # Cancelamento cooperativo: solicita cancelamento e permite fechar o dialogo.
         def on_cancel_requested():
+            nonlocal cancelled
+            cancelled = True
             if worker.isRunning():
                 worker.stop()
                 self.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
@@ -6268,9 +6315,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Cleanup (best-effort, sem bloquear a UI)
         if worker.isRunning():
-            logger.warning(
-                "RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background."
-            )
+            if worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                GLOBAL_RETIRED_RESCAN_WORKERS.append(worker)
+                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+            logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
@@ -6447,6 +6496,40 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._prune_retired_data_loader_workers()
         except Exception as exc:
             logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
+
+        # Best-effort: parar reescaneamento/importacao em andamento ao encerrar a janela.
+        rescan_worker = getattr(self, "_active_rescan_worker", None)
+        if rescan_worker is not None:
+            try:
+                if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                    try:
+                        if hasattr(rescan_worker, "stop"):
+                            rescan_worker.stop()
+                    except Exception as exc:
+                        logger.debug("Falha ao solicitar stop do RescanWorker no closeEvent: %s", exc)
+                    try:
+                        rescan_worker.wait(1500)
+                    except Exception as exc:
+                        logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
+                    try:
+                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                            if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            logger.debug(
+                                "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
+                            )
+                    except Exception as exc:
+                        logger.debug("Falha ao checar/reter RescanWorker no closeEvent: %s", exc)
+            except Exception as exc:
+                logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
+            finally:
+                try:
+                    if not (hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()):
+                        self._active_rescan_worker = None
+                except Exception:
+                    self._active_rescan_worker = None
 
         # Aceita o evento de fechamento
         event.accept()
