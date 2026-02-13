@@ -180,29 +180,37 @@ def insert_dataframe_optimized(
                     params=(target_table,),
                 )
 
-                # OTIMIZACAO CHAVE: Uma consulta para TODAS as SSAs existentes
+                # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
                 lookup_start = time.time()
-                existing_ssas_df = pd.DataFrame()  # Vazio por padrao
-
-                if not table_exists.empty:
-                    # Tabela existe, fazer lookup
-                    existing_ssas_df = pd.read_sql_query(
-                        (
-                            f"SELECT numero_ssa, data_cadastro FROM {target_table} "
-                            "WHERE numero_ssa IS NOT NULL"
-                        ),
-                        conn,
-                    )
-                lookup_time = time.time() - lookup_start
-
-                # Criar dicionário para lookup O(1) em vez de O(n) por linha
                 existing_dict = {}
-                if not existing_ssas_df.empty:
-                    existing_dict = dict(zip(existing_ssas_df['numero_ssa'], existing_ssas_df['data_cadastro']))
+                if not table_exists.empty:
+                    unique_ssas = (
+                        has_ssa['numero_ssa']
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
+                    if unique_ssas:
+                        # Respeita limite de variaveis do SQLite (999). Usamos margem.
+                        lookup_chunk = max(1, SQLITE_MAX_VARIABLES - 50)
+                        for i in range(0, len(unique_ssas), lookup_chunk):
+                            chunk_ssas = unique_ssas[i:i + lookup_chunk]
+                            placeholders = ",".join(["?"] * len(chunk_ssas))
+                            query = (
+                                f"SELECT numero_ssa, data_cadastro FROM {target_table} "
+                                f"WHERE numero_ssa IN ({placeholders})"
+                            )
+                            chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
+                            if not chunk_df.empty:
+                                existing_dict.update(
+                                    dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))
+                                )
+                lookup_time = time.time() - lookup_start
 
                 logger.info(
                     "Lookup de SSAs existentes: %s encontrados em %.3fs",
-                    len(existing_ssas_df),
+                    len(existing_dict),
                     lookup_time,
                 )
 
