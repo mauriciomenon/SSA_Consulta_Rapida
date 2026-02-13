@@ -474,6 +474,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     try:
         logger.setLevel(getattr(logging, args.log_level))
     except AttributeError:
+        print(f"Nível de log inválido: {args.log_level}. Usando INFO.")
         logger.setLevel(logging.INFO)
 
     # Banner inicial
@@ -670,6 +671,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
 
             # Ativar importacao otimizada (agora padrao)
+            optimized_enabled = False
             if use_optimized:
                 logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
                 logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
@@ -719,6 +721,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                         logger.debug("Importacao de enable_optimized_import bem-sucedida")
 
                         enable_optimized_import()
+                        optimized_enabled = True
                         logger.debug("enable_optimized_import() executado com sucesso")
                     else:
                         logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
@@ -755,7 +758,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 raise
 
             # Desativar importacao otimizada apos uso
-            if use_optimized:
+            if optimized_enabled:
                 try:
                     from armazenamento.database_optimized import disable_optimized_import
                     disable_optimized_import()

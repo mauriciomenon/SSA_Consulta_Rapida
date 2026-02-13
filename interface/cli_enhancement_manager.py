@@ -8,8 +8,18 @@ import json
 import logging
 import tempfile
 from contextlib import suppress
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+try:
+    import fcntl  # type: ignore
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore
+try:
+    import msvcrt  # type: ignore
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None  # type: ignore
 
 class CLIEnhancementManager:
     """
@@ -53,6 +63,7 @@ class CLIEnhancementManager:
             try:
                 fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    self._lock_file_if_possible(f)
                     json.dump(self.settings, f, indent=2, ensure_ascii=False)
                     f.flush()
                     try:
@@ -67,6 +78,16 @@ class CLIEnhancementManager:
                         os.remove(tmp_path)
         except Exception as e:
             logger.error(f"Erro ao salvar configurações CLI: {e}")
+
+    def _lock_file_if_possible(self, f: Any) -> None:
+        """Best-effort file lock to avoid races on settings writes."""
+        try:
+            if fcntl is not None:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            elif msvcrt is not None:  # pragma: no cover - Windows
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        except Exception as exc:
+            logger.debug("Nao foi possivel aplicar lock no settings: %s", exc)
 
     def is_enhanced_printer_enabled(self) -> bool:
         """Verifica se enhanced table printer está habilitado."""

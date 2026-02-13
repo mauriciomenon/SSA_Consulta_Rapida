@@ -5,7 +5,7 @@ import utils.robust_logging as robust_logging
 
 
 def test_get_robust_logger_is_thread_safe_singleton(monkeypatch):
-    robust_logging._robust_logger = None
+    monkeypatch.setattr(robust_logging, "_robust_logger", None)
 
     created = {"count": 0}
 
@@ -42,5 +42,3 @@ def test_get_robust_logger_is_thread_safe_singleton(monkeypatch):
     assert len(results) == 2
     assert results[0] is results[1]
     assert created["count"] == 1
-    # Do not leak stub instance to other tests in the same process.
-    robust_logging._robust_logger = None

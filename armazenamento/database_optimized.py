@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import suppress
 import pandas as pd  # type: ignore[import-not-found]
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
@@ -257,20 +258,27 @@ def insert_dataframe_optimized(
                     CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
                     logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
                     ssa_list = list(update_df['numero_ssa'])
+                    try:
+                        conn.execute("SAVEPOINT ssa_batch_update")
+                        for i in range(0, len(ssa_list), CHUNK_SIZE):
+                            chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
+                            ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
+                            delete_query = (
+                                f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
+                            )
+                            conn.execute(delete_query, chunk_ssas)
 
-                    for i in range(0, len(ssa_list), CHUNK_SIZE):
-                        chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
-                        ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
-                        delete_query = (
-                            f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
-                        )
-                        conn.execute(delete_query, chunk_ssas)
-
-                    # Inserir versões atualizadas com chunk size dinâmico centralizado
-                    # method='multi' ignora chunksize; usar chunksize seguro
-                    update_df.to_sql(target_table, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
-                    total_inserted += len(update_df)
-                    logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
+                        # Inserir versões atualizadas com chunk size dinâmico centralizado
+                        # method='multi' ignora chunksize; usar chunksize seguro
+                        update_df.to_sql(target_table, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
+                        conn.execute("RELEASE SAVEPOINT ssa_batch_update")
+                        total_inserted += len(update_df)
+                        logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
+                    except Exception:
+                        with suppress(Exception):
+                            conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
+                            conn.execute("RELEASE SAVEPOINT ssa_batch_update")
+                        raise
 
             # Commit explícito
             conn.commit()
