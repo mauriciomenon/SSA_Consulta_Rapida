@@ -11,7 +11,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from core.app_logic import run_importer_logic
+from core.app_logic import run_importer_logic  # noqa: E402
 
 
 class RescanWorker(QThread):
@@ -101,7 +101,8 @@ class RescanWorker(QThread):
                 db_name='ssas.db',
                 table_name='ssa_table',
                 force_import=True,  # Rescan = force reimport
-                progress_callback=self._progress_callback
+                should_cancel=lambda: self._should_stop,
+                progress_callback=self._progress_callback,
             )
 
             # Remove log handler

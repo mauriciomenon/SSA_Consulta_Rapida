@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
     QPushButton, QProgressBar, QLabel
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
 
 
@@ -20,11 +20,15 @@ class RescanProgressDialog(QDialog):
     - Cancel button
     """
 
+    cancel_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Reescaneamento em Andamento")
         self.setModal(True)
         self.resize(800, 600)
+        self._cancel_requested = False
+        self._finished = False
         self.setup_ui()
 
     def setup_ui(self):
@@ -103,6 +107,7 @@ class RescanProgressDialog(QDialog):
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""
+        self._finished = True
         self.cancel_button.setEnabled(False)
         self.close_button.setEnabled(True)
 
@@ -115,3 +120,15 @@ class RescanProgressDialog(QDialog):
             self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: red;")
             if message:
                 self.append_error(f"\nERRO FINAL: {message}")
+
+    def reject(self) -> None:
+        """While running, request cancel instead of closing the dialog."""
+        if self._finished:
+            super().reject()
+            return
+        if self._cancel_requested:
+            return
+        self._cancel_requested = True
+        self.cancel_button.setEnabled(False)
+        self.status_label.setText("Cancelamento solicitado. Aguarde...")
+        self.cancel_requested.emit()
