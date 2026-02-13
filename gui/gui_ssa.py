@@ -4088,6 +4088,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
 
+        # Early bailouts: avoid expensive parsing work when mask is already empty.
+        try:
+            if not bool(mask.any()):
+                return df.iloc[0:0]
+        except Exception as exc:
+            logger.debug("Failed to evaluate advanced filter mask.any(): %s", exc)
+
         def _to_int_set(values):
             result = set()
             for raw in values or []:
@@ -4169,6 +4176,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         _apply_week_range("semana_cadastro", "semana_emissao_inicio", "semana_emissao_fim", "semana_emissao_exclude")
         _apply_week_range("semana_executada", "semana_execucao_inicio", "semana_execucao_fim", "semana_execucao_exclude")
+
+        try:
+            if not bool(mask.any()):
+                return df.iloc[0:0]
+        except Exception as exc:
+            logger.debug("Failed to evaluate advanced filter mask.any() after week ranges: %s", exc)
 
         derivada_has = bool(filters.get("derivada_has"))
         derivada_all_ste = bool(filters.get("derivada_all_ste"))
