@@ -1873,7 +1873,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filter_name = ""
         try:
             parent = button.parent()
-            while parent is not None:
+            seen = set()
+            for _ in range(50):
+                if parent is None:
+                    break
+                pid = id(parent)
+                if pid in seen:
+                    logger.debug("Ciclo detectado ao subir parent() no menu multiselect; abortando.")
+                    break
+                seen.add(pid)
                 if isinstance(parent, QGroupBox):
                     candidate = parent.title()
                     # Ignorar titulos genericos como "Valores"
@@ -2641,9 +2649,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             return mae_filhas, filha_mae
 
-        for _, row in df_work.iterrows():
-            numero = self._normalize_ssa_value(row.get(numero_col))
-            derivada_de = self._normalize_ssa_value(row.get(derivada_col))
+        for numero_raw, derivada_raw in df_work.itertuples(index=False, name=None):
+            numero = self._normalize_ssa_value(numero_raw)
+            derivada_de = self._normalize_ssa_value(derivada_raw)
             if not numero or not derivada_de:
                 continue
             filha_mae[numero] = derivada_de
@@ -5874,11 +5882,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
 
     def _normalize_ssa_value(self, value):
-        text = str(value or "").strip()
+        try:
+            raw = value or ""
+        except Exception:
+            raw = ""
+        text = str(raw).strip()
         if not text:
             return ""
         lowered = text.casefold()
-        if lowered in ("nan", "none", "nat"):
+        if lowered in ("nan", "none", "nat", "<na>"):
             return ""
         try:
             digits = re.sub(r"\D", "", text)
