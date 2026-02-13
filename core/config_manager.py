@@ -9,9 +9,57 @@ import json
 import os
 import shutil
 import logging
+import tempfile
+from contextlib import suppress
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: bool) -> None:
+    """Write JSON atomically to prevent truncated/corrupted config files on crash."""
+    target_dir = os.path.dirname(path) or "."
+    base_name = os.path.basename(path) or "config.json"
+    os.makedirs(target_dir, exist_ok=True)
+
+    fd = None
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError as exc:
+                logger.debug("fsync failed for config temp file (%s): %s", tmp_path, exc)
+        os.replace(tmp_path, path)
+        tmp_path = None
+    finally:
+        if tmp_path:
+            with suppress(Exception):
+                os.remove(tmp_path)
+
+def _atomic_copy_file(src: str, dst: str) -> None:
+    """Copy a file atomically to avoid partial writes when creating defaults."""
+    target_dir = os.path.dirname(dst) or "."
+    base_name = os.path.basename(dst) or "file"
+    os.makedirs(target_dir, exist_ok=True)
+
+    fd = None
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        shutil.copyfile(src, tmp_path)
+        os.replace(tmp_path, dst)
+        tmp_path = None
+    finally:
+        if tmp_path:
+            with suppress(Exception):
+                os.remove(tmp_path)
 
 # Caminhos padrão
 CONFIG_DIR = 'config'
@@ -374,8 +422,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
     # Restore
     try:
         os.makedirs(cfg_dir, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(DEFAULT_DISPLAY_MAPPINGS, f, indent=2, ensure_ascii=False)
+        _atomic_write_json_file(path, DEFAULT_DISPLAY_MAPPINGS, indent=2, ensure_ascii=False)
         logger.warning(f"display_mappings.json foi recriado em '{path}' com valores padrão.")
     except Exception as e:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
@@ -405,8 +452,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
     # Restore
     try:
         os.makedirs(cfg_dir, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(DEFAULT_COLUMN_MAPPINGS, f, indent=2, ensure_ascii=False)
+        _atomic_write_json_file(path, DEFAULT_COLUMN_MAPPINGS, indent=2, ensure_ascii=False)
         logger.warning(f"column_mappings.json foi recriado em '{path}' com valores padrão.")
     except Exception as e:
         logger.error(f"Falha ao restaurar column_mappings.json: {e}")
@@ -447,8 +493,7 @@ def save_settings(settings: Dict[str, Any]):
     """
     try:
         os.makedirs(os.path.dirname(USER_SETTINGS_FILE), exist_ok=True)
-        with open(USER_SETTINGS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=4, ensure_ascii=False)
+        _atomic_write_json_file(USER_SETTINGS_FILE, settings, indent=4, ensure_ascii=False)
         logger.info(f"Configurações salvas em '{USER_SETTINGS_FILE}'.")
     except IOError as e:
         logger.error(f"Erro ao salvar configurações em '{USER_SETTINGS_FILE}': {e}")
@@ -471,7 +516,7 @@ def ensure_default_settings():
             example_path = os.path.join(CONFIG_DIR, example_file)
             if os.path.exists(example_path):
                 try:
-                    shutil.copyfile(example_path, target_file)
+                    _atomic_copy_file(example_path, target_file)
                     logger.info(f"Arquivo de configuração padrão criado: {target_file}")
                 except IOError as e:
                     logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
@@ -498,16 +543,13 @@ def ensure_default_settings():
                             },
                             "default_filters": []
                         }
-                        with open(target_file, 'w', encoding='utf-8') as f:
-                            json.dump(default_content, f, indent=2, ensure_ascii=False)
+                        _atomic_write_json_file(target_file, default_content, indent=2, ensure_ascii=False)
                         logger.info(f"Arquivo padrão gerado: {target_file}")
                     elif target_file.endswith('display_mappings.json'):
-                        with open(target_file, 'w', encoding='utf-8') as f:
-                            json.dump(DEFAULT_DISPLAY_MAPPINGS, f, indent=2, ensure_ascii=False)
+                        _atomic_write_json_file(target_file, DEFAULT_DISPLAY_MAPPINGS, indent=2, ensure_ascii=False)
                         logger.info(f"Arquivo padrão gerado: {target_file}")
                     elif target_file.endswith('column_mappings.json'):
-                        with open(target_file, 'w', encoding='utf-8') as f:
-                            json.dump(DEFAULT_COLUMN_MAPPINGS, f, indent=2, ensure_ascii=False)
+                        _atomic_write_json_file(target_file, DEFAULT_COLUMN_MAPPINGS, indent=2, ensure_ascii=False)
                         logger.info(f"Arquivo padrão gerado: {target_file}")
                     else:
                         logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
