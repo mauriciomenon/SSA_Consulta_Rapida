@@ -2680,7 +2680,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             # Verificar se ha valores normalizados validos (ignora '', None, NaN)
-            normalized = df[derivada_col].apply(self._normalize_ssa_value)
+            normalized = self._normalize_ssa_series(df[derivada_col])
             has_derivadas = normalized.ne("").any()
             btn.setEnabled(bool(has_derivadas))
         except Exception as exc:
@@ -3181,7 +3181,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Extrai numeros unicos de SSAs derivadas se nao estiver em cache
             try:
                 if "derivada_de" in df.columns:
-                    derivadas_series = df["derivada_de"].apply(self._normalize_ssa_value)
+                    derivadas_series = self._normalize_ssa_series(df["derivada_de"])
                     derivadas_numbers = sorted(
                         {v for v in derivadas_series.unique() if v and str(v).strip()},
                         key=lambda x: str(x).casefold()
@@ -4162,7 +4162,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         derivada_is = bool(filters.get("derivada_is"))
 
         if "derivada_de" in df.columns:
-            series_derivada = df["derivada_de"].apply(self._normalize_ssa_value)
+            series_derivada = self._normalize_ssa_series(df["derivada_de"])
             has_derivada = series_derivada.ne("")
             if derivada_is:
                 mask &= has_derivada
@@ -4186,7 +4186,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if origins:
                     try:
                         origin_norm = {str(o) for o in origins if str(o).strip()}
-                        numero_norm = df["numero_ssa"].apply(self._normalize_ssa_value)
+                        numero_norm = self._normalize_ssa_series(df["numero_ssa"])
                         mask &= numero_norm.isin(origin_norm)
                     except Exception as exc:
                         logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)
@@ -4436,17 +4436,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 is_ste = pd.Series([False]*len(base), index=base.index)
             if 'numero_ssa' in base.columns:
-                def _ssa_sort_key(raw_value):
-                    text_value = str(raw_value or "")
-                    digits = "".join(ch for ch in text_value if ch.isdigit())
-                    if not digits:
-                        return -1
-                    try:
-                        return int(digits)
-                    except Exception:
-                        return -1
-
-                ssa_int = base["numero_ssa"].apply(_ssa_sort_key)
+                ssa_text = base["numero_ssa"].astype(str)
+                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
+                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
             else:
                 ssa_int = pd.Series([-1]*len(base), index=base.index)
             base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
@@ -5896,6 +5888,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return digits
         return lowered
 
+    def _normalize_ssa_series(self, series: pd.Series) -> pd.Series:
+        """Normaliza valores de SSA em modo vetorizado (mais rapido que apply).
+
+        Regra: se houver digitos, retorna apenas os digitos; senao retorna o texto casefold.
+        Valores vazios/NaN/None/NaT/<NA> viram string vazia.
+        """
+        try:
+            s = series.astype(str).str.strip()
+            lowered = s.str.casefold()
+            empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
+            digits = s.str.replace(r"\D+", "", regex=True)
+            out = digits.where(digits.ne(""), lowered)
+            return out.where(~empty_mask, "")
+        except Exception as exc:
+            logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
+            try:
+                return series.apply(self._normalize_ssa_value)
+            except Exception:
+                return pd.Series([""] * len(series), index=getattr(series, "index", None))
+
     def update_details_from_selection(self):
         """Atualiza o painel de detalhes com base na linha selecionada."""
         if self.table_widget.rowCount() == 0:
@@ -5968,7 +5980,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not num_norm:
             return []
         try:
-            series_norm = self.df_completo["derivada_de"].apply(self._normalize_ssa_value)
+            series_norm = self._normalize_ssa_series(self.df_completo["derivada_de"])
             mask = series_norm.eq(num_norm)
             derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
             derived = []
@@ -5989,7 +6001,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             df_reset = self.df_exibido.reset_index(drop=True)
             if "numero_ssa" not in df_reset.columns:
                 return
-            series_norm = df_reset["numero_ssa"].apply(self._normalize_ssa_value)
+            series_norm = self._normalize_ssa_series(df_reset["numero_ssa"])
             mask = series_norm.eq(num_norm)
             if not mask.any():
                 self.search_input.setText(f"={num_norm}")
