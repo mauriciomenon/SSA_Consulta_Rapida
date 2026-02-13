@@ -338,7 +338,11 @@ class FilterGUISSAMixin:
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando erro de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
-        QMessageBox.critical(self, "Erro de Filtro", error_msg)
+        # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
+        else:
+            QMessageBox.critical(self, "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
 
