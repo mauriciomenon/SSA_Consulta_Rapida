@@ -117,7 +117,6 @@ def main():
                 warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
                 try:
                     line_queue.put_nowait(warn)
-                    return
                 except queue.Full:
                     pass
 

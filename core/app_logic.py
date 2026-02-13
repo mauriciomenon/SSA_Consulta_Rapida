@@ -561,7 +561,8 @@ def run_importer_logic(
                     )
                     continue
                 except ExtractionError as e:
-                    if should_cancel and should_cancel():
+                    msg = str(e).lower()
+                    if "operation cancelled" in msg and should_cancel:
                         logger.info("Cancelamento solicitado; interrompendo importacao.")
                         break
                     logger.warning(

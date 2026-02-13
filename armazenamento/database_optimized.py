@@ -55,7 +55,7 @@ def _resolve_physical_table(conn, table_name: str) -> str:
             (table_name,),
         )
         row = cursor.fetchone()
-        if row and row[1] == "view":
+        if row and row[1] == "view" and table_name in {"ssas", "ssa_chamados"}:
             cursor2 = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
             )
@@ -277,7 +277,6 @@ def insert_dataframe_optimized(
                     except Exception:
                         with suppress(Exception):
                             conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
-                            conn.execute("RELEASE SAVEPOINT ssa_batch_update")
                         raise
 
             # Commit explícito
