@@ -27,6 +27,7 @@ Mode = Literal["pre-pr", "post-pr"]
 TablePresence = Literal["present", "absent", "unknown"]
 
 DEFAULT_STEP_TIMEOUT_SECONDS = int(os.environ.get("SSA_DEV_GUARD_STEP_TIMEOUT_SECONDS", "900"))
+PYTHON_EXE = sys.executable
 
 
 @dataclass(frozen=True)
@@ -114,23 +115,23 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
 
     steps: list[Step] = []
     if not options.skip_lint:
-        steps.append(Step(name="py_compile", cmd=["python", "-m", "py_compile", *lint_targets]))
-        steps.append(Step(name="ruff_check", cmd=["ruff", "check", *lint_targets]))
+        steps.append(Step(name="py_compile", cmd=[PYTHON_EXE, "-m", "py_compile", *lint_targets]))
+        steps.append(Step(name="ruff_check", cmd=[PYTHON_EXE, "-m", "ruff", "check", *lint_targets]))
 
     if options.mode == "pre-pr":
         if not options.skip_tests:
-            steps.append(Step(name="pytest_derivadas_suite", cmd=["pytest", "-q", *derivadas_tests]))
+            steps.append(Step(name="pytest_derivadas_suite", cmd=[PYTHON_EXE, "-m", "pytest", "-q", *derivadas_tests]))
         if not options.skip_health:
             steps.append(
                 Step(
                     name="schema_scan",
-                    cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
+                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
                 )
             )
             steps.append(
                 Step(
                     name="consistency_scan",
-                    cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
+                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
                 )
             )
             if include_sync_verify:
@@ -138,7 +139,7 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
                     Step(
                         name="sync_verify_only",
                         cmd=[
-                            "python",
+                            PYTHON_EXE,
                             "scripts/derivadas_cli.py",
                             "--db",
                             options.db_path,
@@ -152,31 +153,31 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
             steps.append(
                 Step(
                     name="sync_stats",
-                    cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
+                    cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
                 )
             )
         return steps
 
     if not options.skip_tests:
-        steps.append(Step(name="pytest_post_pr_smoke", cmd=["pytest", "-q", *post_pr_tests]))
+        steps.append(Step(name="pytest_post_pr_smoke", cmd=[PYTHON_EXE, "-m", "pytest", "-q", *post_pr_tests]))
     if not options.skip_health:
         steps.append(
             Step(
                 name="schema_scan",
-                cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
+                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "schema-scan"],
             )
         )
         steps.append(
             Step(
                 name="consistency_scan",
-                cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
+                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "scan"],
             )
         )
         steps.append(
             Step(
                 name="maintenance_scan_only",
                 cmd=[
-                    "python",
+                    PYTHON_EXE,
                     "scripts/derivadas_cli.py",
                     "--db",
                     options.db_path,
@@ -192,7 +193,7 @@ def build_steps(options: argparse.Namespace, *, include_sync_verify: bool) -> li
         steps.append(
             Step(
                 name="sync_stats",
-                cmd=["python", "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
+                cmd=[PYTHON_EXE, "scripts/derivadas_cli.py", "--db", options.db_path, "--output", "json", "stats"],
             )
         )
     return steps
