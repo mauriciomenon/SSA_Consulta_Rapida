@@ -284,27 +284,53 @@ def _collect_paths(
     if depth < 1:
         return [[start_ssa]]
 
+    try:
+        safe_max_nodes = int(max_nodes)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("max_nodes must be an integer") from exc
+    if safe_max_nodes < 1:
+        return [[start_ssa]]
+
+    # max_nodes bounds the traversal to avoid path explosion on high-branching graphs.
+    # We cap both:
+    # - number of traversal states enqueued (controls memory/runtime)
+    # - number of paths returned (controls output size)
+    max_states = safe_max_nodes
+    max_paths = safe_max_nodes
+
     stack: list[tuple[str, list[str], set[str]]] = [(start_ssa, [start_ssa], {start_ssa})]
     paths: list[list[str]] = []
-    visited_steps = 0
+    states_seen = 1
 
-    while stack:
+    while stack and len(paths) < max_paths:
         node, path, seen = stack.pop()
-        if visited_steps >= max_nodes:
-            break
-        visited_steps += 1
         children = adjacency.get(node, [])
         # Depth is measured in edges; the node path has length edge_depth + 1.
         edge_depth = len(path) - 1
         if not children or edge_depth >= depth:
             paths.append(path)
             continue
+        if states_seen >= max_states:
+            paths.append(path)
+            continue
+
+        enqueued_any = False
         for nxt in reversed(children):
+            if len(paths) >= max_paths:
+                break
             if nxt in seen:
                 paths.append(path + [nxt])
                 continue
+            if states_seen >= max_states:
+                break
             next_path = path + [nxt]
             stack.append((nxt, next_path, seen | {nxt}))
+            states_seen += 1
+            enqueued_any = True
+
+        if not enqueued_any and len(paths) < max_paths:
+            # No expansion possible due to caps; keep a partial path so callers have deterministic output.
+            paths.append(path)
 
     if not paths:
         return [[start_ssa]]
