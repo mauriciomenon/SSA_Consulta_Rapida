@@ -29,7 +29,8 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
 
     insert_count = {"n": 0}
 
-    def fake_extract_data_from_excel(file_path: str):
+    def fake_extract_data_from_excel(file_path: str, *, should_cancel=None):
+        assert should_cancel is not None
         # Minimal valid payload for _import_single_file validation rules.
         return pd.DataFrame(
             {

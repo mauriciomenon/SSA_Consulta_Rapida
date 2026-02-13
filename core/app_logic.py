@@ -154,7 +154,10 @@ def _get_files_to_process(
 
 
 def _import_single_file(
-    file_path: str, db_path: str, table_name: str
+    file_path: str,
+    db_path: str,
+    table_name: str,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> tuple[bool, int]:
     """
     Importa um unico arquivo Excel para o banco de dados.
@@ -163,6 +166,7 @@ def _import_single_file(
         file_path (str): Caminho completo para o arquivo Excel.
         db_path (str): Caminho para o banco de dados SQLite.
         table_name (str): Nome da tabela no banco de dados.
+        should_cancel (Optional[Callable[[], bool]]): Callback consultivo para cancelar a operacao.
 
     Returns:
         tuple[bool, int]: (sucesso, numero_de_registros_processados)
@@ -173,7 +177,7 @@ def _import_single_file(
     """
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
-        df = extractor.extract_data_from_excel(file_path)
+        df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
         if df is None:
             raise ExtractionError(
                 f"Extractor returned None for file: {os.path.basename(file_path)}"
@@ -478,7 +482,10 @@ def run_importer_logic(
                     continue
                 try:
                     success, record_count = _import_single_file(
-                        file_path, db_path, table_name
+                        file_path,
+                        db_path,
+                        table_name,
+                        should_cancel=should_cancel,
                     )
                     if success:
                         successfully_processed_files.append(file_path)
