@@ -97,33 +97,43 @@ def main():
                 except queue.Full:
                     try:
                         line_queue.get_nowait()
+                        dropped_lines += 1
                     except queue.Empty:
-                        pass
-            return
+                        time.sleep(0.005)
 
         try:
             line_queue.put_nowait(value)
             return
         except queue.Full:
-            dropped_lines += 1
             # Drop the oldest line to make room (best-effort).
+            evicted = False
             try:
                 line_queue.get_nowait()
+                evicted = True
             except queue.Empty:
-                return
+                pass
 
-            # Occasionally report that output was dropped to preserve transparency.
-            if dropped_lines % 200 == 1:
-                warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
-                try:
-                    line_queue.put_nowait(warn)
-                except queue.Full:
-                    pass
+            if evicted:
+                dropped_lines += 1
+                if dropped_lines % 200 == 1:
+                    warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
+                    try:
+                        line_queue.put_nowait(warn)
+                    except queue.Full:
+                        pass
 
             try:
                 line_queue.put_nowait(value)
+                return
             except queue.Full:
-                # Still no space, drop the line.
+                # Still no space, drop the line itself.
+                dropped_lines += 1
+                if dropped_lines % 200 == 1:
+                    warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
+                    try:
+                        line_queue.put_nowait(warn)
+                    except queue.Full:
+                        pass
                 return
 
     def _reader_worker() -> None:
