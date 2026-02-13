@@ -6,6 +6,8 @@ Permite ativar/desativar enhanced table printer facilmente.
 import os
 import json
 import logging
+import tempfile
+from contextlib import suppress
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +45,26 @@ class CLIEnhancementManager:
         """Salva configurações das melhorias."""
         try:
             os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
-            with open(self.settings_file, 'w', encoding='utf-8') as f:
-                json.dump(self.settings, f, indent=2, ensure_ascii=False)
+            target_dir = os.path.dirname(self.settings_file) or "."
+            base_name = os.path.basename(self.settings_file) or "cli_enhancements.json"
+
+            fd = None
+            tmp_path = None
+            try:
+                fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(self.settings, f, indent=2, ensure_ascii=False)
+                    f.flush()
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError as exc:
+                        logger.debug("fsync failed for temp settings file (%s): %s", tmp_path, exc)
+                os.replace(tmp_path, self.settings_file)
+                tmp_path = None
+            finally:
+                if tmp_path:
+                    with suppress(Exception):
+                        os.remove(tmp_path)
         except Exception as e:
             logger.error(f"Erro ao salvar configurações CLI: {e}")
 
@@ -101,7 +121,7 @@ class CLIEnhancementManager:
         status.append("• Seleção otimizada de colunas")
 
         version = self.settings.get("version", "1.0")
-        status.append(f"")
+        status.append("")
         status.append(f"Versão das melhorias: {version}")
 
         return "\n".join(status)
