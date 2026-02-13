@@ -20,7 +20,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Any, Union
+from typing import Dict, Optional, Any
 from collections import deque
 import threading
 
@@ -463,12 +463,16 @@ class RobustLogger:
 
 # Instância global do sistema de logging
 _robust_logger = None
+_robust_logger_lock = threading.Lock()
 
 def get_robust_logger(config_path: Optional[str] = None) -> RobustLogger:
     """Retorna instância global do sistema de logging robusto."""
     global _robust_logger
     if _robust_logger is None:
-        _robust_logger = RobustLogger(config_path)
+        # Protect lazy initialization to avoid races when called from multiple threads.
+        with _robust_logger_lock:
+            if _robust_logger is None:
+                _robust_logger = RobustLogger(config_path)
     return _robust_logger
 
 
