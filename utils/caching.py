@@ -9,9 +9,39 @@ import os
 import json
 import hashlib
 import logging
+import tempfile
+from contextlib import suppress
 from typing import List, Dict, Union
 
 logger = logging.getLogger(__name__)
+
+def _atomic_write_json(cache: Dict[str, str], cache_file: str) -> None:
+    """Write JSON atomically to avoid corrupted/truncated cache files.
+
+    This protects against crashes mid-write and reduces risk when multiple runs
+    touch the same cache file.
+    """
+    target_dir = os.path.dirname(cache_file) or "."
+    base_name = os.path.basename(cache_file) or "cache.json"
+    os.makedirs(target_dir, exist_ok=True)
+
+    fd = None
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=4)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError as exc:
+                logger.debug("fsync failed for cache temp file (%s): %s", tmp_path, exc)
+        os.replace(tmp_path, cache_file)
+        tmp_path = None
+    finally:
+        if tmp_path:
+            with suppress(Exception):
+                os.remove(tmp_path)
 
 def get_all_xlsx_files(directory: str) -> List[str]:
     """Obtem todos os arquivos .xlsx em um diretorio."""
@@ -54,23 +84,23 @@ def load_cache(cache_file: str) -> Dict[str, str]:
         logger.debug(f"Arquivo de cache '{cache_file}' não encontrado.")
         return {}
     try:
-        with open(cache_file, 'r') as f:
+        with open(cache_file, 'r', encoding='utf-8') as f:
             cache = json.load(f)
         logger.debug(f"Cache carregado com {len(cache)} entradas.")
         return cache
-    except (json.JSONDecodeError, IOError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError, IOError) as e:
         logger.warning(f"Erro ao carregar cache de '{cache_file}': {e}. Iniciando novo cache.")
         return {}
 
 def save_cache(cache: Dict[str, str], cache_file: str):
     """Salva o cache em um arquivo JSON."""
     try:
-        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-        with open(cache_file, 'w') as f:
-            json.dump(cache, f, indent=4)
+        _atomic_write_json(cache, cache_file)
         logger.debug(f"Cache salvo em '{cache_file}'.")
-    except IOError as e:
-        logger.error(f"Erro ao salvar cache em '{cache_file}': {e}")
+    except Exception as e:  # noqa: BLE001
+        # Cache nao eh critico para a importacao; nao deve derrubar o processo.
+        # Ainda assim, logamos o erro para diagnostico.
+        logger.exception("Erro ao salvar cache em '%s': %s", cache_file, e)
 
 def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, str]]) -> List[str]:
     """
