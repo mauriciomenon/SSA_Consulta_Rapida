@@ -6,6 +6,7 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 `config/column_mappings.json` e converte tipos de dados fundamentais.
 """
 
+import os
 import pandas as pd
 import re
 from typing import Optional, Dict, Any, Callable
@@ -222,6 +223,7 @@ def extract_data_from_excel(
                                 ou None em caso de erro.
     """
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
+    base_name = os.path.basename(file_path) if file_path else "arquivo"
     saw_header = False
     try:
         def _check_cancel() -> None:
@@ -281,7 +283,7 @@ def extract_data_from_excel(
                 )
                 return pd.DataFrame()
             raise ExtractionError(
-                f"No header found in any sheet for file: {file_path}"
+                f"No header found in any sheet for file: {base_name}"
             )
 
         # Combina dados de todas as planilhas
@@ -396,17 +398,17 @@ def extract_data_from_excel(
         raise
     except FileNotFoundError as e:
         logger.error("Arquivo '%s' nao encontrado.", file_path)
-        raise ExtractionError(f"File not found: {file_path}") from e
+        raise ExtractionError(f"File not found: {base_name}") from e
     except pd.errors.ParserError as e:
         logger.error(
             "Erro ao ler '%s': problema ao analisar arquivo Excel: %s",
             file_path,
             e,
         )
-        raise ExtractionError(f"Parser error reading Excel file: {file_path}") from e
+        raise ExtractionError(f"Parser error reading Excel file: {base_name}") from e
     except Exception as e:
         logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
-        raise ExtractionError(f"Unexpected error processing Excel file: {file_path}") from e
+        raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
 
 def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
     """
