@@ -4,6 +4,7 @@
 import os
 import sys
 import logging
+from contextlib import suppress
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # Add project root to path for imports
@@ -85,6 +86,7 @@ class RescanWorker(QThread):
 
     def run(self):
         """Execute rescan in background thread using modular import."""
+        handler_added = False
         try:
             self.output_line.emit("=== Iniciando Reescaneamento (Modular) ===")
             self.output_line.emit("")
@@ -92,6 +94,7 @@ class RescanWorker(QThread):
 
             # Add log handler to capture import messages
             self.logger.addHandler(self.log_handler)
+            handler_added = True
             self.logger.setLevel(logging.INFO)
 
             # Call modular import function directly
@@ -104,10 +107,6 @@ class RescanWorker(QThread):
                 should_cancel=lambda: self._should_stop,
                 progress_callback=self._progress_callback,
             )
-
-            # Remove log handler
-            self.logger.removeHandler(self.log_handler)
-            self.logger.setLevel(self.original_level)
 
             if self._should_stop:
                 self.finished_error.emit("Processo cancelado pelo usuario")
@@ -122,10 +121,15 @@ class RescanWorker(QThread):
                 self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
 
         except Exception as e:
-            self.logger.removeHandler(self.log_handler)
-            self.logger.setLevel(self.original_level)
             self.error_line.emit(f"Erro ao executar reescaneamento: {e}")
             self.finished_error.emit(f"Erro ao executar reescaneamento: {e}")
+        finally:
+            # Ensure we never deadlock the GUI due to cleanup failures here.
+            if handler_added:
+                with suppress(Exception):
+                    self.logger.removeHandler(self.log_handler)
+            with suppress(Exception):
+                self.logger.setLevel(self.original_level)
 
     def stop(self):
         """Request thread to stop."""
