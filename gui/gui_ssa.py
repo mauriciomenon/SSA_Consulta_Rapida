@@ -6198,23 +6198,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         worker.finished_success.connect(on_success)
         worker.finished_error.connect(on_error)
 
-        # Handle dialog rejection (cancel button)
-        def on_dialog_rejected():
+        # Cancelamento cooperativo: nao fecha o dialogo imediatamente.
+        # Solicita cancelamento e aguarda o worker finalizar com seguranca.
+        def on_cancel_requested():
             if worker.isRunning():
                 worker.stop()
-                worker.wait(2000)  # Wait up to 2 seconds
-                if worker.isRunning():
-                    worker.terminate()
+                self.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
 
-        progress_dialog.rejected.connect(on_dialog_rejected)
+        progress_dialog.cancel_requested.connect(on_cancel_requested)
 
         # Start worker and show dialog
         worker.start()
         progress_dialog.exec()
 
-        # Cleanup
+        # Cleanup (best-effort, sem bloquear a UI)
         if worker.isRunning():
-            worker.wait()
+            logger.warning(
+                "RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background."
+            )
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no Windows Explorer."""

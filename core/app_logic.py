@@ -320,6 +320,7 @@ def run_importer_logic(
     db_name: str = "ssas.db",
     table_name: str = "ssa_table",
     force_import: bool = False,
+    should_cancel: Optional[Callable[[], bool]] = None,
     progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> bool:
     """
@@ -331,6 +332,8 @@ def run_importer_logic(
         db_name (str): Nome do arquivo do banco de dados SQLite.
         table_name (str): Nome da tabela no banco de dados.
         force_import (bool): Se True, forca a reimportacao de todos os arquivos.
+        should_cancel (Optional[Callable[[], bool]]): Callback consultivo que indica
+            se a importacao deve ser interrompida. Deve retornar True para cancelar.
         progress_callback (Optional[Callable]): Callback para reportar progresso da importacao.
 
     Returns:
@@ -448,6 +451,9 @@ def run_importer_logic(
 
         try:
             for index, file_path in enumerate(files_to_process):
+                if should_cancel and should_cancel():
+                    logger.info("Cancelamento solicitado; interrompendo importacao.")
+                    break
                 base_name = os.path.basename(file_path)
 
                 # Notify file start
