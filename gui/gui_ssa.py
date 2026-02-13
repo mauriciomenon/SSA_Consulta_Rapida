@@ -4425,7 +4425,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
-        self.df_completo = df.copy()
+        df_copy = df.copy()
+        self.df_completo = df_copy
         try:
             self.clear_filter_cache()
         except Exception as exc:
@@ -4441,7 +4442,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
         # Inicialmente, exibimos todos os dados
-        base = df.copy()
+        base = df_copy
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
         try:
             if 'situacao' in base.columns:
@@ -4460,7 +4461,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.warning("Falha na ordenacao inicial dos dados: %s", e)
         self.df_exibido = base
-        self._df_last_search_filtered = df.copy()
+        self._df_last_search_filtered = df_copy
         self._widths_computed_for_df_hash = None
         try:
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
