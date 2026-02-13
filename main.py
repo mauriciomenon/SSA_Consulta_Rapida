@@ -756,16 +756,16 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.error("  3. Arquivos Excel na pasta de entrada")
                 logger.error("  4. Memoria disponivel do sistema")
                 raise
-
-            # Desativar importacao otimizada apos uso
-            if optimized_enabled:
-                try:
-                    from armazenamento.database_optimized import disable_optimized_import
-                    disable_optimized_import()
-                except ImportError:
-                    pass
-                except Exception as e:
-                    logger.warning(f"Falha ao desativar modo otimizado: {e}")
+            finally:
+                # Desativar importacao otimizada apos uso
+                if optimized_enabled:
+                    try:
+                        from armazenamento.database_optimized import disable_optimized_import
+                        disable_optimized_import()
+                    except ImportError:
+                        pass
+                    except Exception as e:
+                        logger.warning(f"Falha ao desativar modo otimizado: {e}")
 
             if db_updated:
                 logger.info("Banco de dados atualizado com sucesso.")
