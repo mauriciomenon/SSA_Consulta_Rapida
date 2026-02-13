@@ -74,6 +74,36 @@ def test_sync_persists_actor_in_sync_run(temp_db):
 
     assert actor == "test-actor"
 
+
+def test_sync_cycle_detection_marks_only_cycle_nodes(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", "202500002"),
+            ("202500002", "202500001"),
+            ("202500003", "202500002"),
+        ],
+    )
+
+    report = sync_derivadas(temp_db)
+    assert report["reconciliation"]["cycle_node_count"] == 2
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = {
+            row[0]: int(row[1])
+            for row in conn.execute(
+                """
+                SELECT ssa, has_cycle
+                FROM ssa_derivada_summary
+                WHERE ssa IN ('202500001', '202500002', '202500003')
+                """
+            ).fetchall()
+        }
+
+    assert rows["202500001"] == 1
+    assert rows["202500002"] == 1
+    assert rows["202500003"] == 0
+
 def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_path: Path):
     _insert_ssa_rows(
         temp_db,
