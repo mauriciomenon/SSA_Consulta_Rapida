@@ -298,6 +298,18 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     )
 
     parser.add_argument(
+        '--skip-import',
+        action='store_true',
+        help='''Pula a importacao/verificacao inicial e inicia a GUI/CLI usando o banco existente.
+
+        Use quando voce precisa abrir o app rapidamente e aceita trabalhar com dados possivelmente desatualizados.
+        Para importar depois:
+          - GUI: use o botao "Reescanear" (quando disponivel)
+          - CLI: execute sem --skip-import (ou com --force-rescan, se necessario)
+        '''
+    )
+
+    parser.add_argument(
         '--optimized',
         action='store_true',
         help='''DEPRECATED: Modo otimizado agora e PADRAO. Use --standard para modo legado.
@@ -453,6 +465,9 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         except Exception:
             print('0.0.0')
         return
+
+    if getattr(args, "skip_import", False) and getattr(args, "force_rescan", False):
+        parser.error("--skip-import nao pode ser combinado com --force-rescan/--rescan")
 
     # Configura logging
     _configure_logging(project_root)
@@ -640,118 +655,122 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             return
 
         # --- 3. Importacao de Dados (fluxo normal) ---
-        # Determina se a reimportacao e forcada e se deve usar versao otimizada
-        force_import = args.force_rescan
+        if getattr(args, "skip_import", False):
+            logger.info("Pulando importacao/verificacao inicial (--skip-import).")
+            db_updated = False
+        else:
+            # Determina se a reimportacao e forcada e se deve usar versao otimizada
+            force_import = args.force_rescan
 
-        # MUDANCA: Modo otimizado agora e PADRAO (exceto se --standard for usado)
-        use_optimized = not args.standard
+            # MUDANCA: Modo otimizado agora e PADRAO (exceto se --standard for usado)
+            use_optimized = not args.standard
 
-        # Aviso de depreciacao se --optimized for usado
-        if args.optimized:
-            logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
+            # Aviso de depreciacao se --optimized for usado
+            if args.optimized:
+                logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
 
-        # Ativar importacao otimizada (agora padrao)
-        if use_optimized:
-            logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
-            logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
+            # Ativar importacao otimizada (agora padrao)
+            if use_optimized:
+                logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
+                logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
 
-            # Testar caminho absoluto
-            import sys
-            import os
-            current_project_root = project_root
-            optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
-            logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
-            logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
+                # Testar caminho absoluto
+                import sys
+                import os
+                current_project_root = project_root
+                optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+                logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
+                logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
 
-            logger.debug("Verificando disponibilidade do modo otimizado...")
+                logger.debug("Verificando disponibilidade do modo otimizado...")
 
-            # Verificar se o arquivo existe
-            import os
-            optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
-            logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
-            logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
+                # Verificar se o arquivo existe
+                import os
+                optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+                logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
+                logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
 
-            if os.path.exists(optimized_file_path):
-                file_stat = os.stat(optimized_file_path)
-                logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
-                logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
+                if os.path.exists(optimized_file_path):
+                    file_stat = os.stat(optimized_file_path)
+                    logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
+                    logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
 
-                armazenamento_path = os.path.join(current_project_root, 'armazenamento')
-                logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
+                    armazenamento_path = os.path.join(current_project_root, 'armazenamento')
+                    logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
 
-                if os.path.exists(armazenamento_path) and logger.isEnabledFor(logging.DEBUG):
-                    try:
-                        logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
-                    except Exception as exc:  # noqa: BLE001
-                        logger.debug("Falha ao listar armazenamento/: %s", exc)
+                    if os.path.exists(armazenamento_path) and logger.isEnabledFor(logging.DEBUG):
+                        try:
+                            logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
+                        except Exception as exc:  # noqa: BLE001
+                            logger.debug("Falha ao listar armazenamento/: %s", exc)
 
-            try:
-                # Tentar importar o modulo completo primeiro
-                logger.debug("Tentando importar armazenamento.database_optimized...")
-                import armazenamento.database_optimized
-                logger.debug("Importacao do modulo completo bem-sucedida")
+                try:
+                    # Tentar importar o modulo completo primeiro
+                    logger.debug("Tentando importar armazenamento.database_optimized...")
+                    import armazenamento.database_optimized
+                    logger.debug("Importacao do modulo completo bem-sucedida")
 
-                # Verificar se a funcao existe no modulo
-                logger.debug("Verificando se enable_optimized_import existe no modulo...")
-                if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
-                    logger.debug("Funcao enable_optimized_import encontrada")
+                    # Verificar se a funcao existe no modulo
+                    logger.debug("Verificando se enable_optimized_import existe no modulo...")
+                    if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
+                        logger.debug("Funcao enable_optimized_import encontrada")
 
-                    from armazenamento.database_optimized import enable_optimized_import
-                    logger.debug("Importacao de enable_optimized_import bem-sucedida")
+                        from armazenamento.database_optimized import enable_optimized_import
+                        logger.debug("Importacao de enable_optimized_import bem-sucedida")
 
-                    enable_optimized_import()
-                    logger.debug("enable_optimized_import() executado com sucesso")
-                else:
-                    logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
+                        enable_optimized_import()
+                        logger.debug("enable_optimized_import() executado com sucesso")
+                    else:
+                        logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
+                        logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
+                        use_optimized = False
+
+                except ImportError as e:
+                    logger.error("Falha ao importar enable_optimized_import: %s", e)
+                    logger.debug("Tipo do erro: %s", type(e).__name__)
+                    logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
                     logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
                     use_optimized = False
+                except Exception as e:
+                    logger.error("Erro ao executar enable_optimized_import: %s", e)
+                    logger.debug("Tipo do erro: %s", type(e).__name__)
+                    logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
+                    use_optimized = False
+            else:
+                logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
-            except ImportError as e:
-                logger.error("Falha ao importar enable_optimized_import: %s", e)
-                logger.debug("Tipo do erro: %s", type(e).__name__)
-                logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
-                logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
-                use_optimized = False
-            except Exception as e:
-                logger.error("Erro ao executar enable_optimized_import: %s", e)
-                logger.debug("Tipo do erro: %s", type(e).__name__)
-                logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
-                use_optimized = False
-        else:
-            logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
+            logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
 
-        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
-
-        try:
-            logger.debug("Executando run_importer_logic...")
-            db_updated = run_importer_logic(force_import=force_import)
-            logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-        except Exception as e:
-            logger.error("Falha critica na importacao de dados: %s", e)
-            logger.error("Este e o ponto mais critico do processo. Verifique:")
-            logger.error("  1. Existencia e permissoes da pasta 'data'")
-            logger.error("  2. Conexao com o banco de dados")
-            logger.error("  3. Arquivos Excel na pasta de entrada")
-            logger.error("  4. Memoria disponivel do sistema")
-            raise
-
-        # Desativar importacao otimizada apos uso
-        if use_optimized:
             try:
-                from armazenamento.database_optimized import disable_optimized_import
-                disable_optimized_import()
-            except ImportError:
-                pass
+                logger.debug("Executando run_importer_logic...")
+                db_updated = run_importer_logic(force_import=force_import)
+                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
             except Exception as e:
-                logger.warning(f"Falha ao desativar modo otimizado: {e}")
+                logger.error("Falha critica na importacao de dados: %s", e)
+                logger.error("Este e o ponto mais critico do processo. Verifique:")
+                logger.error("  1. Existencia e permissoes da pasta 'data'")
+                logger.error("  2. Conexao com o banco de dados")
+                logger.error("  3. Arquivos Excel na pasta de entrada")
+                logger.error("  4. Memoria disponivel do sistema")
+                raise
 
-        if db_updated:
-            logger.info("Banco de dados atualizado com sucesso.")
-            logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
-        else:
-            logger.info("Nenhum novo ou modificado relatorio encontrado.")
-            logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
-            logger.debug("Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos.")
+            # Desativar importacao otimizada apos uso
+            if use_optimized:
+                try:
+                    from armazenamento.database_optimized import disable_optimized_import
+                    disable_optimized_import()
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Falha ao desativar modo otimizado: {e}")
+
+            if db_updated:
+                logger.info("Banco de dados atualizado com sucesso.")
+                logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
+            else:
+                logger.info("Nenhum novo ou modificado relatorio encontrado.")
+                logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
+                logger.debug("Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos.")
 
         # --- 4. Inicio da Interface ---
         # Respeita variaveis de ambiente para facilitar testes e integracao
