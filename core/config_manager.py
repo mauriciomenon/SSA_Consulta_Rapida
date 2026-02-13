@@ -26,6 +26,7 @@ def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: 
     try:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
+            fd = None  # ownership transferred to file object
             json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
             f.flush()
             try:
@@ -35,6 +36,9 @@ def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: 
         os.replace(tmp_path, path)
         tmp_path = None
     finally:
+        if fd is not None:
+            with suppress(Exception):
+                os.close(fd)
         if tmp_path:
             with suppress(Exception):
                 os.remove(tmp_path)

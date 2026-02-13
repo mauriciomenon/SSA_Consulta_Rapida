@@ -30,6 +30,7 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     try:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
+            fd = None  # ownership transferred to file object
             json.dump(cache, f, indent=4)
             f.flush()
             try:
@@ -39,6 +40,9 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
         os.replace(tmp_path, cache_file)
         tmp_path = None
     finally:
+        if fd is not None:
+            with suppress(Exception):
+                os.close(fd)
         if tmp_path:
             with suppress(Exception):
                 os.remove(tmp_path)
