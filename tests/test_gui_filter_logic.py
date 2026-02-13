@@ -444,12 +444,21 @@ class TestGUIFilterLogic:
             idx for idx, ctx in enumerate(self.window._tab_contexts)
             if ctx.get("tab_kind") == "filters"
         )
+        main_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "main"
+        )
 
         with patch.object(self.window, "apply_theme", wraps=self.window.apply_theme) as apply_mock:
             self.window.main_tabs.setCurrentIndex(filter_tab_idx)
             QApplication.processEvents()
+            # Switch away and back: after the first bind, the same theme should not be re-applied.
+            self.window.main_tabs.setCurrentIndex(main_tab_idx)
+            QApplication.processEvents()
+            self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+            QApplication.processEvents()
 
-        assert apply_mock.call_count == 0
+        assert apply_mock.call_count == 1
 
     def test_filters_tab_switch_and_responsavel_materialization_smoke_latency(self):
         heavy_df = self._build_heavy_filters_df(rows=1200)
@@ -538,6 +547,41 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert getattr(self.window, "_current_theme", None) == current_theme
         assert self.window.main_tabs.currentIndex() == main_tab_idx
+
+    def test_theme_switch_reapplies_on_tab_bind_for_inactive_tab(self):
+        """Theme updates must re-style both tabs, even when switched after the change."""
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        main_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "main"
+        )
+        filters_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters")
+        main_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main")
+
+        current_theme = getattr(self.window, "_current_theme", "gruvbox") or "gruvbox"
+        other_theme = "windows7" if current_theme != "windows7" else "gruvbox"
+
+        initial_main_css = main_ctx["search_input"].styleSheet() or ""
+        assert initial_main_css
+        assert not (filters_ctx["search_label"].styleSheet() or "")
+
+        # Switching to the filters tab should re-apply the current theme to that tab's widgets.
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+        assert "font-weight" in (filters_ctx["search_label"].styleSheet() or "")
+
+        # Apply a different theme while on filters tab, then switch back to main.
+        self.window.apply_theme(other_theme)
+        QApplication.processEvents()
+        self.window.main_tabs.setCurrentIndex(main_tab_idx)
+        QApplication.processEvents()
+
+        # The main tab widgets must get re-themed on bind (previously could keep stale QSS).
+        assert getattr(self.window, "_current_theme", None) == other_theme
+        assert (main_ctx["search_input"].styleSheet() or "") != initial_main_css
 
     def test_switch_to_filters_tab_cancels_pending_search_debounce(self):
         self.window.search_input.setText("Teste A")

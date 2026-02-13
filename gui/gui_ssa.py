@@ -548,6 +548,23 @@ DETAILS_DIALOG_MIN_HEIGHT = 500  # px
 HIGHLIGHT_BACKGROUND_COLOR = 'yellow'
 HIGHLIGHT_FONT_WEIGHT = 'bold'
 
+# Prefer explicit monospace families across Windows/macOS/Linux to avoid Qt
+# trying (and failing) to resolve a generic "Monospace" alias.
+MONO_FONT_FAMILY = (
+    # macOS first
+    "'SF Mono', Menlo, Monaco, 'Andale Mono', "
+    # Windows 11 common monospace families
+    "Consolas, 'Cascadia Mono', 'Cascadia Code', 'Segoe UI Mono', 'Lucida Console', "
+    # Debian / Linux common monospace families
+    "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', "
+    "'Droid Sans Mono', 'FreeMono', 'Nimbus Mono L', 'Courier 10 Pitch', "
+    # Popular developer fonts (often installed)
+    "'Fira Code', 'Fira Mono', 'JetBrains Mono', 'Roboto Mono', "
+    "Inconsolata, Hack, 'Source Code Pro', "
+    # Last-resort fallbacks
+    "'Courier New', Courier"
+)
+
 DIVISAO_SETORES = {
     "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
     "SMIN": ["IEE1", "IEE2", "IEE3", "IEE4"],
@@ -2627,7 +2644,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_edit.setPlainText(text)
             text_edit.setReadOnly(True)
             try:
-                text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+                text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
             except Exception as exc:
                 logger.debug("Failed to style derivadas popup text editor: %s", exc)
             layout.addWidget(text_edit)
@@ -3643,10 +3660,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.warning("Falha ao sincronizar filtro avancado de ano de execucao: %s", exc)
         try:
-            self.adv_week_emissao_start.setText("" if data.get("semana_emissao_inicio") is None else str(data.get("semana_emissao_inicio")))
-            self.adv_week_emissao_end.setText("" if data.get("semana_emissao_fim") is None else str(data.get("semana_emissao_fim")))
-            self.adv_week_execucao_start.setText("" if data.get("semana_execucao_inicio") is None else str(data.get("semana_execucao_inicio")))
-            self.adv_week_execucao_end.setText("" if data.get("semana_execucao_fim") is None else str(data.get("semana_execucao_fim")))
+            week_fields = (
+                ("adv_week_emissao_start", "semana_emissao_inicio"),
+                ("adv_week_emissao_end", "semana_emissao_fim"),
+                ("adv_week_execucao_start", "semana_execucao_inicio"),
+                ("adv_week_execucao_end", "semana_execucao_fim"),
+            )
+            for attr, key in week_fields:
+                widget = getattr(self, attr, None)
+                if widget is None:
+                    continue
+                value = data.get(key)
+                widget.setText("" if value is None else str(value))
         except Exception as exc:
             logger.warning("Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc)
         try:
@@ -4955,9 +4980,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             tab_contexts = getattr(self, "_tab_contexts", None)
             if isinstance(tab_contexts, list):
+                # Only mark the active tab context as themed.
+                # Other tabs must be re-themed on demand when they get bound, otherwise
+                # they can keep stale styles after theme switches.
+                active_kind = getattr(self, "_current_tab_kind", None)
+                active_search = getattr(self, "search_input", None)
                 for ctx in tab_contexts:
-                    if isinstance(ctx, dict):
+                    if not isinstance(ctx, dict):
+                        continue
+                    if active_kind and ctx.get("tab_kind") == active_kind:
                         ctx["_theme_name"] = normalized
+                        break
+                    if active_search is not None and ctx.get("search_input") is active_search:
+                        ctx["_theme_name"] = normalized
+                        break
         except Exception as exc:
             logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
         try:
@@ -5768,7 +5804,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_color = "#000000"
             link_color = text_color
 
-        html_lines = [f'<html><body style="font-family: monospace; font-size: {font_size_pt}pt; color: {text_color};">']
+        html_lines = [
+            f'<html><body style="font-family: {MONO_FONT_FAMILY}; font-size: {font_size_pt}pt; color: {text_color};">'
+        ]
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
         # Ordenar campos: prioridade primeiro, depois alfabetico
