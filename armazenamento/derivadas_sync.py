@@ -17,6 +17,7 @@ import logging
 import os
 import sqlite3
 from collections import defaultdict, deque
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -473,31 +474,62 @@ def _build_child_parent_map(edges: list[tuple[str, str]]) -> dict[str, set[str]]
     return child_parents
 
 
-def _kahn_cycle_nodes(edges: list[tuple[str, str]]) -> set[str]:
-    children_by_parent: dict[str, set[str]] = defaultdict(set)
-    indegree: dict[str, int] = defaultdict(int)
+def _cycle_nodes_scc(edges: list[tuple[str, str]]) -> set[str]:
+    """Return nodes that participate in at least one directed cycle.
+
+    Uses an iterative Kosaraju SCC pass to avoid recursion depth issues.
+    """
+
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    reverse_adjacency: dict[str, set[str]] = defaultdict(set)
     nodes: set[str] = set()
+
     for parent, child in edges:
-        if child not in children_by_parent[parent]:
-            children_by_parent[parent].add(child)
-            indegree[child] += 1
+        adjacency[parent].add(child)
+        reverse_adjacency[child].add(parent)
         nodes.add(parent)
         nodes.add(child)
-        indegree.setdefault(parent, indegree.get(parent, 0))
 
-    queue = deque(node for node in nodes if indegree.get(node, 0) == 0)
-    processed = 0
-    while queue:
-        node = queue.popleft()
-        processed += 1
-        for child in children_by_parent.get(node, ()):
-            indegree[child] -= 1
-            if indegree[child] == 0:
-                queue.append(child)
+    visited: set[str] = set()
+    order: list[str] = []
+    for node in sorted(nodes):
+        if node in visited:
+            continue
+        visited.add(node)
+        stack: list[tuple[str, Iterator[str]]] = [(node, iter(adjacency.get(node, ())))]  # (node, iterator)
+        while stack:
+            current, it = stack[-1]
+            try:
+                nxt = next(it)
+            except StopIteration:
+                stack.pop()
+                order.append(current)
+                continue
+            if nxt in visited:
+                continue
+            visited.add(nxt)
+            stack.append((nxt, iter(adjacency.get(nxt, ()))))
 
-    if processed == len(nodes):
-        return set()
-    return {node for node in nodes if indegree.get(node, 0) > 0}
+    cycles: set[str] = set()
+    visited.clear()
+    for node in reversed(order):
+        if node in visited:
+            continue
+        component: list[str] = []
+        queue = [node]
+        visited.add(node)
+        while queue:
+            current = queue.pop()
+            component.append(current)
+            for prev in reverse_adjacency.get(current, ()):
+                if prev in visited:
+                    continue
+                visited.add(prev)
+                queue.append(prev)
+        if len(component) > 1:
+            cycles.update(component)
+
+    return cycles
 
 
 def _build_closure_rows(edges: list[tuple[str, str]], depth_cap: int = 32) -> tuple[list[tuple[str, str, int, int, int]], set[str]]:
@@ -507,7 +539,7 @@ def _build_closure_rows(edges: list[tuple[str, str]], depth_cap: int = 32) -> tu
         children_map[parent].append(child)
     adjacency = {parent: tuple(sorted(set(children), key=lambda value: value.casefold())) for parent, children in children_map.items()}
 
-    cycle_nodes = _kahn_cycle_nodes(edges)
+    cycle_nodes = _cycle_nodes_scc(edges)
     metrics: dict[tuple[str, str], list[int]] = {}
 
     # Avoid enumerating all simple paths (can explode in DAGs with merges). We compute:
@@ -713,7 +745,7 @@ def _analyze_reconciliation(
     for edge in matrix_edges:
         source_distribution[str(edge.source_flags)] += 1
 
-    cycle_nodes = _kahn_cycle_nodes(pair_edges)
+    cycle_nodes = _cycle_nodes_scc(pair_edges)
     return {
         "multiparent_children_count": len(multiparent_children),
         "multiparent_children_sample": dict(list(multiparent_children.items())[:20]),
