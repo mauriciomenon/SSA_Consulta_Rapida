@@ -246,6 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_derivada_summary_levels_above ON ssa_derivada_sum
 CREATE TABLE IF NOT EXISTS ssa_derivada_sync_run (
     sync_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mode TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT '',
     managed_sources TEXT NOT NULL DEFAULT '',
     started_at TEXT NOT NULL,
     finished_at TEXT,

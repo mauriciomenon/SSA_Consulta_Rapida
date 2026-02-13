@@ -63,6 +63,7 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
         include_db_source=not args.no_db_source,
         full_rebuild=args.full_rebuild,
         verify_only=args.verify_only,
+        actor=args.actor,
     )
 
 
@@ -90,6 +91,7 @@ def _handle_heal(args: argparse.Namespace) -> dict[str, Any]:
         include_db_source=not args.no_db_source,
         full_rebuild=args.full_rebuild,
         force=args.force,
+        actor=args.actor,
     )
 
 
@@ -100,6 +102,7 @@ def _handle_maintenance(args: argparse.Namespace) -> dict[str, Any]:
         min_interval_seconds=args.min_interval_seconds,
         auto_heal=not args.no_auto_heal,
         full_rebuild=args.full_rebuild,
+        actor=args.actor,
     )
 
 
@@ -155,6 +158,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Derivadas database helper CLI")
     parser.add_argument("--db", default="data/ssas.db", help="SQLite database path")
     parser.add_argument("--table-name", default="ssa_table", help="Base SSA table name")
+    parser.add_argument("--actor", default=None, help="Optional actor label for audit trail")
     parser.add_argument("--output", choices=("text", "json"), default="text", help="Output format")
 
     sub = parser.add_subparsers(dest="command", required=True)
