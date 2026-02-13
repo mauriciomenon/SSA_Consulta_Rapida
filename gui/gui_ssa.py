@@ -4381,11 +4381,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         if DataLoaderWorker is None:
             logger.error("DataLoaderWorker indisponivel para load_data")
-            QMessageBox.critical(
-                self,
-                "Erro de Carregamento",
-                "Data loader indisponivel neste ambiente. Consulte os logs.",
-            )
+            # Evita deadlock por dialogo modal durante testes automatizados.
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                logger.debug("PYTEST_CURRENT_TEST set; skipping modal DataLoaderWorker error dialog.")
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Erro de Carregamento",
+                    "Data loader indisponivel neste ambiente. Consulte os logs.",
+                )
             self.status_label.setText("Status: Erro ao carregar dados.")
             self.progress_bar.setVisible(False)
             self.load_button.setEnabled(True)
