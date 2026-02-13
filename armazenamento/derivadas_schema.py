@@ -73,6 +73,7 @@ EXPECTED_COLUMNS: dict[str, dict[str, str]] = {
     "ssa_derivada_sync_run": {
         "sync_run_id": "INTEGER",
         "mode": "TEXT NOT NULL",
+        "actor": "TEXT NOT NULL DEFAULT ''",
         "managed_sources": "TEXT NOT NULL DEFAULT ''",
         "started_at": "TEXT NOT NULL",
         "finished_at": "TEXT",
@@ -199,6 +200,7 @@ CREATE TABLE IF NOT EXISTS ssa_derivada_summary (
 CREATE TABLE IF NOT EXISTS ssa_derivada_sync_run (
     sync_run_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mode TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT '',
     managed_sources TEXT NOT NULL DEFAULT '',
     started_at TEXT NOT NULL,
     finished_at TEXT,

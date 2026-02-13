@@ -124,6 +124,18 @@ def _graph_fingerprint(edges: list[tuple[str, str, int]]) -> str:
     return digest.hexdigest()
 
 
+def _resolve_sync_actor(actor: str | None) -> str:
+    """Resolve an audit-friendly actor label for sync runs."""
+
+    if actor is not None:
+        return str(actor).strip()[:128]
+    for env_var in ("SSA_DERIVADAS_ACTOR", "SSA_SYNC_ACTOR", "USER", "USERNAME"):
+        value = os.environ.get(env_var)
+        if value and value.strip():
+            return value.strip()[:128]
+    return ""
+
+
 def _normalize_ssa(value: Any) -> str | None:
     return normalize_strict(value)
 
@@ -952,6 +964,7 @@ def _replace_summary(conn: sqlite3.Connection, summary_rows: list[tuple[Any, ...
 def _start_sync_run(
     conn: sqlite3.Connection,
     mode: str,
+    actor: str,
     managed_sources: list[str],
     started_at: str,
     db_edges: int,
@@ -962,15 +975,16 @@ def _start_sync_run(
         """
         INSERT INTO ssa_derivada_sync_run (
             mode,
+            actor,
             managed_sources,
             started_at,
             status,
             db_edges,
             sheet_edges,
             merged_edges
-        ) VALUES (?, ?, ?, 'running', ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)
         """,
-        (mode, ",".join(managed_sources), started_at, db_edges, sheet_edges, merged_edges),
+        (mode, actor, ",".join(managed_sources), started_at, db_edges, sheet_edges, merged_edges),
     )
     return int(row.lastrowid)
 
@@ -1029,6 +1043,7 @@ def sync_derivadas(
     include_db_source: bool = True,
     full_rebuild: bool = False,
     verify_only: bool = False,
+    actor: str | None = None,
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
@@ -1039,6 +1054,7 @@ def sync_derivadas(
 
     mode = "full_rebuild" if full_rebuild else "sync"
     timestamp = _now_utc_str()
+    sync_actor = _resolve_sync_actor(actor)
 
     with get_db_connection(db_path) as conn:
         _configure_derivadas_connection(conn)
@@ -1079,6 +1095,7 @@ def sync_derivadas(
         report: dict[str, Any] = {
             "mode": mode,
             "verify_only": bool(verify_only),
+            "actor": sync_actor,
             "managed_sources": managed_sources,
             "db_stats": db_stats,
             "sheet_stats": sheet_stats,
@@ -1106,6 +1123,7 @@ def sync_derivadas(
         run_id = _start_sync_run(
             conn,
             mode=mode,
+            actor=sync_actor,
             managed_sources=managed_sources,
             started_at=started_at,
             db_edges=int(db_stats.get("accepted_edges", 0)),
@@ -1232,49 +1250,76 @@ def get_sync_stats(db_path: str) -> dict[str, Any]:
         matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
         closure_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_closure").fetchone()[0]
         summary_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0]
-        latest = conn.execute(
+        sync_run_cols = {row[1] for row in conn.execute("PRAGMA table_info(ssa_derivada_sync_run)").fetchall()}
+        has_actor = "actor" in sync_run_cols
+        if has_actor:
+            latest_sql = """
+                SELECT
+                    sync_run_id,
+                    mode,
+                    actor,
+                    managed_sources,
+                    started_at,
+                    finished_at,
+                    status,
+                    db_edges,
+                    sheet_edges,
+                    merged_edges,
+                    active_edges,
+                    conflict_count,
+                    multiparent_count,
+                    orphan_parent_count,
+                    orphan_child_count,
+                    cycle_node_count,
+                    graph_fingerprint
+                FROM ssa_derivada_sync_run
+                ORDER BY sync_run_id DESC
+                LIMIT 1
             """
-            SELECT
-                sync_run_id,
-                mode,
-                managed_sources,
-                started_at,
-                finished_at,
-                status,
-                db_edges,
-                sheet_edges,
-                merged_edges,
-                active_edges,
-                conflict_count,
-                multiparent_count,
-                orphan_parent_count,
-                orphan_child_count,
-                cycle_node_count,
-                graph_fingerprint
-            FROM ssa_derivada_sync_run
-            ORDER BY sync_run_id DESC
-            LIMIT 1
+        else:
+            latest_sql = """
+                SELECT
+                    sync_run_id,
+                    mode,
+                    managed_sources,
+                    started_at,
+                    finished_at,
+                    status,
+                    db_edges,
+                    sheet_edges,
+                    merged_edges,
+                    active_edges,
+                    conflict_count,
+                    multiparent_count,
+                    orphan_parent_count,
+                    orphan_child_count,
+                    cycle_node_count,
+                    graph_fingerprint
+                FROM ssa_derivada_sync_run
+                ORDER BY sync_run_id DESC
+                LIMIT 1
             """
-        ).fetchone()
+        latest = conn.execute(latest_sql).fetchone()
 
         latest_row = (
             {
                 "sync_run_id": latest[0],
                 "mode": latest[1],
-                "managed_sources": latest[2],
-                "started_at": latest[3],
-                "finished_at": latest[4],
-                "status": latest[5],
-                "db_edges": latest[6],
-                "sheet_edges": latest[7],
-                "merged_edges": latest[8],
-                "active_edges": latest[9],
-                "conflict_count": latest[10],
-                "multiparent_count": latest[11],
-                "orphan_parent_count": latest[12],
-                "orphan_child_count": latest[13],
-                "cycle_node_count": latest[14],
-                "graph_fingerprint": latest[15],
+                "actor": latest[2] if has_actor else None,
+                "managed_sources": latest[3] if has_actor else latest[2],
+                "started_at": latest[4] if has_actor else latest[3],
+                "finished_at": latest[5] if has_actor else latest[4],
+                "status": latest[6] if has_actor else latest[5],
+                "db_edges": latest[7] if has_actor else latest[6],
+                "sheet_edges": latest[8] if has_actor else latest[7],
+                "merged_edges": latest[9] if has_actor else latest[8],
+                "active_edges": latest[10] if has_actor else latest[9],
+                "conflict_count": latest[11] if has_actor else latest[10],
+                "multiparent_count": latest[12] if has_actor else latest[11],
+                "orphan_parent_count": latest[13] if has_actor else latest[12],
+                "orphan_child_count": latest[14] if has_actor else latest[13],
+                "cycle_node_count": latest[15] if has_actor else latest[14],
+                "graph_fingerprint": latest[16] if has_actor else latest[15],
             }
             if latest
             else None
@@ -1478,6 +1523,7 @@ def self_heal_derivadas(
     include_db_source: bool = True,
     full_rebuild: bool = False,
     force: bool = False,
+    actor: str | None = None,
 ) -> dict[str, Any]:
     """Attempt self-healing by running sync only when scan indicates issues."""
 
@@ -1496,6 +1542,7 @@ def self_heal_derivadas(
         include_db_source=include_db_source,
         full_rebuild=full_rebuild,
         verify_only=False,
+        actor=actor,
     )
     after = scan_derivadas_consistency(db_path)
     return {
@@ -1513,6 +1560,7 @@ def run_derivadas_maintenance(
     min_interval_seconds: int = 3600,
     auto_heal: bool = True,
     full_rebuild: bool = False,
+    actor: str | None = None,
 ) -> dict[str, Any]:
     """Background-friendly maintenance trigger with interval guard."""
 
@@ -1584,6 +1632,7 @@ def run_derivadas_maintenance(
             db_path=db_path,
             table_name=table_name,
             full_rebuild=full_rebuild,
+            actor=actor or "maintenance",
         )
     except sqlite3.OperationalError as exc:
         if _is_sqlite_locked_error(exc):

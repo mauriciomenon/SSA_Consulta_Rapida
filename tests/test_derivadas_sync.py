@@ -56,6 +56,24 @@ def test_sync_from_db_materializes_matrix_closure_summary(temp_db):
     assert summary_root == (2, 3)
 
 
+def test_sync_persists_actor_in_sync_run(temp_db):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    sync_derivadas(temp_db, actor="test-actor")
+
+    with sqlite3.connect(temp_db) as conn:
+        actor = conn.execute(
+            "SELECT actor FROM ssa_derivada_sync_run ORDER BY sync_run_id DESC LIMIT 1"
+        ).fetchone()[0]
+
+    assert actor == "test-actor"
+
 def test_verify_only_reports_db_vs_sheet_conflict_without_writing(temp_db, tmp_path: Path):
     _insert_ssa_rows(
         temp_db,
