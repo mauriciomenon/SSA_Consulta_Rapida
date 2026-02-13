@@ -24,6 +24,7 @@ import time
 import pandas as pd  # type: ignore[import-not-found]
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
+from .identifier_utils import is_valid_identifier
 from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,25 @@ def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP)
     """
     per_row_vars = max(1, num_columns + SQLITE_SAFETY_EXTRA_COLUMNS)
     return min(cap, max(1, SQLITE_MAX_VARIABLES // per_row_vars))
+
+
+def _resolve_physical_table(conn, table_name: str) -> str:
+    """Map legacy view aliases (ssas/ssa_chamados) to the physical table when present."""
+    try:
+        cursor = conn.execute(
+            "SELECT name, type FROM sqlite_master WHERE name=?",
+            (table_name,),
+        )
+        row = cursor.fetchone()
+        if row and row[1] == "view":
+            cursor2 = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+            )
+            if cursor2.fetchone():
+                return "ssa_table"
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Falha ao resolver tabela fisica para %s: %s", table_name, exc)
+    return table_name
 
 
 def insert_dataframe_optimized(
@@ -116,10 +136,14 @@ def insert_dataframe_optimized(
             cache_size = cur.fetchone()[0]
             logger.info(f"OK Configurações aplicadas: journal_mode={journal_mode}, cache_size={cache_size}")
 
+            target_table = _resolve_physical_table(conn, table_name)
+            if not is_valid_identifier(target_table):
+                raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
+
             # Criar índice temporário se não existir
             try:
                 idx_stmt = (
-                    f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {table_name}(numero_ssa)"
+                    f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {target_table}(numero_ssa)"
                 )
                 conn.execute(idx_stmt)
             except Exception as e:  # pragma: no cover - não crítico
@@ -137,13 +161,13 @@ def insert_dataframe_optimized(
 
             # ===== GARANTIR QUE TODAS AS COLUNAS EXISTEM =====
             # Adicionar colunas faltantes antes de inserir
-            ensure_columns_exist(conn, table_name, work)
+            ensure_columns_exist(conn, target_table, work)
 
             # ===== INSERIR REGISTROS SEM SSA (APPEND SIMPLES) =====
             if not no_ssa.empty:
                 safe_chunksize = sqlite_safe_chunksize(len(no_ssa.columns))
                 # method='multi' ignora chunksize; usar chunksize seguro
-                no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
+                no_ssa.to_sql(target_table, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                 total_inserted += len(no_ssa)
                 logger.info(f"[OK] Inseridos {len(no_ssa)} registros sem numero_ssa")
 
@@ -151,8 +175,9 @@ def insert_dataframe_optimized(
             if not has_ssa.empty:
                 # Verificar se tabela existe antes de fazer SELECT
                 table_exists = pd.read_sql_query(
-                    f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
-                    conn
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    conn,
+                    params=(target_table,),
                 )
 
                 # OTIMIZACAO CHAVE: Uma consulta para TODAS as SSAs existentes
@@ -163,7 +188,7 @@ def insert_dataframe_optimized(
                     # Tabela existe, fazer lookup
                     existing_ssas_df = pd.read_sql_query(
                         (
-                            f"SELECT numero_ssa, data_cadastro FROM {table_name} "
+                            f"SELECT numero_ssa, data_cadastro FROM {target_table} "
                             "WHERE numero_ssa IS NOT NULL"
                         ),
                         conn,
@@ -212,7 +237,7 @@ def insert_dataframe_optimized(
                     # Calcula chunksize dinamico centralizado para evitar limite de variaveis
                     safe_chunksize = sqlite_safe_chunksize(len(insert_df.columns))
                     # method='multi' ignora chunksize; usar chunksize seguro
-                    insert_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=safe_chunksize)
+                    insert_df.to_sql(target_table, conn, if_exists='append', index=False, chunksize=safe_chunksize)
                     total_inserted += len(insert_df)
                     logger.info(f"[OK] Inseridos {len(insert_df)} novos registros com SSA (chunksize={safe_chunksize})")
 
@@ -229,13 +254,13 @@ def insert_dataframe_optimized(
                         chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
                         ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
                         delete_query = (
-                            f"DELETE FROM {table_name} WHERE numero_ssa IN ({ssa_placeholders})"
+                            f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
                         )
                         conn.execute(delete_query, chunk_ssas)
 
                     # Inserir versões atualizadas com chunk size dinâmico centralizado
                     # method='multi' ignora chunksize; usar chunksize seguro
-                    update_df.to_sql(table_name, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
+                    update_df.to_sql(target_table, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
                     total_inserted += len(update_df)
                     logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
 
