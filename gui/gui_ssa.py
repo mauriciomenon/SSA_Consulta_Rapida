@@ -87,8 +87,8 @@ try:
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
         QScrollArea, QToolButton, QWidgetAction
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker
-    from PyQt6.QtGui import QAction, QFont
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker, QUrl
+    from PyQt6.QtGui import QAction, QFont, QDesktopServices
 
     # Import workers, cache, widgets, and helpers from separate modules
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
@@ -6218,16 +6218,39 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
 
     def open_docs_folder(self):
-        """Abre a pasta docs_entrada no Windows Explorer."""
+        """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
         docs_path = os.path.join(project_root, 'docs_entrada')
 
         if os.path.exists(docs_path):
             try:
-                # Abre no Windows Explorer
-                subprocess.run(['explorer', docs_path], check=True)
+                # Prefer Qt abstraction to avoid blocking UI (subprocess.run) and to keep cross-platform.
+                if QT_AVAILABLE:
+                    url = QUrl.fromLocalFile(docs_path)
+                    ok = QDesktopServices.openUrl(url)
+                    if ok:
+                        return
+                    raise RuntimeError("QDesktopServices.openUrl returned False")
+                raise RuntimeError("Qt nao disponivel para abrir pastas")
             except Exception as e:
-                QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
+                logger.warning("Falha ao abrir pasta docs_entrada via Qt: %s", e)
+                try:
+                    # Best-effort fallback, non-blocking.
+                    if sys.platform.startswith("win"):
+                        subprocess.Popen(["explorer", docs_path])
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", docs_path])
+                    else:
+                        subprocess.Popen(["xdg-open", docs_path])
+                    return
+                except Exception as fallback_exc:
+                    logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
+                    # Avoid modal dialogs during automated tests (can deadlock pytest runner).
+                    if os.environ.get("PYTEST_CURRENT_TEST"):
+                        return
+                    QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
         else:
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
             QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
 
     def load_other_database(self):
