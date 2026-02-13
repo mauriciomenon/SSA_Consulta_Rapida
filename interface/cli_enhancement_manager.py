@@ -62,7 +62,12 @@ class CLIEnhancementManager:
             tmp_path = None
             try:
                 fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                try:
+                    fobj = os.fdopen(fd, "w", encoding="utf-8")
+                except BaseException:
+                    os.close(fd)
+                    raise
+                with fobj as f:
                     self._lock_file_if_possible(f)
                     json.dump(self.settings, f, indent=2, ensure_ascii=False)
                     f.flush()

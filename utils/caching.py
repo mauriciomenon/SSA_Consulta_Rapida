@@ -182,7 +182,11 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
 
         current_hash = _calculate_hash(file_path)
         if not current_hash:
-            logger.warning(f"Hash não pôde ser calculado para {file_path}. Arquivo será pulado.")
+            logger.warning(
+                "Hash não pôde ser calculado para %s; reenfileirando para processamento para evitar perda silenciosa.",
+                file_path,
+            )
+            files_to_process.append(file_path)
             continue
 
         if not cached_sha:
