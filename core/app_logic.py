@@ -561,6 +561,9 @@ def run_importer_logic(
                     )
                     continue
                 except ExtractionError as e:
+                    if should_cancel and should_cancel():
+                        logger.info("Cancelamento solicitado; interrompendo importacao.")
+                        break
                     logger.warning(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
                     )
