@@ -422,23 +422,30 @@ def run_importer_logic(
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
         total_files = len(files_to_process)
-        if progress_callback:
+        progress_cb = progress_callback
+
+        def _emit_progress(event_type: str, data: Dict[str, Any]) -> None:
+            nonlocal progress_cb
+            if not progress_cb:
+                return
             try:
-                progress_callback("start", {"total": total_files})
-            except Exception as e:
-                logger.debug(f"Progress callback failed: {e}")
+                progress_cb(event_type, data)
+            except Exception as exc:
+                logger.warning(
+                    "Progress callback failed for event '%s': %s. Disabling progress callback.",
+                    event_type,
+                    exc,
+                    exc_info=True,
+                )
+                progress_cb = None
+
+        _emit_progress("start", {"total": total_files})
 
         if not files_to_process:
             logger.info(
                 "Nenhum arquivo novo ou modificado encontrado para processamento."
             )
-            if progress_callback:
-                try:
-                    progress_callback(
-                        "finish", {"total": 0, "processed": 0, "errors": []}
-                    )
-                except Exception as e:
-                    logger.debug(f"Progress callback failed: {e}")
+            _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
             return False
 
         logger.info(
@@ -457,18 +464,14 @@ def run_importer_logic(
                 base_name = os.path.basename(file_path)
 
                 # Notify file start
-                if progress_callback:
-                    try:
-                        progress_callback(
-                            "file_start",
-                            {
-                                "current": index + 1,
-                                "total": total_files,
-                                "filename": base_name,
-                            },
-                        )
-                    except Exception as e:
-                        logger.debug(f"Progress callback failed during file_start: {e}")
+                _emit_progress(
+                    "file_start",
+                    {
+                        "current": index + 1,
+                        "total": total_files,
+                        "filename": base_name,
+                    },
+                )
 
                 if base_name.startswith("~$"):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
@@ -480,16 +483,10 @@ def run_importer_logic(
                     if success:
                         successfully_processed_files.append(file_path)
                         # Notify file success
-                        if progress_callback:
-                            try:
-                                progress_callback(
-                                    "file_success",
-                                    {"filename": base_name, "records": record_count},
-                                )
-                            except Exception as e:
-                                logger.debug(
-                                    f"Progress callback failed during file_success: {e}"
-                                )
+                        _emit_progress(
+                            "file_success",
+                            {"filename": base_name, "records": record_count},
+                        )
                 except DatabaseConnectionError as e:
                     logger.error(
                         f"Erro de conexao com banco ao processar '{file_path}': {e}"
@@ -498,24 +495,16 @@ def run_importer_logic(
                         "Interrompendo processamento devido a falha de conexao"
                     )
                     critical_errors.append(("connection", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     break
                 except DatabaseCorruptionError as e:
                     logger.error(f"Corrupcao detectada ao processar '{file_path}': {e}")
                     logger.info("Tentando reparo automatico do banco...")
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     if database.repair_database_if_needed(
                         db_path, table_name=table_name
                     ):
@@ -533,24 +522,16 @@ def run_importer_logic(
                         f"Espaco em disco insuficiente ao processar '{file_path}': {e}"
                     )
                     critical_errors.append(("space", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     break
                 except DatabaseSchemaError as e:
                     logger.error(f"Erro de schema ao processar '{file_path}': {e}")
                     logger.info("Tentando recriacao do schema...")
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     if database.initialize_database(db_path):
                         logger.info("Schema recriado, continuando processamento...")
                         critical_errors.append(("schema_repaired", file_path, str(e)))
@@ -564,66 +545,46 @@ def run_importer_logic(
                         f"Dados invalidos em '{file_path}': {e}. Pulando arquivo..."
                     )
                     critical_errors.append(("validation", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     continue
                 except ExtractionError as e:
                     logger.warning(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
                     )
                     critical_errors.append(("extraction", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     continue
                 except DatabaseError as e:
                     logger.error(
                         f"Erro de banco ao processar '{file_path}': {e}. Continuando..."
                     )
                     critical_errors.append(("database_generic", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     continue
                 except Exception as e:
                     logger.error(
                         f"Erro inesperado ao processar '{file_path}': {e}. Continuando..."
                     )
                     critical_errors.append(("unexpected", file_path, str(e)))
-                    if progress_callback:
-                        try:
-                            progress_callback(
-                                "file_error", {"filename": base_name, "error": str(e)}
-                            )
-                        except Exception:
-                            pass
+                    _emit_progress(
+                        "file_error", {"filename": base_name, "error": str(e)}
+                    )
                     continue
         finally:
-            if progress_callback:
-                try:
-                    progress_callback(
-                        "finish",
-                        {
-                            "total": total_files,
-                            "processed": len(successfully_processed_files),
-                            "errors": critical_errors,
-                        },
-                    )
-                except Exception as e:
-                    logger.debug(f"Progress callback failed at finish: {e}")
+            _emit_progress(
+                "finish",
+                {
+                    "total": total_files,
+                    "processed": len(successfully_processed_files),
+                    "errors": critical_errors,
+                },
+            )
 
         # Log de resumo de erros
         if critical_errors:
