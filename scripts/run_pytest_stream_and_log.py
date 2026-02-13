@@ -82,24 +82,50 @@ def main():
         )
 
     line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=4096)
+    dropped_lines = 0
 
     def _safe_queue_put(value: str | None) -> None:
-        while True:
-            try:
-                line_queue.put(value, timeout=0.1)
-                return
-            except queue.Full:
-                # Avoid unbounded memory growth when producer is faster than consumer.
-                if p.poll() is not None:
+        nonlocal dropped_lines
+        # Never block the reader thread when the queue is full.
+        # Blocking here can deadlock when the child process fills its stdout pipe.
+        if value is None:
+            # Ensure the sentinel is delivered by dropping older lines if needed.
+            while True:
+                try:
+                    line_queue.put_nowait(None)
+                    return
+                except queue.Full:
                     try:
                         line_queue.get_nowait()
                     except queue.Empty:
                         pass
-                    try:
-                        line_queue.put_nowait(value)
-                    except queue.Full:
-                        pass
+            return
+
+        try:
+            line_queue.put_nowait(value)
+            return
+        except queue.Full:
+            dropped_lines += 1
+            # Drop the oldest line to make room (best-effort).
+            try:
+                line_queue.get_nowait()
+            except queue.Empty:
+                return
+
+            # Occasionally report that output was dropped to preserve transparency.
+            if dropped_lines % 200 == 1:
+                warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
+                try:
+                    line_queue.put_nowait(warn)
                     return
+                except queue.Full:
+                    pass
+
+            try:
+                line_queue.put_nowait(value)
+            except queue.Full:
+                # Still no space, drop the line.
+                return
 
     def _reader_worker() -> None:
         try:
