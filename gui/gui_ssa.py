@@ -42,6 +42,7 @@ if project_root not in sys.path:
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
 from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
+from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
@@ -4234,418 +4235,98 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return df[mask]
 
     def _retain_data_loader_worker_until_finished(self, worker) -> None:
-        if worker is None:
-            return
-        self._prune_retired_data_loader_workers()
-        retired = getattr(self, "_retired_data_loader_workers", None)
-        if retired is None:
-            retired = []
-            self._retired_data_loader_workers = retired
-        if worker in retired:
-            return
-        retired.append(worker)
-        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
-        if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
-
-        def _release_worker_ref(w=worker):
-            try:
-                if w in self._retired_data_loader_workers:
-                    self._retired_data_loader_workers.remove(w)
-            except Exception as exc:
-                logger.debug("Falha ao remover worker de carga da lista local aposentada: %s", exc)
-            try:
-                if w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-                    GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
-            except Exception as exc:
-                logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
-            try:
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-            except Exception as exc:
-                logger.debug("Falha ao remover meta do worker de carga: %s", exc)
-
-        try:
-            worker.finished.connect(_release_worker_ref)
-        except Exception as exc:
-            logger.debug("Falha ao conectar cleanup no signal finished do worker de carga: %s", exc)
-            _release_worker_ref()
-        try:
-            worker.destroyed.connect(_release_worker_ref)
-        except Exception as exc:
-            logger.debug("Falha ao conectar cleanup no signal destroyed do worker de carga: %s", exc)
-        try:
-            worker.finished.connect(worker.deleteLater)
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no worker de carga: %s", exc)
-        self._prune_retired_data_loader_workers()
+        ssa_gui_workers.retain_data_loader_worker_until_finished(
+            self,
+            worker,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _is_data_loader_worker_alive(self, worker) -> bool:
-        if worker is None:
-            return False
-        if sip is None:
-            return True
-        try:
-            return not sip.isdeleted(worker)
-        except TypeError:
-            # Objetos de teste podem nao ser QObject reais.
-            return True
-        except Exception:
-            return False
+        return ssa_gui_workers.is_data_loader_worker_alive(worker, sip_module=sip)
 
     def _is_data_loader_worker_running(self, worker) -> bool:
-        if not self._is_data_loader_worker_alive(worker):
-            return False
-        try:
-            if hasattr(worker, "isRunning"):
-                return bool(worker.isRunning())
-        except Exception:
-            return False
-        return False
+        return ssa_gui_workers.is_data_loader_worker_running(worker, sip_module=sip)
 
     def _prune_retired_data_loader_workers(self) -> None:
-        """Remove referencias globais/locais para workers ja finalizados."""
-        now = perf_counter()
-        retired_local = list(getattr(self, "_retired_data_loader_workers", []) or [])
-        pruned_local = []
-        for w in retired_local:
-            if not self._is_data_loader_worker_running(w):
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-                try:
-                    stopped = self._cleanup_data_loader_worker(
-                        w,
-                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-                    stopped = False
-                if stopped:
-                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
-            pruned_local.append(w)
-        self._retired_data_loader_workers = pruned_local
-
-        running_global = []
-        for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            if not self._is_data_loader_worker_running(w):
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-                try:
-                    stopped = self._cleanup_data_loader_worker(
-                        w,
-                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-                    stopped = False
-                if stopped:
-                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
-            running_global.append(w)
-        if len(running_global) > MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            running_global = running_global[-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:]
-        GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = running_global
-        for w in list(GLOBAL_RETIRED_DATA_LOADER_META.keys()):
-            if w not in GLOBAL_RETIRED_DATA_LOADER_WORKERS and w not in self._retired_data_loader_workers:
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+        ssa_gui_workers.prune_retired_data_loader_workers(
+            self,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _is_rescan_worker_running(self, worker) -> bool:
-        if not self._is_data_loader_worker_alive(worker):
-            return False
-        try:
-            if hasattr(worker, "isRunning"):
-                return bool(worker.isRunning())
-        except Exception:
-            return False
-        return False
+        return ssa_gui_workers.is_rescan_worker_running(worker, sip_module=sip)
 
     def _prune_retired_rescan_workers(self) -> None:
-        now = perf_counter()
-        running_global = []
-        for w in GLOBAL_RETIRED_RESCAN_WORKERS:
-            if not self._is_rescan_worker_running(w):
-                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_RESCAN_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Rescan worker excedeu TTL; solicitando stop.")
-                try:
-                    if hasattr(w, "stop"):
-                        w.stop()
-                    if hasattr(w, "quit"):
-                        w.quit()
-                    if hasattr(w, "wait"):
-                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
-                    if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
-                        w.terminate()
-                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
-                if not self._is_rescan_worker_running(w):
-                    GLOBAL_RETIRED_RESCAN_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_RESCAN_META[w] = now
-            running_global.append(w)
-        if len(running_global) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-            running_global = running_global[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-        GLOBAL_RETIRED_RESCAN_WORKERS[:] = running_global
-        for w in list(GLOBAL_RETIRED_RESCAN_META.keys()):
-            if w not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+        ssa_gui_workers.prune_retired_rescan_workers(
+            self,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
-        """Finaliza worker de carga com modo bloqueante opcional.
-
-        Retorna True quando o worker já está parado e pronto para descarte.
-        Retorna False quando permanece em execução após tentativa de encerramento.
-        """
-        if worker is None:
-            return True
-        try:
-            try:
-                worker.data_loaded.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar data_loaded do worker de carga: %s", exc)
-            try:
-                worker.error_occurred.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar error_occurred do worker de carga: %s", exc)
-            try:
-                worker.finished.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar finished do worker de carga: %s", exc)
-            still_running = False
-            try:
-                if hasattr(worker, "cancel"):
-                    worker.cancel()
-                elif hasattr(worker, "requestInterruption"):
-                    worker.requestInterruption()
-                if hasattr(worker, "isRunning") and worker.isRunning():
-                    worker.quit()
-                    if int(wait_ms or 0) > 0:
-                        worker.wait(int(wait_ms))
-                still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
-            except Exception as exc:
-                logger.warning("Falha ao solicitar encerramento do worker de carga: %s", exc)
-                still_running = True
-            if still_running:
-                self._retain_data_loader_worker_until_finished(worker)
-                return False
-            try:
-                worker.deleteLater()
-            except Exception as exc:
-                logger.debug("Falha ao chamar deleteLater no worker de carga: %s", exc)
-        except Exception as exc:
-            logger.warning("Falha durante cleanup do worker de carga: %s", exc)
-            try:
-                self._prune_retired_data_loader_workers()
-            except Exception as prune_exc:
-                logger.debug("Falha ao podar workers de carga apos erro de cleanup: %s", prune_exc)
-            return False
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga apos cleanup: %s", exc)
-        return True
+        return ssa_gui_workers.cleanup_data_loader_worker(
+            self,
+            worker,
+            wait_ms=wait_ms,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def load_data(self):
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga antes de novo load: %s", exc)
-        if not os.path.exists(DB_PATH):
-            missing_db_msg = f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro."
-            logger.warning(missing_db_msg)
-            try:
-                self.status_label.setText("Status: Banco de dados nao encontrado.")
-            except Exception:
-                pass
-            # Evita deadlock por dialogo modal durante testes automatizados.
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                return
-            QMessageBox.warning(self, "Erro", missing_db_msg)
-            return
-
-        # Cancela pipeline de filtro em andamento para evitar mistura entre datasets.
-        try:
-            if hasattr(self, "_invalidate_active_filter_request"):
-                self._invalidate_active_filter_request("load_data_new_dataset")
-        except Exception as exc:
-            logger.warning("Falha ao invalidar request de filtro antes do load: %s", exc)
-        try:
-            if hasattr(self, "_cancel_active_filter_worker"):
-                self._cancel_active_filter_worker("load_data_new_dataset", wait_ms=0)
-        except Exception as exc:
-            logger.warning("Falha ao cancelar worker de filtro antes do load: %s", exc)
-        # Evita disparo tardio de filtro por debounce enquanto o novo dataset carrega.
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce de filtro antes do load: %s", exc)
-
-        request_id = int(getattr(self, "_data_load_request_seq", 0) or 0) + 1
-        self._data_load_request_seq = request_id
-        self._active_data_load_request_id = request_id
-
-        self.status_label.setText("Status: Carregando dados...")
-        self.progress_bar.setVisible(True)
-        self.load_button.setEnabled(False)
-        self.search_button.setEnabled(False)
-
-        previous_worker = getattr(self, "data_loader_thread", None)
-        if previous_worker is not None:
-            self._cleanup_data_loader_worker(previous_worker, wait_ms=0)
-            if getattr(self, "data_loader_thread", None) is previous_worker:
-                self.data_loader_thread = None
-
-        if DataLoaderWorker is None:
-            logger.error("DataLoaderWorker indisponivel para load_data")
-            # Evita deadlock por dialogo modal durante testes automatizados.
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                logger.debug("PYTEST_CURRENT_TEST set; skipping modal DataLoaderWorker error dialog.")
-            else:
-                QMessageBox.critical(
-                    self,
-                    "Erro de Carregamento",
-                    "Data loader indisponivel neste ambiente. Consulte os logs.",
-                )
-            self.status_label.setText("Status: Erro ao carregar dados.")
-            self.progress_bar.setVisible(False)
-            self.load_button.setEnabled(True)
-            self.search_button.setEnabled(True)
-            return
-
-        worker = DataLoaderWorker(DB_PATH, TABLE_NAME)
-        self.data_loader_thread = worker
-        worker.data_loaded.connect(lambda df, rid=request_id: self.on_data_loaded(df, request_id=rid))
-        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_load_error(msg, request_id=rid))
-        worker.finished.connect(lambda w=worker, rid=request_id: self.on_load_finished(worker=w, request_id=rid))
-        try:
-            worker.finished.connect(worker.deleteLater)
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no worker de carga atual: %s", exc)
-        worker.start()
+        ssa_gui_workers.load_data(
+            self,
+            db_path=DB_PATH,
+            table_name=TABLE_NAME,
+            data_loader_cls=DataLoaderWorker,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        if request_id is not None and active_id is not None and request_id != active_id:
-            logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
-            return
-        df_copy = df.copy()
-        self.df_completo = df_copy
-        try:
-            self.clear_filter_cache()
-        except Exception as exc:
-            logger.debug("Falha ao limpar cache de filtros apos recarga de dados: %s", exc)
-        self._adv_options_dirty = True
-        self._adv_values_cache = None
-        self._responsavel_materialized_prefixes = set()
-        self._mark_responsavel_dirty()
-        try:
-            timer = getattr(self, "_sector_debounce_timer", None)
-            if timer is not None:
-                timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
-        # Inicialmente, exibimos todos os dados
-        base = df_copy
-        # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
-        try:
-            if 'situacao' in base.columns:
-                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
-            else:
-                is_ste = pd.Series([False]*len(base), index=base.index)
-            if 'numero_ssa' in base.columns:
-                ssa_text = base["numero_ssa"].astype(str)
-                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
-            else:
-                ssa_int = pd.Series([-1]*len(base), index=base.index)
-            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
-                by=['__is_ste','__ssa'], ascending=[True, False], na_position='last'
-            ).drop(columns=['__is_ste','__ssa'])
-        except Exception as e:
-            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
-        self.df_exibido = base
-        self._df_last_search_filtered = df_copy
-        self._widths_computed_for_df_hash = None
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception:
-            self.clear_filter_button.setEnabled(True)
-        self._refresh_after_filter_change()
-        try:
-            self._refresh_advanced_filter_options()
-        except Exception as e:
-            logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
-        try:
-            self._update_derivadas_button_state()
-        except Exception as exc:
-            logger.warning("Falha ao atualizar estado do botao de derivadas: %s", exc)
-        profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
+        ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        if request_id is not None and active_id is not None and request_id != active_id:
-            logger.debug("Ignorando erro de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
-            return
-        safe_error_msg = "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
-        logger.error("Erro no carregamento de dados (request_id=%s): %s", request_id, error_msg)
-        # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            logger.debug("PYTEST_CURRENT_TEST set; skipping modal load error dialog.")
-        else:
-            QMessageBox.critical(self, "Erro de Carregamento", safe_error_msg)
-        self.status_label.setText("Status: Erro ao carregar dados.")
-        self.load_button.setEnabled(True)
-        self.search_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
+        ssa_gui_workers.on_load_error(self, error_msg, request_id=request_id, qmessagebox=QMessageBox)
         try:
             self._prune_retired_data_loader_workers()
         except Exception as exc:
             logger.debug("Falha ao podar workers de carga aposentados apos erro: %s", exc)
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        is_stale = request_id is not None and active_id is not None and request_id != active_id
-        target_worker = worker if worker is not None else getattr(self, "data_loader_thread", None)
-        if is_stale:
-            try:
-                self._cleanup_data_loader_worker(target_worker)
-            finally:
-                if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
-                    self.data_loader_thread = None
-                try:
-                    self._prune_retired_data_loader_workers()
-                except Exception as exc:
-                    logger.debug("Falha ao podar workers de carga no cleanup de request obsoleto: %s", exc)
-            return
-
-        self.progress_bar.setVisible(False)
-        self.load_button.setEnabled(True)
-        self.search_button.setEnabled(True)
-        # Finalização segura do loader
-        try:
-            self._cleanup_data_loader_worker(target_worker)
-        finally:
-            if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
-                self.data_loader_thread = None
-            try:
-                self._prune_retired_data_loader_workers()
-            except Exception as exc:
-                logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
+        ssa_gui_workers.on_load_finished(
+            self,
+            worker=worker,
+            request_id=request_id,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_header_clicked(self, logical_index: int):
         try:
