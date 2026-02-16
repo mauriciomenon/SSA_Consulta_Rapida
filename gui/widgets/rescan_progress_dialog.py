@@ -88,6 +88,10 @@ class RescanProgressDialog(QDialog):
 
     def append_output(self, line: str):
         """Append line to output display."""
+        # When the dialog is cancelled and closed, the worker may still emit a few
+        # lines while stopping. Avoid spending UI time updating a hidden dialog.
+        if self._cancel_requested and not self.isVisible():
+            return
         self.output_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.output_text.verticalScrollBar()
@@ -95,6 +99,8 @@ class RescanProgressDialog(QDialog):
 
     def append_error(self, line: str):
         """Append line to error display."""
+        if self._cancel_requested and not self.isVisible():
+            return
         self.error_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.error_text.verticalScrollBar()
@@ -102,6 +108,8 @@ class RescanProgressDialog(QDialog):
 
     def update_progress(self, percentage: int, message: str):
         """Update progress bar and status."""
+        if self._cancel_requested and not self.isVisible():
+            return
         self.progress_bar.setValue(percentage)
         self.status_label.setText(message)
 
@@ -136,4 +144,4 @@ class RescanProgressDialog(QDialog):
             self.cancel_button.setEnabled(False)
             self.status_label.setText("Cancelamento solicitado. Aguarde...")
             self.cancel_requested.emit()
-        super().reject()
+        # Mantem dialogo aberto enquanto o worker finaliza, evitando fechar cedo.
