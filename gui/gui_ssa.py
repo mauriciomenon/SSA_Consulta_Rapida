@@ -2664,6 +2664,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _build_derivadas_tree(self, df: pd.DataFrame, numero_col: str, derivada_col: str):
         """Constroi arvore de derivadas com normalizacao robusta de SSA."""
+        mae_filhas_set: dict[str, set[str]] = {}
         mae_filhas: dict[str, list[str]] = {}
         filha_mae: dict[str, str] = {}
         if df is None or df.empty:
@@ -2682,9 +2683,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if not numero or not derivada_de:
                 continue
             filha_mae[numero] = derivada_de
-            mae_filhas.setdefault(derivada_de, set()).add(numero)
+            mae_filhas_set.setdefault(derivada_de, set()).add(numero)
 
-        for mae, filhas in list(mae_filhas.items()):
+        for mae, filhas in list(mae_filhas_set.items()):
             mae_filhas[mae] = sorted(filhas, key=lambda value: str(value).casefold())
 
         return mae_filhas, filha_mae
