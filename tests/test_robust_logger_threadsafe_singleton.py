@@ -38,6 +38,8 @@ def test_get_robust_logger_is_thread_safe_singleton(monkeypatch):
     t1.join(timeout=2.0)
     t2.join(timeout=2.0)
 
+    assert not t1.is_alive(), "t1 did not complete in time"
+    assert not t2.is_alive(), "t2 did not complete in time"
     assert errors == []
     assert len(results) == 2
     assert results[0] is results[1]
