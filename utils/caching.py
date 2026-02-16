@@ -145,6 +145,11 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
         filename = os.path.basename(file_path)
         stat_sig = _safe_file_stat(file_path)
         if stat_sig is None:
+            logger.warning(
+                "Metadados indisponiveis para '%s'; reenfileirando para processamento.",
+                file_path,
+            )
+            files_to_process.append(file_path)
             continue
         size, mtime_ns = stat_sig
 
