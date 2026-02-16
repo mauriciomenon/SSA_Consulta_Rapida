@@ -99,9 +99,10 @@ def main():
     line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=_queue_maxsize())
     dropped_lines = 0
     dropped_lock = threading.Lock()
+    last_warned = 0
 
     def _safe_queue_put(value: str | None) -> None:
-        nonlocal dropped_lines
+        nonlocal dropped_lines, last_warned
         # Never block the reader thread when the queue is full.
         # Blocking here can deadlock when the child process fills its stdout pipe.
         if value is None:
@@ -139,7 +140,10 @@ def main():
                 if evicted:
                     with dropped_lock:
                         warn_count = dropped_lines
-                    if warn_count % 200 == 1:
+                        should_warn = warn_count % 200 == 1 and warn_count != last_warned
+                        if should_warn:
+                            last_warned = warn_count
+                    if should_warn:
                         warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
                         try:
                             line_queue.put_nowait(warn)
@@ -151,7 +155,10 @@ def main():
                 with dropped_lock:
                     dropped_lines += 1
                     warn_count = dropped_lines
-                if warn_count % 200 == 1:
+                    should_warn = warn_count % 200 == 1 and warn_count != last_warned
+                    if should_warn:
+                        last_warned = warn_count
+                if should_warn:
                     warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
                     try:
                         line_queue.put_nowait(warn)
