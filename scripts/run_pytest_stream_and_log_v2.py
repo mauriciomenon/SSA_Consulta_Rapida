@@ -140,6 +140,7 @@ def main():
     dropped_lock = threading.Lock()
 
     def _safe_queue_put(value: str | None) -> None:
+        nonlocal dropped_lines
         # Never block the reader thread when the queue is full.
         # Blocking here can deadlock when the child process fills its stdout pipe.
         if value is None:
