@@ -58,6 +58,23 @@ class CLIEnhancementManager:
             target_dir = os.path.dirname(self.settings_file) or "."
             base_name = os.path.basename(self.settings_file) or "cli_enhancements.json"
 
+            lock_file = None
+            try:
+                lock_path = f"{self.settings_file}.lock"
+                lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+                try:
+                    lock_file = os.fdopen(lock_fd, "w")
+                except BaseException:
+                    os.close(lock_fd)
+                    raise
+                self._lock_file_if_possible(lock_file)
+            except Exception as exc:
+                logger.debug("Nao foi possivel preparar lock para settings: %s", exc)
+                if lock_file is not None:
+                    with suppress(Exception):
+                        lock_file.close()
+                lock_file = None
+
             fd = None
             tmp_path = None
             try:
@@ -81,6 +98,9 @@ class CLIEnhancementManager:
                 if tmp_path:
                     with suppress(Exception):
                         os.remove(tmp_path)
+            if lock_file is not None:
+                with suppress(Exception):
+                    lock_file.close()
         except Exception as e:
             logger.error(f"Erro ao salvar configurações CLI: {e}")
 
@@ -88,9 +108,13 @@ class CLIEnhancementManager:
         """Best-effort file lock to avoid races on settings writes."""
         try:
             if fcntl is not None:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                flags = fcntl.LOCK_EX
+                if hasattr(fcntl, "LOCK_NB"):
+                    flags |= fcntl.LOCK_NB
+                fcntl.flock(f.fileno(), flags)
             elif msvcrt is not None:  # pragma: no cover - Windows
-                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+                mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
+                msvcrt.locking(f.fileno(), mode, 1)
         except Exception as exc:
             logger.debug("Nao foi possivel aplicar lock no settings: %s", exc)
 

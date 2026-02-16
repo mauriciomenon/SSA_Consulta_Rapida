@@ -6310,6 +6310,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
 
         def on_success():
+            nonlocal cancelled
+            if cancelled:
+                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+                self.status_label.setText("Status: Reescaneamento cancelado.")
+                _release_worker_ref()
+                return
             _release_worker_ref()
             progress_dialog.set_finished(True)
             self.status_label.setText("Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar.")

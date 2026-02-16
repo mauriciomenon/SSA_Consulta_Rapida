@@ -290,6 +290,8 @@ def _import_single_file(
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
         raise ExtractionError(str(e)) from e
+    except ExtractionError:
+        raise
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
         raise ExtractionError(f"Erro ao importar {file_path}") from e
