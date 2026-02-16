@@ -26,14 +26,14 @@ def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
     QApplication.processEvents()
 
     assert len(emitted) == 1
-    assert dlg.result() == int(QDialog.DialogCode.Rejected)
-    # Dialog may remain visible while cancel is in progress.
-    assert dlg.isVisible() in (True, False)
+    assert dlg._cancel_requested is True
+    assert dlg.isVisible() is True
 
-    # Second reject should not emit cancel again.
+    # Second reject should close without emitting cancel again.
     dlg.reject()
     QApplication.processEvents()
     assert len(emitted) == 1
+    assert dlg.result() == int(QDialog.DialogCode.Rejected)
 
 
 def test_rescan_progress_dialog_reject_after_finished_does_not_emit_cancel():

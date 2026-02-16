@@ -130,12 +130,7 @@ class RescanProgressDialog(QDialog):
                 self.append_error(f"\nERRO FINAL: {message}")
 
     def reject(self) -> None:
-        """Request cancel and close the dialog while running.
-
-        The rescan can take time to stop. Keeping the dialog open and modal can
-        trap the user and make "exit/close" feel broken. Here we request cancel
-        once and allow the dialog to close immediately.
-        """
+        """Request cancel while running, allow close on a second attempt."""
         if self._finished:
             super().reject()
             return
@@ -144,4 +139,5 @@ class RescanProgressDialog(QDialog):
             self.cancel_button.setEnabled(False)
             self.status_label.setText("Cancelamento solicitado. Aguarde...")
             self.cancel_requested.emit()
-        # Mantem dialogo aberto enquanto o worker finaliza, evitando fechar cedo.
+            return
+        super().reject()
