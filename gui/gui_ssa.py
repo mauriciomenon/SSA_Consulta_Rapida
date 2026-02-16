@@ -45,6 +45,7 @@ from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
 from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
 from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
@@ -632,6 +633,20 @@ DETAIL_DISPLAY_OVERRIDES = {
     'status_execucao_prazo': 'Situacao do Prazo',
     'execucao_parcial': 'Execucao Parcial',
 }
+
+try:
+    ssa_gui_details.configure_details_constants(
+        details_dialog_font_size=DETAILS_DIALOG_FONT_SIZE,
+        details_dialog_table_padding=DETAILS_DIALOG_TABLE_PADDING,
+        details_dialog_border_color=DETAILS_DIALOG_BORDER_COLOR,
+        detail_field_priority=DETAIL_FIELD_PRIORITY,
+        detail_display_overrides=DETAIL_DISPLAY_OVERRIDES,
+        highlight_background_color=HIGHLIGHT_BACKGROUND_COLOR,
+        highlight_font_weight=HIGHLIGHT_FONT_WEIGHT,
+        mono_font_family=MONO_FONT_FAMILY,
+    )
+except Exception as exc:
+    logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
 
 TABLE_NAME = 'ssas'
 
@@ -2128,170 +2143,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_gui_table._on_header_section_resized(self, logical_index, old_size, new_size)
 
     def _normalize_highlight_term(self, term):
-        """Remove modos e negacoes para uso no highlight."""
-        if term is None:
-            return ""
-        cleaned = str(term).strip()
-        if not cleaned:
-            return ""
-        if cleaned.startswith('!') or cleaned.startswith('-'):
-            cleaned = cleaned[1:]
-        if cleaned.startswith('~') or cleaned.startswith('=') or cleaned.startswith('^'):
-            cleaned = cleaned[1:]
-        if cleaned.endswith('$'):
-            cleaned = cleaned[:-1]
-        return cleaned.strip()
+        return ssa_gui_details._normalize_highlight_term(self, term)
 
     def _get_current_search_terms(self):
-        """Retorna lista de termos de busca atuais."""
-        search_text = self.search_input.text().strip()
-        if not search_text:
-            return []
-        # Split por virgulas
-        terms = [term.strip() for term in search_text.split(',') if term.strip()]
-        clean_terms = []
-        for term in terms:
-            normalized = self._normalize_highlight_term(term)
-            if normalized:
-                clean_terms.append(normalized)
-        return clean_terms
+        return ssa_gui_details._get_current_search_terms(self)
 
     def _collect_highlight_terms(self):
-        """Combina termos da busca geral e filtros de coluna para realce."""
-        aggregated = []
-        seen = set()
-        for term in self._get_current_search_terms():
-            if term and term not in seen:
-                aggregated.append(term)
-                seen.add(term)
-        for raw in getattr(self, '_active_column_filters', {}).values():
-            if not raw:
-                continue
-            normalized_raw = str(raw).replace(';', ',')
-            tokens = [tok.strip() for tok in normalized_raw.split(',') if tok.strip()]
-            for tok in tokens:
-                normalized = self._normalize_highlight_term(tok)
-                if normalized and normalized not in seen:
-                    aggregated.append(normalized)
-                    seen.add(normalized)
-        return aggregated
+        return ssa_gui_details._collect_highlight_terms(self)
 
     def _highlight_text(self, text, terms):
-        """Delegate to helper function."""
-        bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
-        fg = getattr(self, '_highlight_text_color', None)
-        weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
-        try:
-            return highlight_text(
-                text,
-                terms,
-                bg_color=bg,
-                font_weight=weight,
-                text_color=fg,
-            )
-        except TypeError:
-            # Compat with legacy helper signatures (without text_color).
-            try:
-                return highlight_text(text, terms, bg, weight)
-            except TypeError:
-                return highlight_text(text, terms)
+        return ssa_gui_details._highlight_text(self, text, terms)
 
     def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
-        """Formata dados da SSA como HTML com highlight opcional."""
-        # Single display-formatting entrypoint for details panel; keep format_cell here.
-        # HTML is required here to keep search hit highlighting in the details panel.
-        import html as html_module
-        HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
-
-        if font_size_pt is None:
-            font_size_pt = DETAILS_DIALOG_FONT_SIZE
-
-        # Obtem termos de busca se necessario
-        search_terms = (
-            self._collect_highlight_terms() if highlight_search_terms else []
+        return ssa_gui_details._format_details_html(
+            self,
+            series,
+            highlight_search_terms=highlight_search_terms,
+            font_size_pt=font_size_pt,
+            linkify=linkify,
         )
-
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            text_color = self.palette().color(_QPal.ColorRole.WindowText).name()
-            link_color = self.palette().color(_QPal.ColorRole.Highlight).name()
-        except Exception:
-            text_color = "#000000"
-            link_color = text_color
-
-        html_lines = [
-            f'<html><body style="font-family: {MONO_FONT_FAMILY}; font-size: {font_size_pt}pt; color: {text_color};">'
-        ]
-        html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
-
-        # Ordenar campos: prioridade primeiro, depois alfabetico
-        def field_sort_key(item):
-            col, _ = item
-            try:
-                return (0, DETAIL_FIELD_PRIORITY.index(col))
-            except ValueError:
-                return (1, col)
-
-        sorted_items = sorted(series.items(), key=field_sort_key)
-
-        for col, value in sorted_items:
-            if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
-                continue
-            # Formata valor
-            formatted_value = format_cell(value, col)
-
-            # Pula campos vazios
-            if not formatted_value:
-                continue
-
-            # Nome de exibicao
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-
-            # Aplica highlight se necessario
-            if highlight_search_terms and search_terms:
-                formatted_value = self._highlight_text(formatted_value, search_terms)
-            else:
-                formatted_value = html_module.escape(formatted_value)
-
-            # Adiciona linha
-            html_lines.append(
-                f'<tr>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{formatted_value}</td>'
-                f'</tr>'
-            )
-
-        try:
-            derived_list = self._get_derivadas_for_ssa(series.get("numero_ssa"))
-        except Exception:
-            derived_list = []
-        if derived_list:
-            if linkify:
-                items = []
-                for item in derived_list:
-                    href = self._normalize_ssa_value(item)
-                    display = html_module.escape(item)
-                    items.append(
-                        f'<a href="ssa://{href}" style="color:{link_color}; text-decoration:none; border-bottom: 1px solid {link_color};">'
-                        f'{display}</a>'
-                    )
-                derived_text = ", ".join(items)
-            else:
-                derived_text = ", ".join(derived_list)
-                if highlight_search_terms and search_terms:
-                    derived_text = self._highlight_text(derived_text, search_terms)
-                else:
-                    derived_text = html_module.escape(derived_text)
-            label = f"SSAs derivadas ({len(derived_list)})"
-            html_lines.append(
-                f'<tr>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(label)}:</td>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{derived_text}</td>'
-                f'</tr>'
-            )
-
-        html_lines.append('</table></body></html>')
-        return '\n'.join(html_lines)
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
@@ -2359,199 +2229,28 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
 
     def _normalize_ssa_value(self, value):
-        try:
-            raw = value or ""
-        except Exception:
-            raw = ""
-        text = str(raw).strip()
-        if not text:
-            return ""
-        lowered = text.casefold()
-        if lowered in ("nan", "none", "nat", "<na>"):
-            return ""
-        try:
-            digits = re.sub(r"\D", "", text)
-        except Exception:
-            digits = ""
-        if digits:
-            return digits
-        return lowered
+        return ssa_gui_details._normalize_ssa_value(self, value)
 
     def _normalize_ssa_series(self, series: pd.Series) -> pd.Series:
-        """Normaliza valores de SSA em modo vetorizado (mais rapido que apply).
-
-        Regra: se houver digitos, retorna apenas os digitos; senao retorna o texto casefold.
-        Valores vazios/NaN/None/NaT/<NA> viram string vazia.
-        """
-        try:
-            s = series.astype(str).str.strip()
-            lowered = s.str.casefold()
-            empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
-            digits = s.str.replace(r"\D+", "", regex=True)
-            out = digits.where(digits.ne(""), lowered)
-            return out.where(~empty_mask, "")
-        except Exception as exc:
-            logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
-            try:
-                return series.apply(self._normalize_ssa_value)
-            except Exception:
-                return pd.Series([""] * len(series), index=getattr(series, "index", None))
+        return ssa_gui_details._normalize_ssa_series(self, series)
 
     def update_details_from_selection(self):
-        """Atualiza o painel de detalhes com base na linha selecionada."""
-        if self.table_widget.rowCount() == 0:
-            self.details_text.clear()
-            return
-        selected_rows = self.table_widget.selectionModel().selectedRows()
-        if not selected_rows:
-            self.details_text.clear()
-            return
-        row = selected_rows[0].row()
-        series = self._get_series_from_row(row)
-        if series is None:
-            self.details_text.clear()
-            return
-
-        try:
-            font_size_pt = None
-            if hasattr(self, 'details_group'):
-                try:
-                    base_font = self.details_group.font()
-                    size = base_font.pointSizeF()
-                    if size <= 0:
-                        size = float(base_font.pointSize())
-                    if size > 0:
-                        # HTML content sets its own font-size; adjust here to keep details smaller.
-                        font_size_pt = max(size - 1.0, 8.0)
-                except Exception:
-                    font_size_pt = None
-            html_content = self._format_details_html(
-                series,
-                highlight_search_terms=True,
-                font_size_pt=font_size_pt,
-                linkify=True,
-            )
-            self.details_text.setHtml(html_content)
-            return
-        except Exception as exc:
-            logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
-
-        # Fallback para texto simples se HTML nao estiver disponivel
-        def field_sort_key(item):
-            col, _ = item
-            try:
-                return (0, DETAIL_FIELD_PRIORITY.index(col))
-            except ValueError:
-                return (1, col)
-
-        sorted_items = sorted(series.items(), key=field_sort_key)
-        lines = []
-        for col, value in sorted_items:
-            if col in {"id", "derivada_de"} or str(col).startswith("_"):
-                continue
-            formatted_value = format_cell(value, col)
-            if not formatted_value:
-                continue
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-            lines.append(f"{display_name}: {formatted_value}")
-        details_str = "\n".join(lines)
-        try:
-            self.details_text.setPlainText(details_str)
-        except Exception as exc:
-            logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+        return ssa_gui_details.update_details_from_selection(self)
 
     def _get_derivadas_for_ssa(self, numero_ssa):
-        if self.df_completo is None or self.df_completo.empty:
-            return []
-        if "derivada_de" not in self.df_completo.columns or "numero_ssa" not in self.df_completo.columns:
-            return []
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return []
-        try:
-            series_norm = self._normalize_ssa_series(self.df_completo["derivada_de"])
-            mask = series_norm.eq(num_norm)
-            derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
-            derived = []
-            for value in derived_raw:
-                formatted = format_cell(value, "numero_ssa")
-                if formatted:
-                    derived.append(formatted)
-            return derived
-        except Exception as exc:
-            logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
-            return []
+        return ssa_gui_details._get_derivadas_for_ssa(self, numero_ssa)
 
     def _jump_to_ssa(self, numero_ssa):
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return
-        try:
-            df_reset = self.df_exibido.reset_index(drop=True)
-            if "numero_ssa" not in df_reset.columns:
-                return
-            series_norm = self._normalize_ssa_series(df_reset["numero_ssa"])
-            mask = series_norm.eq(num_norm)
-            if not mask.any():
-                self.search_input.setText(f"={num_norm}")
-                self.initiate_filtering()
-                return
-            pos = int(mask[mask].index[0])
-            page_size = int(getattr(self.paginator, "page_size", 50))
-            page = int(pos // page_size + 1)
-            try:
-                self.paginator.current_page = page
-            except Exception as exc:
-                logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
-            self.display_current_page(page)
-            row_in_page = int(pos % page_size)
-            try:
-                self.table_widget.selectRow(row_in_page)
-            except Exception as exc:
-                logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
-        except Exception as exc:
-            logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
+        return ssa_gui_details._jump_to_ssa(self, numero_ssa)
 
     def _on_details_anchor_clicked(self, url):
-        try:
-            href = url.toString()
-        except Exception:
-            return
-        if not href:
-            return
-        if href.startswith("ssa://"):
-            target = href[len("ssa://"):]
-        elif href.startswith("ssa:"):
-            target = href[len("ssa:"):]
-        else:
-            return
-        target = target.strip().lstrip("/")
-        if target:
-            self._jump_to_ssa(target)
+        return ssa_gui_details._on_details_anchor_clicked(self, url)
 
     def _filter_by_derivadas(self, numero_ssa):
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return
-        self._last_derivada_origem = num_norm
-        self._active_column_filters["derivada_de"] = num_norm
-        try:
-            self._build_column_filters_panel()
-        except Exception as exc:
-            logger.warning("Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc)
-        self._refresh_after_filter_change()
+        return ssa_gui_details._filter_by_derivadas(self, numero_ssa)
 
     def _clear_derivadas_filter(self):
-        if "derivada_de" in self._active_column_filters:
-            self._active_column_filters.pop("derivada_de", None)
-        try:
-            self._build_column_filters_panel()
-        except Exception as exc:
-            logger.warning("Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s", exc)
-        self._refresh_after_filter_change()
-        if self._last_derivada_origem:
-            self._jump_to_ssa(self._last_derivada_origem)
-            self._last_derivada_origem = None
+        return ssa_gui_details._clear_derivadas_filter(self)
 
     def show_context_menu(self, position):
         """Mostra menu de contexto na tabela."""
