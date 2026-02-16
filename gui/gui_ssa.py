@@ -64,11 +64,16 @@ logger = logging.getLogger(__name__)
 # Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
 GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
 MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
+GLOBAL_RETIRED_DATA_LOADER_META = {}
 
 # Retencao global defensiva para workers de reescaneamento (importacao) que podem
 # continuar por alguns instantes apos o fechamento do dialogo modal.
 GLOBAL_RETIRED_RESCAN_WORKERS = []
 MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 8
+GLOBAL_RETIRED_RESCAN_META = {}
+
+RETIRED_WORKER_TTL_SEC = 300.0
+RETIRED_WORKER_FORCE_WAIT_MS = 500
 logger.addHandler(logging.NullHandler())
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
@@ -4264,8 +4269,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if worker in retired:
             return
         retired.append(worker)
+        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
         if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
+        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
 
         def _release_worker_ref(w=worker):
             try:
@@ -4278,6 +4285,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
             except Exception as exc:
                 logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
+            try:
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+            except Exception as exc:
+                logger.debug("Falha ao remover meta do worker de carga: %s", exc)
 
         try:
             worker.finished.connect(_release_worker_ref)
@@ -4319,16 +4330,105 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _prune_retired_data_loader_workers(self) -> None:
         """Remove referencias globais/locais para workers ja finalizados."""
+        now = perf_counter()
         retired_local = list(getattr(self, "_retired_data_loader_workers", []) or [])
-        if retired_local:
-            self._retired_data_loader_workers = [w for w in retired_local if self._is_data_loader_worker_running(w)]
-        else:
-            self._retired_data_loader_workers = []
+        pruned_local = []
+        for w in retired_local:
+            if not self._is_data_loader_worker_running(w):
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
+                try:
+                    stopped = self._cleanup_data_loader_worker(
+                        w,
+                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    )
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
+                    stopped = False
+                if stopped:
+                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
+            pruned_local.append(w)
+        self._retired_data_loader_workers = pruned_local
 
-        running_global = [w for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS if self._is_data_loader_worker_running(w)]
+        running_global = []
+        for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            if not self._is_data_loader_worker_running(w):
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
+                try:
+                    stopped = self._cleanup_data_loader_worker(
+                        w,
+                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    )
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
+                    stopped = False
+                if stopped:
+                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
+            running_global.append(w)
         if len(running_global) > MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             running_global = running_global[-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:]
         GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = running_global
+        for w in list(GLOBAL_RETIRED_DATA_LOADER_META.keys()):
+            if w not in GLOBAL_RETIRED_DATA_LOADER_WORKERS and w not in self._retired_data_loader_workers:
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+
+    def _is_rescan_worker_running(self, worker) -> bool:
+        if not self._is_data_loader_worker_alive(worker):
+            return False
+        try:
+            if hasattr(worker, "isRunning"):
+                return bool(worker.isRunning())
+        except Exception:
+            return False
+        return False
+
+    def _prune_retired_rescan_workers(self) -> None:
+        now = perf_counter()
+        running_global = []
+        for w in GLOBAL_RETIRED_RESCAN_WORKERS:
+            if not self._is_rescan_worker_running(w):
+                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_RESCAN_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Rescan worker excedeu TTL; solicitando stop.")
+                try:
+                    if hasattr(w, "stop"):
+                        w.stop()
+                    if hasattr(w, "quit"):
+                        w.quit()
+                    if hasattr(w, "wait"):
+                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
+                    if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
+                        w.terminate()
+                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
+                if not self._is_rescan_worker_running(w):
+                    GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_RESCAN_META[w] = now
+            running_global.append(w)
+        if len(running_global) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+            running_global = running_global[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+        GLOBAL_RETIRED_RESCAN_WORKERS[:] = running_global
+        for w in list(GLOBAL_RETIRED_RESCAN_META.keys()):
+            if w not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
         """Finaliza worker de carga com modo bloqueante opcional.
@@ -6308,6 +6408,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
             except Exception as exc:
                 logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
+            try:
+                GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+            except Exception as exc:
+                logger.debug("Falha ao remover meta do RescanWorker: %s", exc)
 
         def on_success():
             nonlocal cancelled
@@ -6361,8 +6465,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if worker.isRunning():
             if worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
                 GLOBAL_RETIRED_RESCAN_WORKERS.append(worker)
+                GLOBAL_RETIRED_RESCAN_META[worker] = perf_counter()
                 if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
                     GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+            self._prune_retired_rescan_workers()
             logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
 
     def open_docs_folder(self):
@@ -6559,8 +6665,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
                             if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
                                 GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
                                 if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
                                     GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            self._prune_retired_rescan_workers()
                             logger.debug(
                                 "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
                             )
