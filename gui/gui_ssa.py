@@ -1792,11 +1792,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
-        ssa_gui_workers.on_load_error(self, error_msg, request_id=request_id, qmessagebox=QMessageBox)
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga aposentados apos erro: %s", exc)
+        ssa_gui_workers.on_load_error(
+            self,
+            error_msg,
+            request_id=request_id,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
         ssa_gui_workers.on_load_finished(

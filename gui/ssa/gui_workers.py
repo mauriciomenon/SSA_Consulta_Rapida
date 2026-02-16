@@ -12,6 +12,33 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+try:
+    from PyQt6.QtCore import Qt as _Qt
+    _QT_QUEUED = _Qt.ConnectionType.QueuedConnection
+except Exception:
+    _QT_QUEUED = None
+
+
+def _connect_signal(signal, slot, *, label: str) -> bool:
+    try:
+        if _QT_QUEUED is not None:
+            signal.connect(slot, type=_QT_QUEUED)
+        else:
+            signal.connect(slot)
+        return True
+    except Exception as exc:
+        logger.debug("Falha ao conectar signal %s: %s", label, exc)
+        return False
+
+
+def _safe_disconnect(signal, label: str) -> None:
+    if signal is None:
+        return
+    try:
+        signal.disconnect()
+    except Exception as exc:
+        logger.debug("Falha ao desconectar %s: %s", label, exc)
+
 
 def retain_data_loader_worker_until_finished(
     window,
@@ -62,19 +89,10 @@ def retain_data_loader_worker_until_finished(
         except Exception as exc:
             logger.debug("Falha ao remover meta do worker de carga: %s", exc)
 
-    try:
-        worker.finished.connect(_release_worker_ref)
-    except Exception as exc:
-        logger.debug("Falha ao conectar cleanup no signal finished do worker de carga: %s", exc)
+    if not _connect_signal(worker.finished, _release_worker_ref, label="data_loader.finished.cleanup"):
         _release_worker_ref()
-    try:
-        worker.destroyed.connect(_release_worker_ref)
-    except Exception as exc:
-        logger.debug("Falha ao conectar cleanup no signal destroyed do worker de carga: %s", exc)
-    try:
-        worker.finished.connect(worker.deleteLater)
-    except Exception as exc:
-        logger.debug("Falha ao conectar deleteLater no worker de carga: %s", exc)
+    _connect_signal(worker.destroyed, _release_worker_ref, label="data_loader.destroyed.cleanup")
+    _connect_signal(worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater")
     prune_retired_data_loader_workers(
         window,
         global_workers=global_workers,
@@ -260,30 +278,21 @@ def cleanup_data_loader_worker(
 ) -> bool:
     if worker is None:
         return True
+    still_running = False
     try:
-        try:
-            worker.data_loaded.disconnect()
-        except Exception as exc:
-            logger.debug("Falha ao desconectar data_loaded do worker de carga: %s", exc)
-        try:
-            worker.error_occurred.disconnect()
-        except Exception as exc:
-            logger.debug("Falha ao desconectar error_occurred do worker de carga: %s", exc)
-        try:
-            worker.finished.disconnect()
-        except Exception as exc:
-            logger.debug("Falha ao desconectar finished do worker de carga: %s", exc)
-        still_running = False
+        _safe_disconnect(getattr(worker, "data_loaded", None), "data_loaded do worker de carga")
+        _safe_disconnect(getattr(worker, "error_occurred", None), "error_occurred do worker de carga")
+        _safe_disconnect(getattr(worker, "finished", None), "finished do worker de carga")
         try:
             if hasattr(worker, "cancel"):
                 worker.cancel()
             elif hasattr(worker, "requestInterruption"):
                 worker.requestInterruption()
-            if hasattr(worker, "isRunning") and worker.isRunning():
+            if is_data_loader_worker_running(worker, sip_module):
                 worker.quit()
                 if int(wait_ms or 0) > 0:
                     worker.wait(int(wait_ms))
-            still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
+            still_running = is_data_loader_worker_running(worker, sip_module)
         except Exception as exc:
             logger.warning("Falha ao solicitar encerramento do worker de carga: %s", exc)
             still_running = True
@@ -305,6 +314,8 @@ def cleanup_data_loader_worker(
             logger.debug("Falha ao chamar deleteLater no worker de carga: %s", exc)
     except Exception as exc:
         logger.warning("Falha durante cleanup do worker de carga: %s", exc)
+        still_running = True
+    finally:
         try:
             prune_retired_data_loader_workers(
                 window,
@@ -316,21 +327,8 @@ def cleanup_data_loader_worker(
                 sip_module=sip_module,
             )
         except Exception as prune_exc:
-            logger.debug("Falha ao podar workers de carga apos erro de cleanup: %s", prune_exc)
-        return False
-    try:
-        prune_retired_data_loader_workers(
-            window,
-            global_workers=global_workers,
-            global_meta=global_meta,
-            max_global_workers=max_global_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
-        )
-    except Exception as exc:
-        logger.debug("Falha ao podar workers de carga apos cleanup: %s", exc)
-    return True
+            logger.debug("Falha ao podar workers de carga apos cleanup: %s", prune_exc)
+    return not still_running
 
 
 def load_data(
@@ -360,8 +358,8 @@ def load_data(
     except Exception as exc:
         logger.debug("Falha ao podar workers de carga antes de novo load: %s", exc)
     if not os.path.exists(db_path):
-        missing_db_msg = f"Banco de dados '{db_path}' nao encontrado. Execute o programa principal primeiro."
-        logger.warning(missing_db_msg)
+        missing_db_msg = "Banco de dados nao encontrado. Execute o programa principal primeiro."
+        logger.warning("Banco de dados nao encontrado.")
         try:
             window.status_label.setText("Status: Banco de dados nao encontrado.")
         except Exception:
@@ -442,7 +440,18 @@ def load_data(
         handler = getattr(window, "on_load_error", None)
         if callable(handler):
             return handler(msg, request_id=rid)
-        return on_load_error(window, msg, request_id=rid, qmessagebox=qmessagebox)
+        return on_load_error(
+            window,
+            msg,
+            request_id=rid,
+            qmessagebox=qmessagebox,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
 
     def _handle_load_finished(w=worker, rid=request_id):
         handler = getattr(window, "on_load_finished", None)
@@ -460,13 +469,10 @@ def load_data(
             sip_module=sip_module,
         )
 
-    worker.data_loaded.connect(_handle_data_loaded)
-    worker.error_occurred.connect(_handle_load_error)
-    worker.finished.connect(_handle_load_finished)
-    try:
-        worker.finished.connect(worker.deleteLater)
-    except Exception as exc:
-        logger.debug("Falha ao conectar deleteLater no worker de carga atual: %s", exc)
+    _connect_signal(worker.data_loaded, _handle_data_loaded, label="data_loader.data_loaded")
+    _connect_signal(worker.error_occurred, _handle_load_error, label="data_loader.error_occurred")
+    _connect_signal(worker.finished, _handle_load_finished, label="data_loader.finished")
+    _connect_signal(worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater")
     worker.start()
 
 
@@ -532,7 +538,19 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     )
 
 
-def on_load_error(window, error_msg: str, *, request_id: int | None = None, qmessagebox=None):
+def on_load_error(
+    window,
+    error_msg: str,
+    *,
+    request_id: int | None = None,
+    qmessagebox=None,
+    global_workers: list | None = None,
+    global_meta: dict | None = None,
+    max_global_workers: int | None = None,
+    retired_ttl_sec: float | None = None,
+    retired_force_wait_ms: int | None = None,
+    sip_module=None,
+):
     active_id = getattr(window, "_active_data_load_request_id", None)
     if request_id is not None and active_id is not None and request_id != active_id:
         logger.debug("Ignorando erro de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
@@ -548,6 +566,19 @@ def on_load_error(window, error_msg: str, *, request_id: int | None = None, qmes
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
     window.progress_bar.setVisible(False)
+    if global_workers is not None and global_meta is not None:
+        try:
+            prune_retired_data_loader_workers(
+                window,
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=int(max_global_workers or 0),
+                retired_ttl_sec=float(retired_ttl_sec or 0),
+                retired_force_wait_ms=int(retired_force_wait_ms or 0),
+                sip_module=sip_module,
+            )
+        except Exception as exc:
+            logger.debug("Falha ao podar workers de carga apos erro: %s", exc)
 
 
 def on_load_finished(
@@ -659,9 +690,9 @@ def rescan_data(
     worker = rescan_worker_cls(main_py_path, project_root)
     window._active_rescan_worker = worker
 
-    worker.output_line.connect(progress_dialog.append_output)
-    worker.error_line.connect(progress_dialog.append_error)
-    worker.progress.connect(progress_dialog.update_progress)
+    _connect_signal(worker.output_line, progress_dialog.append_output, label="rescan.output_line")
+    _connect_signal(worker.error_line, progress_dialog.append_error, label="rescan.error_line")
+    _connect_signal(worker.progress, progress_dialog.update_progress, label="rescan.progress")
 
     cancelled = False
 
@@ -706,16 +737,10 @@ def rescan_data(
         window.status_label.setText("Status: Erro no reescaneamento.")
         _release_worker_ref()
 
-    worker.finished_success.connect(on_success)
-    worker.finished_error.connect(on_error)
-    try:
-        worker.finished.connect(_release_worker_ref)
-    except Exception as exc:
-        logger.debug("Falha ao conectar signal finished do RescanWorker: %s", exc)
-    try:
-        worker.finished.connect(worker.deleteLater)
-    except Exception as exc:
-        logger.debug("Falha ao conectar deleteLater no RescanWorker: %s", exc)
+    _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
+    _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
+    _connect_signal(worker.finished, _release_worker_ref, label="rescan.finished.release")
+    _connect_signal(worker.finished, worker.deleteLater, label="rescan.finished.deleteLater")
 
     def on_cancel_requested():
         nonlocal cancelled
@@ -734,7 +759,12 @@ def rescan_data(
     worker.start()
     progress_dialog.exec()
 
-    if worker.isRunning():
+    try:
+        still_running = bool(worker.isRunning())
+    except Exception as exc:
+        logger.debug("Falha ao checar estado do RescanWorker apos dialogo: %s", exc)
+        still_running = False
+    if still_running:
         if worker not in global_workers:
             global_workers.append(worker)
             global_meta[worker] = perf_counter()

@@ -53,16 +53,25 @@ def resolve_startup_theme(gui_settings: dict) -> str:
     return "gruvbox"
 
 
-def persist_gui_preferences(gui_prefs: dict, project_root: str) -> None:
-    try:
-        atomic_write_json_file(
-            os.path.join(project_root, "config", "gui_main_preferences.json"),
-            gui_prefs,
-            indent=2,
-            ensure_ascii=False,
-        )
-    except Exception as exc:
-        logger.warning("Falha ao persistir preferencias GUI: %s", exc)
+def persist_gui_preferences(gui_prefs: dict, project_root: str, *, retries: int = 1) -> bool:
+    attempts = max(0, int(retries or 0)) + 1
+    for attempt in range(attempts):
+        try:
+            atomic_write_json_file(
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                gui_prefs,
+                indent=2,
+                ensure_ascii=False,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Falha ao persistir preferencias GUI (tentativa %s/%s): %s",
+                attempt + 1,
+                attempts,
+                exc,
+            )
+    return False
 
 
 def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
@@ -203,60 +212,46 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         logger.warning("Falha ao abrir menu de temas: %s", exc)
 
 
-def apply_theme(
-    window,
-    name: str,
-    *,
-    gui_prefs: dict,
-    project_root: str,
-    highlight_defaults: tuple[str, str] | None = None,
-) -> None:
-    from gui.helpers import (
-        build_global_widget_qss,
-        build_central_widget_qss,
-        build_group_box_qss,
-        build_line_edit_qss,
-    )
+def _apply_global_palette(window, normalized: str, same_theme: bool):
+    from gui.helpers import build_global_widget_qss
 
-    highlight_defaults = highlight_defaults or ("yellow", "bold")
-    highlight_bg_default, highlight_weight_default = highlight_defaults
-
-    normalized = normalize_theme(name)
-    current_theme = normalize_theme(getattr(window, "_current_theme", "") or "")
-    same_theme = bool(current_theme and normalized == current_theme)
-    roles = get_theme_roles(normalized)
     if same_theme:
-        pal = window.palette()
-    else:
+        return window.palette()
+    try:
+        from PyQt6.QtWidgets import QApplication, QStyleFactory
+        app = QApplication.instance()
+        pal = get_palette(normalized)
         try:
-            from PyQt6.QtWidgets import QApplication, QStyleFactory
-            app = QApplication.instance()
-            pal = get_palette(normalized)
-            try:
-                if app is not None:
-                    styles = QStyleFactory.keys()
-                    if styles and 'Fusion' in styles:
-                        app.setStyle('Fusion')
-            except Exception as exc:
-                logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
             if app is not None:
-                app.setPalette(pal)
-                try:
-                    block = build_global_widget_qss(pal)
-                    if getattr(window, "_last_global_theme_qss", None) != block:
-                        app.setStyleSheet(block)
-                        window._last_global_theme_qss = block
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
-            window.setPalette(pal)
-        except Exception as exc:  # noqa: BLE001
-            logger.debug(
-                "Falha ao aplicar paleta global do tema '%s'; seguindo fallback local: %s",
-                normalized,
-                exc,
-            )
-            pal = get_palette(normalized)
-            window.setPalette(pal)
+                styles = QStyleFactory.keys()
+                if styles and 'Fusion' in styles:
+                    app.setStyle('Fusion')
+        except Exception as exc:
+            logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
+        if app is not None:
+            app.setPalette(pal)
+            try:
+                block = build_global_widget_qss(pal)
+                if getattr(window, "_last_global_theme_qss", None) != block:
+                    app.setStyleSheet(block)
+                    window._last_global_theme_qss = block
+            except Exception as exc:
+                logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
+        window.setPalette(pal)
+        return pal
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "Falha ao aplicar paleta global do tema '%s'; seguindo fallback local: %s",
+            normalized,
+            exc,
+        )
+        pal = get_palette(normalized)
+        window.setPalette(pal)
+        return pal
+
+
+def _apply_central_widget_theme(window, normalized: str, pal) -> None:
+    from gui.helpers import build_central_widget_qss
 
     try:
         central = window.centralWidget()
@@ -297,6 +292,9 @@ def apply_theme(
                     central.setStyleSheet(existing)
     except Exception as exc:
         logger.warning("Falha ao aplicar tema no central widget: %s", exc)
+
+
+def _apply_tabs_theme(window, pal, roles: dict) -> None:
     try:
         if hasattr(window, "main_tabs") and window.main_tabs is not None:
             from PyQt6.QtGui import QPalette as _QPal
@@ -327,13 +325,17 @@ def apply_theme(
             window.main_tabs.setStyleSheet(tab_css)
     except Exception as exc:
         logger.warning("Falha ao aplicar estilo de tabs no tema atual: %s", exc)
+
+
+def _apply_table_header_theme(window) -> None:
     try:
         header = window.table_widget.horizontalHeader()
         header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
     except Exception as exc:
         logger.debug("Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc)
 
-    window._current_theme = normalized
+
+def _update_tab_contexts(window, normalized: str) -> None:
     try:
         tab_contexts = getattr(window, "_tab_contexts", None)
         if isinstance(tab_contexts, list):
@@ -350,12 +352,24 @@ def apply_theme(
                     break
     except Exception as exc:
         logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
+
+
+def _apply_theme_widget_styles(
+    window,
+    normalized: str,
+    pal,
+    roles: dict,
+    *,
+    highlight_bg_default: str,
+    highlight_weight_default: str,
+) -> None:
+    from gui.helpers import build_group_box_qss, build_line_edit_qss
+
     try:
         light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
         selector = getattr(window, 'column_selector', None)
         pal_active = window.palette()
         from PyQt6.QtGui import QPalette as _QPal
-        roles = get_theme_roles(normalized)
         txt = pal_active.color(_QPal.ColorRole.WindowText).name()
         base = pal_active.color(_QPal.ColorRole.Base).name()
         mid = pal_active.color(_QPal.ColorRole.Mid).name()
@@ -530,6 +544,8 @@ def apply_theme(
     except Exception as exc:
         logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
 
+
+def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
     try:
         if getattr(window, "_current_tab_kind", None) == "filters":
             window._pending_theme_refresh_column_filters = normalized
@@ -539,18 +555,55 @@ def apply_theme(
     except Exception as exc:
         logger.debug("Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc)
 
+
+def _persist_theme_selection(window, normalized: str, gui_prefs: dict, project_root: str) -> None:
     try:
         gui_settings = gui_prefs.setdefault('gui_settings', {})
         if gui_settings.get('theme') != normalized:
             gui_settings['theme'] = normalized
-            atomic_write_json_file(
-                os.path.join(project_root, "config", "gui_main_preferences.json"),
-                gui_prefs,
-                indent=2,
-                ensure_ascii=False,
-            )
+            ok = persist_gui_preferences(gui_prefs, project_root, retries=1)
+            if not ok:
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    try:
+                        window.status_label.setText("Status: Tema aplicado; falha ao salvar preferencia.")
+                    except Exception:
+                        pass
     except Exception as exc:
         logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
+
+
+def apply_theme(
+    window,
+    name: str,
+    *,
+    gui_prefs: dict,
+    project_root: str,
+    highlight_defaults: tuple[str, str] | None = None,
+) -> None:
+    highlight_defaults = highlight_defaults or ("yellow", "bold")
+    highlight_bg_default, highlight_weight_default = highlight_defaults
+
+    normalized = normalize_theme(name)
+    current_theme = normalize_theme(getattr(window, "_current_theme", "") or "")
+    same_theme = bool(current_theme and normalized == current_theme)
+    roles = get_theme_roles(normalized)
+    pal = _apply_global_palette(window, normalized, same_theme)
+    _apply_central_widget_theme(window, normalized, pal)
+    _apply_tabs_theme(window, pal, roles)
+    _apply_table_header_theme(window)
+
+    window._current_theme = normalized
+    _update_tab_contexts(window, normalized)
+    _apply_theme_widget_styles(
+        window,
+        normalized,
+        pal,
+        roles,
+        highlight_bg_default=highlight_bg_default,
+        highlight_weight_default=highlight_weight_default,
+    )
+    _refresh_filter_widgets_for_theme(window, normalized)
+    _persist_theme_selection(window, normalized, gui_prefs, project_root)
     apply_macos_contrast(window, normalized)
     try:
         window.update_details_from_selection()
