@@ -30,9 +30,10 @@ class FilterCache:
         combined = f"{df_hash}|{chunks_str}|{default_mode}"
         return hashlib.md5(combined.encode('utf-8')).hexdigest()
 
-    def get(self, df_hash: str, search_chunks: list, default_mode: str):
+    def get(self, df_hash: str, search_chunks: list, default_mode: str) -> pd.DataFrame | None:
         """Recupera resultado do cache se disponivel."""
         key = self._generate_key(df_hash, search_chunks, default_mode)
+        result = None
 
         with self._lock:
             if key in self._cache:
@@ -47,7 +48,10 @@ class FilterCache:
                 return None
 
         # Return copy outside the lock to keep critical section small.
-        return result.copy()  # Retorna copia para evitar modificacoes
+        if isinstance(result, pd.DataFrame):
+            return result.copy()  # Retorna copia para evitar modificacoes
+        logger.debug("Cache hit sem DataFrame valido para key: %s", key[:8])
+        return None
 
     def put(self, df_hash: str, search_chunks: list, default_mode: str, result: pd.DataFrame):
         """Armazena resultado no cache."""
