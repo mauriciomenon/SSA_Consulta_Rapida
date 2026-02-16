@@ -304,10 +304,23 @@ def extract_data_from_excel(
 
         # Carrega o mapeamento de colunas
         column_mappings = _load_column_mappings()
+        if not column_mappings:
+            logger.warning(
+                "Mapeamento de colunas vazio; mantendo nomes originais para '%s'.",
+                file_path,
+            )
 
         # Normaliza os nomes das colunas e resolve duplicadas
-        combined_df.rename(columns=column_mappings, inplace=True)
+        if column_mappings:
+            combined_df.rename(columns=column_mappings, inplace=True)
         combined_df = _deduplicate_columns(combined_df)
+
+        required_columns = {"numero_ssa", "descricao_ssa", "data_cadastro"}
+        missing_required = required_columns.difference(set(combined_df.columns))
+        if missing_required:
+            raise ExtractionError(
+                f"Missing required columns after normalization: {sorted(missing_required)}"
+            )
 
         if 'prazo_limite' in combined_df.columns:
             status_col = 'status_execucao_prazo'
