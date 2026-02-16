@@ -1,18 +1,12 @@
-import os
-import sys
-
 import pytest
 
 pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente de teste")
 from PyQt6.QtWidgets import QApplication
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 import gui.workers.rescan_worker as rescan_worker_mod  # noqa: E402
 from gui.workers.rescan_worker import RescanWorker  # noqa: E402
 
+project_root = "pythonpath-configured"
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
