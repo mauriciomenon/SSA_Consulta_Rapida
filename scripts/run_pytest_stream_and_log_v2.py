@@ -131,15 +131,15 @@ def main():
             # Ensure the sentinel is delivered by dropping older lines if needed.
             while True:
                 try:
-                    line_queue.put_nowait(None)
+                    line_queue.put(None, timeout=0.2)
                     return
                 except queue.Full:
                     try:
-                        line_queue.get_nowait()
+                        line_queue.get(timeout=0.2)
                         with dropped_lock:
                             dropped_lines += 1
                     except queue.Empty:
-                        time.sleep(0.005)
+                        continue
 
         try:
             line_queue.put_nowait(value)
