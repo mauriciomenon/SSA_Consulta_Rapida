@@ -73,6 +73,8 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
         for table in tables:
             if table == target_table:
                 continue
+            if not is_valid_identifier(table):
+                continue
             try:
                 fk_rows = conn.execute(f"PRAGMA foreign_key_list({table})").fetchall()
             except Exception:
