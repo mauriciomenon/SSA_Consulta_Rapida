@@ -4273,7 +4273,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
         if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
-        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
 
         def _release_worker_ref(w=worker):
             try:
