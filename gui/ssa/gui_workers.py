@@ -606,3 +606,125 @@ def on_load_finished(
             )
         except Exception as exc:
             logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
+
+
+def rescan_data(
+    window,
+    *,
+    project_root: str,
+    rescan_worker_cls,
+    rescan_dialog_cls,
+    qmessagebox,
+    global_workers: list,
+    global_meta: dict,
+    max_global_workers: int,
+    retired_ttl_sec: float,
+    retired_force_wait_ms: int,
+    sip_module,
+) -> None:
+    active_worker = getattr(window, "_active_rescan_worker", None)
+    if active_worker is not None:
+        try:
+            if hasattr(active_worker, "isRunning") and active_worker.isRunning():
+                window.status_label.setText("Status: Reescaneamento ja em andamento.")
+                return
+        except Exception as exc:
+            logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
+
+    main_py_path = os.path.join(project_root, "main.py")
+    if not os.path.exists(main_py_path):
+        if qmessagebox is not None:
+            qmessagebox.warning(window, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}")
+        return
+
+    progress_dialog = rescan_dialog_cls(window)
+
+    worker = rescan_worker_cls(main_py_path, project_root)
+    window._active_rescan_worker = worker
+
+    worker.output_line.connect(progress_dialog.append_output)
+    worker.error_line.connect(progress_dialog.append_error)
+    worker.progress.connect(progress_dialog.update_progress)
+
+    cancelled = False
+
+    def _release_worker_ref(*_args) -> None:
+        try:
+            if getattr(window, "_active_rescan_worker", None) is worker:
+                window._active_rescan_worker = None
+        except Exception as exc:
+            logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
+        try:
+            if worker in global_workers:
+                global_workers.remove(worker)
+        except Exception as exc:
+            logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
+        try:
+            global_meta.pop(worker, None)
+        except Exception as exc:
+            logger.debug("Falha ao remover meta do RescanWorker: %s", exc)
+
+    def on_success():
+        nonlocal cancelled
+        if cancelled:
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            window.status_label.setText("Status: Reescaneamento cancelado.")
+            _release_worker_ref()
+            return
+        _release_worker_ref()
+        progress_dialog.set_finished(True)
+        window.status_label.setText(
+            "Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar."
+        )
+
+    def on_error(error_msg):
+        nonlocal cancelled
+        if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
+            cancelled = True
+            progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+            window.status_label.setText("Status: Reescaneamento cancelado.")
+            _release_worker_ref()
+            return
+        progress_dialog.set_finished(False, error_msg)
+        window.status_label.setText("Status: Erro no reescaneamento.")
+        _release_worker_ref()
+
+    worker.finished_success.connect(on_success)
+    worker.finished_error.connect(on_error)
+    try:
+        worker.finished.connect(_release_worker_ref)
+    except Exception as exc:
+        logger.debug("Falha ao conectar signal finished do RescanWorker: %s", exc)
+    try:
+        worker.finished.connect(worker.deleteLater)
+    except Exception as exc:
+        logger.debug("Falha ao conectar deleteLater no RescanWorker: %s", exc)
+
+    def on_cancel_requested():
+        nonlocal cancelled
+        cancelled = True
+        if worker.isRunning():
+            worker.stop()
+            window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
+
+    progress_dialog.cancel_requested.connect(on_cancel_requested)
+
+    worker.start()
+    progress_dialog.exec()
+
+    if worker.isRunning():
+        if worker not in global_workers:
+            global_workers.append(worker)
+            global_meta[worker] = perf_counter()
+            if len(global_workers) > max_global_workers:
+                global_workers[:] = global_workers[-max_global_workers:]
+        prune_retired_rescan_workers(
+            window,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+        logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
