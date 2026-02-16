@@ -23,7 +23,7 @@ def _save_settings_handler(settings: dict):
     try:
         # Delegate to core.config_manager for atomic writes and consistent formatting.
         save_settings(settings)
-        print("Configuracoes salvas em 'config/settings.json'.")
+        print("Configuracoes salvas com sucesso.")
     except Exception as e:  # noqa: BLE001
         print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
 
