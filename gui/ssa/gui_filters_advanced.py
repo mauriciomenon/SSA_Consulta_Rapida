@@ -12,6 +12,7 @@ import pandas as pd
 from pandas.api import types as pd_types
 
 from gui.gui_config import GUI_MAIN_PREFERENCES
+from shared.date_utils import parse_any_date
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -2785,14 +2786,21 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
                 if text.isdigit():
                     vals.append(int(text))
             if vals:
+                vals_sorted = sorted(set(vals))
                 if mode == "eq":
-                    mask &= nums.isin(vals)
+                    mask &= nums.isin(vals_sorted)
                 elif mode == "lte":
-                    threshold = max(vals)
-                    mask &= nums <= threshold
+                    if len(vals_sorted) == 1:
+                        threshold = vals_sorted[0]
+                        mask &= nums <= threshold
+                    else:
+                        mask &= nums.between(vals_sorted[0], vals_sorted[-1])
                 elif mode == "gte":
-                    threshold = min(vals)
-                    mask &= nums >= threshold
+                    if len(vals_sorted) == 1:
+                        threshold = vals_sorted[0]
+                        mask &= nums >= threshold
+                    else:
+                        mask &= nums.between(vals_sorted[0], vals_sorted[-1])
     except Exception as exc:
         logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
 
@@ -2821,20 +2829,47 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
     if emissao_inc or emissao_exc:
         if "data_cadastro" in df.columns:
             try:
-                series = df["data_cadastro"]
-                ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
-                missing = ts.isna()
-                if missing.any():
-                    ts_alt = pd.to_datetime(series[missing], errors="coerce", dayfirst=False)
-                    ts.loc[missing] = ts_alt
-                if pd_types.is_numeric_dtype(series):
-                    nums = pd.to_numeric(series, errors="coerce")
-                    num_mask = nums.notna() & nums.gt(0)
-                    if num_mask.any():
-                        base = pd.Timestamp("1899-12-30")
-                        ts.loc[num_mask] = base + pd.to_timedelta(nums[num_mask], unit="D")
-                years = ts.dt.year
-                years = years.where(years.between(1980, 2100))
+                cache_key = ("data_cadastro", id(df))
+                cache = getattr(self, "_adv_year_emissao_cache", None)
+                years = None
+                if isinstance(cache, dict):
+                    cached = cache.get(cache_key)
+                    if isinstance(cached, pd.Series) and len(cached) == len(df):
+                        try:
+                            if cached.index.equals(df.index):
+                                years = cached
+                            else:
+                                cache.pop(cache_key, None)
+                        except Exception:
+                            cache.pop(cache_key, None)
+                if years is None:
+                    series = df["data_cadastro"]
+                    ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+                    missing = ts.isna()
+                    if missing.any():
+                        ts_alt = pd.to_datetime(series[missing], errors="coerce", dayfirst=False)
+                        ts.loc[missing] = ts_alt
+                    if pd_types.is_numeric_dtype(series):
+                        nums = pd.to_numeric(series, errors="coerce")
+                        num_mask = nums.notna() & nums.gt(0)
+                        if num_mask.any():
+                            base = pd.Timestamp("1899-12-30")
+                            ts.loc[num_mask] = base + pd.to_timedelta(nums[num_mask], unit="D")
+                    remaining = ts.isna()
+                    if remaining.any():
+                        try:
+                            parsed = series[remaining].map(parse_any_date)
+                            ts.loc[remaining] = pd.to_datetime(
+                                parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S"
+                            )
+                        except Exception as exc:
+                            logger.debug("Failed to parse remaining ano emissao dates: %s", exc)
+                    years = ts.dt.year
+                    years = years.where(years.between(1980, 2100))
+                    if not isinstance(cache, dict):
+                        cache = {}
+                    cache[cache_key] = years
+                    self._adv_year_emissao_cache = cache
                 if emissao_inc:
                     mask &= years.isin(emissao_inc)
                 if emissao_exc:
@@ -2906,7 +2941,15 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
     derivada_is = bool(filters.get("derivada_is"))
 
     if "derivada_de" in df.columns:
-        series_derivada = self._normalize_ssa_series(df["derivada_de"])
+        norm_cache = getattr(self, "_adv_norm_cache", None)
+        if not isinstance(norm_cache, dict):
+            norm_cache = {}
+            self._adv_norm_cache = norm_cache
+        deriv_key = ("derivada_de", id(df))
+        series_derivada = norm_cache.get(deriv_key)
+        if not isinstance(series_derivada, pd.Series) or len(series_derivada) != len(df):
+            series_derivada = self._normalize_ssa_series(df["derivada_de"])
+            norm_cache[deriv_key] = series_derivada
         has_derivada = series_derivada.ne("")
         if derivada_is:
             mask &= has_derivada
@@ -2933,7 +2976,11 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
             if origins:
                 try:
                     origin_norm = {str(o) for o in origins if str(o).strip()}
-                    numero_norm = self._normalize_ssa_series(df["numero_ssa"])
+                    num_key = ("numero_ssa", id(df))
+                    numero_norm = norm_cache.get(num_key)
+                    if not isinstance(numero_norm, pd.Series) or len(numero_norm) != len(df):
+                        numero_norm = self._normalize_ssa_series(df["numero_ssa"])
+                        norm_cache[num_key] = numero_norm
                     mask &= numero_norm.isin(origin_norm)
                 except Exception as exc:
                     logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)

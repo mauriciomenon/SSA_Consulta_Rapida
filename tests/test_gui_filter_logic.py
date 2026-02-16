@@ -170,9 +170,9 @@ class TestGUIFilterLogic:
     def test_clear_operations_preserve_group_structure(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         self.window._clear_single_column_filter('setor_executor', 'IEE3, MEL3, MEL4')
-        # Grupo deve ser esvaziado para ambos os campos
-        assert self.window._active_column_filters['setor_executor'] == ''
-        assert self.window._active_column_filters['setor_emissor'] == ''
+        # Grupo deve ser removido para ambos os campos
+        assert 'setor_executor' not in self.window._active_column_filters
+        assert 'setor_emissor' not in self.window._active_column_filters
 
         # Reaplica valor manual e garante aplicação correta
         self.window._active_column_filters['setor_executor'] = 'IEE3'
@@ -183,7 +183,7 @@ class TestGUIFilterLogic:
 
         # Limpa todos e garante reset completo
         self.window._clear_all_column_filters()
-        assert all(not value for value in self.window._active_column_filters.values())
+        assert not self.window._active_column_filters
         self.window._refresh_after_filter_change()
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
 
