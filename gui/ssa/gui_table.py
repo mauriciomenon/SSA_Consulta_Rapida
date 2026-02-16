@@ -169,7 +169,15 @@ def display_current_page(self, page_number):
     # Single display-formatting entrypoint for GUI table rendering.
     # Keep format_dataframe_for_display here to avoid scattered per-cell rules.
     # OTIMIZACAO: Cache formatacao para evitar reformatar dados inalterados
-    display_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)) + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else ''))
+    try:
+        display_df_hash = int(pd.util.hash_pandas_object(display_df, index=True).sum())
+    except Exception as exc:
+        logger.debug("Falha ao calcular hash do DataFrame de exibicao: %s", exc)
+        display_df_hash = hash(
+            str(display_df.shape)
+            + str(list(display_df.columns))
+            + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else "")
+        )
 
     # Usa CacheManager unificado para cache de DataFrame formatado
     cached_formatted = self.cache_manager.get_cached_formatted_df(display_df_hash)
@@ -385,7 +393,7 @@ def _compute_gui_column_widths(self, df: pd.DataFrame):
         if hasattr(df, 'columns'):
             existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
             if not existing_visible_cols:
-                print("ERRO: Nenhuma coluna visível encontrada no DataFrame")
+                logger.error("Nenhuma coluna visivel encontrada no DataFrame")
                 return
 
             # IMPORTANTE: Mantêm a ordem exata de self.visible_columns
@@ -425,7 +433,7 @@ def _compute_gui_column_widths(self, df: pd.DataFrame):
         self._gui_column_pixel_widths = column_widths
 
     except Exception as e:
-        print(f"ERRO em _compute_gui_column_widths: {e}")
+        logger.error("Falha em _compute_gui_column_widths: %s", e)
         # Fallback para larguras mánimas das colunas visáveis apenas
         visible_cols = ['#'] + (self.visible_columns if hasattr(self, 'visible_columns') else [])
         self._gui_column_pixel_widths = {col: 100 for col in visible_cols}
@@ -475,4 +483,3 @@ def _on_header_section_resized(self, logical_index: int, old_size: int, new_size
     except Exception:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO
         pass
-
