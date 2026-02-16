@@ -154,15 +154,15 @@ def main():
 
             if evicted:
                 dropped_lines += 1
-                if dropped_lines % 200 == 1:
+
+            try:
+                line_queue.put_nowait(value)
+                if evicted and dropped_lines % 200 == 1:
                     warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
                     try:
                         line_queue.put_nowait(warn)
                     except queue.Full:
                         pass
-
-            try:
-                line_queue.put_nowait(value)
                 return
             except queue.Full:
                 # Still no space, drop the line.
