@@ -1,63 +1,63 @@
 # AGENTS Handoff For Next Cycle
 
-This handoff is meant to be pasted into a new conversation with any agent that follows AGENTS style instructions.
+This handoff is ready to reuse in the next conversation.
 
-## Current Project State
+## Estado atual
 
-- Recovery and hardening cycle was merged.
-- Backlog for deferred work is tracked at:
-  - `docs/RECOVERY_BACKLOG.md`
-- Quality baseline from last cycle:
-  - Atomic commits only
-  - Focused fixes before refactors
-  - No GUI layout movement without explicit request
-  - Validate each change batch before push
+- Merge concluido do trabalho de recovery/hardening.
+- Registro de backlog criado em `/Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md`.
+- Fluxo final ficou com checks tecnicos estaveis e ajustes defensivos aplicados sem mexer em layout da GUI.
+- PR #30 (codex/import-review) aceito; proxima etapa: refatoracao de `gui/gui_ssa.py` com foco em separar responsabilidades sem alterar layout.
 
-## Required Working Style
+## O que foi feito (resumo)
 
-1. Use ASCII only in code and technical notes.
-2. No emojis and no emdash.
-3. Keep commits atomic and easy to rollback.
-4. Prefer minimal, low-risk fixes over broad rewrites.
-5. Do not move GUI buttons or alter layout unless explicitly requested.
-6. After each batch: run targeted validation before commit and push.
-7. Re-check PR bot comments and status checks after each push.
-8. Treat external provider failures separately from local code quality.
+- Hardening de concorrencia e estado em fluxo async/filtros/workers.
+- Correcoes pontuais em wrappers de teste com timeout/kill/cleanup mais robustos.
+- Ajustes de testes para isolamento e regressao.
+- Correcoes pequenas de qualidade em tipos e comportamento defensivo.
+- Commits atomicos, com validacao a cada lote.
 
-## Validation Contract Per Batch
+## Como foi feito (metodo)
 
-- Syntax check for touched files (`py_compile`).
-- Lint for touched files (`ruff`).
-- Targeted tests first, then broader tests only when needed.
-- If a critical flow is touched, run a focused smoke/regression test for that flow.
+- Ciclos curtos: diagnostico -> patch minimo -> validacao -> commit atomico -> push.
+- Validacao tecnica por lote:
+  - `py_compile`
+  - `ruff`
+  - `pytest` focado + suites sensiveis
+- Recheque de PR/reviews/checks apos cada push.
+- Sem refatoracao ampla fora de escopo.
+- Sem mudanca de posicao de botoes/layout.
 
-## Merge Gate Policy
+## Regras de execucao para o novo ciclo
 
-- Gate 1: CI green and branch mergeable.
-- Gate 2: zero unmitigated high or critical findings.
-- Gate 3: local smoke/regression for sensitive flow passes.
-- Gate 4: minor bot nits can go to backlog with clear PR note.
+1. Sem acentos/cedilha/emojis/emdash em codigo e mensagens tecnicas.
+2. Commits atomicos e rollback facil por feature.
+3. Sempre validar antes de push: `py_compile`, `ruff`, `pytest` focado.
+4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
+5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
+6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
+7. Manter backlog de follow-up em `/Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md`.
 
-## Bot And Review Policy
+## Objetivo do novo ciclo
 
-- Resolve real blockers now.
-- Defer non-blocking cleanup to backlog.
-- Keep one short PR note with:
-  - known risks,
-  - accepted waivers,
-  - follow-up links.
+- Manter o mesmo cuidado, com foco na refatoracao de `gui/gui_ssa.py` (SSAMainWindow) para reduzir acoplamento.
+- Preservar layout e comportamento da GUI; refatoracao deve ser estrutural, nao visual.
+- Fazer levantamento detalhado antes de mover metodos para novos modulos.
 
-## Copy Block For New Conversation
+## Texto pronto para abrir a nova conversa
 
 ```text
-Use the same execution discipline from the last recovery cycle:
-- ASCII only, no emojis, no emdash.
-- Atomic commits only.
-- Validate each batch with py_compile + ruff + targeted pytest before push.
-- No GUI layout/button position changes unless explicitly requested.
-- Fix high-risk issues first, defer broad refactors.
-- Re-check PR bot comments and checks after each push.
-- Track deferred items in docs/RECOVERY_BACKLOG.md.
-Current focus changed: preserve quality process, apply it to the new scope.
-```
+Contexto: branch de recovery foi mergeada; manter mesma disciplina de qualidade.
 
+Regras de execucao:
+1. Sem acentos/cedilha/emojis/emdash em codigo e mensagens tecnicas.
+2. Commits atomicos e rollback facil por feature.
+3. Sempre validar antes de push: py_compile, ruff, pytest focado.
+4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
+5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
+6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
+7. Manter backlog de follow-up em /Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md.
+
+Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
+Objetivo atual: refatorar gui/gui_ssa.py sem mudar layout, com levantamento detalhado antes.
+```
