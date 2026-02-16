@@ -211,7 +211,7 @@ def extract_data_from_excel(
     file_path: str,
     *,
     should_cancel: Optional[Callable[[], bool]] = None,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
 
@@ -219,8 +219,8 @@ def extract_data_from_excel(
         file_path (str): Caminho completo para o arquivo Excel.
 
     Returns:
-        Optional[pd.DataFrame]: Um DataFrame com os dados extraídos e normalizados,
-                                ou None em caso de erro.
+        pd.DataFrame: Um DataFrame com os dados extraídos e normalizados.
+            Pode ser vazio quando o arquivo tem cabecalho sem linhas de dados.
     """
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
     base_name = os.path.basename(file_path) if file_path else "arquivo"
@@ -232,48 +232,47 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
-        xl_file = pd.ExcelFile(file_path, engine='openpyxl')
+        with pd.ExcelFile(file_path, engine='openpyxl') as xl_file:
+            for sheet_name in xl_file.sheet_names:
+                _check_cancel()
+                logger.debug(f"Processando planilha '{sheet_name}'...")
+                # Le a planilha inteira
+                sheet_df = xl_file.parse(sheet_name, header=None)
+                if sheet_df.empty or sheet_df.shape[1] == 0:
+                    logger.debug("Planilha '%s' vazia; ignorando.", sheet_name)
+                    continue
 
-        for sheet_name in xl_file.sheet_names:
-            _check_cancel()
-            logger.debug(f"Processando planilha '{sheet_name}'...")
-            # Le a planilha inteira
-            sheet_df = xl_file.parse(sheet_name, header=None)
-            if sheet_df.empty or sheet_df.shape[1] == 0:
-                logger.debug("Planilha '%s' vazia; ignorando.", sheet_name)
-                continue
+                # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
+                header_row_idx = None
+                for idx, value in enumerate(sheet_df.iloc[:, 0]):
+                    if idx % 250 == 0:
+                        _check_cancel()
+                    if pd.notna(value) and str(value).strip() != '':
+                        header_row_idx = idx
+                        break
 
-            # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
-            header_row_idx = None
-            for idx, value in enumerate(sheet_df.iloc[:, 0]):
-                if idx % 250 == 0:
-                    _check_cancel()
-                if pd.notna(value) and str(value).strip() != '':
-                    header_row_idx = idx
-                    break
+                if header_row_idx is not None:
+                    saw_header = True
+                    # Define os cabecalhos
+                    sheet_df.columns = sheet_df.iloc[header_row_idx]
+                    # Remove linhas anteriores ao cabecalho e o proprio cabecalho
+                    sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
+                    # Reseta o indice
+                    sheet_df = sheet_df.reset_index(drop=True)
 
-            if header_row_idx is not None:
-                saw_header = True
-                # Define os cabecalhos
-                sheet_df.columns = sheet_df.iloc[header_row_idx]
-                # Remove linhas anteriores ao cabecalho e o proprio cabecalho
-                sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
-                # Reseta o indice
-                sheet_df = sheet_df.reset_index(drop=True)
+                    # Remove colunas completamente vazias
+                    sheet_df = sheet_df.dropna(axis=1, how='all')
 
-                # Remove colunas completamente vazias
-                sheet_df = sheet_df.dropna(axis=1, how='all')
-
-                if not sheet_df.empty:
-                    all_sheets_data.append(sheet_df)
+                    if not sheet_df.empty:
+                        all_sheets_data.append(sheet_df)
+                    else:
+                        logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
                 else:
-                    logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
-            else:
-                logger.warning(
-                    "Planilha '%s' em '%s' nao possui cabecalho identificavel.",
-                    sheet_name,
-                    file_path,
-                )
+                    logger.warning(
+                        "Planilha '%s' em '%s' nao possui cabecalho identificavel.",
+                        sheet_name,
+                        file_path,
+                    )
 
         if not all_sheets_data:
             if saw_header:
