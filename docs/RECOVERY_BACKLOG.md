@@ -10,6 +10,10 @@ Scope is split by priority to keep delivery safe and incremental.
 
 ## P1 hardening targets
 
+- SSAMainWindow God Class (gui/gui_ssa.py ~6k lines):
+  - Split UI layout, filtering/controller logic, and theming into separate modules.
+  - Plan refactor in a dedicated sprint; avoid cross-cutting changes in this PR.
+  - Define seams for unit tests before extraction to reduce regression risk.
 - Derivadas c2 follow-up (db and related tools only):
   - Keep derivadas sync/maintenance decoupled from import flow; trigger via `scripts/derivadas_cli.py` or scheduler only.
   - Add controlled runbook for `scripts/derivadas_cli.py sync --full-rebuild` with rollback notes.

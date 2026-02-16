@@ -33,6 +33,21 @@ def ensure_log_path(logpath: str):
         os.makedirs(d, exist_ok=True)
 
 
+def _queue_maxsize() -> int:
+    raw = os.environ.get("PYTEST_STREAM_QUEUE_MAX")
+    if not raw:
+        return 4096
+    try:
+        value = int(raw)
+    except ValueError:
+        return 4096
+    if value < 256:
+        return 256
+    if value > 65536:
+        return 65536
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", required=True)
@@ -81,25 +96,75 @@ def main():
             start_new_session=True,
         )
 
-    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=4096)
+    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=_queue_maxsize())
+    dropped_lines = 0
+    dropped_lock = threading.Lock()
+    last_warned = 0
 
     def _safe_queue_put(value: str | None) -> None:
-        while True:
-            try:
-                line_queue.put(value, timeout=0.1)
-                return
-            except queue.Full:
-                # Avoid unbounded memory growth when producer is faster than consumer.
-                if p.poll() is not None:
+        nonlocal dropped_lines, last_warned
+        # Never block the reader thread when the queue is full.
+        # Blocking here can deadlock when the child process fills its stdout pipe.
+        if value is None:
+            # Ensure the sentinel is delivered by dropping older lines if needed.
+            while True:
+                try:
+                    line_queue.put_nowait(None)
+                    return
+                except queue.Full:
                     try:
                         line_queue.get_nowait()
+                        with dropped_lock:
+                            dropped_lines += 1
                     except queue.Empty:
-                        pass
+                        time.sleep(0.005)
+
+        try:
+            line_queue.put_nowait(value)
+            return
+        except queue.Full:
+            # Drop the oldest line to make room (best-effort).
+            evicted = False
+            try:
+                line_queue.get_nowait()
+                evicted = True
+            except queue.Empty:
+                pass
+
+            if evicted:
+                with dropped_lock:
+                    dropped_lines += 1
+
+            try:
+                line_queue.put_nowait(value)
+                if evicted:
+                    with dropped_lock:
+                        warn_count = dropped_lines
+                        should_warn = warn_count % 200 == 1 and warn_count != last_warned
+                        if should_warn:
+                            last_warned = warn_count
+                    if should_warn:
+                        warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
+                        try:
+                            line_queue.put_nowait(warn)
+                        except queue.Full:
+                            pass
+                return
+            except queue.Full:
+                # Still no space, drop the line itself.
+                with dropped_lock:
+                    dropped_lines += 1
+                    warn_count = dropped_lines
+                    should_warn = warn_count % 200 == 1 and warn_count != last_warned
+                    if should_warn:
+                        last_warned = warn_count
+                if should_warn:
+                    warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
                     try:
-                        line_queue.put_nowait(value)
+                        line_queue.put_nowait(warn)
                     except queue.Full:
                         pass
-                    return
+                return
 
     def _reader_worker() -> None:
         try:

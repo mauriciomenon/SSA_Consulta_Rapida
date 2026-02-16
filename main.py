@@ -8,6 +8,7 @@ e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 """
 
 import argparse
+import itertools
 import logging
 import os
 import shutil
@@ -55,55 +56,6 @@ class _ASCIIOnlyFilter(logging.Filter):
         if record.exc_text:
             record.exc_text = self._to_ascii(record.exc_text)
         return True
-
-
-# ==============================================================================
-# DEAD CODE - DELETE CANDIDATE
-# ==============================================================================
-# Status: Always returns None (extracao.extractor exists but has no run_importer_logic)
-# Created: Unknown (likely intended for future extensibility)
-# Last modified: 2025-10-29T12:30:00 (marked as dead code)
-# Recommendation: DELETE - function always returns None, serves no purpose
-# Lines affected: 43-76
-#
-# This function tries to load run_importer_logic from extracao.extractor, but:
-# - extracao/extractor.py exists but has no run_importer_logic function
-# - Function always returns None
-# - Caller (line 677) checks result but it's always None
-# - Can safely remove function and lines 677-679
-def _load_external_run_importer(project_root: str):
-    """
-    Try to load run_importer_logic from extracao.extractor, if available.
-
-    Returns:
-        callable | None: External implementation (if provided), otherwise None.
-    """
-    try:
-        import importlib.util
-
-        spec = importlib.util.find_spec("extracao.extractor")
-        if not spec or not spec.loader:
-            logger.debug("Optional extractor override not found.")
-            return None
-
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        candidate = getattr(module, "run_importer_logic", None)
-        if callable(candidate):
-            logger.debug("Using run_importer_logic provided by extracao.extractor.")
-            return candidate
-
-        logger.debug(
-            "extracao.extractor module present but without run_importer_logic; using core.app_logic."
-        )
-        return None
-    except Exception as exc:  # noqa: BLE001
-        logger.debug(
-            "Failed to load extracao.extractor override (%s); falling back to core.app_logic.",
-            exc,
-            exc_info=True,
-        )
-        return None
 
 
 class SafeRawTextHelpFormatter(argparse.RawTextHelpFormatter):
@@ -180,6 +132,26 @@ def _configure_logging(
     _logging_configured = True
 
 
+def _debug_listdir_preview(path: str, label: str, limit: int = 50) -> None:
+    """Loga uma previsualizacao de conteudo de diretorio sem varrer tudo."""
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+    if not os.path.exists(path):
+        return
+    try:
+        entries = []
+        with os.scandir(path) as it:
+            for entry in itertools.islice(it, limit + 1):
+                entries.append(entry.name)
+        truncated = len(entries) > limit
+        if truncated:
+            entries = entries[:limit]
+        suffix = " (preview truncado)" if truncated else ""
+        logger.debug("Arquivos em %s: %s%s", label, entries, suffix)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao listar %s: %s", label, exc)
+
+
 # Adiciona o diretorio raiz do projeto ao sys.path
 def _get_project_root():
     """Retorna o diretorio raiz do projeto de forma robusta para diferentes builds."""
@@ -254,9 +226,6 @@ def main(cli_args=None):
     """
     logger.debug("Iniciando funcao main()")
 
-    import sys
-    import os
-
     logger.debug("Verificando escopo da variavel sys...")
     logger.debug("sys disponivel no escopo global: %s", 'sys' in globals())
     logger.debug("sys disponivel no escopo local: %s", 'sys' in locals())
@@ -274,10 +243,8 @@ def main(cli_args=None):
     logger.debug("Diretorio extracao (raiz) existe: %s", os.path.exists(extracao_root))
     logger.debug("Diretorio extracao (core) existe: %s", os.path.exists(extracao_core))
 
-    if os.path.exists(extracao_root):
-        logger.debug("Conteudo de extracao (raiz): %s", os.listdir(extracao_root))
-    if os.path.exists(extracao_core):
-        logger.debug("Conteudo de extracao (core): %s", os.listdir(extracao_core))
+    _debug_listdir_preview(extracao_root, "extracao (raiz)")
+    _debug_listdir_preview(extracao_core, "extracao (core)")
 
     extractor_root = os.path.join(extracao_root, 'extractor.py')
     extractor_core = os.path.join(extracao_core, 'extractor.py')
@@ -338,6 +305,18 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
          Util quando arquivos foram modificados manualmente
 
         EXEMPLO: python main.py --force-rescan'''
+    )
+
+    parser.add_argument(
+        '--skip-import',
+        action='store_true',
+        help='''Pula a importacao/verificacao inicial e inicia a GUI/CLI usando o banco existente.
+
+        Use quando voce precisa abrir o app rapidamente e aceita trabalhar com dados possivelmente desatualizados.
+        Para importar depois:
+          - GUI: use o botao "Reescanear" (quando disponivel)
+          - CLI: execute sem --skip-import (ou com --force-rescan, se necessario)
+        '''
     )
 
     parser.add_argument(
@@ -497,11 +476,15 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             print('0.0.0')
         return
 
+    if getattr(args, "skip_import", False) and getattr(args, "force_rescan", False):
+        parser.error("--skip-import nao pode ser combinado com --force-rescan/--rescan")
+
     # Configura logging
     _configure_logging(project_root)
     try:
         logger.setLevel(getattr(logging, args.log_level))
     except AttributeError:
+        print(f"Nível de log inválido: {args.log_level}. Usando INFO.")
         logger.setLevel(logging.INFO)
 
     # Banner inicial
@@ -596,18 +579,13 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         logger.debug("extracao_dir existe: %s", os.path.exists(extracao_dir))
 
         # Listar arquivos nos diretorios importantes
-        if os.path.exists(data_dir):
-            logger.debug("Arquivos em data/: %s", os.listdir(data_dir))
-        if os.path.exists(docs_dir):
-            logger.debug("Arquivos em docs_entrada/: %s", os.listdir(docs_dir))
-        if os.path.exists(config_dir):
-            logger.debug("Arquivos em config/: %s", os.listdir(config_dir))
-        if os.path.exists(core_dir):
-            logger.debug("Arquivos em core/: %s", os.listdir(core_dir))
-        if os.path.exists(armazenamento_dir):
-            logger.debug("Arquivos em core/armazenamento/: %s", os.listdir(armazenamento_dir))
-        if os.path.exists(extracao_dir):
-            logger.debug("Arquivos em core/extracao/: %s", os.listdir(extracao_dir))
+        if logger.isEnabledFor(logging.DEBUG):
+            _debug_listdir_preview(data_dir, "data/")
+            _debug_listdir_preview(docs_dir, "docs_entrada/")
+            _debug_listdir_preview(config_dir, "config/")
+            _debug_listdir_preview(core_dir, "core/")
+            _debug_listdir_preview(armazenamento_dir, "core/armazenamento/")
+            _debug_listdir_preview(extracao_dir, "core/extracao/")
 
         # Verificar arquivos especificos que causam problemas
         database_py = os.path.join(armazenamento_dir, 'database.py')
@@ -664,121 +642,118 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             return
 
         # --- 3. Importacao de Dados (fluxo normal) ---
-        # Determina se a reimportacao e forcada e se deve usar versao otimizada
-        force_import = args.force_rescan
+        if getattr(args, "skip_import", False):
+            logger.info("Pulando importacao/verificacao inicial (--skip-import).")
+            db_updated = False
+        else:
+            # Determina se a reimportacao e forcada e se deve usar versao otimizada
+            force_import = args.force_rescan
 
-        # MUDANCA: Modo otimizado agora e PADRAO (exceto se --standard for usado)
-        use_optimized = not args.standard
+            # MUDANCA: Modo otimizado agora e PADRAO (exceto se --standard for usado)
+            use_optimized = not args.standard
 
-        # Aviso de depreciacao se --optimized for usado
-        if args.optimized:
-            logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
+            # Aviso de depreciacao se --optimized for usado
+            if args.optimized:
+                logger.warning("  Flag --optimized e deprecated: modo otimizado ja e padrao. Use --standard para modo legado.")
 
-        # Ativar importacao otimizada (agora padrao)
-        if use_optimized:
-            logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
-            logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
+            # Ativar importacao otimizada (agora padrao)
+            optimized_enabled = False
+            if use_optimized:
+                logger.info("Modo de importacao OTIMIZADA ativo (padrao)")
+                logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
 
-            # Testar caminho absoluto
-            import sys
-            import os
-            current_project_root = project_root
-            optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
-            logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
-            logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
+                # Testar caminho absoluto
+                current_project_root = project_root
+                optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+                logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
+                logger.debug("Arquivo otimizado presente: %s", os.path.exists(optimized_path))
 
-            logger.debug("Verificando disponibilidade do modo otimizado...")
+                logger.debug("Verificando disponibilidade do modo otimizado...")
 
-            # Verificar se o arquivo existe
-            import os
-            optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
-            logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
-            logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
+                # Verificar se o arquivo existe
+                optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
+                logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
+                logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
 
-            if os.path.exists(optimized_file_path):
-                file_stat = os.stat(optimized_file_path)
-                logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
-                logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
+                if os.path.exists(optimized_file_path):
+                    file_stat = os.stat(optimized_file_path)
+                    logger.debug("Permissoes do arquivo otimizado: %s", oct(file_stat.st_mode))
+                    logger.debug("Tamanho do arquivo otimizado: %d bytes", file_stat.st_size)
 
-                armazenamento_path = os.path.join(current_project_root, 'armazenamento')
-                logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
+                    armazenamento_path = os.path.join(current_project_root, 'armazenamento')
+                    logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
 
-                if os.path.exists(armazenamento_path):
-                    logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
+                    if os.path.exists(armazenamento_path) and logger.isEnabledFor(logging.DEBUG):
+                        _debug_listdir_preview(armazenamento_path, "armazenamento/")
 
-            try:
-                # Tentar importar o modulo completo primeiro
-                logger.debug("Tentando importar armazenamento.database_optimized...")
-                import armazenamento.database_optimized
-                logger.debug("Importacao do modulo completo bem-sucedida")
+                try:
+                    # Tentar importar o modulo completo primeiro
+                    logger.debug("Tentando importar armazenamento.database_optimized...")
+                    import armazenamento.database_optimized
+                    logger.debug("Importacao do modulo completo bem-sucedida")
 
-                # Verificar se a funcao existe no modulo
-                logger.debug("Verificando se enable_optimized_import existe no modulo...")
-                if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
-                    logger.debug("Funcao enable_optimized_import encontrada")
+                    # Verificar se a funcao existe no modulo
+                    logger.debug("Verificando se enable_optimized_import existe no modulo...")
+                    if hasattr(armazenamento.database_optimized, 'enable_optimized_import'):
+                        logger.debug("Funcao enable_optimized_import encontrada")
 
-                    from armazenamento.database_optimized import enable_optimized_import
-                    logger.debug("Importacao de enable_optimized_import bem-sucedida")
+                        from armazenamento.database_optimized import enable_optimized_import
+                        logger.debug("Importacao de enable_optimized_import bem-sucedida")
 
-                    enable_optimized_import()
-                    logger.debug("enable_optimized_import() executado com sucesso")
-                else:
-                    logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
+                        enable_optimized_import()
+                        optimized_enabled = True
+                        logger.debug("enable_optimized_import() executado com sucesso")
+                    else:
+                        logger.error("Funcao enable_optimized_import NAO encontrada no modulo")
+                        logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
+                        use_optimized = False
+
+                except ImportError as e:
+                    logger.error("Falha ao importar enable_optimized_import: %s", e)
+                    logger.debug("Tipo do erro: %s", type(e).__name__)
+                    logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
                     logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
                     use_optimized = False
+                except Exception as e:
+                    logger.error("Erro ao executar enable_optimized_import: %s", e)
+                    logger.debug("Tipo do erro: %s", type(e).__name__)
+                    logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
+                    use_optimized = False
+            else:
+                logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
 
-            except ImportError as e:
-                logger.error("Falha ao importar enable_optimized_import: %s", e)
-                logger.debug("Tipo do erro: %s", type(e).__name__)
-                logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
-                logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
-                use_optimized = False
-            except Exception as e:
-                logger.error("Erro ao executar enable_optimized_import: %s", e)
-                logger.debug("Tipo do erro: %s", type(e).__name__)
-                logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
-                use_optimized = False
-        else:
-            logger.debug("Usando modo LEGADO/DEBUG (--standard ativo)")
+            logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
 
-        logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
-        # DEAD CODE: Lines 690-693 - external_run always None, condition never true
-        # Can safely delete lines 690-693 when deleting _load_external_run_importer
-        logger.debug("Verificando implementacao externa de run_importer_logic")
-        external_run = _load_external_run_importer(project_root)
-        if external_run is not None:
-            run_importer_logic = external_run  # noqa: PLW0603
-
-        try:
-            logger.debug("Executando run_importer_logic...")
-            db_updated = run_importer_logic(force_import=force_import)
-            logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-        except Exception as e:
-            logger.error("Falha critica na importacao de dados: %s", e)
-            logger.error("Este e o ponto mais critico do processo. Verifique:")
-            logger.error("  1. Existencia e permissoes da pasta 'data'")
-            logger.error("  2. Conexao com o banco de dados")
-            logger.error("  3. Arquivos Excel na pasta de entrada")
-            logger.error("  4. Memoria disponivel do sistema")
-            raise
-
-        # Desativar importacao otimizada apos uso
-        if use_optimized:
             try:
-                from armazenamento.database_optimized import disable_optimized_import
-                disable_optimized_import()
-            except ImportError:
-                pass
+                logger.debug("Executando run_importer_logic...")
+                db_updated = run_importer_logic(force_import=force_import)
+                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
             except Exception as e:
-                logger.warning(f"Falha ao desativar modo otimizado: {e}")
+                logger.error("Falha critica na importacao de dados: %s", e)
+                logger.error("Este e o ponto mais critico do processo. Verifique:")
+                logger.error("  1. Existencia e permissoes da pasta 'data'")
+                logger.error("  2. Conexao com o banco de dados")
+                logger.error("  3. Arquivos Excel na pasta de entrada")
+                logger.error("  4. Memoria disponivel do sistema")
+                raise
+            finally:
+                # Desativar importacao otimizada apos uso
+                if optimized_enabled:
+                    try:
+                        from armazenamento.database_optimized import disable_optimized_import
+                        disable_optimized_import()
+                    except ImportError:
+                        pass
+                    except Exception as e:
+                        logger.warning(f"Falha ao desativar modo otimizado: {e}")
 
-        if db_updated:
-            logger.info("Banco de dados atualizado com sucesso.")
-            logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
-        else:
-            logger.info("Nenhum novo ou modificado relatorio encontrado.")
-            logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
-            logger.debug("Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos.")
+            if db_updated:
+                logger.info("Banco de dados atualizado com sucesso.")
+                logger.debug("Banco de dados foi atualizado. Verifique se os dados estao acessiveis.")
+            else:
+                logger.info("Nenhum novo ou modificado relatorio encontrado.")
+                logger.debug("Nenhum novo relatorio encontrado. Isso pode ser normal ou indicar problemas.")
+                logger.debug("Verifique se ha arquivos Excel na pasta de entrada e se eles contem dados validos.")
 
         # --- 4. Inicio da Interface ---
         # Respeita variaveis de ambiente para facilitar testes e integracao

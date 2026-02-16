@@ -6,10 +6,10 @@ Lê arquivos .xlsx, identifica cabeçalhos, normaliza nomes de colunas usando
 `config/column_mappings.json` e converte tipos de dados fundamentais.
 """
 
-import pandas as pd
 import os
+import pandas as pd
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
 
@@ -207,7 +207,11 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
 
-def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
+def extract_data_from_excel(
+    file_path: str,
+    *,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> pd.DataFrame:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
 
@@ -215,47 +219,71 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         file_path (str): Caminho completo para o arquivo Excel.
 
     Returns:
-        Optional[pd.DataFrame]: Um DataFrame com os dados extraídos e normalizados,
-                                ou None em caso de erro.
+        pd.DataFrame: Um DataFrame com os dados extraídos e normalizados.
+            Pode ser vazio quando o arquivo tem cabecalho sem linhas de dados.
     """
     logger.info(f"Iniciando extração de dados de '{file_path}'...")
+    base_name = os.path.basename(file_path) if file_path else "arquivo"
+    saw_header = False
     try:
+        def _check_cancel() -> None:
+            if should_cancel is not None and should_cancel():
+                raise ExtractionError("operation cancelled")
+
+        _check_cancel()
         all_sheets_data = []
-        xl_file = pd.ExcelFile(file_path, engine='openpyxl')
+        with pd.ExcelFile(file_path, engine='openpyxl') as xl_file:
+            for sheet_name in xl_file.sheet_names:
+                _check_cancel()
+                logger.debug(f"Processando planilha '{sheet_name}'...")
+                # Le a planilha inteira
+                sheet_df = xl_file.parse(sheet_name, header=None)
+                if sheet_df.empty or sheet_df.shape[1] == 0:
+                    logger.debug("Planilha '%s' vazia; ignorando.", sheet_name)
+                    continue
 
-        for sheet_name in xl_file.sheet_names:
-            logger.debug(f"Processando planilha '{sheet_name}'...")
-            # Le a planilha inteira
-            sheet_df = xl_file.parse(sheet_name, header=None)
+                # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
+                header_row_idx = None
+                for idx, value in enumerate(sheet_df.iloc[:, 0]):
+                    if idx % 250 == 0:
+                        _check_cancel()
+                    if pd.notna(value) and str(value).strip() != '':
+                        header_row_idx = idx
+                        break
 
-            # Encontra a linha do cabecalho (primeira celula nao vazia na coluna 0)
-            header_row_idx = None
-            for idx, value in enumerate(sheet_df.iloc[:, 0]):
-                if pd.notna(value) and str(value).strip() != '':
-                    header_row_idx = idx
-                    break
+                if header_row_idx is not None:
+                    saw_header = True
+                    # Define os cabecalhos
+                    sheet_df.columns = sheet_df.iloc[header_row_idx]
+                    # Remove linhas anteriores ao cabecalho e o proprio cabecalho
+                    sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
+                    # Reseta o indice
+                    sheet_df = sheet_df.reset_index(drop=True)
 
-            if header_row_idx is not None:
-                # Define os cabecalhos
-                sheet_df.columns = sheet_df.iloc[header_row_idx]
-                # Remove linhas anteriores ao cabecalho e o proprio cabecalho
-                sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
-                # Reseta o indice
-                sheet_df = sheet_df.reset_index(drop=True)
+                    # Remove colunas completamente vazias
+                    sheet_df = sheet_df.dropna(axis=1, how='all')
 
-                # Remove colunas completamente vazias
-                sheet_df = sheet_df.dropna(axis=1, how='all')
-
-                if not sheet_df.empty:
-                    all_sheets_data.append(sheet_df)
+                    if not sheet_df.empty:
+                        all_sheets_data.append(sheet_df)
+                    else:
+                        logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
                 else:
-                    logger.debug(f"Planilha '{sheet_name}' está vazia após processamento.")
-            else:
-                 logger.warning(f"Planilha '{sheet_name}' em '{file_path}' não possui cabeçalho identificável.")
+                    logger.warning(
+                        "Planilha '%s' em '%s' nao possui cabecalho identificavel.",
+                        sheet_name,
+                        file_path,
+                    )
 
         if not all_sheets_data:
-             logger.warning(f"Nenhum dado válido encontrado em '{file_path}'.")
-             return None
+            if saw_header:
+                logger.info(
+                    "Arquivo '%s' sem linhas de dados apos cabecalho; retornando vazio.",
+                    file_path,
+                )
+                return pd.DataFrame()
+            raise ExtractionError(
+                f"No header found in any sheet for file: {base_name}"
+            )
 
         # Combina dados de todas as planilhas
         combined_df = pd.concat(all_sheets_data, ignore_index=True, sort=False)
@@ -268,15 +296,31 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
             logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
 
         if combined_df.empty:
-            logger.warning(f"Nenhum dado válido encontrado em '{file_path}' após combinação.")
-            return None
+            logger.warning(
+                "Nenhum dado valido encontrado em '%s' apos combinacao; retornando vazio.",
+                file_path,
+            )
+            return pd.DataFrame()
 
         # Carrega o mapeamento de colunas
         column_mappings = _load_column_mappings()
+        if not column_mappings:
+            logger.warning(
+                "Mapeamento de colunas vazio; mantendo nomes originais para '%s'.",
+                file_path,
+            )
 
         # Normaliza os nomes das colunas e resolve duplicadas
-        combined_df.rename(columns=column_mappings, inplace=True)
+        if column_mappings:
+            combined_df.rename(columns=column_mappings, inplace=True)
         combined_df = _deduplicate_columns(combined_df)
+
+        required_columns = {"numero_ssa", "descricao_ssa", "data_cadastro"}
+        missing_required = required_columns.difference(set(combined_df.columns))
+        if missing_required:
+            raise ExtractionError(
+                f"Missing required columns after normalization: {sorted(missing_required)}"
+            )
 
         if 'prazo_limite' in combined_df.columns:
             status_col = 'status_execucao_prazo'
@@ -300,11 +344,13 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         logger.debug(f"Colunas renomeadas. Novas colunas: {list(combined_df.columns)}")
 
         # Normaliza os tipos de dados
+        _check_cancel()
         combined_df = _normalize_datatypes(combined_df)
 
         # --- Sanitizacao Basica e Robusta de Strings ---
         logger.debug("Iniciando sanitização de strings...")
         for col in combined_df.columns:
+            _check_cancel()
             # Verifica se a coluna é de tipo 'object' (pandas usa para strings e mixed types)
             if pd.api.types.is_object_dtype(combined_df[col]):
                 # 1. Converte para string, tratando valores NA
@@ -360,15 +406,21 @@ def extract_data_from_excel(file_path: str) -> Optional[pd.DataFrame]:
         logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas válidas extraídas.")
         return combined_df
 
-    except FileNotFoundError:
-        logger.error(f"Arquivo '{file_path}' não encontrado.")
-        return None
+    except ExtractionError:
+        raise
+    except FileNotFoundError as e:
+        logger.error("Arquivo '%s' nao encontrado.", file_path)
+        raise ExtractionError(f"File not found: {base_name}") from e
     except pd.errors.ParserError as e:
-        logger.error(f"Erro ao ler '{file_path}': Problema ao analisar o arquivo Excel. Detalhes: {e}")
-        return None
+        logger.error(
+            "Erro ao ler '%s': problema ao analisar arquivo Excel: %s",
+            file_path,
+            e,
+        )
+        raise ExtractionError(f"Parser error reading Excel file: {base_name}") from e
     except Exception as e:
-        logger.error(f"Erro inesperado ao processar '{file_path}': {e}", exc_info=True)
-        return None
+        logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
+        raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
 
 def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
     """
