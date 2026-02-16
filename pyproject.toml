@@ -24,6 +24,12 @@ dev = [
     "flake8",
     "pytest",
     "ty",
+    "black",
+    "pip",
+]
+build = [
+    "pyinstaller",
+    "nuitka",
 ]
 
 [tool.pytest.ini_options]
