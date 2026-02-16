@@ -204,6 +204,9 @@ def insert_dataframe_optimized(
                             )
                             chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
                             if not chunk_df.empty:
+                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].astype(str).str.strip()
+                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].replace(["nan", "None", ""], None)
+                                chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
                                 existing_dict.update(
                                     dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))
                                 )
