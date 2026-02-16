@@ -8,6 +8,7 @@ e inicia a interface CLI ou GUI conforme as opcoes fornecidas.
 """
 
 import argparse
+import itertools
 import logging
 import os
 import shutil
@@ -131,6 +132,26 @@ def _configure_logging(
     _logging_configured = True
 
 
+def _debug_listdir_preview(path: str, label: str, limit: int = 50) -> None:
+    """Loga uma previsualizacao de conteudo de diretorio sem varrer tudo."""
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+    if not os.path.exists(path):
+        return
+    try:
+        entries = []
+        with os.scandir(path) as it:
+            for entry in itertools.islice(it, limit + 1):
+                entries.append(entry.name)
+        truncated = len(entries) > limit
+        if truncated:
+            entries = entries[:limit]
+        suffix = " (preview truncado)" if truncated else ""
+        logger.debug("Arquivos em %s: %s%s", label, entries, suffix)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao listar %s: %s", label, exc)
+
+
 # Adiciona o diretorio raiz do projeto ao sys.path
 def _get_project_root():
     """Retorna o diretorio raiz do projeto de forma robusta para diferentes builds."""
@@ -205,9 +226,6 @@ def main(cli_args=None):
     """
     logger.debug("Iniciando funcao main()")
 
-    import sys
-    import os
-
     logger.debug("Verificando escopo da variavel sys...")
     logger.debug("sys disponivel no escopo global: %s", 'sys' in globals())
     logger.debug("sys disponivel no escopo local: %s", 'sys' in locals())
@@ -225,16 +243,8 @@ def main(cli_args=None):
     logger.debug("Diretorio extracao (raiz) existe: %s", os.path.exists(extracao_root))
     logger.debug("Diretorio extracao (core) existe: %s", os.path.exists(extracao_core))
 
-    if os.path.exists(extracao_root) and logger.isEnabledFor(logging.DEBUG):
-        try:
-            logger.debug("Conteudo de extracao (raiz): %s", os.listdir(extracao_root))
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Falha ao listar conteudo de extracao (raiz): %s", exc)
-    if os.path.exists(extracao_core) and logger.isEnabledFor(logging.DEBUG):
-        try:
-            logger.debug("Conteudo de extracao (core): %s", os.listdir(extracao_core))
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Falha ao listar conteudo de extracao (core): %s", exc)
+    _debug_listdir_preview(extracao_root, "extracao (raiz)")
+    _debug_listdir_preview(extracao_core, "extracao (core)")
 
     extractor_root = os.path.join(extracao_root, 'extractor.py')
     extractor_core = os.path.join(extracao_core, 'extractor.py')
@@ -570,36 +580,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
         # Listar arquivos nos diretorios importantes
         if logger.isEnabledFor(logging.DEBUG):
-            if os.path.exists(data_dir):
-                try:
-                    logger.debug("Arquivos em data/: %s", os.listdir(data_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar data/: %s", exc)
-            if os.path.exists(docs_dir):
-                try:
-                    logger.debug("Arquivos em docs_entrada/: %s", os.listdir(docs_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar docs_entrada/: %s", exc)
-            if os.path.exists(config_dir):
-                try:
-                    logger.debug("Arquivos em config/: %s", os.listdir(config_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar config/: %s", exc)
-            if os.path.exists(core_dir):
-                try:
-                    logger.debug("Arquivos em core/: %s", os.listdir(core_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar core/: %s", exc)
-            if os.path.exists(armazenamento_dir):
-                try:
-                    logger.debug("Arquivos em core/armazenamento/: %s", os.listdir(armazenamento_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar core/armazenamento/: %s", exc)
-            if os.path.exists(extracao_dir):
-                try:
-                    logger.debug("Arquivos em core/extracao/: %s", os.listdir(extracao_dir))
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Falha ao listar core/extracao/: %s", exc)
+            _debug_listdir_preview(data_dir, "data/")
+            _debug_listdir_preview(docs_dir, "docs_entrada/")
+            _debug_listdir_preview(config_dir, "config/")
+            _debug_listdir_preview(core_dir, "core/")
+            _debug_listdir_preview(armazenamento_dir, "core/armazenamento/")
+            _debug_listdir_preview(extracao_dir, "core/extracao/")
 
         # Verificar arquivos especificos que causam problemas
         database_py = os.path.join(armazenamento_dir, 'database.py')
@@ -677,8 +663,6 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.debug("Tentando importar enable_optimized_import de armazenamento.database_optimized")
 
                 # Testar caminho absoluto
-                import sys
-                import os
                 current_project_root = project_root
                 optimized_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
                 logger.debug("Caminho absoluto do modulo otimizado: %s", optimized_path)
@@ -687,7 +671,6 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.debug("Verificando disponibilidade do modo otimizado...")
 
                 # Verificar se o arquivo existe
-                import os
                 optimized_file_path = os.path.join(current_project_root, 'armazenamento', 'database_optimized.py')
                 logger.debug("Caminho do arquivo otimizado: %s", optimized_file_path)
                 logger.debug("Arquivo otimizado existe: %s", os.path.exists(optimized_file_path))
@@ -701,10 +684,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                     logger.debug("Diretorio armazenamento no sys.path: %s", armazenamento_path in sys.path)
 
                     if os.path.exists(armazenamento_path) and logger.isEnabledFor(logging.DEBUG):
-                        try:
-                            logger.debug("Arquivos em armazenamento/: %s", os.listdir(armazenamento_path))
-                        except Exception as exc:  # noqa: BLE001
-                            logger.debug("Falha ao listar armazenamento/: %s", exc)
+                        _debug_listdir_preview(armazenamento_path, "armazenamento/")
 
                 try:
                     # Tentar importar o modulo completo primeiro
