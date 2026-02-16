@@ -24,6 +24,7 @@ DETAIL_DISPLAY_OVERRIDES = {}
 HIGHLIGHT_BACKGROUND_COLOR = "yellow"
 HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
+HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 
 
 def configure_details_constants(
@@ -137,8 +138,6 @@ def _highlight_text(self, text, terms):
 
 def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
     """Formata dados da SSA como HTML com highlight opcional."""
-    HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
-
     if font_size_pt is None:
         font_size_pt = DETAILS_DIALOG_FONT_SIZE
 
@@ -319,7 +318,7 @@ def update_details_from_selection(self):
     sorted_items = sorted(series.items(), key=field_sort_key)
     lines = []
     for col, value in sorted_items:
-        if col in {"id", "derivada_de"} or str(col).startswith("_"):
+        if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
             continue
         formatted_value = format_cell(value, col)
         if not formatted_value:

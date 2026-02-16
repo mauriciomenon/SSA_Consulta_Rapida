@@ -431,10 +431,24 @@ def load_data(
 
     worker = data_loader_cls(db_path, table_name)
     window.data_loader_thread = worker
-    worker.data_loaded.connect(lambda df, rid=request_id: on_data_loaded(window, df, request_id=rid))
-    worker.error_occurred.connect(lambda msg, rid=request_id: on_load_error(window, msg, request_id=rid, qmessagebox=qmessagebox))
-    worker.finished.connect(
-        lambda w=worker, rid=request_id: on_load_finished(
+
+    def _handle_data_loaded(df, rid=request_id):
+        handler = getattr(window, "on_data_loaded", None)
+        if callable(handler):
+            return handler(df, request_id=rid)
+        return on_data_loaded(window, df, request_id=rid)
+
+    def _handle_load_error(msg, rid=request_id):
+        handler = getattr(window, "on_load_error", None)
+        if callable(handler):
+            return handler(msg, request_id=rid)
+        return on_load_error(window, msg, request_id=rid, qmessagebox=qmessagebox)
+
+    def _handle_load_finished(w=worker, rid=request_id):
+        handler = getattr(window, "on_load_finished", None)
+        if callable(handler):
+            return handler(worker=w, request_id=rid)
+        return on_load_finished(
             window,
             worker=w,
             request_id=rid,
@@ -445,7 +459,10 @@ def load_data(
             retired_force_wait_ms=retired_force_wait_ms,
             sip_module=sip_module,
         )
-    )
+
+    worker.data_loaded.connect(_handle_data_loaded)
+    worker.error_occurred.connect(_handle_load_error)
+    worker.finished.connect(_handle_load_finished)
     try:
         worker.finished.connect(worker.deleteLater)
     except Exception as exc:
@@ -703,7 +720,12 @@ def rescan_data(
     def on_cancel_requested():
         nonlocal cancelled
         cancelled = True
-        if worker.isRunning():
+        try:
+            running = bool(worker.isRunning())
+        except Exception as exc:
+            logger.debug("Falha ao checar estado do RescanWorker no cancelamento: %s", exc)
+            running = False
+        if running:
             worker.stop()
             window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
 

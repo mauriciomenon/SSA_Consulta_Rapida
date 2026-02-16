@@ -115,6 +115,15 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
     if support_color.lower() == win.lower():
         support_color = wtxt
 
+    def _set_theme_default(checked: bool) -> None:
+        gui_settings = gui_prefs.setdefault("gui_settings", {})
+        if checked:
+            active_theme = normalize_theme(getattr(window, "_current_theme", "") or "gruvbox")
+            gui_settings["theme_default"] = active_theme
+        else:
+            gui_settings.pop("theme_default", None)
+        persist_gui_preferences(gui_prefs, project_root)
+
     try:
         check_action = QWidgetAction(menu)
         check_widget = QCheckBox("Usar tema atual como padrao")
@@ -123,17 +132,7 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
             check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
         except Exception as exc:
             logger.debug("Falha ao estilizar checkbox do menu de temas: %s", exc)
-
-        def _toggle_default(checked):
-            gui_settings = gui_prefs.setdefault("gui_settings", {})
-            if checked:
-                active_theme = normalize_theme(getattr(window, "_current_theme", "") or "gruvbox")
-                gui_settings["theme_default"] = active_theme
-            else:
-                gui_settings.pop("theme_default", None)
-            persist_gui_preferences(gui_prefs, project_root)
-
-        check_widget.toggled.connect(_toggle_default)
+        check_widget.toggled.connect(_set_theme_default)
         check_action.setDefaultWidget(check_widget)
         menu.addAction(check_action)
     except Exception as exc:
@@ -143,17 +142,7 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
             try:
                 default_action.setCheckable(True)
                 default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
-
-                def _toggle_default_action(checked):
-                    gui_settings = gui_prefs.setdefault("gui_settings", {})
-                    if checked:
-                        active_theme = normalize_theme(getattr(window, "_current_theme", "") or "gruvbox")
-                        gui_settings["theme_default"] = active_theme
-                    else:
-                        gui_settings.pop("theme_default", None)
-                    persist_gui_preferences(gui_prefs, project_root)
-
-                default_action.triggered.connect(_toggle_default_action)
+                default_action.triggered.connect(_set_theme_default)
             except Exception as fallback_exc:
                 logger.debug("Falha no fallback de action para tema padrao: %s", fallback_exc)
     menu.addSeparator()
