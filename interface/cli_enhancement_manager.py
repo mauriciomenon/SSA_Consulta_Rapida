@@ -53,12 +53,12 @@ class CLIEnhancementManager:
 
     def _save_settings(self):
         """Salva configurações das melhorias."""
+        lock_file = None
         try:
             os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
             target_dir = os.path.dirname(self.settings_file) or "."
             base_name = os.path.basename(self.settings_file) or "cli_enhancements.json"
 
-            lock_file = None
             try:
                 lock_path = f"{self.settings_file}.lock"
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
@@ -98,11 +98,12 @@ class CLIEnhancementManager:
                 if tmp_path:
                     with suppress(Exception):
                         os.remove(tmp_path)
+        except Exception as e:
+            logger.error(f"Erro ao salvar configurações CLI: {e}")
+        finally:
             if lock_file is not None:
                 with suppress(Exception):
                     lock_file.close()
-        except Exception as e:
-            logger.error(f"Erro ao salvar configurações CLI: {e}")
 
     def _lock_file_if_possible(self, f: Any) -> None:
         """Best-effort file lock to avoid races on settings writes."""
