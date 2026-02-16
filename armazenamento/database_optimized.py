@@ -65,6 +65,30 @@ def _resolve_physical_table(conn, table_name: str) -> str:
     return table_name
 
 
+def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
+    """Check if any table defines foreign keys referencing target_table."""
+    try:
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        for table in tables:
+            if table == target_table:
+                continue
+            try:
+                fk_rows = conn.execute(f"PRAGMA foreign_key_list({table})").fetchall()
+            except Exception:
+                continue
+            for fk in fk_rows:
+                if len(fk) > 2 and fk[2] == target_table:
+                    return True
+    except Exception as exc:  # pragma: no cover
+        logger.debug(
+            "Falha ao inspecionar foreign keys para %s: %s",
+            target_table,
+            exc,
+        )
+    return False
+
+
 def insert_dataframe_optimized(
     df: pd.DataFrame,
     db_path: str,
@@ -259,23 +283,56 @@ def insert_dataframe_optimized(
                     # Processar em chunks seguros para SQLite (centralizado)
                     CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
                     logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
-                    ssa_list = list(update_df['numero_ssa'])
                     try:
                         conn.execute("SAVEPOINT ssa_batch_update")
-                        for i in range(0, len(ssa_list), CHUNK_SIZE):
-                            chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
-                            ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
-                            delete_query = (
-                                f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
+                        update_columns = [
+                            col for col in update_df.columns if col not in ("numero_ssa", "id")
+                        ]
+                        if not update_columns:
+                            logger.info("Nenhuma coluna atualizavel encontrada; pulando atualizacao")
+                        elif _has_referencing_foreign_keys(conn, target_table):
+                            set_clause = ", ".join([f"{col}=?" for col in update_columns])
+                            update_sql = (
+                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa=?"
                             )
-                            conn.execute(delete_query, chunk_ssas)
+                            for i in range(0, len(update_df), CHUNK_SIZE):
+                                chunk = update_df.iloc[i:i + CHUNK_SIZE]
+                                params = list(
+                                    chunk[update_columns + ["numero_ssa"]]
+                                    .itertuples(index=False, name=None)
+                                )
+                                if params:
+                                    conn.executemany(update_sql, params)
+                            total_inserted += len(update_df)
+                            logger.info(
+                                "[OK] Atualizados %s registros existentes via UPDATE",
+                                len(update_df),
+                            )
+                        else:
+                            ssa_list = list(update_df['numero_ssa'])
+                            for i in range(0, len(ssa_list), CHUNK_SIZE):
+                                chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
+                                ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
+                                delete_query = (
+                                    f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
+                                )
+                                conn.execute(delete_query, chunk_ssas)
 
-                        # Inserir versões atualizadas com chunk size dinâmico centralizado
-                        # method='multi' ignora chunksize; usar chunksize seguro
-                        update_df.to_sql(target_table, conn, if_exists='append', index=False, chunksize=CHUNK_SIZE)
+                            # Inserir versões atualizadas com chunk size dinâmico centralizado
+                            # method='multi' ignora chunksize; usar chunksize seguro
+                            update_df.to_sql(
+                                target_table,
+                                conn,
+                                if_exists='append',
+                                index=False,
+                                chunksize=CHUNK_SIZE,
+                            )
+                            total_inserted += len(update_df)
+                            logger.info(
+                                "[OK] Atualizados %s registros existentes",
+                                len(update_df),
+                            )
                         conn.execute("RELEASE SAVEPOINT ssa_batch_update")
-                        total_inserted += len(update_df)
-                        logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
                     except Exception:
                         try:
                             conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
