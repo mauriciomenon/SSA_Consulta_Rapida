@@ -9,7 +9,6 @@ Padrao de nomenclatura: funcao_pai_mixin.py
 """
 
 # Imports necessarios
-import logging
 import copy
 import os
 import json
@@ -48,9 +47,10 @@ from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_sea
 
 # Imports de utils
 from utils.themes import get_theme_roles
+from utils.robust_logging import get_robust_logger
 
 # Module logger
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
 GLOBAL_RETIRED_FILTER_WORKERS = []
@@ -877,9 +877,13 @@ class FilterGUISSAMixin:
                 logger.debug("Falha ao verificar estado atual do filtro de coluna %s antes de limpar: %s", col_name, exc)
             self._safe_store_last_filter_state("clear_single_column_filter")
             if col_name in self._column_to_or_group:
-                self._sync_or_group_values(col_name, "")
+                group = self._column_to_or_group.get(col_name)
+                if group:
+                    group['values'] = []
+                    for member in group.get('columns', []):
+                        self._active_column_filters.pop(member, None)
             elif col_name in self._active_column_filters:
-                self._active_column_filters[col_name] = ""
+                self._active_column_filters.pop(col_name, None)
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
@@ -895,11 +899,7 @@ class FilterGUISSAMixin:
             self._safe_store_last_filter_state("clear_all_column_filters")
             for group in getattr(self, '_column_or_groups', []):
                 group['values'] = []
-                for col in group.get('columns', []):
-                    self._active_column_filters[col] = ""
-            for col in list(self._active_column_filters.keys()):
-                if col not in self._column_to_or_group:
-                    self._active_column_filters[col] = ""
+            self._active_column_filters.clear()
             # Restaura linhas ocultas apenas na exibição
             try:
                 self._hidden_column_filter_lines.clear()
@@ -1371,6 +1371,11 @@ class FilterGUISSAMixin:
         normalized = re.sub(r'\s+', ' ', normalized).strip()
         # Split by commas only
         tokens = [token.strip() for token in normalized.split(',') if token.strip()]
+        if not tokens:
+            group['values'] = []
+            for col in group['columns']:
+                self._active_column_filters.pop(col, None)
+            return
         group['values'] = tokens
         # Store internally as comma-separated list (OR logic)
         common_text = ', '.join(tokens)
