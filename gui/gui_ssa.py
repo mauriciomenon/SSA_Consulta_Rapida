@@ -41,7 +41,8 @@ if project_root not in sys.path:
 
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
-from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
+from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
+from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
@@ -105,7 +106,6 @@ try:
     from gui.cache import FilterCache  # noqa: E402
     from gui.widgets import ColumnManagerDialog, ColumnSelector, DataPaginator, FilterHelpDialog  # noqa: E402
     from gui.helpers import (  # noqa: E402
-        build_global_widget_qss, build_central_widget_qss, build_group_box_qss, build_line_edit_qss,
         normalize_chunk_for_parse, format_search_display, highlight_text
     )
     # Import mixins for code organization
@@ -737,28 +737,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         "adv_save_defaults_btn",
     )
     def _get_theme_catalog(self):
-        light_themes = [
-            ("Classico", 'classico'),
-            ("Mint Light", 'mint-light'),
-            ("Paper", 'paper'),
-            ("Solarized Light", 'solarized-light'),
-            ("Windows 7", 'windows7'),
-        ]
-        dark_themes = [
-            ("Catppuccin (Mocha)", 'catppuccin'),
-            ("Dark", 'dark'),
-            ("Dracula", 'dracula'),
-            ("Grayscale", 'grayscale'),
-            ("Gruvbox", 'gruvbox'),
-            ("Nord", 'nord'),
-            ("Solarized Dark", 'solarized-dark'),
-            ("Tokyo Night", 'tokyo-night'),
-        ]
-        return light_themes, dark_themes
+        return ssa_gui_theme.get_theme_catalog()
 
     def _get_theme_keys(self):
-        light_themes, dark_themes = self._get_theme_catalog()
-        return {key for _, key in light_themes + dark_themes}
+        return ssa_gui_theme.get_theme_keys()
 
     def _persist_gui_preferences(self):
         try:
@@ -773,15 +755,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-        theme_default = gui_settings.get("theme_default")
-        last_theme = gui_settings.get("theme")
-        theme_keys = self._get_theme_keys()
-        for candidate in (theme_default, last_theme, "gruvbox"):
-            if isinstance(candidate, str) and candidate.strip():
-                normalized = normalize_theme(candidate)
-                if normalized in theme_keys:
-                    return normalized
-        return "gruvbox"
+        return ssa_gui_theme.resolve_startup_theme(gui_settings)
 
     def __init__(self):
         super().__init__()
@@ -4948,428 +4922,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.warning("Falha ao abrir menu de temas: %s", exc)
 
     def apply_theme(self, name: str):
-        """
-        Apply theme to the entire application and all widgets.
-
-        This method is organized into clear sections for easy maintenance.
-        See temp/THEME_ROLES_MAPPING.md for mapping of theme roles to widgets.
-
-        Args:
-            name: Theme name (will be normalized: 'dark', 'grayscale', 'gruvbox', etc.)
-        """
-        # ============================================================
-        # SECTION 1: Theme Setup and Palette Loading
-        # ============================================================
-        # Normalize theme name and load QPalette from utils.themes
-        normalized = normalize_theme(name)
-        current_theme = normalize_theme(getattr(self, "_current_theme", "") or "")
-        same_theme = bool(current_theme and normalized == current_theme)
-        roles = get_theme_roles(normalized)
-        if same_theme:
-            # Fast path: evita repolish global caro sem pular atualizacao local de estilos.
-            pal = self.palette()
-        else:
-            try:
-                from PyQt6.QtWidgets import QApplication, QStyleFactory
-                app = QApplication.instance()
-                pal = get_palette(normalized)
-                # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
-                # Para consistencia, force "Fusion" em todos os temas.
-                try:
-                    if app is not None:
-                        styles = QStyleFactory.keys()
-                        if styles and 'Fusion' in styles:
-                            app.setStyle('Fusion')
-                except Exception as exc:
-                    logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
-                # Aplica paleta no aplicativo inteiro para garantir consistência
-                if app is not None:
-                    app.setPalette(pal)
-                    # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
-                    try:
-                        block = build_global_widget_qss(pal)
-                        if getattr(self, "_last_global_theme_qss", None) != block:
-                            app.setStyleSheet(block)
-                            self._last_global_theme_qss = block
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
-                # Garante também na janela atual
-                self.setPalette(pal)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Falha ao aplicar paleta global do tema '%s'; seguindo fallback local: %s", normalized, exc)
-                pal = get_palette(normalized)
-                self.setPalette(pal)
-
-        # ============================================================
-        # SECTION 2: Application-Wide Widget Settings
-        # ============================================================
-        # Set central widget background and table header styling
-        # Ensure central widget background matches the palette to avoid white boxes
-        try:
-            central = self.centralWidget()
-            if central is not None:
-                existing = central.styleSheet() or ""
-                start = existing.find("/* SSA_MAIN_BG_START */")
-                if start != -1:
-                    end = existing.find("/* SSA_MAIN_BG_END */", start)
-                    if end != -1:
-                        end += len("/* SSA_MAIN_BG_END */")
-                        existing = (existing[:start] + existing[end:]).rstrip()
-                    else:
-                        existing = existing[:start].rstrip()
-                normalized_name = normalize_theme(normalized)
-                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
-                    bg = pal.window().color().name()
-                    block = build_central_widget_qss(bg)
-                    new_css = existing
-                    if new_css:
-                        if not new_css.endswith("\n"):
-                            new_css += "\n"
-                        new_css += block
-                    else:
-                        new_css = block
-                    if central.styleSheet() != new_css:
-                        central.setStyleSheet(new_css)
-                else:
-                    if central.styleSheet() != existing:
-                        central.setStyleSheet(existing)
-        except Exception as exc:
-            logger.warning("Falha ao aplicar tema no central widget: %s", exc)
-        try:
-            if hasattr(self, "main_tabs") and self.main_tabs is not None:
-                from PyQt6.QtGui import QPalette as _QPal
-                tab_bg = pal.color(_QPal.ColorRole.Window).name()
-                tab_text = pal.color(_QPal.ColorRole.WindowText).name()
-                tab_mid = pal.color(_QPal.ColorRole.Mid).name()
-                accent = roles.get('accent', tab_text)
-                support_color = roles.get('support_text_color', tab_text)
-                tab_css = (
-                    "QTabWidget::pane {"
-                    f" border:1px solid {tab_mid};"
-                    f" background:{tab_bg};"
-                    " margin:0; padding:0;"
-                    " }"
-                    "QTabBar::tab {"
-                    f" color:{support_color}; background:{tab_bg};"
-                    " padding:4px 10px; font-weight:500; border:1px solid transparent;"
-                    " }"
-                    "QTabBar::tab:selected {"
-                    f" color:{tab_text}; font-weight:600; background:{tab_bg};"
-                    f" border:1px solid {accent}; border-bottom:2px solid {accent};"
-                    " margin-bottom:-1px; margin-top:1px;"
-                    " }"
-                    "QTabBar::tab:!selected {"
-                    f" color:{support_color};"
-                    " }"
-                )
-                self.main_tabs.setStyleSheet(tab_css)
-        except Exception as exc:
-            logger.warning("Falha ao aplicar estilo de tabs no tema atual: %s", exc)
-        try:
-            header = self.table_widget.horizontalHeader()
-            header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc)
-
-        # ============================================================
-        # SECTION 3: Extract Theme Color Roles
-        # ============================================================
-        # Load all color roles from theme for widget styling
-        # These variables are used in subsequent sections
-        self._current_theme = normalized
-        try:
-            tab_contexts = getattr(self, "_tab_contexts", None)
-            if isinstance(tab_contexts, list):
-                # Only mark the active tab context as themed.
-                # Other tabs must be re-themed on demand when they get bound, otherwise
-                # they can keep stale styles after theme switches.
-                active_kind = getattr(self, "_current_tab_kind", None)
-                active_search = getattr(self, "search_input", None)
-                for ctx in tab_contexts:
-                    if not isinstance(ctx, dict):
-                        continue
-                    if active_kind and ctx.get("tab_kind") == active_kind:
-                        ctx["_theme_name"] = normalized
-                        break
-                    if active_search is not None and ctx.get("search_input") is active_search:
-                        ctx["_theme_name"] = normalized
-                        break
-        except Exception as exc:
-            logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
-        try:
-            light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
-            selector = getattr(self, 'column_selector', None)
-            pal_active = self.palette()
-            from PyQt6.QtGui import QPalette as _QPal
-            roles = get_theme_roles(normalized)
-            txt = pal_active.color(_QPal.ColorRole.WindowText).name()
-            base = pal_active.color(_QPal.ColorRole.Base).name()
-            mid = pal_active.color(_QPal.ColorRole.Mid).name()
-            high = pal_active.color(_QPal.ColorRole.Highlight).name()
-            label_color = roles.get('label_color', txt)
-            support_color = roles.get('support_text_color', label_color)
-            indicator_color = roles.get('indicator_text_color', support_color)
-            summary_color = roles.get('summary_text_color', label_color)
-            summary_bg = roles.get('summary_frame_bg', roles.get('panel_bg', base))
-            summary_border = roles.get('summary_frame_border', roles.get('panel_border', mid))
-            accent = roles.get('accent', high)
-            accent_soft = roles.get('accent_soft', support_color)
-            input_bg = roles.get('input_bg', base)
-            input_text = roles.get('input_text', txt)
-            input_border = roles.get('input_border', mid)
-            input_focus = roles.get('input_border_focus', accent)
-            input_placeholder = roles.get('input_placeholder', support_color)
-            panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
-            panel_text = roles.get('panel_text', txt)
-            panel_border = roles.get('panel_border', input_border)
-            try:
-                highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
-            except Exception as exc:
-                logger.debug("Falha ao obter cor de texto destacado da paleta: %s", exc)
-                highlight_fg = None
-            self._highlight_bg_color = high or HIGHLIGHT_BACKGROUND_COLOR
-            self._highlight_text_color = highlight_fg or None
-            self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
-
-            # ============================================================
-            # SECTION 4: Search Bar Components
-            # ============================================================
-            # Style the search label and search input field
-            if hasattr(self, 'search_label'):
-                self.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
-
-            if hasattr(self, 'search_input') and self.search_input is not None:
-                self.search_input.setStyleSheet(
-                    build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
-                )
-
-            tool_btn_css = (
-                "QToolButton {"
-                f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
-                " border-radius:4px; padding:2px 6px; }"
-                "QToolButton:pressed {"
-                f" background: {accent_soft}; }}"
-            )
-            adv_buttons = [
-                "adv_executor_button",
-                "adv_emissor_button",
-                "adv_divisao_button",
-                "adv_status_button",
-                "adv_year_emissao_button",
-                "adv_year_execucao_button",
-                "adv_prioridade_emissao_button",
-                "adv_prioridade_planejamento_button",
-                "adv_responsavel_solicitante_button",
-                "adv_responsavel_programacao_button",
-                "adv_responsavel_execucao_button",
-                "adv_responsavel_emissor_button",
-            ]
-            for name in adv_buttons:
-                btn = getattr(self, name, None)
-                if btn is not None:
-                    try:
-                        btn.setStyleSheet(tool_btn_css)
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar estilo no botao avancado %s: %s", name, exc)
-            adv_line_edits = [
-                "adv_week_emissao_start",
-                "adv_week_emissao_end",
-                "adv_week_execucao_start",
-                "adv_week_execucao_end",
-            ]
-            for name in adv_line_edits:
-                widget = getattr(self, name, None)
-                if widget is not None:
-                    try:
-                        widget.setStyleSheet(
-                            build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
-                        )
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar estilo no campo avancado %s: %s", name, exc)
-
-            # ============================================================
-            # SECTION 5: Details Panel
-            # ============================================================
-            # Style the SSA details text widget and its group box
-            if hasattr(self, 'details_text'):
-                if hasattr(self, 'details_group'):
-                    try:
-                        base_font = self.details_group.font()
-                        small_font = QFont(base_font)
-                        size = small_font.pointSizeF()
-                        if size <= 0:
-                            size = float(small_font.pointSize())
-                        if size > 0:
-                            small_font.setPointSizeF(max(size - 1.5, 1.0))
-                        self.details_text.setFont(small_font)
-                    except Exception as exc:
-                        logger.debug("Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc)
-                if normalized in light_themes:
-                    self.details_text.setStyleSheet('')
-                else:
-                    self.details_text.setStyleSheet(
-                        "QTextEdit {"
-                        f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
-                        " }"
-                    )
-
-            group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
-
-            if hasattr(self, 'details_group'):
-                if normalized in light_themes:
-                    self.details_group.setStyleSheet('')
-                else:
-                    self.details_group.setStyleSheet(group_css)
-
-            # ============================================================
-            # SECTION 6: Column Filters Panel
-            # ============================================================
-            # Style the column filters group box
-            if hasattr(self, 'col_filters_group'):
-                if normalized in light_themes:
-                    self.col_filters_group.setStyleSheet('')
-                else:
-                    self.col_filters_group.setStyleSheet(group_css)
-            if hasattr(self, 'adv_filters_group'):
-                if normalized in light_themes:
-                    self.adv_filters_group.setStyleSheet('')
-                else:
-                    self.adv_filters_group.setStyleSheet(group_css)
-
-            # ============================================================
-            # SECTION 7: Status and Week Labels
-            # ============================================================
-            # Style the week indicator and status bar label
-            highlight_style = (
-                f"font-weight:600; color:{accent}; background:{panel_bg}; "
-                f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-            )
-            self._week_label_style = highlight_style
-            if hasattr(self, 'week_label'):
-                self.week_label.setStyleSheet(highlight_style)
-
-            if hasattr(self, 'status_label'):
-                self.status_label.setStyleSheet(
-                    f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-                )
-
-            # ============================================================
-            # SECTION 8: Support Text and Indicators
-            # ============================================================
-            # Style help text and filter indicator labels
-            if hasattr(self, 'search_help'):
-                css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
-                if hasattr(self, 'status_label'):
-                    try:
-                        self.search_help.setFont(self.status_label.font())
-                    except Exception as exc:
-                        logger.debug("Falha ao sincronizar fonte de search_help com status_label: %s", exc)
-                self.search_help.setStyleSheet(css)
-
-            if hasattr(self, 'col_filter_indicator'):
-                self.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
-
-            # ============================================================
-            # SECTION 9: Filters Summary
-            # ============================================================
-            # Style the summary label and frame showing active filters
-            if hasattr(self, 'filters_summary_label'):
-                self.filters_summary_label.setStyleSheet(f"color:{summary_color};")
-
-            if hasattr(self, 'filters_summary_frame'):
-                self.filters_summary_frame.setStyleSheet(
-                    "QFrame {"
-                    f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
-                    " }"
-                )
-            if hasattr(self, 'clear_all_filters_btn'):
-                self.clear_all_filters_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'export_list_btn'):
-                self.export_list_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'undo_filter_btn'):
-                self.undo_filter_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'clear_all_btn'):
-                self.clear_all_btn.setStyleSheet(highlight_style)
-
-            # ============================================================
-            # SECTION 10: Column Selector and Hints
-            # ============================================================
-            # Style the column selector widget and filter hints
-            if selector is not None and hasattr(selector, 'summary_label'):
-                selector.summary_label.setStyleSheet(f"color:{indicator_color};")
-
-            if hasattr(self, 'col_filters_hint'):
-                self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
-        except Exception as exc:
-            logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
-
-        # ============================================================
-        # SECTION 11: Dynamic Column Filter Widgets
-        # ============================================================
-        # Refresh all dynamically created column filter input widgets
-        try:
-            if getattr(self, "_current_tab_kind", None) == "filters":
-                # Evita custo alto na aba de filtros; reaplica quando voltar para SSAs.
-                self._pending_theme_refresh_column_filters = normalized
-            else:
-                self._refresh_column_filter_widgets()
-                self._pending_theme_refresh_column_filters = None
-        except Exception as exc:
-            logger.debug("Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc)
-
-        # ============================================================
-        # SECTION 12: Persistence and Platform Adjustments
-        # ============================================================
-        # Save theme preference and apply macOS-specific contrast fixes
-        try:
-            # Persistencia simples do tema sem normalizacao adicional
-            gui_settings = GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})
-            if gui_settings.get('theme') != normalized:
-                gui_settings['theme'] = normalized
-                atomic_write_json_file(
-                    os.path.join(project_root, "config", "gui_main_preferences.json"),
-                    GUI_MAIN_PREFERENCES,
-                    indent=2,
-                    ensure_ascii=False,
-                )
-        except Exception as exc:
-            logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
-        self._apply_macos_contrast(normalized)
-        try:
-            self.update_details_from_selection()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+        ssa_gui_theme.apply_theme(
+            self,
+            name,
+            gui_prefs=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+            highlight_defaults=(HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT),
+        )
 
     def _apply_macos_contrast(self, theme_name: str):
-        if sys.platform != 'darwin':
-            return
-        normalized = normalize_theme(theme_name)
-        roles = get_theme_roles(normalized)
-        text_color = roles.get('panel_text')
-        bg_color = roles.get('panel_bg')
-        border_color = roles.get('panel_border')
-        label_color = roles.get('label_color')
-        block = (
-            "/* SSA_MAC_QSS_START */\n"
-            "QLineEdit, QTextEdit, QTextBrowser {"
-            f" color:{text_color}; background-color:{bg_color}; border:1px solid {border_color}; }}\n"
-            "QGroupBox, QLabel {"
-            f" color:{label_color}; }}\n"
-            "/* SSA_MAC_QSS_END */"
-        )
-        try:
-            central = self.centralWidget()
-            if central is not None:
-                existing = central.styleSheet() or ""
-                start = existing.find("/* SSA_MAC_QSS_START */")
-                end = existing.find("/* SSA_MAC_QSS_END */", start)
-                if start != -1 and end != -1 and end > start:
-                    end += len("/* SSA_MAC_QSS_END */")
-                    existing = existing[:start] + existing[end:]
-                new_qss = (existing + ("\n" if existing and not existing.endswith("\n") else "") + block).strip()
-                central.setStyleSheet(new_qss)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar ajustes de contraste macOS no tema %s: %s", normalized, exc)
+        ssa_gui_theme.apply_macos_contrast(self, theme_name)
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
