@@ -65,6 +65,7 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
         try:
             os.close(fd)
+            fd = None
         except Exception:
             pass
         shutil.copyfile(src, tmp_path)
@@ -76,6 +77,9 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         os.replace(tmp_path, dst)
         tmp_path = None
     finally:
+        if fd is not None:
+            with suppress(Exception):
+                os.close(fd)
         if tmp_path:
             with suppress(Exception):
                 os.remove(tmp_path)
