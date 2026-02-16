@@ -115,7 +115,7 @@ class CLIEnhancementManager:
                 fcntl.flock(f.fileno(), flags)
             elif msvcrt is not None:  # pragma: no cover - Windows
                 mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
-                msvcrt.locking(f.fileno(), mode, 1)
+                msvcrt.locking(f.fileno(), mode, 4096)
         except Exception as exc:
             logger.debug("Nao foi possivel aplicar lock no settings: %s", exc)
 

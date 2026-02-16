@@ -68,6 +68,11 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         except Exception:
             pass
         shutil.copyfile(src, tmp_path)
+        try:
+            with open(tmp_path, "rb") as f:
+                os.fsync(f.fileno())
+        except OSError as exc:
+            logger.debug("fsync failed for config temp file (%s): %s", tmp_path, exc)
         os.replace(tmp_path, dst)
         tmp_path = None
     finally:
