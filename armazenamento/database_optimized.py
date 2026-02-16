@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 import time
-from contextlib import suppress
 import pandas as pd  # type: ignore[import-not-found]
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
@@ -278,8 +277,13 @@ def insert_dataframe_optimized(
                         total_inserted += len(update_df)
                         logger.info(f"[OK] Atualizados {len(update_df)} registros existentes")
                     except Exception:
-                        with suppress(Exception):
+                        try:
                             conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
+                        except Exception as exc:
+                            logger.error(
+                                "Falha ao fazer rollback do SAVEPOINT ssa_batch_update: %s",
+                                exc,
+                            )
                         raise
 
             # Commit explícito
