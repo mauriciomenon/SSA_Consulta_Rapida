@@ -69,6 +69,8 @@ class RescanWorker(QThread):
     def _detach_logger(self) -> None:
         global _LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL
         with _LOGGER_LOCK:
+            if not self._logger_attached:
+                return
             if self.log_handler in self.logger.handlers:
                 self.logger.removeHandler(self.log_handler)
             if _LOGGER_REFCOUNT > 0:
