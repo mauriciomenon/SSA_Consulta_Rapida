@@ -46,5 +46,4 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
             pass
 
     assert emitted
-    assert "boom" in emitted[0]
-
+    assert emitted[0] == "Erro ao executar reescaneamento."
