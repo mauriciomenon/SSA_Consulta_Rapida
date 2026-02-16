@@ -122,9 +122,9 @@ def main():
 
     line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=4096)
     dropped_lines = 0
+    dropped_lock = threading.Lock()
 
     def _safe_queue_put(value: str | None) -> None:
-        nonlocal dropped_lines
         # Never block the reader thread when the queue is full.
         # Blocking here can deadlock when the child process fills its stdout pipe.
         if value is None:
@@ -136,7 +136,8 @@ def main():
                 except queue.Full:
                     try:
                         line_queue.get_nowait()
-                        dropped_lines += 1
+                        with dropped_lock:
+                            dropped_lines += 1
                     except queue.Empty:
                         time.sleep(0.005)
 
@@ -153,22 +154,28 @@ def main():
                 pass
 
             if evicted:
-                dropped_lines += 1
+                with dropped_lock:
+                    dropped_lines += 1
 
             try:
                 line_queue.put_nowait(value)
-                if evicted and dropped_lines % 200 == 1:
-                    warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
-                    try:
-                        line_queue.put_nowait(warn)
-                    except queue.Full:
-                        pass
+                if evicted:
+                    with dropped_lock:
+                        warn_count = dropped_lines
+                    if warn_count % 200 == 1:
+                        warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
+                        try:
+                            line_queue.put_nowait(warn)
+                        except queue.Full:
+                            pass
                 return
             except queue.Full:
                 # Still no space, drop the line.
-                dropped_lines += 1
-                if dropped_lines % 200 == 1:
-                    warn = f"[WARN] output queue full; dropped {dropped_lines} line(s)\n"
+                with dropped_lock:
+                    dropped_lines += 1
+                    warn_count = dropped_lines
+                if warn_count % 200 == 1:
+                    warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
                     try:
                         line_queue.put_nowait(warn)
                     except queue.Full:
