@@ -37,6 +37,21 @@ def ensure_log_path(logpath: str):
         os.makedirs(d, exist_ok=True)
 
 
+def _queue_maxsize() -> int:
+    raw = os.environ.get("PYTEST_STREAM_QUEUE_MAX")
+    if not raw:
+        return 4096
+    try:
+        value = int(raw)
+    except ValueError:
+        return 4096
+    if value < 256:
+        return 256
+    if value > 65536:
+        return 65536
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", required=True)
@@ -120,7 +135,7 @@ def main():
             start_new_session=True,
         )
 
-    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=4096)
+    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=_queue_maxsize())
     dropped_lines = 0
     dropped_lock = threading.Lock()
 
