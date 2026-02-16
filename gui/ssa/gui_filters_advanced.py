@@ -6,14 +6,15 @@
 from __future__ import annotations
 
 import copy
-import logging
 from time import perf_counter
 
 import pandas as pd
+from pandas.api import types as pd_types
 
 from gui.gui_config import GUI_MAIN_PREFERENCES
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 DIVISAO_SETORES = {}
 SECTOR_TO_DIV = {}
@@ -2820,10 +2821,20 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
     if emissao_inc or emissao_exc:
         if "data_cadastro" in df.columns:
             try:
-                from shared.date_utils import parse_any_date
-                parsed = df["data_cadastro"].apply(parse_any_date)
-                ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+                series = df["data_cadastro"]
+                ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+                missing = ts.isna()
+                if missing.any():
+                    ts_alt = pd.to_datetime(series[missing], errors="coerce", dayfirst=False)
+                    ts.loc[missing] = ts_alt
+                if pd_types.is_numeric_dtype(series):
+                    nums = pd.to_numeric(series, errors="coerce")
+                    num_mask = nums.notna() & nums.gt(0)
+                    if num_mask.any():
+                        base = pd.Timestamp("1899-12-30")
+                        ts.loc[num_mask] = base + pd.to_timedelta(nums[num_mask], unit="D")
                 years = ts.dt.year
+                years = years.where(years.between(1980, 2100))
                 if emissao_inc:
                     mask &= years.isin(emissao_inc)
                 if emissao_exc:
@@ -2901,9 +2912,11 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
             mask &= has_derivada
 
         if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
+            origins_error = False
             try:
                 origins = set(series_derivada[has_derivada].unique())
             except Exception:
+                origins_error = True
                 origins = set()
             if derivada_all_ste and "situacao" in df.columns:
                 try:
@@ -2915,6 +2928,7 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
                     origins = set(grouped[grouped].index.astype(str).tolist())
                 except Exception as exc:
                     logger.debug("Failed to compute derivada_all_ste origin set: %s", exc)
+                    origins_error = True
                     origins = set()
             if origins:
                 try:
@@ -2923,6 +2937,8 @@ def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
                     mask &= numero_norm.isin(origin_norm)
                 except Exception as exc:
                     logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)
+            elif origins_error:
+                logger.debug("Skipping derivada filter due to origin calculation failure.")
             else:
                 mask &= False
 
