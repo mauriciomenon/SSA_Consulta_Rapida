@@ -5,7 +5,7 @@ This handoff is ready to reuse in the next conversation.
 ## Estado atual
 
 - Merge concluido do trabalho de recovery/hardening.
-- Registro de backlog criado em `/Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md`.
+- Registro de backlog criado em `docs/RECOVERY_BACKLOG.md`.
 - Fluxo final ficou com checks tecnicos estaveis e ajustes defensivos aplicados sem mexer em layout da GUI.
 - PR #30 (codex/import-review) aceito; proxima etapa: refatoracao de `gui/gui_ssa.py` com foco em separar responsabilidades sem alterar layout.
 
@@ -36,7 +36,7 @@ This handoff is ready to reuse in the next conversation.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
 5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
 6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
-7. Manter backlog de follow-up em `/Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md`.
+7. Manter backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
 
 ## Objetivo do novo ciclo
 
@@ -56,7 +56,7 @@ Regras de execucao:
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
 5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
 6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
-7. Manter backlog de follow-up em /Users/menon/git/SSA_Consulta_Rapida/docs/RECOVERY_BACKLOG.md.
+7. Manter backlog de follow-up em docs/RECOVERY_BACKLOG.md.
 
 Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
 Objetivo atual: refatorar gui/gui_ssa.py sem mudar layout, com levantamento detalhado antes.
