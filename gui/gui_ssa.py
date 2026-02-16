@@ -47,7 +47,7 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -769,15 +769,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_gui_theme.get_theme_keys()
 
     def _persist_gui_preferences(self):
-        try:
-            atomic_write_json_file(
-                os.path.join(project_root, "config", "gui_main_preferences.json"),
-                GUI_MAIN_PREFERENCES,
-                indent=2,
-                ensure_ascii=False,
-            )
-        except Exception as e:
-            logger.warning("Falha ao persistir preferencias GUI: %s", e)
+        return ssa_gui_theme.persist_gui_preferences(GUI_MAIN_PREFERENCES, project_root)
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
@@ -1954,144 +1946,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
     def toggle_theme_menu(self):
-        from PyQt6.QtWidgets import QMenu, QWidgetAction, QCheckBox
-        from functools import partial
-        menu = QMenu(self)
-        # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
-        try:
-            from PyQt6.QtWidgets import QApplication
-            from PyQt6.QtCore import Qt as _Qt
-            from PyQt6.QtGui import QPalette as _QPal
-            app = QApplication.instance()
-            pal = app.palette() if app is not None else self.palette()
-            if app is not None:
-                menu.setPalette(pal)
-            try:
-                menu.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
-            except Exception as exc:
-                logger.debug("Falha ao habilitar styled background no menu de temas: %s", exc)
-            win = pal.color(_QPal.ColorRole.Window).name()
-            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
-            mid = pal.color(_QPal.ColorRole.Mid).name()
-            hi = pal.color(_QPal.ColorRole.Highlight).name()
-            hitxt = pal.color(_QPal.ColorRole.HighlightedText).name()
-            menu.setStyleSheet(
-                f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}"
-                f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}"
-                f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}"
-            )
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo/paleta no menu de temas: %s", exc)
-        light_themes, dark_themes = self._get_theme_catalog()
-        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-        theme_default = gui_settings.get("theme_default")
-        current_theme = normalize_theme(getattr(self, "_current_theme", "") or theme_default or "gruvbox")
-        roles = get_theme_roles(current_theme)
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            pal = menu.palette()
-            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
-            win = pal.color(_QPal.ColorRole.Window).name()
-        except Exception as exc:
-            logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
-            wtxt = "#ffffff"
-            win = "#000000"
-        support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
-        if support_color.lower() == win.lower():
-            support_color = wtxt
-
-        try:
-            check_action = QWidgetAction(menu)
-            check_widget = QCheckBox("Usar tema atual como padrao")
-            check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
-            try:
-                check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
-            except Exception as exc:
-                logger.debug("Falha ao estilizar checkbox do menu de temas: %s", exc)
-            def _toggle_default(checked):
-                gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-                if checked:
-                    active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
-                    gui_settings["theme_default"] = active_theme
-                else:
-                    gui_settings.pop("theme_default", None)
-                self._persist_gui_preferences()
-            check_widget.toggled.connect(_toggle_default)
-            check_action.setDefaultWidget(check_widget)
-            menu.addAction(check_action)
-        except Exception as exc:
-            logger.debug("Falha ao construir checkbox de tema padrao; usando fallback de action: %s", exc)
-            default_action = menu.addAction("Usar tema atual como padrao")
-            if default_action is not None:
-                try:
-                    default_action.setCheckable(True)
-                    default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
-                    def _toggle_default_action(checked):
-                        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-                        if checked:
-                            active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
-                            gui_settings["theme_default"] = active_theme
-                        else:
-                            gui_settings.pop("theme_default", None)
-                        self._persist_gui_preferences()
-                    default_action.triggered.connect(_toggle_default_action)
-                except Exception as fallback_exc:
-                    logger.debug("Falha no fallback de action para tema padrao: %s", fallback_exc)
-        menu.addSeparator()
-
-        def _add_label(text: str):
-            try:
-                from PyQt6.QtWidgets import QWidgetAction
-                label = QLabel(text)
-                try:
-                    label_color = support_color
-                    label.setStyleSheet(
-                        f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao estilizar label de grupo no menu de temas: %s", exc)
-                action = QWidgetAction(menu)
-                action.setDefaultWidget(label)
-                menu.addAction(action)
-            except Exception as exc:
-                logger.debug("Falha ao criar label custom no menu de temas; usando action simples: %s", exc)
-                act = menu.addAction(text)
-                if act is not None:
-                    try:
-                        act.setEnabled(False)
-                    except Exception as disable_exc:
-                        logger.debug("Falha ao desabilitar action de label no menu de temas: %s", disable_exc)
-
-        def _add_group(items):
-            for label, key in items:
-                act = menu.addAction(label)
-                if act is not None:
-                    trigger = getattr(act, "triggered", None)
-                    if trigger is not None:
-                        try:
-                            trigger.connect(partial(self.apply_theme, key))
-                        except Exception as exc:
-                            logger.warning("Falha ao conectar action de tema %s: %s", key, exc)
-
-        _add_label("Light")
-        _add_group(sorted(light_themes, key=lambda item: item[0].lower()))
-        menu.addSeparator()
-        _add_label("Dark")
-        _add_group(sorted(dark_themes, key=lambda item: item[0].lower()))
-
-        try:
-            labels = [name for name, _ in light_themes + dark_themes]
-            fm = menu.fontMetrics()
-            widest = max(fm.horizontalAdvance(lbl) for lbl in labels)
-            menu.setMinimumWidth(widest + 48)
-        except Exception as exc:
-            logger.debug("Falha ao calcular largura minima do menu de temas: %s", exc)
-        btn = self.sender()
-        try:
-            if btn is not None:
-                menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-        except Exception as exc:
-            logger.warning("Falha ao abrir menu de temas: %s", exc)
+        return ssa_gui_theme.toggle_theme_menu(
+            self,
+            gui_prefs=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+        )
 
     def apply_theme(self, name: str):
         ssa_gui_theme.apply_theme(
