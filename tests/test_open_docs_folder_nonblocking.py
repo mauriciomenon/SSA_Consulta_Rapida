@@ -22,6 +22,7 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
             return True
 
     monkeypatch.setattr(gui_ssa, "QDesktopServices", DummyQDesktopServices)
+    DummyQDesktopServices.called.clear()
     monkeypatch.setattr(gui_ssa.subprocess, "run", lambda *a, **k: pytest.fail("subprocess.run called"))
     monkeypatch.setattr(gui_ssa.subprocess, "Popen", lambda *a, **k: pytest.fail("subprocess.Popen called"))
     monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
