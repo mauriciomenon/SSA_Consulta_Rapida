@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
     QPushButton, QProgressBar, QLabel
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
 
 
@@ -20,11 +20,15 @@ class RescanProgressDialog(QDialog):
     - Cancel button
     """
 
+    cancel_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Reescaneamento em Andamento")
         self.setModal(True)
         self.resize(800, 600)
+        self._cancel_requested = False
+        self._finished = False
         self.setup_ui()
 
     def setup_ui(self):
@@ -84,6 +88,10 @@ class RescanProgressDialog(QDialog):
 
     def append_output(self, line: str):
         """Append line to output display."""
+        # When the dialog is cancelled and closed, the worker may still emit a few
+        # lines while stopping. Avoid spending UI time updating a hidden dialog.
+        if self._cancel_requested and not self.isVisible():
+            return
         self.output_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.output_text.verticalScrollBar()
@@ -91,6 +99,8 @@ class RescanProgressDialog(QDialog):
 
     def append_error(self, line: str):
         """Append line to error display."""
+        if self._cancel_requested and not self.isVisible():
+            return
         self.error_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.error_text.verticalScrollBar()
@@ -98,11 +108,14 @@ class RescanProgressDialog(QDialog):
 
     def update_progress(self, percentage: int, message: str):
         """Update progress bar and status."""
+        if self._cancel_requested and not self.isVisible():
+            return
         self.progress_bar.setValue(percentage)
         self.status_label.setText(message)
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""
+        self._finished = True
         self.cancel_button.setEnabled(False)
         self.close_button.setEnabled(True)
 
@@ -115,3 +128,16 @@ class RescanProgressDialog(QDialog):
             self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: red;")
             if message:
                 self.append_error(f"\nERRO FINAL: {message}")
+
+    def reject(self) -> None:
+        """Request cancel while running, allow close on a second attempt."""
+        if self._finished:
+            super().reject()
+            return
+        if not self._cancel_requested:
+            self._cancel_requested = True
+            self.cancel_button.setEnabled(False)
+            self.status_label.setText("Cancelamento solicitado. Aguarde...")
+            self.cancel_requested.emit()
+            return
+        super().reject()

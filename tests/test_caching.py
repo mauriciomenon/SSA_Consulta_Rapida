@@ -2,13 +2,14 @@
 import pytest
 import os
 import sys
-import hashlib
+import json
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from utils.caching import get_files_to_process, _calculate_hash
+from utils.caching import get_files_to_process, _calculate_hash  # noqa: E402
+import utils.caching as caching  # noqa: E402
 
 # --- Fixture: Preparando o Ambiente de Teste ---
 
@@ -90,3 +91,70 @@ def test_get_files_to_process_no_changes(temp_docs_dir):
     assert not files_to_process # Outra forma de verificar se a lista está vazia
 
 
+def test_get_files_to_process_skips_hash_when_metadata_unchanged(temp_docs_dir, monkeypatch):
+    file_a_path = os.path.join(temp_docs_dir, "relatorio_a.xlsx")
+    file_b_path = os.path.join(temp_docs_dir, "relatorio_b.xlsx")
+
+    st_a = os.stat(file_a_path)
+    st_b = os.stat(file_b_path)
+
+    cache = {
+        "relatorio_a.xlsx": {
+            "sha256": _calculate_hash(file_a_path),
+            "size": st_a.st_size,
+            "mtime_ns": st_a.st_mtime_ns,
+        },
+        "relatorio_b.xlsx": {
+            "sha256": _calculate_hash(file_b_path),
+            "size": st_b.st_size,
+            "mtime_ns": st_b.st_mtime_ns,
+        },
+    }
+
+    def boom(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("unexpected hash computation")
+
+    monkeypatch.setattr(caching, "_calculate_hash", boom)
+
+    files_to_process = get_files_to_process(temp_docs_dir, cache)
+    assert files_to_process == []
+
+
+def test_get_files_to_process_upgrades_legacy_cache_file(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+
+    file_a = docs_dir / "relatorio_a.xlsx"
+    file_b = docs_dir / "relatorio_b.xlsx"
+    file_a.write_text("dados do relatorio a", encoding="utf-8")
+    file_b.write_text("dados do relatorio b", encoding="utf-8")
+
+    st_a = os.stat(str(file_a))
+    st_b = os.stat(str(file_b))
+
+    legacy_cache = {
+        "relatorio_a.xlsx": caching._calculate_hash(str(file_a)),
+        "relatorio_b.xlsx": caching._calculate_hash(str(file_b)),
+    }
+    cache_file = tmp_path / "file_cache.json"
+    cache_file.write_text(json.dumps(legacy_cache, indent=4), encoding="utf-8")
+
+    files_to_process = caching.get_files_to_process(str(docs_dir), str(cache_file))
+    assert files_to_process == []
+
+    upgraded = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert upgraded["relatorio_a.xlsx"]["sha256"] == legacy_cache["relatorio_a.xlsx"]
+    assert upgraded["relatorio_a.xlsx"]["size"] == st_a.st_size
+    assert upgraded["relatorio_a.xlsx"]["mtime_ns"] == st_a.st_mtime_ns
+    assert upgraded["relatorio_b.xlsx"]["sha256"] == legacy_cache["relatorio_b.xlsx"]
+    assert upgraded["relatorio_b.xlsx"]["size"] == st_b.st_size
+    assert upgraded["relatorio_b.xlsx"]["mtime_ns"] == st_b.st_mtime_ns
+
+    # Second run should not hash again when metadata matches.
+    def boom(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("unexpected hash computation")
+
+    monkeypatch.setattr(caching, "_calculate_hash", boom)
+
+    files_to_process = caching.get_files_to_process(str(docs_dir), str(cache_file))
+    assert files_to_process == []

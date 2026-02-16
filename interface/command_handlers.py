@@ -5,7 +5,7 @@ import json
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
-from core.config_manager import load_settings, load_display_mappings_integrity
+from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
@@ -20,12 +20,11 @@ def _load_mappings_handler(file_name: str) -> dict:
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
-    settings_path = os.path.join('config', 'settings.json')
     try:
-        with open(settings_path, 'w', encoding='utf-8') as f:
-            json.dump(settings, f, indent=4)
-        print(f"Configuracoes salvas em '{settings_path}'.")
-    except IOError as e:
+        # Delegate to core.config_manager for atomic writes and consistent formatting.
+        save_settings(settings)
+        print("Configuracoes salvas com sucesso.")
+    except Exception as e:  # noqa: BLE001
         print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
 
 def print_help():

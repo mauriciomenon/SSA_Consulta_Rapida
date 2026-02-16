@@ -42,7 +42,7 @@ if project_root not in sys.path:
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
 from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -64,6 +64,16 @@ logger = logging.getLogger(__name__)
 # Retencao global defensiva para workers de carga que sobrevivem ao ciclo da janela.
 GLOBAL_RETIRED_DATA_LOADER_WORKERS = []
 MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS = 64
+GLOBAL_RETIRED_DATA_LOADER_META = {}
+
+# Retencao global defensiva para workers de reescaneamento (importacao) que podem
+# continuar por alguns instantes apos o fechamento do dialogo modal.
+GLOBAL_RETIRED_RESCAN_WORKERS = []
+MAX_GLOBAL_RETIRED_RESCAN_WORKERS = 8
+GLOBAL_RETIRED_RESCAN_META = {}
+
+RETIRED_WORKER_TTL_SEC = 300.0
+RETIRED_WORKER_FORCE_WAIT_MS = 500
 logger.addHandler(logging.NullHandler())
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
@@ -87,8 +97,8 @@ try:
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
         QScrollArea, QToolButton, QWidgetAction
     )
-    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker
-    from PyQt6.QtGui import QAction, QFont
+    from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker, QUrl
+    from PyQt6.QtGui import QAction, QFont, QDesktopServices
 
     # Import workers, cache, widgets, and helpers from separate modules
     from gui.workers import DataLoaderWorker, FilterWorker  # noqa: E402
@@ -543,6 +553,23 @@ DETAILS_DIALOG_MIN_HEIGHT = 500  # px
 HIGHLIGHT_BACKGROUND_COLOR = 'yellow'
 HIGHLIGHT_FONT_WEIGHT = 'bold'
 
+# Prefer explicit monospace families across Windows/macOS/Linux to avoid Qt
+# trying (and failing) to resolve a generic "Monospace" alias.
+MONO_FONT_FAMILY = (
+    # macOS first
+    "'SF Mono', Menlo, Monaco, 'Andale Mono', "
+    # Windows 11 common monospace families
+    "Consolas, 'Cascadia Mono', 'Cascadia Code', 'Segoe UI Mono', 'Lucida Console', "
+    # Debian / Linux common monospace families
+    "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', 'Ubuntu Mono', "
+    "'Droid Sans Mono', 'FreeMono', 'Nimbus Mono L', 'Courier 10 Pitch', "
+    # Popular developer fonts (often installed)
+    "'Fira Code', 'Fira Mono', 'JetBrains Mono', 'Roboto Mono', "
+    "Inconsolata, Hack, 'Source Code Pro', "
+    # Last-resort fallbacks
+    "'Courier New', Courier"
+)
+
 DIVISAO_SETORES = {
     "SMME": ["MEL1", "MEL2", "MEL3", "MEL4"],
     "SMIN": ["IEE1", "IEE2", "IEE3", "IEE4"],
@@ -735,8 +762,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _persist_gui_preferences(self):
         try:
-            with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+            atomic_write_json_file(
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                GUI_MAIN_PREFERENCES,
+                indent=2,
+                ensure_ascii=False,
+            )
         except Exception as e:
             logger.warning("Falha ao persistir preferencias GUI: %s", e)
 
@@ -1869,7 +1900,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         filter_name = ""
         try:
             parent = button.parent()
-            while parent is not None:
+            seen = set()
+            for _ in range(50):
+                if parent is None:
+                    break
+                pid = id(parent)
+                if pid in seen:
+                    logger.debug("Ciclo detectado ao subir parent() no menu multiselect; abortando.")
+                    break
+                seen.add(pid)
                 if isinstance(parent, QGroupBox):
                     candidate = parent.title()
                     # Ignorar titulos genericos como "Valores"
@@ -2610,7 +2649,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_edit.setPlainText(text)
             text_edit.setReadOnly(True)
             try:
-                text_edit.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+                text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
             except Exception as exc:
                 logger.debug("Failed to style derivadas popup text editor: %s", exc)
             layout.addWidget(text_edit)
@@ -2625,6 +2664,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _build_derivadas_tree(self, df: pd.DataFrame, numero_col: str, derivada_col: str):
         """Constroi arvore de derivadas com normalizacao robusta de SSA."""
+        mae_filhas_set: dict[str, set[str]] = {}
         mae_filhas: dict[str, list[str]] = {}
         filha_mae: dict[str, str] = {}
         if df is None or df.empty:
@@ -2637,15 +2677,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception:
             return mae_filhas, filha_mae
 
-        for _, row in df_work.iterrows():
-            numero = self._normalize_ssa_value(row.get(numero_col))
-            derivada_de = self._normalize_ssa_value(row.get(derivada_col))
+        for numero_raw, derivada_raw in df_work.itertuples(index=False, name=None):
+            numero = self._normalize_ssa_value(numero_raw)
+            derivada_de = self._normalize_ssa_value(derivada_raw)
             if not numero or not derivada_de:
                 continue
             filha_mae[numero] = derivada_de
-            mae_filhas.setdefault(derivada_de, set()).add(numero)
+            mae_filhas_set.setdefault(derivada_de, set()).add(numero)
 
-        for mae, filhas in list(mae_filhas.items()):
+        for mae, filhas in list(mae_filhas_set.items()):
             mae_filhas[mae] = sorted(filhas, key=lambda value: str(value).casefold())
 
         return mae_filhas, filha_mae
@@ -2676,7 +2716,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 return
 
             # Verificar se ha valores normalizados validos (ignora '', None, NaN)
-            normalized = df[derivada_col].apply(self._normalize_ssa_value)
+            normalized = self._normalize_ssa_series(df[derivada_col])
             has_derivadas = normalized.ne("").any()
             btn.setEnabled(bool(has_derivadas))
         except Exception as exc:
@@ -3177,7 +3217,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Extrai numeros unicos de SSAs derivadas se nao estiver em cache
             try:
                 if "derivada_de" in df.columns:
-                    derivadas_series = df["derivada_de"].apply(self._normalize_ssa_value)
+                    derivadas_series = self._normalize_ssa_series(df["derivada_de"])
                     derivadas_numbers = sorted(
                         {v for v in derivadas_series.unique() if v and str(v).strip()},
                         key=lambda x: str(x).casefold()
@@ -3626,10 +3666,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.warning("Falha ao sincronizar filtro avancado de ano de execucao: %s", exc)
         try:
-            self.adv_week_emissao_start.setText("" if data.get("semana_emissao_inicio") is None else str(data.get("semana_emissao_inicio")))
-            self.adv_week_emissao_end.setText("" if data.get("semana_emissao_fim") is None else str(data.get("semana_emissao_fim")))
-            self.adv_week_execucao_start.setText("" if data.get("semana_execucao_inicio") is None else str(data.get("semana_execucao_inicio")))
-            self.adv_week_execucao_end.setText("" if data.get("semana_execucao_fim") is None else str(data.get("semana_execucao_fim")))
+            week_fields = (
+                ("adv_week_emissao_start", "semana_emissao_inicio"),
+                ("adv_week_emissao_end", "semana_emissao_fim"),
+                ("adv_week_execucao_start", "semana_execucao_inicio"),
+                ("adv_week_execucao_end", "semana_execucao_fim"),
+            )
+            for attr, key in week_fields:
+                widget = getattr(self, attr, None)
+                if widget is None:
+                    continue
+                value = data.get(key)
+                widget.setText("" if value is None else str(value))
         except Exception as exc:
             logger.warning("Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc)
         try:
@@ -4058,18 +4106,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             reprog_vals = filters.get("num_reprogramacoes_values") or []
             mode = filters.get("num_reprogramacoes_mode")
             if reprog_vals and mode and "num_reprogramacoes" in df.columns:
-                series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
-                vals = [int(v) for v in reprog_vals if pd.notna(v)]
-                if mode == "eq":
-                    mask &= series.isin(vals)
-                elif mode == "lte":
-                    threshold = max(vals)
-                    mask &= series <= threshold
-                elif mode == "gte":
-                    threshold = min(vals)
-                    mask &= series >= threshold
+                nums = pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
+                vals = []
+                for raw in reprog_vals:
+                    text = str(raw).strip()
+                    if text.isdigit():
+                        vals.append(int(text))
+                if vals:
+                    if mode == "eq":
+                        mask &= nums.isin(vals)
+                    elif mode == "lte":
+                        threshold = max(vals)
+                        mask &= nums <= threshold
+                    elif mode == "gte":
+                        threshold = min(vals)
+                        mask &= nums >= threshold
         except Exception as exc:
             logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
+
+        # Early bailouts: avoid expensive parsing work when mask is already empty.
+        try:
+            if not bool(mask.any()):
+                return df.iloc[0:0]
+        except Exception as exc:
+            logger.debug("Failed to evaluate advanced filter mask.any(): %s", exc)
 
         def _to_int_set(values):
             result = set()
@@ -4153,12 +4213,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         _apply_week_range("semana_cadastro", "semana_emissao_inicio", "semana_emissao_fim", "semana_emissao_exclude")
         _apply_week_range("semana_executada", "semana_execucao_inicio", "semana_execucao_fim", "semana_execucao_exclude")
 
+        try:
+            if not bool(mask.any()):
+                return df.iloc[0:0]
+        except Exception as exc:
+            logger.debug("Failed to evaluate advanced filter mask.any() after week ranges: %s", exc)
+
         derivada_has = bool(filters.get("derivada_has"))
         derivada_all_ste = bool(filters.get("derivada_all_ste"))
         derivada_is = bool(filters.get("derivada_is"))
 
         if "derivada_de" in df.columns:
-            series_derivada = df["derivada_de"].apply(self._normalize_ssa_value)
+            series_derivada = self._normalize_ssa_series(df["derivada_de"])
             has_derivada = series_derivada.ne("")
             if derivada_is:
                 mask &= has_derivada
@@ -4182,7 +4248,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if origins:
                     try:
                         origin_norm = {str(o) for o in origins if str(o).strip()}
-                        numero_norm = df["numero_ssa"].apply(self._normalize_ssa_value)
+                        numero_norm = self._normalize_ssa_series(df["numero_ssa"])
                         mask &= numero_norm.isin(origin_norm)
                     except Exception as exc:
                         logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)
@@ -4204,6 +4270,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if worker in retired:
             return
         retired.append(worker)
+        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
         if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
 
@@ -4218,6 +4285,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
             except Exception as exc:
                 logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
+            try:
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+            except Exception as exc:
+                logger.debug("Falha ao remover meta do worker de carga: %s", exc)
 
         try:
             worker.finished.connect(_release_worker_ref)
@@ -4259,16 +4330,105 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _prune_retired_data_loader_workers(self) -> None:
         """Remove referencias globais/locais para workers ja finalizados."""
+        now = perf_counter()
         retired_local = list(getattr(self, "_retired_data_loader_workers", []) or [])
-        if retired_local:
-            self._retired_data_loader_workers = [w for w in retired_local if self._is_data_loader_worker_running(w)]
-        else:
-            self._retired_data_loader_workers = []
+        pruned_local = []
+        for w in retired_local:
+            if not self._is_data_loader_worker_running(w):
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
+                try:
+                    stopped = self._cleanup_data_loader_worker(
+                        w,
+                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    )
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
+                    stopped = False
+                if stopped:
+                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
+            pruned_local.append(w)
+        self._retired_data_loader_workers = pruned_local
 
-        running_global = [w for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS if self._is_data_loader_worker_running(w)]
+        running_global = []
+        for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            if not self._is_data_loader_worker_running(w):
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
+                try:
+                    stopped = self._cleanup_data_loader_worker(
+                        w,
+                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+                    )
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
+                    stopped = False
+                if stopped:
+                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
+            running_global.append(w)
         if len(running_global) > MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:
             running_global = running_global[-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:]
         GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = running_global
+        for w in list(GLOBAL_RETIRED_DATA_LOADER_META.keys()):
+            if w not in GLOBAL_RETIRED_DATA_LOADER_WORKERS and w not in self._retired_data_loader_workers:
+                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+
+    def _is_rescan_worker_running(self, worker) -> bool:
+        if not self._is_data_loader_worker_alive(worker):
+            return False
+        try:
+            if hasattr(worker, "isRunning"):
+                return bool(worker.isRunning())
+        except Exception:
+            return False
+        return False
+
+    def _prune_retired_rescan_workers(self) -> None:
+        now = perf_counter()
+        running_global = []
+        for w in GLOBAL_RETIRED_RESCAN_WORKERS:
+            if not self._is_rescan_worker_running(w):
+                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+                continue
+            started_at = GLOBAL_RETIRED_RESCAN_META.get(w, now)
+            age = now - started_at
+            if age > RETIRED_WORKER_TTL_SEC:
+                logger.warning("Rescan worker excedeu TTL; solicitando stop.")
+                try:
+                    if hasattr(w, "stop"):
+                        w.stop()
+                    if hasattr(w, "quit"):
+                        w.quit()
+                    if hasattr(w, "wait"):
+                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
+                    if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
+                        w.terminate()
+                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
+                except Exception as exc:
+                    logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
+                if not self._is_rescan_worker_running(w):
+                    GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+                    continue
+                GLOBAL_RETIRED_RESCAN_META[w] = now
+            running_global.append(w)
+        if len(running_global) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+            running_global = running_global[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+        GLOBAL_RETIRED_RESCAN_WORKERS[:] = running_global
+        for w in list(GLOBAL_RETIRED_RESCAN_META.keys()):
+            if w not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
         """Finaliza worker de carga com modo bloqueante opcional.
@@ -4377,11 +4537,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         if DataLoaderWorker is None:
             logger.error("DataLoaderWorker indisponivel para load_data")
-            QMessageBox.critical(
-                self,
-                "Erro de Carregamento",
-                "Data loader indisponivel neste ambiente. Consulte os logs.",
-            )
+            # Evita deadlock por dialogo modal durante testes automatizados.
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                logger.debug("PYTEST_CURRENT_TEST set; skipping modal DataLoaderWorker error dialog.")
+            else:
+                QMessageBox.critical(
+                    self,
+                    "Erro de Carregamento",
+                    "Data loader indisponivel neste ambiente. Consulte os logs.",
+                )
             self.status_label.setText("Status: Erro ao carregar dados.")
             self.progress_bar.setVisible(False)
             self.load_button.setEnabled(True)
@@ -4404,7 +4568,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
-        self.df_completo = df.copy()
+        df_copy = df.copy()
+        self.df_completo = df_copy
         try:
             self.clear_filter_cache()
         except Exception as exc:
@@ -4420,7 +4585,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
         # Inicialmente, exibimos todos os dados
-        base = df.copy()
+        base = df_copy
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
         try:
             if 'situacao' in base.columns:
@@ -4428,17 +4593,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             else:
                 is_ste = pd.Series([False]*len(base), index=base.index)
             if 'numero_ssa' in base.columns:
-                def _ssa_sort_key(raw_value):
-                    text_value = str(raw_value or "")
-                    digits = "".join(ch for ch in text_value if ch.isdigit())
-                    if not digits:
-                        return -1
-                    try:
-                        return int(digits)
-                    except Exception:
-                        return -1
-
-                ssa_int = base["numero_ssa"].apply(_ssa_sort_key)
+                ssa_text = base["numero_ssa"].astype(str)
+                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
+                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
             else:
                 ssa_int = pd.Series([-1]*len(base), index=base.index)
             base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
@@ -4447,7 +4604,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as e:
             logger.warning("Falha na ordenacao inicial dos dados: %s", e)
         self.df_exibido = base
-        self._df_last_search_filtered = df.copy()
+        self._df_last_search_filtered = df_copy
         self._widths_computed_for_df_hash = None
         try:
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
@@ -4923,9 +5080,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             tab_contexts = getattr(self, "_tab_contexts", None)
             if isinstance(tab_contexts, list):
+                # Only mark the active tab context as themed.
+                # Other tabs must be re-themed on demand when they get bound, otherwise
+                # they can keep stale styles after theme switches.
+                active_kind = getattr(self, "_current_tab_kind", None)
+                active_search = getattr(self, "search_input", None)
                 for ctx in tab_contexts:
-                    if isinstance(ctx, dict):
+                    if not isinstance(ctx, dict):
+                        continue
+                    if active_kind and ctx.get("tab_kind") == active_kind:
                         ctx["_theme_name"] = normalized
+                        break
+                    if active_search is not None and ctx.get("search_input") is active_search:
+                        ctx["_theme_name"] = normalized
+                        break
         except Exception as exc:
             logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
         try:
@@ -5158,8 +5326,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             gui_settings = GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})
             if gui_settings.get('theme') != normalized:
                 gui_settings['theme'] = normalized
-                with open(os.path.join(project_root, 'config', 'gui_main_preferences.json'), 'w', encoding='utf-8') as f:
-                    json.dump(GUI_MAIN_PREFERENCES, f, ensure_ascii=False, indent=2)
+                atomic_write_json_file(
+                    os.path.join(project_root, "config", "gui_main_preferences.json"),
+                    GUI_MAIN_PREFERENCES,
+                    indent=2,
+                    ensure_ascii=False,
+                )
         except Exception as exc:
             logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
         self._apply_macos_contrast(normalized)
@@ -5732,7 +5904,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             text_color = "#000000"
             link_color = text_color
 
-        html_lines = [f'<html><body style="font-family: monospace; font-size: {font_size_pt}pt; color: {text_color};">']
+        html_lines = [
+            f'<html><body style="font-family: {MONO_FONT_FAMILY}; font-size: {font_size_pt}pt; color: {text_color};">'
+        ]
         html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
 
         # Ordenar campos: prioridade primeiro, depois alfabetico
@@ -5870,11 +6044,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
 
     def _normalize_ssa_value(self, value):
-        text = str(value or "").strip()
+        try:
+            raw = value or ""
+        except Exception:
+            raw = ""
+        text = str(raw).strip()
         if not text:
             return ""
         lowered = text.casefold()
-        if lowered in ("nan", "none", "nat"):
+        if lowered in ("nan", "none", "nat", "<na>"):
             return ""
         try:
             digits = re.sub(r"\D", "", text)
@@ -5883,6 +6061,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if digits:
             return digits
         return lowered
+
+    def _normalize_ssa_series(self, series: pd.Series) -> pd.Series:
+        """Normaliza valores de SSA em modo vetorizado (mais rapido que apply).
+
+        Regra: se houver digitos, retorna apenas os digitos; senao retorna o texto casefold.
+        Valores vazios/NaN/None/NaT/<NA> viram string vazia.
+        """
+        try:
+            s = series.astype(str).str.strip()
+            lowered = s.str.casefold()
+            empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
+            digits = s.str.replace(r"\D+", "", regex=True)
+            out = digits.where(digits.ne(""), lowered)
+            return out.where(~empty_mask, "")
+        except Exception as exc:
+            logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
+            try:
+                return series.apply(self._normalize_ssa_value)
+            except Exception:
+                return pd.Series([""] * len(series), index=getattr(series, "index", None))
 
     def update_details_from_selection(self):
         """Atualiza o painel de detalhes com base na linha selecionada."""
@@ -5956,7 +6154,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         if not num_norm:
             return []
         try:
-            series_norm = self.df_completo["derivada_de"].apply(self._normalize_ssa_value)
+            series_norm = self._normalize_ssa_series(self.df_completo["derivada_de"])
             mask = series_norm.eq(num_norm)
             derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
             derived = []
@@ -5977,7 +6175,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             df_reset = self.df_exibido.reset_index(drop=True)
             if "numero_ssa" not in df_reset.columns:
                 return
-            series_norm = df_reset["numero_ssa"].apply(self._normalize_ssa_value)
+            series_norm = self._normalize_ssa_series(df_reset["numero_ssa"])
             mask = series_norm.eq(num_norm)
             if not mask.any():
                 self.search_input.setText(f"={num_norm}")
@@ -6170,6 +6368,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         from gui.workers import RescanWorker
         from gui.widgets import RescanProgressDialog
 
+        active_worker = getattr(self, "_active_rescan_worker", None)
+        if active_worker is not None:
+            try:
+                if hasattr(active_worker, "isRunning") and active_worker.isRunning():
+                    self.status_label.setText("Status: Reescaneamento ja em andamento.")
+                    return
+            except Exception as exc:
+                logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
+
         # Check if main.py exists
         main_py_path = os.path.join(project_root, 'main.py')
         if not os.path.exists(main_py_path):
@@ -6181,52 +6388,123 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Create and configure worker
         worker = RescanWorker(main_py_path, project_root)
+        self._active_rescan_worker = worker
 
         # Connect signals
         worker.output_line.connect(progress_dialog.append_output)
         worker.error_line.connect(progress_dialog.append_error)
         worker.progress.connect(progress_dialog.update_progress)
 
+        cancelled = False
+
+        def _release_worker_ref(*_args) -> None:
+            try:
+                if getattr(self, "_active_rescan_worker", None) is worker:
+                    self._active_rescan_worker = None
+            except Exception as exc:
+                logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
+            try:
+                if worker in GLOBAL_RETIRED_RESCAN_WORKERS:
+                    GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            except Exception as exc:
+                logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
+            try:
+                GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+            except Exception as exc:
+                logger.debug("Falha ao remover meta do RescanWorker: %s", exc)
+
         def on_success():
+            nonlocal cancelled
+            if cancelled:
+                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+                self.status_label.setText("Status: Reescaneamento cancelado.")
+                _release_worker_ref()
+                return
+            _release_worker_ref()
             progress_dialog.set_finished(True)
             self.status_label.setText("Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar.")
 
         def on_error(error_msg):
+            nonlocal cancelled
+            if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
+                cancelled = True
+                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
+                self.status_label.setText("Status: Reescaneamento cancelado.")
+                _release_worker_ref()
+                return
             progress_dialog.set_finished(False, error_msg)
             self.status_label.setText("Status: Erro no reescaneamento.")
+            _release_worker_ref()
 
         worker.finished_success.connect(on_success)
         worker.finished_error.connect(on_error)
+        try:
+            worker.finished.connect(_release_worker_ref)
+        except Exception as exc:
+            logger.debug("Falha ao conectar signal finished do RescanWorker: %s", exc)
+        try:
+            worker.finished.connect(worker.deleteLater)
+        except Exception as exc:
+            logger.debug("Falha ao conectar deleteLater no RescanWorker: %s", exc)
 
-        # Handle dialog rejection (cancel button)
-        def on_dialog_rejected():
+        # Cancelamento cooperativo: solicita cancelamento e permite fechar o dialogo.
+        def on_cancel_requested():
+            nonlocal cancelled
+            cancelled = True
             if worker.isRunning():
                 worker.stop()
-                worker.wait(2000)  # Wait up to 2 seconds
-                if worker.isRunning():
-                    worker.terminate()
+                self.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
 
-        progress_dialog.rejected.connect(on_dialog_rejected)
+        progress_dialog.cancel_requested.connect(on_cancel_requested)
 
         # Start worker and show dialog
         worker.start()
         progress_dialog.exec()
 
-        # Cleanup
+        # Cleanup (best-effort, sem bloquear a UI)
         if worker.isRunning():
-            worker.wait()
+            if worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                GLOBAL_RETIRED_RESCAN_WORKERS.append(worker)
+                GLOBAL_RETIRED_RESCAN_META[worker] = perf_counter()
+                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+            self._prune_retired_rescan_workers()
+            logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
 
     def open_docs_folder(self):
-        """Abre a pasta docs_entrada no Windows Explorer."""
+        """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
         docs_path = os.path.join(project_root, 'docs_entrada')
 
         if os.path.exists(docs_path):
             try:
-                # Abre no Windows Explorer
-                subprocess.run(['explorer', docs_path], check=True)
+                # Prefer Qt abstraction to avoid blocking UI (subprocess.run) and to keep cross-platform.
+                if QT_AVAILABLE:
+                    url = QUrl.fromLocalFile(docs_path)
+                    ok = QDesktopServices.openUrl(url)
+                    if ok:
+                        return
+                    raise RuntimeError("QDesktopServices.openUrl returned False")
+                raise RuntimeError("Qt nao disponivel para abrir pastas")
             except Exception as e:
-                QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {e}")
+                logger.warning("Falha ao abrir pasta docs_entrada via Qt: %s", e)
+                try:
+                    # Best-effort fallback, non-blocking.
+                    if sys.platform.startswith("win"):
+                        subprocess.Popen(["explorer", docs_path])
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", docs_path])
+                    else:
+                        subprocess.Popen(["xdg-open", docs_path])
+                    return
+                except Exception as fallback_exc:
+                    logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
+                    # Avoid modal dialogs during automated tests (can deadlock pytest runner).
+                    if os.environ.get("PYTEST_CURRENT_TEST"):
+                        return
+                    QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
         else:
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
             QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
 
     def load_other_database(self):
@@ -6368,6 +6646,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._prune_retired_data_loader_workers()
         except Exception as exc:
             logger.debug("Falha ao podar workers aposentados no closeEvent: %s", exc)
+
+        # Best-effort: parar reescaneamento/importacao em andamento ao encerrar a janela.
+        rescan_worker = getattr(self, "_active_rescan_worker", None)
+        if rescan_worker is not None:
+            try:
+                if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                    try:
+                        if hasattr(rescan_worker, "stop"):
+                            rescan_worker.stop()
+                    except Exception as exc:
+                        logger.debug("Falha ao solicitar stop do RescanWorker no closeEvent: %s", exc)
+                    try:
+                        rescan_worker.wait(1500)
+                    except Exception as exc:
+                        logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
+                    try:
+                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                            if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
+                                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            self._prune_retired_rescan_workers()
+                            logger.debug(
+                                "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
+                            )
+                    except Exception as exc:
+                        logger.debug("Falha ao checar/reter RescanWorker no closeEvent: %s", exc)
+            except Exception as exc:
+                logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
+            finally:
+                try:
+                    if not (hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()):
+                        self._active_rescan_worker = None
+                except Exception:
+                    self._active_rescan_worker = None
 
         # Aceita o evento de fechamento
         event.accept()

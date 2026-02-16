@@ -4,6 +4,8 @@
 import os
 import sys
 import logging
+import threading
+from contextlib import suppress
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # Add project root to path for imports
@@ -11,7 +13,13 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from core.app_logic import run_importer_logic
+from core.app_logic import run_importer_logic  # noqa: E402
+
+logger = logging.getLogger(__name__)
+
+_LOGGER_LOCK = threading.Lock()
+_LOGGER_REFCOUNT = 0
+_LOGGER_PREV_LEVEL = None
 
 
 class RescanWorker(QThread):
@@ -43,7 +51,34 @@ class RescanWorker(QThread):
         # Set up logging to capture import messages
         self.log_handler = _LogHandler(self.output_line, self.error_line)
         self.logger = logging.getLogger('ssa')
-        self.original_level = self.logger.level
+
+        self._logger_attached = False
+
+    def _attach_logger(self) -> None:
+        global _LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL
+        with _LOGGER_LOCK:
+            if _LOGGER_REFCOUNT == 0:
+                _LOGGER_PREV_LEVEL = self.logger.level
+                if _LOGGER_PREV_LEVEL > logging.INFO:
+                    self.logger.setLevel(logging.INFO)
+            if self.log_handler not in self.logger.handlers:
+                self.logger.addHandler(self.log_handler)
+            _LOGGER_REFCOUNT += 1
+            self._logger_attached = True
+
+    def _detach_logger(self) -> None:
+        global _LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL
+        with _LOGGER_LOCK:
+            if not self._logger_attached:
+                return
+            if self.log_handler in self.logger.handlers:
+                self.logger.removeHandler(self.log_handler)
+            if _LOGGER_REFCOUNT > 0:
+                _LOGGER_REFCOUNT -= 1
+            if _LOGGER_REFCOUNT == 0 and _LOGGER_PREV_LEVEL is not None:
+                self.logger.setLevel(_LOGGER_PREV_LEVEL)
+                _LOGGER_PREV_LEVEL = None
+            self._logger_attached = False
 
     def _progress_callback(self, event_type, data):
         """Handle progress callbacks from run_importer_logic."""
@@ -91,8 +126,7 @@ class RescanWorker(QThread):
             self.progress.emit(5, "Configurando...")
 
             # Add log handler to capture import messages
-            self.logger.addHandler(self.log_handler)
-            self.logger.setLevel(logging.INFO)
+            self._attach_logger()
 
             # Call modular import function directly
             success = run_importer_logic(
@@ -101,12 +135,9 @@ class RescanWorker(QThread):
                 db_name='ssas.db',
                 table_name='ssa_table',
                 force_import=True,  # Rescan = force reimport
-                progress_callback=self._progress_callback
+                should_cancel=lambda: self._should_stop,
+                progress_callback=self._progress_callback,
             )
-
-            # Remove log handler
-            self.logger.removeHandler(self.log_handler)
-            self.logger.setLevel(self.original_level)
 
             if self._should_stop:
                 self.finished_error.emit("Processo cancelado pelo usuario")
@@ -120,11 +151,15 @@ class RescanWorker(QThread):
             else:
                 self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
 
-        except Exception as e:
-            self.logger.removeHandler(self.log_handler)
-            self.logger.setLevel(self.original_level)
-            self.error_line.emit(f"Erro ao executar reescaneamento: {e}")
-            self.finished_error.emit(f"Erro ao executar reescaneamento: {e}")
+        except Exception:
+            logger.exception("Erro inesperado no reescaneamento")
+            self.error_line.emit("Erro ao executar reescaneamento.")
+            self.finished_error.emit("Erro ao executar reescaneamento.")
+        finally:
+            # Ensure we never deadlock the GUI due to cleanup failures here.
+            if self._logger_attached:
+                with suppress(Exception):
+                    self._detach_logger()
 
     def stop(self):
         """Request thread to stop."""
