@@ -47,6 +47,9 @@ Use this file to migrate context to a new chat without losing execution quality.
   - legacy year keys migration hardened:
     - fixed precedence for `ano_execucao` + `ano_execucao_exclude=True`;
     - added tests for legacy `ano_emissao` and `ano_execucao` exclude path.
+  - derivadas special ingest hardened:
+    - importer now sends all detected special sheets to sync (not only latest by mtime);
+    - `sync_derivadas` supports `sheet_files` and reports aggregated sheet stats.
 - Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
 
 ## Mandatory execution protocol

@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import (
@@ -1018,7 +1018,10 @@ def _start_sync_run(
         """,
         (mode, actor, ",".join(managed_sources), started_at, db_edges, sheet_edges, merged_edges),
     )
-    return int(row.lastrowid)
+    run_id = row.lastrowid
+    if run_id is None:
+        raise RuntimeError("Failed to persist sync run metadata: missing lastrowid")
+    return int(run_id)
 
 
 def _finish_sync_run(
@@ -1068,6 +1071,7 @@ def sync_derivadas(
     table_name: str = "ssa_table",
     *,
     sheet_file: str | None = None,
+    sheet_files: list[str] | None = None,
     sheet_parent_col: str = "parent_ssa",
     sheet_child_col: str = "child_ssa",
     sheet_label_col: str | None = "relation_label",
@@ -1079,7 +1083,20 @@ def sync_derivadas(
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
-    if not include_db_source and not sheet_file:
+    normalized_sheet_files: list[str] = []
+    seen_sheet_files: set[str] = set()
+    for candidate in ([sheet_file] if sheet_file else []):
+        normalized = str(candidate).strip()
+        if normalized and normalized not in seen_sheet_files:
+            normalized_sheet_files.append(normalized)
+            seen_sheet_files.add(normalized)
+    for candidate in sheet_files or []:
+        normalized = str(candidate).strip()
+        if normalized and normalized not in seen_sheet_files:
+            normalized_sheet_files.append(normalized)
+            seen_sheet_files.add(normalized)
+
+    if not include_db_source and not normalized_sheet_files:
         raise ValueError(
             "sync_derivadas requires at least one source: include_db_source=True or sheet_file provided"
         )
@@ -1103,17 +1120,34 @@ def sync_derivadas(
             db_stats = db_result["stats"]
             db_multiparent = db_result["multiparent_detail"]
 
-        if sheet_file:
-            sheet_result = collect_sheet_edges(
-                sheet_file=sheet_file,
-                parent_col=sheet_parent_col,
-                child_col=sheet_child_col,
-                label_col=sheet_label_col,
-                sheet_name=sheet_name,
-            )
-            source_edges.extend(sheet_result["edges"])
-            sheet_stats = sheet_result["stats"]
-            sheet_multiparent = sheet_result["multiparent_detail"]
+        if normalized_sheet_files:
+            merged_sheet_stats: dict[str, Any] = {}
+            merged_sheet_multiparent: dict[str, set[str]] = defaultdict(set)
+            for current_sheet_file in normalized_sheet_files:
+                sheet_result = collect_sheet_edges(
+                    sheet_file=current_sheet_file,
+                    parent_col=sheet_parent_col,
+                    child_col=sheet_child_col,
+                    label_col=sheet_label_col,
+                    sheet_name=sheet_name,
+                )
+                source_edges.extend(sheet_result["edges"])
+                current_stats = sheet_result.get("stats") or {}
+                for key, value in current_stats.items():
+                    if isinstance(value, int):
+                        merged_sheet_stats[key] = int(merged_sheet_stats.get(key, 0)) + value
+                    else:
+                        merged_sheet_stats[key] = value
+                current_multiparent = sheet_result.get("multiparent_detail") or {}
+                for child_ssa, parents in current_multiparent.items():
+                    if isinstance(parents, list):
+                        merged_sheet_multiparent[str(child_ssa)].update(str(parent) for parent in parents)
+            sheet_stats = merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
+            sheet_stats["files_count"] = len(normalized_sheet_files)
+            sheet_multiparent = {
+                child_ssa: sorted(parents)
+                for child_ssa, parents in merged_sheet_multiparent.items()
+            }
 
         merged_edges = _merge_edges(source_edges)
 
@@ -1131,6 +1165,7 @@ def sync_derivadas(
             "managed_sources": managed_sources,
             "db_stats": db_stats,
             "sheet_stats": sheet_stats,
+            "sheet_files": list(normalized_sheet_files),
             "merge_stats": {
                 "source_edges": len(source_edges),
                 "merged_edges": len(merged_edges),

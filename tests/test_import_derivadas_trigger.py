@@ -84,7 +84,8 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
     assert updated is True
     assert imported_files == [str(regular)]
     assert len(sync_calls) == 1
-    assert sync_calls[0]["sheet_file"] == str(special_new)
+    assert "sheet_file" not in sync_calls[0] or sync_calls[0]["sheet_file"] is None
+    assert sorted(sync_calls[0]["sheet_files"]) == sorted([str(special_old), str(special_new)])
     assert set(cached_files) == {str(regular), str(special_old), str(special_new)}
 
 

@@ -246,3 +246,9 @@ Ordered list from PR review threads. Status uses pending/resolved.
 - [resolved] Removed unreachable `data_execucao` branch from advanced year execution filter.
 - [resolved] Added regression test for `ano_execucao_values` using `semana_executada`.
 - [resolved] Fixed legacy key precedence for `ano_execucao` with exclude flag (`ano_execucao_exclude=True`) and added migration coverage tests.
+
+## Updates 2026-02-17 (slice: derivadas special multi-sheet)
+
+- [resolved] Importer derivadas special flow now processes all detected special sheets in a single sync call.
+- [resolved] `sync_derivadas` now supports `sheet_files` list and aggregates sheet stats.
+- [resolved] Added coverage for multi-sheet merge behavior in `tests/test_derivadas_sync.py`.

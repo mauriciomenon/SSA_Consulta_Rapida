@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -180,6 +181,52 @@ def test_sync_resolves_sheet_column_aliases(temp_db, tmp_path: Path):
     assert row == ("202500001", "202500002", 2, "Derivada da")
 
 
+def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+
+    sheet_one = tmp_path / "derivadas_part_1.csv"
+    with sheet_one.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+
+    sheet_two = tmp_path / "derivadas_part_2.csv"
+    with sheet_two.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500003", "relation_label": "Derivada da"})
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_files=[str(sheet_one), str(sheet_two)],
+    )
+
+    assert report["sheet_stats"]["accepted_edges"] == 2
+    assert report["sheet_stats"]["files_count"] == 2
+    assert report["merge_stats"]["merged_edges"] == 2
+    assert sorted(report["sheet_files"]) == sorted([str(sheet_one), str(sheet_two)])
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            ORDER BY parent_ssa, child_ssa
+            """
+        ).fetchall()
+
+    assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
 def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -274,7 +321,7 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
         begin_called.set()
         return original_begin(conn)
 
-    derivadas_sync._begin_derivadas_write_transaction = patched_begin  # type: ignore[assignment]
+    derivadas_sync._begin_derivadas_write_transaction = cast(Any, patched_begin)
 
     def release_lock() -> None:
         begin_called.wait(timeout=2.0)
@@ -286,7 +333,7 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     try:
         report = sync_derivadas(temp_db)
     finally:
-        derivadas_sync._begin_derivadas_write_transaction = original_begin  # type: ignore[assignment]
+        derivadas_sync._begin_derivadas_write_transaction = cast(Any, original_begin)
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
