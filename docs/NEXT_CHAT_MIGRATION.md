@@ -20,6 +20,25 @@ Use this file to migrate context to a new chat without losing execution quality.
    - `suggested fix`
 3. Any new user decisions (scope approvals, deferrals).
 
+## Latest intake status (2026-02-17)
+
+- Completed:
+  - Restored facade export contract for `_has_active_advanced_filters` in aggregated module.
+  - Fixed broken regex in key-coverage test and added reverse contract check (`logic/detector -> UI or legacy`).
+- Decision applied:
+  - `responsavel_emissor` path B done: advanced filter flow removed/disabled in UI + logic detector.
+- New validated input from modular rescan:
+  - 75 files total, 64 processed, 11 errors.
+  - all 11 errors are `SSAs Derivadas e Relacionadas_*.xlsx` rejected by main extractor required-column gate (`data_cadastro`, `descricao_ssa`).
+  - these files are special derivadas source and should be handled by derivadas sync path, not main SSA extractor.
+- Delivery status:
+  - auto-trigger implemented in importer: special derivadas sheets are skipped from main extraction and synchronized by derivadas sync after import loop.
+  - sync currently selects the latest special sheet by mtime and records special files in cache on successful sync.
+- Additional delivery status:
+  - user decision B applied for advanced filters: `responsavel_emissor` controls removed from UI panel assembly/context.
+  - regression test added to keep `adv_responsavel_emissor_*` controls absent.
+- Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
+
 ## Mandatory execution protocol
 
 1. Re-validate every external finding locally before patching.
