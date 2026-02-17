@@ -536,6 +536,11 @@ class FilterGUISSAMixin:
         self.clear_filter_cache()
         self.df_exibido = self.df_completo.copy()
         self._df_last_search_filtered = self.df_completo.copy()
+        try:
+            if hasattr(self, "_bump_data_revision"):
+                self._bump_data_revision("clear_filter")
+        except Exception as exc:
+            logger.debug("Falha ao atualizar data revision em clear_filter: %s", exc)
         self.paginator.set_dataframe(self.df_exibido)
         (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
         self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
@@ -1025,6 +1030,11 @@ class FilterGUISSAMixin:
 
         # Resetar para dataset completo
         self.df_exibido = self.df_completo.copy()
+        try:
+            if hasattr(self, "_bump_data_revision"):
+                self._bump_data_revision("clear_all_filters")
+        except Exception as exc:
+            logger.debug("Falha ao atualizar data revision em clear_all_filters: %s", exc)
         self.paginator.set_dataframe(self.df_exibido)
         self.display_current_page(1)
         # Restaura linhas ocultas e limpa Filtro OU dedicado (exibição)
@@ -1137,8 +1147,6 @@ class FilterGUISSAMixin:
             _add_adv("Resp Programacao", adv.get("responsavel_programacao_exclude_values"), "!=")
             _add_adv("Resp Execucao", adv.get("responsavel_execucao"))
             _add_adv("Resp Execucao", adv.get("responsavel_execucao_exclude_values"), "!=")
-            _add_adv("Resp Emissao", adv.get("responsavel_emissor"))
-            _add_adv("Resp Emissao", adv.get("responsavel_emissor_exclude_values"), "!=")
             _add_adv("Prio Emissao", adv.get("prioridade_emissao_values"))
             _add_adv("Prio Emissao", adv.get("prioridade_emissao_exclude_values"), "!=")
             _add_adv("Prio Planejamento", adv.get("prioridade_planejamento_values"))
@@ -1426,6 +1434,16 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.warning("Falha ao ordenar numero_ssa no refresh de filtros: %s", exc)
         self.df_exibido = filtered
+        try:
+            if hasattr(self, "_bump_data_revision"):
+                self._bump_data_revision("filter_refresh")
+        except Exception as exc:
+            logger.debug("Falha ao atualizar data revision em refresh de filtros: %s", exc)
+        try:
+            if hasattr(self, "_ensure_data_revision"):
+                self._ensure_data_revision()
+        except Exception as exc:
+            logger.debug("Falha ao garantir data revision no refresh de filtros: %s", exc)
         self.paginator.set_dataframe(self.df_exibido)
         try:
             current = max(1, min(self.paginator.current_page, self.paginator.total_pages))

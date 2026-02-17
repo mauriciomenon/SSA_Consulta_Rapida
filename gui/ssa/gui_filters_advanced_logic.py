@@ -160,7 +160,6 @@ def _apply_include_exclude_filters(
         (("solicitante", "responsavel_solicitante"), "solicitante", "solicitante_exclude_values"),
         (("responsavel_programacao",), "responsavel_programacao", "responsavel_programacao_exclude_values"),
         (("responsavel_execucao",), "responsavel_execucao", "responsavel_execucao_exclude_values"),
-        (("responsavel_emissor",), "responsavel_emissor", "responsavel_emissor_exclude_values"),
     ]
     for candidate_cols, include_key, exclude_key in column_groups:
         col = next((name for name in candidate_cols if name in df.columns), None)

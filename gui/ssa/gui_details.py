@@ -6,15 +6,15 @@
 from __future__ import annotations
 
 import html as html_module
-import logging
 import re
 
 import pandas as pd
 
 from gui.helpers.formatting_helpers import highlight_text
 from utils.formatting import format_cell
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 DETAILS_DIALOG_FONT_SIZE = 10
 DETAILS_DIALOG_TABLE_PADDING = 8
@@ -50,21 +50,21 @@ def configure_details_constants(
         DETAILS_DIALOG_FONT_SIZE = details_dialog_font_size
     if details_dialog_table_padding is not None:
         DETAILS_DIALOG_TABLE_PADDING = details_dialog_table_padding
-    if details_dialog_border_color:
+    if details_dialog_border_color is not None:
         DETAILS_DIALOG_BORDER_COLOR = details_dialog_border_color
     if detail_field_priority is not None:
         DETAIL_FIELD_PRIORITY = list(detail_field_priority)
     if detail_display_overrides is not None:
         DETAIL_DISPLAY_OVERRIDES = dict(detail_display_overrides)
-    if highlight_background_color:
+    if highlight_background_color is not None:
         HIGHLIGHT_BACKGROUND_COLOR = highlight_background_color
-    if highlight_font_weight:
+    if highlight_font_weight is not None:
         HIGHLIGHT_FONT_WEIGHT = highlight_font_weight
-    if mono_font_family:
+    if mono_font_family is not None:
         MONO_FONT_FAMILY = mono_font_family
 
 
-def _normalize_highlight_term(self, term):
+def _normalize_highlight_term(window, term):
     """Remove modos e negacoes para uso no highlight."""
     if term is None:
         return ""
@@ -80,46 +80,46 @@ def _normalize_highlight_term(self, term):
     return cleaned.strip()
 
 
-def _get_current_search_terms(self):
+def _get_current_search_terms(window):
     """Retorna lista de termos de busca atuais."""
-    search_text = self.search_input.text().strip()
+    search_text = window.search_input.text().strip()
     if not search_text:
         return []
     terms = [term.strip() for term in search_text.split(",") if term.strip()]
     clean_terms = []
     for term in terms:
-        normalized = _normalize_highlight_term(self, term)
+        normalized = _normalize_highlight_term(window, term)
         if normalized:
             clean_terms.append(normalized)
     return clean_terms
 
 
-def _collect_highlight_terms(self):
+def _collect_highlight_terms(window):
     """Combina termos da busca geral e filtros de coluna para realce."""
     aggregated = []
     seen = set()
-    for term in _get_current_search_terms(self):
+    for term in _get_current_search_terms(window):
         if term and term not in seen:
             aggregated.append(term)
             seen.add(term)
-    for raw in getattr(self, "_active_column_filters", {}).values():
+    for raw in getattr(window, "_active_column_filters", {}).values():
         if not raw:
             continue
         normalized_raw = str(raw).replace(";", ",")
         tokens = [tok.strip() for tok in normalized_raw.split(",") if tok.strip()]
         for tok in tokens:
-            normalized = _normalize_highlight_term(self, tok)
+            normalized = _normalize_highlight_term(window, tok)
             if normalized and normalized not in seen:
                 aggregated.append(normalized)
                 seen.add(normalized)
     return aggregated
 
 
-def _highlight_text(self, text, terms):
+def _highlight_text(window, text, terms):
     """Delegate to helper function."""
-    bg = getattr(self, "_highlight_bg_color", HIGHLIGHT_BACKGROUND_COLOR)
-    fg = getattr(self, "_highlight_text_color", None)
-    weight = getattr(self, "_highlight_font_weight", HIGHLIGHT_FONT_WEIGHT)
+    bg = getattr(window, "_highlight_bg_color", HIGHLIGHT_BACKGROUND_COLOR)
+    fg = getattr(window, "_highlight_text_color", None)
+    weight = getattr(window, "_highlight_font_weight", HIGHLIGHT_FONT_WEIGHT)
     try:
         return highlight_text(
             text,
@@ -136,18 +136,18 @@ def _highlight_text(self, text, terms):
             return highlight_text(text, terms)
 
 
-def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
+def _format_details_html(window, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
         font_size_pt = DETAILS_DIALOG_FONT_SIZE
 
-    search_terms = _collect_highlight_terms(self) if highlight_search_terms else []
+    search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
 
     try:
         from PyQt6.QtGui import QPalette as _QPal
 
-        text_color = self.palette().color(_QPal.ColorRole.WindowText).name()
-        link_color = self.palette().color(_QPal.ColorRole.Highlight).name()
+        text_color = window.palette().color(_QPal.ColorRole.WindowText).name()
+        link_color = window.palette().color(_QPal.ColorRole.Highlight).name()
     except Exception:
         text_color = "#000000"
         link_color = text_color
@@ -175,9 +175,9 @@ def _format_details_html(self, series, highlight_search_terms=False, font_size_p
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
+        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, window.internal_to_display.get(col, col))
         if highlight_search_terms and search_terms:
-            formatted_value = _highlight_text(self, formatted_value, search_terms)
+            formatted_value = _highlight_text(window, formatted_value, search_terms)
         else:
             formatted_value = html_module.escape(formatted_value)
 
@@ -194,14 +194,14 @@ def _format_details_html(self, series, highlight_search_terms=False, font_size_p
         )
 
     try:
-        derived_list = _get_derivadas_for_ssa(self, series.get("numero_ssa"))
+        derived_list = _get_derivadas_for_ssa(window, series.get("numero_ssa"))
     except Exception:
         derived_list = []
     if derived_list:
         if linkify:
             items = []
             for item in derived_list:
-                href = _normalize_ssa_value(self, item)
+                href = _normalize_ssa_value(window, item)
                 display = html_module.escape(item)
                 items.append(
                     f'<a href="ssa://{href}" style="color:{link_color}; '
@@ -212,7 +212,7 @@ def _format_details_html(self, series, highlight_search_terms=False, font_size_p
         else:
             derived_text = ", ".join(derived_list)
             if highlight_search_terms and search_terms:
-                derived_text = _highlight_text(self, derived_text, search_terms)
+                derived_text = _highlight_text(window, derived_text, search_terms)
             else:
                 derived_text = html_module.escape(derived_text)
         label = f"SSAs derivadas ({len(derived_list)})"
@@ -232,7 +232,7 @@ def _format_details_html(self, series, highlight_search_terms=False, font_size_p
     return "\n".join(html_lines)
 
 
-def _normalize_ssa_value(self, value):
+def _normalize_ssa_value(window, value):
     try:
         raw = value or ""
     except Exception:
@@ -252,43 +252,43 @@ def _normalize_ssa_value(self, value):
     return lowered
 
 
-def _normalize_ssa_series(self, series: pd.Series) -> pd.Series:
+def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
     """Normaliza valores de SSA em modo vetorizado (mais rapido que apply)."""
     try:
         s = series.astype(str).str.strip()
         lowered = s.str.casefold()
-        empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
+        empty_mask = s.isna() | s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
         digits = s.str.replace(r"\D+", "", regex=True)
         out = digits.where(digits.ne(""), lowered)
         return out.where(~empty_mask, "")
     except Exception as exc:
         logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
         try:
-            return series.apply(lambda value: _normalize_ssa_value(self, value))
+            return series.map(lambda value: _normalize_ssa_value(window, value))
         except Exception:
             return pd.Series([""] * len(series), index=getattr(series, "index", None))
 
 
-def update_details_from_selection(self):
+def update_details_from_selection(window):
     """Atualiza o painel de detalhes com base na linha selecionada."""
-    if self.table_widget.rowCount() == 0:
-        self.details_text.clear()
+    if window.table_widget.rowCount() == 0:
+        window.details_text.clear()
         return
-    selected_rows = self.table_widget.selectionModel().selectedRows()
+    selected_rows = window.table_widget.selectionModel().selectedRows()
     if not selected_rows:
-        self.details_text.clear()
+        window.details_text.clear()
         return
     row = selected_rows[0].row()
-    series = self._get_series_from_row(row)
+    series = window._get_series_from_row(row)
     if series is None:
-        self.details_text.clear()
+        window.details_text.clear()
         return
 
     try:
         font_size_pt = None
-        if hasattr(self, "details_group"):
+        if hasattr(window, "details_group"):
             try:
-                base_font = self.details_group.font()
+                base_font = window.details_group.font()
                 size = base_font.pointSizeF()
                 if size <= 0:
                     size = float(base_font.pointSize())
@@ -297,13 +297,13 @@ def update_details_from_selection(self):
             except Exception:
                 font_size_pt = None
         html_content = _format_details_html(
-            self,
+            window,
             series,
             highlight_search_terms=True,
             font_size_pt=font_size_pt,
             linkify=True,
         )
-        self.details_text.setHtml(html_content)
+        window.details_text.setHtml(html_content)
         return
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
@@ -323,27 +323,27 @@ def update_details_from_selection(self):
         formatted_value = format_cell(value, col)
         if not formatted_value:
             continue
-        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
+        display_name = DETAIL_DISPLAY_OVERRIDES.get(col, window.internal_to_display.get(col, col))
         lines.append(f"{display_name}: {formatted_value}")
     details_str = "\n".join(lines)
     try:
-        self.details_text.setPlainText(details_str)
+        window.details_text.setPlainText(details_str)
     except Exception as exc:
         logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
 
 
-def _get_derivadas_for_ssa(self, numero_ssa):
-    if self.df_completo is None or self.df_completo.empty:
+def _get_derivadas_for_ssa(window, numero_ssa):
+    if window.df_completo is None or window.df_completo.empty:
         return []
-    if "derivada_de" not in self.df_completo.columns or "numero_ssa" not in self.df_completo.columns:
+    if "derivada_de" not in window.df_completo.columns or "numero_ssa" not in window.df_completo.columns:
         return []
-    num_norm = _normalize_ssa_value(self, numero_ssa)
+    num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return []
     try:
-        series_norm = _normalize_ssa_series(self, self.df_completo["derivada_de"])
+        series_norm = _normalize_ssa_series(window, window.df_completo["derivada_de"])
         mask = series_norm.eq(num_norm)
-        derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
+        derived_raw = window.df_completo.loc[mask, "numero_ssa"].tolist()
         derived = []
         for value in derived_raw:
             formatted = format_cell(value, "numero_ssa")
@@ -355,38 +355,41 @@ def _get_derivadas_for_ssa(self, numero_ssa):
         return []
 
 
-def _jump_to_ssa(self, numero_ssa):
-    num_norm = _normalize_ssa_value(self, numero_ssa)
+def _jump_to_ssa(window, numero_ssa):
+    num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return
     try:
-        df_reset = self.df_exibido.reset_index(drop=True)
+        df_reset = window.df_exibido.reset_index(drop=True)
         if "numero_ssa" not in df_reset.columns:
             return
-        series_norm = _normalize_ssa_series(self, df_reset["numero_ssa"])
+        series_norm = _normalize_ssa_series(window, df_reset["numero_ssa"])
         mask = series_norm.eq(num_norm)
         if not mask.any():
-            self.search_input.setText(f"={num_norm}")
-            self.initiate_filtering()
+            window.search_input.setText(f"={num_norm}")
+            window.initiate_filtering()
             return
         pos = int(mask[mask].index[0])
-        page_size = int(getattr(self.paginator, "page_size", 50))
+        page_size = int(getattr(window.paginator, "page_size", 50))
+        if page_size <= 0:
+            logger.warning("Page size invalido ao saltar para SSA %s: %s", num_norm, page_size)
+            return
         page = int(pos // page_size + 1)
         try:
-            self.paginator.current_page = page
+            window.paginator.current_page = page
         except Exception as exc:
             logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
-        self.display_current_page(page)
+        window.display_current_page(page)
         row_in_page = int(pos % page_size)
         try:
-            self.table_widget.selectRow(row_in_page)
+            window.table_widget.selectRow(row_in_page)
         except Exception as exc:
             logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
     except Exception as exc:
         logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
 
 
-def _on_details_anchor_clicked(self, url):
+def _on_details_anchor_clicked(window, url):
     try:
         href = url.toString()
     except Exception:
@@ -401,30 +404,30 @@ def _on_details_anchor_clicked(self, url):
         return
     target = target.strip().lstrip("/")
     if target:
-        _jump_to_ssa(self, target)
+        _jump_to_ssa(window, target)
 
 
-def _filter_by_derivadas(self, numero_ssa):
-    num_norm = _normalize_ssa_value(self, numero_ssa)
+def _filter_by_derivadas(window, numero_ssa):
+    num_norm = _normalize_ssa_value(window, numero_ssa)
     if not num_norm:
         return
-    self._last_derivada_origem = num_norm
-    self._active_column_filters["derivada_de"] = num_norm
+    window._last_derivada_origem = num_norm
+    window._active_column_filters["derivada_de"] = num_norm
     try:
-        self._build_column_filters_panel()
+        window._build_column_filters_panel()
     except Exception as exc:
         logger.warning("Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc)
-    self._refresh_after_filter_change()
+    window._refresh_after_filter_change()
 
 
-def _clear_derivadas_filter(self):
-    if "derivada_de" in self._active_column_filters:
-        self._active_column_filters.pop("derivada_de", None)
+def _clear_derivadas_filter(window):
+    if "derivada_de" in window._active_column_filters:
+        window._active_column_filters.pop("derivada_de", None)
     try:
-        self._build_column_filters_panel()
+        window._build_column_filters_panel()
     except Exception as exc:
         logger.warning("Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s", exc)
-    self._refresh_after_filter_change()
-    if self._last_derivada_origem:
-        _jump_to_ssa(self, self._last_derivada_origem)
-        self._last_derivada_origem = None
+    window._refresh_after_filter_change()
+    if window._last_derivada_origem:
+        _jump_to_ssa(window, window._last_derivada_origem)
+        window._last_derivada_origem = None

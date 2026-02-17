@@ -883,7 +883,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_responsavel_solicitante",
             "adv_responsavel_programacao",
             "adv_responsavel_execucao",
-            "adv_responsavel_emissor",
         )
         self._responsavel_materialized_prefixes = set()
         self._responsavel_dirty_prefixes = set(self._responsavel_all_prefixes)
