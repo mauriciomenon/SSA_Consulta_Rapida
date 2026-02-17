@@ -129,6 +129,12 @@ This handoff is ready to reuse in the next conversation.
   - button enable state now accepts DB-derived relations even when `derivada_de` series in the visible dataframe is empty.
 - Fixed responsive grid regression after `responsavel_emissor` removal: no more `emis_resp_box` references in `_reorganize_advanced_filters_grid`.
 
+## Update 2026-02-17 (advanced filters ano_execucao)
+
+- Removed dead code path for `data_execucao` in year-execution filter logic.
+- Year execution filtering now uses `semana_executada` path only, aligned with current schema/import.
+- Added focused test for `ano_execucao_values` over `semana_executada`.
+
 ## Texto pronto para abrir a nova conversa
 
 ```text

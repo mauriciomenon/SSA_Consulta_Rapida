@@ -79,6 +79,7 @@ Any new non-UI key in logic or detector must be explicit and justified.
 - Derivadas utility button (`Especificas...`) now supports DB materialized view:
   - popup shows summary from `ssa_derivada_summary` for visible SSAs;
   - button can be enabled from DB-derived relations even if visible `derivada_de` series is empty/invalid.
+- `ano_execucao` filter logic now relies on `semana_executada` only; `data_execucao` path was removed as dead code for current schema contract.
 
 ## External IA report intake (mandatory)
 

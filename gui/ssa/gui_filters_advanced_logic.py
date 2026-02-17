@@ -307,17 +307,7 @@ def _apply_year_execucao_filter(df: pd.DataFrame, filters: dict, mask: pd.Series
         execucao_exc = _to_int_set([filters.get("ano_execucao")])
 
     if execucao_inc or execucao_exc:
-        if "data_execucao" in df.columns:
-            try:
-                nums = pd.to_numeric(df["data_execucao"], errors="coerce")
-                years = pd.to_datetime(nums, unit="D", origin="1899-12-30", errors="coerce").dt.year
-                if execucao_inc:
-                    mask &= years.isin(execucao_inc)
-                if execucao_exc:
-                    mask &= ~years.isin(execucao_exc)
-            except Exception as exc:
-                logger.debug("Failed to apply ano execucao filter from data_execucao: %s", exc)
-        elif "semana_executada" in df.columns:
+        if "semana_executada" in df.columns:
             try:
                 nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype("Int64")
                 years = (nums // 100).astype("Int64")
