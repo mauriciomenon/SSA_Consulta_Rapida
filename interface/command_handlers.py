@@ -1,11 +1,14 @@
 # interface/command_handlers.py 20250723 163500 (v1.0 - Funcoes de Tratamento de Comandos)
 import os
 import json
+import logging
 
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
 from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
+
+logger = logging.getLogger(__name__)
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
@@ -24,8 +27,10 @@ def _save_settings_handler(settings: dict):
         # Delegate to core.config_manager for atomic writes and consistent formatting.
         save_settings(settings)
         print("Configuracoes salvas com sucesso.")
-    except Exception as e:  # noqa: BLE001
+    except (OSError, ValueError, TypeError, RuntimeError) as e:
+        logger.exception("Falha ao salvar configuracoes da CLI")
         print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
+        raise
 
 def print_help():
     """Exibe a mensagem de ajuda para os comandos da CLI."""
