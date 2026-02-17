@@ -1,4 +1,6 @@
 import pandas as pd
+import re
+from pathlib import Path
 
 from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters
 from gui.ssa import gui_filters_advanced_ui as adv_ui
@@ -95,3 +97,22 @@ def test_apply_advanced_filters_applies_priority_filter_with_grau_columns():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500002"]
+
+
+def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
+    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+
+    produced_keys = set(re.findall(r'data\\["([^"]+)"\\]\\s*=', ui_source))
+    has_active_block_match = re.search(
+        r"def _has_active_advanced_filters\\(.*?\\):(?P<body>.*?)def _apply_advanced_filters_from_ui",
+        ui_source,
+        flags=re.S,
+    )
+    assert has_active_block_match is not None
+    has_active_block = has_active_block_match.group("body")
+
+    uncovered = sorted(
+        key for key in produced_keys if key not in logic_source and f'data.get("{key}")' not in has_active_block
+    )
+    assert not uncovered, f"Advanced filter keys without logic/active coverage: {', '.join(uncovered)}"
