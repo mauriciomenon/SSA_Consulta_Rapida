@@ -41,6 +41,9 @@ Use this file to migrate context to a new chat without losing execution quality.
     - popup now shows DB materialized summary/top maes for visible SSAs (`ssa_derivada_summary`);
     - enable state now checks DB relations fallback when dataframe `derivada_de` has no valid values.
   - responsive grid regression fixed after removal of `responsavel_emissor` controls (`emis_resp_box` references removed).
+  - advanced year execution filter cleanup:
+    - dead `data_execucao` branch removed from logic;
+    - behavior validated with test over `semana_executada` and `ano_execucao_values`.
 - Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
 
 ## Mandatory execution protocol
