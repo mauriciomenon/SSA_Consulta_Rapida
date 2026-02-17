@@ -23,3 +23,18 @@ def test_save_settings_handler_delegates_to_config_manager(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Configuracoes salvas" in out
 
+
+def test_save_settings_handler_reraises_save_errors(monkeypatch, capsys):
+    def _fake_save_settings(_settings):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(command_handlers, "save_settings", _fake_save_settings)
+
+    try:
+        command_handlers._save_settings_handler({"k": "v"})
+        assert False, "expected OSError"
+    except OSError:
+        pass
+
+    out = capsys.readouterr().out
+    assert "Nao foi possivel salvar as configuracoes" in out
