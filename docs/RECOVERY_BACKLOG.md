@@ -3,6 +3,19 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Current sprint status snapshot (PR 31)
+
+- Operational:
+  - `gh pr checks 31` still failing in MCP env with `error connecting to api.github.com` while `gh auth status` is valid.
+  - Recheck blockers as soon as API connectivity is restored.
+- Delivered hardening slices (low risk, no GUI layout change):
+  - `utils/caching.py`: removed silent suppress in temp cleanup, added explicit warnings.
+  - `armazenamento/database.py`: removed silent suppress in config listing fallback, added explicit warning.
+  - `interface/table_printer.py`: removed silent suppress in label normalization fallback, added explicit debug log.
+  - `shared/numero_ssa.py`: replaced silent year-parse suppress with explicit `try/except ValueError`.
+- Remaining sprint recommendation (kept as pending by decision):
+  - Keep E tracked: revisit `pyproject.toml` test ignores and repair affected tests in a dedicated slice.
+
 ## P0 blockers
 
 - Clear legacy `CHANGES_REQUESTED` state from old bot reviews on PR #25.
