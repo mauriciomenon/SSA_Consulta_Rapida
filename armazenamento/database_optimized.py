@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
 from .identifier_utils import is_valid_identifier
@@ -67,6 +67,9 @@ def _resolve_physical_table(conn, table_name: str) -> str:
 
 def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
     """Check if any table defines foreign keys referencing target_table."""
+    if not is_valid_identifier(target_table):
+        logger.warning("Identificador de tabela invalido para scan de FKs: %r", target_table)
+        return False
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
@@ -76,7 +79,7 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
             if not is_valid_identifier(table):
                 continue
             try:
-                fk_rows = conn.execute(f"PRAGMA foreign_key_list({table})").fetchall()
+                fk_rows = conn.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
             except Exception:
                 continue
             for fk in fk_rows:
@@ -203,7 +206,7 @@ def insert_dataframe_optimized(
                 table_exists = pd.read_sql_query(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                     conn,
-                    params=(target_table,),
+                    params=[target_table],
                 )
 
                 # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
