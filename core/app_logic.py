@@ -299,6 +299,18 @@ def _is_derivadas_sheet_file(file_path: str) -> bool:
     return base_name.startswith("ssas derivadas e relacionadas") and base_name.endswith(".xlsx")
 
 
+def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
+    try:
+        all_xlsx_files = caching.get_all_xlsx_files(docs_dir)
+    except Exception as exc:
+        logger.warning("Falha ao listar planilhas especiais de derivadas em '%s': %s", docs_dir, exc)
+        return []
+    return sorted(
+        {path for path in all_xlsx_files if _is_derivadas_sheet_file(path)},
+        key=lambda path: os.path.basename(path).casefold(),
+    )
+
+
 def _run_derivadas_sync_from_special_sheet(
     db_path: str,
     table_name: str,
@@ -459,6 +471,7 @@ def run_importer_logic(
 
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
+        derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
         total_files = len(files_to_process)
         progress_cb = progress_callback
 
@@ -479,12 +492,18 @@ def run_importer_logic(
 
         _emit_progress("start", {"total": total_files})
 
-        if not files_to_process:
+        if not files_to_process and not derivadas_sheet_files:
             logger.info(
-                "Nenhum arquivo novo ou modificado encontrado para processamento."
+                "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
             )
             _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
             return False
+
+        if derivadas_sheet_files:
+            logger.info(
+                "Fase dedicada de derivadas habilitada com %s planilha(s) especial(is).",
+                len(derivadas_sheet_files),
+            )
 
         logger.info(
             f"{len(files_to_process)} arquivo(s) identificado(s) para importacao."
@@ -495,7 +514,6 @@ def run_importer_logic(
         critical_errors = []
 
         try:
-            derivadas_sheet_files: List[str] = []
             for index, file_path in enumerate(files_to_process):
                 if should_cancel and should_cancel():
                     logger.info("Cancelamento solicitado; interrompendo importacao.")
@@ -516,9 +534,8 @@ def run_importer_logic(
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
                     continue
                 if _is_derivadas_sheet_file(file_path):
-                    derivadas_sheet_files.append(file_path)
                     logger.info(
-                        "Planilha especial de derivadas detectada: '%s' (sera processada via sync).",
+                        "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
                         base_name,
                     )
                     continue
