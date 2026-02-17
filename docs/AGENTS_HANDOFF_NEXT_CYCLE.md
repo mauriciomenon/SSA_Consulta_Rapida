@@ -10,6 +10,8 @@ This handoff is ready to reuse in the next conversation.
 - Itens aprovados para este sprint (A/B/C): aplicados em `a01406cc` (lock global, mask de db_path, prune apos erro).
 - Versionamento de icones app concluido em `e31d03a9`.
 - addopts com ignore em `pyproject.toml` mantido por ora; sugerir remocao no relatorio final.
+- Validacao local deve rodar via `uv run` para garantir ambiente correto (evitar falha de deps como pandas fora do venv).
+- `ty` em `gui/gui_ssa.py` ainda aponta ruido estrutural de stubs/union PyQt; tratar em slice dedicado, sem misturar com hardening atual.
 
 ## Pendencias antes de fechar o PR
 
@@ -17,7 +19,8 @@ This handoff is ready to reuse in the next conversation.
 2. Responder comentarios do PR #31 com status dos itens aprovados (A/B/C) e decisoes de escopo (D/E).
 3. Consolidar e push dos commits pendentes de documentacao.
 4. Checar bots/checks e tratar apenas bloqueantes.
-5. Registrar no relatorio final a sugestao de rever ignores em `pyproject.toml`.
+5. E) Remover ignores de testes no `pyproject.toml` e consertar os testes correspondentes (impacto possivel maior; manter como pendencia deste sprint).
+6. Registrar no relatorio final a sugestao de rever/remover ignores em `pyproject.toml`.
 
 ## O que foi feito (resumo)
 
