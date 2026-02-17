@@ -121,7 +121,12 @@ class _IncludeExcludeSeriesCache:
 def _apply_include_exclude_filters(
     df: pd.DataFrame, filters: dict, mask: pd.Series, state: AdvancedFilterState, cache_token: int
 ) -> pd.Series:
-    numeric_columns = {"prioridade_emissao", "prioridade_planejamento"}
+    numeric_columns = {
+        "prioridade_emissao",
+        "prioridade_planejamento",
+        "grau_prioridade_emissao",
+        "grau_prioridade_planejamento",
+    }
     cache = _IncludeExcludeSeriesCache(df, cache_token, state)
     key_aliases = {
         "solicitante": "responsavel_solicitante",
@@ -142,8 +147,16 @@ def _apply_include_exclude_filters(
         (("setor_emissor",), "setor_emissor", "setor_emissor_exclude_values"),
         (("divisao",), "divisao", "divisao_exclude_values"),
         (("situacao",), "situacao", "situacao_exclude_values"),
-        (("prioridade_emissao",), "prioridade_emissao", "prioridade_emissao_exclude_values"),
-        (("prioridade_planejamento",), "prioridade_planejamento", "prioridade_planejamento_exclude_values"),
+        (
+            ("grau_prioridade_emissao", "prioridade_emissao"),
+            "prioridade_emissao_values",
+            "prioridade_emissao_exclude_values",
+        ),
+        (
+            ("grau_prioridade_planejamento", "prioridade_planejamento"),
+            "prioridade_planejamento_values",
+            "prioridade_planejamento_exclude_values",
+        ),
         (("solicitante", "responsavel_solicitante"), "solicitante", "solicitante_exclude_values"),
         (("responsavel_programacao",), "responsavel_programacao", "responsavel_programacao_exclude_values"),
         (("responsavel_execucao",), "responsavel_execucao", "responsavel_execucao_exclude_values"),

@@ -76,3 +76,22 @@ def test_apply_advanced_filters_applies_week_range_filter():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+
+def test_apply_advanced_filters_applies_priority_filter_with_grau_columns():
+    window = _DummyWindow({"prioridade_emissao_values": ["2"]})
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "grau_prioridade_emissao": [1, 2, 3],
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["202500002"]
