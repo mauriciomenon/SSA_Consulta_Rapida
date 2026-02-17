@@ -7,17 +7,16 @@ import os
 import json
 import logging
 import tempfile
-from contextlib import suppress
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
-    import fcntl  # type: ignore
+    import fcntl
 except ImportError:  # pragma: no cover - Windows
     fcntl = None  # type: ignore
 try:
-    import msvcrt  # type: ignore
+    import msvcrt
 except ImportError:  # pragma: no cover - POSIX
     msvcrt = None  # type: ignore
 
@@ -71,8 +70,10 @@ class CLIEnhancementManager:
             except Exception as exc:
                 logger.debug("Nao foi possivel preparar lock para settings: %s", exc)
                 if lock_file is not None:
-                    with suppress(Exception):
+                    try:
                         lock_file.close()
+                    except Exception as close_exc:
+                        logger.warning("Falha ao fechar lock file de settings: %s", close_exc)
                 lock_file = None
 
             fd = None
@@ -96,14 +97,24 @@ class CLIEnhancementManager:
                 tmp_path = None
             finally:
                 if tmp_path:
-                    with suppress(Exception):
+                    try:
                         os.remove(tmp_path)
+                    except FileNotFoundError:
+                        pass
+                    except Exception as remove_exc:
+                        logger.warning(
+                            "Falha ao remover arquivo temporario de settings '%s': %s",
+                            tmp_path,
+                            remove_exc,
+                        )
         except Exception as e:
             logger.error(f"Erro ao salvar configurações CLI: {e}")
         finally:
             if lock_file is not None:
-                with suppress(Exception):
+                try:
                     lock_file.close()
+                except Exception as close_exc:
+                    logger.warning("Falha ao fechar lock file final de settings: %s", close_exc)
 
     def _lock_file_if_possible(self, f: Any) -> None:
         """Best-effort file lock to avoid races on settings writes."""
