@@ -178,14 +178,10 @@ def _import_single_file(
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
-        if df is None:
-            raise ExtractionError(
-                f"Extractor returned None for file: {os.path.basename(file_path)}"
-            )
-        if df is not None and not df.empty:
+        if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
-                raise extractor.ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled")
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(
@@ -270,7 +266,7 @@ def _import_single_file(
 
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             if should_cancel and should_cancel():
-                raise extractor.ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled")
             success = database.insert_dataframe_with_smart_upsert(
                 df, db_path, table_name
             )
@@ -291,8 +287,6 @@ def _import_single_file(
         # Normalize extractor error type into core.app_logic.ExtractionError
         raise ExtractionError(str(e)) from e
     except ImporterError:
-        raise
-    except ExtractionError:
         raise
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
