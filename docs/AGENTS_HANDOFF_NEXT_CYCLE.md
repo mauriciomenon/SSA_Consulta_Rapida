@@ -136,6 +136,12 @@ This handoff is ready to reuse in the next conversation.
 - Added focused test for `ano_execucao_values` over `semana_executada`.
 - Fixed legacy precedence for `ano_execucao` + `ano_execucao_exclude=True` to avoid include/exclude collision that could zero all rows.
 
+## Update 2026-02-17 (import derivadas multi-sheet)
+
+- Importer derivadas special sync no longer picks only the latest sheet.
+- `sync_derivadas` now accepts `sheet_files` and merges edges from multiple special sheets in one sync cycle.
+- `run_importer_logic` now forwards all detected `SSAs Derivadas e Relacionadas_*.xlsx` files.
+
 ## Texto pronto para abrir a nova conversa
 
 ```text

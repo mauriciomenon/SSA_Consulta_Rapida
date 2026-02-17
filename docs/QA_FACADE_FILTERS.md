@@ -84,6 +84,9 @@ Any new non-UI key in logic or detector must be explicit and justified.
   - `ano_emissao` still works when `_values` keys are absent.
   - `ano_execucao_exclude=True` with `ano_execucao=<year>` excludes that year without accidental include/exclude collision.
 
+Note:
+- Special derivadas sheet ingest now supports multi-file merge (`sheet_files`) in one sync run.
+
 ## External IA report intake (mandatory)
 
 When another IA sends findings:
