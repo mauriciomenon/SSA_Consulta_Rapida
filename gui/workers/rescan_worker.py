@@ -5,7 +5,6 @@ import os
 import sys
 import logging
 import threading
-from contextlib import suppress
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # Add project root to path for imports
@@ -156,10 +155,12 @@ class RescanWorker(QThread):
             self.error_line.emit("Erro ao executar reescaneamento.")
             self.finished_error.emit("Erro ao executar reescaneamento.")
         finally:
-            # Ensure we never deadlock the GUI due to cleanup failures here.
+            # Keep cleanup best-effort but never silence a real detach failure.
             if self._logger_attached:
-                with suppress(Exception):
+                try:
                     self._detach_logger()
+                except Exception as exc:
+                    logger.warning("Falha ao limpar logger do reescaneamento: %s", exc)
 
     def stop(self):
         """Request thread to stop."""
