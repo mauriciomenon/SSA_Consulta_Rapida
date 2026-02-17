@@ -95,7 +95,8 @@ class RescanProgressDialog(QDialog):
         self.output_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.output_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if scrollbar is not None:
+            scrollbar.setValue(scrollbar.maximum())
 
     def append_error(self, line: str):
         """Append line to error display."""
@@ -104,7 +105,8 @@ class RescanProgressDialog(QDialog):
         self.error_text.append(line)
         # Auto-scroll to bottom
         scrollbar = self.error_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        if scrollbar is not None:
+            scrollbar.setValue(scrollbar.maximum())
 
     def update_progress(self, percentage: int, message: str):
         """Update progress bar and status."""
@@ -124,10 +126,12 @@ class RescanProgressDialog(QDialog):
             self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: green;")
             self.progress_bar.setValue(100)
         else:
-            self.status_label.setText(f"Reescaneamento falhou: {message}")
+            final_message = message.strip() if isinstance(message, str) else ""
+            if not final_message:
+                final_message = "Erro nao detalhado pelo processo de reescaneamento."
+            self.status_label.setText(f"Reescaneamento falhou: {final_message}")
             self.status_label.setStyleSheet("font-weight: bold; font-size: 12pt; color: red;")
-            if message:
-                self.append_error(f"\nERRO FINAL: {message}")
+            self.append_error(f"\nERRO FINAL: {final_message}")
 
     def reject(self) -> None:
         """Request cancel while running, allow close on a second attempt."""
