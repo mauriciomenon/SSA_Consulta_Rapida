@@ -2535,11 +2535,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
                     try:
                         if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
-                            if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
+                            if workers_lock is None:
+                                if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                    GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                    GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
+                                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                        GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            else:
+                                with workers_lock:
+                                    if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                        GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                        GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
+                                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
                             self._prune_retired_rescan_workers()
                             logger.debug(
                                 "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
