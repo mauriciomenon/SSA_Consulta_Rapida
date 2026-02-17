@@ -638,20 +638,23 @@ def get_filter_alias_map() -> Dict[str, Any]:
     Returns:
         Dicionário com aliases globais e por coluna
     """
+    # Resolve config path relative to repository root
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
+
+    if not os.path.exists(cfg_path):
+        return {}
+
     try:
-        import os
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning("Falha ao carregar aliases de filtro de '%s': %s", cfg_path, exc)
+        return {}
 
-        # Resolve config path relative to repository root
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
-
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
+    if isinstance(data, dict):
+        return data
+    logger.warning("Arquivo de aliases em formato invalido: '%s'.", cfg_path)
     return {}
 
 
