@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
+import pandas as pd
 import pytest
 
 import armazenamento.derivadas_sync as derivadas_sync
@@ -213,6 +214,63 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
     assert report["sheet_stats"]["files_count"] == 2
     assert report["merge_stats"]["merged_edges"] == 2
     assert sorted(report["sheet_files"]) == sorted([str(sheet_one), str(sheet_two)])
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            ORDER BY parent_ssa, child_ssa
+            """
+        ).fetchall()
+
+    assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
+def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    visual_rows = [
+        [None, None, None, "SSAs Derivadas e Relacionadas", None, None, None, None, None, None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Localizacao",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+            "Numero da SSA",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+            "Relacao",
+            "Numero da SSA",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+        ],
+        [None, None, None, None, None, "202500002", None, None, None, "Derivada da", "202500001", None, None, None],
+        [None, None, None, None, None, "202500003", None, None, None, "Derivada da", "202500001", None, None, None],
+    ]
+    pd.DataFrame(visual_rows).to_excel(sheet_file, index=False, header=False)
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+    )
+
+    assert report["sheet_stats"]["special_layout_detected"] == 1
+    assert report["sheet_stats"]["accepted_edges"] == 2
+    assert report["merge_stats"]["merged_edges"] == 2
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute(

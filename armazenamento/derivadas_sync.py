@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import sqlite3
+import unicodedata
 from collections import defaultdict, deque
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -78,6 +79,10 @@ SHEET_LABEL_ALIASES: tuple[str, ...] = (
     "descricao_relacao",
     "relation_raw_label",
 )
+SPECIAL_SHEET_HEADER_ROW_INDEX = 1
+SPECIAL_SHEET_CHILD_COL_INDEX = 5
+SPECIAL_SHEET_RELATION_COL_INDEX = 9
+SPECIAL_SHEET_PARENT_COL_INDEX = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +299,8 @@ def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> lis
 
 def _normalize_sheet_column_name(value: Any) -> str:
     text = str(value).strip().casefold()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
     return "".join(ch for ch in text if ch.isalnum())
 
 
@@ -418,6 +425,110 @@ def collect_sheet_edges(
                     source_flag=SOURCE_FLAG_SHEET,
                     relation_type=RELATION_TYPE_SHEET,
                     relation_raw_label=relation_label,
+                )
+            )
+
+    stats["accepted_edges"] = len(edges)
+    if not edges and int(stats.get("missing_columns", 0)) > 0:
+        fallback = _collect_special_visual_sheet_edges(sheet_file=sheet_file, sheet_name=sheet_name)
+        fallback_stats = fallback.get("stats") or {}
+        if int(fallback_stats.get("special_layout_detected", 0)) > 0:
+            return fallback
+    multiparent = {child: sorted(parents) for child, parents in child_to_parents.items() if len(parents) > 1}
+    stats["multiparent_in_source"] = len(multiparent)
+    return {"edges": edges, "stats": stats, "multiparent_detail": multiparent}
+
+
+def _collect_special_visual_sheet_edges(
+    sheet_file: str,
+    sheet_name: str | None = None,
+) -> dict[str, Any]:
+    """Fallback parser for "SSAs Derivadas e Relacionadas" visual matrix layout."""
+
+    ext = os.path.splitext(sheet_file)[1].lower()
+    if ext not in {".xlsx", ".xlsm", ".xls"}:
+        return {
+            "edges": [],
+            "stats": {"accepted_edges": 0, "special_layout_detected": 0},
+            "multiparent_detail": {},
+        }
+
+    if sheet_name:
+        raw_frames = [pd.read_excel(sheet_file, sheet_name=sheet_name, header=None)]
+    else:
+        loaded = pd.read_excel(sheet_file, sheet_name=None, header=None)
+        raw_frames = list(loaded.values()) if isinstance(loaded, dict) else [loaded]
+
+    edges: list[SourceEdge] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    child_to_parents: dict[str, set[str]] = defaultdict(set)
+    stats = {
+        "input_rows": 0,
+        "accepted_edges": 0,
+        "invalid_parent": 0,
+        "invalid_child": 0,
+        "self_loop": 0,
+        "duplicated": 0,
+        "missing_columns": 0,
+        "missing_label_column_rows": 0,
+        "resolved_parent_alias_rows": 0,
+        "resolved_child_alias_rows": 0,
+        "resolved_label_alias_rows": 0,
+        "special_layout_detected": 0,
+    }
+
+    for frame in raw_frames:
+        if frame is None or frame.empty:
+            continue
+        if frame.shape[0] <= SPECIAL_SHEET_HEADER_ROW_INDEX:
+            continue
+        if frame.shape[1] <= SPECIAL_SHEET_PARENT_COL_INDEX:
+            continue
+
+        header_row = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX]
+        child_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX])
+        relation_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX])
+        parent_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX])
+
+        # Detect expected visual matrix markers before parsing.
+        if child_header != "numerodassa" or parent_header != "numerodassa" or relation_header != "relacao":
+            continue
+
+        stats["special_layout_detected"] += 1
+        data_rows = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX + 1 :]
+        stats["input_rows"] += int(len(data_rows))
+
+        for _, row in data_rows.iterrows():
+            child_raw = row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX]
+            relation_raw = row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX]
+            parent_raw = row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX]
+
+            child_norm = _normalize_ssa(child_raw)
+            parent_norm = _normalize_ssa(parent_raw)
+            if not parent_norm:
+                stats["invalid_parent"] += 1
+                continue
+            if not child_norm:
+                stats["invalid_child"] += 1
+                continue
+            if parent_norm == child_norm:
+                stats["self_loop"] += 1
+                continue
+
+            key = (parent_norm, child_norm)
+            if key in seen_pairs:
+                stats["duplicated"] += 1
+                continue
+            seen_pairs.add(key)
+            child_to_parents[child_norm].add(parent_norm)
+            edges.append(
+                SourceEdge(
+                    parent_ssa=parent_norm,
+                    child_ssa=child_norm,
+                    source_name=SOURCE_SHEET_DERIVADAS,
+                    source_flag=SOURCE_FLAG_SHEET,
+                    relation_type=RELATION_TYPE_SHEET,
+                    relation_raw_label=_clean_relation_label(relation_raw),
                 )
             )
 
