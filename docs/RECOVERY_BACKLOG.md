@@ -33,6 +33,8 @@ Scope is split by priority to keep delivery safe and incremental.
 - Plan transversal `except ... pass` cleanup in GUI code, no layout changes.
 - Add stronger user-facing diagnostics for config fallback cases in `gui/gui_config.py`.
 - Validate worker retention strategy in long runs and add simple retention telemetry.
+- Refactor `gui/ssa/gui_theme.py` (apply_theme muito grande) em sprint dedicado, sem mudar layout.
+- Revisar cleanup/retention em `gui/ssa/gui_workers.py` (fluxo complexo) em sprint dedicado.
 
 ## P2 cleanup and consistency
 
@@ -53,6 +55,7 @@ Scope is split by priority to keep delivery safe and incremental.
   - known risks,
   - accepted waivers,
   - mandatory follow-up links.
+- Rever `pyproject.toml` addopts com ignores de testes e considerar remocao para ampliar cobertura (sugestao para relatorio final do sprint atual).
 
 ## Execution model
 
@@ -60,7 +63,7 @@ Scope is split by priority to keep delivery safe and incremental.
 - Keep rollback easy by changing one concern at a time.
 - Prefer low-risk defensive changes first, then structural cleanup.
 
-## Review tracking (source PR 30)
+## Review tracking (source PR 31)
 
 Ordered list from PR review threads. Status uses pending/resolved.
 

@@ -4,10 +4,20 @@ This handoff is ready to reuse in the next conversation.
 
 ## Estado atual
 
-- Merge concluido do trabalho de recovery/hardening.
-- Registro de backlog criado em `docs/RECOVERY_BACKLOG.md`.
-- Fluxo final ficou com checks tecnicos estaveis e ajustes defensivos aplicados sem mexer em layout da GUI.
-- PR #30 (codex/import-review) aceito; proxima etapa: refatoracao de `gui/gui_ssa.py` com foco em separar responsabilidades sem alterar layout.
+- Branch `codex/import-review`, PR #31 aberto e em andamento (base `dev`, head `codex/import-review`).
+- Backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
+- Refactor gui em andamento: `gui/ssa/*` e `gui/qt_stubs.py` criados, facade em `gui/gui_ssa.py` mantido.
+- Itens aprovados para este sprint (A/B/C): aplicados em `a01406cc` (lock global, mask de db_path, prune apos erro).
+- Versionamento de icones app concluido em `e31d03a9`.
+- addopts com ignore em `pyproject.toml` mantido por ora; sugerir remocao no relatorio final.
+
+## Pendencias antes de fechar o PR
+
+1. Rodar validacao por lote: `py_compile`, `ruff`, `ty`, `pytest` focado.
+2. Responder comentarios do PR #31 com status dos itens aprovados (A/B/C) e decisoes de escopo (D/E).
+3. Consolidar e push dos commits pendentes de documentacao.
+4. Checar bots/checks e tratar apenas bloqueantes.
+5. Registrar no relatorio final a sugestao de rever ignores em `pyproject.toml`.
 
 ## O que foi feito (resumo)
 
@@ -35,8 +45,11 @@ This handoff is ready to reuse in the next conversation.
 3. Sempre validar antes de push: `py_compile`, `ruff`, `pytest` focado.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
 5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
-6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
-7. Manter backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
+6. Nao criar branch/PR novo sem autorizacao explicita.
+7. Nao usar suppress/except vazio para esconder erro real.
+8. Usar pip/pip3 para deps quando operar via uv.
+9. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
+10. Manter backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
 
 ## Objetivo do novo ciclo
 
@@ -55,8 +68,11 @@ Regras de execucao:
 3. Sempre validar antes de push: py_compile, ruff, pytest focado.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
 5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
-6. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
-7. Manter backlog de follow-up em docs/RECOVERY_BACKLOG.md.
+6. Nao criar branch/PR novo sem autorizacao explicita.
+7. Nao usar suppress/except vazio para esconder erro real.
+8. Usar pip/pip3 para deps quando operar via uv.
+9. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
+10. Manter backlog de follow-up em docs/RECOVERY_BACKLOG.md.
 
 Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
 Objetivo atual: refatorar gui/gui_ssa.py sem mudar layout, com levantamento detalhado antes.
