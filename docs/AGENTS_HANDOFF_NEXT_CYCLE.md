@@ -21,6 +21,8 @@ This handoff is ready to reuse in the next conversation.
 4. Checar bots/checks e tratar apenas bloqueantes.
 5. E) Remover ignores de testes no `pyproject.toml` e consertar os testes correspondentes (impacto possivel maior; manter como pendencia deste sprint).
 6. Registrar no relatorio final a sugestao de rever/remover ignores em `pyproject.toml`.
+7. Publicar Release `4.13` no GitHub (tag `4.13` ja criada e enviada para o commit de merge do PR #30).
+8. Atualizar titulo/descricao do PR #31 e rechecagem de checks via `gh` quando `api.github.com` voltar a responder.
 
 ## O que foi feito (resumo)
 
