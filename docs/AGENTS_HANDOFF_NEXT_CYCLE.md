@@ -9,20 +9,25 @@ This handoff is ready to reuse in the next conversation.
 - Refactor gui em andamento: `gui/ssa/*` e `gui/qt_stubs.py` criados, facade em `gui/gui_ssa.py` mantido.
 - Itens aprovados para este sprint (A/B/C): aplicados em `a01406cc` (lock global, mask de db_path, prune apos erro).
 - Versionamento de icones app concluido em `e31d03a9`.
+- Hardening incremental apos isso:
+  - `a4f92668` remove suppress silencioso no cleanup temporario de `utils/caching.py`.
+  - `4bee3b55` remove suppress silencioso ao listar `config` em `armazenamento/database.py`.
+  - `50e49920` remove suppress silencioso no fallback de labels em `interface/table_printer.py`.
+  - `28776b4c` remove suppress silencioso no parse de ano em `shared/numero_ssa.py`.
 - addopts com ignore em `pyproject.toml` mantido por ora; sugerir remocao no relatorio final.
 - Validacao local deve rodar via `uv run` para garantir ambiente correto (evitar falha de deps como pandas fora do venv).
 - `ty` em `gui/gui_ssa.py` ainda aponta ruido estrutural de stubs/union PyQt; tratar em slice dedicado, sem misturar com hardening atual.
+- `gh auth status` ok, mas consultas de checks/reviews ainda falham com `error connecting to api.github.com` (pendencia operacional de MCP/rede).
 
 ## Pendencias antes de fechar o PR
 
-1. Rodar validacao por lote: `py_compile`, `ruff`, `ty`, `pytest` focado.
-2. Responder comentarios do PR #31 com status dos itens aprovados (A/B/C) e decisoes de escopo (D/E).
-3. Consolidar e push dos commits pendentes de documentacao.
-4. Checar bots/checks e tratar apenas bloqueantes.
-5. E) Remover ignores de testes no `pyproject.toml` e consertar os testes correspondentes (impacto possivel maior; manter como pendencia deste sprint).
-6. Registrar no relatorio final a sugestao de rever/remover ignores em `pyproject.toml`.
-7. Publicar Release `4.13` no GitHub (tag `4.13` ja criada e enviada para o commit de merge do PR #30).
-8. Atualizar titulo/descricao do PR #31 e rechecagem de checks via `gh` quando `api.github.com` voltar a responder.
+1. Rodar gate final por lote: `py_compile`, `ruff`, `ty`, `pytest` focado nos arquivos/slices tocados.
+2. Rechecar bots/checks bloqueantes do PR #31 assim que `api.github.com` voltar a responder no ambiente MCP.
+3. Responder comentarios do PR #31 com status dos itens aprovados (A/B/C) e decisoes de escopo (D/E).
+4. E) Manter addopts ignore em `pyproject.toml` neste ciclo; sugerir remocao e ajuste de testes no relatorio final do sprint.
+5. Consolidar commits finais de doc/status do sprint.
+6. Release `4.13`: manter em TODO (tag ja criada no merge do PR #30; publicacao de release pendente).
+7. Atualizar titulo/descricao do PR #31 para refletir melhor o escopo entregue de hardening/refactor GUI.
 
 ## O que foi feito (resumo)
 
