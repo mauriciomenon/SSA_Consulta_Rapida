@@ -6,8 +6,8 @@ Scope is split by priority to keep delivery safe and incremental.
 ## Current sprint status snapshot (PR 31)
 
 - Operational:
-  - `gh pr checks 31` still failing in MCP env with `error connecting to api.github.com` while `gh auth status` is valid.
-  - Recheck blockers as soon as API connectivity is restored.
+  - `gh pr checks 31` voltou a responder.
+  - estado atual: `code/snyk (mauriciomenon)` falha por limite de plano (`Code test limit reached`), demais checks principais em `pending`.
 - Delivered hardening slices (low risk, no GUI layout change):
   - `utils/caching.py`: removed silent suppress in temp cleanup, added explicit warnings.
   - `armazenamento/database.py`: removed silent suppress in config listing fallback, added explicit warning.
@@ -23,6 +23,17 @@ Scope is split by priority to keep delivery safe and incremental.
     - `solicitante` include/exclude compatibility (`solicitante` and legacy `responsavel_solicitante`);
     - `num_reprogramacoes` activation detection in `_has_active_advanced_filters`;
     - week-range filter path with explicit nonlocal mask update.
+    - priority key/column mapping (`prioridade_*_values` and dataset `grau_prioridade_*`).
+  - Added static key coverage test to prevent UI-key drift against logic/active detector.
+  - New dedicated docs for this flow:
+    - `docs/QA_FACADE_FILTERS.md`
+    - `docs/NEXT_CHAT_MIGRATION.md`
+
+- External IA intake workflow (active):
+  - Accept report only with `arquivo:linha` evidence.
+  - Re-validate every finding locally with `rg -n` and `nl -ba`.
+  - Patch in atomic slices only.
+  - Keep non-blocking findings in this backlog.
 
 ## P0 blockers
 

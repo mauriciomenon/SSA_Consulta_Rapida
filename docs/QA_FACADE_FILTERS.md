@@ -49,6 +49,32 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 2. legacy alias compatibility (`responsavel_solicitante`);
 3. active-state detection for `num_reprogramacoes`;
 4. week-range filter behavior.
+5. priority filters with dataset columns `grau_prioridade_emissao` and `grau_prioridade_planejamento`;
+6. static check: keys produced by UI must be covered by logic or active detector.
+
+## External IA report intake (mandatory)
+
+When another IA sends findings:
+
+1. Do not patch immediately.
+2. Validate each finding with local evidence:
+   - `rg -n "<pattern>" <file>`
+   - `nl -ba <file> | sed -n "<start>,<end>p"`
+3. Convert report to actionable list:
+   - `id`, `severity`, `file:line`, `impact`, `minimal fix`, `minimal test`.
+4. Apply only minimal-risk patches per slice.
+5. Run gate after each slice:
+
+```bash
+uv run python -m py_compile <files>
+uv run ruff check <files>
+uv run ty check <files>
+uv run pytest -q tests/test_gui_filters_facade_contract.py
+uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
+uv run pytest -q tests/test_gui_filters_advanced_logic.py
+```
+
+6. Update `docs/RECOVERY_BACKLOG.md` for deferred non-blockers.
 
 ## PR checklist text (copy/paste)
 
