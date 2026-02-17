@@ -16,6 +16,14 @@ Scope is split by priority to keep delivery safe and incremental.
 - Remaining sprint recommendation (kept as pending by decision):
   - Keep E tracked: revisit `pyproject.toml` test ignores and repair affected tests in a dedicated slice.
 
+- Quality hardening adopted for advanced-filters facade:
+  - Fixed runtime contract break where `gui/gui_ssa.py` expected symbol `_has_active_advanced_filters` from aggregated module.
+  - Added guarded fallback path in facade and regression tests for primary/fallback/no-handler flows.
+  - Added direct logic coverage for:
+    - `solicitante` include/exclude compatibility (`solicitante` and legacy `responsavel_solicitante`);
+    - `num_reprogramacoes` activation detection in `_has_active_advanced_filters`;
+    - week-range filter path with explicit nonlocal mask update.
+
 ## P0 blockers
 
 - Clear legacy `CHANGES_REQUESTED` state from old bot reviews on PR #25.

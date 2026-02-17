@@ -61,6 +61,19 @@ This handoff is ready to reuse in the next conversation.
 9. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
 10. Manter backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
 
+## Regra adotada: facade de filtros avancados
+
+- Contrato de modulo:
+  - `gui/gui_ssa.py` pode chamar `ssa_gui_filters.<simbolo>` apenas se o simbolo estiver reexportado no modulo agregado `gui/ssa/gui_filters_advanced.py`.
+  - Se o simbolo for opcional durante split/refactor, usar `getattr(..., None)` com fallback explicito e comportamento seguro.
+- Gate obrigatorio por slice que tocar `gui/gui_ssa.py` ou `gui/ssa/gui_filters_*`:
+  - `uv run pytest -q tests/test_gui_filters_facade_contract.py`
+  - `uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters`
+- Cobertura minima obrigatoria:
+  - caminho principal do facade;
+  - caminho de fallback;
+  - caminho sem handler (degradacao segura).
+
 ## Objetivo do novo ciclo
 
 - Manter o mesmo cuidado, com foco na refatoracao de `gui/gui_ssa.py` (SSAMainWindow) para reduzir acoplamento.
