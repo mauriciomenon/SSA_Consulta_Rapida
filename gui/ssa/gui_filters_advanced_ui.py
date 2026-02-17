@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import copy
+import os
+import sqlite3
 from time import perf_counter
 
 import pandas as pd
@@ -1026,8 +1028,104 @@ def _on_derivada_all_ste_toggled(self, checked: bool):
     except Exception as exc:
         logger.debug("Falha ao forcar 'Tem derivada' quando STE foi marcado: %s", exc)
 
+def _resolve_current_db_path() -> str | None:
+    try:
+        from gui import gui_ssa as gui_ssa_module
+
+        db_path = getattr(gui_ssa_module, "DB_PATH", None)
+        if isinstance(db_path, str) and db_path.strip():
+            return db_path
+    except Exception as exc:
+        logger.debug("Falha ao resolver DB_PATH atual para resumo de derivadas: %s", exc)
+    return None
+
+
+def _collect_derivadas_summary_stats(self, df: pd.DataFrame | None) -> dict:
+    empty = {
+        "rows": 0,
+        "has_relations": False,
+        "maes": 0,
+        "maes_varias_filhos": 0,
+        "multi_parent": 0,
+        "has_cycle": 0,
+        "top_maes": [],
+    }
+    if df is None or df.empty or "numero_ssa" not in df.columns:
+        return empty
+    try:
+        normalized = self._normalize_ssa_series(df["numero_ssa"])
+        visible_ssas = sorted({str(v).strip() for v in normalized.tolist() if str(v).strip()})
+    except Exception as exc:
+        logger.debug("Falha ao normalizar SSAs para resumo de derivadas: %s", exc)
+        return empty
+    if not visible_ssas:
+        return empty
+
+    db_path = _resolve_current_db_path()
+    if not db_path or not os.path.exists(db_path):
+        return empty
+
+    rows: list[tuple[str, int, int, int, int, int]] = []
+    try:
+        with sqlite3.connect(db_path) as conn:
+            has_summary = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ssa_derivada_summary'"
+            ).fetchone()
+            if not has_summary:
+                return empty
+            chunk_size = 800
+            for start in range(0, len(visible_ssas), chunk_size):
+                chunk = visible_ssas[start : start + chunk_size]
+                placeholders = ",".join("?" for _ in chunk)
+                query = (
+                    "SELECT ssa, direct_parents_count, direct_children_count, ancestors_count, descendants_count, has_cycle "
+                    f"FROM ssa_derivada_summary WHERE ssa IN ({placeholders})"
+                )
+                rows.extend(conn.execute(query, chunk).fetchall())
+    except Exception as exc:
+        logger.debug("Falha ao consultar resumo materializado de derivadas: %s", exc)
+        return empty
+
+    if not rows:
+        return empty
+
+    maes = 0
+    maes_varias_filhos = 0
+    multi_parent = 0
+    has_cycle = 0
+    has_relations = False
+    top_maes: list[tuple[str, int]] = []
+    for ssa, direct_parents, direct_children, ancestors, descendants, cycle in rows:
+        direct_parents_i = int(direct_parents or 0)
+        direct_children_i = int(direct_children or 0)
+        ancestors_i = int(ancestors or 0)
+        descendants_i = int(descendants or 0)
+        cycle_i = int(cycle or 0)
+        if direct_children_i > 0:
+            maes += 1
+            top_maes.append((str(ssa), direct_children_i))
+        if direct_children_i >= 2:
+            maes_varias_filhos += 1
+        if direct_parents_i > 1:
+            multi_parent += 1
+        if cycle_i > 0:
+            has_cycle += 1
+        if direct_children_i > 0 or direct_parents_i > 0 or ancestors_i > 0 or descendants_i > 0:
+            has_relations = True
+    top_maes.sort(key=lambda item: (-item[1], item[0]))
+    return {
+        "rows": len(rows),
+        "has_relations": has_relations,
+        "maes": maes,
+        "maes_varias_filhos": maes_varias_filhos,
+        "multi_parent": multi_parent,
+        "has_cycle": has_cycle,
+        "top_maes": top_maes[:20],
+    }
+
+
 def _show_derivadas_popup(self):
-    """Mostra popup com arvore de derivadas em texto plano."""
+    """Mostra popup com resumo de derivadas em texto plano."""
     try:
         df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
         if df is None or df.empty:
@@ -1048,14 +1146,33 @@ def _show_derivadas_popup(self):
 
         mae_filhas, filha_mae = self._build_derivadas_tree(df, numero_col, derivada_col)
 
-        if not mae_filhas and not filha_mae:
+        summary_stats = _collect_derivadas_summary_stats(self, df)
+        if not mae_filhas and not filha_mae and not summary_stats.get("has_relations"):
             return
 
         # Construir texto
         lines = []
+        if summary_stats.get("rows"):
+            lines.append("Resumo derivadas (db materializado)")
+            lines.append(f"SSAs no resultado com resumo: {int(summary_stats.get('rows', 0))}")
+            lines.append(f"SSAs maes (>=1 filha): {int(summary_stats.get('maes', 0))}")
+            lines.append(
+                f"SSAs maes com varias filhas (>=2): {int(summary_stats.get('maes_varias_filhos', 0))}"
+            )
+            lines.append(f"SSAs com mais de uma mae: {int(summary_stats.get('multi_parent', 0))}")
+            if int(summary_stats.get("has_cycle", 0)) > 0:
+                lines.append(f"SSAs em ciclo detectado: {int(summary_stats.get('has_cycle', 0))}")
+            top_maes = summary_stats.get("top_maes", [])
+            if top_maes:
+                lines.append("")
+                lines.append("Top maes por quantidade de filhas")
+                for ssa, total_children in top_maes:
+                    lines.append(f"{ssa} -> {int(total_children)}")
 
         # Derivadas (maes com suas filhas)
         if mae_filhas:
+            if lines:
+                lines.append("")
             lines.append("Derivadas")
             for mae in sorted(mae_filhas.keys()):
                 filhas = mae_filhas[mae]
@@ -1070,7 +1187,8 @@ def _show_derivadas_popup(self):
                         filhas_str_parts.append(f)
                 lines.append(f"{mae} -> {', '.join(filhas_str_parts)}")
 
-        lines.append("")
+        if lines and filha_mae:
+            lines.append("")
 
         # SSA de origem (filhas com suas maes)
         if filha_mae:
@@ -1084,7 +1202,7 @@ def _show_derivadas_popup(self):
         # Criar dialogo com texto copiavel e pesquisavel
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
         dialog = QDialog(self)
-        dialog.setWindowTitle("Arvore de Derivadas")
+        dialog.setWindowTitle("Resumo de Derivadas")
         dialog.setMinimumSize(500, 400)
         layout = QVBoxLayout(dialog)
 
@@ -1106,7 +1224,7 @@ def _show_derivadas_popup(self):
         logger.warning("Erro ao mostrar popup de derivadas: %s", e)
 
 def _update_derivadas_button_state(self):
-    """Habilita/desabilita botao Especificas baseado em existencia de derivadas."""
+    """Habilita/desabilita botao Especificas baseado em derivadas do resultado ou resumo DB."""
     try:
         btn = getattr(self, "adv_derivadas_especificas_button", None)
         if btn is None:
@@ -1126,13 +1244,14 @@ def _update_derivadas_button_state(self):
                 derivada_col = col
                 break
 
-        if derivada_col is None:
-            btn.setEnabled(False)
-            return
-
-        # Verificar se ha valores normalizados validos (ignora '', None, NaN)
-        normalized = self._normalize_ssa_series(df[derivada_col])
-        has_derivadas = normalized.ne("").any()
+        has_derivadas = False
+        if derivada_col is not None:
+            # Verificar se ha valores normalizados validos (ignora '', None, NaN)
+            normalized = self._normalize_ssa_series(df[derivada_col])
+            has_derivadas = bool(normalized.ne("").any())
+        if not has_derivadas:
+            summary_stats = _collect_derivadas_summary_stats(self, df)
+            has_derivadas = bool(summary_stats.get("has_relations"))
         btn.setEnabled(bool(has_derivadas))
     except Exception as exc:
         logger.warning("Falha ao atualizar estado do botao de derivadas especificas: %s", exc)
@@ -1213,7 +1332,6 @@ def _reorganize_advanced_filters_grid(self, width: int):
         grid.addWidget(w["sol_box"], 2, 2)
         grid.addWidget(w["prog_box"], 2, 3)
         grid.addWidget(w["exec_resp_box"], 2, 4)
-        grid.addWidget(w["emis_resp_box"], 2, 5)
         for col in range(6):
             grid.setColumnStretch(col, 1)
 
@@ -1235,7 +1353,6 @@ def _reorganize_advanced_filters_grid(self, width: int):
         grid.addWidget(w["sol_box"], 4, 2)
         grid.addWidget(w["prog_box"], 5, 0)
         grid.addWidget(w["exec_resp_box"], 5, 1)
-        grid.addWidget(w["emis_resp_box"], 5, 2)
         for col in range(3):
             grid.setColumnStretch(col, 1)
 
@@ -1257,7 +1374,6 @@ def _reorganize_advanced_filters_grid(self, width: int):
         grid.addWidget(w["sol_box"], 6, 1)
         grid.addWidget(w["prog_box"], 7, 0)
         grid.addWidget(w["exec_resp_box"], 7, 1)
-        grid.addWidget(w["emis_resp_box"], 8, 0, 1, 2)
         for col in range(2):
             grid.setColumnStretch(col, 1)
 

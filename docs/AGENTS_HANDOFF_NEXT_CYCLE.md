@@ -124,6 +124,10 @@ This handoff is ready to reuse in the next conversation.
 - Applied user decision B for `responsavel_emissor`: advanced filter control flow removed from UI panel context/assembly.
 - Added guard test to prevent reintroduction of `adv_responsavel_emissor_*` controls.
 - Mandatory GUI filter gates executed and passing (`facade_contract`, `advanced_filters`, `advanced_logic`).
+- Hardened derivadas panel button `Especificas...`:
+  - now uses materialized derivadas summary from DB (`ssa_derivada_summary`) to show useful stats/top maes in popup;
+  - button enable state now accepts DB-derived relations even when `derivada_de` series in the visible dataframe is empty.
+- Fixed responsive grid regression after `responsavel_emissor` removal: no more `emis_resp_box` references in `_reorganize_advanced_filters_grid`.
 
 ## Texto pronto para abrir a nova conversa
 

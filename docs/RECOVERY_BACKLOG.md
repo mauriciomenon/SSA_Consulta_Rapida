@@ -234,3 +234,9 @@ Ordered list from PR review threads. Status uses pending/resolved.
 - [resolved] UI/logic flow `responsavel_emissor` removed from advanced filters panel assembly.
 - [resolved] Regression test added to lock behavior: `tests/test_gui_filter_logic.py::test_responsavel_emissor_controls_are_not_present_in_advanced_panel`.
 - [note] Scope decision B confirmed by user: do not add DB column `responsavel_emissor`; keep `solicitante` as supported field.
+
+## Updates 2026-02-17 (slice: derivadas button util)
+
+- [resolved] `Especificas...` popup now includes DB materialized derivadas summary for visible SSAs (`ssa_derivada_summary`).
+- [resolved] `Especificas...` enable state now also checks DB relations, not only dataframe `derivada_de` values.
+- [resolved] Fixed responsive grid crash risk after removal of `responsavel_emissor` controls (`_reorganize_advanced_filters_grid` no longer references `emis_resp_box`).
