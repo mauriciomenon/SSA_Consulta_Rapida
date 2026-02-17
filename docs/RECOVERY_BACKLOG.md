@@ -7,7 +7,10 @@ Scope is split by priority to keep delivery safe and incremental.
 
 - Operational:
   - `gh pr checks 31` voltou a responder.
-  - estado atual: `code/snyk (mauriciomenon)` falha por limite de plano (`Code test limit reached`), demais checks principais em `pending`.
+  - estado atual:
+    - `code/snyk (mauriciomenon)` falha por limite de plano (`Code test limit reached`).
+    - `security/snyk (mauriciomenon)` falha por limite de plano (`You have used your limit of private tests`).
+    - demais checks principais em `pass` (DeepScan, DeepSource, submit-pypi, GitGuardian, Socket, cubic).
 - Delivered hardening slices (low risk, no GUI layout change):
   - `utils/caching.py`: removed silent suppress in temp cleanup, added explicit warnings.
   - `armazenamento/database.py`: removed silent suppress in config listing fallback, added explicit warning.
@@ -34,6 +37,40 @@ Scope is split by priority to keep delivery safe and incremental.
   - Re-validate every finding locally with `rg -n` and `nl -ba`.
   - Patch in atomic slices only.
   - Keep non-blocking findings in this backlog.
+
+## External IA intake snapshot (2026-02-17)
+
+- Revalidated findings with local evidence:
+  - `RPT-P1-02` confirmed: `_has_active_advanced_filters` missing in aggregated exports.
+  - `RPT-P1-01` confirmed: `responsavel_emissor` key exists in UI/logic but column is missing in `config/schema.sql`.
+  - `RPT-P2-06` confirmed: coverage test was one-way and also had invalid regex under Python 3.13.
+- Action now completed:
+  - Re-exported `_has_active_advanced_filters` in `gui/ssa/gui_filters_advanced.py`.
+  - Fixed regex and added reverse key-coverage guard in `tests/test_gui_filters_advanced_logic.py`.
+- Decision applied:
+  - `RPT-P1-01` resolved with path B:
+    - removed/disabled `responsavel_emissor` advanced-filter flow from UI/logic detector.
+    - kept backward-safe UI context attrs only to avoid tab binding regressions.
+- Deferred to backlog (non-blocking in current slice):
+  - `RPT-P2-03` dead branch `data_execucao` in year execucao filter.
+  - `RPT-P2-04` `semana_*_exclude` hardcoded false in UI.
+  - `RPT-P2-05` add dedicated migration tests for legacy `ano_*` keys.
+  - `RPT-P3-07` evaluate cache key extension to include advanced filters context.
+  - `RPT-P3-08` nomenclature normalization for priority keys/columns.
+
+## Rescan evidence snapshot (2026-02-17)
+
+- Input from latest modular rescan:
+  - total files: 75
+  - processed successfully: 64
+  - errors: 11
+- All 11 errors are from `SSAs Derivadas e Relacionadas_*.xlsx` with:
+  - `Missing required columns after normalization: ['data_cadastro', 'descricao_ssa']`
+- New action item (high priority):
+  - keep main importer strict required columns for regular SSA sheets.
+  - done: automatic derivadas sync trigger now consumes `SSAs Derivadas e Relacionadas_*.xlsx` through `armazenamento/derivadas_sync.py` (sheet source), not through main SSA extractor gate.
+  - done: trigger runs after import loop; special files are skipped from main extractor and handled by derivadas sync.
+  - current behavior: when multiple special sheets are present, importer picks the latest file by mtime for sync and marks all special files in cache on successful sync.
 
 ## P0 blockers
 
@@ -191,3 +228,9 @@ Ordered list from PR review threads. Status uses pending/resolved.
 89. [pending] gui/workers/rescan_worker.py:81 :: The _attach_logger and _detach_logger methods modify global state (_LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL) but there's a risk if _attach_logger succeeds and then _detach_logger is...
 90. [pending] interface/cli_enhancement_manager.py:118 :: The msvcrt.locking call at line 118 locks 4096 bytes, but the actual file size may be smaller or larger than 4096 bytes. The msvcrt.locking function locks a specific number of b...
 91. [pending] armazenamento/database_optimized.py:79 :: The _has_referencing_foreign_keys function uses dynamic SQL with f-string at line 77: f"PRAGMA foreign_key_list({table})". The table name comes from sqlite_master, which should ...
+
+## Updates 2026-02-17 (slice: advanced filters responsavel_emissor)
+
+- [resolved] UI/logic flow `responsavel_emissor` removed from advanced filters panel assembly.
+- [resolved] Regression test added to lock behavior: `tests/test_gui_filter_logic.py::test_responsavel_emissor_controls_are_not_present_in_advanced_panel`.
+- [note] Scope decision B confirmed by user: do not add DB column `responsavel_emissor`; keep `solicitante` as supported field.

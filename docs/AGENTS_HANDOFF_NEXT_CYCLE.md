@@ -26,9 +26,15 @@ This handoff is ready to reuse in the next conversation.
   - `2a939f4f`: hardening de logica/UI/state de filtros avancados + testes dedicados.
   - `93f5ccf1`: fix de mapeamento de chaves/colunas de prioridade (`*_values` e `grau_prioridade_*`).
   - `5ced33d1`: teste de cobertura estatica de chaves UI vs logica/detector ativo.
+  - 2026-02-17 slice: `_has_active_advanced_filters` reexportado em `gui/ssa/gui_filters_advanced.py` e teste de cobertura corrigido/fortalecido em `tests/test_gui_filters_advanced_logic.py`.
+  - 2026-02-17 triagem externa: `responsavel_emissor` decisao B aplicada (remocao/desativacao do fluxo em UI/logica de filtros avancados).
+  - 2026-02-17 rescan evidence: 75 arquivos, 64 processados, 11 erros em `SSAs Derivadas e Relacionadas_*.xlsx` por colunas obrigatorias ausentes no extrator principal.
+  - 2026-02-17 slice entregue: disparo automatico de sync de derivadas no `run_importer_logic` para planilhas especiais (`SSAs Derivadas e Relacionadas_*`), sem afrouxar validacao do extrator principal.
+  - comportamento atual: planilhas especiais sao ignoradas no extrator principal; sync usa a planilha especial mais recente (mtime) e marca todas as especiais no cache quando o sync conclui.
 - Checks atuais do PR:
   - `code/snyk (mauriciomenon)` falhando por limite de plano: `Code test limit reached`.
-  - Demais checks principais em andamento (DeepScan, DeepSource, security/snyk, submit-pypi).
+  - `security/snyk (mauriciomenon)` falhando por limite de plano: `You have used your limit of private tests`.
+  - Demais checks principais em `pass` (DeepScan, DeepSource, submit-pypi, GitGuardian, Socket, cubic).
 
 ## Pendencias antes de fechar o PR
 
@@ -112,6 +118,12 @@ This handoff is ready to reuse in the next conversation.
 - Manter o mesmo cuidado, com foco na refatoracao de `gui/gui_ssa.py` (SSAMainWindow) para reduzir acoplamento.
 - Preservar layout e comportamento da GUI; refatoracao deve ser estrutural, nao visual.
 - Fazer levantamento detalhado antes de mover metodos para novos modulos.
+
+## Update 2026-02-17 (advanced filters)
+
+- Applied user decision B for `responsavel_emissor`: advanced filter control flow removed from UI panel context/assembly.
+- Added guard test to prevent reintroduction of `adv_responsavel_emissor_*` controls.
+- Mandatory GUI filter gates executed and passing (`facade_contract`, `advanced_filters`, `advanced_logic`).
 
 ## Texto pronto para abrir a nova conversa
 

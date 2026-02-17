@@ -392,8 +392,6 @@ class TestGUIFilterLogic:
             "responsavel_programacao_exclude_values": ["ProgB"],
             "responsavel_execucao": ["ExecA"],
             "responsavel_execucao_exclude_values": ["ExecB"],
-            "responsavel_emissor": ["EmisA"],
-            "responsavel_emissor_exclude_values": ["EmisB"],
         }
         self.window._responsavel_materialized_prefixes = set()
         self.window._responsavel_filters_materialized = False
@@ -406,8 +404,14 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters["responsavel_programacao_exclude_values"] == ["ProgB"]
         assert self.window._advanced_filters["responsavel_execucao"] == ["ExecA"]
         assert self.window._advanced_filters["responsavel_execucao_exclude_values"] == ["ExecB"]
-        assert self.window._advanced_filters["responsavel_emissor"] == ["EmisA"]
-        assert self.window._advanced_filters["responsavel_emissor_exclude_values"] == ["EmisB"]
+        assert "responsavel_emissor" not in self.window._advanced_filters
+        assert "responsavel_emissor_exclude_values" not in self.window._advanced_filters
+
+    def test_responsavel_emissor_controls_are_not_present_in_advanced_panel(self):
+        assert getattr(self.window, "adv_responsavel_emissor_button", None) is None
+        assert getattr(self.window, "adv_responsavel_emissor_menu", None) is None
+        assert getattr(self.window, "adv_responsavel_emissor_checks", None) is None
+        assert getattr(self.window, "adv_responsavel_emissor_exclude", None) is None
 
     def test_ensure_responsavel_options_materialized_runs_once_when_dirty(self):
         self.window._responsavel_filters_materialized = False

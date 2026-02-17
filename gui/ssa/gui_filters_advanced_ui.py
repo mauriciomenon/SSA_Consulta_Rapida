@@ -214,12 +214,6 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
             "responsavel_execucao",
             "responsavel_execucao_exclude_values",
         ),
-        (
-            "adv_responsavel_emissor",
-            "adv_responsavel_emissor_button",
-            "responsavel_emissor",
-            "responsavel_emissor_exclude_values",
-        ),
     )
     for prefix, button_attr, include_key, exclude_key in pairs:
         if selected_prefixes is not None and prefix not in selected_prefixes:
@@ -872,7 +866,6 @@ def _build_advanced_filters_panel(self):
     sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
     prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
     exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Exec")
-    emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emis")
     self._set_menu_pre_show_hook(
         sol_button,
         lambda prefix="adv_responsavel_solicitante": self._ensure_responsavel_options_materialized(
@@ -888,12 +881,6 @@ def _build_advanced_filters_panel(self):
     self._set_menu_pre_show_hook(
         exec_resp_button,
         lambda prefix="adv_responsavel_execucao": self._ensure_responsavel_options_materialized(
-            target_prefix=prefix
-        ),
-    )
-    self._set_menu_pre_show_hook(
-        emis_resp_button,
-        lambda prefix="adv_responsavel_emissor": self._ensure_responsavel_options_materialized(
             target_prefix=prefix
         ),
     )
@@ -918,7 +905,6 @@ def _build_advanced_filters_panel(self):
     main_grid.addWidget(sol_box, 2, 2)
     main_grid.addWidget(prog_box, 2, 3)
     main_grid.addWidget(exec_resp_box, 2, 4)
-    main_grid.addWidget(emis_resp_box, 2, 5)
     for col in range(6):
         main_grid.setColumnStretch(col, 1)
 
@@ -936,7 +922,7 @@ def _build_advanced_filters_panel(self):
         "deriv_box": deriv_box, "macro_box": macro_box,
         "week_emis_box": week_emis_box, "week_exec_box": week_exec_box,
         "sol_box": sol_box, "prog_box": prog_box,
-        "exec_resp_box": exec_resp_box, "emis_resp_box": emis_resp_box
+        "exec_resp_box": exec_resp_box
     }
 
     buttons_row = QHBoxLayout()
@@ -1017,11 +1003,6 @@ def _build_advanced_filters_panel(self):
         "adv_responsavel_execucao_checks": [],
         "adv_responsavel_execucao_exclude": exec_resp_exclude,
         "adv_responsavel_execucao_box": exec_resp_box,
-        "adv_responsavel_emissor_button": emis_resp_button,
-        "adv_responsavel_emissor_menu": emis_resp_menu,
-        "adv_responsavel_emissor_checks": [],
-        "adv_responsavel_emissor_exclude": emis_resp_exclude,
-        "adv_responsavel_emissor_box": emis_resp_box,
         "adv_macro_combo": macro_combo,
         "adv_save_defaults_btn": save_defaults_btn,
     }
@@ -1566,7 +1547,6 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         ("solicitante", "adv_responsavel_solicitante"),
         ("responsavel_programacao", "adv_responsavel_programacao"),
         ("responsavel_execucao", "adv_responsavel_execucao"),
-        ("responsavel_emissor", "adv_responsavel_emissor"),
     ]
     processed_prefixes = set()
     for col, prefix in resp_cols:
@@ -1698,7 +1678,6 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
         "solicitante",
         "responsavel_programacao",
         "responsavel_execucao",
-        "responsavel_emissor",
     )
     for key in list_keys:
         if data.get(key):
@@ -1711,7 +1690,6 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
         "solicitante_exclude_values",
         "responsavel_programacao_exclude_values",
         "responsavel_execucao_exclude_values",
-        "responsavel_emissor_exclude_values",
         "prioridade_emissao_exclude_values",
         "prioridade_planejamento_exclude_values",
     )
@@ -1879,16 +1857,6 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         "responsavel_execucao_exclude_values",
         "adv_responsavel_execucao",
     )
-    data["responsavel_emissor"] = _collect_responsavel_values(
-        "adv_responsavel_emissor_checks",
-        "responsavel_emissor",
-        "adv_responsavel_emissor",
-    )
-    data["responsavel_emissor_exclude_values"] = _collect_responsavel_values(
-        "adv_responsavel_emissor_exclude_checks",
-        "responsavel_emissor_exclude_values",
-        "adv_responsavel_emissor",
-    )
     try:
         data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
     except Exception:
@@ -2050,14 +2018,6 @@ def _sync_advanced_filter_ui(self):
             "responsavel_execucao",
             "adv_responsavel_execucao_exclude_checks",
             "responsavel_execucao_exclude_values",
-        ),
-        (
-            "adv_responsavel_emissor",
-            "adv_responsavel_emissor_button",
-            "adv_responsavel_emissor_checks",
-            "responsavel_emissor",
-            "adv_responsavel_emissor_exclude_checks",
-            "responsavel_emissor_exclude_values",
         ),
     )
     built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))

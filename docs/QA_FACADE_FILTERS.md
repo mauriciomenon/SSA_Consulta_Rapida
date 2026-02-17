@@ -51,6 +51,31 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 4. week-range filter behavior.
 5. priority filters with dataset columns `grau_prioridade_emissao` and `grau_prioridade_planejamento`;
 6. static check: keys produced by UI must be covered by logic or active detector.
+7. reverse static check: keys consumed by logic/active detector must be either UI-produced or listed as legacy allowlist.
+8. `responsavel_emissor` is intentionally out of advanced filter contract (disabled path); do not reintroduce key production/consumption without explicit scope approval and DB support.
+
+Note:
+- Derivadas special spreadsheets (`SSAs Derivadas e Relacionadas_*.xlsx`) are not part of this advanced-filter facade contract.
+- They are handled by derivadas sync flow in importer, not by the main SSA extractor required-column gate.
+
+## Current verified legacy allowlist
+
+The reverse static check allows only these non-UI keys:
+
+- `ano_emissao`
+- `ano_emissao_exclude`
+- `ano_execucao`
+- `ano_execucao_exclude`
+- `responsavel_solicitante`
+- `responsavel_solicitante_exclude_values`
+
+Any new non-UI key in logic or detector must be explicit and justified.
+
+## Update 2026-02-17
+
+- `responsavel_emissor` is now fully out of advanced filter UI assembly path.
+- The panel no longer creates `adv_responsavel_emissor_*` controls, matching the existing logic contract that excludes this key.
+- Contract remains: `solicitante`, `responsavel_programacao`, and `responsavel_execucao` are the supported responsavel filters.
 
 ## External IA report intake (mandatory)
 
