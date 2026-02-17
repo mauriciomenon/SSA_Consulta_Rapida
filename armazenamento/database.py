@@ -10,7 +10,7 @@ import logging
 import os
 import sqlite3
 import time
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 from typing import Any, Literal
 
@@ -122,8 +122,10 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
         else:
             config_dir = os.path.join(project_root, 'config')
             if os.path.isdir(config_dir):
-                with suppress(Exception):
+                try:
                     logger.info("Conteudo da pasta config: %s", os.listdir(config_dir))
+                except OSError as exc:
+                    logger.warning("Falha ao listar pasta config '%s': %s", config_dir, exc)
             raise FileNotFoundError(
                 "Arquivo de schema nao encontrado. Tentativas: '\n"
                 f"- relativo ao CWD: {os.path.abspath(schema_file)}\n"
