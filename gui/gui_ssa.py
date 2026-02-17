@@ -1751,7 +1751,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_gui_filters._clear_advanced_filters(self)
 
     def _has_active_advanced_filters(self, data: dict):
-        return ssa_gui_filters._has_active_advanced_filters(self, data)
+        handler = getattr(ssa_gui_filters, "_has_active_advanced_filters", None)
+        if callable(handler):
+            return handler(self, data)
+        from gui.ssa import gui_filters_advanced_ui as ssa_gui_filters_ui  # local fallback during split
+
+        fallback_handler = getattr(ssa_gui_filters_ui, "_has_active_advanced_filters", None)
+        if callable(fallback_handler):
+            return fallback_handler(self, data)
+        logger.warning("Advanced filters activity handler is unavailable; assuming inactive filters.")
+        return False
 
     def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         return ssa_gui_filters._apply_advanced_filters_from_ui(self, store_only)
