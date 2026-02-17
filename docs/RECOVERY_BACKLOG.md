@@ -245,3 +245,4 @@ Ordered list from PR review threads. Status uses pending/resolved.
 
 - [resolved] Removed unreachable `data_execucao` branch from advanced year execution filter.
 - [resolved] Added regression test for `ano_execucao_values` using `semana_executada`.
+- [resolved] Fixed legacy key precedence for `ano_execucao` with exclude flag (`ano_execucao_exclude=True`) and added migration coverage tests.

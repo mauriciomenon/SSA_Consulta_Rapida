@@ -301,10 +301,21 @@ def _apply_year_emissao_filter(
 def _apply_year_execucao_filter(df: pd.DataFrame, filters: dict, mask: pd.Series) -> pd.Series:
     execucao_inc = _to_int_set(filters.get("ano_execucao_values") or [])
     execucao_exc = _to_int_set(filters.get("ano_execucao_exclude_values") or [])
-    if not execucao_inc and filters.get("ano_execucao") is not None:
-        execucao_inc = _to_int_set([filters.get("ano_execucao")])
-    if not execucao_exc and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
+    exclude_value = filters.get("ano_execucao_exclude")
+    exclude_flag = exclude_value is True
+    if exclude_value not in (None, False, True):
+        execucao_exc = _to_int_set([exclude_value])
+        exclude_flag = False
+    # Precedence: explicit exclude values > exclude flag with ano_execucao > include values.
+    if not execucao_exc and exclude_flag and filters.get("ano_execucao") is not None:
         execucao_exc = _to_int_set([filters.get("ano_execucao")])
+    if (
+        not execucao_inc
+        and not execucao_exc
+        and filters.get("ano_execucao") is not None
+        and exclude_value in (None, False, True)
+    ):
+        execucao_inc = _to_int_set([filters.get("ano_execucao")])
 
     if execucao_inc or execucao_exc:
         if "semana_executada" in df.columns:
