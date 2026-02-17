@@ -119,3 +119,50 @@ def test_run_importer_keeps_running_when_derivadas_sync_fails(tmp_path: Path, mo
 
     assert updated is False
     assert cache_calls["n"] == 0
+
+
+def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    import_calls = {"n": 0}
+    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: import_calls.__setitem__("n", import_calls["n"] + 1))
+
+    sync_calls: list[dict] = []
+
+    def _fake_sync(**kwargs):
+        sync_calls.append(kwargs)
+        return {"merge_stats": {"merged_edges": 2}}
+
+    monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
+
+    cached_files: list[str] = []
+    monkeypatch.setattr(app_logic, "_update_cache_after_import", lambda processed_files, *a, **k: cached_files.extend(processed_files))
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is True
+    assert import_calls["n"] == 0
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["include_db_source"] is True
+    assert sync_calls[0]["sheet_files"] == [str(special)]
+    assert cached_files == [str(special)]
