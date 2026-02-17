@@ -15,6 +15,7 @@ def qapp():
 
 
 def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypatch):
+    baseline_refcount = rescan_worker_mod._LOGGER_REFCOUNT
     worker = RescanWorker("main.py", project_root)
     emitted = []
     worker.finished_error.connect(emitted.append)
@@ -29,11 +30,11 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
     def _bad_remove(_handler):
         raise ValueError("remove failed")
 
-    worker.logger.removeHandler = _bad_remove
+    monkeypatch.setattr(worker.logger, "removeHandler", _bad_remove)
     try:
         worker.run()
     finally:
-        worker.logger.removeHandler = real_remove
+        monkeypatch.setattr(worker.logger, "removeHandler", real_remove)
         try:
             worker.logger.removeHandler(worker.log_handler)
         except Exception:
@@ -41,3 +42,5 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
 
     assert emitted
     assert emitted[0] == "Erro ao executar reescaneamento."
+    assert worker._logger_attached is False
+    assert rescan_worker_mod._LOGGER_REFCOUNT == baseline_refcount
