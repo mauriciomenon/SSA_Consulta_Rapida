@@ -35,6 +35,7 @@ Scope is split by priority to keep delivery safe and incremental.
 - Validate worker retention strategy in long runs and add simple retention telemetry.
 - Refactor `gui/ssa/gui_theme.py` (apply_theme muito grande) em sprint dedicado, sem mudar layout.
 - Revisar cleanup/retention em `gui/ssa/gui_workers.py` (fluxo complexo) em sprint dedicado.
+- Tratar diagnosticos estruturais de `ty` em `gui/gui_ssa.py` (stubs/headless e unions PyQt), com estrategia de tipagem dedicada e sem mexer em layout.
 
 ## P2 cleanup and consistency
 
