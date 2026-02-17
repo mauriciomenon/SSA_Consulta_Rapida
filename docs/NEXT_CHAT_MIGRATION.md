@@ -37,6 +37,10 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Additional delivery status:
   - user decision B applied for advanced filters: `responsavel_emissor` controls removed from UI panel assembly/context.
   - regression test added to keep `adv_responsavel_emissor_*` controls absent.
+  - `Especificas...` derivadas button upgraded:
+    - popup now shows DB materialized summary/top maes for visible SSAs (`ssa_derivada_summary`);
+    - enable state now checks DB relations fallback when dataframe `derivada_de` has no valid values.
+  - responsive grid regression fixed after removal of `responsavel_emissor` controls (`emis_resp_box` references removed).
 - Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
 
 ## Mandatory execution protocol

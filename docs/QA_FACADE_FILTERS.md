@@ -76,6 +76,9 @@ Any new non-UI key in logic or detector must be explicit and justified.
 - `responsavel_emissor` is now fully out of advanced filter UI assembly path.
 - The panel no longer creates `adv_responsavel_emissor_*` controls, matching the existing logic contract that excludes this key.
 - Contract remains: `solicitante`, `responsavel_programacao`, and `responsavel_execucao` are the supported responsavel filters.
+- Derivadas utility button (`Especificas...`) now supports DB materialized view:
+  - popup shows summary from `ssa_derivada_summary` for visible SSAs;
+  - button can be enabled from DB-derived relations even if visible `derivada_de` series is empty/invalid.
 
 ## External IA report intake (mandatory)
 

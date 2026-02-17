@@ -1,6 +1,7 @@
 """Testes específicos para filtros combinados (AND/OU) da GUI principal."""
 
 import os
+import sqlite3
 import sys
 import time
 from collections import Counter
@@ -756,6 +757,57 @@ class TestGUIFilterLogic:
         )
         self.window._update_derivadas_button_state()
         assert btn.isEnabled() is True
+
+    def test_update_derivadas_button_state_uses_materialized_summary_when_series_is_empty(self, tmp_path):
+        btn = getattr(self.window, "adv_derivadas_especificas_button", None)
+        if btn is None:
+            btn = self.window._adv_ctx["adv_derivadas_especificas_button"]
+
+        db_path = tmp_path / "derivadas_summary.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssa_derivada_summary (
+                    ssa TEXT PRIMARY KEY,
+                    direct_parents_count INTEGER,
+                    direct_children_count INTEGER,
+                    ancestors_count INTEGER,
+                    descendants_count INTEGER,
+                    has_cycle INTEGER
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO ssa_derivada_summary (
+                    ssa, direct_parents_count, direct_children_count, ancestors_count, descendants_count, has_cycle
+                ) VALUES ('1001', 0, 3, 0, 3, 0)
+                """
+            )
+            conn.commit()
+
+        self.window._df_last_search_filtered = pd.DataFrame(
+            {
+                "numero_ssa": ["1001", "1002"],
+                "derivada_de": ["", "None"],
+            }
+        )
+        with patch.object(gui_ssa, "DB_PATH", str(db_path)):
+            self.window._update_derivadas_button_state()
+        assert btn.isEnabled() is True
+
+    def test_reorganize_advanced_filters_grid_handles_removed_emissor_responsavel_widget(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._reorganize_advanced_filters_grid(1501)
+        self.window._reorganize_advanced_filters_grid(1201)
+        self.window._reorganize_advanced_filters_grid(800)
+        assert self.window._adv_filters_main_grid.count() > 0
 
     def test_save_advanced_filters_default_keeps_snapshot_immutable(self):
         from gui import gui_ssa
