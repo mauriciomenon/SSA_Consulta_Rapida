@@ -471,7 +471,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
             return data
         else:
             logger.warning(f"display_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
         logger.warning(f"display_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
     # Restore
     try:
@@ -487,7 +487,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
             restored_data = json.load(f)
         if isinstance(restored_data, dict) and restored_data:
             return restored_data
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
         logger.warning(f"Falha ao reler display_mappings restaurado em '{path}': {e}")
     return DEFAULT_DISPLAY_MAPPINGS.copy()
 
@@ -510,7 +510,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
                 logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
         else:
             logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
         logger.warning(f"column_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
     # Restore
     try:
@@ -528,7 +528,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
             ok = all(isinstance(v, list) and len(v) > 0 for v in restored_data.values())
             if ok:
                 return restored_data
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
         logger.warning(f"Falha ao reler column_mappings restaurado em '{path}': {e}")
     return DEFAULT_COLUMN_MAPPINGS.copy()
 
