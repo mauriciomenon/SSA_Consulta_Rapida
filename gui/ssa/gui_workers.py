@@ -646,8 +646,9 @@ def _mask_db_path(error_msg: str, db_path: str | None) -> str:
             db_norm.replace("/", "\\"),
         }
         for candidate in sorted(candidates, key=len, reverse=True):
-            if candidate:
-                msg = msg.replace(candidate, "<db_path>")
+            candidate_str = str(candidate)
+            if candidate_str:
+                msg = str(msg).replace(candidate_str, "<db_path>")
         return msg
     except Exception:
         return error_msg
