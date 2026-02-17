@@ -47,7 +47,7 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS  # noqa: E402
+from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -769,7 +769,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_gui_theme.get_theme_keys()
 
     def _persist_gui_preferences(self):
-        return ssa_gui_theme.persist_gui_preferences(GUI_MAIN_PREFERENCES, project_root)
+        try:
+            atomic_write_json_file(
+                os.path.join(project_root, "config", "gui_main_preferences.json"),
+                GUI_MAIN_PREFERENCES,
+                indent=2,
+                ensure_ascii=False,
+            )
+            return True
+        except Exception as exc:
+            logger.warning("Falha ao persistir preferencias GUI: %s", exc)
+            return False
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
@@ -863,6 +873,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._advanced_filters = dict(adv_default) if isinstance(adv_default, dict) else {}
         self._advanced_filters_active = False
         self._adv_options_dirty = True
+        self._adv_cache_token = -1
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
@@ -1013,6 +1024,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._retired_filter_workers = []
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
+        self._data_revision = 0
+        self._data_revision_request_id = None
+        self._data_uuid = None
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
@@ -1395,6 +1409,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ctx.update(adv_ctx)
         return ctx
 
+    def _bump_data_revision(self, reason: str = "") -> int:
+        try:
+            next_rev = int(getattr(self, "_data_revision", 0) or 0) + 1
+        except Exception:
+            next_rev = 1
+        self._data_revision = next_rev
+        try:
+            self._data_revision_df_ids = (
+                id(getattr(self, "df_completo", None)),
+                id(getattr(self, "df_exibido", None)),
+            )
+        except Exception:
+            pass
+        if reason:
+            logger.debug("Data revision bump (%s): %s", reason, next_rev)
+        return next_rev
+
+    def _ensure_data_revision(self) -> None:
+        try:
+            current_ids = (
+                id(getattr(self, "df_completo", None)),
+                id(getattr(self, "df_exibido", None)),
+            )
+        except Exception:
+            return
+        if getattr(self, "_data_revision_df_ids", None) != current_ids:
+            self._bump_data_revision("df_identity_change")
+
     def _bind_tab_context(self, ctx: dict) -> None:
         self._current_tab_kind = ctx.get("tab_kind")
         for name in self.TAB_WIDGET_ATTRS:
@@ -1652,7 +1694,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return ssa_gui_filters._show_derivadas_popup(self)
 
     def _build_derivadas_tree(self, df: pd.DataFrame, numero_col: str, derivada_col: str):
-        return ssa_gui_filters._build_derivadas_tree(self, df, numero_col, derivada_col)
+        cache_token = ssa_gui_filters._cache_token(
+            getattr(self, "_data_load_request_seq", None),
+            getattr(self, "_active_data_load_request_id", None),
+            (id(df), df.shape, getattr(self, "_data_uuid", None)),
+        )
+        return ssa_gui_filters._build_derivadas_tree(
+            self,
+            df,
+            numero_col,
+            derivada_col,
+            cache_token=cache_token,
+            normalize_ssa_series=self._normalize_ssa_series,
+        )
 
     def _update_derivadas_button_state(self):
         return ssa_gui_filters._update_derivadas_button_state(self)
@@ -1711,11 +1765,36 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _sync_advanced_filter_ui(self):
         return ssa_gui_filters._sync_advanced_filter_ui(self)
 
+    def _refresh_sector_menus(self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_sector_menus(
+            self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb
+        )
+
+    def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
+        return ssa_gui_filters._refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb)
+
+    def _refresh_priority_menus(self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_priority_menus(
+            self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
+        )
+
     def _refresh_advanced_filter_options(self):
         return ssa_gui_filters._refresh_advanced_filter_options(self)
 
     def _apply_advanced_filters(self, df: pd.DataFrame):
-        return ssa_gui_filters._apply_advanced_filters(self, df)
+        cache_token = ssa_gui_filters._cache_token(
+            getattr(self, "_data_load_request_seq", None),
+            getattr(self, "_active_data_load_request_id", None),
+            (id(df), df.shape, getattr(self, "_data_uuid", None)),
+        )
+        notice_callback = getattr(self, "_adv_notice_callback", None)
+        return ssa_gui_filters._apply_advanced_filters(
+            self,
+            df,
+            cache_token=cache_token,
+            normalize_ssa_series=self._normalize_ssa_series,
+            notice_callback=notice_callback,
+        )
 
     def _retain_data_loader_worker_until_finished(self, worker) -> None:
         ssa_gui_workers.retain_data_loader_worker_until_finished(
@@ -1796,6 +1875,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self,
             error_msg,
             request_id=request_id,
+            db_path=DB_PATH,
             qmessagebox=QMessageBox,
             global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
             global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
@@ -1846,6 +1926,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     ascending=self.sort_ascending,
                     na_position='last'
                 )
+                self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(
                     "Falha ao ordenar coluna '%s' (ascending=%s): %s",
