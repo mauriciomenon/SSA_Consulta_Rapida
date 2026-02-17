@@ -80,6 +80,9 @@ Any new non-UI key in logic or detector must be explicit and justified.
   - popup shows summary from `ssa_derivada_summary` for visible SSAs;
   - button can be enabled from DB-derived relations even if visible `derivada_de` series is empty/invalid.
 - `ano_execucao` filter logic now relies on `semana_executada` only; `data_execucao` path was removed as dead code for current schema contract.
+- Legacy migration behavior is now explicitly validated:
+  - `ano_emissao` still works when `_values` keys are absent.
+  - `ano_execucao_exclude=True` with `ano_execucao=<year>` excludes that year without accidental include/exclude collision.
 
 ## External IA report intake (mandatory)
 

@@ -165,6 +165,44 @@ def test_apply_advanced_filters_applies_ano_execucao_from_semana_executada():
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500003"]
 
 
+def test_apply_advanced_filters_supports_legacy_ano_emissao_key():
+    window = _DummyWindow({"ano_emissao": 2025})
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202400001", "202500002"],
+            "data_cadastro": ["01/01/2025", "01/01/2024", "15/07/2025"],
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+
+def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():
+    window = _DummyWindow({"ano_execucao": 2025, "ano_execucao_exclude": True})
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202400001", "202500002"],
+            "semana_executada": [202501, 202452, 202503],
+        }
+    )
+
+    filtered = _apply_advanced_filters(
+        window,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered["numero_ssa"].tolist() == ["202400001"]
+
+
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
     logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")

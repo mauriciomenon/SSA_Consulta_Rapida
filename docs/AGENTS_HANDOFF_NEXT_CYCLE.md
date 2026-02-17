@@ -134,6 +134,7 @@ This handoff is ready to reuse in the next conversation.
 - Removed dead code path for `data_execucao` in year-execution filter logic.
 - Year execution filtering now uses `semana_executada` path only, aligned with current schema/import.
 - Added focused test for `ano_execucao_values` over `semana_executada`.
+- Fixed legacy precedence for `ano_execucao` + `ano_execucao_exclude=True` to avoid include/exclude collision that could zero all rows.
 
 ## Texto pronto para abrir a nova conversa
 
