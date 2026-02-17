@@ -482,6 +482,13 @@ def load_display_mappings_integrity() -> Dict[str, str]:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
         logger.error("Usando defaults em memoria; arquivo nao foi atualizado.")
         return DEFAULT_DISPLAY_MAPPINGS.copy()
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            restored_data = json.load(f)
+        if isinstance(restored_data, dict) and restored_data:
+            return restored_data
+    except Exception as e:
+        logger.warning(f"Falha ao reler display_mappings restaurado em '{path}': {e}")
     return DEFAULT_DISPLAY_MAPPINGS.copy()
 
 def load_column_mappings_integrity() -> Dict[str, list]:
@@ -514,6 +521,15 @@ def load_column_mappings_integrity() -> Dict[str, list]:
         logger.error(f"Falha ao restaurar column_mappings.json: {e}")
         logger.error("Usando defaults em memoria; arquivo nao foi atualizado.")
         return DEFAULT_COLUMN_MAPPINGS.copy()
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            restored_data = json.load(f)
+        if isinstance(restored_data, dict) and restored_data:
+            ok = all(isinstance(v, list) and len(v) > 0 for v in restored_data.values())
+            if ok:
+                return restored_data
+    except Exception as e:
+        logger.warning(f"Falha ao reler column_mappings restaurado em '{path}': {e}")
     return DEFAULT_COLUMN_MAPPINGS.copy()
 
 def load_settings() -> Dict[str, Any]:
