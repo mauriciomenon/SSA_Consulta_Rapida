@@ -10,9 +10,12 @@ preserving GUI layout and runtime behavior. Keep SSAMainWindow public API stable
 1. gui/gui_ssa.py - facade, stable imports, QT_AVAILABLE and stubs remain here.
 2. gui/ssa/gui_theme.py - _get_theme_catalog, _resolve_startup_theme, apply_theme, _apply_macos_contrast, QSS helpers.
 3. gui/ssa/gui_workers.py - _retain_*, _prune_*, load_data and callbacks.
-4. gui/ssa/gui_filters_advanced.py - UI and logic of advanced filters.
-5. gui/ssa/gui_table.py - column widths, render, pagination.
-6. gui/ssa/gui_details.py - details and highlight logic.
+4. gui/ssa/gui_filters_advanced.py - aggregated facade for advanced filters exports.
+5. gui/ssa/gui_filters_advanced_ui.py - advanced filters UI state capture/sync.
+6. gui/ssa/gui_filters_advanced_logic.py - DataFrame filtering logic and caches.
+7. gui/ssa/gui_filters_advanced_state.py - shared constants/state cache helpers.
+8. gui/ssa/gui_table.py - column widths, render, pagination.
+9. gui/ssa/gui_details.py - details and highlight logic.
 
 Rationale: file names carry the GUI tag to help manual editing across multiple files.
 
@@ -219,6 +222,15 @@ Mudancas aplicadas:
 - Mover rescan_data para gui/ssa/gui_workers.py.
 - Manter wrapper em gui/gui_ssa.py.
 - Sem mudanca de layout.
+
+## QA gate and migration (active)
+
+- Mandatory gate for any slice touching `gui/gui_ssa.py` or `gui/ssa/gui_filters_*`:
+  - `uv run pytest -q tests/test_gui_filters_facade_contract.py`
+  - `uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters`
+  - `uv run pytest -q tests/test_gui_filters_advanced_logic.py`
+- External IA reports must be treated as hints only.
+- Every claim from external IA must be re-validated with local file/line evidence before editing.
 
 Details and highlight:
 - _normalize_highlight_term, _get_current_search_terms, _collect_highlight_terms,

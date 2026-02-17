@@ -6,7 +6,10 @@ This handoff is ready to reuse in the next conversation.
 
 - Branch `codex/import-review`, PR #31 aberto e em andamento (base `dev`, head `codex/import-review`).
 - Backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
-- Refactor gui em andamento: `gui/ssa/*` e `gui/qt_stubs.py` criados, facade em `gui/gui_ssa.py` mantido.
+- Refactor gui em andamento: facade em `gui/gui_ssa.py`, modulo agregado em `gui/ssa/gui_filters_advanced.py`, e submodulos versionados:
+  - `gui/ssa/gui_filters_advanced_ui.py`
+  - `gui/ssa/gui_filters_advanced_logic.py`
+  - `gui/ssa/gui_filters_advanced_state.py`
 - Itens aprovados para este sprint (A/B/C): aplicados em `a01406cc` (lock global, mask de db_path, prune apos erro).
 - Versionamento de icones app concluido em `e31d03a9`.
 - Hardening incremental apos isso:
@@ -17,17 +20,26 @@ This handoff is ready to reuse in the next conversation.
 - addopts com ignore em `pyproject.toml` mantido por ora; sugerir remocao no relatorio final.
 - Validacao local deve rodar via `uv run` para garantir ambiente correto (evitar falha de deps como pandas fora do venv).
 - `ty` em `gui/gui_ssa.py` ainda aponta ruido estrutural de stubs/union PyQt; tratar em slice dedicado, sem misturar com hardening atual.
-- `gh auth status` ok, mas consultas de checks/reviews ainda falham com `error connecting to api.github.com` (pendencia operacional de MCP/rede).
+- Hardening recente em filtros avancados:
+  - `44d2e131`: guard/fallback de `_has_active_advanced_filters` no facade.
+  - `0d30eca6`: variacoes de regressao do facade.
+  - `2a939f4f`: hardening de logica/UI/state de filtros avancados + testes dedicados.
+  - `93f5ccf1`: fix de mapeamento de chaves/colunas de prioridade (`*_values` e `grau_prioridade_*`).
+  - `5ced33d1`: teste de cobertura estatica de chaves UI vs logica/detector ativo.
+- Checks atuais do PR:
+  - `code/snyk (mauriciomenon)` falhando por limite de plano: `Code test limit reached`.
+  - Demais checks principais em andamento (DeepScan, DeepSource, security/snyk, submit-pypi).
 
 ## Pendencias antes de fechar o PR
 
 1. Rodar gate final por lote: `py_compile`, `ruff`, `ty`, `pytest` focado nos arquivos/slices tocados.
-2. Rechecar bots/checks bloqueantes do PR #31 assim que `api.github.com` voltar a responder no ambiente MCP.
+2. Rechecar bots/checks bloqueantes do PR #31 apos concluir pipeline atual.
 3. Responder comentarios do PR #31 com status dos itens aprovados (A/B/C) e decisoes de escopo (D/E).
 4. E) Manter addopts ignore em `pyproject.toml` neste ciclo; sugerir remocao e ajuste de testes no relatorio final do sprint.
 5. Consolidar commits finais de doc/status do sprint.
 6. Release `4.13`: manter em TODO (tag ja criada no merge do PR #30; publicacao de release pendente).
 7. Atualizar titulo/descricao do PR #31 para refletir melhor o escopo entregue de hardening/refactor GUI.
+8. Ingerir relatorio da outra IA com protocolo abaixo antes de novos patches.
 
 ## O que foi feito (resumo)
 
@@ -73,6 +85,27 @@ This handoff is ready to reuse in the next conversation.
   - caminho principal do facade;
   - caminho de fallback;
   - caminho sem handler (degradacao segura).
+  - cobertura de chaves UI para logica/detector ativo;
+  - cobertura de alias de colunas/chaves (ex.: `solicitante` vs `responsavel_solicitante`, `grau_prioridade_*`).
+
+## Protocolo de ingestao da outra IA
+
+1. Receber relatorio bruto e reformatar em itens com:
+   - `id`, `severidade`, `arquivo:linha`, `evidencia`, `impacto`, `repro`.
+2. Validar cada item localmente antes de editar:
+   - `rg -n` no arquivo alvo;
+   - `nl -ba` para confirmar linha/contexto.
+3. Classificar:
+   - `acao agora` (bloqueante/alto risco),
+   - `backlog` (nao bloqueante).
+4. Implementar apenas patches minimos por slice.
+5. Rodar gate tecnico por slice:
+   - `uv run python -m py_compile ...`
+   - `uv run ruff check ...`
+   - `uv run ty check ...` (escopo tocado; aceitar baseline conhecido em `gui/gui_ssa.py`)
+   - `uv run pytest -q` focado.
+6. Commit atomico por slice, push, e rechecagem de bots/checks.
+7. Atualizar `docs/RECOVERY_BACKLOG.md` com pendencias nao bloqueantes.
 
 ## Objetivo do novo ciclo
 
@@ -98,5 +131,5 @@ Regras de execucao:
 10. Manter backlog de follow-up em docs/RECOVERY_BACKLOG.md.
 
 Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
-Objetivo atual: refatorar gui/gui_ssa.py sem mudar layout, com levantamento detalhado antes.
+Objetivo atual: fechar PR #31 com estabilidade, aplicar apenas patches minimos de risco real, e processar relatorios externos com validacao local obrigatoria.
 ```
