@@ -71,11 +71,17 @@ class RescanWorker(QThread):
             if not self._logger_attached:
                 return
             if self.log_handler in self.logger.handlers:
-                self.logger.removeHandler(self.log_handler)
+                try:
+                    self.logger.removeHandler(self.log_handler)
+                except Exception as exc:
+                    logger.warning("Falha ao remover handler de logger do reescaneamento: %s", exc)
             if _LOGGER_REFCOUNT > 0:
                 _LOGGER_REFCOUNT -= 1
             if _LOGGER_REFCOUNT == 0 and _LOGGER_PREV_LEVEL is not None:
-                self.logger.setLevel(_LOGGER_PREV_LEVEL)
+                try:
+                    self.logger.setLevel(_LOGGER_PREV_LEVEL)
+                except Exception as exc:
+                    logger.warning("Falha ao restaurar nivel de logger do reescaneamento: %s", exc)
                 _LOGGER_PREV_LEVEL = None
             self._logger_attached = False
 
