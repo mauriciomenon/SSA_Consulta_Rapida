@@ -24,6 +24,7 @@ sys.path.insert(0, project_root)
 from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
+from armazenamento.derivadas_sync import sync_derivadas  # noqa: E402
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
@@ -293,6 +294,45 @@ def _import_single_file(
         raise ExtractionError(f"Erro ao importar {file_path}: {e}") from e
 
 
+def _is_derivadas_sheet_file(file_path: str) -> bool:
+    base_name = os.path.basename(file_path).strip().casefold()
+    return base_name.startswith("ssas derivadas e relacionadas") and base_name.endswith(".xlsx")
+
+
+def _select_latest_derivadas_sheet(files: List[str]) -> Optional[str]:
+    existing_files = [path for path in files if os.path.exists(path)]
+    if not existing_files:
+        return None
+    try:
+        return max(existing_files, key=lambda path: (os.path.getmtime(path), os.path.basename(path).casefold()))
+    except OSError as exc:
+        logger.warning("Falha ao ordenar planilhas especiais de derivadas por mtime: %s", exc)
+        return sorted(existing_files, key=lambda path: os.path.basename(path).casefold())[-1]
+
+
+def _run_derivadas_sync_from_special_sheet(
+    db_path: str,
+    table_name: str,
+    derivadas_sheet_files: List[str],
+) -> tuple[bool, Optional[str], Dict[str, Any]]:
+    selected_sheet = _select_latest_derivadas_sheet(derivadas_sheet_files)
+    if not selected_sheet:
+        logger.warning("Planilhas especiais de derivadas detectadas, mas nenhuma planilha existente foi encontrada.")
+        return False, None, {}
+    report = sync_derivadas(
+        db_path=db_path,
+        table_name=table_name,
+        sheet_file=selected_sheet,
+        include_db_source=True,
+    )
+    logger.info(
+        "Sync de derivadas concluido com planilha especial '%s' (merged_edges=%s).",
+        os.path.basename(selected_sheet),
+        (report.get("merge_stats") or {}).get("merged_edges"),
+    )
+    return True, selected_sheet, report
+
+
 def _update_cache_after_import(
     processed_files: List[str], cache_file: str, docs_dir: str
 ) -> None:
@@ -463,6 +503,7 @@ def run_importer_logic(
         critical_errors = []
 
         try:
+            derivadas_sheet_files: List[str] = []
             for index, file_path in enumerate(files_to_process):
                 if should_cancel and should_cancel():
                     logger.info("Cancelamento solicitado; interrompendo importacao.")
@@ -481,6 +522,13 @@ def run_importer_logic(
 
                 if base_name.startswith("~$"):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
+                    continue
+                if _is_derivadas_sheet_file(file_path):
+                    derivadas_sheet_files.append(file_path)
+                    logger.info(
+                        "Planilha especial de derivadas detectada: '%s' (sera processada via sync).",
+                        base_name,
+                    )
                     continue
                 try:
                     success, record_count = _import_single_file(
@@ -589,6 +637,38 @@ def run_importer_logic(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
                     continue
+            if derivadas_sheet_files:
+                if should_cancel and should_cancel():
+                    logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
+                else:
+                    try:
+                        sync_ok, selected_sheet, sync_report = _run_derivadas_sync_from_special_sheet(
+                            db_path=db_path,
+                            table_name=table_name,
+                            derivadas_sheet_files=derivadas_sheet_files,
+                        )
+                        if sync_ok:
+                            for special_file in derivadas_sheet_files:
+                                if special_file not in successfully_processed_files:
+                                    successfully_processed_files.append(special_file)
+                            _emit_progress(
+                                "file_success",
+                                {
+                                    "filename": os.path.basename(selected_sheet or "derivadas_sync"),
+                                    "records": int((sync_report.get("merge_stats") or {}).get("merged_edges", 0)),
+                                },
+                            )
+                    except Exception as e:
+                        logger.error(
+                            "Falha ao sincronizar derivadas a partir de planilhas especiais: %s",
+                            e,
+                            exc_info=True,
+                        )
+                        critical_errors.append(("derivadas_sync", docs_dir, str(e)))
+                        _emit_progress(
+                            "file_error",
+                            {"filename": "SSAs Derivadas e Relacionadas", "error": str(e)},
+                        )
         finally:
             _emit_progress(
                 "finish",

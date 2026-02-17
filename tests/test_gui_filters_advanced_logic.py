@@ -1,3 +1,4 @@
+import ast
 import pandas as pd
 import re
 from pathlib import Path
@@ -13,6 +14,52 @@ class _DummyWindow:
 
 def _normalize_ssa_series(series: pd.Series) -> pd.Series:
     return series.astype(str).fillna("").str.strip()
+
+
+def _get_has_active_block(ui_source: str) -> str:
+    has_active_block_match = re.search(
+        r"def _has_active_advanced_filters\(.*?\):(?P<body>.*?)def _apply_advanced_filters_from_ui",
+        ui_source,
+        flags=re.S,
+    )
+    assert has_active_block_match is not None
+    return has_active_block_match.group("body")
+
+
+def _extract_assigned_literal_dict(source: str, variable_name: str) -> dict:
+    module = ast.parse(source)
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == variable_name:
+                value = ast.literal_eval(node.value)
+                if isinstance(value, dict):
+                    return value
+    return {}
+
+
+def _extract_column_group_filter_keys(source: str) -> set[str]:
+    module = ast.parse(source)
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == "column_groups":
+                value = ast.literal_eval(node.value)
+                if not isinstance(value, list):
+                    return set()
+                keys: set[str] = set()
+                for item in value:
+                    if not isinstance(item, tuple) or len(item) != 3:
+                        continue
+                    _, include_key, exclude_key = item
+                    if isinstance(include_key, str):
+                        keys.add(include_key)
+                    if isinstance(exclude_key, str):
+                        keys.add(exclude_key)
+                return keys
+    return set()
 
 
 def test_apply_advanced_filters_applies_solicitante_filter_key():
@@ -103,16 +150,36 @@ def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
     logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
 
-    produced_keys = set(re.findall(r'data\\["([^"]+)"\\]\\s*=', ui_source))
-    has_active_block_match = re.search(
-        r"def _has_active_advanced_filters\\(.*?\\):(?P<body>.*?)def _apply_advanced_filters_from_ui",
-        ui_source,
-        flags=re.S,
-    )
-    assert has_active_block_match is not None
-    has_active_block = has_active_block_match.group("body")
+    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    has_active_block = _get_has_active_block(ui_source)
 
     uncovered = sorted(
         key for key in produced_keys if key not in logic_source and f'data.get("{key}")' not in has_active_block
     )
     assert not uncovered, f"Advanced filter keys without logic/active coverage: {', '.join(uncovered)}"
+
+
+def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
+    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+
+    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    has_active_block = _get_has_active_block(ui_source)
+    detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
+    direct_logic_keys = set(re.findall(r'filters\.get\("([^"]+)"\)', logic_source))
+    column_group_keys = _extract_column_group_filter_keys(logic_source)
+    alias_map = _extract_assigned_literal_dict(logic_source, "key_aliases")
+    alias_keys = set(alias_map.keys()) | set(alias_map.values())
+
+    legacy_keys = {
+        "ano_emissao",
+        "ano_emissao_exclude",
+        "ano_execucao",
+        "ano_execucao_exclude",
+        "responsavel_solicitante",
+        "responsavel_solicitante_exclude_values",
+    }
+
+    consumed_keys = detector_keys | direct_logic_keys | column_group_keys | alias_keys
+    uncovered = sorted(key for key in consumed_keys if key not in produced_keys and key not in legacy_keys)
+    assert not uncovered, f"Logic/detector keys without UI producer or legacy allowlist: {', '.join(uncovered)}"
