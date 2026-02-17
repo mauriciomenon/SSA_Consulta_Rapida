@@ -17,9 +17,14 @@ def _load_mappings_handler(file_name: str) -> dict:
     path = os.path.join('config', file_name)
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning("Falha ao carregar mapping '%s': %s", path, exc)
         return {}
+    if isinstance(data, dict):
+        return data
+    logger.warning("Mapping '%s' em formato invalido; usando fallback vazio.", path)
+    return {}
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
