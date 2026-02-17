@@ -4,7 +4,6 @@ Implementação limpa (indentação com espaços) substituindo versão corrompid
 """
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import math
@@ -287,8 +286,10 @@ def _build_headers(params: HeaderBuildParams) -> tuple[list[str], dict[str, int]
                 label.encode(sys.stdout.encoding or 'utf-8')
         except Exception:
             safe = label.replace('Nº', 'No')
-            with contextlib.suppress(Exception):
+            try:
                 safe = unicodedata.normalize('NFKD', safe).encode('ascii', 'ignore').decode('ascii')
+            except (TypeError, ValueError, UnicodeError) as exc:
+                logger.debug("Falha ao normalizar label para ASCII '%s': %s", label, exc)
             label = safe
         renamed[c] = label
     # Renomeia inplace para refletir labels de exibição
