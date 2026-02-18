@@ -88,6 +88,7 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
     assert updated is True
     assert imported_files == [str(regular)]
     assert len(sync_calls) == 1
+    assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_file" not in sync_calls[0] or sync_calls[0]["sheet_file"] is None
     assert sorted(sync_calls[0]["sheet_files"]) == sorted([str(special_old), str(special_new)])
     assert set(cached_files) == {str(regular), str(special_old), str(special_new)}
@@ -172,6 +173,7 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
     assert import_calls["n"] == 0
     assert len(sync_calls) == 1
     assert sync_calls[0]["include_db_source"] is True
+    assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert sync_calls[0]["sheet_files"] == [str(special)]
     assert cached_files == [str(special)]
 
@@ -268,6 +270,7 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
     assert updated is True
     assert len(sync_calls) == 1
     assert sync_calls[0]["include_db_source"] is True
+    assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_files" not in sync_calls[0]
     assert cached_files == [str(regular)]
 
@@ -364,6 +367,7 @@ def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, 
     assert updated is True
     assert len(sync_calls) == 1
     assert sync_calls[0]["include_db_source"] is True
+    assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_files" not in sync_calls[0]
     assert cache_calls["n"] == 0
 

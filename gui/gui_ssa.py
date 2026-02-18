@@ -2474,6 +2474,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 table_name=table_name,
                 include_db_source=True,
                 verify_only=False,
+                actor="gui-derivadas-db-phase",
             )
 
             final_report = db_report
@@ -2492,6 +2493,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     include_db_source=False,
                     sheet_files=special_files,
                     verify_only=False,
+                    actor="gui-derivadas-sheet-phase",
                 )
 
             merge_stats = final_report.get("merge_stats") or {}

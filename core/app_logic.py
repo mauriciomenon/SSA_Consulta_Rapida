@@ -390,6 +390,7 @@ def _run_derivadas_sync_phase(
         "db_path": db_path,
         "table_name": table_name,
         "include_db_source": True,
+        "actor": "importer-derivadas-sync",
     }
     if existing_files:
         sync_kwargs["sheet_files"] = existing_files
