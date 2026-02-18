@@ -13,14 +13,26 @@ Note: Do not disable SSL verification in production. Pass verify_ssl=True when p
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Dict, Any, Optional, TYPE_CHECKING
+from typing import Iterable, List, Dict, Any, Optional
 import time
 import json
 import os
+import importlib
+import threading
 
-if TYPE_CHECKING:
-    import aiohttp
-    import threading
+
+def _import_requests() -> Any:
+    try:
+        return importlib.import_module("requests")
+    except ImportError as exc:
+        raise RuntimeError("requests dependency not installed") from exc
+
+
+def _import_aiohttp() -> Any:
+    try:
+        return importlib.import_module("aiohttp")
+    except ImportError as exc:
+        raise RuntimeError("aiohttp dependency not installed") from exc
 
 def _env_url_or_default(name: str, default_url: str) -> str:
     value = os.getenv(name)
@@ -57,13 +69,13 @@ def fetch_pending_ssas(
     end: str = "Z999Z999",
     years: int = 100000,
     opts: Optional[RequestOptions] = None,
-    cancel_flag: Optional["threading.Event"] = None,
+    cancel_flag: Optional[threading.Event] = None,
 ) -> List[Dict[str, Any]]:
     """Synchronous fetch of pending SSAs by localization range.
 
     cancel_flag: optional threading.Event to allow cooperative cancellation.
     """
-    import requests
+    requests = _import_requests()
 
     if opts is None:
         opts = RequestOptions()
@@ -109,9 +121,9 @@ def fetch_pending_ssas(
 def fetch_ssa_detail(
     ssa_number: str,
     opts: Optional[RequestOptions] = None,
-    cancel_flag: Optional["threading.Event"] = None,
+    cancel_flag: Optional[threading.Event] = None,
 ) -> Dict[str, Any]:
-    import requests
+    requests = _import_requests()
 
     if opts is None:
         opts = RequestOptions()
@@ -179,9 +191,9 @@ async def fetch_pending_ssas_async(
     end: str = "Z999Z999",
     years: int = 100000,
     opts: Optional[RequestOptions] = None,
-    session: "aiohttp.ClientSession" | None = None,
+    session: Any = None,
 ):
-    import aiohttp
+    aiohttp = _import_aiohttp()
     import ssl as _ssl
 
     if opts is None:
@@ -232,9 +244,9 @@ async def fetch_pending_ssas_async(
 async def fetch_ssa_detail_async(
     ssa_number: str,
     opts: Optional[RequestOptions] = None,
-    session: "aiohttp.ClientSession" | None = None,
+    session: Any = None,
 ):
-    import aiohttp
+    aiohttp = _import_aiohttp()
     import ssl as _ssl
 
     if opts is None:
