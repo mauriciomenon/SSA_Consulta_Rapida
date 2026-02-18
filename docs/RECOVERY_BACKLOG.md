@@ -375,3 +375,16 @@ Itens marcados como falso positivo neste ciclo (nao fazer):
 Regra de lint para este ciclo:
 1. ignorar `E501` (linhas longas) nas triagens e lotes simples.
 2. priorizar apenas erros com impacto funcional ou seguranca real.
+
+## Update 2026-02-18 (codex/import-review)
+
+1. [resolved] Ty baseline caiu com slices de baixo risco:
+   - `457 -> 300 diagnostics` no gate global.
+   - commits: `977f0dda`, `8c8aa860`.
+2. [resolved] Ajuste pontual de parent Qt em dialogo de ajuda de filtros:
+   - commit: `5b09c7c0`.
+3. [pending] Baseline restante de ty concentrada em:
+   - `gui/gui_ssa.py` (fallback headless ainda gera ruido estatico).
+   - arquivos de teste/dev (`tests/*`, `dev_env/streamlit_app.py`).
+4. [pending-blocked] checks externos:
+   - `code/snyk` e `security/snyk` continuam limitados por plano.
