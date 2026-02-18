@@ -52,10 +52,26 @@ def _print_list(title: str, values: list[str]) -> None:
         print(f"  - {value}")
 
 
+def _list_special_sheet_files(docs_dir: str) -> list[str]:
+    if not isinstance(docs_dir, str) or not docs_dir.strip():
+        raise ValueError("special docs dir must be a non-empty path")
+    normalized = os.path.abspath(os.path.expanduser(docs_dir.strip()))
+    if not os.path.isdir(normalized):
+        raise ValueError(f"special docs dir not found: {normalized}")
+    files: list[str] = []
+    for base_name in os.listdir(normalized):
+        lowered = str(base_name).strip().casefold()
+        if lowered.startswith("ssas derivadas e relacionadas") and lowered.endswith(".xlsx"):
+            files.append(os.path.join(normalized, base_name))
+    return sorted(files, key=lambda path: os.path.basename(path).casefold())
+
+
 def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
     sheet_files: list[str] = []
     if args.sheet_files_glob:
         sheet_files = sorted(glob.glob(args.sheet_files_glob))
+    if args.special_docs_dir:
+        sheet_files.extend(_list_special_sheet_files(args.special_docs_dir))
     report = sync_derivadas(
         db_path=args.db,
         table_name=args.table_name,
@@ -180,6 +196,10 @@ def _build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument(
         "--sheet-files-glob",
         help="Optional glob pattern to pass multiple sheet files to derivadas sync",
+    )
+    sync_parser.add_argument(
+        "--special-docs-dir",
+        help="Optional docs dir to auto-discover SSAs Derivadas e Relacionadas_*.xlsx files",
     )
     sync_parser.add_argument("--sheet-name", help="Optional sheet name when using xlsx")
     sync_parser.add_argument("--sheet-parent-col", default="parent_ssa", help="Sheet parent column")
