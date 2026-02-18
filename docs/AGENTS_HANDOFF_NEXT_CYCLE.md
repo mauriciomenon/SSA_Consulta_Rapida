@@ -319,3 +319,54 @@ Regras de execucao:
 Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
 Objetivo atual: fechar PR #31 com estabilidade, aplicar apenas patches minimos de risco real, e processar relatorios externos com validacao local obrigatoria.
 ```
+
+## Pacote pronto completo (copiar e colar)
+
+```text
+Contexto atual:
+- Repo: SSA_Consulta_Rapida
+- Branch: codex/import-review
+- PR: #31 (base dev)
+- Estado checks: snyk code/security falham por limite de plano; resto majoritariamente verde
+
+Escopo aprovado:
+1) Patches minimos e atomicos.
+2) Sem branch nova, sem PR novo.
+3) Sem refactor amplo fora de risco real.
+4) Sem alterar layout GUI, exceto dialogo de detalhes derivadas ja aprovado.
+
+Baseline visual obrigatoria (nao mudar sem pedido):
+- Arquivo: gui/ssa/gui_details.py
+- Split real: 20/80 (esquerda/direita)
+- Min dialog: 700x650
+- Fonte esquerda: 12
+- Fonte conteudo detalhes: 12
+- Fonte labels: 11
+- Implementacao: QSplitter + setSizes + stretch factors
+
+Regras de comportamento obrigatorias:
+1) Nao minimizar bug visual reportado pelo usuario.
+2) Nao declarar corrigido sem repro antes/depois no mesmo fluxo.
+3) Nao esconder erro real com fallback generico.
+4) Nao assumir efeito visual por constante; validar constraints reais de layout.
+5) Sempre reportar valores finais numericos (ratio, size, font).
+
+Gate tecnico por slice:
+- uv run python -m py_compile <files>
+- uv run ruff check <files>
+- uv run ty check <files>
+- uv run pytest -q <focados>
+
+Se tocar gui/gui_ssa.py ou gui/ssa/gui_filters_*:
+- uv run pytest -q tests/test_gui_filters_facade_contract.py
+- uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
+- uv run pytest -q tests/test_gui_filters_advanced_logic.py
+
+Entregavel de cada slice:
+1) evidencia arquivo:linha
+2) patch minimo
+3) gate local
+4) commit atomico
+5) push
+6) status checks PR
+```

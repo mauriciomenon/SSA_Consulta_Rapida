@@ -143,3 +143,18 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 [ ] Advanced-filters logic tests green (solicitante alias, reprogramacoes active-state, week range)
 [ ] No unsafe optional symbol call added in gui/gui_ssa.py
 ```
+
+## Quick QA checklist for next IA handoff
+
+Use this checklist before claiming done:
+
+1. Contract:
+   - no missing reexport in `gui/ssa/gui_filters_advanced.py`
+   - no unsafe direct optional call in `gui/gui_ssa.py`
+2. Gates:
+   - facade_contract + advanced_filters + advanced_logic green
+3. UI safety:
+   - if touched UI dialogs, validate real layout constraints and exact values
+4. Report:
+   - include file:line evidence for each external finding triaged
+   - include clear now vs backlog classification
