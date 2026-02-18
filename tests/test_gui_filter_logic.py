@@ -787,7 +787,7 @@ class TestGUIFilterLogic:
         assert len(sync_calls) == 2
         assert sync_calls[0]["include_db_source"] is True
         assert "sheet_files" not in sync_calls[0]
-        assert sync_calls[1]["include_db_source"] is True
+        assert sync_calls[1]["include_db_source"] is False
         assert sync_calls[1]["sheet_files"] == [special_a, special_b]
         assert self.window.update_derivadas_button.text() == "Atualizar Derivadas"
         assert "Derivadas atualizadas" in self.window.status_label.text()
