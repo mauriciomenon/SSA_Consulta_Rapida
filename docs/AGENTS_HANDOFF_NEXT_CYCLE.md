@@ -154,6 +154,19 @@ This handoff is ready to reuse in the next conversation.
   - `scan_derivadas_consistency`: `is_consistent=true`, all issue counts `0`.
   - latest materialization snapshot remained stable (`matrix_active=3547`, `summary_total=5460`).
 
+## Update 2026-02-18 (mega sprint block 6)
+
+- `1f213578`: `sync_derivadas` now returns `sheet_file_reports` with per-file parse evidence, plus path dedupe for relative/absolute duplicates.
+- `ffd5d8ef`: importer derivadas sync now fails closed if any special sheet lacks individual parse evidence.
+- `3daddd9f`: GUI `Atualizar Derivadas` now fails closed if any special sheet lacks individual parse evidence.
+- `f7f7ead7`: CLI `sync` now supports `--special-docs-dir` for direct ingest of all special derivadas sheets in a folder.
+- `60adbd5a`: committed refreshed `data/ssas.db` after full special-sheet sync run.
+- Runtime evidence from executed full sync:
+  - `sync_run_id=4`
+  - actor: `mega-sprint-special-sync`
+  - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
+  - post-sync consistency: `is_consistent=true`
+
 ## Texto pronto para abrir a nova conversa
 
 ```text

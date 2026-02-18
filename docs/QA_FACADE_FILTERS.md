@@ -92,6 +92,16 @@ Note:
 - No facade-contract symbol change in this cycle.
 - Reliability hardening was applied in derivadas sync/import/cache flows (outside facade API surface).
 
+## Update 2026-02-18 (mega sprint block 6)
+
+- Facade surface remains unchanged.
+- Derivadas reliability hardening outside facade:
+  - sync report now includes `sheet_file_reports` per special sheet with parse-evidence flag.
+  - importer and GUI manual sync both fail closed when any special sheet has no individual parse evidence.
+  - CLI sync supports `--special-docs-dir` for all special sheets in one deterministic run.
+- Operational verification on `data/ssas.db` after full special sync (11 files):
+  - latest run `sync_run_id=4` persisted with consistency clean.
+
 ## External IA report intake (mandatory)
 
 When another IA sends findings:

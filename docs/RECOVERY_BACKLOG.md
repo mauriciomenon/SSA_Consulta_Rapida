@@ -270,3 +270,24 @@ Ordered list from PR review threads. Status uses pending/resolved.
 - [resolved] Filter cache key now supports advanced filter context token to avoid stale reuse across state changes.
   - commit: `ff266350`
   - files: `gui/cache/filter_cache.py`, `gui/workers/filter_worker.py`, `gui/mixins/filter_gui_ssa_mixin.py`, `tests/test_filter_worker.py`
+
+## Updates 2026-02-18 (mega sprint block 6)
+
+- [resolved] Per-file derivadas parse evidence report added in sync output (`sheet_file_reports`) with path dedupe.
+  - commit: `1f213578`
+  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
+- [resolved] Importer derivadas phase now rejects special-sheet runs without individual evidence.
+  - commit: `ffd5d8ef`
+  - files: `core/app_logic.py`, `tests/test_import_derivadas_trigger.py`
+- [resolved] GUI manual derivadas update now rejects special-sheet runs without individual evidence.
+  - commit: `3daddd9f`
+  - files: `gui/gui_ssa.py`, `tests/test_gui_filter_logic.py`
+- [resolved] CLI sync now supports `--special-docs-dir` for full special-sheet ingest in one command.
+  - commit: `f7f7ead7`
+  - files: `scripts/derivadas_cli.py`, `tests/test_derivadas_cli.py`
+- [resolved] Full sync run persisted in tracked DB snapshot.
+  - commit: `60adbd5a`
+  - file: `data/ssas.db`
+  - runtime evidence: `sync_run_id=4`, `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`, consistency clean.
+
+- [note] `uv run ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` still reports a large pre-existing GUI typing baseline (301 diagnostics); this slice did not expand scope to full GUI typing cleanup.
