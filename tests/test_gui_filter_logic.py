@@ -779,6 +779,11 @@ class TestGUIFilterLogic:
             }
 
         monkeypatch.setattr(gui_ssa, "sync_derivadas", _fake_sync)
+        monkeypatch.setattr(
+            gui_ssa,
+            "scan_derivadas_consistency",
+            lambda **kwargs: {"schema_ready": True, "is_consistent": True, "issue_counts": {}},
+        )
         monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
 
         self.window.update_derivadas_from_sources()
@@ -813,6 +818,11 @@ class TestGUIFilterLogic:
             }
 
         monkeypatch.setattr(gui_ssa, "sync_derivadas", _fake_sync)
+        monkeypatch.setattr(
+            gui_ssa,
+            "scan_derivadas_consistency",
+            lambda **kwargs: {"schema_ready": True, "is_consistent": True, "issue_counts": {}},
+        )
         monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
 
         self.window.update_derivadas_from_sources()
@@ -822,6 +832,38 @@ class TestGUIFilterLogic:
         assert sync_calls[0]["include_db_source"] is True
         assert sync_calls[0]["actor"] == "gui-derivadas-db-phase"
         assert "sheet_files" not in sync_calls[0]
+
+    def test_update_derivadas_from_sources_raises_on_inconsistent_scan(self, monkeypatch, tmp_path):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        monkeypatch.setattr(self.window, "_resolve_derivadas_table_name", lambda _db_path: "ssa_table")
+        monkeypatch.setattr(self.window, "_list_special_derivadas_sheets", lambda: [])
+        monkeypatch.setattr(
+            gui_ssa,
+            "sync_derivadas",
+            lambda **kwargs: {
+                "merge_stats": {"merged_edges": 5},
+                "db_stats": {"accepted_edges": 5},
+                "sheet_stats": {"accepted_edges": 0},
+            },
+        )
+        monkeypatch.setattr(
+            gui_ssa,
+            "scan_derivadas_consistency",
+            lambda **kwargs: {
+                "schema_ready": True,
+                "is_consistent": False,
+                "issue_counts": {"flag_mismatch_pairs": 1},
+            },
+        )
+        monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
+
+        self.window.update_derivadas_from_sources()
+        QApplication.processEvents()
+
+        assert "Falha ao atualizar derivadas" in self.window.status_label.text()
 
     def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
         db_file = tmp_path / "resolver.db"
