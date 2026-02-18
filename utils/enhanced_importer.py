@@ -34,10 +34,13 @@ class EnhancedAMSImporter:
         if df.empty:
             return "unknown"
 
-        columns = df.columns.tolist()
+        columns = [str(col) for col in df.columns.tolist()]
 
         for format_name, format_info in self.known_formats.items():
-            indicators = format_info["indicators"]
+            raw_indicators = format_info.get("indicators", [])
+            if not isinstance(raw_indicators, list):
+                continue
+            indicators = [str(indicator) for indicator in raw_indicators]
             matches = sum(1 for indicator in indicators
                          if any(indicator in col for col in columns))
 
