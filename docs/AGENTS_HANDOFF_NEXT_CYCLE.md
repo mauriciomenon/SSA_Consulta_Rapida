@@ -79,6 +79,15 @@ This handoff is ready to reuse in the next conversation.
 9. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
 10. Manter backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
 
+## Regras de escrita tecnica (NAO FAZER)
+
+1. Nao "calcar" erro de runtime apenas removendo log/warning.
+2. Nao declarar "corrigido" quando o fluxo funcional ainda falha.
+3. Nao trocar erro visivel por fallback silencioso sem tratar causa raiz.
+4. Nao abrir fluxo generico quando a acao e contextual (ex.: arvore deve usar SSA selecionada).
+5. Nao fechar slice sem validar repro antes/depois do mesmo caso reportado pelo usuario.
+6. Nao responder com justificativa defensiva; responder com evidencia objetiva (arquivo:linha + teste).
+
 ## Regra adotada: facade de filtros avancados
 
 - Contrato de modulo:
