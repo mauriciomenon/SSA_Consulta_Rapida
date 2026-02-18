@@ -89,6 +89,19 @@ uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
 uv run pytest -q tests/test_gui_filters_advanced_logic.py
 ```
 
+## Latest update (2026-02-18, mega sprint block 6)
+
+- New slices delivered:
+  - `1f213578`: derivadas sync now emits `sheet_file_reports` with per-file parse evidence and deduplicates relative/absolute file paths.
+  - `ffd5d8ef`: importer derivadas phase now fails closed when any special sheet has no individual parse evidence.
+  - `3daddd9f`: GUI `Atualizar Derivadas` now fails closed when any special sheet has no individual parse evidence.
+  - `f7f7ead7`: derivadas CLI sync now supports `--special-docs-dir` to ingest all `SSAs Derivadas e Relacionadas_*.xlsx`.
+  - `60adbd5a`: committed refreshed `data/ssas.db` after full derivadas sync with 11 special sheets.
+- Operational run executed on 2026-02-18:
+  - `sync_run_id=4`, actor `mega-sprint-special-sync`
+  - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
+  - post-sync consistency: `is_consistent=true`
+
 ## Copy/paste starter for next chat
 
 ```text
