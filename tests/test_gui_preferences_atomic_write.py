@@ -1,4 +1,5 @@
 import os
+from typing import Any, cast
 
 
 def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
@@ -17,7 +18,7 @@ def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
 
     monkeypatch.setattr(gui_ssa, "atomic_write_json_file", _fake_atomic)
 
-    gui_ssa.SSAMainWindow._persist_gui_preferences(object())
+    gui_ssa.SSAMainWindow._persist_gui_preferences(cast(Any, object()))
 
     assert calls
     path, data, indent, ensure_ascii = calls[0]
@@ -25,4 +26,3 @@ def test_persist_gui_preferences_uses_atomic_writer(monkeypatch, tmp_path):
     assert data == {"x": 1}
     assert indent == 2
     assert ensure_ascii is False
-
