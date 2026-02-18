@@ -348,6 +348,8 @@ Criterio de aceite da delegacao:
    - `gui/widgets/rescan_progress_dialog.py`, `gui/workers/rescan_worker.py`.
 5. [pending] melhoria UX filtros:
    - item `divisao` e refinamento da aba de filtros (sem quebrar layout).
+6. [pending] arquitetura de cache:
+   - revisar possivel decomposicao de `core/cache_manager.py` (P4 kluster "god class"), mantendo interface unificada e sem regressao.
 
 ### Nao regredir (guardrails)
 
