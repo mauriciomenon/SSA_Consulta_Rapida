@@ -252,3 +252,21 @@ Ordered list from PR review threads. Status uses pending/resolved.
 - [resolved] Importer derivadas special flow now processes all detected special sheets in a single sync call.
 - [resolved] `sync_derivadas` now supports `sheet_files` list and aggregates sheet stats.
 - [resolved] Added coverage for multi-sheet merge behavior in `tests/test_derivadas_sync.py`.
+
+## Updates 2026-02-18 (mega sprint reliability)
+
+- [resolved] Import now blocks success when derivadas sync evidence is invalid or consistency scan is not clean.
+  - commit: `f9e69d86`
+  - files: `core/app_logic.py`, `tests/test_import_derivadas_trigger.py`
+- [resolved] Derivadas sync now enforces post-materialization integrity gate inside transaction.
+  - commit: `474e980a`
+  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
+- [resolved] GUI manual "Atualizar Derivadas" now requires consistency scan clean state after sync.
+  - commit: `5a50ea17`
+  - files: `gui/gui_ssa.py`, `tests/test_gui_filter_logic.py`
+- [resolved] Special visual derivadas parser now treats root-only rows as informational, reducing invalid_parent noise.
+  - commit: `6f4fcc7a`
+  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
+- [resolved] Filter cache key now supports advanced filter context token to avoid stale reuse across state changes.
+  - commit: `ff266350`
+  - files: `gui/cache/filter_cache.py`, `gui/workers/filter_worker.py`, `gui/mixins/filter_gui_ssa_mixin.py`, `tests/test_filter_worker.py`

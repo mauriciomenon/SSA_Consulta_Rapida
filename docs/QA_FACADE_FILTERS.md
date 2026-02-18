@@ -87,6 +87,11 @@ Any new non-UI key in logic or detector must be explicit and justified.
 Note:
 - Special derivadas sheet ingest now supports multi-file merge (`sheet_files`) in one sync run.
 
+## Update 2026-02-18
+
+- No facade-contract symbol change in this cycle.
+- Reliability hardening was applied in derivadas sync/import/cache flows (outside facade API surface).
+
 ## External IA report intake (mandatory)
 
 When another IA sends findings:
