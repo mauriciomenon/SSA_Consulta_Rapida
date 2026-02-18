@@ -210,6 +210,21 @@ def _validate_table_name(table_name: str) -> str:
     return table_name
 
 
+def _normalize_sheet_file_path(value: Any) -> str:
+    normalized = str(value).strip()
+    if not normalized:
+        return ""
+    return os.path.abspath(os.path.expanduser(normalized))
+
+
+def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
+    current = stats or {}
+    accepted_edges = int(current.get("accepted_edges", 0) or 0)
+    special_layout_detected = int(current.get("special_layout_detected", 0) or 0)
+    informational_rows = int(current.get("informational_rows_skipped", 0) or 0)
+    return accepted_edges > 0 or special_layout_detected > 0 or informational_rows > 0
+
+
 def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") -> dict[str, Any]:
     """Collect normalized parent->child edges from `numero_ssa -> derivada_de`."""
 
@@ -1302,12 +1317,12 @@ def sync_derivadas(
     normalized_sheet_files: list[str] = []
     seen_sheet_files: set[str] = set()
     for candidate in ([sheet_file] if sheet_file else []):
-        normalized = str(candidate).strip()
+        normalized = _normalize_sheet_file_path(candidate)
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
     for candidate in sheet_files or []:
-        normalized = str(candidate).strip()
+        normalized = _normalize_sheet_file_path(candidate)
         if normalized and normalized not in seen_sheet_files:
             normalized_sheet_files.append(normalized)
             seen_sheet_files.add(normalized)
@@ -1329,6 +1344,7 @@ def sync_derivadas(
         sheet_stats: dict[str, Any] = {"accepted_edges": 0}
         db_multiparent: dict[str, Any] = {}
         sheet_multiparent: dict[str, Any] = {}
+        sheet_file_reports: list[dict[str, Any]] = []
 
         if include_db_source:
             db_result = collect_db_edges(conn, table_name=table_name)
@@ -1348,12 +1364,19 @@ def sync_derivadas(
                     sheet_name=sheet_name,
                 )
                 source_edges.extend(sheet_result["edges"])
-                current_stats = sheet_result.get("stats") or {}
+                current_stats = dict(sheet_result.get("stats") or {})
                 for key, value in current_stats.items():
                     if isinstance(value, int):
                         merged_sheet_stats[key] = int(merged_sheet_stats.get(key, 0)) + value
                     else:
                         merged_sheet_stats[key] = value
+                sheet_file_reports.append(
+                    {
+                        "sheet_file": current_sheet_file,
+                        "stats": current_stats,
+                        "has_parse_evidence": _sheet_stats_has_parse_evidence(current_stats),
+                    }
+                )
                 current_multiparent = sheet_result.get("multiparent_detail") or {}
                 for child_ssa, parents in current_multiparent.items():
                     if isinstance(parents, list):
@@ -1382,6 +1405,7 @@ def sync_derivadas(
             "db_stats": db_stats,
             "sheet_stats": sheet_stats,
             "sheet_files": list(normalized_sheet_files),
+            "sheet_file_reports": sheet_file_reports,
             "merge_stats": {
                 "source_edges": len(source_edges),
                 "merged_edges": len(merged_edges),
