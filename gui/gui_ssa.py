@@ -2477,6 +2477,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             )
 
             final_report = db_report
+            db_stats = db_report.get("db_stats") or {}
+            db_edges = int(db_stats.get("accepted_edges", 0) or 0)
             if special_files:
                 if hasattr(self, "status_label"):
                     self.status_label.setText(
@@ -2487,16 +2489,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 final_report = sync_derivadas(
                     db_path=db_path,
                     table_name=table_name,
-                    include_db_source=True,
+                    include_db_source=False,
                     sheet_files=special_files,
                     verify_only=False,
                 )
 
             merge_stats = final_report.get("merge_stats") or {}
-            db_stats = final_report.get("db_stats") or {}
             sheet_stats = final_report.get("sheet_stats") or {}
             merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
-            db_edges = int(db_stats.get("accepted_edges", 0) or 0)
             sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
             if hasattr(self, "status_label"):
                 self.status_label.setText(
