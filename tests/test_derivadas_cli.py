@@ -195,6 +195,57 @@ def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_
     assert captured["sheet_files"] == [str(first), str(second)]
 
 
+def test_cli_sync_accepts_special_docs_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
+    regular = tmp_path / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    first.write_bytes(b"x")
+    second.write_bytes(b"y")
+    regular.write_bytes(b"z")
+
+    captured: dict = {}
+
+    def _fake_sync_derivadas(**kwargs):
+        captured.update(kwargs)
+        return {"verify_only": False, "merge_stats": {"merged_edges": 0}}
+
+    monkeypatch.setattr(derivadas_cli, "sync_derivadas", _fake_sync_derivadas)
+
+    rc = main(
+        [
+            "--db",
+            "data/ssas.db",
+            "--output",
+            "json",
+            "sync",
+            "--special-docs-dir",
+            str(tmp_path),
+            "--no-db-source",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["include_db_source"] is False
+    assert captured["sheet_files"] == [str(first), str(second)]
+
+
+def test_cli_sync_special_docs_dir_requires_existing_dir(tmp_path: Path):
+    missing = tmp_path / "missing"
+    with pytest.raises(ValueError, match="special docs dir not found"):
+        main(
+            [
+                "--db",
+                "data/ssas.db",
+                "--output",
+                "json",
+                "sync",
+                "--special-docs-dir",
+                str(missing),
+                "--no-db-source",
+            ]
+        )
+
+
 def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         derivadas_cli,
