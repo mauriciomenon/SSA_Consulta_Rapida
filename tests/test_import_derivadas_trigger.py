@@ -25,6 +25,24 @@ def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
             "issues": [],
         },
     )
+    monkeypatch.setattr(
+        app_logic,
+        "scan_derivadas_consistency",
+        lambda *a, **k: {
+            "schema_ready": True,
+            "is_consistent": True,
+            "issue_counts": {
+                "missing_source_pairs": 0,
+                "source_without_matrix_pairs": 0,
+                "flag_mismatch_pairs": 0,
+                "invalid_matrix_pairs": 0,
+                "closure_self_rows": 0,
+                "summary_missing_nodes": 0,
+                "summary_extra_nodes": 0,
+                "fingerprint_mismatch": 0,
+            },
+        },
+    )
 
 
 def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -402,3 +420,60 @@ def test_run_importer_skips_db_only_sync_when_preflight_not_required(
 
     assert updated is False
     assert sync_calls["n"] == 0
+
+
+def test_run_importer_blocks_success_when_derivadas_consistency_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    regular = docs_dir / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    regular.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(regular)])
+    monkeypatch.setattr(app_logic, "_import_single_file", lambda *a, **k: (True, 3))
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: {
+            "sheet_files": [],
+            "db_stats": {"accepted_edges": 3},
+            "sheet_stats": {"accepted_edges": 0, "special_layout_detected": 0},
+            "merge_stats": {"merged_edges": 3},
+        },
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "scan_derivadas_consistency",
+        lambda *a, **k: {
+            "schema_ready": True,
+            "is_consistent": False,
+            "issue_counts": {"flag_mismatch_pairs": 1},
+        },
+    )
+
+    cache_calls = {"n": 0}
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_calls.__setitem__("n", cache_calls["n"] + 1),
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+    assert cache_calls["n"] == 0
