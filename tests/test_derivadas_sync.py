@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import sqlite3
 import threading
 import time
@@ -214,6 +215,9 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
     assert report["sheet_stats"]["files_count"] == 2
     assert report["merge_stats"]["merged_edges"] == 2
     assert sorted(report["sheet_files"]) == sorted([str(sheet_one), str(sheet_two)])
+    file_reports = report["sheet_file_reports"]
+    assert len(file_reports) == 2
+    assert all(bool(entry["has_parse_evidence"]) for entry in file_reports)
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute(
@@ -226,6 +230,37 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
         ).fetchall()
 
     assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
+def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "derivadas.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+
+    relative = os.path.relpath(str(sheet_file.resolve()), start=str(Path.cwd()))
+    absolute = str(sheet_file.resolve())
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_files=[relative, absolute],
+    )
+
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["sheet_stats"]["files_count"] == 1
+    assert report["sheet_files"] == [absolute]
+    assert len(report["sheet_file_reports"]) == 1
+    assert report["sheet_file_reports"][0]["sheet_file"] == absolute
+    assert report["sheet_file_reports"][0]["has_parse_evidence"] is True
 
 
 def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Path):
@@ -276,6 +311,8 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
     assert report["sheet_stats"]["informational_rows_skipped"] >= 3
     assert report["sheet_stats"]["invalid_parent"] == 0
     assert report["merge_stats"]["merged_edges"] == 2
+    assert len(report["sheet_file_reports"]) == 1
+    assert report["sheet_file_reports"][0]["has_parse_evidence"] is True
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute(
