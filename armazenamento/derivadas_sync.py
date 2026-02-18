@@ -469,6 +469,7 @@ def _collect_special_visual_sheet_edges(
         "invalid_child": 0,
         "self_loop": 0,
         "duplicated": 0,
+        "informational_rows_skipped": 0,
         "missing_columns": 0,
         "missing_label_column_rows": 0,
         "resolved_parent_alias_rows": 0,
@@ -505,6 +506,12 @@ def _collect_special_visual_sheet_edges(
 
             child_norm = _normalize_ssa(child_raw)
             parent_norm = _normalize_ssa(parent_raw)
+            relation_norm = _clean_relation_label(relation_raw)
+            # Visual sheets include many context/info rows with no edge payload.
+            # Do not classify those as invalid parent/child to keep signal useful.
+            if not parent_norm and not child_norm and relation_norm is None:
+                stats["informational_rows_skipped"] += 1
+                continue
             if not parent_norm:
                 stats["invalid_parent"] += 1
                 continue
@@ -528,7 +535,7 @@ def _collect_special_visual_sheet_edges(
                     source_name=SOURCE_SHEET_DERIVADAS,
                     source_flag=SOURCE_FLAG_SHEET,
                     relation_type=RELATION_TYPE_SHEET,
-                    relation_raw_label=_clean_relation_label(relation_raw),
+                    relation_raw_label=relation_norm,
                 )
             )
 
