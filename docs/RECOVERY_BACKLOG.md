@@ -386,5 +386,8 @@ Regra de lint para este ciclo:
 3. [pending] Baseline restante de ty concentrada em:
    - `gui/gui_ssa.py` (fallback headless ainda gera ruido estatico).
    - arquivos de teste/dev (`tests/*`, `dev_env/streamlit_app.py`).
-4. [pending-blocked] checks externos:
+4. [pending-nonblocking] Refactor estrutural adiado em teste legacy:
+   - `tests/automated_system_tests.py` com classe ampla (`AutomatedSystemTester`).
+   - manter patch minimo neste sprint e quebrar responsabilidades em ciclo dedicado.
+5. [pending-blocked] checks externos:
    - `code/snyk` e `security/snyk` continuam limitados por plano.
