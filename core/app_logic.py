@@ -422,6 +422,17 @@ def _run_derivadas_sync_phase(
     if not has_graph_evidence:
         logger.warning("Sync de derivadas concluido sem arestas materializadas no grafo.")
 
+    consistency = scan_derivadas_consistency(db_path=db_path)
+    if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
+        issue_counts = consistency.get("issue_counts") or {}
+        logger.error(
+            "Sync de derivadas finalizou com inconsistencias no scan pos-sync. issue_counts=%s",
+            json.dumps(issue_counts, ensure_ascii=True),
+        )
+        report = dict(report)
+        report["consistency_scan"] = consistency
+        return False, existing_files, report
+
     cached_sheets = list(existing_files) if has_sheet_evidence else []
     logger.info(
         "Sync de derivadas concluido (planilhas=%s, merged_edges=%s, db_edges=%s, sheet_edges=%s).",

@@ -56,7 +56,7 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
     sheet_files: list[str] = []
     if args.sheet_files_glob:
         sheet_files = sorted(glob.glob(args.sheet_files_glob))
-    return sync_derivadas(
+    report = sync_derivadas(
         db_path=args.db,
         table_name=args.table_name,
         sheet_file=args.sheet_file,
@@ -70,6 +70,13 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
         verify_only=args.verify_only,
         actor=args.actor,
     )
+    if args.require_consistency and not args.verify_only:
+        scan = scan_derivadas_consistency(db_path=args.db)
+        report["consistency_scan"] = scan
+        if not bool(scan.get("schema_ready")) or not bool(scan.get("is_consistent")):
+            issue_counts = scan.get("issue_counts") or {}
+            raise RuntimeError(f"Derivadas consistency check failed: {json.dumps(issue_counts, ensure_ascii=True)}")
+    return report
 
 
 def _handle_stats(args: argparse.Namespace) -> dict[str, Any]:
@@ -180,6 +187,11 @@ def _build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--sheet-label-col", default="relation_label", help="Sheet relation label column")
     sync_parser.add_argument("--full-rebuild", action="store_true", help="Hard cleanup stale matrix rows")
     sync_parser.add_argument("--verify-only", action="store_true", help="Only validate and report without writing")
+    sync_parser.add_argument(
+        "--require-consistency",
+        action="store_true",
+        help="Fail sync command when post-sync consistency scan is not clean",
+    )
     sync_parser.add_argument("--no-db-source", action="store_true", help="Ignore DB derivada_de source")
     sync_parser.set_defaults(func=_handle_sync)
 
