@@ -61,7 +61,7 @@ def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> No
             ).fetchone()
 
         assert row is not None
-        assert row[0] == "202500777"
-        assert row[1] == "202500123"
+        assert str(row[0]) == "202500777"
+        assert str(row[1]) == "202500123"
     finally:
         disable_optimized_import()
