@@ -117,21 +117,14 @@ def retain_data_loader_worker_until_finished(
     def _release_worker_ref(w=worker):
         try:
             with _GLOBAL_WORKERS_LOCK:
-                if w in window._retired_data_loader_workers:
-                    window._retired_data_loader_workers.remove(w)
-        except Exception as exc:
-            logger.debug("Falha ao remover worker de carga da lista local aposentada: %s", exc)
-        try:
-            with _GLOBAL_WORKERS_LOCK:
+                retired_workers = getattr(window, "_retired_data_loader_workers", None)
+                if retired_workers is not None and w in retired_workers:
+                    retired_workers.remove(w)
                 if w in global_workers:
                     global_workers.remove(w)
-        except Exception as exc:
-            logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
-        try:
-            with _GLOBAL_WORKERS_LOCK:
                 global_meta.pop(w, None)
         except Exception as exc:
-            logger.debug("Falha ao remover meta do worker de carga: %s", exc)
+            logger.debug("Falha ao liberar referencias de worker de carga finalizado: %s", exc)
 
     finished_signal = getattr(worker, "finished", None)
     if not _connect_signal(finished_signal, _release_worker_ref, label="data_loader.finished.cleanup"):
@@ -242,6 +235,8 @@ def prune_retired_data_loader_workers(
             with _GLOBAL_WORKERS_LOCK:
                 global_meta[w] = now
     for w in expired_global:
+        if w in removed_local:
+            continue
         logger.warning("Data loader worker excedeu TTL; solicitando stop.")
         try:
             stopped = cleanup_data_loader_worker(
