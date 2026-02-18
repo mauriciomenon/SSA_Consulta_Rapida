@@ -1324,7 +1324,7 @@ class FilterGUISSAMixin:
             logger.debug("FilterHelpDialog indisponivel; ajuda nao sera exibida.")
             return
         try:
-            dlg = FilterHelpDialog(self)
+            dlg = FilterHelpDialog(_qt_parent(self))
             dlg.exec()
         except Exception as exc:
             logger.debug("Falha ao abrir dialogo de ajuda de filtros: %s", exc)
