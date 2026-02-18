@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import html as html_module
+import os
 import re
 
 import pandas as pd
@@ -25,6 +26,7 @@ HIGHLIGHT_BACKGROUND_COLOR = "yellow"
 HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
+DERIVADAS_DETAILS_TOP_N = 5
 
 
 def configure_details_constants(
@@ -228,6 +230,107 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"</tr>"
         )
 
+    derivadas_rel = _get_derivadas_relations_info(window, series.get("numero_ssa"))
+    if derivadas_rel.get("has_data"):
+        parent_list = derivadas_rel.get("parents", [])
+        children_list = derivadas_rel.get("children", [])
+        descendants_count = int(derivadas_rel.get("descendants_count", 0))
+
+        html_lines.append(
+            f"<tr>"
+            f'<td colspan="2" style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"font-weight: bold;\">Relacoes de Derivadas</td>"
+            f"</tr>"
+        )
+
+        mae_direta_text = "-"
+        if parent_list:
+            if linkify:
+                first_parent = html_module.escape(parent_list[0])
+                href_parent = _normalize_ssa_value(window, parent_list[0])
+                mae_direta_text = (
+                    f'<a href="ssa://{href_parent}" style="color:{link_color}; '
+                    f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                    f"{first_parent}</a>"
+                )
+            else:
+                mae_direta_text = html_module.escape(str(parent_list[0]))
+            if len(parent_list) > 1:
+                mae_direta_text = f"{mae_direta_text} (+{len(parent_list) - 1})"
+        html_lines.append(
+            f"<tr>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"font-weight: bold; width: 30%; vertical-align: top;\">Mae direta:</td>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f"{mae_direta_text}</td>"
+            f"</tr>"
+        )
+
+        top_children = children_list[:DERIVADAS_DETAILS_TOP_N]
+        if top_children:
+            if linkify:
+                child_items = []
+                for child in top_children:
+                    href_child = _normalize_ssa_value(window, child)
+                    display_child = html_module.escape(str(child))
+                    child_items.append(
+                        f'<a href="ssa://{href_child}" style="color:{link_color}; '
+                        f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                        f"{display_child}</a>"
+                    )
+                filhas_text = ", ".join(child_items)
+            else:
+                filhas_text = ", ".join(html_module.escape(str(child)) for child in top_children)
+            if len(children_list) > DERIVADAS_DETAILS_TOP_N:
+                filhas_text = f"{filhas_text} ... (+{len(children_list) - DERIVADAS_DETAILS_TOP_N})"
+        else:
+            filhas_text = "-"
+        html_lines.append(
+            f"<tr>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"Filhas diretas ({len(children_list)}):</td>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f"{filhas_text}</td>"
+            f"</tr>"
+        )
+
+        html_lines.append(
+            f"<tr>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"Descendentes ({descendants_count}):</td>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f"{descendants_count}</td>"
+            f"</tr>"
+        )
+
+        if linkify:
+            open_tree_text = (
+                f'<a href="derivadas://tree" style="color:{link_color}; '
+                f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+                "Abrir arvore completa</a>"
+            )
+        else:
+            open_tree_text = "Abrir arvore completa"
+        html_lines.append(
+            f"<tr>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
+            f"font-weight: bold; width: 30%; vertical-align: top;\">Acoes:</td>"
+            f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
+            f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
+            f"{open_tree_text}</td>"
+            f"</tr>"
+        )
+
     html_lines.append("</table></body></html>")
     return "\n".join(html_lines)
 
@@ -396,6 +499,11 @@ def _on_details_anchor_clicked(window, url):
         return
     if not href:
         return
+    if href.startswith("derivadas://tree"):
+        handler = getattr(window, "_show_derivadas_popup", None)
+        if callable(handler):
+            handler()
+        return
     if href.startswith("ssa://"):
         target = href[len("ssa://") :]
     elif href.startswith("ssa:"):
@@ -405,6 +513,53 @@ def _on_details_anchor_clicked(window, url):
     target = target.strip().lstrip("/")
     if target:
         _jump_to_ssa(window, target)
+
+
+def _resolve_current_db_path():
+    try:
+        from gui import gui_ssa as gui_ssa_module
+    except Exception:
+        return None
+    db_path = getattr(gui_ssa_module, "DB_PATH", None)
+    if isinstance(db_path, str) and db_path.strip():
+        return db_path
+    return None
+
+
+def _get_derivadas_relations_info(window, numero_ssa):
+    empty = {"has_data": False, "parents": [], "children": [], "descendants_count": 0}
+    num_norm = _normalize_ssa_value(window, numero_ssa)
+    if not num_norm:
+        return empty
+
+    parents = []
+    children = []
+    descendants_count = 0
+
+    db_path = _resolve_current_db_path()
+    if db_path and os.path.exists(db_path):
+        try:
+            from armazenamento import derivadas_queries
+
+            parents = derivadas_queries.get_parents(db_path, num_norm)
+            children = derivadas_queries.get_children(db_path, num_norm)
+            profile = derivadas_queries.get_hierarchy_profile(db_path, num_norm) or {}
+            descendants_count = int(profile.get("descendants_count") or 0)
+        except Exception as exc:
+            logger.debug("Falha ao ler relacoes de derivadas no DB para %s: %s", num_norm, exc)
+
+    if not children:
+        children = _get_derivadas_for_ssa(window, num_norm)
+    if descendants_count <= 0:
+        descendants_count = len(children)
+
+    has_data = bool(parents or children or descendants_count > 0)
+    return {
+        "has_data": has_data,
+        "parents": parents,
+        "children": children,
+        "descendants_count": descendants_count,
+    }
 
 
 def _filter_by_derivadas(window, numero_ssa):
