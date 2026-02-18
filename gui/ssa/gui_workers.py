@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 import time
 import threading
@@ -25,6 +26,28 @@ try:
     _QT_QUEUED = _Qt.ConnectionType.QueuedConnection
 except Exception:
     _QT_QUEUED = None
+
+
+def _sanitize_ssa_like_value(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if isinstance(value, float):
+            if pd.isna(value):
+                return ""
+            if value.is_integer():
+                return str(int(value))
+            return str(value).strip()
+    except Exception:
+        pass
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text.lower() in {"nan", "none", "nat", "<na>"}:
+        return ""
+    if re.fullmatch(r"\d+\.0+", text):
+        return text.split(".", 1)[0]
+    return text
 
 
 def _connect_signal(signal, slot, *, label: str) -> bool:
@@ -558,6 +581,12 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
         return
     df_copy = df.copy()
+    for ssa_col in ("numero_ssa", "derivada_de"):
+        if ssa_col in df_copy.columns:
+            try:
+                df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
+            except Exception as exc:
+                logger.debug("Falha ao sanitizar coluna %s na carga de dados: %s", ssa_col, exc)
     window.df_completo = df_copy
     try:
         last_req = getattr(window, "_data_revision_request_id", None)

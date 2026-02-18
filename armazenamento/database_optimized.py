@@ -25,6 +25,7 @@ import pandas as pd
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
 from .identifier_utils import is_valid_identifier
+from .numero_ssa_utils import _normalize_numero_ssa_value
 from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,16 @@ logger = logging.getLogger(__name__)
 SQLITE_MAX_VARIABLES = 999
 SQLITE_SAFETY_EXTRA_COLUMNS = 1
 SQLITE_DEFAULT_CHUNK_CAP = 500
+
+
+def _normalize_ssa_storage_value(value) -> str | None:
+    normalized_int = _normalize_numero_ssa_value(value)
+    if normalized_int is None:
+        return None
+    try:
+        return str(int(normalized_int))
+    except Exception:
+        return None
 
 
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
@@ -126,10 +137,11 @@ def insert_dataframe_optimized(
     try:
         work = df.copy().reset_index(drop=True)
 
-        # Normalizar numero_ssa de forma vetorizada
+        # Normalize SSA identifiers in storage path to avoid persisting decimal artifacts.
         if 'numero_ssa' in work.columns:
-            work['numero_ssa'] = work['numero_ssa'].astype(str).str.strip()
-            work['numero_ssa'] = work['numero_ssa'].replace(['nan', 'None', ''], None)
+            work['numero_ssa'] = work['numero_ssa'].map(_normalize_ssa_storage_value)
+        if 'derivada_de' in work.columns:
+            work['derivada_de'] = work['derivada_de'].map(_normalize_ssa_storage_value)
 
         # Converter datas de forma mais eficiente (vetorizada)
         date_columns = [
