@@ -68,7 +68,7 @@ This handoff is ready to reuse in the next conversation.
 
 ## Regras de execucao para o novo ciclo
 
-1. Manter ASCII em codigo; em docs tecnicos, permitir PT-BR normal. Nao usar emoji/emdash.
+1. Sem acentos/cedilha/emojis/emdash em codigo, docs e mensagens tecnicas.
 2. Commits atomicos e rollback facil por feature.
 3. Sempre validar antes de push: `py_compile`, `ruff`, `pytest` focado.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
@@ -282,7 +282,7 @@ Checklist de auditoria (eu audito depois):
 Contexto: branch de recovery foi mergeada; manter mesma disciplina de qualidade.
 
 Regras de execucao:
-1. Sem acentos/cedilha/emojis/emdash em codigo e mensagens tecnicas.
+1. Sem acentos/cedilha/emojis/emdash em codigo, docs e mensagens tecnicas.
 2. Commits atomicos e rollback facil por feature.
 3. Sempre validar antes de push: py_compile, ruff, pytest focado.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
