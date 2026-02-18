@@ -450,15 +450,17 @@ def test_run_importer_blocks_success_when_derivadas_consistency_fails(
             "merge_stats": {"merged_edges": 3},
         },
     )
-    monkeypatch.setattr(
-        app_logic,
-        "scan_derivadas_consistency",
-        lambda *a, **k: {
+    scan_calls = {"n": 0}
+
+    def _fake_scan(*args, **kwargs):
+        scan_calls["n"] += 1
+        return {
             "schema_ready": True,
             "is_consistent": False,
             "issue_counts": {"flag_mismatch_pairs": 1},
-        },
-    )
+        }
+
+    monkeypatch.setattr(app_logic, "scan_derivadas_consistency", _fake_scan)
 
     cache_calls = {"n": 0}
     monkeypatch.setattr(
@@ -477,3 +479,58 @@ def test_run_importer_blocks_success_when_derivadas_consistency_fails(
 
     assert updated is False
     assert cache_calls["n"] == 0
+    assert scan_calls["n"] == 1
+
+
+def test_run_importer_reports_consistency_issue_counts_in_progress_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: {
+            "sheet_files": [str(special)],
+            "db_stats": {"accepted_edges": 2},
+            "sheet_stats": {"accepted_edges": 1, "special_layout_detected": 1},
+            "merge_stats": {"merged_edges": 2},
+        },
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "scan_derivadas_consistency",
+        lambda *a, **k: {
+            "schema_ready": True,
+            "is_consistent": False,
+            "issue_counts": {"flag_mismatch_pairs": 2, "summary_missing_nodes": 1},
+        },
+    )
+
+    events: list[tuple[str, dict]] = []
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        progress_callback=lambda event, payload: events.append((event, payload)),
+    )
+
+    assert updated is False
+    file_errors = [payload for event, payload in events if event == "file_error"]
+    assert file_errors
+    assert "flag_mismatch_pairs" in file_errors[-1]["error"]
