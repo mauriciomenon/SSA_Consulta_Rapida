@@ -27,8 +27,8 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 3
-DERIVADAS_DIALOG_RATIO_RIGHT = 7
+DERIVADAS_DIALOG_RATIO_LEFT = 2
+DERIVADAS_DIALOG_RATIO_RIGHT = 8
 DERIVADAS_DIALOG_MIN_HEIGHT = 625
 DERIVADAS_DIALOG_FONT_SCALE = 1.25
 
@@ -864,7 +864,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if not _render_target(target):
         return
 
-    # Keep a stable 30/70 split: derivadas panel (left) / SSA details (right).
+    # Keep a stable 20/80 split: derivadas panel (left) / SSA details (right).
     content_layout.addWidget(tree_browser, DERIVADAS_DIALOG_RATIO_LEFT)
     content_layout.addWidget(details_browser, DERIVADAS_DIALOG_RATIO_RIGHT)
     root_layout.addLayout(content_layout)
