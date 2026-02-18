@@ -132,3 +132,32 @@ class TestFilterWorker:
         assert len(emitted) == 1
         assert emitted[0].empty
         assert errors == []
+
+    def test_cache_context_changes_cache_key(self):
+        df = pd.DataFrame({"texto": ["alfa", "beta"]})
+        errors = []
+        calls = {"count": 0}
+
+        def _fake_filter(dataframe, _parsed):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return dataframe[dataframe["texto"] == "alfa"].copy()
+            return dataframe[dataframe["texto"] == "beta"].copy()
+
+        with patch("gui.workers.filter_worker.filter_dataframe", side_effect=_fake_filter):
+            first = []
+            worker_first = FilterWorker(df, [["x"]], cache_context='{"adv":"A"}')
+            worker_first.filter_finished.connect(lambda frame: first.append(frame.copy()))
+            worker_first.error_occurred.connect(errors.append)
+            worker_first.run()
+
+            second = []
+            worker_second = FilterWorker(df, [["x"]], cache_context='{"adv":"B"}')
+            worker_second.filter_finished.connect(lambda frame: second.append(frame.copy()))
+            worker_second.error_occurred.connect(errors.append)
+            worker_second.run()
+
+        assert errors == []
+        assert calls["count"] == 2
+        assert first[0]["texto"].tolist() == ["alfa"]
+        assert second[0]["texto"].tolist() == ["beta"]

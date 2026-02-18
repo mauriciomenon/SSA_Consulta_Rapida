@@ -273,8 +273,25 @@ class FilterGUISSAMixin:
                 self.on_filter_finished_cleanup(None, request_id=request_id)
             return
 
-        # Inicia a thread de filtragem (modo padrão assíncrono)
-        worker = FilterWorker(self.df_completo, chunk_terms_lists, default_mode=default_mode)
+        # Inicia a thread de filtragem (modo padrao assincrono)
+        filter_cache_context = ""
+        try:
+            advanced_filters = getattr(self, "_advanced_filters", None)
+            if isinstance(advanced_filters, dict) and advanced_filters:
+                filter_cache_context = json.dumps(
+                    advanced_filters,
+                    sort_keys=True,
+                    ensure_ascii=True,
+                    default=str,
+                )
+        except Exception as exc:
+            logger.debug("Falha ao montar contexto de cache para FilterWorker: %s", exc)
+        worker = FilterWorker(
+            self.df_completo,
+            chunk_terms_lists,
+            default_mode=default_mode,
+            cache_context=filter_cache_context,
+        )
         self.filter_thread = worker
         worker.filter_finished.connect(lambda df, rid=request_id: self.on_filter_finished(df, request_id=rid))
         worker.error_occurred.connect(lambda msg, rid=request_id: self.on_filter_error(msg, request_id=rid))
