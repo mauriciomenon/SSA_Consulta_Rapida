@@ -11,6 +11,7 @@ import os
 import sys
 import logging
 import json
+import sqlite3
 import pandas as pd
 import re
 from pathlib import Path
@@ -311,6 +312,71 @@ def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
     )
 
 
+def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
+    """Decide if derivadas sync should run with DB-only source when no files changed."""
+
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
+        logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
+        return False
+
+    try:
+        with database.get_db_connection(db_path) as conn:
+            db_edges_count = int(
+                conn.execute(
+                    f"""
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT numero_ssa, derivada_de
+                        FROM "{table_name}"
+                        WHERE derivada_de IS NOT NULL
+                        GROUP BY numero_ssa, derivada_de
+                    ) AS db_edges
+                    """
+                ).fetchone()[0]
+            )
+            if db_edges_count <= 0:
+                return False
+
+            ready_tables = {
+                "ssa_derivada_matrix",
+                "ssa_derivada_summary",
+                "ssa_derivada_sync_run",
+            }
+            existing_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if not ready_tables.issubset(existing_tables):
+                return True
+
+            matrix_active = int(
+                conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
+            )
+            summary_total = int(conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0])
+            latest = conn.execute(
+                """
+                SELECT db_edges
+                FROM ssa_derivada_sync_run
+                WHERE status = 'ok'
+                ORDER BY sync_run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+            if latest is None:
+                return True
+            latest_db_edges = int(latest[0] or 0)
+            return matrix_active <= 0 or summary_total <= 0 or latest_db_edges != db_edges_count
+    except sqlite3.Error as exc:
+        logger.warning("Preflight DB-only de derivadas falhou com sqlite error: %s", exc)
+        return False
+    except Exception as exc:
+        logger.warning("Preflight DB-only de derivadas falhou: %s", exc)
+        return False
+
+
 def _run_derivadas_sync_phase(
     db_path: str,
     table_name: str,
@@ -501,6 +567,7 @@ def run_importer_logic(
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
         derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
+        db_only_derivadas_sync = False
         total_files = len(files_to_process)
         progress_cb = progress_callback
 
@@ -522,11 +589,14 @@ def run_importer_logic(
         _emit_progress("start", {"total": total_files})
 
         if not files_to_process and not derivadas_sheet_files:
-            logger.info(
-                "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
-            )
-            _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
-            return False
+            db_only_derivadas_sync = _needs_db_only_derivadas_sync(db_path=db_path, table_name=table_name)
+            if not db_only_derivadas_sync:
+                logger.info(
+                    "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
+                )
+                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                return False
+            logger.info("Nenhum arquivo novo detectado; executando sync DB-only de derivadas por preflight.")
 
         if derivadas_sheet_files:
             logger.info(
@@ -676,7 +746,11 @@ def run_importer_logic(
                     )
                     continue
             sync_materialized = False
-            should_run_derivadas_sync = bool(successfully_processed_files) or bool(derivadas_sheet_files)
+            should_run_derivadas_sync = (
+                bool(successfully_processed_files)
+                or bool(derivadas_sheet_files)
+                or bool(db_only_derivadas_sync)
+            )
             if should_run_derivadas_sync:
                 if should_cancel and should_cancel():
                     logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
