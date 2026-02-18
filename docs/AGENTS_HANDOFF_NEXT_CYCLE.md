@@ -276,6 +276,28 @@ Checklist de auditoria (eu audito depois):
 3. Nao aceitar refatoracao transversal.
 4. Se tocar GUI filtros, rodar gates obrigatorios de facade/filtros.
 
+## Update 2026-02-18 (dialogo detalhes derivadas)
+
+- Causa raiz de regressao visual identificada:
+  - proporcao no `QHBoxLayout` nao garantia largura real quando havia `minimumWidth` alto no painel esquerdo.
+- Estado corrigido no codigo:
+  - `gui/ssa/gui_details.py` usa `QSplitter` com `setSizes` e `setStretchFactor`.
+  - proporcao atual: `20/80` (esquerda/direita).
+  - tamanho minimo atual do dialogo: largura `700`, altura `650`.
+  - fontes: painel esquerdo `12`, conteudo detalhes `12`, labels de campo `11`.
+- Regra obrigatoria para proxima IA:
+  1. Nao assumir resultado visual por leitura de ratio apenas.
+  2. Sempre validar constraints reais (`minimumWidth`, `QSplitter/QLayout`, `setSizes`) antes de declarar pronto.
+  3. Em cada ajuste visual, registrar causa raiz + valor final aplicado (arquivo:linha).
+
+## Protocolo de comportamento para outra IA
+
+1. Nao minimizar reclamacao de bug visual; tratar como regressao funcional ate reproduzir.
+2. Nao declarar "corrigido" sem evidencia de antes/depois no mesmo fluxo reportado.
+3. Nao esconder erro com fallback generico para "limpar log".
+4. Sempre explicar causa raiz tecnica antes do patch.
+5. Se existir ambiguidade de UI, confirmar valores finais numericos no proprio codigo.
+
 ## Texto pronto para abrir a nova conversa
 
 ```text
@@ -286,12 +308,13 @@ Regras de execucao:
 2. Commits atomicos e rollback facil por feature.
 3. Sempre validar antes de push: py_compile, ruff, pytest focado.
 4. Priorizar correcoes de risco real; evitar refatoracao transversal fora de escopo.
-5. Nao alterar layout/posicao de elementos GUI sem pedido explicito.
+5. Nao alterar layout/posicao de elementos GUI sem pedido explicito (excecao ja aprovada: dialogo de detalhes de derivadas em `gui/ssa/gui_details.py` deve permanecer em 20/80).
 6. Nao criar branch/PR novo sem autorizacao explicita.
 7. Nao usar suppress/except vazio para esconder erro real.
 8. Usar pip/pip3 para deps quando operar via uv.
 9. Revisar bots/checks no PR e tratar apenas o que for bloqueante agora.
 10. Manter backlog de follow-up em docs/RECOVERY_BACKLOG.md.
+11. Para ajustes visuais: validar `minimumWidth` e `QSplitter` antes de concluir que o ratio esta aplicado.
 
 Objetivo do novo ciclo: manter o mesmo cuidado, mas com foco funcional novo.
 Objetivo atual: fechar PR #31 com estabilidade, aplicar apenas patches minimos de risco real, e processar relatorios externos com validacao local obrigatoria.

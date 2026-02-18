@@ -102,6 +102,15 @@ Note:
 - Operational verification on `data/ssas.db` after full special sync (11 files):
   - latest run `sync_run_id=4` persisted with consistency clean.
 
+## Update 2026-02-18 (handoff quality rule for UI slices)
+
+- For GUI visual slices (outside facade scope), enforce this QA rule before closing:
+  1. validate the real runtime layout behavior;
+  2. verify `minimumWidth` constraints and splitter/layout interaction;
+  3. record final numeric values used in code (ratio, min size, font sizes).
+- Rationale:
+  - prevents false-positive "ratio applied" claims when the layout engine still pins panel widths.
+
 ## External IA report intake (mandatory)
 
 When another IA sends findings:

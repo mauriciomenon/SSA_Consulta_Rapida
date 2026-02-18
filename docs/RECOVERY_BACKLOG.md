@@ -246,6 +246,19 @@ Ordered list from PR review threads. Status uses pending/resolved.
 - [resolved] `Especificas...` enable state now also checks DB relations, not only dataframe `derivada_de` values.
 - [resolved] Fixed responsive grid crash risk after removal of `responsavel_emissor` controls (`_reorganize_advanced_filters_grid` no longer references `emis_resp_box`).
 
+## Updates 2026-02-18 (details dialog split reliability)
+
+- [resolved] Derivadas/details split in double-click dialog is now real 20/80, not only nominal ratio:
+  - moved from `QHBoxLayout` ratio-only approach to `QSplitter` with explicit sizes/stretches.
+  - reduced left pane minimum width to allow shrink behavior.
+  - enforced initial 20/80 using dialog minimum width.
+- [resolved] Dialog visual baseline now fixed:
+  - min size `700x650`;
+  - left panel font `12`;
+  - right details font `12`;
+  - field-label font `11`.
+- [rule] Any future UI ratio change must include constraint validation (`minimumWidth` + layout manager behavior), not ratio constants only.
+
 ## Updates 2026-02-17 (slice: dead code ano_execucao)
 
 - [resolved] Removed unreachable `data_execucao` branch from advanced year execution filter.

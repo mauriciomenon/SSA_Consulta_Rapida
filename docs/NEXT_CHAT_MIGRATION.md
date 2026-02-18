@@ -129,6 +129,20 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 - Lint policy for this cycle:
   - ignore `E501` findings.
 
+## Latest update (2026-02-18, behavior and dialog baseline)
+
+- Double-click details dialog (`gui/ssa/gui_details.py`) baseline is now:
+  - split: `20/80` (left derivadas / right details),
+  - min size: `700x650`,
+  - fonts: left `12`, right `12`, labels `11`.
+- Implementation detail that must be preserved:
+  - split is enforced with `QSplitter` + explicit `setSizes` + stretch factors.
+  - do not rely on ratio constants alone.
+- Behavior rule for next IA:
+  1. explain root cause before patching UI regressions;
+  2. never claim visual fix without constraint validation;
+  3. provide numeric before/after values in final report.
+
 ## Copy/paste starter for next chat
 
 ```text
@@ -143,6 +157,7 @@ Must follow:
 3) Run py_compile + ruff + ty + focused pytest on touched scope.
 4) Push and check PR checks.
 5) Update AGENTS_HANDOFF_NEXT_CYCLE.md and RECOVERY_BACKLOG.md.
+6) For UI ratio fixes, validate layout constraints (`minimumWidth`, splitter/layout manager) and report exact values.
 
 Input report:
 <paste structured report here>
