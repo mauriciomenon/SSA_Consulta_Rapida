@@ -20,11 +20,18 @@ class FilterWorker(QThread):
     # Cache de classe compartilhado entre instancias
     _cache = FilterCache(max_size=50)
 
-    def __init__(self, df_completo, search_chunks, default_mode: str = 'contains'):
+    def __init__(
+        self,
+        df_completo,
+        search_chunks,
+        default_mode: str = 'contains',
+        cache_context: str | None = None,
+    ):
         super().__init__()
         self.df_completo = df_completo
         self.search_chunks = search_chunks or []
         self.default_mode = default_mode
+        self.cache_context = cache_context or ""
         self._cancel_requested = False
 
         # Gera fingerprint estrutural+amostral para reduzir colisões de cache
@@ -110,7 +117,12 @@ class FilterWorker(QThread):
                 self.filter_finished.emit(pd.DataFrame())
                 return
             # Verifica cache primeiro
-            cached_result = self._cache.get(self.df_hash, self.search_chunks, self.default_mode)
+            cached_result = self._cache.get(
+                self.df_hash,
+                self.search_chunks,
+                self.default_mode,
+                cache_context=self.cache_context,
+            )
             if cached_result is not None:
                 if self._is_cancelled():
                     return
@@ -142,7 +154,13 @@ class FilterWorker(QThread):
             if self._is_cancelled():
                 return
             # Armazena no cache
-            self._cache.put(self.df_hash, self.search_chunks, self.default_mode, df_filtrado)
+            self._cache.put(
+                self.df_hash,
+                self.search_chunks,
+                self.default_mode,
+                df_filtrado,
+                cache_context=self.cache_context,
+            )
 
             if self._is_cancelled():
                 return
