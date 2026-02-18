@@ -208,28 +208,50 @@ def display_current_page(window, page_number):
 
     # Preenche os dados usando batch operations para melhor performance
     columns_list = list(display_df.columns)
+    cell_render_failures = 0
     for row_idx in range(len(display_df)):
         row_data = display_df.iloc[row_idx]
         for col_idx, col_name in enumerate(columns_list):
-            value = row_data.iloc[col_idx]
-            item_text = "" if pd.isna(value) else str(value)
+            try:
+                value = row_data.iloc[col_idx]
+                item_text = "" if pd.isna(value) else str(value)
 
-            # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
-            if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
-                # Trunca apenas colunas que nao sao de descricao
-                max_chars = window._calculate_max_chars_for_column(col_name, col_idx)
-                if len(item_text) > max_chars:
-                    item_text = item_text[:max_chars-3] + "..."
+                # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
+                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
+                    # Trunca apenas colunas que nao sao de descricao
+                    max_chars = window._calculate_max_chars_for_column(col_name, col_idx)
+                    if len(item_text) > max_chars:
+                        item_text = item_text[:max_chars-3] + "..."
 
-            item = QTableWidgetItem(item_text)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-            # Armazena o indice da linha original nos dados filtrados para referencia
-            if col_name == '#':
-                item.setData(
-                    Qt.ItemDataRole.UserRole,
-                    row_idx + (window.paginator.current_page - 1) * window.paginator.page_size,
+                item = QTableWidgetItem(item_text)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                # Armazena o indice da linha original nos dados filtrados para referencia
+                if col_name == '#':
+                    item.setData(
+                        Qt.ItemDataRole.UserRole,
+                        row_idx + (window.paginator.current_page - 1) * window.paginator.page_size,
+                    )
+                window.table_widget.setItem(row_idx, col_idx, item)
+            except Exception as exc:
+                cell_render_failures += 1
+                logger.debug(
+                    "Falha ao renderizar celula da tabela (row=%s col=%s key=%s): %s",
+                    row_idx,
+                    col_idx,
+                    col_name,
+                    exc,
                 )
-            window.table_widget.setItem(row_idx, col_idx, item)
+                try:
+                    window.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(""))
+                except Exception as fallback_exc:
+                    logger.debug(
+                        "Falha ao aplicar fallback vazio na celula (row=%s col=%s): %s",
+                        row_idx,
+                        col_idx,
+                        fallback_exc,
+                    )
+    if cell_render_failures:
+        logger.warning("Renderizacao da tabela concluiu com %s falhas de celula.", cell_render_failures)
 
     # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
     # ou quando a largura util do viewport mudar significativamente
