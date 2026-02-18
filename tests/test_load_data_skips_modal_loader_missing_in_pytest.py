@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -40,7 +42,7 @@ def test_load_data_skips_modal_when_loader_missing_under_pytest(tmp_path: Path, 
     monkeypatch.setattr(gui_ssa, "DataLoaderWorker", None)
     monkeypatch.setattr(gui_ssa.QMessageBox, "critical", lambda *a, **k: pytest.fail("QMessageBox.critical called"))
 
-    dummy = type("Dummy", (), {})()
+    dummy = cast(Any, SimpleNamespace())
     dummy.status_label = _StateSink()
     dummy.progress_bar = _StateSink()
     dummy.load_button = _StateSink()
@@ -61,4 +63,3 @@ def test_load_data_skips_modal_when_loader_missing_under_pytest(tmp_path: Path, 
     assert dummy.progress_bar.value is False
     assert dummy.load_button.value is True
     assert dummy.search_button.value is True
-

@@ -1,4 +1,5 @@
 import pytest
+from typing import Any, cast
 
 
 def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_path):
@@ -27,7 +28,7 @@ def test_open_docs_folder_uses_qdesktopservices_when_available(monkeypatch, tmp_
     monkeypatch.setattr(gui_ssa.subprocess, "Popen", lambda *a, **k: pytest.fail("subprocess.Popen called"))
     monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
 
-    gui_ssa.SSAMainWindow.open_docs_folder(object())
+    gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))
 
     assert DummyQDesktopServices.called, "Expected QDesktopServices.openUrl to be used"
 
@@ -44,4 +45,4 @@ def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path
     monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
     monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
 
-    gui_ssa.SSAMainWindow.open_docs_folder(object())
+    gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))

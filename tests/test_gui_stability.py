@@ -13,6 +13,7 @@ import sys
 import os
 import time
 import unittest
+from typing import Any, cast
 import pandas as pd
 
 # Adiciona o projeto ao path
@@ -25,10 +26,11 @@ from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtCore import Qt  # noqa: E402
 from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
 try:
-    from gui.gui_ssa import SSAMainWindow  # type: ignore
+    from gui.gui_ssa import SSAMainWindow as _SSAMainWindow
+    SSAMainWindow = cast(Any, _SSAMainWindow)
 except Exception:
-    SSAMainWindow = None  # type: ignore
-    QT_AVAILABLE = False  # type: ignore
+    SSAMainWindow = cast(Any, None)
+    QT_AVAILABLE = False
 
 
 class TestGUIStability(unittest.TestCase):
@@ -37,17 +39,17 @@ class TestGUIStability(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Configuração inicial dos testes."""
-        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+        if not QT_AVAILABLE or SSAMainWindow is None:
             raise unittest.SkipTest("Qt/GUI principal indisponível – pulando testes")
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
         """Configuração antes de cada teste."""
-        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+        if not QT_AVAILABLE or SSAMainWindow is None:
             self.skipTest("Qt/GUI principal indisponível")
         # Força modo de filtragem síncrono para evitar uso de QThread em ambiente de teste/headless
         os.environ["SSA_SYNC_FILTER"] = "1"
-        self.window = SSAMainWindow()  # type: ignore
+        self.window = SSAMainWindow()
         self.window.show()
 
         # Mock data para testes
@@ -88,7 +90,7 @@ class TestGUIStability(unittest.TestCase):
         self.window.search_input.setText("svp")
 
         # Simula pressionar Enter
-        QTest.keyPress(self.window.search_input, Qt.Key.Key_Return)
+        cast(Any, QTest).keyPress(cast(Any, self.window.search_input), Qt.Key.Key_Return)
 
         # Permite processamento
         QApplication.processEvents()
