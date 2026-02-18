@@ -30,7 +30,7 @@ class PerformanceMetrics:
     
     def __init__(self, max_samples=1000):
         self.max_samples = max_samples
-        self._metrics = {
+        self._metrics: Dict[str, Any] = {
             'filter_times': deque(maxlen=max_samples),
             'import_times': deque(maxlen=max_samples),
             'query_times': deque(maxlen=max_samples),
