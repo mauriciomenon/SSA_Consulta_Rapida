@@ -758,6 +758,68 @@ class TestGUIFilterLogic:
         self.window._update_derivadas_button_state()
         assert btn.isEnabled() is True
 
+    def test_update_derivadas_from_sources_runs_db_then_special_sync(self, monkeypatch, tmp_path):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+        special_a = str(tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx")
+        special_b = str(tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        monkeypatch.setattr(self.window, "_resolve_derivadas_table_name", lambda _db_path: "ssa_table")
+        monkeypatch.setattr(self.window, "_list_special_derivadas_sheets", lambda: [special_a, special_b])
+
+        sync_calls = []
+
+        def _fake_sync(**kwargs):
+            sync_calls.append(kwargs)
+            return {
+                "merge_stats": {"merged_edges": 11},
+                "db_stats": {"accepted_edges": 7},
+                "sheet_stats": {"accepted_edges": 4},
+            }
+
+        monkeypatch.setattr(gui_ssa, "sync_derivadas", _fake_sync)
+        monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
+
+        self.window.update_derivadas_from_sources()
+        QApplication.processEvents()
+
+        assert len(sync_calls) == 2
+        assert sync_calls[0]["include_db_source"] is True
+        assert "sheet_files" not in sync_calls[0]
+        assert sync_calls[1]["include_db_source"] is True
+        assert sync_calls[1]["sheet_files"] == [special_a, special_b]
+        assert self.window.update_derivadas_button.text() == "Atualizar Derivadas"
+        assert "Derivadas atualizadas" in self.window.status_label.text()
+
+    def test_update_derivadas_from_sources_runs_only_db_when_no_special_sheets(self, monkeypatch, tmp_path):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        monkeypatch.setattr(self.window, "_resolve_derivadas_table_name", lambda _db_path: "ssa_table")
+        monkeypatch.setattr(self.window, "_list_special_derivadas_sheets", lambda: [])
+
+        sync_calls = []
+
+        def _fake_sync(**kwargs):
+            sync_calls.append(kwargs)
+            return {
+                "merge_stats": {"merged_edges": 5},
+                "db_stats": {"accepted_edges": 5},
+                "sheet_stats": {"accepted_edges": 0},
+            }
+
+        monkeypatch.setattr(gui_ssa, "sync_derivadas", _fake_sync)
+        monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
+
+        self.window.update_derivadas_from_sources()
+        QApplication.processEvents()
+
+        assert len(sync_calls) == 1
+        assert sync_calls[0]["include_db_source"] is True
+        assert "sheet_files" not in sync_calls[0]
+
     def test_update_derivadas_button_state_uses_materialized_summary_when_series_is_empty(self, tmp_path):
         btn = getattr(self.window, "adv_derivadas_especificas_button", None)
         if btn is None:
