@@ -14,7 +14,7 @@ from contextlib import contextmanager
 import sqlite3 as _sqlite3_typehint  # alias para type checking leve
 from typing import Any, Literal, cast
 
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 
@@ -240,7 +240,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         if not isinstance(df, pd.DataFrame):  # pragma: no cover
             raise TypeError("Segundo argumento legado deve ser DataFrame")
         table_name = args[2] if len(args) >= 3 else 'ssas'
-        db_path = None  # type: ignore[assignment]
+        db_path = None
         if_exists = kwargs.get('if_exists', 'append')
         legacy_mode = True
 
@@ -305,7 +305,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
                     logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
 
                 insert_start = time.time()
-                work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
+                work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
                 insert_time = time.time() - insert_start
 
                 conn.commit()
@@ -321,7 +321,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         start_time = time.time()
         logger.info("Iniciando insercao legado: %s registros em '%s'", len(work_df), table_name)
 
-        final_table = _resolve_target_table(conn, table_name)  # type: ignore[arg-type]
+        final_table = _resolve_target_table(conn, table_name)
         batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
         work_df.reset_index(drop=True, inplace=True)
 
@@ -330,10 +330,10 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
 
         insert_start = time.time()
-        work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)  # type: ignore[arg-type]
+        work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
         insert_time = time.time() - insert_start
 
-        conn.commit()  # type: ignore[union-attr]
+        conn.commit()
         commit_time = time.time() - insert_start - insert_time
 
         total_time = time.time() - start_time
@@ -514,7 +514,7 @@ def insert_dataframe_with_smart_upsert(
             return False
 
     # caminho novo normal
-    real_df = df  # type: ignore[assignment]
+    real_df = df
     if isinstance(real_df, pd.DataFrame) and real_df.empty:
         return True
 
