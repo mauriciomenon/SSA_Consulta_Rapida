@@ -110,15 +110,17 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
   - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
   - post-sync consistency: `is_consistent=true`
 
-## Current execution status (2026-02-18, in progress)
+## Current execution status (2026-02-18, ready to migrate)
 
-- Active local slice (not yet committed):
-  - importer now includes filenames in blocking error when special sheets have no evidence.
-  - tests expanded to assert `files_without_evidence` in progress error payload.
-- Local gate for this active slice:
-  - `py_compile`, `ruff`, `ty`, `pytest tests/test_import_derivadas_trigger.py` all green.
-- Temporary blocker:
-  - kluster auto review endpoint unstable (`ENOTFOUND api.kluster.ai`) on recent calls.
+- Branch and PR:
+  - `codex/import-review`, PR `#31` open.
+- Latest commits on head:
+  - `aa454a40` docs handoff package expanded (strict starter + migration payload).
+  - `80a73363` details dialog baseline locked at `20/80` with migration guardrails.
+  - `24024662` real split enforcement via `QSplitter`.
+- Current PR checks snapshot:
+  - external blocked by plan limit: `code/snyk`, `security/snyk`.
+  - core static/security checks in pass (DeepScan, DeepSource, GitGuardian, Socket, semgrep, submit-pypi, cubic).
 
 ## Scope lock from user triage
 

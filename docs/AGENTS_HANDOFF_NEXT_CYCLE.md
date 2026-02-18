@@ -34,7 +34,7 @@ This handoff is ready to reuse in the next conversation.
 - Checks atuais do PR:
   - `code/snyk (mauriciomenon)` falhando por limite de plano: `Code test limit reached`.
   - `security/snyk (mauriciomenon)` falhando por limite de plano: `You have used your limit of private tests`.
-  - Demais checks principais em `pass` (DeepScan, DeepSource, submit-pypi, GitGuardian, Socket, cubic).
+  - Demais checks principais em `pass` (DeepScan, DeepSource, submit-pypi, GitGuardian, Socket, semgrep, cubic).
 
 ## Pendencias antes de fechar o PR
 
@@ -370,3 +370,15 @@ Entregavel de cada slice:
 5) push
 6) status checks PR
 ```
+
+## Snapshot final para migracao (2026-02-18)
+
+- Branch: `codex/import-review`
+- PR: `#31`
+- Head commit no momento: `aa454a40`
+- Sequencia recente relevante:
+  1. `aa454a40` docs(handoff): expand next-chat package and strict execution rules
+  2. `80a73363` fix(gui-details,docs): set 20/80 split and prepare strict next-chat handoff
+  3. `24024662` fix(gui-details): enforce real 15/85 split with splitter (posteriormente ajustado para 20/80)
+- Bloqueio externo conhecido:
+  - `code/snyk` e `security/snyk` por limite de plano.
