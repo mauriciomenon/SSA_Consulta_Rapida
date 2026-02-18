@@ -240,3 +240,21 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
     consumed_keys = detector_keys | direct_logic_keys | column_group_keys | alias_keys
     uncovered = sorted(key for key in consumed_keys if key not in produced_keys and key not in legacy_keys)
     assert not uncovered, f"Logic/detector keys without UI producer or legacy allowlist: {', '.join(uncovered)}"
+
+
+def test_week_exclude_contract_keys_are_explicit_noop_allowlist_only():
+    ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
+    logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")
+    produced_keys = set(re.findall(r'data\["([^"]+)"\]\s*=', ui_source))
+    has_active_block = _get_has_active_block(ui_source)
+    detector_keys = set(re.findall(r'data\.get\("([^"]+)"\)', has_active_block))
+
+    logic_week_exclude_keys = set(
+        re.findall(r'"(semana_(?:emissao|execucao)_exclude)"', logic_source)
+    )
+    explicit_noop_allowlist = {"semana_emissao_exclude", "semana_execucao_exclude"}
+
+    assert logic_week_exclude_keys <= explicit_noop_allowlist
+    assert explicit_noop_allowlist <= produced_keys
+    not_in_detector = logic_week_exclude_keys - detector_keys
+    assert not_in_detector <= explicit_noop_allowlist

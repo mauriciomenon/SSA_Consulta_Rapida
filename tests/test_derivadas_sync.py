@@ -257,6 +257,8 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
             "Setor Executor",
             "Situacao",
         ],
+        ["202500001", None, None, None, None, None, None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, "Sem derivadas em visualizacao simplificada.", None, None, None, None, None, None, None, None],
         [None, None, None, None, None, "202500002", None, None, None, "Derivada da", "202500001", None, None, None],
         [None, None, None, None, None, "202500003", None, None, None, "Derivada da", "202500001", None, None, None],
     ]
@@ -270,6 +272,8 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
 
     assert report["sheet_stats"]["special_layout_detected"] == 1
     assert report["sheet_stats"]["accepted_edges"] == 2
+    assert report["sheet_stats"]["informational_rows_skipped"] >= 2
+    assert report["sheet_stats"]["invalid_parent"] == 0
     assert report["merge_stats"]["merged_edges"] == 2
 
     with sqlite3.connect(temp_db) as conn:
