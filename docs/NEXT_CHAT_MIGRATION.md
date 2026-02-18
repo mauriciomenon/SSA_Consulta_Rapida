@@ -52,6 +52,17 @@ Use this file to migrate context to a new chat without losing execution quality.
     - `sync_derivadas` supports `sheet_files` and reports aggregated sheet stats.
 - Keep backlog tracking in `docs/RECOVERY_BACKLOG.md` for non-blocking findings from the external report.
 
+## Latest update (2026-02-18)
+
+- Reliability hardening delivered after previous migration snapshot:
+  - importer now blocks success when derivadas sync or consistency is not clean (`f9e69d86`);
+  - sync pipeline now has internal post-materialization integrity gate (`474e980a`);
+  - GUI manual derivadas update requires clean consistency scan (`5a50ea17`);
+  - visual special parser now classifies root-only rows as informational (`6f4fcc7a`);
+  - filter cache key now accepts advanced-filter context token (`ff266350`).
+- Local data integrity check on `data/ssas.db` remains clean:
+  - `scan`: `is_consistent=true`, all issue counts `0`.
+
 ## Mandatory execution protocol
 
 1. Re-validate every external finding locally before patching.

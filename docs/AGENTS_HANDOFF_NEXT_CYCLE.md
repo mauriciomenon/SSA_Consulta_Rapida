@@ -142,6 +142,18 @@ This handoff is ready to reuse in the next conversation.
 - `sync_derivadas` now accepts `sheet_files` and merges edges from multiple special sheets in one sync cycle.
 - `run_importer_logic` now forwards all detected `SSAs Derivadas e Relacionadas_*.xlsx` files.
 
+## Update 2026-02-18 (mega sprint closure)
+
+- Branch/head: `codex/import-review`
+- New reliability commits:
+  - `ff266350`: filter cache key supports advanced-filter context token.
+  - `6f4fcc7a`: derivadas visual parser reduces invalid_parent noise on root-only rows.
+  - `5a50ea17`: GUI manual derivadas update now validates consistency scan and fails closed.
+  - `f9e69d86`: importer now fails closed when derivadas sync/consistency is not clean.
+- Data integrity state validated on `data/ssas.db`:
+  - `scan_derivadas_consistency`: `is_consistent=true`, all issue counts `0`.
+  - latest materialization snapshot remained stable (`matrix_active=3547`, `summary_total=5460`).
+
 ## Texto pronto para abrir a nova conversa
 
 ```text
