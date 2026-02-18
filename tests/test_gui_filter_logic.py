@@ -786,8 +786,10 @@ class TestGUIFilterLogic:
 
         assert len(sync_calls) == 2
         assert sync_calls[0]["include_db_source"] is True
+        assert sync_calls[0]["actor"] == "gui-derivadas-db-phase"
         assert "sheet_files" not in sync_calls[0]
         assert sync_calls[1]["include_db_source"] is False
+        assert sync_calls[1]["actor"] == "gui-derivadas-sheet-phase"
         assert sync_calls[1]["sheet_files"] == [special_a, special_b]
         assert self.window.update_derivadas_button.text() == "Atualizar Derivadas"
         assert "Derivadas atualizadas" in self.window.status_label.text()
@@ -818,6 +820,7 @@ class TestGUIFilterLogic:
 
         assert len(sync_calls) == 1
         assert sync_calls[0]["include_db_source"] is True
+        assert sync_calls[0]["actor"] == "gui-derivadas-db-phase"
         assert "sheet_files" not in sync_calls[0]
 
     def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
