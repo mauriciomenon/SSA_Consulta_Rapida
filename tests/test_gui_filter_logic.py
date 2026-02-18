@@ -820,6 +820,19 @@ class TestGUIFilterLogic:
         assert sync_calls[0]["include_db_source"] is True
         assert "sheet_files" not in sync_calls[0]
 
+    def test_resolve_derivadas_table_name_requires_schema_compatibility(self, tmp_path):
+        db_file = tmp_path / "resolver.db"
+        conn = sqlite3.connect(db_file)
+        try:
+            conn.execute("CREATE TABLE ssas (numero_ssa TEXT)")
+            conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT, derivada_de TEXT)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        resolved = self.window._resolve_derivadas_table_name(str(db_file))
+        assert resolved == "ssa_table"
+
     def test_update_derivadas_button_state_uses_materialized_summary_when_series_is_empty(self, tmp_path):
         btn = getattr(self.window, "adv_derivadas_especificas_button", None)
         if btn is None:
