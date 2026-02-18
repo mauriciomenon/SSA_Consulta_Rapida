@@ -24,6 +24,7 @@ import subprocess
 import re
 import logging
 import copy
+import sqlite3
 from collections import OrderedDict
 from time import perf_counter
 
@@ -89,6 +90,7 @@ from utils.formatting import format_dataframe_for_display, format_cell  # noqa: 
 from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
 import hashlib
 from armazenamento.database import query_db  # noqa: E402
+from armazenamento.derivadas_sync import sync_derivadas  # noqa: E402
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
@@ -958,6 +960,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
         self.explorer_button.clicked.connect(self.open_docs_folder)
         toolbar_layout.addWidget(self.explorer_button)
+        self.update_derivadas_button = QPushButton("Atualizar Derivadas")
+        self.update_derivadas_button.setToolTip(
+            "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
+        )
+        self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
+        toolbar_layout.addWidget(self.update_derivadas_button)
         # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, nção clicãvel)
         try:
             from datetime import date
@@ -2386,6 +2394,123 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
             QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+
+    def _list_special_derivadas_sheets(self) -> list[str]:
+        docs_path = os.path.join(project_root, "docs_entrada")
+        if not os.path.isdir(docs_path):
+            return []
+        files: list[str] = []
+        for base_name in os.listdir(docs_path):
+            lowered = str(base_name).strip().casefold()
+            if lowered.startswith("ssas derivadas e relacionadas") and lowered.endswith(".xlsx"):
+                files.append(os.path.join(docs_path, base_name))
+        return sorted(files, key=lambda path: os.path.basename(path).casefold())
+
+    def _resolve_derivadas_table_name(self, db_path: str) -> str:
+        candidates: list[str] = []
+        for name in (TABLE_NAME, "ssa_table", "ssas"):
+            if isinstance(name, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                if name not in candidates:
+                    candidates.append(name)
+        if not candidates:
+            return "ssa_table"
+        try:
+            with sqlite3.connect(db_path) as conn:
+                existing = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
+            for name in candidates:
+                if name in existing:
+                    return name
+        except Exception as exc:
+            logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
+        return "ssa_table"
+
+    def update_derivadas_from_sources(self):
+        db_path = DB_PATH
+        if not db_path or not os.path.exists(db_path):
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
+            return
+
+        special_files = self._list_special_derivadas_sheets()
+        table_name = self._resolve_derivadas_table_name(db_path)
+        previous_status = self.status_label.text() if hasattr(self, "status_label") else ""
+        previous_progress_visible = bool(self.progress_bar.isVisible()) if hasattr(self, "progress_bar") else False
+        previous_progress_range = (
+            (self.progress_bar.minimum(), self.progress_bar.maximum())
+            if hasattr(self, "progress_bar")
+            else (0, 0)
+        )
+        previous_progress_value = int(self.progress_bar.value()) if hasattr(self, "progress_bar") else 0
+
+        try:
+            self.update_derivadas_button.setEnabled(False)
+            if hasattr(self, "progress_bar"):
+                self.progress_bar.setVisible(True)
+                self.progress_bar.setRange(0, 0)
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Atualizando derivadas via DB...")
+            if QT_AVAILABLE:
+                QApplication.processEvents()
+
+            db_report = sync_derivadas(
+                db_path=db_path,
+                table_name=table_name,
+                include_db_source=True,
+                verify_only=False,
+            )
+
+            final_report = db_report
+            if special_files:
+                if hasattr(self, "status_label"):
+                    self.status_label.setText(
+                        f"Status: Atualizando derivadas via planilhas especiais ({len(special_files)})..."
+                    )
+                if QT_AVAILABLE:
+                    QApplication.processEvents()
+                final_report = sync_derivadas(
+                    db_path=db_path,
+                    table_name=table_name,
+                    include_db_source=True,
+                    sheet_files=special_files,
+                    verify_only=False,
+                )
+
+            merge_stats = final_report.get("merge_stats") or {}
+            db_stats = final_report.get("db_stats") or {}
+            sheet_stats = final_report.get("sheet_stats") or {}
+            merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
+            db_edges = int(db_stats.get("accepted_edges", 0) or 0)
+            sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+            if hasattr(self, "status_label"):
+                self.status_label.setText(
+                    "Status: Derivadas atualizadas (merged="
+                    f"{merged_edges}, db={db_edges}, sheet={sheet_edges})."
+                )
+            try:
+                self._update_derivadas_button_state()
+            except Exception as exc:
+                logger.warning("Falha ao atualizar estado do botao de derivadas apos sync manual: %s", exc)
+        except Exception as exc:
+            logger.exception("Falha ao atualizar derivadas manualmente: %s", exc)
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {exc}")
+        finally:
+            self.update_derivadas_button.setEnabled(True)
+            if hasattr(self, "progress_bar"):
+                self.progress_bar.setVisible(previous_progress_visible)
+                self.progress_bar.setRange(previous_progress_range[0], previous_progress_range[1])
+                self.progress_bar.setValue(previous_progress_value)
+            if hasattr(self, "status_label") and not self.status_label.text().startswith(
+                "Status: Derivadas atualizadas"
+            ):
+                self.status_label.setText(previous_status)
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
