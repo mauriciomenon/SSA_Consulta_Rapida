@@ -62,7 +62,11 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
 
     def _fake_sync(**kwargs):
         sync_calls.append(kwargs)
-        return {"merge_stats": {"merged_edges": 7}}
+        return {
+            "merge_stats": {"merged_edges": 7},
+            "sheet_files": list(kwargs.get("sheet_files") or []),
+            "sheet_stats": {"accepted_edges": 7, "special_layout_detected": 2},
+        }
 
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
 
@@ -145,7 +149,11 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
 
     def _fake_sync(**kwargs):
         sync_calls.append(kwargs)
-        return {"merge_stats": {"merged_edges": 2}}
+        return {
+            "merge_stats": {"merged_edges": 2},
+            "sheet_files": list(kwargs.get("sheet_files") or []),
+            "sheet_stats": {"accepted_edges": 2, "special_layout_detected": 1},
+        }
 
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
 
@@ -166,3 +174,49 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
     assert sync_calls[0]["include_db_source"] is True
     assert sync_calls[0]["sheet_files"] == [str(special)]
     assert cached_files == [str(special)]
+
+
+def test_run_importer_rejects_special_sync_without_parse_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: {
+            "sheet_files": [],
+            "sheet_stats": {"accepted_edges": 0, "special_layout_detected": 0},
+            "merge_stats": {"merged_edges": 0},
+        },
+    )
+
+    cache_calls = {"n": 0}
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_calls.__setitem__("n", cache_calls["n"] + 1),
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+    assert cache_calls["n"] == 0
