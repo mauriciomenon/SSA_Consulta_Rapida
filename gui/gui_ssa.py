@@ -27,6 +27,7 @@ import copy
 import sqlite3
 from collections import OrderedDict
 from time import perf_counter
+from typing import Any, cast
 
 
 try:
@@ -118,11 +119,11 @@ try:
     from gui.mixins import FilterGUISSAMixin  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
-    sip = None
+    sip = cast(Any, None)
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
-    DataLoaderWorker = None
-    FilterWorker = None
-    FilterCache = None
+    DataLoaderWorker = cast(Any, None)
+    FilterWorker = cast(Any, None)
+    FilterCache = cast(Any, None)
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
     class _Sig:
         def emit(self, *a, **k):
@@ -137,10 +138,6 @@ except ImportError as exc:
 
     class QMainWindow:
         pass
-
-    class QAction:
-        def __init__(self, *a, **k):
-            pass
 
     class QFont:
         def __init__(self, *a, **k):
@@ -170,8 +167,30 @@ except ImportError as exc:
     class QApplication:
         def __init__(self, *a, **k): pass
         def exec(self): return 0
+        @staticmethod
+        def processEvents(*a, **k):
+            return None
+        @staticmethod
+        def clipboard():
+            class _Clipboard:
+                def setText(self, *a, **k):
+                    pass
+            return _Clipboard()
+
     class QVBoxLayout:
         def __init__(self, *a, **k):
+            pass
+        def addWidget(self, *a, **k):
+            pass
+        def addLayout(self, *a, **k):
+            pass
+        def addStretch(self, *a, **k):
+            pass
+        def addSpacing(self, *a, **k):
+            pass
+        def setSpacing(self, *a, **k):
+            pass
+        def setContentsMargins(self, *a, **k):
             pass
 
     class QHBoxLayout(QVBoxLayout):
@@ -191,9 +210,18 @@ except ImportError as exc:
             pass
     class QPushButton:
         def __init__(self, *a, **k):
+            self.clicked = _Sig()
+            self._text = a[0] if a else ""
+        def setToolTip(self, *a, **k):
             pass
-        def clicked(self):
-            return _Sig()
+        def setEnabled(self, *a, **k):
+            pass
+        def setText(self, text):
+            self._text = text
+        def text(self):
+            return self._text
+        def setStyleSheet(self, *a, **k):
+            pass
     class QLineEdit:
         def __init__(self, *a, **k):
             self._text = ""
@@ -235,7 +263,15 @@ except ImportError as exc:
     class QHeaderView:
         Stretch = 1
     class QMessageBox:
-        pass
+        @staticmethod
+        def information(*a, **k):
+            return 0
+        @staticmethod
+        def warning(*a, **k):
+            return 0
+        @staticmethod
+        def critical(*a, **k):
+            return 0
 
     class QProgressBar:
         pass
@@ -404,10 +440,16 @@ except ImportError as exc:
             pass
 
     class QFileDialog:
-        pass
+        @staticmethod
+        def getSaveFileName(*a, **k):
+            return ("", "")
+        @staticmethod
+        def getOpenFileName(*a, **k):
+            return ("", "")
 
     class QAction:
-        pass
+        def __init__(self, *a, **k):
+            self.triggered = _Sig()
 
     class QDialog:
         class DialogCode:
@@ -522,7 +564,15 @@ except ImportError as exc:
         Select = 0
 
     class QTimer:
-        pass
+        def __init__(self, *a, **k):
+            self.timeout = _Sig()
+        def setSingleShot(self, *a, **k):
+            pass
+        def setInterval(self, *a, **k):
+            pass
+        @staticmethod
+        def singleShot(*a, **k):
+            pass
     class QThread:
         def __init__(self, *a, **k): pass
         def start(self): pass
@@ -531,11 +581,33 @@ except ImportError as exc:
         def __init__(self, *_args, **_kwargs): pass
     class Qt:
         AlignLeft = 0
+        class WidgetAttribute:
+            WA_DeleteOnClose = 0
 
     # Stub for FilterGUISSAMixin in headless mode
     class FilterGUISSAMixin:
         """Stub mixin for headless testing."""
         pass
+
+    # Type-checking bridge: fallback stubs are runtime-safe but too strict for static unions.
+    QWidget = cast(Any, QWidget)
+    QApplication = cast(Any, QApplication)
+    QMainWindow = cast(Any, QMainWindow)
+    QVBoxLayout = cast(Any, QVBoxLayout)
+    QHBoxLayout = cast(Any, QHBoxLayout)
+    QGridLayout = cast(Any, QGridLayout)
+    QLabel = cast(Any, QLabel)
+    QPushButton = cast(Any, QPushButton)
+    QLineEdit = cast(Any, QLineEdit)
+    QTableWidget = cast(Any, QTableWidget)
+    QProgressBar = cast(Any, QProgressBar)
+    QTabWidget = cast(Any, QTabWidget)
+    QMessageBox = cast(Any, QMessageBox)
+    QFileDialog = cast(Any, QFileDialog)
+    QMenu = cast(Any, QMenu)
+    QAction = cast(Any, QAction)
+    QTimer = cast(Any, QTimer)
+    Qt = cast(Any, Qt)
 
 
 def _is_widget_valid(widget) -> bool:
