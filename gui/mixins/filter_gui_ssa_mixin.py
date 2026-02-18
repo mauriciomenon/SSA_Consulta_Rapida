@@ -14,6 +14,7 @@ import os
 import json
 import re
 import pandas as pd
+from typing import Any, TYPE_CHECKING, Optional, cast
 from collections import OrderedDict
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
@@ -26,17 +27,17 @@ from PyQt6.QtWidgets import (
 try:
     from gui.workers import FilterWorker
 except ImportError:
-    FilterWorker = None
+    FilterWorker = cast(Any, None)
 
 try:
     from gui.cache import FilterCache
 except ImportError:
-    FilterCache = None
+    FilterCache = cast(Any, None)
 
 try:
     from gui.widgets import FilterHelpDialog
 except ImportError:
-    FilterHelpDialog = None
+    FilterHelpDialog = cast(Any, None)
 
 # Imports do core
 from core.app_logic import filter_dataframe, parse_search_terms
@@ -52,6 +53,10 @@ from utils.robust_logging import get_robust_logger
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 
+
+def _qt_parent(obj: Any) -> QWidget | None:
+    return cast(QWidget | None, obj)
+
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
 GLOBAL_RETIRED_FILTER_WORKERS = []
 MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
@@ -62,6 +67,9 @@ class FilterGUISSAMixin:
     
     Methods extracted from SSAMainWindow to improve code organization.
     """
+
+    if TYPE_CHECKING:
+        def __getattr__(self, name: str) -> Any: ...
 
     def _safe_store_last_filter_state(self, reason: str = "") -> None:
         """Armazena snapshot do estado de filtros sem quebrar o fluxo da UI."""
@@ -187,7 +195,7 @@ class FilterGUISSAMixin:
 
     def initiate_filtering(self):
         if self.df_completo.empty:
-            QMessageBox.information(self, "Aviso", "Nenhum dado carregado para filtrar.")
+            QMessageBox.information(_qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar.")
             return
 
         self._safe_store_last_filter_state("initiate_filtering")
@@ -359,7 +367,7 @@ class FilterGUISSAMixin:
         if os.environ.get("PYTEST_CURRENT_TEST"):
             logger.debug("PYTEST_CURRENT_TEST set; skipping modal filter error dialog.")
         else:
-            QMessageBox.critical(self, "Erro de Filtro", error_msg)
+            QMessageBox.critical(_qt_parent(self), "Erro de Filtro", error_msg)
         self.status_label.setText("Status: Erro ao aplicar filtro.")
 
 
@@ -617,7 +625,7 @@ class FilterGUISSAMixin:
             return
         if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
             return
-        menu = QMenu(self)
+        menu = QMenu(_qt_parent(self))
         columns = []
         for col in self._current_display_columns:
             if col == '#':
@@ -889,7 +897,7 @@ class FilterGUISSAMixin:
         for col, label in labels.items():
             self._apply_filter_widget_theme(label, inputs.get(col))
 
-    def _clear_single_column_filter(self, col_name: str, current_text: str = None):
+    def _clear_single_column_filter(self, col_name: str, current_text: Optional[str] = None):
         if col_name in self._active_column_filters:
             # Se já está vazio e o campo também está vazio, não faz nada
             try:
@@ -1312,12 +1320,14 @@ class FilterGUISSAMixin:
 
 
     def show_filter_help(self):
+        if FilterHelpDialog is None:
+            logger.debug("FilterHelpDialog indisponivel; ajuda nao sera exibida.")
+            return
         try:
             dlg = FilterHelpDialog(self)
             dlg.exec()
-        except Exception:
-            # Em ambientes sem GUI completa, ignore
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao abrir dialogo de ajuda de filtros: %s", exc)
 
 
     def _collect_profile_columns(self, profiles: dict) -> list:
@@ -1652,9 +1662,13 @@ class FilterGUISSAMixin:
         """Marca o perfil atual como personalizado quando filtros divergem."""
         if getattr(self, '_profile_lock', False):
             return
-        base = self._profile_base_filters or {}
-        base_columns = {k: str(v).strip() for k, v in (base.get('columns') or {}).items()}
-        base_groups = base.get('or_groups') or []
+        base_raw = self._profile_base_filters or {}
+        base = base_raw if isinstance(base_raw, dict) else {}
+        base_columns_candidate = base.get('columns')
+        base_columns_raw = base_columns_candidate if isinstance(base_columns_candidate, dict) else {}
+        base_columns = {str(k): str(v).strip() for k, v in base_columns_raw.items()}
+        base_groups_raw = base.get('or_groups')
+        base_groups = base_groups_raw if isinstance(base_groups_raw, list) else []
         base_exclude = bool(base.get('exclude_ste_sca', False))
 
         if self.current_filter_profile and self.current_filter_profile in self.filter_profiles:
@@ -1683,13 +1697,17 @@ class FilterGUISSAMixin:
 
             if not mismatch:
                 # Compara grupos OR
-                def _group_repr(group):
-                    cols = tuple(group.get('columns', ()))
-                    vals = tuple(group.get('values', ()))
+                def _group_repr(group: Any):
+                    if not isinstance(group, dict):
+                        return (tuple(), tuple())
+                    cols_raw = group.get('columns', ())
+                    vals_raw = group.get('values', ())
+                    cols = tuple(cols_raw) if isinstance(cols_raw, (list, tuple)) else tuple()
+                    vals = tuple(vals_raw) if isinstance(vals_raw, (list, tuple)) else tuple()
                     return (cols, vals)
 
                 current_groups = sorted(_group_repr(g) for g in getattr(self, '_column_or_groups', []))
-                expected_groups = sorted(_group_repr({'columns': g.get('columns', ()), 'values': g.get('values', ())}) for g in base_groups)
+                expected_groups = sorted(_group_repr(g) for g in base_groups)
                 if current_groups != expected_groups:
                     mismatch = True
 
@@ -1771,7 +1789,7 @@ class FilterGUISSAMixin:
                 for group in any_section:
                     if not isinstance(group, dict):
                         continue
-                    columns = group.get('columns') if isinstance(group.get('columns'), list) else None
+                    columns = group.get('columns') if isinstance(group.get('columns'), list) else []
                     values_list = normalize_values(group.get('values'))
                     registered = self._register_or_group(columns, values_list)
                     if registered:
@@ -1983,7 +2001,7 @@ class FilterGUISSAMixin:
         """Salva o filtro atual como persistente."""
         current_text = self.search_input.text().strip()
         if not current_text:
-            QMessageBox.information(self, "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
+            QMessageBox.information(_qt_parent(self), "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
             return
 
         # Cria um nome baseado no filtro (limitado para exibicao)
@@ -1992,7 +2010,7 @@ class FilterGUISSAMixin:
         # Verifica se ja existe
         for f in self.persistent_filters:
             if f["terms"] == current_text:
-                QMessageBox.information(self, "Aviso", "Este filtro ja esta salvo.")
+                QMessageBox.information(_qt_parent(self), "Aviso", "Este filtro ja esta salvo.")
                 return
 
         # Adiciona novo filtro
@@ -2001,7 +2019,7 @@ class FilterGUISSAMixin:
         self.persistent_filters.sort(key=lambda f: f["name"].casefold())
         self.update_filter_tags()
 
-        QMessageBox.information(self, "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!")
+        QMessageBox.information(_qt_parent(self), "Sucesso", f"Filtro '{filter_name}' salvo com sucesso!")
 
 
     def update_filter_tags(self):
