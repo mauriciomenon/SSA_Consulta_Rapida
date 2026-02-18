@@ -6,6 +6,7 @@ Teste de importacoes para validar modulos.
 
 import sys
 import os
+import importlib
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
@@ -15,28 +16,33 @@ print()
 
 # Teste 1: core.app_logic
 try:
-    from core.app_logic import parse_search_terms, filter_dataframe
+    app_logic = importlib.import_module("core.app_logic")
+    parse_search_terms = getattr(app_logic, "parse_search_terms")
+    filter_dataframe = getattr(app_logic, "filter_dataframe")
     print('[OK] core.app_logic: parse_search_terms, filter_dataframe')
 except Exception as e:
     print(f'[ERRO] core.app_logic: {e}')
 
 # Teste 2: core.config_manager
 try:
-    from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
+    config_manager = importlib.import_module("core.config_manager")
+    default_display_mappings = getattr(config_manager, "DEFAULT_DISPLAY_MAPPINGS")
     print('[OK] core.config_manager: DEFAULT_DISPLAY_MAPPINGS')
 except Exception as e:
     print(f'[ERRO] core.config_manager: {e}')
 
 # Teste 3: gui.simple_width_manager
 try:
-    from gui.simple_width_manager import SimpleWidthManager
+    simple_width_manager = importlib.import_module("gui.simple_width_manager")
+    simple_width_manager_cls = getattr(simple_width_manager, "SimpleWidthManager")
     print('[OK] gui.simple_width_manager: SimpleWidthManager')
 except Exception as e:
     print(f'[ERRO] gui.simple_width_manager: {e}')
 
 # Teste 4: utils.themes
 try:
-    from utils.themes import get_theme_roles
+    themes_module = importlib.import_module("utils.themes")
+    get_theme_roles = getattr(themes_module, "get_theme_roles")
     print('[OK] utils.themes: get_theme_roles')
 except Exception as e:
     print(f'[ERRO] utils.themes: {e}')
@@ -46,7 +52,8 @@ print('Verificando que arquivos _dev NAO sao importaveis:')
 
 # Teste 5: app_logic_dev (deve falhar)
 try:
-    from core.app_logic_dev import parse_search_terms
+    app_logic_dev = importlib.import_module("core.app_logic_dev")
+    parse_search_terms_dev = getattr(app_logic_dev, "parse_search_terms")
     print('[ERRO] core.app_logic_dev AINDA ESTA IMPORTAVEL!')
 except ImportError:
     print('[OK] core.app_logic_dev nao encontrado (esperado)')
@@ -55,7 +62,8 @@ except Exception as e:
 
 # Teste 6: config_manager_dev (deve falhar)
 try:
-    from core.config_manager_dev import load_config
+    config_manager_dev = importlib.import_module("core.config_manager_dev")
+    load_config_dev = getattr(config_manager_dev, "load_config")
     print('[ERRO] core.config_manager_dev AINDA ESTA IMPORTAVEL!')
 except ImportError:
     print('[OK] core.config_manager_dev nao encontrado (esperado)')
