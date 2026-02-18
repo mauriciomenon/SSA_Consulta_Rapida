@@ -512,6 +512,11 @@ def _collect_special_visual_sheet_edges(
             if not parent_norm and not child_norm and relation_norm is None:
                 stats["informational_rows_skipped"] += 1
                 continue
+            # Root/context rows often carry only child SSA with empty relation/parent.
+            # Treat these as informational instead of invalid parent.
+            if not parent_norm and relation_norm is None:
+                stats["informational_rows_skipped"] += 1
+                continue
             if not parent_norm:
                 stats["invalid_parent"] += 1
                 continue
