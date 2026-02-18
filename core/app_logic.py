@@ -423,14 +423,14 @@ def _run_derivadas_sync_phase(
         logger.warning("Sync de derivadas concluido sem arestas materializadas no grafo.")
 
     consistency = scan_derivadas_consistency(db_path=db_path)
+    report = dict(report)
+    report["consistency_scan"] = consistency
     if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
         issue_counts = consistency.get("issue_counts") or {}
         logger.error(
             "Sync de derivadas finalizou com inconsistencias no scan pos-sync. issue_counts=%s",
             json.dumps(issue_counts, ensure_ascii=True),
         )
-        report = dict(report)
-        report["consistency_scan"] = consistency
         return False, existing_files, report
 
     cached_sheets = list(existing_files) if has_sheet_evidence else []
@@ -774,26 +774,6 @@ def run_importer_logic(
                             table_name=table_name,
                             derivadas_sheet_files=derivadas_sheet_files,
                         )
-                        if sync_ok:
-                            consistency = scan_derivadas_consistency(db_path=db_path)
-                            if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
-                                derivadas_sync_blocking_error = True
-                                issue_counts = consistency.get("issue_counts") or {}
-                                issue_text = json.dumps(issue_counts, ensure_ascii=True)
-                                critical_errors.append(("derivadas_consistency", docs_dir, issue_text))
-                                logger.error(
-                                    "Sync de derivadas finalizou inconsistente. Bloqueando sucesso da importacao. issue_counts=%s",
-                                    issue_text,
-                                )
-                                _emit_progress(
-                                    "file_error",
-                                    {
-                                        "filename": "SSAs Derivadas e Relacionadas",
-                                        "error": f"Inconsistent derivadas materialization: {issue_text}",
-                                    },
-                                )
-                            else:
-                                logger.info("Scan de consistencia de derivadas validou o estado materializado.")
                         if sync_ok and not derivadas_sync_blocking_error:
                             for special_file in synced_sheets:
                                 if special_file not in successfully_processed_files:
@@ -815,12 +795,20 @@ def run_importer_logic(
                             )
                         if not sync_ok:
                             derivadas_sync_blocking_error = True
-                            critical_errors.append(("derivadas_sync", docs_dir, "sync phase returned invalid evidence"))
+                            consistency_scan = sync_report.get("consistency_scan") or {}
+                            issue_counts = consistency_scan.get("issue_counts") or {}
+                            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+                            error_message = (
+                                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                                if issue_counts
+                                else "Sync de derivadas sem evidencia valida"
+                            )
+                            critical_errors.append(("derivadas_sync", docs_dir, error_message))
                             _emit_progress(
                                 "file_error",
                                 {
                                     "filename": "SSAs Derivadas e Relacionadas",
-                                    "error": "Sync de derivadas sem evidencia valida",
+                                    "error": error_message,
                                 },
                             )
                     except Exception as e:
