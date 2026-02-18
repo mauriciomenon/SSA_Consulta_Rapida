@@ -390,6 +390,8 @@ except ImportError as exc:
             pass
 
     class QTextBrowser(QTextEdit):
+        def setOpenLinks(self, *a, **k):
+            pass
         def setOpenExternalLinks(self, *a, **k):
             pass
 
@@ -1323,6 +1325,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             logger.debug("Falha ao configurar preenchimento do viewport de detalhes: %s", exc)
         details_text.setReadOnly(True)
         try:
+            details_text.setOpenLinks(False)
             details_text.setOpenExternalLinks(False)
             details_text.anchorClicked.connect(self._on_details_anchor_clicked)
         except Exception as exc:
@@ -2151,6 +2154,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # Texto formatado com HTML
         # CORRECAO 2026-01-08: linkify=True e conectar anchorClicked para navegacao funcionar
         text_browser = QTextBrowser()
+        text_browser.setOpenLinks(False)
         text_browser.setOpenExternalLinks(False)
         text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
 

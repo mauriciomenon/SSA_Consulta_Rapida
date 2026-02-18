@@ -683,6 +683,11 @@ class TestGUIFilterLogic:
         assert "INTERNAL_SENTINEL_NORM" not in html
         assert "INTERNAL_SENTINEL_DEBUG" not in html
 
+    def test_details_text_disables_automatic_link_navigation(self):
+        details_text = self.window.details_text
+        assert details_text.openExternalLinks() is False
+        assert details_text.openLinks() is False
+
     def test_details_html_renders_derivadas_relations_block(self):
         series = self.base_df.iloc[0].copy()
         with patch(
