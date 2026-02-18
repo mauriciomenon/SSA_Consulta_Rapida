@@ -18,7 +18,7 @@ if project_root not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
-from PyQt6.QtCore import Qt, QSize  # noqa: E402
+from PyQt6.QtCore import Qt, QSize, QUrl  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
@@ -682,6 +682,31 @@ class TestGUIFilterLogic:
         assert "_debug_value" not in html
         assert "INTERNAL_SENTINEL_NORM" not in html
         assert "INTERNAL_SENTINEL_DEBUG" not in html
+
+    def test_details_html_renders_derivadas_relations_block(self):
+        series = self.base_df.iloc[0].copy()
+        with patch(
+            "gui.ssa.gui_details._get_derivadas_relations_info",
+            return_value={
+                "has_data": True,
+                "parents": ["9000"],
+                "children": ["1001", "1002", "1003"],
+                "descendants_count": 5,
+            },
+        ):
+            html = self.window._format_details_html(series, highlight_search_terms=False, linkify=True)
+
+        assert "Relacoes de Derivadas" in html
+        assert "Mae direta" in html
+        assert "Filhas diretas (3)" in html
+        assert "Descendentes (5)" in html
+        assert "Abrir arvore completa" in html
+        assert "derivadas://tree" in html
+
+    def test_details_anchor_derivadas_tree_opens_popup(self):
+        with patch.object(self.window, "_show_derivadas_popup") as popup_mock:
+            self.window._on_details_anchor_clicked(QUrl("derivadas://tree"))
+        popup_mock.assert_called_once_with()
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
