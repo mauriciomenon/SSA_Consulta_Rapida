@@ -565,7 +565,7 @@ HIGHLIGHT_FONT_WEIGHT = 'bold'
 # trying (and failing) to resolve a generic "Monospace" alias.
 MONO_FONT_FAMILY = (
     # macOS first
-    "'SF Mono', Menlo, Monaco, 'Andale Mono', "
+    "Menlo, Monaco, 'Andale Mono', "
     # Windows 11 common monospace families
     "Consolas, 'Cascadia Mono', 'Cascadia Code', 'Segoe UI Mono', 'Lucida Console', "
     # Debian / Linux common monospace families
