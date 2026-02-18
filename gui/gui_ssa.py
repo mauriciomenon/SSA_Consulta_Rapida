@@ -90,7 +90,7 @@ from utils.formatting import format_dataframe_for_display, format_cell  # noqa: 
 from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
 import hashlib
 from armazenamento.database import query_db  # noqa: E402
-from armazenamento.derivadas_sync import sync_derivadas  # noqa: E402
+from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
@@ -2500,6 +2500,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             sheet_stats = final_report.get("sheet_stats") or {}
             merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
             sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+            consistency = scan_derivadas_consistency(db_path=db_path)
+            if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
+                issue_counts = consistency.get("issue_counts") or {}
+                raise RuntimeError(
+                    "Derivadas inconsistente apos sync manual: "
+                    f"{json.dumps(issue_counts, ensure_ascii=True)}"
+                )
             if hasattr(self, "status_label"):
                 self.status_label.setText(
                     "Status: Derivadas atualizadas (merged="
@@ -2511,6 +2518,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 logger.warning("Falha ao atualizar estado do botao de derivadas apos sync manual: %s", exc)
         except Exception as exc:
             logger.exception("Falha ao atualizar derivadas manualmente: %s", exc)
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Falha ao atualizar derivadas.")
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
             QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {exc}")
@@ -2520,10 +2529,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 self.progress_bar.setVisible(previous_progress_visible)
                 self.progress_bar.setRange(previous_progress_range[0], previous_progress_range[1])
                 self.progress_bar.setValue(previous_progress_value)
-            if hasattr(self, "status_label") and not self.status_label.text().startswith(
-                "Status: Derivadas atualizadas"
-            ):
-                self.status_label.setText(previous_status)
+            if hasattr(self, "status_label"):
+                current_status = self.status_label.text()
+                keep_status = current_status.startswith("Status: Derivadas atualizadas") or current_status.startswith(
+                    "Status: Falha ao atualizar derivadas"
+                )
+                if not keep_status:
+                    self.status_label.setText(previous_status)
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
