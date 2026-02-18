@@ -16,7 +16,7 @@ if 'tabulate' not in sys.modules:
             return data.to_string(index=False)
         return str(data)
 
-    fake_tabulate.tabulate = _tabulate
+    setattr(fake_tabulate, "tabulate", _tabulate)
     sys.modules['tabulate'] = fake_tabulate
 
 from interface.enhanced_table_printer import EnhancedTablePrinter
