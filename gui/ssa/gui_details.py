@@ -337,12 +337,26 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
 
 def _normalize_ssa_value(window, value):
     try:
-        raw = value or ""
+        raw = value
     except Exception:
         raw = ""
+    if raw is None:
+        return ""
+    # Handle float artifacts from DataFrame/object conversion (e.g. 121911787.0).
+    try:
+        if isinstance(raw, float):
+            if pd.isna(raw):
+                return ""
+            if raw.is_integer():
+                raw = int(raw)
+    except Exception:
+        pass
     text = str(raw).strip()
     if not text:
         return ""
+    # Preserve integer value when represented as decimal string.
+    if re.fullmatch(r"\d+\.0+", text):
+        text = text.split(".", 1)[0]
     lowered = text.casefold()
     if lowered in ("nan", "none", "nat", "<na>"):
         return ""
@@ -359,6 +373,8 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
     """Normaliza valores de SSA em modo vetorizado (mais rapido que apply)."""
     try:
         s = series.astype(str).str.strip()
+        # Normalize decimal integer strings to plain digits (e.g. 121911787.0).
+        s = s.str.replace(r"^(\d+)\.0+$", r"\1", regex=True)
         lowered = s.str.casefold()
         empty_mask = s.isna() | s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
         digits = s.str.replace(r"\D+", "", regex=True)
@@ -375,17 +391,24 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
 def update_details_from_selection(window):
     """Atualiza o painel de detalhes com base na linha selecionada."""
     if window.table_widget.rowCount() == 0:
+        window._details_current_ssa = None
         window.details_text.clear()
         return
     selected_rows = window.table_widget.selectionModel().selectedRows()
     if not selected_rows:
+        window._details_current_ssa = None
         window.details_text.clear()
         return
     row = selected_rows[0].row()
     series = window._get_series_from_row(row)
     if series is None:
+        window._details_current_ssa = None
         window.details_text.clear()
         return
+    try:
+        window._details_current_ssa = series.get("numero_ssa")
+    except Exception:
+        window._details_current_ssa = None
 
     try:
         font_size_pt = None
@@ -463,16 +486,23 @@ def _jump_to_ssa(window, numero_ssa):
     if not num_norm:
         return
     try:
-        df_reset = window.df_exibido.reset_index(drop=True)
-        if "numero_ssa" not in df_reset.columns:
-            return
-        series_norm = _normalize_ssa_series(window, df_reset["numero_ssa"])
-        mask = series_norm.eq(num_norm)
-        if not mask.any():
+        def _find_position(df):
+            if df is None or df.empty or "numero_ssa" not in df.columns:
+                return None
+            df_reset_local = df.reset_index(drop=True)
+            series_norm_local = _normalize_ssa_series(window, df_reset_local["numero_ssa"])
+            mask_local = series_norm_local.eq(num_norm)
+            if not mask_local.any():
+                return None
+            return int(mask_local[mask_local].index[0])
+
+        pos = _find_position(window.df_exibido)
+        if pos is None:
             window.search_input.setText(f"={num_norm}")
             window.initiate_filtering()
-            return
-        pos = int(mask[mask].index[0])
+            pos = _find_position(window.df_exibido)
+            if pos is None:
+                return
         page_size = int(getattr(window.paginator, "page_size", 50))
         if page_size <= 0:
             logger.warning("Page size invalido ao saltar para SSA %s: %s", num_norm, page_size)
@@ -500,9 +530,8 @@ def _on_details_anchor_clicked(window, url):
     if not href:
         return
     if href.startswith("derivadas://tree"):
-        handler = getattr(window, "_show_derivadas_popup", None)
-        if callable(handler):
-            handler()
+        current_ssa = getattr(window, "_details_current_ssa", None)
+        _show_derivadas_tree_for_ssa(window, current_ssa)
         return
     if href.startswith("ssa://"):
         target = href[len("ssa://") :]
@@ -560,6 +589,101 @@ def _get_derivadas_relations_info(window, numero_ssa):
         "children": children,
         "descendants_count": descendants_count,
     }
+
+
+def _show_derivadas_tree_for_ssa(window, numero_ssa):
+    target = _normalize_ssa_value(window, numero_ssa)
+    if not target:
+        return
+
+    lines = [f"Arvore de derivadas da SSA {target}"]
+    parents = []
+    children = []
+    descendants = []
+    ancestors = []
+    profile = {}
+
+    db_path = _resolve_current_db_path()
+    if db_path and os.path.exists(db_path):
+        try:
+            from armazenamento import derivadas_queries
+
+            parents = derivadas_queries.get_parents(db_path, target)
+            children = derivadas_queries.get_children(db_path, target)
+            descendants = derivadas_queries.get_descendants(db_path, target)
+            ancestors = derivadas_queries.get_ancestors(db_path, target)
+            profile = derivadas_queries.get_hierarchy_profile(db_path, target) or {}
+        except Exception as exc:
+            logger.debug("Falha ao montar arvore de derivadas via DB para %s: %s", target, exc)
+
+    if not children:
+        children = _get_derivadas_for_ssa(window, target)
+
+    direct_children_count = int(profile.get("direct_children_count") or len(children))
+    descendants_count = int(profile.get("descendants_count") or len(descendants) or len(children))
+
+    lines.append("")
+    if parents:
+        lines.append(f"Mae direta: {', '.join(parents)}")
+    else:
+        lines.append("Mae direta: -")
+    lines.append(f"Filhas diretas ({direct_children_count})")
+    if children:
+        for child in children:
+            lines.append(f"  - {child}")
+    else:
+        lines.append("  - nenhuma")
+    lines.append(f"Descendentes ({descendants_count})")
+    if descendants:
+        preview = descendants[:50]
+        for item in preview:
+            ssa = str(item.get("ssa", "")).strip()
+            dist = item.get("min_distance")
+            if ssa:
+                lines.append(f"  - {ssa} (dist={dist})")
+        remaining = len(descendants) - len(preview)
+        if remaining > 0:
+            lines.append(f"  - ... (+{remaining})")
+    elif children:
+        for child in children[:50]:
+            lines.append(f"  - {child} (dist=1)")
+    else:
+        lines.append("  - nenhum")
+
+    if ancestors:
+        lines.append("")
+        lines.append(f"Ancestrais ({len(ancestors)})")
+        for item in ancestors[:50]:
+            ssa = str(item.get("ssa", "")).strip()
+            dist = item.get("min_distance")
+            if ssa:
+                lines.append(f"  - {ssa} (dist={dist})")
+
+    text = "\n".join(lines)
+
+    try:
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+    except Exception:
+        return
+
+    dialog = QDialog(window)
+    dialog.setWindowTitle(f"Arvore de Derivadas - SSA {target}")
+    dialog.setMinimumSize(520, 420)
+    layout = QVBoxLayout(dialog)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(text)
+    text_edit.setReadOnly(True)
+    try:
+        text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
+    except Exception:
+        pass
+    layout.addWidget(text_edit)
+
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+    buttons.rejected.connect(dialog.close)
+    layout.addWidget(buttons)
+    dialog.exec()
 
 
 def _filter_by_derivadas(window, numero_ssa):

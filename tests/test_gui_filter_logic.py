@@ -709,9 +709,16 @@ class TestGUIFilterLogic:
         assert "derivadas://tree" in html
 
     def test_details_anchor_derivadas_tree_opens_popup(self):
-        with patch.object(self.window, "_show_derivadas_popup") as popup_mock:
+        self.window._details_current_ssa = "12.19.117.87"
+        with patch("gui.ssa.gui_details._show_derivadas_tree_for_ssa") as popup_mock:
             self.window._on_details_anchor_clicked(QUrl("derivadas://tree"))
-        popup_mock.assert_called_once_with()
+        popup_mock.assert_called_once()
+        assert popup_mock.call_args.args[0] is self.window
+        assert popup_mock.call_args.args[1] == "12.19.117.87"
+
+    def test_normalize_ssa_value_handles_decimal_float_artifact(self):
+        assert self.window._normalize_ssa_value("121911787.0") == "121911787"
+        assert self.window._normalize_ssa_value(121911787.0) == "121911787"
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
