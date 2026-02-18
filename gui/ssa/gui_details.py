@@ -783,7 +783,8 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         return
 
     try:
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextBrowser, QPushButton
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QPushButton, QSplitter
         from PyQt6.QtGui import QPalette
     except Exception:
         return
@@ -794,18 +795,20 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
 
     root_layout = QVBoxLayout(dialog)
-    content_layout = QHBoxLayout()
+    content_splitter = QSplitter(Qt.Orientation.Horizontal)
+    content_splitter.setChildrenCollapsible(False)
 
     tree_browser = QTextBrowser()
     tree_browser.setReadOnly(True)
     tree_browser.setOpenLinks(False)
     tree_browser.setOpenExternalLinks(False)
-    tree_browser.setMinimumWidth(240)
+    tree_browser.setMinimumWidth(90)
 
     details_browser = QTextBrowser()
     details_browser.setReadOnly(True)
     details_browser.setOpenLinks(False)
     details_browser.setOpenExternalLinks(False)
+    details_browser.setMinimumWidth(360)
 
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
@@ -871,9 +874,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         return
 
     # Keep a stable 15/85 split: derivadas panel (left) / SSA details (right).
-    content_layout.addWidget(tree_browser, DERIVADAS_DIALOG_RATIO_LEFT)
-    content_layout.addWidget(details_browser, DERIVADAS_DIALOG_RATIO_RIGHT)
-    root_layout.addLayout(content_layout)
+    content_splitter.addWidget(tree_browser)
+    content_splitter.addWidget(details_browser)
+    content_splitter.setStretchFactor(0, DERIVADAS_DIALOG_RATIO_LEFT)
+    content_splitter.setStretchFactor(1, DERIVADAS_DIALOG_RATIO_RIGHT)
+    total_ratio = DERIVADAS_DIALOG_RATIO_LEFT + DERIVADAS_DIALOG_RATIO_RIGHT
+    left_width = max(90, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_LEFT / total_ratio))
+    right_width = max(360, int(dialog.minimumWidth() * DERIVADAS_DIALOG_RATIO_RIGHT / total_ratio))
+    content_splitter.setSizes([left_width, right_width])
+    root_layout.addWidget(content_splitter)
 
     close_button = QPushButton("Fechar")
     close_button.clicked.connect(dialog.accept)
