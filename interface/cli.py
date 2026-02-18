@@ -12,7 +12,7 @@ import logging
 import re
 import pandas as pd
 from collections import Counter
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, List, Dict, Any, Optional, Callable, cast
 
 # Adiciona o diretório raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +36,7 @@ APP_VERSION_LONG = get_app_version_long()
 
 # Rastreador de paginação por DataFrame (id -> estado retornado pelo printer)
 CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
+DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
 
 
 def _reset_pagination_state(df: pd.DataFrame) -> None:
@@ -215,7 +216,6 @@ def _render_single_page(
 
 def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     """Aplica os filtros padrão definidos nas configurações."""
-    import pandas as pd # Import local para evitar problemas de importacao circular
     default_filters = settings.get("default_filters", [])
     if default_filters:
         logger.debug(f"Aplicando filtros padrão: {default_filters}")
@@ -223,13 +223,10 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
 
     # OTIMIZAÇÃO: Cache para parsing de termos padrão
     cache_key = f"{','.join(default_filters)}:{default_mode}"
-    if not hasattr(_apply_default_filters, '_cache'):
-        _apply_default_filters._cache = {}
+    if cache_key not in DEFAULT_FILTER_TERMS_CACHE:
+        DEFAULT_FILTER_TERMS_CACHE[cache_key] = parse_search_terms(default_filters, default_mode=default_mode)
 
-    if cache_key not in _apply_default_filters._cache:
-        _apply_default_filters._cache[cache_key] = parse_search_terms(default_filters, default_mode=default_mode)
-
-    parsed = _apply_default_filters._cache[cache_key]
+    parsed = DEFAULT_FILTER_TERMS_CACHE[cache_key]
     return filter_dataframe(df, parsed)
 
 def get_ssa_query(table_name: str = 'ssa_table') -> str:
@@ -1035,17 +1032,19 @@ def start_cli_loop(db_path: str, table_name: str):
             # --- NOVA LÓGICA: Comandos de 1 caractere sempre são comandos ---
             if len(user_input) == 1 and user_input.lower() in COMMAND_HANDLERS:
                 command = user_input.lower()
-                handler = COMMAND_HANDLERS[command]
                 if command in ['v', 'voltar']:
-                    handler(results_stack)
+                    _handle_back(results_stack)
                 elif command in ['r', 'resetar']:
-                    handler(db_path, table_name, results_stack, display_map, settings, _print_cache)
+                    _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
+                elif command in ['rescan']:
+                    _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
                     display_map = handle_config_command()
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
-                    handler()
+                    simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
+                    simple_handler()
                 continue
 
             parts = user_input.lower().split()
@@ -1053,17 +1052,16 @@ def start_cli_loop(db_path: str, table_name: str):
 
             # --- 1. Tratamento de Comandos Mapeados (palavras completas) ---
             if command in COMMAND_HANDLERS:
-                handler = COMMAND_HANDLERS[command]
                 # Chama handlers específicos com argumentos
                 if command in ['v', 'voltar']:
-                    handler(results_stack)
+                    _handle_back(results_stack)
                 elif command in ['r', 'resetar']:
-                    handler(db_path, table_name, results_stack, display_map, settings, _print_cache)
+                    _handle_reset(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['rescan']:
-                    handler(db_path, table_name, results_stack, display_map, settings, _print_cache)
+                    _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
                      # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                     handler()
+                     handle_config_command()
                      _config_changed = True
                      # Após configurar, força um refresh do estado e exibição
                      settings = load_settings()
@@ -1083,7 +1081,8 @@ def start_cli_loop(db_path: str, table_name: str):
                      )
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
-                    handler()
+                    simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
+                    simple_handler()
 
             # --- 2. Tratamento de Comandos com Lógica Inline ou Argumentos ---
             elif command in INLINE_COMMAND_PREFIXES:
