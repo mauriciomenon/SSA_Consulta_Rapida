@@ -40,6 +40,19 @@ def _fallback_column_width(col_name: str) -> int:
     return 80
 def display_current_page(window, page_number):
     """Exibe a pagina especificada do DataFrame filtrado."""
+    try:
+        requested_page = int(page_number)
+    except Exception:
+        requested_page = int(getattr(window.paginator, "current_page", 1))
+    if requested_page < 1:
+        requested_page = 1
+    try:
+        window.paginator.current_page = requested_page
+        window.paginator.update_pagination_info()
+        window.paginator.update_buttons()
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar pagina atual do paginator: %s", exc)
+
     # Obtem o slice de dados para a pagina atual do paginator
     window.df_para_tabela = window.paginator.get_current_slice()
     try:

@@ -249,6 +249,20 @@ class TestGUIFilterLogic:
         assert width_after_clear_columns > 0
         assert width_after_clear_general > 0
 
+    def test_display_current_page_honors_page_number_parameter(self):
+        self.window.df_completo = self.base_df.copy()
+        self.window.df_exibido = self.base_df.copy()
+        self.window._df_last_search_filtered = self.base_df.copy()
+        self.window.paginator.page_size = 2
+        self.window.paginator.set_dataframe(self.base_df.copy())
+
+        self.window.display_current_page(2)
+        QApplication.processEvents()
+
+        assert self.window.paginator.current_page == 2
+        assert not self.window.df_para_tabela.empty
+        assert int(self.window.df_para_tabela.iloc[0]["numero_ssa"]) == 3
+
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText('')
         self.window.initiate_filtering()
