@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+from typing import Any, TYPE_CHECKING
+
 QT_AVAILABLE = True
 try:
-    from PyQt6 import sip
+    from PyQt6 import sip as _pyqt_sip
     from PyQt6.QtCore import Qt, QSignalBlocker, QTimer
     from PyQt6.QtWidgets import (
         QApplication,
@@ -31,9 +33,10 @@ try:
         QHeaderView,
         QTableWidgetItem,
     )
+    sip: Any = _pyqt_sip
 except ImportError:
     QT_AVAILABLE = False
-    sip = None
+    sip: Any = None
 
     class _StubSignal:
         def connect(self, *_args, **_kwargs):
@@ -248,3 +251,32 @@ except ImportError:
         @staticmethod
         def singleShot(*_args, **_kwargs):
             return None
+
+
+if TYPE_CHECKING:
+    sip: Any
+    Qt: Any
+    QSignalBlocker: Any
+    QTimer: Any
+    QApplication: Any
+    QComboBox: Any
+    QCheckBox: Any
+    QDialog: Any
+    QDialogButtonBox: Any
+    QFrame: Any
+    QGridLayout: Any
+    QGroupBox: Any
+    QHBoxLayout: Any
+    QLabel: Any
+    QLineEdit: Any
+    QMenu: Any
+    QPushButton: Any
+    QScrollArea: Any
+    QSizePolicy: Any
+    QTextEdit: Any
+    QToolButton: Any
+    QVBoxLayout: Any
+    QWidget: Any
+    QWidgetAction: Any
+    QHeaderView: Any
+    QTableWidgetItem: Any
