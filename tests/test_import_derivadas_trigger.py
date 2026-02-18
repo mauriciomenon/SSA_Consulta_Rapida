@@ -317,3 +317,84 @@ def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges
 
     assert updated is True
     assert cache_calls["n"] == 0
+
+
+def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: True)
+
+    sync_calls: list[dict] = []
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: sync_calls.append(kwargs) or {
+            "sheet_files": [],
+            "db_stats": {"accepted_edges": 4},
+            "sheet_stats": {"accepted_edges": 0, "special_layout_detected": 0},
+            "merge_stats": {"merged_edges": 4},
+        },
+    )
+
+    cache_calls = {"n": 0}
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_calls.__setitem__("n", cache_calls["n"] + 1),
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is True
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["include_db_source"] is True
+    assert "sheet_files" not in sync_calls[0]
+    assert cache_calls["n"] == 0
+
+
+def test_run_importer_skips_db_only_sync_when_preflight_not_required(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(app_logic, "_needs_db_only_derivadas_sync", lambda *a, **k: False)
+
+    sync_calls = {"n": 0}
+    monkeypatch.setattr(app_logic, "sync_derivadas", lambda **kwargs: sync_calls.__setitem__("n", sync_calls["n"] + 1))
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+    assert sync_calls["n"] == 0
