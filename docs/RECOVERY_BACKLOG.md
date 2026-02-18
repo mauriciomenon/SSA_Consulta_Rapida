@@ -18,6 +18,7 @@ Scope is split by priority to keep delivery safe and incremental.
   - `shared/numero_ssa.py`: replaced silent year-parse suppress with explicit `try/except ValueError`.
 - Remaining sprint recommendation (kept as pending by decision):
   - Keep E tracked: revisit `pyproject.toml` test ignores and repair affected tests in a dedicated slice.
+  - Ty warning cleanup (non-blocking): remove legacy unused `type: ignore` comments in `armazenamento/database.py` in a dedicated low-risk slice, after PR #31 stabilization.
 
 - Quality hardening adopted for advanced-filters facade:
   - Fixed runtime contract break where `gui/gui_ssa.py` expected symbol `_has_active_advanced_filters` from aggregated module.
