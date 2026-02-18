@@ -81,6 +81,14 @@ uv run pytest -q <focused-tests>
    - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
    - `docs/RECOVERY_BACKLOG.md`
 
+## Writing guardrails (do not do)
+
+1. Do not silence link/runtime warnings without fixing navigation behavior.
+2. Do not claim completion if the reported user flow still fails.
+3. Do not replace a functional bug with a generic fallback popup.
+4. Do not close a slice without before/after evidence for the same user repro.
+5. Do not optimize for "clean logs" over correct behavior.
+
 ## Mandatory gates for advanced filters
 
 ```bash
