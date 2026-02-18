@@ -177,6 +177,14 @@ This handoff is ready to reuse in the next conversation.
    - chamadas recentes retornaram `ENOTFOUND api.kluster.ai`.
    - risco: quebra de protocolo de review automatico ate normalizar conectividade.
 
+### Diretriz de triagem fixada pelo usuario
+
+1. tratar como falso positivo neste ciclo:
+   - remover `if df is None`;
+   - adicionar novos locks em scripts;
+   - abrir refactor amplo de race em `gui/workers`.
+2. ignorar `E501` neste ciclo.
+
 ### Falhas intermediarias (risco medio)
 
 1. Baseline de tipagem GUI ainda muito alto:
