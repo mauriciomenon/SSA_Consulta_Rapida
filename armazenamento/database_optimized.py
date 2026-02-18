@@ -20,6 +20,7 @@ fragile - if get_db_connection moves lower in database.py, circular import will 
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
 import pandas as pd
 
@@ -215,11 +216,19 @@ def insert_dataframe_optimized(
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
                 # Verificar se tabela existe antes de fazer SELECT
-                table_exists = pd.read_sql_query(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    conn,
-                    params=[target_table],
-                )
+                try:
+                    table_exists = pd.read_sql_query(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                        conn,
+                        params=[target_table],
+                    )
+                except (sqlite3.Error, pd.errors.DatabaseError) as exc:
+                    logger.error(
+                        "Falha ao verificar existencia da tabela alvo '%s': %s",
+                        target_table,
+                        exc,
+                    )
+                    return False
 
                 # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
                 lookup_start = time.time()
