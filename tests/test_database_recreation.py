@@ -12,11 +12,12 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 import json
+from typing import Optional
 
 # Adicionar diretório raiz ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from armazenamento.database import initialize_database, get_db_connection
+from armazenamento.database import initialize_database
 from core.app_logic import import_files_to_database
 from utils.db_maintenance import DatabaseAnalyzer
 
@@ -25,9 +26,9 @@ class DatabaseRecreationTester:
 
     def __init__(self, original_db_path: str = "data/ssas.db"):
         self.original_db_path = original_db_path
-        self.test_dir = None
-        self.backup_path = None
-        self.new_db_path = None
+        self.test_dir: str = ""
+        self.backup_path: str = ""
+        self.new_db_path: str = ""
         self.test_results = []
 
     def setup_test_environment(self) -> bool:
@@ -116,7 +117,7 @@ class DatabaseRecreationTester:
             if success:
                 print(f"  OK Backup criado: {record_count:,} registros ({duration:.2f}s)")
             else:
-                print(f"  ERR Falha na criação do backup")
+                print("  ERR Falha na criação do backup")
 
             return result
 
@@ -204,7 +205,7 @@ class DatabaseRecreationTester:
             if success:
                 print(f"  OK Banco limpo criado: {len(columns)} colunas ({duration:.2f}s)")
             else:
-                print(f"  ERR Falha na criação do banco limpo")
+                print("  ERR Falha na criação do banco limpo")
 
             return result
 
@@ -396,7 +397,7 @@ class DatabaseRecreationTester:
             if success:
                 print(f"  OK Integridade verificada: score {integrity_score:.1%}")
             else:
-                print(f"  ERR Problemas de integridade detectados")
+                print("  ERR Problemas de integridade detectados")
 
             return result
 
@@ -570,7 +571,7 @@ class DatabaseRecreationTester:
         finally:
             self.cleanup()
 
-    def generate_recreation_report(self, test_result: dict, output_file: str = None) -> str:
+    def generate_recreation_report(self, test_result: dict, output_file: Optional[str] = None) -> str:
         """Gera relatório detalhado do teste de recriação."""
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
