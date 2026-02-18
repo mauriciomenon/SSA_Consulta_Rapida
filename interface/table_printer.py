@@ -38,6 +38,8 @@ ELLIPSIS_MIN_WIDTH = 3
 MAGIC_AVAILABLE_WIDTH_COMPACT = 100
 MAGIC_MANY_COLUMNS_THRESHOLD = 6
 MIN_TRUNCATE_WIDTH = 8  # largura mínima de truncagem segura
+SSA_ORDINAL_TOKEN = "N\u00ba"
+SSA_LABEL_DEFAULT = f"{SSA_ORDINAL_TOKEN} SSA"
 
 
 @dataclass
@@ -131,12 +133,12 @@ def _select_columns_for_width(
             else:
                 if len(legacy_positional) >= 1:
                     try:
-                        essential = list(first)  # type: ignore[arg-type]
+                        essential = list(first)
                     except TypeError:
                         essential = []
                 if len(legacy_positional) >= 2:
                     try:
-                        priority = list(legacy_positional[1])  # type: ignore[arg-type]
+                        priority = list(legacy_positional[1])
                     except TypeError:
                         priority = []
         if params is None:  # não definido pelo bloco acima
@@ -209,7 +211,7 @@ def _prepare_selection(
     allowed = [c for c in df.columns if vis_map.get(c, True) or c in always_visible]
     df_visible = df[allowed] if allowed else df
     params = ColumnSelectionParams(essential, priority, always_visible, fixed)
-    selected = _select_columns_for_width(df_visible, display_map, width, params)
+    selected = _select_columns_for_width(df_visible, display_map, width, params=params)
     pinned = ['numero_ssa', 'localizacao_codigo', 'setor_executor', 'situacao', 'descricao_ssa']
     if 'numero_ssa' in df.columns and 'numero_ssa' not in selected:
         selected = [HASH_COLUMN, 'numero_ssa'] + [c for c in selected if c != HASH_COLUMN]
@@ -275,17 +277,17 @@ def _build_headers(params: HeaderBuildParams) -> tuple[list[str], dict[str, int]
     for c in cols:
         short = cfg.get('short_labels', {}).get(c)
         full = display_map.get(c, c)
-        # Força label específico para numero_ssa se esperado em testes ('Nº SSA')
+        # Forca label especifico para numero_ssa se esperado em testes ('Nº SSA')
         if c == 'numero_ssa':
-            # Mantém compat: se display_map já definir algo com 'Nº SSA' respeita, senão aplica padrão
-            label = display_map.get('numero_ssa_label', 'Nº SSA')
+            # Mantem compat: se display_map ja definir algo com 'Nº SSA' respeita, senao aplica padrao
+            label = display_map.get('numero_ssa_label', SSA_LABEL_DEFAULT)
         else:
             label = short if (compact and short) else full
         try:
             if os.name == 'nt':
                 label.encode(sys.stdout.encoding or 'utf-8')
         except Exception:
-            safe = label.replace('Nº', 'No')
+            safe = label.replace(SSA_ORDINAL_TOKEN, 'No')
             try:
                 safe = unicodedata.normalize('NFKD', safe).encode('ascii', 'ignore').decode('ascii')
             except (TypeError, ValueError, UnicodeError) as exc:
