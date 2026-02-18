@@ -162,3 +162,56 @@ Must follow:
 Input report:
 <paste structured report here>
 ```
+
+## Copy/paste full starter (strict mode)
+
+```text
+Trabalhe no repo /Users/menon/git/SSA_Consulta_Rapida
+
+Contexto:
+- Branch atual: codex/import-review
+- PR alvo: #31 (base dev)
+- Objetivo: fechar PR com estabilidade e patch minimo
+
+Regras:
+1. Nao criar branch nem PR novo.
+2. Nao fazer refactor amplo.
+3. Nao alterar layout GUI sem pedido explicito.
+4. Manter dialogo de detalhes derivadas em baseline fixa:
+   - split 20/80
+   - min size 700x650
+   - fontes: 12/12/11
+   - usar QSplitter com sizes reais
+5. Sem acentos/cedilha/emojis/emdash em codigo, docs e mensagens tecnicas.
+6. Nao ocultar erro real com except vazio/suppress indevido.
+
+Fluxo por slice:
+1) validar evidencia local (rg -n + nl -ba)
+2) patch minimo
+3) gate local
+4) commit atomico
+5) push
+6) checar PR checks
+
+Gate tecnico:
+- uv run python -m py_compile <files>
+- uv run ruff check <files>
+- uv run ty check <files>
+- uv run pytest -q <tests focados>
+
+Gate extra se tocar facade de filtros:
+- uv run pytest -q tests/test_gui_filters_facade_contract.py
+- uv run pytest -q tests/test_gui_filter_logic.py -k advanced_filters
+- uv run pytest -q tests/test_gui_filters_advanced_logic.py
+
+Status checks conhecido:
+- code/snyk fail por limite de plano
+- security/snyk fail por limite de plano
+- restante: tratar somente bloqueio real de codigo
+
+Relatorio final por slice:
+- commit hash
+- testes executados
+- checks PR
+- pendencias reais
+```

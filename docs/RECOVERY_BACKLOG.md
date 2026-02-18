@@ -335,6 +335,25 @@ Criterio de aceite da delegacao:
 2. Gate por lote verde (`py_compile`, `ruff`, `ty`, `pytest` focado).
 3. Sem alteracao de layout GUI.
 
+### Pendencias reais restantes (objetivas)
+
+1. [pending-blocked] Snyk code/security em PR:
+   - bloqueio externo por limite de plano, nao regressao de codigo.
+2. [pending] Baseline alto de ty em GUI core:
+   - foco futuro em `gui/gui_ssa.py` com slice dedicado.
+3. [pending] melhorias de concorrencia em wrappers de teste:
+   - `scripts/run_pytest_stream_and_log*.py`.
+4. [pending] melhorias de cancel/progresso:
+   - `gui/widgets/rescan_progress_dialog.py`, `gui/workers/rescan_worker.py`.
+5. [pending] melhoria UX filtros:
+   - item `divisao` e refinamento da aba de filtros (sem quebrar layout).
+
+### Nao regredir (guardrails)
+
+1. Dialogo de detalhes derivadas deve ficar em 20/80 real.
+2. Nao remover validacoes fail-closed de sync de derivadas.
+3. Nao reintroduzir `responsavel_emissor` em advanced filters.
+
 ## Decisao de triagem (2026-02-18, lock de escopo)
 
 Itens marcados como falso positivo neste ciclo (nao fazer):
