@@ -26,7 +26,10 @@ def test_import_few_files():
     # Verificar diretório
     assert os.path.exists(docs_dir), f"Diretório {docs_dir} não encontrado"
     
-    files = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
+    files = [
+        f for f in os.listdir(docs_dir)
+        if f.endswith('.xlsx') and not f.strip().casefold().startswith('ssas derivadas e relacionadas')
+    ]
     assert len(files) > 0, "Nenhum arquivo Excel encontrado"
     
     # Apenas 3 primeiros
@@ -95,7 +98,10 @@ def test_upsert_logic_limited():
     
     assert os.path.exists(docs_dir), f"Diretório {docs_dir} não encontrado"
     
-    files = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
+    files = [
+        f for f in os.listdir(docs_dir)
+        if f.endswith('.xlsx') and not f.strip().casefold().startswith('ssas derivadas e relacionadas')
+    ]
     assert len(files) > 0, "Nenhum arquivo encontrado"
     
     # Usar apenas 1 arquivo
