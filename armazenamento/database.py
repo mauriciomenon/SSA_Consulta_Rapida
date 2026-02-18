@@ -12,14 +12,14 @@ import sqlite3
 import time
 from contextlib import contextmanager
 import sqlite3 as _sqlite3_typehint  # alias para type checking leve
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pandas as pd  # type: ignore[import-not-found]
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
 
 logger = logging.getLogger(__name__)
-from .identifier_utils import is_valid_identifier
+from .identifier_utils import is_valid_identifier  # noqa: E402
 
 # Constantes (evitam "magic numbers" em validacoes)
 MIN_FREE_SPACE_GB_WARN = 0.1  # 100MB
@@ -184,7 +184,7 @@ def query_db(
     try:
         with get_db_connection(db_path) as conn:
             # pd.read_sql_query e otimo para SELECTs
-            df = pd.read_sql_query(query, conn, params=params)
+            df = pd.read_sql_query(query, conn, params=cast(Any, params))
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except Exception as e:
@@ -473,7 +473,7 @@ def ensure_column_exists(
 # it only uses lazy imports from this module.
 # DO NOT convert lazy imports to top-level imports without testing.
 
-from . import database_upsert_logic as _up  # import unico para usar diretamente funcoes refatoradas
+from . import database_upsert_logic as _up  # noqa: E402  # import unico para usar diretamente funcoes refatoradas
 
 
 
@@ -539,7 +539,7 @@ def insert_dataframe_with_smart_upsert(
             return False
 
 
-from .numero_ssa_utils import (
+from .numero_ssa_utils import (  # noqa: E402
     _normalize_numero_ssa_value,  # legado (int)
     normalize_numero_ssa as _normalize_numero_ssa_display,
     normalize_numero_ssa_dataframe as _normalize_numero_ssa_dataframe,

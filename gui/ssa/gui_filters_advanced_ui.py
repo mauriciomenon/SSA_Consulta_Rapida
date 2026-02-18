@@ -9,6 +9,7 @@ import copy
 import os
 import sqlite3
 from time import perf_counter
+from typing import Any
 
 import pandas as pd
 
@@ -50,6 +51,32 @@ def _is_widget_valid(widget) -> bool:
         return not sip.isdeleted(widget)
     except Exception:
         return False
+
+
+def _safe_is_checked(widget: Any) -> bool:
+    try:
+        return bool(widget is not None and widget.isChecked())
+    except Exception:
+        return False
+
+
+def _safe_combo_item_data(combo: Any):
+    try:
+        if combo is None:
+            return None
+        mode_idx = combo.currentIndex()
+        return combo.itemData(mode_idx)
+    except Exception:
+        return None
+
+
+def _safe_len(value: Any) -> int:
+    try:
+        return len(value)
+    except Exception:
+        return 0
+
+
 def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
     box = QGroupBox(title)
     layout = QHBoxLayout(box)
@@ -1917,20 +1944,11 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         data["semana_execucao_fim"] = None
     data["semana_emissao_exclude"] = False
     data["semana_execucao_exclude"] = False
-    try:
-        data["derivada_has"] = bool(getattr(self, "adv_derivada_has", None).isChecked())
-    except Exception:
-        data["derivada_has"] = False
-    try:
-        data["derivada_all_ste"] = bool(getattr(self, "adv_derivada_all_ste", None).isChecked())
-    except Exception:
-        data["derivada_all_ste"] = False
+    data["derivada_has"] = _safe_is_checked(getattr(self, "adv_derivada_has", None))
+    data["derivada_all_ste"] = _safe_is_checked(getattr(self, "adv_derivada_all_ste", None))
     if data.get("derivada_all_ste"):
         data["derivada_has"] = True
-    try:
-        data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
-    except Exception:
-        data["derivada_is"] = False
+    data["derivada_is"] = _safe_is_checked(getattr(self, "adv_derivada_is", None))
     # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
     adv_current = getattr(self, "_advanced_filters", None) or {}
     built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
@@ -1977,11 +1995,7 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
     except Exception:
         data["num_reprogramacoes_values"] = []
-    try:
-        mode_idx = getattr(self, "adv_reprog_mode", None).currentIndex()
-        data["num_reprogramacoes_mode"] = getattr(self, "adv_reprog_mode", None).itemData(mode_idx)
-    except Exception:
-        data["num_reprogramacoes_mode"] = None
+    data["num_reprogramacoes_mode"] = _safe_combo_item_data(getattr(self, "adv_reprog_mode", None))
     try:
         data["prioridade_emissao_values"] = self._get_checked_values(
             getattr(self, "adv_prioridade_emissao_checks", None)
@@ -2530,7 +2544,12 @@ def _refresh_advanced_filter_options(self):
         else:
             cache["reprog_vals"] = []
         self._adv_values_cache = cache
-        logger.debug(f"_refresh_advanced_filter_options: cache populado - exec={len(cache.get('exec_vals', []))}, emis={len(cache.get('emis_vals', []))}, status={len(cache.get('status_vals', []))}")
+        logger.debug(
+            "_refresh_advanced_filter_options: cache populado - exec=%s, emis=%s, status=%s",
+            _safe_len(cache.get("exec_vals", [])),
+            _safe_len(cache.get("emis_vals", [])),
+            _safe_len(cache.get("status_vals", [])),
+        )
 
     exec_vals = cache.get("exec_vals", [])
     emis_vals = cache.get("emis_vals", [])
