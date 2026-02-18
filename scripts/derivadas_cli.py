@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -52,10 +53,14 @@ def _print_list(title: str, values: list[str]) -> None:
 
 
 def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
+    sheet_files: list[str] = []
+    if args.sheet_files_glob:
+        sheet_files = sorted(glob.glob(args.sheet_files_glob))
     return sync_derivadas(
         db_path=args.db,
         table_name=args.table_name,
         sheet_file=args.sheet_file,
+        sheet_files=sheet_files or None,
         sheet_parent_col=args.sheet_parent_col,
         sheet_child_col=args.sheet_child_col,
         sheet_label_col=args.sheet_label_col,
@@ -165,6 +170,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sync_parser = sub.add_parser("sync", help="Synchronize derivadas tables")
     sync_parser.add_argument("--sheet-file", help="Optional sheet/csv source path")
+    sync_parser.add_argument(
+        "--sheet-files-glob",
+        help="Optional glob pattern to pass multiple sheet files to derivadas sync",
+    )
     sync_parser.add_argument("--sheet-name", help="Optional sheet name when using xlsx")
     sync_parser.add_argument("--sheet-parent-col", default="parent_ssa", help="Sheet parent column")
     sync_parser.add_argument("--sheet-child-col", default="child_ssa", help="Sheet child column")

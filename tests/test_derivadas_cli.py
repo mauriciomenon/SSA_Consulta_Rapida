@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
+import scripts.derivadas_cli as derivadas_cli
 from scripts.derivadas_cli import main
 
 
@@ -159,3 +161,35 @@ def test_cli_snapshot_returns_hierarchy_payload(temp_db, capsys):
     assert parsed["ssa"] == "202500001"
     assert parsed["children_count"] == 1
     assert parsed["hierarchy_profile"]["descendants_count"] >= 1
+
+
+def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
+    first.write_bytes(b"x")
+    second.write_bytes(b"y")
+
+    captured: dict = {}
+
+    def _fake_sync_derivadas(**kwargs):
+        captured.update(kwargs)
+        return {"verify_only": False, "merge_stats": {"merged_edges": 0}}
+
+    monkeypatch.setattr(derivadas_cli, "sync_derivadas", _fake_sync_derivadas)
+
+    rc = main(
+        [
+            "--db",
+            "data/ssas.db",
+            "--output",
+            "json",
+            "sync",
+            "--sheet-files-glob",
+            str(tmp_path / "SSAs Derivadas e Relacionadas_*.xlsx"),
+            "--no-db-source",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["include_db_source"] is False
+    assert captured["sheet_files"] == [str(first), str(second)]
