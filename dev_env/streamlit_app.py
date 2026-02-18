@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import logging
 import os
 import sqlite3
 import time
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 import pandas as pd
-import streamlit as st
+from core.app_logic import (
+    filter_dataframe,
+    get_filtered_data,
+    import_files_to_database,
+    parse_search_terms,
+)
+from core.config_manager import load_display_mappings_integrity
+from utils.remote_itaipu import RequestOptions, fetch_pending_ssas, map_to_dataframe
+st = cast(Any, importlib.import_module("streamlit"))
 
 # Enable copy-on-write mode for performance (pandas 1.5+)
 # With CoW, DataFrame.copy() returns lazy view that only copies on modification
@@ -47,15 +56,6 @@ ascii_filter = _ASCIIOnlyFilter()
 for handler in logging.getLogger().handlers:
     handler.addFilter(ascii_filter)
 logger.debug("Logging configurado para Streamlit", extra={'component': 'streamlit'})
-
-from core.app_logic import (
-    filter_dataframe,
-    get_filtered_data,
-    import_files_to_database,
-    parse_search_terms,
-)
-from core.config_manager import load_display_mappings_integrity
-from utils.remote_itaipu import RequestOptions, fetch_pending_ssas, map_to_dataframe
 
 DB_PATH_DEFAULT = os.environ.get("SSA_DB_PATH", "data/ssas.db")
 DOCS_DIR_DEFAULT = os.environ.get("SSA_DOCS_DIR", "docs_entrada")
@@ -265,7 +265,7 @@ def load_dataframe(db_path: str) -> pd.DataFrame:
 
 # Aplica cache do Streamlit se disponivel; adiciona clear() no fallback
 if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
-    load_dataframe = st.cache_data(show_spinner=False)(load_dataframe)  # type: ignore[assignment]
+    load_dataframe = st.cache_data(show_spinner=False)(load_dataframe)
 else:
     setattr(load_dataframe, "clear", lambda: None)
 
@@ -347,12 +347,12 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
                 if len(sample_types) > 1:
                     # Sample more values to determine majority type
                     sample_size = min(100, len(non_null))
-                    type_counts = {}
+                    type_counts: dict[type[Any], int] = {}
                     for val in non_null.head(sample_size):
                         t = type(val)
                         type_counts[t] = type_counts.get(t, 0) + 1
 
-                    majority_type = max(type_counts, key=type_counts.get)
+                    majority_type = max(type_counts, key=type_counts.__getitem__)
 
                     # If mostly numeric, try to preserve as numeric
                     if majority_type in (int, float):
@@ -746,7 +746,10 @@ if _is_real_streamlit_runtime():
 
     with col3:
         # JSON para APIs
-        json_data = view_df.to_json(orient='records', date_format='iso', indent=2).encode('utf-8')
+        json_text = view_df.to_json(orient='records', date_format='iso', indent=2)
+        if json_text is None:
+            raise RuntimeError("to_json retornou None")
+        json_data = json_text.encode('utf-8')
         st.download_button(
             "Baixar JSON",
             json_data,
