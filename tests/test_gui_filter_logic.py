@@ -23,6 +23,7 @@ from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui import gui_ssa  # noqa: E402
+from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
@@ -727,6 +728,46 @@ class TestGUIFilterLogic:
     def test_normalize_ssa_value_handles_decimal_float_artifact(self):
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
         assert self.window._normalize_ssa_value(121911787.0) == "121911787"
+
+    def test_get_series_for_ssa_uses_index_label_and_returns_correct_row(self):
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["100", "200", "300"],
+                "descricao_ssa": ["A", "B", "C"],
+            },
+            index=[5, 2, 7],
+        )
+        self.window.df_exibido = df.copy()
+        self.window.df_completo = df.copy()
+
+        series = ssa_gui_details._get_series_for_ssa(self.window, "200")
+
+        assert series is not None
+        assert str(series.get("numero_ssa")) == "200"
+        assert str(series.get("descricao_ssa")) == "B"
+
+    def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
+        with patch(
+            "gui.ssa.gui_details._collect_derivadas_tree_data",
+            return_value={
+                "target": "202602147",
+                "parents": [],
+                "children": [],
+                "descendants": [],
+                "ancestors": [],
+                "direct_children_count": 0,
+                "descendants_count": 0,
+            },
+        ):
+            html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
+
+        assert "Arvore de derivadas:" in html
+        assert "SSA <a href=\"ssa-panel:202602147\"" in html
+        assert "Mae direta:</b> -" in html
+        assert "Filhas diretas (0)" in html
+        assert "- nenhuma" in html
+        assert "Descendentes (0)" in html
+        assert "- nenhum" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""

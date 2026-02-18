@@ -27,6 +27,10 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
+DERIVADAS_DIALOG_RATIO_LEFT = 3
+DERIVADAS_DIALOG_RATIO_RIGHT = 7
+DERIVADAS_DIALOG_MIN_HEIGHT = 625
+DERIVADAS_DIALOG_FONT_SCALE = 1.25
 
 
 def configure_details_constants(
@@ -236,6 +240,12 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
         children_list = derivadas_rel.get("children", [])
         descendants_count = int(derivadas_rel.get("descendants_count", 0))
 
+        def _ssa_display(value):
+            normalized = _normalize_ssa_value(window, value)
+            if normalized:
+                return normalized
+            return str(value).strip()
+
         html_lines.append(
             f"<tr>"
             f'<td colspan="2" style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
@@ -247,7 +257,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
         mae_direta_text = "-"
         if parent_list:
             if linkify:
-                first_parent = html_module.escape(parent_list[0])
+                first_parent = html_module.escape(_ssa_display(parent_list[0]))
                 href_parent = _normalize_ssa_value(window, parent_list[0])
                 mae_direta_text = (
                     f'<a href="ssa-details:{href_parent}" style="color:{link_color}; '
@@ -255,7 +265,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                     f"{first_parent}</a>"
                 )
             else:
-                mae_direta_text = html_module.escape(str(parent_list[0]))
+                mae_direta_text = html_module.escape(_ssa_display(parent_list[0]))
             if len(parent_list) > 1:
                 mae_direta_text = f"{mae_direta_text} (+{len(parent_list) - 1})"
         html_lines.append(
@@ -275,7 +285,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                 child_items = []
                 for child in top_children:
                     href_child = _normalize_ssa_value(window, child)
-                    display_child = html_module.escape(str(child))
+                    display_child = html_module.escape(_ssa_display(child))
                     child_items.append(
                         f'<a href="ssa:{href_child}" style="color:{link_color}; '
                         f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
@@ -283,7 +293,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                     )
                 filhas_text = ", ".join(child_items)
             else:
-                filhas_text = ", ".join(html_module.escape(str(child)) for child in top_children)
+                filhas_text = ", ".join(html_module.escape(_ssa_display(child)) for child in top_children)
             if len(children_list) > DERIVADAS_DETAILS_TOP_N:
                 filhas_text = f"{filhas_text} ... (+{len(children_list) - DERIVADAS_DETAILS_TOP_N})"
         else:
@@ -535,8 +545,11 @@ def _get_series_for_ssa(window, numero_ssa):
             mask = series_norm.eq(target)
             if not mask.any():
                 return None
-            idx = int(mask[mask].index[0])
-            return df.iloc[idx]
+            idx_label = mask[mask].index[0]
+            matched = df.loc[idx_label]
+            if isinstance(matched, pd.DataFrame):
+                return matched.iloc[0]
+            return matched
         except Exception as exc:
             logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
             return None
@@ -695,17 +708,22 @@ def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
         )
 
     lines = []
-    lines.append(
-        f'<div style="font-family:{MONO_FONT_FAMILY}; font-size:10pt;">'
-        f"<b>Arvore de derivadas da SSA {_ssa_link(target)}</b>"
+    tree_font_pt = max(
+        DETAILS_DIALOG_FONT_SIZE * DERIVADAS_DIALOG_FONT_SCALE,
+        DETAILS_DIALOG_FONT_SIZE + 1.0,
     )
-    lines.append("<br/><br/>")
+    lines.append(
+        f'<div style="font-family:{MONO_FONT_FAMILY}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
+    )
+    lines.append("<b>Arvore de derivadas:</b><br/><br/>")
+    lines.append(f"<b>SSA {_ssa_link(target)}</b><br/><br/>")
     parents = data.get("parents", [])
     if parents:
         parent_links = ", ".join(_ssa_link(p) for p in parents)
         lines.append(f"<b>Mae direta:</b> {parent_links}<br/>")
     else:
         lines.append("<b>Mae direta:</b> -<br/>")
+    lines.append("<br/>")
 
     children = data.get("children", [])
     lines.append(f"<b>Filhas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
@@ -714,6 +732,7 @@ def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
             lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)}<br/>")
     else:
         lines.append("&nbsp;&nbsp;- nenhuma<br/>")
+    lines.append("<br/>")
 
     descendants = data.get("descendants", [])
     desc_count = int(data.get("descendants_count", 0))
@@ -764,7 +783,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     dialog = QDialog(window)
     dialog.setWindowTitle(f"Detalhes da SSA #{target}")
     dialog.setMinimumWidth(700)
-    dialog.setMinimumHeight(500)
+    dialog.setMinimumHeight(DERIVADAS_DIALOG_MIN_HEIGHT)
 
     root_layout = QVBoxLayout(dialog)
     content_layout = QHBoxLayout()
@@ -795,10 +814,15 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if series_target is None:
             return False
         current_target["ssa"] = normalized
+        dialog_font_pt = max(
+            DETAILS_DIALOG_FONT_SIZE * DERIVADAS_DIALOG_FONT_SCALE,
+            DETAILS_DIALOG_FONT_SIZE + 1.0,
+        )
         html_details = _format_details_html(
             window,
             series_target,
             highlight_search_terms=True,
+            font_size_pt=dialog_font_pt,
             linkify=True,
         )
         details_browser.setHtml(html_details)
@@ -840,9 +864,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if not _render_target(target):
         return
 
-    # Keep a stable 40/60 split: derivadas panel (left) / SSA details (right).
-    content_layout.addWidget(tree_browser, 2)
-    content_layout.addWidget(details_browser, 3)
+    # Keep a stable 30/70 split: derivadas panel (left) / SSA details (right).
+    content_layout.addWidget(tree_browser, DERIVADAS_DIALOG_RATIO_LEFT)
+    content_layout.addWidget(details_browser, DERIVADAS_DIALOG_RATIO_RIGHT)
     root_layout.addLayout(content_layout)
 
     close_button = QPushButton("Fechar")
