@@ -238,6 +238,11 @@ Ordered list from PR review threads. Status uses pending/resolved.
 ## Updates 2026-02-17 (slice: derivadas button util)
 
 - [resolved] `Especificas...` popup now includes DB materialized derivadas summary for visible SSAs (`ssa_derivada_summary`).
+
+## Updates 2026-02-18 (user TODO queue)
+
+- [pending] Melhorar GUI na aba filtros, mantendo layout base sem regressao visual.
+- [pending] Implementar filtro/capacidade de `divisao` com cobertura de teste focada.
 - [resolved] `Especificas...` enable state now also checks DB relations, not only dataframe `derivada_de` values.
 - [resolved] Fixed responsive grid crash risk after removal of `responsavel_emissor` controls (`_reorganize_advanced_filters_grid` no longer references `emis_resp_box`).
 
