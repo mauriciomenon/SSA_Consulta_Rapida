@@ -329,6 +329,22 @@ def _run_derivadas_sync_from_special_sheet(
         sheet_files=existing_files,
         include_db_source=True,
     )
+    sheet_stats = report.get("sheet_stats") or {}
+    reported_files = report.get("sheet_files") or []
+    accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+    special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
+    if not reported_files or len(reported_files) != len(existing_files):
+        logger.error(
+            "Sync de derivadas especiais sem cobertura completa de arquivos (esperado=%s, recebido=%s).",
+            len(existing_files),
+            len(reported_files),
+        )
+        return False, existing_files, report
+    if accepted_edges <= 0 and special_layout_detected <= 0:
+        logger.error(
+            "Sync de derivadas especiais sem evidencia de parse valido (accepted_edges=0, special_layout_detected=0)."
+        )
+        return False, existing_files, report
     logger.info(
         "Sync de derivadas concluido com %s planilha(s) especial(is) (merged_edges=%s).",
         len(existing_files),
