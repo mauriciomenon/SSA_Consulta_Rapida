@@ -773,8 +773,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     tree_browser.setReadOnly(True)
     tree_browser.setOpenLinks(False)
     tree_browser.setOpenExternalLinks(False)
-    tree_browser.setMinimumWidth(340)
-    tree_browser.setMaximumWidth(460)
+    tree_browser.setMinimumWidth(240)
 
     details_browser = QTextBrowser()
     details_browser.setReadOnly(True)
@@ -841,8 +840,9 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if not _render_target(target):
         return
 
-    content_layout.addWidget(tree_browser, 1)
-    content_layout.addWidget(details_browser, 2)
+    # Keep a stable 40/60 split: derivadas panel (left) / SSA details (right).
+    content_layout.addWidget(tree_browser, 2)
+    content_layout.addWidget(details_browser, 3)
     root_layout.addLayout(content_layout)
 
     close_button = QPushButton("Fechar")
