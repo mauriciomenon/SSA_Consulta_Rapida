@@ -354,6 +354,14 @@ Criterio de aceite da delegacao:
 2. Nao remover validacoes fail-closed de sync de derivadas.
 3. Nao reintroduzir `responsavel_emissor` em advanced filters.
 
+### Estado de migracao pronto
+
+1. [resolved] Prompt curto e prompt completo para nova conversa adicionados em:
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - `docs/NEXT_CHAT_MIGRATION.md`
+2. [resolved] Baseline de UI sensivel documentada com valores numericos:
+   - split `20/80`, min `700x650`, fonts `12/12/11`.
+
 ## Decisao de triagem (2026-02-18, lock de escopo)
 
 Itens marcados como falso positivo neste ciclo (nao fazer):

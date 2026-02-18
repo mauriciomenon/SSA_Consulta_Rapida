@@ -158,3 +158,8 @@ Use this checklist before claiming done:
 4. Report:
    - include file:line evidence for each external finding triaged
    - include clear now vs backlog classification
+
+Migration note:
+- next chat starter prompts are maintained in:
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
