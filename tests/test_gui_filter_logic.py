@@ -1401,6 +1401,21 @@ class TestGUIFilterLogic:
 
         assert self.window.clear_filter_button.isEnabled() is True
 
+    def test_on_data_loaded_sanitizes_decimal_ssa_artifacts(self):
+        self.window._active_data_load_request_id = 21
+        df = self.base_df.copy()
+        df["numero_ssa"] = df["numero_ssa"].astype(object)
+        df["derivada_de"] = df["derivada_de"].astype(object)
+        df.loc[0, "numero_ssa"] = "202500777.0"
+        df.loc[1, "numero_ssa"] = 202500778.0
+        df.loc[0, "derivada_de"] = "202500001.0"
+
+        self.window.on_data_loaded(df, request_id=21)
+
+        assert self.window.df_completo.loc[0, "numero_ssa"] == "202500777"
+        assert self.window.df_completo.loc[1, "numero_ssa"] == "202500778"
+        assert self.window.df_completo.loc[0, "derivada_de"] == "202500001"
+
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10
         self.window.status_label.setText("Status: OK")
