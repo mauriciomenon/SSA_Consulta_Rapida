@@ -27,10 +27,12 @@ HIGHLIGHT_FONT_WEIGHT = "bold"
 MONO_FONT_FAMILY = "monospace"
 HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
 DERIVADAS_DETAILS_TOP_N = 5
-DERIVADAS_DIALOG_RATIO_LEFT = 2
-DERIVADAS_DIALOG_RATIO_RIGHT = 8
-DERIVADAS_DIALOG_MIN_HEIGHT = 625
-DERIVADAS_DIALOG_FONT_SCALE = 1.25
+DERIVADAS_DIALOG_RATIO_LEFT = 15
+DERIVADAS_DIALOG_RATIO_RIGHT = 85
+DERIVADAS_DIALOG_MIN_HEIGHT = 650
+DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
+DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
+DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
 
 
 def configure_details_constants(
@@ -142,10 +144,19 @@ def _highlight_text(window, text, terms):
             return highlight_text(text, terms)
 
 
-def _format_details_html(window, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
+def _format_details_html(
+    window,
+    series,
+    highlight_search_terms=False,
+    font_size_pt=None,
+    linkify=False,
+    label_font_size_pt=None,
+):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
         font_size_pt = DETAILS_DIALOG_FONT_SIZE
+    if label_font_size_pt is None:
+        label_font_size_pt = font_size_pt
 
     search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
 
@@ -191,7 +202,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
             f"{html_module.escape(display_name)}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -226,7 +237,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
             f"{html_module.escape(label)}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -250,7 +261,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td colspan="2" style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold;\">Relacoes de Derivadas</td>"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt;\">Relacoes de Derivadas</td>"
             f"</tr>"
         )
 
@@ -272,7 +283,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">Mae direta:</td>"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">Mae direta:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{mae_direta_text}</td>"
@@ -302,7 +313,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
             f"Filhas diretas ({len(children_list)}):</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -314,7 +325,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
             f"Descendentes ({descendants_count}):</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
@@ -334,7 +345,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
-            f"font-weight: bold; width: 30%; vertical-align: top;\">Acoes:</td>"
+            f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">Acoes:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{open_tree_text}</td>"
@@ -708,10 +719,7 @@ def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
         )
 
     lines = []
-    tree_font_pt = max(
-        DETAILS_DIALOG_FONT_SIZE * DERIVADAS_DIALOG_FONT_SCALE,
-        DETAILS_DIALOG_FONT_SIZE + 1.0,
-    )
+    tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
     lines.append(
         f'<div style="font-family:{MONO_FONT_FAMILY}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
@@ -814,16 +822,14 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if series_target is None:
             return False
         current_target["ssa"] = normalized
-        dialog_font_pt = max(
-            DETAILS_DIALOG_FONT_SIZE * DERIVADAS_DIALOG_FONT_SCALE,
-            DETAILS_DIALOG_FONT_SIZE + 1.0,
-        )
+        dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
         html_details = _format_details_html(
             window,
             series_target,
             highlight_search_terms=True,
             font_size_pt=dialog_font_pt,
             linkify=True,
+            label_font_size_pt=DERIVADAS_DIALOG_LABEL_FONT_PT,
         )
         details_browser.setHtml(html_details)
         tree_html = _build_derivadas_tree_html(window, normalized, link_color=link_color)
@@ -864,7 +870,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     if not _render_target(target):
         return
 
-    # Keep a stable 20/80 split: derivadas panel (left) / SSA details (right).
+    # Keep a stable 15/85 split: derivadas panel (left) / SSA details (right).
     content_layout.addWidget(tree_browser, DERIVADAS_DIALOG_RATIO_LEFT)
     content_layout.addWidget(details_browser, DERIVADAS_DIALOG_RATIO_RIGHT)
     root_layout.addLayout(content_layout)
