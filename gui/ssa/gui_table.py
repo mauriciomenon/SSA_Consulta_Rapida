@@ -420,11 +420,13 @@ def _compute_gui_column_widths(window, df: pd.DataFrame):
         saved_widths = getattr(window, '_saved_gui_column_widths', {})
         try:
             widget_width = int(window.table_widget.width())
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao ler largura do table_widget em _compute_gui_column_widths: %s", exc)
             widget_width = 0
         try:
             window_width = int(window.width())
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao ler largura da janela em _compute_gui_column_widths: %s", exc)
             window_width = widget_width
 
         column_widths = _compute_widths_for_df(
