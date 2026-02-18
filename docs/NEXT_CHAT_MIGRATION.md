@@ -187,6 +187,23 @@ Regras:
 5. Sem acentos/cedilha/emojis/emdash em codigo, docs e mensagens tecnicas.
 6. Nao ocultar erro real com except vazio/suppress indevido.
 
+Leitura obrigatoria antes de iniciar:
+1. docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+2. docs/NEXT_CHAT_MIGRATION.md
+3. docs/RECOVERY_BACKLOG.md
+4. docs/QA_FACADE_FILTERS.md
+5. AGENTS.md
+
+Sequencia obrigatoria de ciclo:
+1) evidenciar problema com arquivo:linha e repro
+2) propor diff minimo antes de editar
+3) implementar slice pequeno
+4) validar local
+5) commit atomico
+6) push
+7) checar checks e comentarios de PR
+8) backlog para nao bloqueante
+
 Fluxo por slice:
 1) validar evidencia local (rg -n + nl -ba)
 2) patch minimo
@@ -200,6 +217,13 @@ Gate tecnico:
 - uv run ruff check <files>
 - uv run ty check <files>
 - uv run pytest -q <tests focados>
+
+Cuidados de seguranca e operacao:
+1. Nao comitar segredos e arquivos locais de ambiente.
+2. Nao usar comandos git destrutivos.
+3. Nao esconder erro real com fallback generico.
+4. Nao alterar schema/layout sem aprovacao explicita.
+5. Se aparecer mudanca fora de escopo, pausar e confirmar com usuario.
 
 Gate extra se tocar facade de filtros:
 - uv run pytest -q tests/test_gui_filters_facade_contract.py

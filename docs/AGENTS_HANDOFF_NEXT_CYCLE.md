@@ -350,6 +350,31 @@ Regras de comportamento obrigatorias:
 3) Nao esconder erro real com fallback generico.
 4) Nao assumir efeito visual por constante; validar constraints reais de layout.
 5) Sempre reportar valores finais numericos (ratio, size, font).
+6) Ler os docs obrigatorios antes de qualquer patch.
+
+Leitura obrigatoria inicial (ordem):
+1) docs/AGENTS_HANDOFF_NEXT_CYCLE.md
+2) docs/NEXT_CHAT_MIGRATION.md
+3) docs/RECOVERY_BACKLOG.md
+4) docs/QA_FACADE_FILTERS.md
+5) AGENTS.md (regras locais da sessao)
+
+Ciclo minimo por slice (nao pular):
+1) diagnostico com evidencia (rg -n + nl -ba + repro)
+2) plano curto + diff previsto
+3) patch minimo
+4) gate tecnico local
+5) commit atomico
+6) push
+7) checagem de PR checks
+8) registrar pendencia nao bloqueante no backlog
+
+Cuidados de seguranca e higiene:
+1) Nao comitar arquivos locais/sensiveis (`.envrc`, `.python-version`, `config/secret_key`, db local fora do escopo).
+2) Nao usar comandos destrutivos (`git reset --hard`, checkout destrutivo).
+3) Nao introduzir suppress/except vazio.
+4) Nao mascarar falha funcional com fallback silencioso.
+5) Em duvida de escopo: perguntar antes de mexer.
 
 Gate tecnico por slice:
 - uv run python -m py_compile <files>
@@ -375,10 +400,10 @@ Entregavel de cada slice:
 
 - Branch: `codex/import-review`
 - PR: `#31`
-- Head commit no momento: `aa454a40`
+- Head commit no momento: `250fc32c`
 - Sequencia recente relevante:
-  1. `aa454a40` docs(handoff): expand next-chat package and strict execution rules
-  2. `80a73363` fix(gui-details,docs): set 20/80 split and prepare strict next-chat handoff
-  3. `24024662` fix(gui-details): enforce real 15/85 split with splitter (posteriormente ajustado para 20/80)
+  1. `250fc32c` docs(migration): finalize ready-to-migrate snapshot and strict starters
+  2. `aa454a40` docs(handoff): expand next-chat package and strict execution rules
+  3. `80a73363` fix(gui-details,docs): set 20/80 split and prepare strict next-chat handoff
 - Bloqueio externo conhecido:
   - `code/snyk` e `security/snyk` por limite de plano.
