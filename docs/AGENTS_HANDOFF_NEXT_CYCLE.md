@@ -167,6 +167,98 @@ This handoff is ready to reuse in the next conversation.
   - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
   - post-sync consistency: `is_consistent=true`
 
+## Status snapshot 2026-02-18 (for audit and delegation)
+
+### Falhas graves (risco alto)
+
+1. Tooling gate externo fora do codigo:
+   - `code/snyk` e `security/snyk` continuam em fail por limite de plano, nao por regressao local.
+2. Kluster indisponivel por rede durante slice atual:
+   - chamadas recentes retornaram `ENOTFOUND api.kluster.ai`.
+   - risco: quebra de protocolo de review automatico ate normalizar conectividade.
+
+### Falhas intermediarias (risco medio)
+
+1. Baseline de tipagem GUI ainda muito alto:
+   - `uv run ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` retorna ~301 diagnostics legados.
+2. Backlog de concorrencia/cancelamento ainda aberto:
+   - `gui/workers/rescan_worker.py`, `gui/widgets/rescan_progress_dialog.py`, `scripts/run_pytest_stream_and_log*.py`.
+
+### Melhorias de clareza de codigo (baixo risco)
+
+1. Logs de erro de sync foram melhorados para listar planilhas sem evidencia individual.
+2. Contrato de sync agora tem sumario agregado de evidencia por arquivo (`sheet_evidence`).
+
+### Condicoes de corrida conhecidas (pendente)
+
+1. `scripts/run_pytest_stream_and_log.py` e `scripts/run_pytest_stream_and_log_v2.py`:
+   - contadores compartilhados sem sincronizacao.
+2. `interface/cli_enhancement_manager.py`:
+   - lock em arquivo temporario nao serializa escritores concorrentes no alvo real.
+3. `gui/workers/rescan_worker.py`:
+   - cleanup com suppress em detach pode mascarar estado inconsistente.
+
+### Erros de sincronizacao/dados
+
+1. Fluxo de derivadas:
+   - estado atual esta consistente (`scan is_consistent=true`).
+   - hardening novo protege contra perda silenciosa por arquivo sem evidencia.
+2. Pendencia operacional:
+   - manter execucao periodica de sync + scan em banco real apos lotes novos de planilha.
+
+### Codigo morto confirmado
+
+1. `core/app_logic.py`:
+   - trecho `if df is None` segue listado como dead code no backlog.
+2. Pendencias adicionais em backlog devem ser tratadas por slice pequeno com teste.
+
+### Linter status
+
+1. `ruff` global:
+   - ~277 erros no repo completo (muitos em scripts auxiliares e testes antigos).
+2. `ty` global em GUI:
+   - ~301 diagnostics no baseline de `gui/gui_ssa.py` + `tests/test_gui_filter_logic.py`.
+3. Em arquivos tocados no slice de importer/derivadas:
+   - `py_compile`, `ruff`, `ty`, `pytest` focado passaram.
+
+## Sessao: tarefas faceis para outra IA (baixo risco, auditavel)
+
+Objetivo:
+- Delegar apenas tarefas simples e mecanicas, sem risco funcional alto.
+- Proibido mexer em layout GUI e schema.
+
+Escopo permitido:
+1. Limpeza ruff em scripts auxiliares e testes utilitarios sem impacto de runtime.
+2. Ajustes de mensagem/log e testes de cobertura de erro.
+3. Refino de asserts em testes de cancelamento/progresso sem alterar fluxo principal.
+
+Escopo proibido:
+1. Nao alterar `gui/gui_ssa.py` fora de testes muito localizados.
+2. Nao tocar pipeline de import principal sem teste focado.
+3. Nao alterar schema SQL.
+
+Pacote de tarefas delegaveis (ordem recomendada):
+1. Ruff facil em scripts:
+   - remover imports nao usados (`F401`), variaveis nao usadas (`F841`), f-strings sem placeholder (`F541`) em `scripts/*` e `launchers/*`.
+2. Ruff facil em testes utilitarios:
+   - mesmo padrao em `tests/verify_*`, `tests/test_verification_manual.py`, `tests/test_search_v_character.py`.
+3. Testes de robustez de progresso:
+   - fortalecer `tests/test_import_cancellation.py` com assert do evento final `finish`.
+4. Testes de dialogo de rescan:
+   - ampliar asserts em `tests/test_rescan_progress_dialog.py` para estado de botoes/status.
+5. Testes de lock:
+   - melhorar `tests/test_filter_cache_locking.py` para validar uso correto de lock, nao apenas enter_count.
+
+Checklist de auditoria (eu audito depois):
+1. Cada tarefa em commit atomico separado.
+2. Gate por slice:
+   - `uv run python -m py_compile <files>`
+   - `uv run ruff check <files>`
+   - `uv run ty check <files>`
+   - `uv run pytest -q <tests focados>`
+3. Nao aceitar refatoracao transversal.
+4. Se tocar GUI filtros, rodar gates obrigatorios de facade/filtros.
+
 ## Texto pronto para abrir a nova conversa
 
 ```text
