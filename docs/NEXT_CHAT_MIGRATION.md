@@ -102,6 +102,16 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
   - `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`
   - post-sync consistency: `is_consistent=true`
 
+## Current execution status (2026-02-18, in progress)
+
+- Active local slice (not yet committed):
+  - importer now includes filenames in blocking error when special sheets have no evidence.
+  - tests expanded to assert `files_without_evidence` in progress error payload.
+- Local gate for this active slice:
+  - `py_compile`, `ruff`, `ty`, `pytest tests/test_import_derivadas_trigger.py` all green.
+- Temporary blocker:
+  - kluster auto review endpoint unstable (`ENOTFOUND api.kluster.ai`) on recent calls.
+
 ## Copy/paste starter for next chat
 
 ```text

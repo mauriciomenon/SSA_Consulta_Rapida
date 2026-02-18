@@ -291,3 +291,28 @@ Ordered list from PR review threads. Status uses pending/resolved.
   - runtime evidence: `sync_run_id=4`, `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`, consistency clean.
 
 - [note] `uv run ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` still reports a large pre-existing GUI typing baseline (301 diagnostics); this slice did not expand scope to full GUI typing cleanup.
+
+## Delegacao simples para outra IA (audit-safe)
+
+Objetivo:
+- Escoar backlog de baixo risco sem quebrar fluxo estavel.
+
+Lotes simples (permitidos):
+1. [pending] limpeza ruff de baixo risco em `scripts/*` e `launchers/*`:
+   - F401, F841, F541, E401/E402 em arquivos de ferramenta.
+2. [pending] limpeza ruff de baixo risco em testes utilitarios:
+   - `tests/verify_*`, `tests/test_verification_manual.py`, `tests/test_search_v_character.py`.
+3. [pending] reforco de testes:
+   - `tests/test_import_cancellation.py` evento `finish`.
+   - `tests/test_rescan_progress_dialog.py` asserts de estado.
+   - `tests/test_filter_cache_locking.py` assert semantico de lock.
+
+Nao delegar:
+1. Mudancas estruturais em `gui/gui_ssa.py`.
+2. Mudancas de schema.
+3. Mudancas em import principal sem suite focada completa.
+
+Criterio de aceite da delegacao:
+1. Commits atomicos por lote.
+2. Gate por lote verde (`py_compile`, `ruff`, `ty`, `pytest` focado).
+3. Sem alteracao de layout GUI.

@@ -408,6 +408,7 @@ def _run_derivadas_sync_phase(
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     sheet_file_reports = report.get("sheet_file_reports") or []
+    sheet_evidence = report.get("sheet_evidence") or {}
     accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
     special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
     has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
@@ -457,6 +458,19 @@ def _run_derivadas_sync_phase(
         )
         report = dict(report)
         report["sheet_files_without_evidence"] = sorted(files_without_evidence)
+        return False, existing_files, report
+    if existing_files and not bool(sheet_evidence.get("is_complete", True)):
+        report = dict(report)
+        report["sheet_files_without_evidence"] = sorted(
+            os.path.basename(str(path))
+            for path in (sheet_evidence.get("files_without_evidence") or [])
+            if str(path).strip()
+        )
+        missing_count = len(report["sheet_files_without_evidence"])
+        logger.error(
+            "Sync de derivadas especiais reportou evidencia incompleta no sumario agregado (%s arquivo(s)).",
+            missing_count,
+        )
         return False, existing_files, report
     if existing_files and not has_sheet_evidence and not has_graph_evidence:
         logger.error(
@@ -841,12 +855,15 @@ def run_importer_logic(
                             derivadas_sync_blocking_error = True
                             consistency_scan = sync_report.get("consistency_scan") or {}
                             issue_counts = consistency_scan.get("issue_counts") or {}
+                            missing_files = sorted(sync_report.get("sheet_files_without_evidence") or [])
                             issue_text = json.dumps(issue_counts, ensure_ascii=True)
                             error_message = (
                                 f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
                                 if issue_counts
                                 else "Sync de derivadas sem evidencia valida"
                             )
+                            if missing_files:
+                                error_message += f" | files_without_evidence={','.join(missing_files)}"
                             critical_errors.append(("derivadas_sync", docs_dir, error_message))
                             _emit_progress(
                                 "file_error",
