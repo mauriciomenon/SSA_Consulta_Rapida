@@ -2120,13 +2120,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def _highlight_text(self, text, terms):
         return ssa_gui_details._highlight_text(self, text, terms)
 
-    def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
+    def _format_details_html(
+        self,
+        series,
+        highlight_search_terms=False,
+        font_size_pt=None,
+        linkify=False,
+        label_font_size_pt=None,
+    ):
         return ssa_gui_details._format_details_html(
             self,
             series,
             highlight_search_terms=highlight_search_terms,
             font_size_pt=font_size_pt,
             linkify=linkify,
+            label_font_size_pt=label_font_size_pt,
         )
 
     def on_table_double_click(self, index):
