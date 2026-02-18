@@ -2473,7 +2473,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             self.update_derivadas_button.setEnabled(False)
             if hasattr(self, "progress_bar"):
-                self.progress_bar.setVisible(True)
+                # Do not force visibility here; showing/hiding this widget changes
+                # toolbar geometry and causes perceived layout shifts in filters tab.
+                if previous_progress_visible:
+                    self.progress_bar.setVisible(True)
                 self.progress_bar.setRange(0, 0)
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Atualizando derivadas via DB...")
