@@ -382,6 +382,15 @@ def _run_derivadas_sync_phase(
     table_name: str,
     derivadas_sheet_files: List[str],
 ) -> tuple[bool, List[str], Dict[str, Any]]:
+    def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
+        raw_stats = entry.get("stats")
+        stats: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
+        has_flag = bool(entry.get("has_parse_evidence"))
+        accepted = int(stats.get("accepted_edges", 0) or 0)
+        special_layout = int(stats.get("special_layout_detected", 0) or 0)
+        informational = int(stats.get("informational_rows_skipped", 0) or 0)
+        return has_flag or accepted > 0 or special_layout > 0 or informational > 0
+
     existing_files = sorted(
         {path for path in derivadas_sheet_files if os.path.exists(path)},
         key=lambda path: os.path.basename(path).casefold(),
@@ -398,6 +407,7 @@ def _run_derivadas_sync_phase(
     report = sync_derivadas(**sync_kwargs)
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
+    sheet_file_reports = report.get("sheet_file_reports") or []
     accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
     special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
     has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
@@ -407,12 +417,46 @@ def _run_derivadas_sync_phase(
     merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
     has_graph_evidence = db_edges > 0 or merged_edges > 0
 
-    if existing_files and len(reported_files) != len(existing_files):
+    expected_files_set = {os.path.abspath(path) for path in existing_files}
+    reported_files_set = {os.path.abspath(str(path)) for path in reported_files}
+    if existing_files and reported_files_set != expected_files_set:
         logger.error(
             "Sync de derivadas especiais sem cobertura completa de arquivos (esperado=%s, recebido=%s).",
             len(existing_files),
             len(reported_files),
         )
+        return False, existing_files, report
+    if existing_files and len(sheet_file_reports) != len(existing_files):
+        logger.error(
+            "Sync de derivadas especiais sem relatorio individual por arquivo (esperado=%s, recebido=%s).",
+            len(existing_files),
+            len(sheet_file_reports),
+        )
+        return False, existing_files, report
+
+    files_without_evidence: list[str] = []
+    if existing_files:
+        reports_by_file: dict[str, Dict[str, Any]] = {}
+        for entry in sheet_file_reports:
+            if not isinstance(entry, dict):
+                continue
+            raw_sheet_file = str(entry.get("sheet_file") or "").strip()
+            if not raw_sheet_file:
+                continue
+            reports_by_file[os.path.abspath(raw_sheet_file)] = entry
+        for expected_file in existing_files:
+            normalized = os.path.abspath(expected_file)
+            current = reports_by_file.get(normalized)
+            if current is None or not _has_sheet_parse_evidence(current):
+                files_without_evidence.append(os.path.basename(expected_file))
+    if files_without_evidence:
+        logger.error(
+            "Sync de derivadas especiais sem evidencia individual em %s arquivo(s): %s",
+            len(files_without_evidence),
+            ", ".join(sorted(files_without_evidence)),
+        )
+        report = dict(report)
+        report["sheet_files_without_evidence"] = sorted(files_without_evidence)
         return False, existing_files, report
     if existing_files and not has_sheet_evidence and not has_graph_evidence:
         logger.error(

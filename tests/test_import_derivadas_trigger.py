@@ -79,11 +79,20 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
     sync_calls: list[dict] = []
 
     def _fake_sync(**kwargs):
+        current_files = list(kwargs.get("sheet_files") or [])
         sync_calls.append(kwargs)
         return {
             "merge_stats": {"merged_edges": 7},
-            "sheet_files": list(kwargs.get("sheet_files") or []),
+            "sheet_files": current_files,
             "sheet_stats": {"accepted_edges": 7, "special_layout_detected": 2},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": current_file,
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 3, "special_layout_detected": 1},
+                }
+                for current_file in current_files
+            ],
         }
 
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
@@ -167,11 +176,20 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
     sync_calls: list[dict] = []
 
     def _fake_sync(**kwargs):
+        current_files = list(kwargs.get("sheet_files") or [])
         sync_calls.append(kwargs)
         return {
             "merge_stats": {"merged_edges": 2},
-            "sheet_files": list(kwargs.get("sheet_files") or []),
+            "sheet_files": current_files,
             "sheet_stats": {"accepted_edges": 2, "special_layout_detected": 1},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": current_file,
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 2, "special_layout_detected": 1},
+                }
+                for current_file in current_files
+            ],
         }
 
     monkeypatch.setattr(app_logic, "sync_derivadas", _fake_sync)
@@ -318,6 +336,13 @@ def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges
             "db_stats": {"accepted_edges": 2},
             "sheet_stats": {"accepted_edges": 0, "special_layout_detected": 0},
             "merge_stats": {"merged_edges": 2},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 0, "special_layout_detected": 1},
+                }
+            ],
         },
     )
 
@@ -507,6 +532,13 @@ def test_run_importer_reports_consistency_issue_counts_in_progress_error(
             "db_stats": {"accepted_edges": 2},
             "sheet_stats": {"accepted_edges": 1, "special_layout_detected": 1},
             "merge_stats": {"merged_edges": 2},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": True,
+                    "stats": {"accepted_edges": 1, "special_layout_detected": 1},
+                }
+            ],
         },
     )
     monkeypatch.setattr(
@@ -534,3 +566,48 @@ def test_run_importer_reports_consistency_issue_counts_in_progress_error(
     file_errors = [payload for event, payload in events if event == "file_error"]
     assert file_errors
     assert "flag_mismatch_pairs" in file_errors[-1]["error"]
+
+
+def test_run_importer_rejects_special_sheet_without_individual_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    special = docs_dir / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx"
+    special.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "sync_derivadas",
+        lambda **kwargs: {
+            "sheet_files": [str(special)],
+            "sheet_stats": {"accepted_edges": 1, "special_layout_detected": 1},
+            "merge_stats": {"merged_edges": 2},
+            "sheet_file_reports": [
+                {
+                    "sheet_file": str(special),
+                    "has_parse_evidence": False,
+                    "stats": {"accepted_edges": 0, "special_layout_detected": 0},
+                }
+            ],
+        },
+    )
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
