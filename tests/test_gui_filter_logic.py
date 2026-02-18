@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import time
 from collections import Counter
+from typing import Any, cast
 
 import pandas as pd
 import pytest
@@ -288,7 +289,7 @@ class TestGUIFilterLogic:
         executor_edit, executor_apply, _ = controls['Executor']
 
         emissor_edit.setText('MEL3, MEL4')
-        QTest.mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
 
         # Armazenamento interno usa virgulas
@@ -297,7 +298,7 @@ class TestGUIFilterLogic:
 
         # "Remover linha" agora apenas oculta a linha, não limpa o valor
         emissor_edit.setText('')
-        QTest.mouseClick(emissor_clear, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(emissor_clear, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
@@ -307,7 +308,7 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
 
         executor_edit.setText('IEE3, MEL4')
-        QTest.mouseClick(executor_apply, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(executor_apply, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
@@ -320,7 +321,7 @@ class TestGUIFilterLogic:
         # Com o perfil aplicado na nova semântica, apenas 3 está visível antes do checkbox
         assert 3 in all_records
 
-        QTest.mouseClick(self.window.exclude_ste_checkbox, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(self.window.exclude_ste_checkbox, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         remaining = set(self._extract_visible_ssa())
         assert 2 not in remaining and 3 not in remaining
@@ -616,7 +617,7 @@ class TestGUIFilterLogic:
             if ctx.get("tab_kind") == "filters"
         )
         self.window.main_tabs.setCurrentIndex(filter_tab_idx)
-        QTest.qWait(int(self.window._debounce_timer.interval()) + 80)
+        cast(Any, QTest).qWait(int(self.window._debounce_timer.interval()) + 80)
         QApplication.processEvents()
 
         # O dataset nao pode ser resetado por disparo tardio no contexto da aba errada.
@@ -2148,7 +2149,7 @@ class TestGUIFilterLogic:
 
         with patch.object(self.window, "_refresh_responsavel_options", wraps=self.window._refresh_responsavel_options) as refresh_mock:
             self.window._schedule_sector_options_refresh()
-            QTest.qWait(int(self.window._sector_debounce_timer.interval()) + 80)
+            cast(Any, QTest).qWait(int(self.window._sector_debounce_timer.interval()) + 80)
             QApplication.processEvents()
 
         assert self.window._responsavel_options_dirty is True
