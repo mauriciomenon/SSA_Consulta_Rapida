@@ -311,7 +311,7 @@ def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
     )
 
 
-def _run_derivadas_sync_from_special_sheet(
+def _run_derivadas_sync_phase(
     db_path: str,
     table_name: str,
     derivadas_sheet_files: List[str],
@@ -320,37 +320,50 @@ def _run_derivadas_sync_from_special_sheet(
         {path for path in derivadas_sheet_files if os.path.exists(path)},
         key=lambda path: os.path.basename(path).casefold(),
     )
-    if not existing_files:
-        logger.warning("Planilhas especiais de derivadas detectadas, mas nenhuma planilha existente foi encontrada.")
-        return False, [], {}
-    report = sync_derivadas(
-        db_path=db_path,
-        table_name=table_name,
-        sheet_files=existing_files,
-        include_db_source=True,
-    )
+    sync_kwargs: Dict[str, Any] = {
+        "db_path": db_path,
+        "table_name": table_name,
+        "include_db_source": True,
+    }
+    if existing_files:
+        sync_kwargs["sheet_files"] = existing_files
+
+    report = sync_derivadas(**sync_kwargs)
     sheet_stats = report.get("sheet_stats") or {}
     reported_files = report.get("sheet_files") or []
     accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
     special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
-    if not reported_files or len(reported_files) != len(existing_files):
+    has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
+    db_stats = report.get("db_stats") or {}
+    db_edges = int(db_stats.get("accepted_edges", 0) or 0)
+    merge_stats = report.get("merge_stats") or {}
+    merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
+    has_graph_evidence = db_edges > 0 or merged_edges > 0
+
+    if existing_files and len(reported_files) != len(existing_files):
         logger.error(
             "Sync de derivadas especiais sem cobertura completa de arquivos (esperado=%s, recebido=%s).",
             len(existing_files),
             len(reported_files),
         )
         return False, existing_files, report
-    if accepted_edges <= 0 and special_layout_detected <= 0:
+    if existing_files and not has_sheet_evidence and not has_graph_evidence:
         logger.error(
             "Sync de derivadas especiais sem evidencia de parse valido (accepted_edges=0, special_layout_detected=0)."
         )
         return False, existing_files, report
+    if not has_graph_evidence:
+        logger.warning("Sync de derivadas concluido sem arestas materializadas no grafo.")
+
+    cached_sheets = list(existing_files) if has_sheet_evidence else []
     logger.info(
-        "Sync de derivadas concluido com %s planilha(s) especial(is) (merged_edges=%s).",
+        "Sync de derivadas concluido (planilhas=%s, merged_edges=%s, db_edges=%s, sheet_edges=%s).",
         len(existing_files),
-        (report.get("merge_stats") or {}).get("merged_edges"),
+        merged_edges,
+        db_edges,
+        accepted_edges,
     )
-    return True, existing_files, report
+    return True, cached_sheets, report
 
 
 def _update_cache_after_import(
@@ -662,20 +675,26 @@ def run_importer_logic(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
                     continue
-            if derivadas_sheet_files:
+            sync_materialized = False
+            should_run_derivadas_sync = bool(successfully_processed_files) or bool(derivadas_sheet_files)
+            if should_run_derivadas_sync:
                 if should_cancel and should_cancel():
                     logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
                 else:
                     try:
-                        sync_ok, synced_sheets, sync_report = _run_derivadas_sync_from_special_sheet(
+                        sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
                             db_path=db_path,
                             table_name=table_name,
                             derivadas_sheet_files=derivadas_sheet_files,
                         )
                         if sync_ok:
-                            for special_file in derivadas_sheet_files:
+                            for special_file in synced_sheets:
                                 if special_file not in successfully_processed_files:
                                     successfully_processed_files.append(special_file)
+                            db_edges = int(((sync_report.get("db_stats") or {}).get("accepted_edges", 0) or 0))
+                            merged_edges = int(((sync_report.get("merge_stats") or {}).get("merged_edges", 0) or 0))
+                            if db_edges > 0 or merged_edges > 0:
+                                sync_materialized = True
                             _emit_progress(
                                 "file_success",
                                 {
@@ -724,6 +743,9 @@ def run_importer_logic(
                 successfully_processed_files, cache_file, docs_dir
             )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
+            return True
+        elif sync_materialized:
+            logger.info("=== Processo de importacao concluiu sync de derivadas materializado (sem novos arquivos em cache) ===")
             return True
         else:
             logger.info("Nenhum arquivo foi processado com sucesso.")
