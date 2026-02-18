@@ -290,5 +290,13 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _main_entrypoint() -> int:
+    try:
+        return main()
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_main_entrypoint())

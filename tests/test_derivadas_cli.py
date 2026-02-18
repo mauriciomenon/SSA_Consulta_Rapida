@@ -222,3 +222,14 @@ def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch
                 "--require-consistency",
             ]
         )
+
+
+def test_cli_entrypoint_returns_error_code_and_json_on_exception(monkeypatch: pytest.MonkeyPatch, capsys):
+    monkeypatch.setattr(derivadas_cli, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    rc = derivadas_cli._main_entrypoint()
+    out = capsys.readouterr().out
+    parsed = json.loads(out)
+
+    assert rc == 1
+    assert parsed["error"] == "boom"
