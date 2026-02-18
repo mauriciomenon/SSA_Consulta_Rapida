@@ -772,7 +772,17 @@ class TestGUIFilterLogic:
 
         def _fake_sync(**kwargs):
             sync_calls.append(kwargs)
+            current_files = list(kwargs.get("sheet_files") or [])
             return {
+                "sheet_files": current_files,
+                "sheet_file_reports": [
+                    {
+                        "sheet_file": current_file,
+                        "has_parse_evidence": True,
+                        "stats": {"accepted_edges": 2, "special_layout_detected": 1},
+                    }
+                    for current_file in current_files
+                ],
                 "merge_stats": {"merged_edges": 11},
                 "db_stats": {"accepted_edges": 7},
                 "sheet_stats": {"accepted_edges": 4},
@@ -857,6 +867,51 @@ class TestGUIFilterLogic:
                 "is_consistent": False,
                 "issue_counts": {"flag_mismatch_pairs": 1},
             },
+        )
+        monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
+
+        self.window.update_derivadas_from_sources()
+        QApplication.processEvents()
+
+        assert "Falha ao atualizar derivadas" in self.window.status_label.text()
+
+    def test_update_derivadas_from_sources_fails_when_special_sheet_has_no_individual_evidence(
+        self, monkeypatch, tmp_path
+    ):
+        db_file = tmp_path / "ssas.db"
+        db_file.write_bytes(b"sqlite-placeholder")
+        special_file = str(tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0131PM.xlsx")
+
+        monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_file))
+        monkeypatch.setattr(self.window, "_resolve_derivadas_table_name", lambda _db_path: "ssa_table")
+        monkeypatch.setattr(self.window, "_list_special_derivadas_sheets", lambda: [special_file])
+
+        def _fake_sync(**kwargs):
+            if kwargs.get("include_db_source"):
+                return {
+                    "merge_stats": {"merged_edges": 5},
+                    "db_stats": {"accepted_edges": 5},
+                    "sheet_stats": {"accepted_edges": 0},
+                }
+            return {
+                "sheet_files": [special_file],
+                "sheet_stats": {"accepted_edges": 1, "special_layout_detected": 1},
+                "sheet_file_reports": [
+                    {
+                        "sheet_file": special_file,
+                        "has_parse_evidence": False,
+                        "stats": {"accepted_edges": 0, "special_layout_detected": 0},
+                    }
+                ],
+                "merge_stats": {"merged_edges": 5},
+                "db_stats": {"accepted_edges": 5},
+            }
+
+        monkeypatch.setattr(gui_ssa, "sync_derivadas", _fake_sync)
+        monkeypatch.setattr(
+            gui_ssa,
+            "scan_derivadas_consistency",
+            lambda **kwargs: {"schema_ready": True, "is_consistent": True, "issue_counts": {}},
         )
         monkeypatch.setattr(self.window, "_update_derivadas_button_state", lambda: None)
 
