@@ -45,8 +45,8 @@ def display_current_page(window, page_number):
     try:
         if hasattr(window, "_ensure_data_revision"):
             window._ensure_data_revision()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao validar revisao de dados antes de renderizar pagina: %s", exc)
 
     # Congela redimensionamento automatico durante a reconstrucao da tabela
     try:
