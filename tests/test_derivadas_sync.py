@@ -218,6 +218,11 @@ def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
     file_reports = report["sheet_file_reports"]
     assert len(file_reports) == 2
     assert all(bool(entry["has_parse_evidence"]) for entry in file_reports)
+    evidence = report["sheet_evidence"]
+    assert evidence["files_total"] == 2
+    assert evidence["files_with_evidence"] == 2
+    assert evidence["files_without_evidence"] == []
+    assert evidence["is_complete"] is True
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute(
@@ -313,6 +318,7 @@ def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Pa
     assert report["merge_stats"]["merged_edges"] == 2
     assert len(report["sheet_file_reports"]) == 1
     assert report["sheet_file_reports"][0]["has_parse_evidence"] is True
+    assert report["sheet_evidence"]["is_complete"] is True
 
     with sqlite3.connect(temp_db) as conn:
         rows = conn.execute(

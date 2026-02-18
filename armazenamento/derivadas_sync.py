@@ -225,6 +225,25 @@ def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
     return accepted_edges > 0 or special_layout_detected > 0 or informational_rows > 0
 
 
+def _build_sheet_evidence_summary(sheet_file_reports: list[dict[str, Any]]) -> dict[str, Any]:
+    files_total = len(sheet_file_reports)
+    files_with_evidence = 0
+    files_without_evidence: list[str] = []
+    for entry in sheet_file_reports:
+        current_file = str(entry.get("sheet_file") or "").strip()
+        has_evidence = bool(entry.get("has_parse_evidence"))
+        if has_evidence:
+            files_with_evidence += 1
+            continue
+        files_without_evidence.append(current_file)
+    return {
+        "files_total": files_total,
+        "files_with_evidence": files_with_evidence,
+        "files_without_evidence": files_without_evidence,
+        "is_complete": files_total == files_with_evidence,
+    }
+
+
 def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") -> dict[str, Any]:
     """Collect normalized parent->child edges from `numero_ssa -> derivada_de`."""
 
@@ -1406,6 +1425,7 @@ def sync_derivadas(
             "sheet_stats": sheet_stats,
             "sheet_files": list(normalized_sheet_files),
             "sheet_file_reports": sheet_file_reports,
+            "sheet_evidence": _build_sheet_evidence_summary(sheet_file_reports),
             "merge_stats": {
                 "source_edges": len(source_edges),
                 "merged_edges": len(merged_edges),
