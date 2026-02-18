@@ -490,6 +490,6 @@ def _on_header_section_resized(window, logical_index: int, old_size: int, new_si
             window._saved_gui_column_widths[col_name] = new_px
             if hasattr(window, '_gui_column_pixel_widths'):
                 window._gui_column_pixel_widths[col_name] = new_px
-    except Exception:  # noqa: BLE001
-        # Evita quebrar a GUI por falhas de IO
-        pass
+    except Exception as exc:  # noqa: BLE001
+        # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.
+        logger.debug("Falha ao persistir largura de coluna redimensionada: %s", exc)
