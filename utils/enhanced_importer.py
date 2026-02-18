@@ -40,11 +40,18 @@ class EnhancedAMSImporter:
             raw_indicators = format_info.get("indicators", [])
             if not isinstance(raw_indicators, list):
                 continue
-            indicators = [str(indicator) for indicator in raw_indicators]
+            indicators = [
+                str(indicator).strip()
+                for indicator in raw_indicators
+                if str(indicator).strip()
+            ]
+            if not indicators:
+                continue
+            required_matches = max(1, (len(indicators) + 1) // 2)
             matches = sum(1 for indicator in indicators
                          if any(indicator in col for col in columns))
 
-            if matches >= len(indicators) // 2:  # Pelo menos metade dos indicadores
+            if matches >= required_matches:  # Pelo menos metade dos indicadores
                 logger.info(f"Formato detectado: {format_name}")
                 return format_name
 
