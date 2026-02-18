@@ -206,7 +206,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                 href = _normalize_ssa_value(window, item)
                 display = html_module.escape(item)
                 items.append(
-                    f'<a href="ssa://{href}" style="color:{link_color}; '
+                    f'<a href="ssa:{href}" style="color:{link_color}; '
                     f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
                     f"{display}</a>"
                 )
@@ -250,7 +250,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                 first_parent = html_module.escape(parent_list[0])
                 href_parent = _normalize_ssa_value(window, parent_list[0])
                 mae_direta_text = (
-                    f'<a href="ssa://{href_parent}" style="color:{link_color}; '
+                    f'<a href="ssa-details:{href_parent}" style="color:{link_color}; '
                     f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
                     f"{first_parent}</a>"
                 )
@@ -277,7 +277,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
                     href_child = _normalize_ssa_value(window, child)
                     display_child = html_module.escape(str(child))
                     child_items.append(
-                        f'<a href="ssa://{href_child}" style="color:{link_color}; '
+                        f'<a href="ssa:{href_child}" style="color:{link_color}; '
                         f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
                         f"{display_child}</a>"
                     )
@@ -314,7 +314,7 @@ def _format_details_html(window, series, highlight_search_terms=False, font_size
 
         if linkify:
             open_tree_text = (
-                f'<a href="derivadas://tree" style="color:{link_color}; '
+                f'<a href="derivadas:tree" style="color:{link_color}; '
                 f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
                 "Abrir arvore completa</a>"
             )
@@ -522,6 +522,31 @@ def _jump_to_ssa(window, numero_ssa):
         logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
 
 
+def _get_series_for_ssa(window, numero_ssa):
+    target = _normalize_ssa_value(window, numero_ssa)
+    if not target:
+        return None
+
+    def _find_in_df(df):
+        if df is None or df.empty or "numero_ssa" not in df.columns:
+            return None
+        try:
+            series_norm = _normalize_ssa_series(window, df["numero_ssa"])
+            mask = series_norm.eq(target)
+            if not mask.any():
+                return None
+            idx = int(mask[mask].index[0])
+            return df.iloc[idx]
+        except Exception as exc:
+            logger.debug("Falha ao localizar SSA %s em dataframe: %s", target, exc)
+            return None
+
+    match = _find_in_df(getattr(window, "df_exibido", None))
+    if match is not None:
+        return match
+    return _find_in_df(getattr(window, "df_completo", None))
+
+
 def _on_details_anchor_clicked(window, url):
     try:
         href = url.toString()
@@ -529,14 +554,24 @@ def _on_details_anchor_clicked(window, url):
         return
     if not href:
         return
-    if href.startswith("derivadas://tree"):
+    if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
         current_ssa = getattr(window, "_details_current_ssa", None)
         _show_derivadas_tree_for_ssa(window, current_ssa)
         return
-    if href.startswith("ssa://"):
-        target = href[len("ssa://") :]
-    elif href.startswith("ssa:"):
+    if href.startswith("ssa-details:"):
+        target = href[len("ssa-details:") :].strip().lstrip("/")
+        if target:
+            _open_details_dialog_for_ssa(window, target)
+        return
+    if href.startswith("ssa_details://"):
+        target = href[len("ssa_details://") :].strip().lstrip("/")
+        if target:
+            _open_details_dialog_for_ssa(window, target)
+        return
+    if href.startswith("ssa:"):
         target = href[len("ssa:") :]
+    elif href.startswith("ssa://"):
+        target = href[len("ssa://") :]
     else:
         return
     target = target.strip().lstrip("/")
@@ -592,11 +627,23 @@ def _get_derivadas_relations_info(window, numero_ssa):
 
 
 def _show_derivadas_tree_for_ssa(window, numero_ssa):
-    target = _normalize_ssa_value(window, numero_ssa)
-    if not target:
-        return
+    _open_details_dialog_for_ssa(window, numero_ssa)
 
-    lines = [f"Arvore de derivadas da SSA {target}"]
+
+def _collect_derivadas_tree_data(window, numero_ssa):
+    target = _normalize_ssa_value(window, numero_ssa)
+    empty = {
+        "target": "",
+        "parents": [],
+        "children": [],
+        "descendants": [],
+        "ancestors": [],
+        "direct_children_count": 0,
+        "descendants_count": 0,
+    }
+    if not target:
+        return empty
+
     parents = []
     children = []
     descendants = []
@@ -614,75 +661,193 @@ def _show_derivadas_tree_for_ssa(window, numero_ssa):
             ancestors = derivadas_queries.get_ancestors(db_path, target)
             profile = derivadas_queries.get_hierarchy_profile(db_path, target) or {}
         except Exception as exc:
-            logger.debug("Falha ao montar arvore de derivadas via DB para %s: %s", target, exc)
+            logger.debug("Falha ao coletar arvore de derivadas no DB para %s: %s", target, exc)
 
     if not children:
         children = _get_derivadas_for_ssa(window, target)
-
     direct_children_count = int(profile.get("direct_children_count") or len(children))
     descendants_count = int(profile.get("descendants_count") or len(descendants) or len(children))
+    return {
+        "target": target,
+        "parents": parents,
+        "children": children,
+        "descendants": descendants,
+        "ancestors": ancestors,
+        "direct_children_count": direct_children_count,
+        "descendants_count": descendants_count,
+    }
 
-    lines.append("")
+
+def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
+    data = _collect_derivadas_tree_data(window, numero_ssa)
+    target = data.get("target", "")
+    if not target:
+        return ""
+
+    def _ssa_link(value):
+        safe = _normalize_ssa_value(window, value)
+        if not safe:
+            return html_module.escape(str(value))
+        return (
+            f'<a href="ssa-panel:{safe}" style="color:{link_color}; '
+            f"text-decoration:none; border-bottom: 1px solid {link_color};\">"
+            f"{html_module.escape(str(safe))}</a>"
+        )
+
+    lines = []
+    lines.append(
+        f'<div style="font-family:{MONO_FONT_FAMILY}; font-size:10pt;">'
+        f"<b>Arvore de derivadas da SSA {_ssa_link(target)}</b>"
+    )
+    lines.append("<br/><br/>")
+    parents = data.get("parents", [])
     if parents:
-        lines.append(f"Mae direta: {', '.join(parents)}")
+        parent_links = ", ".join(_ssa_link(p) for p in parents)
+        lines.append(f"<b>Mae direta:</b> {parent_links}<br/>")
     else:
-        lines.append("Mae direta: -")
-    lines.append(f"Filhas diretas ({direct_children_count})")
+        lines.append("<b>Mae direta:</b> -<br/>")
+
+    children = data.get("children", [])
+    lines.append(f"<b>Filhas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
     if children:
         for child in children:
-            lines.append(f"  - {child}")
+            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)}<br/>")
     else:
-        lines.append("  - nenhuma")
-    lines.append(f"Descendentes ({descendants_count})")
+        lines.append("&nbsp;&nbsp;- nenhuma<br/>")
+
+    descendants = data.get("descendants", [])
+    desc_count = int(data.get("descendants_count", 0))
+    lines.append(f"<b>Descendentes ({desc_count})</b><br/>")
     if descendants:
-        preview = descendants[:50]
-        for item in preview:
+        for item in descendants[:50]:
             ssa = str(item.get("ssa", "")).strip()
             dist = item.get("min_distance")
             if ssa:
-                lines.append(f"  - {ssa} (dist={dist})")
-        remaining = len(descendants) - len(preview)
-        if remaining > 0:
-            lines.append(f"  - ... (+{remaining})")
+                lines.append(f"&nbsp;&nbsp;- {_ssa_link(ssa)} (dist={dist})<br/>")
+        extra = len(descendants) - min(len(descendants), 50)
+        if extra > 0:
+            lines.append(f"&nbsp;&nbsp;- ... (+{extra})<br/>")
     elif children:
         for child in children[:50]:
-            lines.append(f"  - {child} (dist=1)")
+            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)} (dist=1)<br/>")
     else:
-        lines.append("  - nenhum")
+        lines.append("&nbsp;&nbsp;- nenhum<br/>")
 
+    ancestors = data.get("ancestors", [])
     if ancestors:
-        lines.append("")
-        lines.append(f"Ancestrais ({len(ancestors)})")
+        lines.append("<br/>")
+        lines.append(f"<b>Ancestrais ({len(ancestors)})</b><br/>")
         for item in ancestors[:50]:
             ssa = str(item.get("ssa", "")).strip()
             dist = item.get("min_distance")
             if ssa:
-                lines.append(f"  - {ssa} (dist={dist})")
+                lines.append(f"&nbsp;&nbsp;- {_ssa_link(ssa)} (dist={dist})<br/>")
 
-    text = "\n".join(lines)
+    lines.append("</div>")
+    return "".join(lines)
+
+
+def _open_details_dialog_for_ssa(window, numero_ssa):
+    target = _normalize_ssa_value(window, numero_ssa)
+    if not target:
+        return
+    series = _get_series_for_ssa(window, target)
+    if series is None:
+        return
 
     try:
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextBrowser, QPushButton
+        from PyQt6.QtGui import QPalette
     except Exception:
         return
 
     dialog = QDialog(window)
-    dialog.setWindowTitle(f"Arvore de Derivadas - SSA {target}")
-    dialog.setMinimumSize(520, 420)
-    layout = QVBoxLayout(dialog)
+    dialog.setWindowTitle(f"Detalhes da SSA #{target}")
+    dialog.setMinimumWidth(700)
+    dialog.setMinimumHeight(500)
 
-    text_edit = QTextEdit()
-    text_edit.setPlainText(text)
-    text_edit.setReadOnly(True)
+    root_layout = QVBoxLayout(dialog)
+    content_layout = QHBoxLayout()
+
+    tree_browser = QTextBrowser()
+    tree_browser.setReadOnly(True)
+    tree_browser.setOpenLinks(False)
+    tree_browser.setOpenExternalLinks(False)
+    tree_browser.setMinimumWidth(340)
+    tree_browser.setMaximumWidth(460)
+
+    details_browser = QTextBrowser()
+    details_browser.setReadOnly(True)
+    details_browser.setOpenLinks(False)
+    details_browser.setOpenExternalLinks(False)
+
     try:
-        text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
+        link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
     except Exception:
-        pass
-    layout.addWidget(text_edit)
+        link_color = "#2d5af0"
 
-    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-    buttons.rejected.connect(dialog.close)
-    layout.addWidget(buttons)
+    current_target = {"ssa": target}
+
+    def _render_target(ssa_target):
+        normalized = _normalize_ssa_value(window, ssa_target)
+        if not normalized:
+            return False
+        series_target = _get_series_for_ssa(window, normalized)
+        if series_target is None:
+            return False
+        current_target["ssa"] = normalized
+        html_details = _format_details_html(
+            window,
+            series_target,
+            highlight_search_terms=True,
+            linkify=True,
+        )
+        details_browser.setHtml(html_details)
+        tree_html = _build_derivadas_tree_html(window, normalized, link_color=link_color)
+        if tree_html:
+            tree_browser.setHtml(tree_html)
+        else:
+            tree_browser.setPlainText("Arvore de derivadas indisponivel para esta SSA.")
+        return True
+
+    def _handle_dialog_anchor(url):
+        try:
+            href = url.toString()
+        except Exception:
+            return
+        if not href:
+            return
+        if href.startswith("ssa-panel:"):
+            target_href = href[len("ssa-panel:") :].strip().lstrip("/")
+            _render_target(target_href)
+            return
+        if href.startswith("ssa-details:"):
+            target_href = href[len("ssa-details:") :].strip().lstrip("/")
+            _render_target(target_href)
+            return
+        if href.startswith("ssa_details://"):
+            target_href = href[len("ssa_details://") :].strip().lstrip("/")
+            _render_target(target_href)
+            return
+        if href.startswith("ssa:"):
+            target_href = href[len("ssa:") :].strip().lstrip("/")
+            _render_target(target_href)
+            return
+        if href.startswith("derivadas:tree") or href.startswith("derivadas://tree"):
+            _render_target(current_target["ssa"])
+
+    tree_browser.anchorClicked.connect(_handle_dialog_anchor)
+    details_browser.anchorClicked.connect(_handle_dialog_anchor)
+    if not _render_target(target):
+        return
+
+    content_layout.addWidget(tree_browser, 1)
+    content_layout.addWidget(details_browser, 2)
+    root_layout.addLayout(content_layout)
+
+    close_button = QPushButton("Fechar")
+    close_button.clicked.connect(dialog.accept)
+    root_layout.addWidget(close_button)
     dialog.exec()
 
 

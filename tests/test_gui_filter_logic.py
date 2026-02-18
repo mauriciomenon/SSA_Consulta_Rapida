@@ -706,15 +706,23 @@ class TestGUIFilterLogic:
         assert "Filhas diretas (3)" in html
         assert "Descendentes (5)" in html
         assert "Abrir arvore completa" in html
-        assert "derivadas://tree" in html
+        assert "derivadas:tree" in html
+        assert "ssa-details:9000" in html
 
     def test_details_anchor_derivadas_tree_opens_popup(self):
         self.window._details_current_ssa = "12.19.117.87"
         with patch("gui.ssa.gui_details._show_derivadas_tree_for_ssa") as popup_mock:
-            self.window._on_details_anchor_clicked(QUrl("derivadas://tree"))
+            self.window._on_details_anchor_clicked(QUrl("derivadas:tree"))
         popup_mock.assert_called_once()
         assert popup_mock.call_args.args[0] is self.window
         assert popup_mock.call_args.args[1] == "12.19.117.87"
+
+    def test_details_anchor_ssa_details_opens_details_dialog(self):
+        with patch("gui.ssa.gui_details._open_details_dialog_for_ssa") as open_mock:
+            self.window._on_details_anchor_clicked(QUrl("ssa-details:202500777"))
+        open_mock.assert_called_once()
+        assert open_mock.call_args.args[0] is self.window
+        assert open_mock.call_args.args[1] == "202500777"
 
     def test_normalize_ssa_value_handles_decimal_float_artifact(self):
         assert self.window._normalize_ssa_value("121911787.0") == "121911787"
