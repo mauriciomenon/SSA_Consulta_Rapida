@@ -193,3 +193,32 @@ def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_
     assert rc == 0
     assert captured["include_db_source"] is False
     assert captured["sheet_files"] == [str(first), str(second)]
+
+
+def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        derivadas_cli,
+        "sync_derivadas",
+        lambda **kwargs: {"verify_only": False, "merge_stats": {"merged_edges": 1}},
+    )
+    monkeypatch.setattr(
+        derivadas_cli,
+        "scan_derivadas_consistency",
+        lambda **kwargs: {
+            "schema_ready": True,
+            "is_consistent": False,
+            "issue_counts": {"flag_mismatch_pairs": 1},
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="consistency check failed"):
+        main(
+            [
+                "--db",
+                "data/ssas.db",
+                "--output",
+                "json",
+                "sync",
+                "--require-consistency",
+            ]
+        )
