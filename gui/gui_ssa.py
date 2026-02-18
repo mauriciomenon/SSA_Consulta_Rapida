@@ -2140,36 +2140,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QMessageBox.information(self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha.")
             return
 
-        # Obtem dados da SSA
         series = self.df_exibido.iloc[int(original_index)]
-
-        # Cria janela de dialogo
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Detalhes da SSA #{series.get('numero_ssa', 'N/A')}")
-        dialog.setMinimumWidth(DETAILS_DIALOG_MIN_WIDTH)
-        dialog.setMinimumHeight(DETAILS_DIALOG_MIN_HEIGHT)
-
-        layout = QVBoxLayout(dialog)
-
-        # Texto formatado com HTML
-        # CORRECAO 2026-01-08: linkify=True e conectar anchorClicked para navegacao funcionar
-        text_browser = QTextBrowser()
-        text_browser.setOpenLinks(False)
-        text_browser.setOpenExternalLinks(False)
-        text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
-
-        # Formata conteudo com links clicaveis
-        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
-        text_browser.setHtml(html_content)
-
-        layout.addWidget(text_browser)
-
-        # Botao fechar
-        close_button = QPushButton("Fechar")
-        close_button.clicked.connect(dialog.accept)
-        layout.addWidget(close_button)
-
-        dialog.exec()
+        numero_ssa = series.get("numero_ssa")
+        self._open_details_dialog_for_ssa(numero_ssa)
 
     def _save_page_size_pref(self, new_size: int):
         """Persiste o tamanho da pãgina no settings."""
@@ -2212,6 +2185,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     def _on_details_anchor_clicked(self, url):
         return ssa_gui_details._on_details_anchor_clicked(self, url)
+
+    def _open_details_dialog_for_ssa(self, numero_ssa):
+        return ssa_gui_details._open_details_dialog_for_ssa(self, numero_ssa)
 
     def _filter_by_derivadas(self, numero_ssa):
         return ssa_gui_details._filter_by_derivadas(self, numero_ssa)
