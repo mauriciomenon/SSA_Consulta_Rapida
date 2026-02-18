@@ -314,7 +314,7 @@ def _main_entrypoint() -> int:
     try:
         return main()
     except Exception as exc:
-        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        print(json.dumps({"error": str(exc)}, ensure_ascii=True))
         return 1
 
 
