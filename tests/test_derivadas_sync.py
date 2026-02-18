@@ -525,3 +525,57 @@ def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypa
     assert closure_total == 0
     assert summary_total == 0
     assert latest_run == ("error", 0)
+
+
+def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    def _fake_integrity_scan(_conn):
+        return {
+            "is_consistent": False,
+            "issue_counts": {
+                "missing_source_pairs": 1,
+                "source_without_matrix_pairs": 0,
+                "flag_mismatch_pairs": 0,
+                "invalid_matrix_pairs": 0,
+                "closure_self_rows": 0,
+                "summary_missing_nodes": 0,
+                "summary_extra_nodes": 0,
+            },
+            "matrix_active_edges": 1,
+            "source_active_edges": 1,
+            "summary_nodes": 2,
+            "samples": {
+                "missing_source_pairs": ["202500001->202500002"],
+                "source_without_matrix_pairs": [],
+                "flag_mismatch_pairs": [],
+                "invalid_matrix_pairs": [],
+                "summary_missing_nodes": [],
+                "summary_extra_nodes": [],
+            },
+        }
+
+    monkeypatch.setattr(derivadas_sync, "_scan_materialization_integrity", _fake_integrity_scan)
+
+    with pytest.raises(RuntimeError, match="integrity check failed"):
+        sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
+        latest_run = conn.execute(
+            """
+            SELECT status, active_edges
+            FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    assert matrix_total == 0
+    assert latest_run == ("error", 0)
