@@ -187,7 +187,7 @@ def query_db(
             df = pd.read_sql_query(query, conn, params=cast(Any, params))
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
-    except Exception as e:
+    except (sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.exception("Erro ao executar consulta '%s' com params=%s: %s", query, params, e)
         if raise_on_error:
             raise

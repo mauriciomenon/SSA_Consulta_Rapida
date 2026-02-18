@@ -17,7 +17,7 @@ sys.path.insert(0, project_root)
 
 # Importa as funções a serem testadas
 # Assumindo que database.py esteja em armazenamento/database.py
-from armazenamento.database import get_db_connection, initialize_database, query_db, insert_dataframe_to_db
+from armazenamento.database import get_db_connection, query_db, insert_dataframe_to_db  # noqa: E402
 
 # --- Fixtures ---
 
@@ -163,6 +163,51 @@ def test_query_db_empty_result(temp_db_path, sample_dataframe):
     assert df_result.empty
     # Verifica se as colunas estão corretas mesmo com resultado vazio
     assert list(df_result.columns) == ['id', 'nome', 'idade']
+
+
+def test_query_db_sql_error_returns_empty_df_when_raise_disabled(temp_db_path):
+    """query_db should fail closed for SQL/database errors when raise_on_error is False."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_erro_sql (
+                id INTEGER
+            );
+            """
+        )
+        conn.commit()
+
+    df_result = query_db(
+        temp_db_path,
+        "teste_erro_sql",
+        "SELECT coluna_inexistente FROM teste_erro_sql",
+        raise_on_error=False,
+    )
+
+    assert isinstance(df_result, pd.DataFrame)
+    assert df_result.empty
+
+
+def test_query_db_unexpected_error_is_not_suppressed(temp_db_path, monkeypatch):
+    """Unexpected runtime errors must propagate even when raise_on_error is False."""
+    with get_db_connection(temp_db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS teste_erro_runtime (
+                id INTEGER
+            );
+            """
+        )
+        conn.commit()
+
+    def _raise_runtime(*_args, **_kwargs):
+        raise RuntimeError("falha inesperada")
+
+    monkeypatch.setattr("armazenamento.database.pd.read_sql_query", _raise_runtime)
+
+    with pytest.raises(RuntimeError, match="falha inesperada"):
+        query_db(temp_db_path, "teste_erro_runtime", raise_on_error=False)
+
 
 def test_insert_dataframe_to_db_empty_df(temp_db_path):
     """Testa a inserção de um DataFrame vazio."""
