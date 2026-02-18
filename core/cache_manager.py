@@ -3,7 +3,7 @@ Cache Manager - Sistema Unificado de Cache
 Elimina os 4 sistemas de cache independentes.
 """
 
-from typing import Any, Dict, Optional, List, Callable
+from typing import Any, Dict, Optional, List
 import hashlib
 import json
 import pandas as pd
@@ -72,7 +72,7 @@ class CacheManager:
     def get_cached_widths(
         self,
         df_hash: str,
-        table_width: int = None
+        table_width: Optional[int] = None
     ) -> Optional[Dict[str, int]]:
         """
         Recupera larguras do cache.
@@ -91,7 +91,7 @@ class CacheManager:
         self,
         df_hash: str,
         widths: Dict[str, int],
-        table_width: int = None
+        table_width: Optional[int] = None
     ) -> None:
         """
         Armazena larguras no cache.
