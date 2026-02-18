@@ -112,6 +112,15 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 - Temporary blocker:
   - kluster auto review endpoint unstable (`ENOTFOUND api.kluster.ai`) on recent calls.
 
+## Scope lock from user triage
+
+- Do not execute in this cycle:
+  1. remove `if df is None` defensive branch.
+  2. add new lock layers in stream scripts.
+  3. broad race-condition refactor in `gui/workers`.
+- Lint policy for this cycle:
+  - ignore `E501` findings.
+
 ## Copy/paste starter for next chat
 
 ```text

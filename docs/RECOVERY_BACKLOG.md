@@ -316,3 +316,14 @@ Criterio de aceite da delegacao:
 1. Commits atomicos por lote.
 2. Gate por lote verde (`py_compile`, `ruff`, `ty`, `pytest` focado).
 3. Sem alteracao de layout GUI.
+
+## Decisao de triagem (2026-02-18, lock de escopo)
+
+Itens marcados como falso positivo neste ciclo (nao fazer):
+1. nao remover `if df is None` em `core/app_logic.py` (manter defesa explicita).
+2. nao adicionar novos locks em scripts de stream neste ciclo.
+3. nao abrir refactor de race em `gui/workers/*` neste ciclo.
+
+Regra de lint para este ciclo:
+1. ignorar `E501` (linhas longas) nas triagens e lotes simples.
+2. priorizar apenas erros com impacto funcional ou seguranca real.
