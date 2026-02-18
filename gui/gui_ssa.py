@@ -2441,6 +2441,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         return "ssa_table"
 
     def update_derivadas_from_sources(self):
+        def _has_sheet_parse_evidence(entry: dict) -> bool:
+            if not isinstance(entry, dict):
+                return False
+            raw_stats = entry.get("stats")
+            stats = raw_stats if isinstance(raw_stats, dict) else {}
+            has_flag = bool(entry.get("has_parse_evidence"))
+            accepted = int(stats.get("accepted_edges", 0) or 0)
+            special_layout = int(stats.get("special_layout_detected", 0) or 0)
+            informational = int(stats.get("informational_rows_skipped", 0) or 0)
+            return has_flag or accepted > 0 or special_layout > 0 or informational > 0
+
         db_path = DB_PATH
         if not db_path or not os.path.exists(db_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
@@ -2495,6 +2506,35 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     verify_only=False,
                     actor="gui-derivadas-sheet-phase",
                 )
+                reported_files = {
+                    os.path.abspath(str(path))
+                    for path in (final_report.get("sheet_files") or [])
+                }
+                expected_files = {os.path.abspath(path) for path in special_files}
+                if reported_files != expected_files:
+                    raise RuntimeError(
+                        "Sync de planilhas especiais sem cobertura completa de arquivos "
+                        f"(esperado={len(expected_files)}, recebido={len(reported_files)})."
+                    )
+                sheet_file_reports = final_report.get("sheet_file_reports") or []
+                reports_by_file = {}
+                for entry in sheet_file_reports:
+                    if not isinstance(entry, dict):
+                        continue
+                    current_file = str(entry.get("sheet_file") or "").strip()
+                    if not current_file:
+                        continue
+                    reports_by_file[os.path.abspath(current_file)] = entry
+                files_without_evidence = []
+                for current_file in sorted(expected_files):
+                    current_entry = reports_by_file.get(current_file)
+                    if current_entry is None or not _has_sheet_parse_evidence(current_entry):
+                        files_without_evidence.append(os.path.basename(current_file))
+                if files_without_evidence:
+                    raise RuntimeError(
+                        "Planilhas especiais sem evidencia individual: "
+                        + ", ".join(files_without_evidence)
+                    )
 
             merge_stats = final_report.get("merge_stats") or {}
             sheet_stats = final_report.get("sheet_stats") or {}
