@@ -2422,8 +2422,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     ).fetchall()
                 }
+                required_cols = {"numero_ssa", "derivada_de"}
+                compatible: set[str] = set()
+                for name in candidates:
+                    if name not in existing:
+                        continue
+                    cols = {
+                        str(row[1]).strip()
+                        for row in conn.execute(f'PRAGMA table_info("{name}")').fetchall()
+                    }
+                    if required_cols.issubset(cols):
+                        compatible.add(name)
             for name in candidates:
-                if name in existing:
+                if name in compatible:
                     return name
         except Exception as exc:
             logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
