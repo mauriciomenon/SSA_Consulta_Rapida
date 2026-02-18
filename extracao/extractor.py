@@ -237,7 +237,12 @@ def extract_data_from_excel(
                 _check_cancel()
                 logger.debug(f"Processando planilha '{sheet_name}'...")
                 # Le a planilha inteira
-                sheet_df = xl_file.parse(sheet_name, header=None)
+                parsed_sheet = xl_file.parse(sheet_name, header=None)
+                if not isinstance(parsed_sheet, pd.DataFrame):
+                    raise ExtractionError(
+                        f"Unexpected parse output type for sheet '{sheet_name}': {type(parsed_sheet).__name__}"
+                    )
+                sheet_df = parsed_sheet
                 if sheet_df.empty or sheet_df.shape[1] == 0:
                     logger.debug("Planilha '%s' vazia; ignorando.", sheet_name)
                     continue
