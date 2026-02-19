@@ -5,19 +5,31 @@ Script para parar importação lenta e fazer diagnóstico rápido.
 """
 
 import os
-import sys
-import psutil
+import importlib
 import sqlite3
 import time
+from typing import Any
+
+psutil: Any | None
+try:
+    psutil = importlib.import_module("psutil")
+except Exception:
+    psutil = None
+
+def _require_psutil() -> Any:
+    if psutil is None:
+        raise RuntimeError("Dependencia opcional ausente: instale psutil para executar este script")
+    return psutil
 
 def find_and_kill_python_processes():
     """Encontra e para processos Python relacionados à importação."""
+    psutil_mod = _require_psutil()
     print("INFO Procurando processos Python em execução...")
 
     current_pid = os.getpid()
     killed_processes = []
 
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    for proc in psutil_mod.process_iter(['pid', 'name', 'cmdline']):
         try:
             if proc.info['name'] and 'python' in proc.info['name'].lower():
                 if proc.info['pid'] != current_pid:  # Não matar a si mesmo
@@ -35,17 +47,17 @@ def find_and_kill_python_processes():
                             proc.wait(timeout=5)  # Esperar 5 segundos
                             killed_processes.append(proc.info['pid'])
                             print(f"  OK Processo {proc.info['pid']} terminado")
-                        except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                        except (psutil_mod.NoSuchProcess, psutil_mod.TimeoutExpired):
                             try:
                                 proc.kill()  # Forçar se necessário
                                 killed_processes.append(proc.info['pid'])
                                 print(f"  PERF Processo {proc.info['pid']} forçado a parar")
-                            except psutil.NoSuchProcess:
+                            except psutil_mod.NoSuchProcess:
                                 print(f"  WARN  Processo {proc.info['pid']} já finalizou")
-                        except psutil.AccessDenied:
+                        except psutil_mod.AccessDenied:
                             print(f"  ERR Sem permissão para parar processo {proc.info['pid']}")
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied, psutil_mod.ZombieProcess):
             continue
 
     if not killed_processes:
@@ -104,24 +116,25 @@ def check_database_status():
 
 def check_system_resources():
     """Verifica recursos do sistema."""
+    psutil_mod = _require_psutil()
     print("\nINFO  RECURSOS DO SISTEMA")
     print("-" * 25)
 
     # CPU
-    cpu_percent = psutil.cpu_percent(interval=1)
+    cpu_percent = psutil_mod.cpu_percent(interval=1)
     print(f" CPU: {cpu_percent}%")
 
     # Memória
-    memory = psutil.virtual_memory()
+    memory = psutil_mod.virtual_memory()
     print(f" RAM: {memory.percent}% usado ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)")
 
     # Disco
-    disk = psutil.disk_usage('.')
+    disk = psutil_mod.disk_usage('.')
     print(f" Disco: {disk.percent}% usado ({disk.free // (1024**3):.1f}GB livres)")
 
     # Processos Python
     python_procs = []
-    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+    for proc in psutil_mod.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
         try:
             if proc.info['name'] and 'python' in proc.info['name'].lower():
                 python_procs.append({
@@ -129,7 +142,7 @@ def check_system_resources():
                     'cpu': proc.info['cpu_percent'] or 0,
                     'memory': proc.info['memory_percent'] or 0
                 })
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied):
             continue
 
     if python_procs:
@@ -137,7 +150,12 @@ def check_system_resources():
         for proc in python_procs[:3]:  # Top 3
             print(f"   PID {proc['pid']}: CPU {proc['cpu']:.1f}%, RAM {proc['memory']:.1f}%")
 
-def main():
+def run_diagnostico():
+    """Executa o fluxo completo de diagnostico e recuperacao."""
+    if psutil is None:
+        print("ERR Dependencia opcional ausente: instale psutil para executar este script")
+        return
+
     print(" PARAR IMPORTAÇÃO LENTA E DIAGNÓSTICO RÁPIDO")
     print("=" * 50)
     print()
@@ -185,6 +203,9 @@ def main():
 
     print("\n Para importação rápida no futuro:")
     print("   Use sempre: python otimizacao_importacao_rapida.py")
+
+def main():
+    run_diagnostico()
 
 if __name__ == "__main__":
     try:
