@@ -150,9 +150,9 @@ def _get_files_to_process(
         )
         return files_to_process
 
-    except Exception as e:
-        logger.error(f"Erro ao determinar arquivos para processamento: {e}")
-        raise CacheError(f"Falha na verificacao de arquivos: {e}") from e
+    except Exception as exc:
+        logger.error("Erro ao determinar arquivos para processamento: %s", exc)
+        raise CacheError(f"Falha na verificacao de arquivos: {exc}") from exc
 
 
 def _import_single_file(
@@ -523,9 +523,9 @@ def _update_cache_after_import(
         # Atualiza o cache apenas para os arquivos processados com sucesso
         caching.update_cache_for_files(processed_files, cache_file)
         logger.info("Cache atualizado com sucesso.")
-    except Exception as e:
-        logger.error(f"Erro ao atualizar o cache: {e}")
-        raise CacheError("Falha ao atualizar o cache apos importacao.") from e
+    except Exception as exc:
+        logger.error("Erro ao atualizar o cache: %s", exc)
+        raise CacheError("Falha ao atualizar o cache apos importacao.") from exc
 
 
 # --- Funcao Principal Refatorada ---
