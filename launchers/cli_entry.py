@@ -50,6 +50,11 @@ def main():
         print(f"App dir: {app_dir}")
         print(f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}")
         sys.exit(1)
+    except Exception as e:
+        print(f"ERRO: Falha inesperada ao iniciar CLI: {e}")
+        print(f"Path atual: {sys.path}")
+        print(f"App dir: {app_dir}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

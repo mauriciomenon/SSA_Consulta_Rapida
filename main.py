@@ -636,8 +636,16 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             logger.info("Acao=backfill selecionada. Encaminhando argumentos ao backfill: %s", backfill_args)
             try:
                 from scripts.migracao.backfill_reprocessar import main as backfill_main
-            except ModuleNotFoundError:
-                # garantir path root
+            except ModuleNotFoundError as exc:
+                missing_name = getattr(exc, "name", "")
+                expected_missing = {
+                    "scripts",
+                    "scripts.migracao",
+                    "scripts.migracao.backfill_reprocessar",
+                }
+                if missing_name not in expected_missing:
+                    raise
+                # garantir path root quando o pacote de backfill nao foi resolvido
                 if project_root not in sys.path:
                     sys.path.insert(0, project_root)
                 from scripts.migracao.backfill_reprocessar import main as backfill_main
