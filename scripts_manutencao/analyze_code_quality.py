@@ -1,8 +1,6 @@
 import ast
 import os
 from pathlib import Path
-from collections import defaultdict
-from typing import Set, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDE_DIRS = {".git", "__pycache__", "LocalTemp", "venv", ".venv", ".idea", ".vscode", "temp"}

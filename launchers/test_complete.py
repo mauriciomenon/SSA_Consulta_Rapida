@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Teste completo dos executaveis gerados pelo build multiplataforma."""
 
-import os
 import sys
 import subprocess
 import json
 import time
-from pathlib import Path
 
 from version_info import REPO_ROOT, get_current_version
 

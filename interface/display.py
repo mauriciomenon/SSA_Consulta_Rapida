@@ -1,7 +1,6 @@
 # interface/display.py 20250725 174500 (v10.12 - Tratamento de Erros Aprimorado)
 import pandas as pd
 from typing import Dict, Any
-import sys
 import logging
 from utils.formatting import format_cell
 
