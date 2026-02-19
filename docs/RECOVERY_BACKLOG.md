@@ -258,6 +258,12 @@ Ordered list from PR review threads. Status uses pending/resolved.
   - left panel font `12`;
   - right details font `12`;
   - field-label font `11`.
+
+## Updates 2026-02-19 (slice: tab context mixin hardening)
+
+- [resolved] Removed fixed `TAB_CONTEXT_WIDGET_ATTRS` list in tab context mixin; bind now uses runtime context keys while skipping tab metadata.
+- [resolved] `_sync_bind_theme_and_render` now persists `_last_render_key` only after `display_current_page` succeeds.
+- [pending] `SSAMainWindow` class size/coupling remains structural backlog for dedicated sprint; no broad refactor in this stabilization slice.
 - [rule] Any future UI ratio change must include constraint validation (`minimumWidth` + layout manager behavior), not ratio constants only.
 
 ## Updates 2026-02-17 (slice: dead code ano_execucao)
