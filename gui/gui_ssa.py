@@ -116,7 +116,7 @@ try:
         normalize_chunk_for_parse, format_search_display, highlight_text
     )
     # Import mixins for code organization
-    from gui.mixins import FilterGUISSAMixin  # noqa: E402
+    from gui.mixins import FilterGUISSAMixin, TabContextGUISSAMixin  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
     sip = cast(Any, None)
@@ -622,6 +622,10 @@ except ImportError as exc:
         """Stub mixin for headless testing."""
         pass
 
+    class TabContextGUISSAMixin:
+        """Stub mixin for headless testing."""
+        pass
+
     # Type-checking bridge: fallback stubs are runtime-safe but too strict for static unions.
     QWidget = cast(Any, QWidget)
     QApplication = cast(Any, QApplication)
@@ -642,6 +646,7 @@ except ImportError as exc:
     QTimer = cast(Any, QTimer)
     Qt = cast(Any, Qt)
     FilterGUISSAMixin = cast(Any, FilterGUISSAMixin)
+    TabContextGUISSAMixin = cast(Any, TabContextGUISSAMixin)
 
 def _is_widget_valid(widget) -> bool:
     """Return True when a Qt widget reference still points to a live object."""
@@ -774,103 +779,12 @@ def load_display_mappings():
 # --- Componentes da GUI ---
 
 # --- Janela Principal da Aplicacao ---
-class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
+class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     """
     Janela principal da aplicação GUI.
 
     Inherits from FilterGUISSAMixin for filter-related methods.
     """
-    TAB_WIDGET_ATTRS = (
-        "search_label",
-        "search_input",
-        "search_button",
-        "clear_filter_button",
-        "column_selector",
-        "search_help",
-        "paginator",
-        "profile_selector",
-        "persistent_filters_layout",
-        "filter_tags_widget",
-        "filter_tags_layout",
-        "exclude_ste_checkbox",
-        "col_filter_indicator",
-        "filters_summary_frame",
-        "filters_summary_label",
-        "clear_all_filters_btn",
-        "export_list_btn",
-        "undo_filter_btn",
-        "table_widget",
-        "details_group",
-        "details_text",
-        "col_filters_group",
-        "col_filters_hint",
-        "col_filters_scroll",
-        "col_filters_container",
-        "col_filters_list_layout",
-        "add_column_filter_btn",
-        "clear_all_btn",
-        "adv_filters_group",
-        "adv_executor_button",
-        "adv_executor_menu",
-        "adv_executor_checks",
-        "adv_executor_exclude",
-        "adv_emissor_button",
-        "adv_emissor_menu",
-        "adv_emissor_checks",
-        "adv_emissor_exclude",
-        "adv_divisao_button",
-        "adv_divisao_menu",
-        "adv_divisao_checks",
-        "adv_divisao_exclude",
-        "adv_status_button",
-        "adv_status_menu",
-        "adv_status_checks",
-        "adv_status_exclude",
-        "adv_year_emissao_button",
-        "adv_year_emissao_menu",
-        "adv_year_emissao_checks",
-        "adv_year_execucao_button",
-        "adv_year_execucao_menu",
-        "adv_year_execucao_checks",
-        "adv_week_emissao_start",
-        "adv_week_emissao_end",
-        "adv_week_emissao_exclude",
-        "adv_week_execucao_start",
-        "adv_week_execucao_end",
-        "adv_week_execucao_exclude",
-        "adv_prioridade_emissao_button",
-        "adv_prioridade_emissao_menu",
-        "adv_prioridade_emissao_checks",
-        "adv_prioridade_planejamento_button",
-        "adv_prioridade_planejamento_menu",
-        "adv_prioridade_planejamento_checks",
-        "adv_derivada_has",
-        "adv_derivada_all_ste",
-        "adv_derivada_is",
-        "adv_derivadas_especificas_button",
-        "adv_macro_combo",
-        "adv_responsavel_solicitante_button",
-        "adv_responsavel_solicitante_menu",
-        "adv_responsavel_solicitante_checks",
-        "adv_responsavel_solicitante_exclude",
-        "adv_responsavel_solicitante_box",
-        "adv_responsavel_programacao_button",
-        "adv_responsavel_programacao_menu",
-        "adv_responsavel_programacao_checks",
-        "adv_responsavel_programacao_exclude",
-        "adv_responsavel_programacao_box",
-        "adv_responsavel_execucao_button",
-        "adv_responsavel_execucao_menu",
-        "adv_responsavel_execucao_checks",
-        "adv_responsavel_execucao_exclude",
-        "adv_responsavel_execucao_box",
-        "adv_responsavel_emissor_button",
-        "adv_responsavel_emissor_menu",
-        "adv_responsavel_emissor_checks",
-        "adv_responsavel_emissor_exclude",
-        "adv_responsavel_emissor_box",
-        "adv_save_defaults_btn",
-    )
     def _get_theme_catalog(self):
         return ssa_gui_theme.get_theme_catalog()
 
@@ -1530,182 +1444,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             self._adv_ctx = adv_ctx
             ctx.update(adv_ctx)
         return ctx
-
-    def _bump_data_revision(self, reason: str = "") -> int:
-        try:
-            next_rev = int(getattr(self, "_data_revision", 0) or 0) + 1
-        except Exception:
-            next_rev = 1
-        self._data_revision = next_rev
-        try:
-            self._data_revision_df_ids = (
-                id(getattr(self, "df_completo", None)),
-                id(getattr(self, "df_exibido", None)),
-            )
-        except Exception:
-            pass
-        if reason:
-            logger.debug("Data revision bump (%s): %s", reason, next_rev)
-        return next_rev
-
-    def _ensure_data_revision(self) -> None:
-        try:
-            current_ids = (
-                id(getattr(self, "df_completo", None)),
-                id(getattr(self, "df_exibido", None)),
-            )
-        except Exception:
-            return
-        if getattr(self, "_data_revision_df_ids", None) != current_ids:
-            self._bump_data_revision("df_identity_change")
-
-    def _bind_tab_context(self, ctx: dict) -> None:
-        self._current_tab_kind = ctx.get("tab_kind")
-        for name in self.TAB_WIDGET_ATTRS:
-            if name in ctx:
-                setattr(self, name, ctx[name])
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar estado do botao limpar filtro no bind de aba: %s", exc)
-        try:
-            if ctx.get("tab_kind") == "filters":
-                try:
-                    debounce_timer = getattr(self, "_debounce_timer", None)
-                    if debounce_timer is not None:
-                        debounce_timer.stop()
-                except Exception as exc:
-                    logger.debug("Falha ao parar debounce no bind da aba de filtros: %s", exc)
-                self.search_input.blockSignals(True)
-                self.search_input.clear()
-        except Exception as exc:
-            logger.debug("Falha ao limpar busca durante bind da aba de filtros: %s", exc)
-        finally:
-            try:
-                if ctx.get("tab_kind") == "filters":
-                    self.search_input.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais da busca no bind da aba de filtros: %s", exc)
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar apos bind de aba: %s", exc)
-
-        tab_kind = ctx.get("tab_kind")
-        try:
-            if tab_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
-                if getattr(self, "_adv_options_dirty", False) or not getattr(self, "_adv_values_cache", None):
-                    try:
-                        self._refresh_advanced_filter_options()
-                        self._adv_options_dirty = False
-                    except Exception as exc:
-                        logger.warning("Falha ao atualizar opcoes avancadas no bind da aba filtros: %s", exc)
-        except Exception as exc:
-            logger.debug("Falha no bloco de refresh de opcoes avancadas no bind de aba: %s", exc)
-
-        try:
-            if hasattr(self, "exclude_ste_checkbox") and not self.exclude_ste_checkbox.isVisible():
-                self._exclude_ste_sca = False
-        except Exception as exc:
-            logger.debug("Falha ao normalizar estado exclude_ste no bind de aba: %s", exc)
-
-        try:
-            if self.current_filter_profile:
-                idx = self.profile_selector.findData(self.current_filter_profile)
-            else:
-                idx = 0
-            if idx >= 0:
-                self.profile_selector.blockSignals(True)
-                self.profile_selector.setCurrentIndex(idx)
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
-        finally:
-            try:
-                self.profile_selector.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
-
-        try:
-            self.column_selector.set_selected_columns(self.visible_columns)
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar colunas visiveis no seletor da aba: %s", exc)
-
-        try:
-            df_id = id(self.df_exibido)
-            if ctx.get("_paginator_df_id") != df_id:
-                self.paginator.set_dataframe(self.df_exibido)
-                ctx["_paginator_df_id"] = df_id
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar dataframe no paginator durante bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self._build_column_filters_panel()
-        except Exception as exc:
-            logger.debug("Falha ao reconstruir painel de filtros por coluna no bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters" and getattr(self, "_pending_theme_refresh_column_filters", None):
-                self._refresh_column_filter_widgets()
-                self._pending_theme_refresh_column_filters = None
-        except Exception as exc:
-            logger.debug("Falha ao aplicar refresh pendente de tema nos filtros por coluna: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self._update_col_filter_indicator()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar indicador de filtros por coluna no bind de aba: %s", exc)
-        try:
-            self._update_filters_summary()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar resumo de filtros no bind de aba: %s", exc)
-        try:
-            self._update_undo_button_state()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao undo no bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self.update_filter_tags()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar tags de filtros no bind de aba: %s", exc)
-        try:
-            current_theme = getattr(self, "_current_theme", None)
-            if current_theme and ctx.get("_theme_name") != current_theme:
-                self.apply_theme(current_theme)
-                ctx["_theme_name"] = current_theme
-        except Exception as exc:
-            logger.warning("Falha ao reaplicar tema no bind de aba: %s", exc)
-        try:
-            current_page = max(1, getattr(self.paginator, "current_page", 1))
-            render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
-            if ctx.get("_last_render_key") != render_key:
-                ctx["_last_render_key"] = render_key
-                self.display_current_page(current_page)
-        except Exception as exc:
-            logger.warning("Falha ao renderizar pagina no bind de aba: %s", exc)
-
-    def _sync_checks_to_tab_context(self):
-        """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""
-        try:
-            if not hasattr(self, "_tab_contexts"):
-                return
-            filters_ctx = None
-            for ctx in self._tab_contexts:
-                if ctx.get("tab_kind") == "filters":
-                    filters_ctx = ctx
-                    break
-            if filters_ctx is None:
-                return
-
-            synced = 0
-            for attr, value in vars(self).items():
-                if not attr.startswith("adv_") or not attr.endswith("_checks"):
-                    continue
-                if value is None:
-                    continue
-                filters_ctx[attr] = value
-                synced += 1
-            logger.debug("_sync_checks_to_tab_context: %s atributos sincronizados", synced)
-        except Exception as e:
-            logger.error("Erro em _sync_checks_to_tab_context: %s", e)
 
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
@@ -2756,10 +2494,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 not self.table_widget or not self.table_widget.isVisible()):
                 return
 
-            # Recalcula larguras com nova dimensção da janela usando WidthManager
-            self._compute_gui_column_widths(self.df_para_tabela)
+            width_key = (
+                id(self.df_para_tabela),
+                len(self.df_para_tabela.index),
+                len(self.df_para_tabela.columns),
+                int(getattr(self, "_data_revision", 0) or 0),
+                int(getattr(self, "_last_window_width", 0) or 0),
+            )
+            if getattr(self, "_last_resize_width_key", None) == width_key:
+                return
+
+            # Recalcula larguras com nova dimensção da janela usando WidthManager.
+            # Em datasets grandes usa amostragem para reduzir custo no thread de UI.
+            width_df = self.df_para_tabela
+            if len(width_df.index) > 2000:
+                width_df = width_df.head(2000)
+            self._compute_gui_column_widths(width_df)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
+            self._last_resize_width_key = width_key
         except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
             logger.exception("Column width recompute failed during resize")
 
