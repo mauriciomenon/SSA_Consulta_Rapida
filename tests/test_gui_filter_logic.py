@@ -323,6 +323,8 @@ class TestGUIFilterLogic:
         assert 'Emissor' in controls
         emissor_edit, emissor_apply, emissor_clear = controls['Emissor']
         executor_edit, executor_apply, _ = controls['Executor']
+        assert emissor_clear.text() == "Ocultar"
+        assert "continua ativo" in (emissor_clear.toolTip() or "").casefold()
 
         emissor_edit.setText('MEL3, MEL4')
         cast(Any, QTest).mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
@@ -685,6 +687,30 @@ class TestGUIFilterLogic:
         for ctx in self.window._tab_contexts:
             assert ctx["search_input"].text().strip() == ""
         assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_filters_summary_shows_global_filters_on_both_tabs(self):
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        main_summary = str(self.window.filters_summary_label.text() or "")
+        assert "Busca: 'Teste A'" in main_summary
+        assert "Descricao da SSA: Teste" in main_summary
+
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        filters_summary = str(self.window.filters_summary_label.text() or "")
+        assert "Busca: 'Teste A'" in filters_summary
+        assert "Descricao da SSA: Teste" in filters_summary
 
     def test_on_filter_finished_uses_pending_search_display_for_status(self):
         self.window._active_filter_request_id = 31
