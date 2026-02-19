@@ -40,8 +40,10 @@ def main():
             sys.exit(1)
 
     try:
-        from interface.cli import main as cli_main
-        cli_main()
+        from interface.cli import start_cli_loop
+        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(app_dir, "data", "ssas.db")
+        table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
+        start_cli_loop(db_path, table_name)
     except ImportError as e:
         print(f"ERRO: Nao foi possivel importar interface.cli: {e}")
         print(f"Path atual: {sys.path}")
