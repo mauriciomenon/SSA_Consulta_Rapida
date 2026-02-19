@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 from gui.ssa import gui_workers
 
 
@@ -60,3 +63,44 @@ def test_connect_signal_falls_back_to_keyword_queued(monkeypatch):
     assert first_kwargs == {}
     assert second_args == ()
     assert second_kwargs == {"type": queued_token}
+
+
+def test_sanitize_ssa_like_value_handles_broken_str() -> None:
+    class _BrokenStr:
+        def __str__(self) -> str:
+            raise RuntimeError("broken str")
+
+    assert gui_workers._sanitize_ssa_like_value(_BrokenStr()) == ""
+
+
+def test_load_data_missing_db_without_status_label_under_pytest(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
+    missing_db = tmp_path / "missing.db"
+
+    warning_calls: list[tuple[object, str, str]] = []
+
+    class _MessageBoxStub:
+        @staticmethod
+        def warning(window, title, message):
+            warning_calls.append((window, title, message))
+
+    dummy_window = SimpleNamespace()
+
+    gui_workers.load_data(
+        dummy_window,
+        db_path=str(missing_db),
+        table_name="ssas",
+        data_loader_cls=object,
+        qmessagebox=_MessageBoxStub,
+        global_workers=[],
+        global_meta={},
+        max_global_workers=8,
+        retired_ttl_sec=5.0,
+        retired_force_wait_ms=0,
+        sip_module=None,
+    )
+
+    assert warning_calls == []

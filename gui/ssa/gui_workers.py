@@ -43,7 +43,11 @@ def _sanitize_ssa_like_value(value) -> str:
         pass
     except Exception as exc:
         logger.debug("Falha inesperada ao sanitizar valor SSA-like '%r': %s", value, exc)
-    text = str(value).strip()
+    try:
+        text = str(value).strip()
+    except Exception as exc:
+        logger.debug("Falha ao converter valor SSA-like para texto '%r': %s", value, exc)
+        return ""
     if not text:
         return ""
     if text.lower() in {"nan", "none", "nat", "<na>"}:
@@ -51,6 +55,22 @@ def _sanitize_ssa_like_value(value) -> str:
     if re.fullmatch(r"\d+\.0+", text):
         return text.split(".", 1)[0]
     return text
+
+
+def _set_status_label_text(window, text: str, *, context: str) -> bool:
+    status_label = getattr(window, "status_label", None)
+    if status_label is None:
+        logger.debug("status_label ausente ao atualizar status (%s).", context)
+        return False
+    if not hasattr(status_label, "setText"):
+        logger.debug("status_label sem setText ao atualizar status (%s).", context)
+        return False
+    try:
+        status_label.setText(text)
+        return True
+    except Exception as exc:
+        logger.debug("Falha ao atualizar status_label (%s): %s", context, exc)
+        return False
 
 
 def _connect_signal(signal, slot, *, label: str) -> bool:
@@ -440,10 +460,11 @@ def load_data(
     if not os.path.exists(db_path):
         missing_db_msg = "Banco de dados nao encontrado. Execute o programa principal primeiro."
         logger.warning("Banco de dados nao encontrado.")
-        try:
-            window.status_label.setText("Status: Banco de dados nao encontrado.")
-        except Exception as exc:
-            logger.debug("Falha ao atualizar status_label em banco ausente: %s", exc)
+        _set_status_label_text(
+            window,
+            "Status: Banco de dados nao encontrado.",
+            context="load_data_missing_db",
+        )
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
         if qmessagebox is not None:
