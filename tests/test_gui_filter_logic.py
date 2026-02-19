@@ -19,7 +19,7 @@ if project_root not in sys.path:
 
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
-from PyQt6.QtCore import Qt, QSize, QUrl  # noqa: E402
+from PyQt6.QtCore import Qt, QSize, QUrl, QPoint  # noqa: E402
 from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
@@ -263,6 +263,33 @@ class TestGUIFilterLogic:
         assert self.window.paginator.current_page == 2
         assert not self.window.df_para_tabela.empty
         assert int(self.window.df_para_tabela.iloc[0]["numero_ssa"]) == 3
+
+    def test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows(self):
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+
+        tiny_df = self.base_df.iloc[:1].copy()
+        self.window.df_completo = tiny_df.copy()
+        self.window.df_exibido = tiny_df.copy()
+        self.window._df_last_search_filtered = tiny_df.copy()
+        self.window._tab_contexts[1]["paginator"].set_dataframe(tiny_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        ctx = self.window._tab_contexts[1]
+        table = ctx["table_widget"]
+        details = ctx["details_group"]
+        adv = ctx["adv_filters_group"]
+
+        table_top = table.mapToGlobal(QPoint(0, 0)).y()
+        table_bottom = table_top + table.height() - 1
+        bottom_top = min(
+            details.mapToGlobal(QPoint(0, 0)).y(),
+            adv.mapToGlobal(QPoint(0, 0)).y(),
+        )
+
+        assert table.minimumHeight() >= 220
+        assert bottom_top > table_bottom
 
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText('')
