@@ -1633,9 +1633,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _sync_advanced_filter_ui(self):
         return ssa_gui_filters._sync_advanced_filter_ui(self)
 
-    def _refresh_sector_menus(self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb):
+    def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, apply_cb):
         return ssa_gui_filters._refresh_sector_menus(
-            self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb
+            self, exec_vals, emis_vals, status_vals, filters, apply_cb
         )
 
     def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):

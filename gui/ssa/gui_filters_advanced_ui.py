@@ -5,15 +5,11 @@
 
 from __future__ import annotations
 
-import copy
-import os
-import sqlite3
 from time import perf_counter
 from typing import Any
 
 import pandas as pd
 
-from gui.gui_config import GUI_MAIN_PREFERENCES
 from gui.qt_stubs import (
     sip,
     Qt,
@@ -37,7 +33,7 @@ from gui.qt_stubs import (
     QWidgetAction,
 )
 from utils.robust_logging import get_robust_logger
-from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV, MONO_FONT_FAMILY
+from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
@@ -766,7 +762,6 @@ def _build_advanced_filters_panel(self):
     outer.setContentsMargins(2, 2, 2, 2)
     outer.setSpacing(2)
 
-    # Container para grid (preparado para scroll futuro)
     grid_container = QWidget()
     grid_container_layout = QVBoxLayout(grid_container)
     grid_container_layout.setContentsMargins(0, 0, 0, 0)
@@ -774,10 +769,15 @@ def _build_advanced_filters_panel(self):
 
     emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
     exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
-    div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
     status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
-    year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box("Ano Emissao", with_exclude=False)
-    year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box("Ano Execucao", with_exclude=False)
+    year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box(
+        "Ano Emissao",
+        with_exclude=False,
+    )
+    year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box(
+        "Ano Execucao",
+        with_exclude=False,
+    )
 
     reprog_box = QGroupBox("Reprogramacoes")
     reprog_layout = QHBoxLayout(reprog_box)
@@ -788,13 +788,13 @@ def _build_advanced_filters_panel(self):
     reprog_mode.addItem("<= Menor", "lte")
     reprog_mode.addItem(">= Maior", "gte")
     try:
-        reprog_mode.setFixedWidth(80)
+        reprog_mode.setFixedWidth(90)
     except Exception as exc:
         logger.debug("Falha ao definir largura fixa do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
     try:
-        reprog_button.setFixedWidth(80)
+        reprog_button.setFixedWidth(90)
     except Exception as exc:
         logger.debug("Falha ao definir largura fixa do botao de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_button, 1)
@@ -809,21 +809,10 @@ def _build_advanced_filters_panel(self):
     deriv_box = QGroupBox("Derivadas")
     deriv_layout = QHBoxLayout(deriv_box)
     deriv_layout.setContentsMargins(2, 1, 2, 1)
-    deriv_layout.setSpacing(2)
+    deriv_layout.setSpacing(4)
     deriv_has = QCheckBox("Tem")
     deriv_all_ste = QCheckBox("STE")
     deriv_is = QCheckBox("Sou Derivada")
-    derivadas_select_btn = QPushButton("Especificas...")
-    try:
-        derivadas_select_btn.setMaximumWidth(100)
-        derivadas_select_btn.setEnabled(False)  # Habilitado quando existir derivadas
-    except Exception as exc:
-        logger.debug("Falha ao configurar botao de derivadas especificas: %s", exc)
-    derivadas_select_btn.setToolTip("Ver arvore de derivadas (habilitado quando existirem derivadas na lista)")
-    try:
-        derivadas_select_btn.clicked.connect(self._show_derivadas_popup)
-    except Exception as exc:
-        logger.debug("Falha ao conectar evento de popup de derivadas: %s", exc)
     try:
         deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
         deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
@@ -832,7 +821,6 @@ def _build_advanced_filters_panel(self):
     deriv_layout.addWidget(deriv_has)
     deriv_layout.addWidget(deriv_all_ste)
     deriv_layout.addWidget(deriv_is)
-    deriv_layout.addWidget(derivadas_select_btn)
     deriv_layout.addStretch()
 
     week_emis_box = QGroupBox("Emissao (AnoSemana)")
@@ -843,14 +831,14 @@ def _build_advanced_filters_panel(self):
     week_emissao_start.setPlaceholderText("Ini")
     try:
         week_emissao_start.setMaxLength(6)
-        week_emissao_start.setFixedWidth(60)
+        week_emissao_start.setFixedWidth(64)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana inicial de emissao: %s", exc)
     week_emissao_end = QLineEdit()
     week_emissao_end.setPlaceholderText("Fim")
     try:
         week_emissao_end.setMaxLength(6)
-        week_emissao_end.setFixedWidth(60)
+        week_emissao_end.setFixedWidth(64)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana final de emissao: %s", exc)
     week_emissao_exclude = None
@@ -865,14 +853,14 @@ def _build_advanced_filters_panel(self):
     week_exec_start.setPlaceholderText("Ini")
     try:
         week_exec_start.setMaxLength(6)
-        week_exec_start.setFixedWidth(60)
+        week_exec_start.setFixedWidth(64)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana inicial de execucao: %s", exc)
     week_exec_end = QLineEdit()
     week_exec_end.setPlaceholderText("Fim")
     try:
         week_exec_end.setMaxLength(6)
-        week_exec_end.setFixedWidth(60)
+        week_exec_end.setFixedWidth(64)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana final de execucao: %s", exc)
     week_exec_exclude = None
@@ -916,59 +904,65 @@ def _build_advanced_filters_panel(self):
 
     main_grid = QGridLayout()
     main_grid.setContentsMargins(0, 0, 0, 0)
-    main_grid.setHorizontalSpacing(4)
-    main_grid.setVerticalSpacing(8)  # Espacamento entre linhas para conforto visual
+    main_grid.setHorizontalSpacing(6)
+    main_grid.setVerticalSpacing(6)
     main_grid.addWidget(emis_box, 0, 0)
     main_grid.addWidget(exec_box, 0, 1)
-    main_grid.addWidget(div_box, 0, 2)
-    main_grid.addWidget(status_box, 0, 3)
-    main_grid.addWidget(year_emissao_box, 0, 4)
-    main_grid.addWidget(year_execucao_box, 0, 5)
+    main_grid.addWidget(status_box, 0, 2)
+    main_grid.addWidget(year_emissao_box, 0, 3)
+    main_grid.addWidget(year_execucao_box, 0, 4)
     main_grid.addWidget(reprog_box, 1, 0)
     main_grid.addWidget(prio_emis_box, 1, 1)
     main_grid.addWidget(prio_plan_box, 1, 2)
-    main_grid.addWidget(deriv_box, 1, 3, 1, 2)
-    main_grid.addWidget(macro_box, 1, 5)
+    main_grid.addWidget(macro_box, 1, 3)
+    main_grid.addWidget(deriv_box, 1, 4)
     main_grid.addWidget(week_emis_box, 2, 0)
     main_grid.addWidget(week_exec_box, 2, 1)
     main_grid.addWidget(sol_box, 2, 2)
     main_grid.addWidget(prog_box, 2, 3)
     main_grid.addWidget(exec_resp_box, 2, 4)
-    for col in range(6):
+    for col in range(5):
         main_grid.setColumnStretch(col, 1)
 
-    # Adiciona grid ao container
     grid_container_layout.addLayout(main_grid)
     outer.addWidget(grid_container, 1)
 
-    # Armazena referencia ao grid para reorganizacao responsiva
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
-        "emis_box": emis_box, "exec_box": exec_box, "div_box": div_box,
-        "status_box": status_box, "year_emissao_box": year_emissao_box,
-        "year_execucao_box": year_execucao_box, "reprog_box": reprog_box,
-        "prio_emis_box": prio_emis_box, "prio_plan_box": prio_plan_box,
-        "deriv_box": deriv_box, "macro_box": macro_box,
-        "week_emis_box": week_emis_box, "week_exec_box": week_exec_box,
-        "sol_box": sol_box, "prog_box": prog_box,
-        "exec_resp_box": exec_resp_box
+        "emis_box": emis_box,
+        "exec_box": exec_box,
+        "status_box": status_box,
+        "year_emissao_box": year_emissao_box,
+        "year_execucao_box": year_execucao_box,
+        "reprog_box": reprog_box,
+        "prio_emis_box": prio_emis_box,
+        "prio_plan_box": prio_plan_box,
+        "deriv_box": deriv_box,
+        "macro_box": macro_box,
+        "week_emis_box": week_emis_box,
+        "week_exec_box": week_exec_box,
+        "sol_box": sol_box,
+        "prog_box": prog_box,
+        "exec_resp_box": exec_resp_box,
     }
 
     buttons_row = QHBoxLayout()
     buttons_row.setContentsMargins(0, 2, 0, 0)
-    buttons_row.addStretch()
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
-    save_defaults_btn = QPushButton("Salvar padrao")
+    try:
+        apply_btn.setMinimumWidth(116)
+        clear_btn.setMinimumWidth(116)
+        apply_btn.setStyleSheet("font-weight: 600; padding: 4px 12px;")
+        clear_btn.setStyleSheet("padding: 4px 12px;")
+    except Exception as exc:
+        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    save_defaults_btn.clicked.connect(self._save_advanced_filters_default)
-    buttons_row.addWidget(apply_btn)
-    buttons_row.addSpacing(4)
-    buttons_row.addWidget(clear_btn)
-    buttons_row.addSpacing(4)
-    buttons_row.addWidget(save_defaults_btn)
     buttons_row.addStretch()
+    buttons_row.addWidget(apply_btn)
+    buttons_row.addSpacing(8)
+    buttons_row.addWidget(clear_btn)
 
     outer.addLayout(buttons_row)
 
@@ -982,10 +976,6 @@ def _build_advanced_filters_panel(self):
         "adv_emissor_menu": emis_menu,
         "adv_emissor_checks": [],
         "adv_emissor_exclude": emis_exclude,
-        "adv_divisao_button": div_button,
-        "adv_divisao_menu": div_menu,
-        "adv_divisao_checks": [],
-        "adv_divisao_exclude": div_exclude,
         "adv_status_button": status_button,
         "adv_status_menu": status_menu,
         "adv_status_checks": [],
@@ -1016,7 +1006,6 @@ def _build_advanced_filters_panel(self):
         "adv_derivada_has": deriv_has,
         "adv_derivada_all_ste": deriv_all_ste,
         "adv_derivada_is": deriv_is,
-        "adv_derivadas_especificas_button": derivadas_select_btn,
         "adv_responsavel_solicitante_button": sol_button,
         "adv_responsavel_solicitante_menu": sol_menu,
         "adv_responsavel_solicitante_checks": [],
@@ -1033,7 +1022,6 @@ def _build_advanced_filters_panel(self):
         "adv_responsavel_execucao_exclude": exec_resp_exclude,
         "adv_responsavel_execucao_box": exec_resp_box,
         "adv_macro_combo": macro_combo,
-        "adv_save_defaults_btn": save_defaults_btn,
     }
     return group, ctx
 
@@ -1055,242 +1043,17 @@ def _on_derivada_all_ste_toggled(self, checked: bool):
     except Exception as exc:
         logger.debug("Falha ao forcar 'Tem derivada' quando STE foi marcado: %s", exc)
 
-def _resolve_current_db_path() -> str | None:
-    try:
-        from gui import gui_ssa as gui_ssa_module
-
-        db_path = getattr(gui_ssa_module, "DB_PATH", None)
-        if isinstance(db_path, str) and db_path.strip():
-            return db_path
-    except Exception as exc:
-        logger.debug("Falha ao resolver DB_PATH atual para resumo de derivadas: %s", exc)
-    return None
-
-
-def _collect_derivadas_summary_stats(self, df: pd.DataFrame | None) -> dict:
-    empty = {
-        "rows": 0,
-        "has_relations": False,
-        "maes": 0,
-        "maes_varias_filhos": 0,
-        "multi_parent": 0,
-        "has_cycle": 0,
-        "top_maes": [],
-    }
-    if df is None or df.empty or "numero_ssa" not in df.columns:
-        return empty
-    try:
-        normalized = self._normalize_ssa_series(df["numero_ssa"])
-        visible_ssas = sorted({str(v).strip() for v in normalized.tolist() if str(v).strip()})
-    except Exception as exc:
-        logger.debug("Falha ao normalizar SSAs para resumo de derivadas: %s", exc)
-        return empty
-    if not visible_ssas:
-        return empty
-
-    db_path = _resolve_current_db_path()
-    if not db_path or not os.path.exists(db_path):
-        return empty
-
-    rows: list[tuple[str, int, int, int, int, int]] = []
-    try:
-        with sqlite3.connect(db_path) as conn:
-            has_summary = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ssa_derivada_summary'"
-            ).fetchone()
-            if not has_summary:
-                return empty
-            chunk_size = 800
-            for start in range(0, len(visible_ssas), chunk_size):
-                chunk = visible_ssas[start : start + chunk_size]
-                placeholders = ",".join("?" for _ in chunk)
-                query = (
-                    "SELECT ssa, direct_parents_count, direct_children_count, ancestors_count, descendants_count, has_cycle "
-                    f"FROM ssa_derivada_summary WHERE ssa IN ({placeholders})"
-                )
-                rows.extend(conn.execute(query, chunk).fetchall())
-    except Exception as exc:
-        logger.debug("Falha ao consultar resumo materializado de derivadas: %s", exc)
-        return empty
-
-    if not rows:
-        return empty
-
-    maes = 0
-    maes_varias_filhos = 0
-    multi_parent = 0
-    has_cycle = 0
-    has_relations = False
-    top_maes: list[tuple[str, int]] = []
-    for ssa, direct_parents, direct_children, ancestors, descendants, cycle in rows:
-        direct_parents_i = int(direct_parents or 0)
-        direct_children_i = int(direct_children or 0)
-        ancestors_i = int(ancestors or 0)
-        descendants_i = int(descendants or 0)
-        cycle_i = int(cycle or 0)
-        if direct_children_i > 0:
-            maes += 1
-            top_maes.append((str(ssa), direct_children_i))
-        if direct_children_i >= 2:
-            maes_varias_filhos += 1
-        if direct_parents_i > 1:
-            multi_parent += 1
-        if cycle_i > 0:
-            has_cycle += 1
-        if direct_children_i > 0 or direct_parents_i > 0 or ancestors_i > 0 or descendants_i > 0:
-            has_relations = True
-    top_maes.sort(key=lambda item: (-item[1], item[0]))
-    return {
-        "rows": len(rows),
-        "has_relations": has_relations,
-        "maes": maes,
-        "maes_varias_filhos": maes_varias_filhos,
-        "multi_parent": multi_parent,
-        "has_cycle": has_cycle,
-        "top_maes": top_maes[:20],
-    }
-
-
 def _show_derivadas_popup(self):
-    """Mostra popup com resumo de derivadas em texto plano."""
-    try:
-        df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
-        if df is None or df.empty:
-            return
-
-        # Buscar coluna de derivada_de
-        derivada_col = None
-        numero_col = None
-        for col in df.columns:
-            col_lower = col.lower()
-            if "derivada" in col_lower:
-                derivada_col = col
-            elif "numero" in col_lower and "ssa" in col_lower:
-                numero_col = col
-
-        if derivada_col is None or numero_col is None:
-            return
-
-        mae_filhas, filha_mae = self._build_derivadas_tree(df, numero_col, derivada_col)
-
-        summary_stats = _collect_derivadas_summary_stats(self, df)
-        if not mae_filhas and not filha_mae and not summary_stats.get("has_relations"):
-            return
-
-        # Construir texto
-        lines = []
-        if summary_stats.get("rows"):
-            lines.append("Resumo derivadas (db materializado)")
-            lines.append(f"SSAs no resultado com resumo: {int(summary_stats.get('rows', 0))}")
-            lines.append(f"SSAs maes (>=1 filha): {int(summary_stats.get('maes', 0))}")
-            lines.append(
-                f"SSAs maes com varias filhas (>=2): {int(summary_stats.get('maes_varias_filhos', 0))}"
-            )
-            lines.append(f"SSAs com mais de uma mae: {int(summary_stats.get('multi_parent', 0))}")
-            if int(summary_stats.get("has_cycle", 0)) > 0:
-                lines.append(f"SSAs em ciclo detectado: {int(summary_stats.get('has_cycle', 0))}")
-            top_maes = summary_stats.get("top_maes", [])
-            if top_maes:
-                lines.append("")
-                lines.append("Top maes por quantidade de filhas")
-                for ssa, total_children in top_maes:
-                    lines.append(f"{ssa} -> {int(total_children)}")
-
-        # Derivadas (maes com suas filhas)
-        if mae_filhas:
-            if lines:
-                lines.append("")
-            lines.append("Derivadas")
-            for mae in sorted(mae_filhas.keys()):
-                filhas = mae_filhas[mae]
-                # Verificar se alguma filha tambem e mae
-                filhas_str_parts = []
-                for f in sorted(filhas):
-                    if f in mae_filhas:
-                        # Filha tambem e mae, incluir netas entre parenteses
-                        netas = mae_filhas[f]
-                        filhas_str_parts.append(f"{f}({','.join(sorted(netas))})")
-                    else:
-                        filhas_str_parts.append(f)
-                lines.append(f"{mae} -> {', '.join(filhas_str_parts)}")
-
-        if lines and filha_mae:
-            lines.append("")
-
-        # SSA de origem (filhas com suas maes)
-        if filha_mae:
-            lines.append("SSA de origem")
-            for filha in sorted(filha_mae.keys()):
-                mae = filha_mae[filha]
-                lines.append(f"{filha} -> {mae}")
-
-        text = "\n".join(lines)
-
-        # Criar dialogo com texto copiavel e pesquisavel
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Resumo de Derivadas")
-        dialog.setMinimumSize(500, 400)
-        layout = QVBoxLayout(dialog)
-
-        text_edit = QTextEdit()
-        text_edit.setPlainText(text)
-        text_edit.setReadOnly(True)
-        try:
-            text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
-        except Exception as exc:
-            logger.debug("Failed to style derivadas popup text editor: %s", exc)
-        layout.addWidget(text_edit)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(dialog.close)
-        layout.addWidget(buttons)
-
-        dialog.exec()
-    except Exception as e:
-        logger.warning("Erro ao mostrar popup de derivadas: %s", e)
+    """Compatibilidade de facade. Popup de derivadas foi removido."""
+    return
 
 def _update_derivadas_button_state(self):
-    """Habilita/desabilita botao Especificas baseado em derivadas do resultado ou resumo DB."""
-    try:
-        btn = getattr(self, "adv_derivadas_especificas_button", None)
-        if btn is None:
-            btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
-        if btn is None:
-            return
-
-        df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
-        if df is None or df.empty:
-            btn.setEnabled(False)
-            return
-
-        # Verificar se existe coluna derivada_de com valores
-        derivada_col = None
-        for col in df.columns:
-            if "derivada" in col.lower():
-                derivada_col = col
-                break
-
-        has_derivadas = False
-        if derivada_col is not None:
-            # Verificar se ha valores normalizados validos (ignora '', None, NaN)
-            normalized = self._normalize_ssa_series(df[derivada_col])
-            has_derivadas = bool(normalized.ne("").any())
-        if not has_derivadas:
-            summary_stats = _collect_derivadas_summary_stats(self, df)
-            has_derivadas = bool(summary_stats.get("has_relations"))
-        btn.setEnabled(bool(has_derivadas))
-    except Exception as exc:
-        logger.warning("Falha ao atualizar estado do botao de derivadas especificas: %s", exc)
+    """Compatibilidade de facade. Nao ha botao de derivadas especificas."""
+    return
 
 def _save_advanced_filters_default(self):
-    self._apply_advanced_filters_from_ui(store_only=True)
-    try:
-        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-        gui_settings["advanced_filters_default"] = copy.deepcopy(self._advanced_filters or {})
-        self._persist_gui_preferences()
-    except Exception as e:
-        logger.warning("Falha ao salvar filtros avancados default: %s", e)
+    """Compatibilidade de facade. Acao removida da UI."""
+    return
 
 def _on_macro_filter_changed(self):
     try:
@@ -1326,7 +1089,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados baseado na largura disponivel."""
     if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
         return
-    mode = "wide" if width > 1400 else "mid" if width > 900 else "narrow"
+    mode = "wide" if width > 1400 else "mid" if width > 960 else "narrow"
     if getattr(self, "_adv_filters_layout_mode", None) == mode:
         return
     self._adv_filters_layout_mode = mode
@@ -1337,70 +1100,114 @@ def _reorganize_advanced_filters_grid(self, width: int):
     # Remove todos os widgets do grid
     while grid.count():
         item = grid.takeAt(0)
-        if item.widget():
-            item.widget().setParent(None)
+        widget = item.widget()
+        if widget is not None:
+            grid.removeWidget(widget)
+            widget.hide()
+        del item
 
-    # Define layout baseado na largura
-    # Largura > 1400px: Grid 6x3 (layout original denso)
+    # Largura > 1400px
     if width > 1400:
         grid.addWidget(w["emis_box"], 0, 0)
+        w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
-        grid.addWidget(w["div_box"], 0, 2)
-        grid.addWidget(w["status_box"], 0, 3)
-        grid.addWidget(w["year_emissao_box"], 0, 4)
-        grid.addWidget(w["year_execucao_box"], 0, 5)
+        w["exec_box"].show()
+        grid.addWidget(w["status_box"], 0, 2)
+        w["status_box"].show()
+        grid.addWidget(w["year_emissao_box"], 0, 3)
+        w["year_emissao_box"].show()
+        grid.addWidget(w["year_execucao_box"], 0, 4)
+        w["year_execucao_box"].show()
         grid.addWidget(w["reprog_box"], 1, 0)
+        w["reprog_box"].show()
         grid.addWidget(w["prio_emis_box"], 1, 1)
+        w["prio_emis_box"].show()
         grid.addWidget(w["prio_plan_box"], 1, 2)
-        grid.addWidget(w["deriv_box"], 1, 3, 1, 2)
-        grid.addWidget(w["macro_box"], 1, 5)
+        w["prio_plan_box"].show()
+        grid.addWidget(w["macro_box"], 1, 3)
+        w["macro_box"].show()
+        grid.addWidget(w["deriv_box"], 1, 4)
+        w["deriv_box"].show()
         grid.addWidget(w["week_emis_box"], 2, 0)
+        w["week_emis_box"].show()
         grid.addWidget(w["week_exec_box"], 2, 1)
+        w["week_exec_box"].show()
         grid.addWidget(w["sol_box"], 2, 2)
+        w["sol_box"].show()
         grid.addWidget(w["prog_box"], 2, 3)
+        w["prog_box"].show()
         grid.addWidget(w["exec_resp_box"], 2, 4)
-        for col in range(6):
+        w["exec_resp_box"].show()
+        for col in range(5):
             grid.setColumnStretch(col, 1)
 
-    # Largura 900-1400px: Grid 3x6 (meio termo)
-    elif width > 900:
+    # Largura 960-1400px
+    elif width > 960:
         grid.addWidget(w["emis_box"], 0, 0)
+        w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
-        grid.addWidget(w["div_box"], 0, 2)
-        grid.addWidget(w["status_box"], 1, 0)
-        grid.addWidget(w["year_emissao_box"], 1, 1)
-        grid.addWidget(w["year_execucao_box"], 1, 2)
-        grid.addWidget(w["reprog_box"], 2, 0)
-        grid.addWidget(w["prio_emis_box"], 2, 1)
-        grid.addWidget(w["prio_plan_box"], 2, 2)
+        w["exec_box"].show()
+        grid.addWidget(w["status_box"], 0, 2)
+        w["status_box"].show()
+        grid.addWidget(w["year_emissao_box"], 1, 0)
+        w["year_emissao_box"].show()
+        grid.addWidget(w["year_execucao_box"], 1, 1)
+        w["year_execucao_box"].show()
+        grid.addWidget(w["reprog_box"], 1, 2)
+        w["reprog_box"].show()
+        grid.addWidget(w["prio_emis_box"], 2, 0)
+        w["prio_emis_box"].show()
+        grid.addWidget(w["prio_plan_box"], 2, 1)
+        w["prio_plan_box"].show()
+        grid.addWidget(w["macro_box"], 2, 2)
+        w["macro_box"].show()
         grid.addWidget(w["deriv_box"], 3, 0, 1, 2)
-        grid.addWidget(w["macro_box"], 3, 2)
+        w["deriv_box"].show()
+        grid.addWidget(w["sol_box"], 3, 2)
+        w["sol_box"].show()
         grid.addWidget(w["week_emis_box"], 4, 0)
+        w["week_emis_box"].show()
         grid.addWidget(w["week_exec_box"], 4, 1)
-        grid.addWidget(w["sol_box"], 4, 2)
-        grid.addWidget(w["prog_box"], 5, 0)
-        grid.addWidget(w["exec_resp_box"], 5, 1)
+        w["week_exec_box"].show()
+        grid.addWidget(w["prog_box"], 4, 2)
+        w["prog_box"].show()
+        grid.addWidget(w["exec_resp_box"], 5, 0, 1, 3)
+        w["exec_resp_box"].show()
         for col in range(3):
             grid.setColumnStretch(col, 1)
 
-    # Largura < 900px: Grid 2x9 (mais vertical)
+    # Largura <= 960px
     else:
         grid.addWidget(w["emis_box"], 0, 0)
+        w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
-        grid.addWidget(w["div_box"], 1, 0)
-        grid.addWidget(w["status_box"], 1, 1)
-        grid.addWidget(w["year_emissao_box"], 2, 0)
-        grid.addWidget(w["year_execucao_box"], 2, 1)
-        grid.addWidget(w["reprog_box"], 3, 0)
-        grid.addWidget(w["prio_emis_box"], 3, 1)
-        grid.addWidget(w["prio_plan_box"], 4, 0)
-        grid.addWidget(w["deriv_box"], 4, 1, 1, 1)
-        grid.addWidget(w["macro_box"], 5, 0)
-        grid.addWidget(w["week_emis_box"], 5, 1)
-        grid.addWidget(w["week_exec_box"], 6, 0)
-        grid.addWidget(w["sol_box"], 6, 1)
-        grid.addWidget(w["prog_box"], 7, 0)
-        grid.addWidget(w["exec_resp_box"], 7, 1)
+        w["exec_box"].show()
+        grid.addWidget(w["status_box"], 1, 0)
+        w["status_box"].show()
+        grid.addWidget(w["year_emissao_box"], 1, 1)
+        w["year_emissao_box"].show()
+        grid.addWidget(w["year_execucao_box"], 2, 0)
+        w["year_execucao_box"].show()
+        grid.addWidget(w["reprog_box"], 2, 1)
+        w["reprog_box"].show()
+        grid.addWidget(w["prio_emis_box"], 3, 0)
+        w["prio_emis_box"].show()
+        grid.addWidget(w["prio_plan_box"], 3, 1)
+        w["prio_plan_box"].show()
+        grid.addWidget(w["macro_box"], 4, 0)
+        w["macro_box"].show()
+        grid.addWidget(w["deriv_box"], 4, 1)
+        w["deriv_box"].show()
+        grid.addWidget(w["week_emis_box"], 5, 0)
+        w["week_emis_box"].show()
+        grid.addWidget(w["week_exec_box"], 5, 1)
+        w["week_exec_box"].show()
+        grid.addWidget(w["sol_box"], 6, 0)
+        w["sol_box"].show()
+        grid.addWidget(w["prog_box"], 6, 1)
+        w["prog_box"].show()
+        grid.addWidget(w["exec_resp_box"], 7, 0, 1, 2)
+        w["exec_resp_box"].show()
         for col in range(2):
             grid.setColumnStretch(col, 1)
 
@@ -1411,10 +1218,6 @@ def _on_adv_sector_selection_changed(self, *_):
         return
     self._adv_sector_handler_running = True
     try:
-        try:
-            self._apply_divisao_to_setor_checks()
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar divisao->setor: %s", exc)
         try:
             self._update_multiselect_button(
                 self.adv_executor_button,
@@ -1431,14 +1234,6 @@ def _on_adv_sector_selection_changed(self, *_):
             )
         except Exception as exc:
             logger.warning("Falha ao atualizar botao de setor emissor: %s", exc)
-        try:
-            self._update_multiselect_button(
-                self.adv_divisao_button,
-                self.adv_divisao_checks,
-                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de divisao: %s", exc)
         self._schedule_sector_options_refresh()
     finally:
         self._adv_sector_handler_running = False
@@ -1465,15 +1260,6 @@ def _on_adv_sector_exclude_changed(self, *_):
         )
     except Exception as exc:
         logger.warning("Falha ao atualizar botao de setor emissor (exclude): %s", exc)
-    try:
-        self._update_multiselect_button(
-            self.adv_divisao_button,
-            self.adv_divisao_checks,
-            exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
-        )
-    except Exception as exc:
-        logger.warning("Falha ao atualizar botao de divisao (exclude): %s", exc)
-
     self._schedule_sector_options_refresh()
 
 def _schedule_sector_options_refresh(self):
@@ -1578,38 +1364,8 @@ def _sort_responsavel_values(self, df_subset, values, resp_col: str):
     return decorated
 
 def _apply_divisao_to_setor_checks(self):
-    """Aplica selecao de divisao aos checkboxes de setor.
-
-    CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
-    de signals que causava travamento da interface.
-    """
-    if getattr(self, "_adv_sector_syncing", False):
-        return
-    selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-    setores = self._collect_divisao_setores(selected_div)
-    if not setores:
-        return
-    setores_norm = {str(s).casefold() for s in setores}
-    self._adv_sector_syncing = True
-    try:
-        for cb in getattr(self, "adv_executor_checks", None) or []:
-            try:
-                if not _is_widget_valid(cb):
-                    continue
-                if cb.text().casefold() in setores_norm:
-                    self._set_checkbox_checked_quietly(cb, True)
-            except Exception as exc:
-                logger.debug("Falha ao marcar checkbox de setor executor: %s", exc)
-        for cb in getattr(self, "adv_emissor_checks", None) or []:
-            try:
-                if not _is_widget_valid(cb):
-                    continue
-                if cb.text().casefold() in setores_norm:
-                    self._set_checkbox_checked_quietly(cb, True)
-            except Exception as exc:
-                logger.debug("Falha ao marcar checkbox de setor emissor: %s", exc)
-    finally:
-        self._adv_sector_syncing = False
+    """Compatibilidade de facade. Filtro de divisao removido da UI."""
+    return
 
 def _refresh_responsavel_options(self, target_prefixes=None):
     all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
@@ -1624,11 +1380,9 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         return
     exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
     emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
-    div_values = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
     exec_excluded = self._get_checked_values(getattr(self, "adv_executor_exclude_checks", None))
     emis_excluded = self._get_checked_values(getattr(self, "adv_emissor_exclude_checks", None))
-    div_excluded = self._get_checked_values(getattr(self, "adv_divisao_exclude_checks", None))
-    has_sector = bool(exec_values or emis_values or div_values or exec_excluded or emis_excluded or div_excluded)
+    has_sector = bool(exec_values or emis_values or exec_excluded or emis_excluded)
     def apply_cb():
         return self._apply_advanced_filters_from_ui()
 
@@ -1653,17 +1407,13 @@ def _refresh_responsavel_options(self, target_prefixes=None):
     emis_col = "setor_emissor"
     selected_exec = set(exec_values)
     selected_emis = set(emis_values)
-    selected_div = set(div_values)
     selected_exec_excluded = set(exec_excluded)
     selected_emis_excluded = set(emis_excluded)
-    selected_div_excluded = set(div_excluded)
-    div_setores = self._collect_divisao_setores(selected_div)
-    div_setores_excluded = self._collect_divisao_setores(selected_div_excluded)
     def _apply_sector_subset(frame):
         subset = frame
         if exec_col in subset.columns:
-            allowed = set(selected_exec) | set(div_setores)
-            excluded = set(selected_exec_excluded) | set(div_setores_excluded)
+            allowed = set(selected_exec)
+            excluded = set(selected_exec_excluded)
             if allowed:
                 subset = subset[subset[exec_col].astype(str).isin(allowed)]
             if excluded:
@@ -1816,7 +1566,6 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
     list_keys = (
         "setor_executor",
         "setor_emissor",
-        "divisao",
         "situacao",
         "solicitante",
         "responsavel_programacao",
@@ -1828,7 +1577,6 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
     exclude_list_keys = (
         "setor_executor_exclude_values",
         "setor_emissor_exclude_values",
-        "divisao_exclude_values",
         "situacao_exclude_values",
         "solicitante_exclude_values",
         "responsavel_programacao_exclude_values",
@@ -1886,16 +1634,6 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         )
     except Exception:
         data["setor_emissor_exclude_values"] = []
-    try:
-        data["divisao"] = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-    except Exception:
-        data["divisao"] = []
-    try:
-        data["divisao_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_divisao_exclude_checks", None)
-        )
-    except Exception:
-        data["divisao_exclude_values"] = []
     try:
         data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
     except Exception:
@@ -2111,13 +1849,6 @@ def _sync_advanced_filter_ui(self):
         data.get("setor_emissor_exclude_values"),
     )
     self._sync_multiselect_checks(
-        getattr(self, "adv_divisao_button", None),
-        getattr(self, "adv_divisao_checks", None),
-        data.get("divisao"),
-        getattr(self, "adv_divisao_exclude_checks", None),
-        data.get("divisao_exclude_values"),
-    )
-    self._sync_multiselect_checks(
         getattr(self, "adv_status_button", None),
         getattr(self, "adv_status_checks", None),
         data.get("situacao"),
@@ -2251,13 +1982,9 @@ def _sync_advanced_filter_ui(self):
                 self.adv_macro_combo.blockSignals(False)
         except Exception as exc:
             logger.debug("Falha ao reativar sinais do seletor macro apos sync: %s", exc)
-    try:
-        self._apply_divisao_to_setor_checks()
-    except Exception as exc:
-        logger.warning("Falha ao reaplicar sincronizacao divisao->setor apos sync de filtros avancados: %s", exc)
 
 
-def _refresh_sector_menus(self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb):
+def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, apply_cb):
     if hasattr(self, "adv_executor_menu"):
         exec_include, exec_exclude = self._rebuild_multiselect_menu(
             self.adv_executor_button,
@@ -2284,19 +2011,6 @@ def _refresh_sector_menus(self, exec_vals, emis_vals, divisao_vals, status_vals,
         )
         self.adv_emissor_checks = emis_include
         self.adv_emissor_exclude_checks = emis_exclude
-    if hasattr(self, "adv_divisao_menu"):
-        div_include, div_exclude = self._rebuild_multiselect_menu(
-            self.adv_divisao_button,
-            self.adv_divisao_menu,
-            divisao_vals,
-            set(filters.get("divisao") or []),
-            self._on_adv_sector_selection_changed,
-            apply_cb,
-            set(filters.get("divisao_exclude_values") or []),
-            self._on_adv_sector_exclude_changed,
-        )
-        self.adv_divisao_checks = div_include
-        self.adv_divisao_exclude_checks = div_exclude
     if hasattr(self, "adv_status_menu"):
         status_include, status_exclude = self._rebuild_multiselect_menu(
             self.adv_status_button,
@@ -2473,15 +2187,6 @@ def _refresh_advanced_filter_options(self):
         except Exception:
             return sorted(set(values), key=lambda v: str(v).casefold())
 
-    def _div_key(val):
-        text = str(val).upper()
-        # Ordem: SMIN primeiro (0), SMME segundo (1), outras alfabetico (2)
-        if text == "SMIN":
-            return (0, text)
-        elif text == "SMME":
-            return (1, text)
-        return (2, text)
-
     # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
     if cache.get("exec_vals") is None:
         cache["exec_vals"] = (
@@ -2491,7 +2196,6 @@ def _refresh_advanced_filter_options(self):
             _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
         )
         cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
-        cache["divisao_vals"] = sorted(DIVISAO_SETORES.keys(), key=_div_key)
 
         def _collect_years_from_dates(series):
             """Extrai anos de datas usando operações vetorizadas (otimizado)."""
@@ -2554,12 +2258,11 @@ def _refresh_advanced_filter_options(self):
     exec_vals = cache.get("exec_vals", [])
     emis_vals = cache.get("emis_vals", [])
     status_vals = cache.get("status_vals", [])
-    divisao_vals = cache.get("divisao_vals", [])
     emissao_years = cache.get("emissao_years", [])
     execucao_years = cache.get("execucao_years", [])
     prio_emissao_vals = cache.get("prio_emissao_vals", [])
     prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
-    self._refresh_sector_menus(exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb)
+    self._refresh_sector_menus(exec_vals, emis_vals, status_vals, filters, apply_cb)
     self._refresh_year_menus(emissao_years, execucao_years, filters, apply_cb)
     self._refresh_priority_menus(prio_emissao_vals, prio_planejamento_vals, filters, apply_cb)
 
