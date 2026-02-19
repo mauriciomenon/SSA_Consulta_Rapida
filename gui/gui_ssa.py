@@ -1624,6 +1624,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         return ssa_gui_filters._apply_advanced_filters_from_ui(self, store_only)
 
+    def _collect_advanced_filters_from_ui(self):
+        return ssa_gui_filters._collect_advanced_filters_from_ui(self)
+
     def _parse_week(self, raw: str):
         return ssa_gui_filters._parse_week(self, raw)
 
@@ -1633,9 +1636,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _sync_advanced_filter_ui(self):
         return ssa_gui_filters._sync_advanced_filter_ui(self)
 
-    def _refresh_sector_menus(self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb):
+    def _refresh_sector_menus(self, divisao_vals, status_vals, filters, apply_cb):
         return ssa_gui_filters._refresh_sector_menus(
-            self, exec_vals, emis_vals, divisao_vals, status_vals, filters, apply_cb
+            self, divisao_vals, status_vals, filters, apply_cb
         )
 
     def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
