@@ -569,8 +569,8 @@ def _persist_theme_selection(window, normalized: str, gui_prefs: dict, project_r
                 if not os.environ.get("PYTEST_CURRENT_TEST"):
                     try:
                         window.status_label.setText("Status: Tema aplicado; falha ao salvar preferencia.")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao atualizar status_label apos persistencia de tema: %s", exc)
     except Exception as exc:
         logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
 
