@@ -112,6 +112,7 @@ class RescanProgressDialog(QDialog):
         """Update progress bar and status."""
         if self._cancel_requested and not self.isVisible():
             return
+        percentage = max(0, min(100, int(percentage)))
         self.progress_bar.setValue(percentage)
         self.status_label.setText(message)
 
