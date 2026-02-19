@@ -1729,12 +1729,16 @@ class FilterGUISSAMixin:
             return
 
         widgets = self._get_live_search_inputs_snapshot()
-        try:
-            for widget in widgets:
+        for widget in widgets:
+            try:
                 if widget.hasFocus():
                     return
-        except Exception as exc:
-            logger.debug("Falha ao verificar foco durante sync de busca: %s", exc)
+            except RuntimeError as exc:
+                logger.debug("Widget de busca invalido durante verificacao de foco: %s", exc)
+                continue
+            except Exception as exc:
+                logger.debug("Falha ao verificar foco durante sync de busca: %s", exc)
+                continue
         for widget in widgets:
             blocked = False
             try:

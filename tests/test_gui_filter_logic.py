@@ -676,6 +676,39 @@ class TestGUIFilterLogic:
 
         assert "para 'Teste A'" in self.window.status_label.text()
 
+    def test_apply_search_display_skips_update_when_any_live_widget_has_focus(self):
+        class _BrokenWidget:
+            def hasFocus(self):
+                raise RuntimeError("deleted")
+
+            def blockSignals(self, _value):
+                return None
+
+            def setText(self, _value):
+                return None
+
+        class _FocusedWidget:
+            def __init__(self):
+                self.text_value = "manter"
+
+            def hasFocus(self):
+                return True
+
+            def blockSignals(self, _value):
+                return None
+
+            def setText(self, value):
+                self.text_value = value
+
+        focused = _FocusedWidget()
+        self.window._pending_search_display = "Nao deve sobrescrever"
+        self.window._get_live_search_inputs_snapshot = lambda: [_BrokenWidget(), focused]
+
+        self.window._apply_search_display()
+
+        assert focused.text_value == "manter"
+        assert self.window._pending_search_display == "Nao deve sobrescrever"
+
     def test_resize_event_reorganizes_advanced_grid_on_filters_tab(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)
