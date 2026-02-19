@@ -6,6 +6,7 @@ Separado do main.py principal
 
 import os
 import sys
+import traceback
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
 if getattr(sys, 'frozen', False):
@@ -52,6 +53,7 @@ def main():
         sys.exit(1)
     except Exception as e:
         print(f"ERRO: Falha inesperada ao iniciar CLI: {e}")
+        traceback.print_exc()
         print(f"Path atual: {sys.path}")
         print(f"App dir: {app_dir}")
         sys.exit(1)
