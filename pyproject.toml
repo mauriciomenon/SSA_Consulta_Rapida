@@ -23,6 +23,8 @@ dev = [
     "ruff",
     "flake8",
     "pytest",
+    "ty",
+    "black",
 ]
 build = [
     "pyinstaller",
