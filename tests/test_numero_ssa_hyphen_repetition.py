@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 
 from core.numero_ssa import normalize_strict
-from utils.robust_importer import import_excel_robust, _clean_numero_ssa_series  # type: ignore
+from utils.robust_importer import import_excel_robust, _clean_numero_ssa_series
 
 
 def test_direct_normalize_strict_hyphen_cases():

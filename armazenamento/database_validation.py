@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 import logging
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
 from shared.date_utils import parse_any_date
@@ -133,7 +133,7 @@ def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas')
         if 'numero_ssa' in df.columns:
             valid_ssa_df = df[df['numero_ssa'].notna()]
             if not valid_ssa_df.empty:
-                duplicated_ssa = valid_ssa_df.duplicated(subset=['numero_ssa'], keep=False)  # type: ignore[arg-type]
+                duplicated_ssa = valid_ssa_df.duplicated(subset=['numero_ssa'], keep=False)
                 duplicate_count = duplicated_ssa.sum()
                 if duplicate_count > 0:
                     report['warnings'].append(f"{duplicate_count} números SSA duplicados encontrados")

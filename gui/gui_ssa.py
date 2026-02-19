@@ -641,6 +641,7 @@ except ImportError as exc:
     QAction = cast(Any, QAction)
     QTimer = cast(Any, QTimer)
     Qt = cast(Any, Qt)
+    FilterGUISSAMixin = cast(Any, FilterGUISSAMixin)
 
 def _is_widget_valid(widget) -> bool:
     """Return True when a Qt widget reference still points to a live object."""

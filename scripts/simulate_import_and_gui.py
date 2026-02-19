@@ -26,7 +26,7 @@ import pandas as pd
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("SSA_SYNC_FILTER", "1")  # força caminho síncrono se implementado
 
-from PyQt6.QtWidgets import QApplication  # type: ignore
+from PyQt6.QtWidgets import QApplication
 
 from armazenamento import database
 from gui.gui_ssa import SSAMainWindow
@@ -72,7 +72,7 @@ def simulate_gui_cycle(db_path: str):
     window.load_data()
     # Aguarda carregamento (polling simples)
     timeout = time.time() + 10
-    while getattr(window, "data_loader_thread", None) and not getattr(window.data_loader_thread, "isFinished", lambda: True)():  # type: ignore
+    while getattr(window, "data_loader_thread", None) and not getattr(window.data_loader_thread, "isFinished", lambda: True)():
         if time.time() > timeout:
             break
         app.processEvents()

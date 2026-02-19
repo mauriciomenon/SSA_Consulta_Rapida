@@ -15,7 +15,7 @@ def _normalize(value):
         return database.normalize_numero_ssa(value)
     # fallback: tentar usar função interna (não ideal, mas mantém teste útil)
     if hasattr(database, "_normalize_numero_ssa_value"):
-        return database._normalize_numero_ssa_value(value)  # type: ignore[attr-defined]
+        return database._normalize_numero_ssa_value(value)
     raise RuntimeError("Nenhuma função de normalização encontrada")
 
 
