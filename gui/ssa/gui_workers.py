@@ -433,8 +433,8 @@ def load_data(
         logger.warning("Banco de dados nao encontrado.")
         try:
             window.status_label.setText("Status: Banco de dados nao encontrado.")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao atualizar status_label em banco ausente: %s", exc)
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
         if qmessagebox is not None:
