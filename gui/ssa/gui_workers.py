@@ -63,9 +63,12 @@ def _connect_signal(signal, slot, *, label: str) -> bool:
     try:
         if _QT_QUEUED is not None:
             try:
-                signal.connect(slot, type=_QT_QUEUED)
+                signal.connect(slot, _QT_QUEUED)
             except TypeError:
-                signal.connect(slot)
+                try:
+                    signal.connect(slot, type=_QT_QUEUED)
+                except TypeError:
+                    signal.connect(slot)
         else:
             signal.connect(slot)
         return True
