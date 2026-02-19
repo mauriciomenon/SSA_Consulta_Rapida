@@ -844,11 +844,20 @@ class TestGUIFilterLogic:
         assert mae_filhas == {"100": ["101", "102"]}
         assert filha_mae == {"101": "100", "102": "100"}
 
-    def test_update_derivadas_button_state_is_noop_without_specific_button(self):
+    @pytest.mark.parametrize(
+        ("numero_ssa_values", "derivada_de_values"),
+        [
+            (["1", "2", "3"], ["None", "nan", "   "]),
+            (["1001", "1002"], ["", "None"]),
+        ],
+    )
+    def test_update_derivadas_button_state_is_noop_without_specific_button(
+        self, numero_ssa_values, derivada_de_values
+    ):
         self.window._df_last_search_filtered = pd.DataFrame(
             {
-                "numero_ssa": ["1", "2", "3"],
-                "derivada_de": ["None", "nan", "   "],
+                "numero_ssa": numero_ssa_values,
+                "derivada_de": derivada_de_values,
             }
         )
         self.window._update_derivadas_button_state()
@@ -1059,16 +1068,6 @@ class TestGUIFilterLogic:
 
         resolved = self.window._resolve_derivadas_table_name(str(db_file))
         assert resolved == "ssa_table"
-
-    def test_update_derivadas_button_state_keeps_compatibility_contract(self):
-        self.window._df_last_search_filtered = pd.DataFrame(
-            {
-                "numero_ssa": ["1001", "1002"],
-                "derivada_de": ["", "None"],
-            }
-        )
-        self.window._update_derivadas_button_state()
-        assert "adv_derivadas_especificas_button" not in self.window._adv_ctx
 
     def test_reorganize_advanced_filters_grid_handles_removed_emissor_responsavel_widget(self):
         filter_tab_idx = next(
