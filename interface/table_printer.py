@@ -286,7 +286,7 @@ def _build_headers(params: HeaderBuildParams) -> tuple[list[str], dict[str, int]
         try:
             if os.name == 'nt':
                 label.encode(sys.stdout.encoding or 'utf-8')
-        except Exception:
+        except (UnicodeError, LookupError, AttributeError, TypeError, ValueError):
             safe = label.replace(SSA_ORDINAL_TOKEN, 'No')
             try:
                 safe = unicodedata.normalize('NFKD', safe).encode('ascii', 'ignore').decode('ascii')
