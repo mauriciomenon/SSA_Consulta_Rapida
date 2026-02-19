@@ -39,8 +39,10 @@ def _sanitize_ssa_like_value(value) -> str:
             if value.is_integer():
                 return str(int(value))
             return str(value).strip()
-    except Exception:
+    except (TypeError, ValueError):
         pass
+    except Exception as exc:
+        logger.debug("Falha inesperada ao sanitizar valor SSA-like '%r': %s", value, exc)
     text = str(value).strip()
     if not text:
         return ""
