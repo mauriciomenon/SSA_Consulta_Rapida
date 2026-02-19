@@ -124,6 +124,7 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
     support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
     if support_color.lower() == win.lower():
         support_color = wtxt
+    is_default_theme = normalize_theme(theme_default or "") == current_theme
 
     def _set_theme_default(checked: bool) -> None:
         gui_settings = gui_prefs.setdefault("gui_settings", {})
@@ -137,7 +138,7 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
     try:
         check_action = QWidgetAction(menu)
         check_widget = QCheckBox("Usar tema atual como padrao")
-        check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
+        check_widget.setChecked(is_default_theme)
         try:
             check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
         except Exception as exc:
@@ -151,7 +152,7 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         if default_action is not None:
             try:
                 default_action.setCheckable(True)
-                default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
+                default_action.setChecked(is_default_theme)
                 default_action.triggered.connect(_set_theme_default)
             except Exception as fallback_exc:
                 logger.debug("Falha no fallback de action para tema padrao: %s", fallback_exc)
