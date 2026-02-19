@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from typing import Any, Optional, cast
 
 # CRITICAL FIX: PyOxidizer monkey patch for pandas delvewheel
 # pandas._libs uses __file__ which is None in PyOxidizer causing crash
@@ -25,11 +25,16 @@ if getattr(sys, 'oxidized', False):
     _original_import = builtins.__import__
     def _patched_import(name, *args, **kwargs):
         module = _original_import(name, *args, **kwargs)
-        if not hasattr(module, '__file__') or module.__file__ is None:
-            # Set a dummy __file__ for modules that need it
-            module.__file__ = os.path.join(os.path.dirname(sys.executable), f"{name.replace('.', os.sep)}.py")
+        module_name = getattr(module, "__name__", name)
+        if module_name == "pandas" or module_name.startswith("pandas."):
+            if not hasattr(module, '__file__') or module.__file__ is None:
+                # Set a dummy __file__ only for pandas modules in PyOxidizer mode.
+                module.__file__ = os.path.join(
+                    os.path.dirname(sys.executable),
+                    f"{name.replace('.', os.sep)}.py",
+                )
         return module
-    builtins.__import__ = _patched_import
+    builtins.__import__ = cast(Any, _patched_import)
 
 # Suppress pandas FutureWarnings about chained assignment
 import warnings
