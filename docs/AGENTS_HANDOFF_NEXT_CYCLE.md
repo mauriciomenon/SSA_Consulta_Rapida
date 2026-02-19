@@ -36,6 +36,25 @@ This handoff is ready to reuse in the next conversation.
   - `security/snyk (mauriciomenon)` falhando por limite de plano: `You have used your limit of private tests`.
   - Demais checks principais em `pass` (DeepScan, DeepSource, submit-pypi, GitGuardian, Socket, semgrep, cubic).
 
+## Update 2026-02-19 (fix critico de geometria na aba Filtros)
+
+- Commit: `d3d9410f` (head atual).
+- Problema corrigido:
+  - painel inferior (`Detalhes da SSA Selecionada` + `Filtros Avancados`) podia avancar na area da lista de SSAs em cenarios com poucas linhas apos filtro.
+- Patch minimo aplicado em `gui/gui_ssa.py`:
+  - `table_widget.setMinimumHeight(220)`;
+  - `tab_layout.addWidget(table_widget, 6)`;
+  - `tab_layout.addLayout(bottom_layout, 4)`.
+- Regressao adicionada:
+  - `tests/test_gui_filter_logic.py::test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows`.
+- Evidencia de validacao local:
+  - gate de arquivos tocados passou (`py_compile`, `ruff`, `ty`);
+  - testes focados passaram (`gui_filter_logic` e suites de `advanced_filters`);
+  - checagem de matriz de runtime (alturas 780/860/991/1080 x linhas 1/3/10/200) sem sobreposicao.
+- Estado de checks apos push:
+  - `code/snyk` e `security/snyk` seguem como bloqueio externo conhecido (limite de plano);
+  - demais checks em execucao/fila no momento do snapshot.
+
 ## Pendencias antes de fechar o PR
 
 1. Rodar gate final por lote: `py_compile`, `ruff`, `ty`, `pytest` focado nos arquivos/slices tocados.

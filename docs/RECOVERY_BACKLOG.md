@@ -259,6 +259,16 @@ Ordered list from PR review threads. Status uses pending/resolved.
   - right details font `12`;
   - field-label font `11`.
 
+## Updates 2026-02-19 (filters-tab overlap safety)
+
+- [resolved] Critical visual overlap in `Filtros` tab:
+  - bottom region no longer invades SSA list area when result set is small.
+  - fix shipped in `d3d9410f` with minimal geometry constraints (`table min height 220`, vertical stretch `6/4`).
+  - regression test added for geometry guard in `tests/test_gui_filter_logic.py`.
+- [pending, non-blocking] PR checks monitoring:
+  - keep treating `code/snyk` and `security/snyk` as external plan-limit noise unless provider status changes;
+  - re-check remaining queued checks after pipeline settles, and act only on real code blockers.
+
 ## Updates 2026-02-19 (slice: tab context mixin hardening)
 
 - [resolved] Removed fixed `TAB_CONTEXT_WIDGET_ATTRS` list in tab context mixin; bind now uses runtime context keys while skipping tab metadata.
