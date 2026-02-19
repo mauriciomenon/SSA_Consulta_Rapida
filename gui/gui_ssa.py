@@ -357,7 +357,14 @@ except ImportError as exc:
         def __init__(self, *a, **k):
             self._actions = []
         def addAction(self, *args, **kwargs):
-            action = args[0] if args else None
+            if args and isinstance(args[0], QAction):
+                action = args[0]
+            else:
+                label = str(args[0]) if args else ""
+                action = QAction(label)
+                callback = args[1] if len(args) > 1 else None
+                if callable(callback):
+                    action.triggered.connect(callback)
             self._actions.append(action)
             return action
         def addSeparator(self):
@@ -629,7 +636,6 @@ except ImportError as exc:
     QAction = cast(Any, QAction)
     QTimer = cast(Any, QTimer)
     Qt = cast(Any, Qt)
-
 
 def _is_widget_valid(widget) -> bool:
     """Return True when a Qt widget reference still points to a live object."""
