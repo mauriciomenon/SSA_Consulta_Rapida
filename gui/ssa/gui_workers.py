@@ -155,7 +155,8 @@ def is_data_loader_worker_alive(worker, sip_module) -> bool:
         return not sip_module.isdeleted(worker)
     except TypeError:
         return True
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao consultar estado de delecao do worker: %s", exc)
         return False
 
 
@@ -165,7 +166,8 @@ def is_data_loader_worker_running(worker, sip_module) -> bool:
     try:
         if hasattr(worker, "isRunning"):
             return bool(worker.isRunning())
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao consultar isRunning() do data loader worker: %s", exc)
         return False
     return False
 
@@ -277,7 +279,8 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
     try:
         if hasattr(worker, "isRunning"):
             return bool(worker.isRunning())
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao consultar isRunning() do rescan worker: %s", exc)
         return False
     return False
 
