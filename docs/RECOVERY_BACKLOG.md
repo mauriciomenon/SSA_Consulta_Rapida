@@ -408,3 +408,20 @@ Regra de lint para este ciclo:
    - `scripts/run_all_tests.py` e wrappers `run_pytest_*`.
 5. [pending-blocked] checks externos continuam sem acao local:
    - `code/snyk` por limite de plano.
+
+## Update 2026-02-19 (codex/import-review - ty slices extra)
+
+1. [resolved] Ty baseline continuou caindo em slices pequenos:
+   - `177 -> 155 diagnostics` no gate global `uv run ty check .`.
+   - commits: `1af18fd2`, `37d02707`, `5e66e2fb`, `2f49ec5f`, `46c1f2a6`.
+2. [resolved] Ajustes de risco baixo aplicados:
+   - launcher CLI usando entrypoint correto (`start_cli_loop`).
+   - narrowing do patch de import PyOxidizer para escopo `pandas`.
+   - tipagem defensiva em `gui/gui_ssa_dev.py`.
+   - imports opcionais tipados em `launchers/convert_icon.py`.
+   - narrowing de `QApplication.instance()` em `gui/ssa/gui_theme.py`.
+3. [pending] Bloco principal restante de ty:
+   - `gui/gui_ssa.py` (`128 diagnostics` no arquivo; tipagem PyQt + fallback headless).
+4. [pending-blocked] checks externos sem acao local:
+   - `code/snyk` fail por limite de plano.
+   - `security/snyk` fail por limite de plano.
