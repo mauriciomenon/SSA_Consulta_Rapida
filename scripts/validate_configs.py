@@ -13,7 +13,7 @@ Goals / Design:
 
 Implemented File-Specific Rules (heuristic but explicit):
   version.json:
-    - Must contain keys: version_short (\d+\.\d+ pattern) & version_long (non-empty, includes version_short)
+    - Must contain keys: version_short (\\d+\\.\\d+ pattern) & version_long (non-empty, includes version_short)
 
   settings.json / default_settings.json:
     - Must contain display_settings, user_preferences, default_filters
