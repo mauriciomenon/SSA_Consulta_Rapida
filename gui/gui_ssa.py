@@ -103,7 +103,7 @@ try:
         QHeaderView, QMessageBox, QProgressBar, QComboBox, QSpinBox, QAbstractItemView,
     QMenu, QGroupBox, QTextEdit, QTextBrowser, QFileDialog, QDialog, QDialogButtonBox,
         QSpacerItem, QSizePolicy, QFrame, QListWidget, QListWidgetItem, QCheckBox, QTabWidget,
-        QScrollArea, QToolButton, QWidgetAction, QSplitter
+        QScrollArea, QToolButton, QWidgetAction
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QPoint, QSignalBlocker, QUrl
     from PyQt6.QtGui import QAction, QFont, QDesktopServices
@@ -203,17 +203,6 @@ except ImportError as exc:
 
     class QGridLayout(QVBoxLayout):
         pass
-    class QSplitter(QWidget):
-        def __init__(self, *a, **k):
-            pass
-        def addWidget(self, *a, **k):
-            pass
-        def setChildrenCollapsible(self, *a, **k):
-            pass
-        def setStretchFactor(self, *a, **k):
-            pass
-        def setSizes(self, *a, **k):
-            pass
     class QTabWidget(QWidget):
         def __init__(self, *a, **k):
             self.currentChanged = _Sig()
@@ -1344,11 +1333,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         tab_layout.addWidget(cast(Any, table_widget))
 
         # Details + column filters
-        bottom_splitter = QSplitter()
-        try:
-            bottom_splitter.setChildrenCollapsible(False)
-        except Exception as exc:
-            logger.debug("Falha ao configurar colapsamento do splitter inferior: %s", exc)
+        bottom_layout = QHBoxLayout()
         details_group = QGroupBox("Detalhes da SSA Selecionada")
         details_layout = QVBoxLayout(cast(Any, details_group))
         details_layout.setContentsMargins(2, 2, 2, 2)
@@ -1372,7 +1357,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
         details_layout.addWidget(cast(Any, details_text))
-        bottom_splitter.addWidget(cast(Any, details_group))
+        bottom_layout.addWidget(cast(Any, details_group), 2)
 
         col_filters_group = QGroupBox("Filtros por Coluna")
         col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
@@ -1410,35 +1395,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             adv_group, adv_ctx = self._build_advanced_filters_panel()
             right_col.addWidget(cast(Any, adv_group), 1)
             col_filters_group.setVisible(False)
+            right_col.addWidget(cast(Any, col_filters_group))
+            # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
         else:
             right_col.addWidget(cast(Any, col_filters_group))
-        bottom_splitter.addWidget(cast(Any, right_col_widget))
-        try:
-            bottom_splitter.setStretchFactor(0, 2)
-            bottom_splitter.setStretchFactor(1, 3)
-        except Exception as exc:
-            logger.debug("Falha ao configurar stretch do splitter inferior: %s", exc)
-
-        def _apply_bottom_splitter_sizes() -> None:
-            try:
-                total_width = int(getattr(bottom_splitter, "width", lambda: 0)())
-                if total_width <= 0:
-                    size_hint_getter = getattr(bottom_splitter, "sizeHint", None)
-                    if callable(size_hint_getter):
-                        size_hint = size_hint_getter()
-                        total_width = int(getattr(size_hint, "width", lambda: 0)())
-                if total_width <= 0:
-                    total_width = 1000
-                left_width = max(320, int(total_width * 0.4))
-                right_width = max(420, total_width - left_width)
-                bottom_splitter.setSizes([left_width, right_width])
-            except Exception as exc:
-                logger.debug("Falha ao aplicar proporcao 40/60 no splitter inferior: %s", exc)
-
-        QTimer.singleShot(0, _apply_bottom_splitter_sizes)
+            # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
         tab_layout.addSpacing(12)
-        tab_layout.addWidget(cast(Any, bottom_splitter))
+        tab_layout.addLayout(cast(Any, bottom_layout))
 
         ctx.update(
             {
