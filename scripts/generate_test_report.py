@@ -4,8 +4,13 @@
  - (Opcional) gera gráfico de barras se matplotlib disponível
 """
 from __future__ import annotations
-import subprocess, sys, xml.etree.ElementTree as ET, os, json, shutil
-from datetime import datetime
+
+import json
+import os
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 
 REPORTS_DIR = 'reports'
 JUNIT_XML = os.path.join(REPORTS_DIR, 'tests_junit.xml')
@@ -52,7 +57,7 @@ def write_markdown(summary: dict):
     lines = [
         '# Test Summary',
         '',
-        f"Generated: {datetime.utcnow().isoformat()}Z",
+        f"Generated: {datetime.now(timezone.utc).isoformat()}",
         '',
         '| Metric | Value |',
         '|--------|-------|',
@@ -76,7 +81,7 @@ def maybe_plot(summary: dict):
         print('matplotlib not installed; skipping chart.')
         return
     labels = ['passed','failures','errors','skipped']
-    values = [summary[l] for l in labels]
+    values = [summary[label_key] for label_key in labels]
     fig, ax = plt.subplots(figsize=(5,3))
     ax.bar(labels, values, color=['#2E7D32','#C62828','#6D4C41','#0277BD'])
     ax.set_title('Test Outcomes')

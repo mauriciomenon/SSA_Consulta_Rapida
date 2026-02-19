@@ -3,10 +3,8 @@
 Teste rápido dos executáveis existentes
 """
 
-import os
 import subprocess
 import time
-from pathlib import Path
 
 from version_info import REPO_ROOT, get_current_version
 
@@ -77,7 +75,7 @@ def test_imports():
 
     # PoC GUI removida – somente verifica GUI principal se ainda existir
     try:
-        from gui.gui_ssa import SSAMainWindow  # type: ignore
+        from gui.gui_ssa import SSAMainWindow
         log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
     except Exception as e:  # pragma: no cover - diagnóstico
         log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")

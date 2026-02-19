@@ -17,7 +17,7 @@ import os
 import shutil
 from datetime import datetime
 from typing import Any
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 # Lazy imports from database.py to avoid circular dependency (see lines 82, 100, 117, etc.)
 

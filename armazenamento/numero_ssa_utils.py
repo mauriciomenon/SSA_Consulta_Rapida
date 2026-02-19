@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Iterable
 import re
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from shared.numero_ssa import normalize_strict as _strict  # fonte unica de verdade
 from shared.numero_ssa import normalize_numero_ssa

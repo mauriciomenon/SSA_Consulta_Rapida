@@ -640,7 +640,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # garantir path root
                 if project_root not in sys.path:
                     sys.path.insert(0, project_root)
-                from scripts.migracao.backfill_reprocessar import main as backfill_main  # type: ignore
+                from scripts.migracao.backfill_reprocessar import main as backfill_main
             # Executa backfill (retorna exit code int)
             exit_code = backfill_main(backfill_args)
             logger.info("Backfill finalizado (exit_code=%s)", exit_code)
@@ -804,7 +804,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
-                window.show()  # type: ignore[attr-defined]
+                window.show()
                 # Executa o loop de eventos
                 app.exec()
             except Exception as e:

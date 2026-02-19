@@ -20,7 +20,7 @@ from utils.robust_importer import import_excel_robust
 
 def _write_excel_bytes(df: pd.DataFrame) -> bytes:
     bio = io.BytesIO()
-    with pd.ExcelWriter(bio, engine="openpyxl") as w:  # type: ignore
+    with pd.ExcelWriter(bio, engine="openpyxl") as w:
         df.to_excel(w, index=False)
     return bio.getvalue()
 

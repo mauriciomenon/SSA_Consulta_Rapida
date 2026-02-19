@@ -65,9 +65,9 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
             )
             return []
         spec = importlib.util.spec_from_file_location("_ssa_legacy_setup", module_path)
-        if spec and spec.loader:  # type: ignore[truthy-function]
-            mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-            spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
             func = getattr(mod, "legacy_required_dirs", None)
             if callable(func):
                 legacy_raw = func()
@@ -77,7 +77,7 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
                     legacy_iter: Iterable = [legacy_raw]
                 elif isinstance(legacy_raw, bytes):  # noqa: SIM101 (separado para evitar regra tuple)
                     legacy_iter = [legacy_raw]
-                elif isinstance(legacy_raw, Iterable):  # type: ignore[arg-type]
+                elif isinstance(legacy_raw, Iterable):
                     try:
                         legacy_iter = list(legacy_raw)  # materializa para iteração única
                     except Exception:  # pragma: no cover
@@ -186,5 +186,4 @@ def validate(base_path: str | None = None) -> bool:  # pragma: no cover - delega
     return SetupProjectStructure.validate(base_path)
 
 # Backwards compatibility alias (legacy lowercase name still referenced externally)
-setup_project_structure = SetupProjectStructure  # type: ignore
-
+setup_project_structure = SetupProjectStructure

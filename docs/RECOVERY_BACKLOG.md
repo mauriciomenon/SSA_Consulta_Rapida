@@ -454,3 +454,20 @@ Regra de lint para este ciclo:
 4. [pending-blocked] checks externos:
    - `code/snyk` limite de plano.
    - `security/snyk` limite de plano.
+
+## Update 2026-02-19 (codex/import-review - ty warnings zerados)
+
+1. [resolved] Gate estatico local zerado para tipagem:
+   - `uv run ty check . --output-format concise` -> `All checks passed`.
+   - warnings removidos com patch minimo (unused type ignore + `utcnow` deprecated).
+2. [resolved] Gates tecnicos dos arquivos tocados estao verdes:
+   - `uv run python -m py_compile ...`
+   - `uv run ruff check ...`
+   - `uv run ty check . --output-format concise`
+   - `uv run pytest -q tests/test_main_skip_import.py tests/test_normalization_rules.py tests/test_numero_ssa_hyphen_repetition.py tests/test_numero_ssa_normalization_cross.py tests/test_robust_importer.py`
+3. [pending-nonblocking] melhoria estrutural adiada (fora de escopo do patch minimo):
+   - `armazenamento/database_validation.py`: funcao `validate_dataframe_before_insert` segue com alta complexidade ciclom.
+   - tratar em sprint dedicado com refactor controlado e cobertura de regressao.
+4. [pending-blocked] checks externos sem acao local:
+   - `code/snyk` limite de plano.
+   - `security/snyk` limite de plano.
