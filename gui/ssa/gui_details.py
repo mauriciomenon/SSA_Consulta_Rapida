@@ -197,13 +197,16 @@ def _format_details_html(
             formatted_value = _highlight_text(window, formatted_value, search_terms)
         else:
             formatted_value = html_module.escape(formatted_value)
+        display_name_html = html_module.escape(display_name)
+        if display_name == "Grau de Prioridade (Emissao)":
+            display_name_html = "Grau de Prioridade<br/>(Emissao)"
 
         html_lines.append(
             f"<tr>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; '
             f"font-weight: bold; font-size: {label_font_size_pt}pt; width: 30%; vertical-align: top;\">"
-            f"{html_module.escape(display_name)}:</td>"
+            f"{display_name_html}:</td>"
             f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; '
             f'border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">'
             f"{formatted_value}</td>"
