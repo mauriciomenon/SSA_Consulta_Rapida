@@ -1292,6 +1292,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         table_widget = QTableWidget()
         table_widget.setEditTriggers(cast(Any, QTableWidget.EditTrigger.NoEditTriggers))
         table_widget.setSelectionBehavior(cast(Any, QAbstractItemView.SelectionBehavior.SelectRows))
+        try:
+            table_widget.setMinimumHeight(220)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura minima na tabela principal: %s", exc)
         header = table_widget.horizontalHeader()
         vertical_header = table_widget.verticalHeader()
         if header is not None and vertical_header is not None:
@@ -1332,7 +1336,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         table_widget.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
         table_widget.customContextMenuRequested.connect(self.show_context_menu)
 
-        tab_layout.addWidget(cast(Any, table_widget))
+        tab_layout.addWidget(cast(Any, table_widget), 6)
 
         # Details + column filters
         bottom_layout = QHBoxLayout()
@@ -1406,7 +1410,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
         tab_layout.addSpacing(12)
-        tab_layout.addLayout(cast(Any, bottom_layout))
+        tab_layout.addLayout(cast(Any, bottom_layout), 4)
 
         ctx.update(
             {
