@@ -85,7 +85,8 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         from PyQt6.QtCore import Qt as _Qt
         from PyQt6.QtGui import QPalette as _QPal
 
-        app = QApplication.instance()
+        app_instance = QApplication.instance()
+        app = app_instance if isinstance(app_instance, QApplication) else None
         pal = app.palette() if app is not None else window.palette()
         if app is not None:
             menu.setPalette(pal)
@@ -219,7 +220,8 @@ def _apply_global_palette(window, normalized: str, same_theme: bool):
         return window.palette()
     try:
         from PyQt6.QtWidgets import QApplication, QStyleFactory
-        app = QApplication.instance()
+        app_instance = QApplication.instance()
+        app = app_instance if isinstance(app_instance, QApplication) else None
         pal = get_palette(normalized)
         try:
             if app is not None:
