@@ -80,7 +80,7 @@ def _run_cleanup_transaction(conn: sqlite3.Connection) -> tuple[int, int, int, i
         raise
 
 
-def _fetch_remaining_dupes() -> list[tuple[int, int]]:
+def _fetch_remaining_dupes() -> list[tuple[str, int]]:
     conn = sqlite3.connect('data/ssas.db')
     try:
         cursor = conn.cursor()
