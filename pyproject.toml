@@ -14,7 +14,6 @@ dependencies = [
     "openpyxl",
     "pyqt6",
     "numpy",
-    "scipy",
     "tabulate",
 ]
 
