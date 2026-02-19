@@ -699,6 +699,14 @@ class TestGUIFilterLogic:
         assert "INTERNAL_SENTINEL_NORM" not in html
         assert "INTERNAL_SENTINEL_DEBUG" not in html
 
+    def test_details_html_breaks_priority_emissao_label_in_two_lines(self):
+        series = self.base_df.iloc[0].copy()
+        series["grau_prioridade_emissao"] = "ALTA"
+
+        html = self.window._format_details_html(series, highlight_search_terms=False, linkify=False)
+
+        assert "Grau de Prioridade<br/>(Emissao):" in html
+
     def test_details_text_disables_automatic_link_navigation(self):
         details_text = self.window.details_text
         assert details_text.openExternalLinks() is False
