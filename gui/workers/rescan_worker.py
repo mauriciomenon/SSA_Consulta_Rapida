@@ -157,10 +157,11 @@ class RescanWorker(QThread):
             else:
                 self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Erro inesperado no reescaneamento")
-            self.error_line.emit("Erro ao executar reescaneamento.")
-            self.finished_error.emit("Erro ao executar reescaneamento.")
+            message = f"Erro ao executar reescaneamento: {exc}"
+            self.error_line.emit(message)
+            self.finished_error.emit(message)
         finally:
             # Keep cleanup best-effort but never silence a real detach failure.
             if self._logger_attached:

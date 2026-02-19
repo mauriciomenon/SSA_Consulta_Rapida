@@ -41,6 +41,7 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
             pass
 
     assert emitted
-    assert emitted[0] == "Erro ao executar reescaneamento."
+    assert emitted[0].startswith("Erro ao executar reescaneamento:")
+    assert "boom" in emitted[0]
     assert worker._logger_attached is False
     assert rescan_worker_mod._LOGGER_REFCOUNT == baseline_refcount
