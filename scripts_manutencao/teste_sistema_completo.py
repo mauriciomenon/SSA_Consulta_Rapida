@@ -3,7 +3,6 @@
 Teste rápido do sistema SSA após melhorias
 """
 
-import sys
 import os
 
 def test_basic_functionality():
@@ -61,7 +60,8 @@ def test_database():
                         cursor.execute("SELECT COUNT(*) FROM ssa_table")
                         count = cursor.fetchone()[0]
                         print(f"OK {count:,} registros na tabela principal")
-                    except:
+                    except Exception as exc:
+                        print(f"DEBUG Falha ao consultar ssa_table: {exc}")
                         print("WARN Tabela principal sem dados ou não existe")
                 else:
                     print("WARN Banco sem tabelas")
