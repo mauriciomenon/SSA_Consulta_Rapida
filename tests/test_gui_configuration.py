@@ -5,7 +5,7 @@ Validação da separação de configurações entre GUI e CLI
 """
 
 import json
-import os
+import importlib
 import sys
 import unittest
 from pathlib import Path
@@ -94,7 +94,7 @@ class TestGUIConfiguration(unittest.TestCase):
         """Testa se o CLI permanece independente das configurações da GUI"""
         try:
             # Tenta importar o módulo principal sem erros
-            import main
+            importlib.import_module("main")
 
             # Verifica se o CLI não foi afetado pelas mudanças da GUI
             # (não deve gerar erros de importação)
@@ -169,7 +169,7 @@ def print_test_summary():
         critical_columns = ['numero_ssa', 'cadastro', 'prioridade']
         display_columns = config.get('display_columns', [])
 
-        print(f"\nOK Colunas críticas presentes:")
+        print("\nOK Colunas críticas presentes:")
         for col in critical_columns:
             status = "OK" if col in display_columns else "ERR"
             print(f"   {status} {col}")

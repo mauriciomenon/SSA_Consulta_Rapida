@@ -8,8 +8,6 @@ para gerar relatorio completo de problemas.
 
 import sys
 import os
-import pandas as pd
-import re
 from datetime import datetime
 
 # Adiciona o diretorio raiz ao path
@@ -17,7 +15,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from armazenamento.database import query_db
+from armazenamento.database import query_db  # noqa: E402
 
 print("="*80)
 print("ANALISE DETALHADA DE IMPORTACAO")
@@ -90,7 +88,7 @@ if 'numero_ssa' in df.columns:
         print(f"  [AVISO] {len(duplicates)} registros duplicados")
 
         ssa_counts = duplicates['numero_ssa'].value_counts()
-        print(f"\n  Top 10 SSAs mais duplicadas:")
+        print("\n  Top 10 SSAs mais duplicadas:")
         for i, (ssa, count) in enumerate(ssa_counts.head(10).items(), 1):
             print(f"    {i:2d}. SSA {ssa}: {count} ocorrencias")
     else:
@@ -108,7 +106,7 @@ if 'arquivo_origem' in df.columns:
     file_counts = df['arquivo_origem'].value_counts()
     print(f"  [OK] {len(file_counts)} arquivos unicos importados")
 
-    print(f"\n  Top 10 arquivos com mais registros:")
+    print("\n  Top 10 arquivos com mais registros:")
     for i, (arquivo, count) in enumerate(file_counts.head(10).items(), 1):
         print(f"    {i:2d}. {arquivo}: {count} registros")
 
@@ -135,7 +133,7 @@ if 'data_cadastro' in df.columns:
 
         # Identifica SSAs afetadas
         ssas_sem_data = df[df['data_cadastro'].isna()]['numero_ssa'].head(20).tolist()
-        print(f"\n  Primeiras 20 SSAs sem data_cadastro:")
+        print("\n  Primeiras 20 SSAs sem data_cadastro:")
         for i, ssa in enumerate(ssas_sem_data, 1):
             arquivo = df[df['numero_ssa'] == ssa]['arquivo_origem'].iloc[0] if 'arquivo_origem' in df.columns else 'N/A'
             print(f"    {i:2d}. SSA {ssa} (arquivo: {arquivo})")

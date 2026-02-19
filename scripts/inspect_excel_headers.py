@@ -37,7 +37,7 @@ for col in df_default.columns:
         row_idx = df_default[df_default[col].astype(str).str.contains('202207421', na=False)].index[0]
         print(f"\nFound in column: {col}")
         print(f"Row index: {row_idx}")
-        print(f"\nFull row data:")
+        print("\nFull row data:")
         row_data = df_default.iloc[row_idx]
         for k, v in row_data.items():
             if pd.notna(v):

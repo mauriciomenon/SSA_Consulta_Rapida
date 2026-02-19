@@ -17,7 +17,7 @@ def verificar_urgente():
         print(f"  {col[1]} ({col[2]})")
 
     # 2. Amostra dos dados
-    print(f"\nINFO AMOSTRA DOS DADOS:")
+    print("\nINFO AMOSTRA DOS DADOS:")
     try:
         rows = conn.execute("SELECT numero_ssa, situacao, semana_cadastro, descricao_ssa FROM ssas LIMIT 5").fetchall()
         for r in rows:
@@ -27,7 +27,7 @@ def verificar_urgente():
         print(f"  ERRO: {e}")
 
     # 3. Verificar se numero_ssa está NULL
-    print(f"\nINFO VERIFICAÇÃO DE NULOS:")
+    print("\nINFO VERIFICAÇÃO DE NULOS:")
     try:
         nulls = conn.execute("SELECT COUNT(*) FROM ssas WHERE numero_ssa IS NULL OR numero_ssa = ''").fetchone()[0]
         total = conn.execute("SELECT COUNT(*) FROM ssas").fetchone()[0]
@@ -38,7 +38,7 @@ def verificar_urgente():
         print(f"  ERRO: {e}")
 
     # 4. Verificar campos específicos que estão faltando
-    print(f"\nINFO CAMPOS ESPECÍFICOS:")
+    print("\nINFO CAMPOS ESPECÍFICOS:")
     campos_importantes = ['numero_ssa', 'semana_cadastro', 'semana_programada', 'data_cadastro']
     for campo in campos_importantes:
         try:

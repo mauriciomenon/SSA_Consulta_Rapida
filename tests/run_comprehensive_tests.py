@@ -248,7 +248,7 @@ def generate_comprehensive_report(all_results: list, output_dir: str = "docs_sai
 
         content += "\n"
 
-    content += f"""
+    content += """
 ## Análise de Resultados
 
 ### Funcionalidades Testadas

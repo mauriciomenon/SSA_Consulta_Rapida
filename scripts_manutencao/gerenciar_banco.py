@@ -169,7 +169,7 @@ def sanitize_data_folder(data_dir="data"):
                     shutil.move(str(file_path), str(new_path))
                     moved_backups += 1
 
-    print(f" Sanitizao concluda:")
+    print(" Sanitizao concluda:")
     print(f"  - {removed_temp} arquivos temporrios removidos")
     print(f"  - {moved_backups} backups organizados")
 

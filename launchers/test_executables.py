@@ -82,7 +82,7 @@ def test_executable(exe_path, name):
 # Retem main for manual execution ------------------------------------------------
 def main():  # pragma: no cover
     base_dir = Path(__file__).parent.parent
-    print(f"=== Teste de Executaveis v3.10 ===")
+    print("=== Teste de Executaveis v3.10 ===")
     print(f"Base: {base_dir}")
     specs = [
         ("CLI Multi-Plataforma", Path(__file__).parent / 'dist' / 'macos_arm64' / 'SSA_CLI_v3.10_macos_arm64' / 'SSA_CLI_v3.10_macos_arm64'),
