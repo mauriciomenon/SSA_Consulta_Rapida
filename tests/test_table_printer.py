@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # tests/test_table_printer.py
 """
 Testes unitários para o módulo interface.table_printer.
@@ -8,7 +9,7 @@ import pandas as pd
 import os
 import sys
 from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

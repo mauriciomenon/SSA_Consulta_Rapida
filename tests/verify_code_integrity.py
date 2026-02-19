@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: F401
 """
 Script de verificacao de integridade de imports e chamadas cruzadas.
 """

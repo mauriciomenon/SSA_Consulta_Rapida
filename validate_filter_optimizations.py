@@ -7,7 +7,6 @@ Tests cache, vectorization and filter logic without requiring GUI
 import sys
 import os
 import pandas as pd
-import numpy as np
 from time import perf_counter
 
 # Add root to path
@@ -160,7 +159,7 @@ print("  OK Partial invalidation possible per individual key")
 print("\n[TEST 5] Dependencies verification")
 
 try:
-    from PyQt6.QtCore import QTimer
+    from PyQt6.QtCore import QTimer  # noqa: F401
     print("  OK PyQt6.QtCore.QTimer imported (debouncing available)")
 except ImportError:
     print("  SKIP PyQt6 not available (normal in CI/tests)")

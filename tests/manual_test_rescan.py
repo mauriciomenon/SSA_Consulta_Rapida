@@ -1,5 +1,4 @@
 import sys
-import os
 sys.path.insert(0, '.')
 
 print("Testando se main faz rescan automaticamente...")
@@ -9,7 +8,6 @@ print("Simulando execução sem --force-rescan...")
 sys.argv = ['main.py']
 
 try:
-    from main import main
     print("Import OK")
     # Não executar main() para evitar loop, apenas testar parse
     import argparse

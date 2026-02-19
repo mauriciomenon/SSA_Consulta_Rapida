@@ -1,4 +1,4 @@
-import io, os
+import io
 import pandas as pd
 from utils.robust_importer import import_excel_robust
 
@@ -10,7 +10,9 @@ def test_regression_numero_ssa_float_and_blank(tmp_path):
             'Nº SSA': ['202500777', bad],  # pode ser interpretado como float em alguns cenários
             'Situação': ['OK', 'IGNORAR']
         })
-        bio = io.BytesIO(); df.to_excel(bio, index=False); bio.seek(0)
+        bio = io.BytesIO()
+        df.to_excel(bio, index=False)
+        bio.seek(0)
         f = tmp_path / f'case_{repr(bad).replace(" ", "_")}.xlsx'
         f.write_bytes(bio.getvalue())
         out, stats = import_excel_robust(str(f))

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Teste LEVE de importação - usa apenas 3 arquivos para validação rápida.
 Para teste completo, use: python tests/run_import_detailed.py
