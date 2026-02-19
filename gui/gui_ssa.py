@@ -1400,9 +1400,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             bottom_layout.addWidget(cast(Any, right_col_widget), 3)
         else:
             right_col.addWidget(cast(Any, col_filters_group))
-            # CORRECAO 2026-01-08: Aba SSAs com proporcao 50/50 (igual stretch)
-            # Detalhes ja tem stretch=2, filtros coluna tambem com stretch=2
-            bottom_layout.addWidget(cast(Any, right_col_widget), 2)
+            # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
         tab_layout.addSpacing(12)
         tab_layout.addLayout(cast(Any, bottom_layout))
