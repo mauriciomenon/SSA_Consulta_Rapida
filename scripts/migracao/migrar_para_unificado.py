@@ -21,7 +21,6 @@ Limitações:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import shutil
 import sqlite3
@@ -55,7 +54,8 @@ def parse_target_columns() -> List[str]:
     cols = []
     for line in block.splitlines():
         line = line.strip()
-        if not line or line.startswith('--'): continue
+        if not line or line.startswith('--'):
+            continue
         if line.lower().startswith('id '):
             continue  # ignora PK já existente
         # linha típica: nome_coluna TIPO,
