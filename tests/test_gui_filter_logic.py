@@ -332,6 +332,23 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is True
 
+    def test_refresh_after_filter_change_updates_clear_button_state(self):
+        self.window.clear_filter_button.setEnabled(False)
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+        assert self.window.clear_filter_button.isEnabled() is True
+
+        self.window._active_column_filters["descricao_ssa"] = ""
+        self.window._exclude_ste_sca = False
+        self.window._advanced_filters = {}
+        self.window._advanced_filters_active = False
+        for ctx in self.window._tab_contexts:
+            ctx["search_input"].setText("")
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+        assert self.window.clear_filter_button.isEnabled() is False
+
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)

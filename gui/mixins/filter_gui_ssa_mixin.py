@@ -1584,6 +1584,11 @@ class FilterGUISSAMixin:
             self._update_filters_summary()
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
+        try:
+            if hasattr(self, "clear_filter_button"):
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception as exc:
+            logger.debug("Falha ao atualizar estado do botao limpar no refresh de filtros: %s", exc)
 
 
     def _snapshot_filter_state(self) -> dict:
