@@ -78,10 +78,7 @@ class _DialogNoop:
 
 
 class _BaseWorker:
-    instances = []
-
     def __init__(self, _main_py_path: str, _project_root: str):
-        type(self).instances.append(self)
         self._running = False
         self.stop_called = False
         self.output_line = _Signal()
@@ -105,16 +102,12 @@ class _BaseWorker:
 
 
 class _WorkerStopRaises(_BaseWorker):
-    instances = []
-
     def stop(self):
         self.stop_called = True
         raise RuntimeError("stop failed")
 
 
 class _WorkerIsRunningRaises(_BaseWorker):
-    instances = []
-
     def isRunning(self):
         raise RuntimeError("wrapped C/C++ object has been deleted")
 
@@ -125,7 +118,12 @@ def _build_main_py(tmp_path: Path) -> str:
 
 
 def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
-    _WorkerStopRaises.instances = []
+    created_workers = []
+    class _WorkerStopRaisesTracked(_WorkerStopRaises):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_workers.append(self)
+
     project_root = _build_main_py(tmp_path)
     window = _Window()
     global_workers: list = []
@@ -134,7 +132,7 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
     ssa_gui_workers.rescan_data(
         window,
         project_root=project_root,
-        rescan_worker_cls=_WorkerStopRaises,
+        rescan_worker_cls=_WorkerStopRaisesTracked,
         rescan_dialog_cls=_DialogCancelAndFinish,
         qmessagebox=None,
         global_workers=global_workers,
@@ -145,8 +143,8 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
         sip_module=None,
     )
 
-    assert _WorkerStopRaises.instances
-    assert _WorkerStopRaises.instances[0].stop_called is True
+    assert created_workers
+    assert created_workers[0].stop_called is True
     assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
     assert window._active_rescan_worker is None
     assert global_workers == []
@@ -154,7 +152,12 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
 
 
 def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tmp_path):
-    _WorkerIsRunningRaises.instances = []
+    created_workers = []
+    class _WorkerIsRunningRaisesTracked(_WorkerIsRunningRaises):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_workers.append(self)
+
     project_root = _build_main_py(tmp_path)
     window = _Window()
     global_workers: list = []
@@ -163,7 +166,7 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
     ssa_gui_workers.rescan_data(
         window,
         project_root=project_root,
-        rescan_worker_cls=_WorkerIsRunningRaises,
+        rescan_worker_cls=_WorkerIsRunningRaisesTracked,
         rescan_dialog_cls=_DialogNoop,
         qmessagebox=None,
         global_workers=global_workers,
@@ -174,7 +177,7 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
         sip_module=None,
     )
 
-    assert _WorkerIsRunningRaises.instances
+    assert created_workers
     assert window._active_rescan_worker is None
     assert global_workers == []
     assert global_meta == {}
