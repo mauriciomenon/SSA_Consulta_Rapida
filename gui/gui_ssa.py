@@ -1057,6 +1057,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._data_uuid = None
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
+        self._active_filter_search_request_id = None
+        self._active_filter_search_display = ""
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
         self._sync_filtering = os.environ.get("SSA_SYNC_FILTER", "").lower() in ("1", "true", "yes", "on")
         # Em ambiente de testes (pytest), force modo síncrono para previsibilidade
