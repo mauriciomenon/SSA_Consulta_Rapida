@@ -858,17 +858,12 @@ def rescan_data(
         except Exception as exc:
             logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
         try:
-            if worker in global_workers:
-                with _GLOBAL_WORKERS_LOCK:
-                    if worker in global_workers:
-                        global_workers.remove(worker)
-        except Exception as exc:
-            logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
-        try:
             with _GLOBAL_WORKERS_LOCK:
+                if worker in global_workers:
+                    global_workers.remove(worker)
                 global_meta.pop(worker, None)
         except Exception as exc:
-            logger.debug("Falha ao remover meta do RescanWorker: %s", exc)
+            logger.debug("Falha ao remover referencias globais do RescanWorker: %s", exc)
 
     def on_success():
         nonlocal cancelled
@@ -903,13 +898,13 @@ def rescan_data(
     def on_cancel_requested():
         nonlocal cancelled
         cancelled = True
-        try:
-            running = bool(worker.isRunning())
-        except Exception as exc:
-            logger.debug("Falha ao checar estado do RescanWorker no cancelamento: %s", exc)
-            running = False
+        running = is_rescan_worker_running(worker, sip_module)
         if running:
-            worker.stop()
+            try:
+                if hasattr(worker, "stop"):
+                    worker.stop()
+            except Exception as exc:
+                logger.debug("Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc)
             window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
 
     progress_dialog.cancel_requested.connect(on_cancel_requested)
@@ -917,11 +912,9 @@ def rescan_data(
     worker.start()
     progress_dialog.exec()
 
-    try:
-        still_running = bool(worker.isRunning())
-    except Exception as exc:
-        logger.debug("Falha ao checar estado do RescanWorker apos dialogo: %s", exc)
-        still_running = False
+    still_running = is_rescan_worker_running(worker, sip_module)
+    if not still_running:
+        _release_worker_ref()
     if still_running:
         with _GLOBAL_WORKERS_LOCK:
             if worker not in global_workers:
