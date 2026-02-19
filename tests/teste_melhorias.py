@@ -46,7 +46,7 @@ def test_config_files():
         widths = config.get('column_widths', {})
         solicitante_width = widths.get('solicitante', 0)
         status = "OK" if solicitante_width >= 121 else "ERR"
-        print(f"\nNOTE LARGURA SOLICITANTE:")
+        print("\nNOTE LARGURA SOLICITANTE:")
         print(f"  {status} solicitante: {solicitante_width}px (mínimo: 121px)")
 
     else:
@@ -58,7 +58,7 @@ def test_gui_imports():
     print("=" * 50)
 
     try:
-        from gui.gui_ssa import SSAMainWindow, load_gui_main_preferences
+        from gui.gui_ssa import load_gui_main_preferences
         print("OK GUI importada com sucesso")
 
         # Testa carregamento de preferências
