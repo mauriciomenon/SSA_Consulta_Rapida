@@ -108,7 +108,7 @@ class CLIEnhancementManager:
                             remove_exc,
                         )
         except Exception as e:
-            logger.error(f"Erro ao salvar configurações CLI: {e}")
+            logger.error("Erro ao salvar configuracoes CLI: %s", e)
         finally:
             if lock_file is not None:
                 try:
