@@ -280,19 +280,23 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == ''
         assert self.window.clear_filter_button.isEnabled() is False
 
-    def test_clear_filter_resets_advanced_filters_and_schedules_refresh(self):
+    def test_clear_filter_clears_only_general_search_and_keeps_advanced_filters(self):
         self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
         self.window._adv_options_dirty = False
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
 
-        with patch.object(self.window, "_schedule_adv_options_refresh") as refresh_mock:
+        with patch.object(self.window, "_refresh_after_filter_change", wraps=self.window._refresh_after_filter_change) as refresh_mock:
             self.window.clear_filter()
             QApplication.processEvents()
 
-        assert self.window._advanced_filters == {}
-        assert self.window._advanced_filters_active is False
-        assert self.window._adv_options_dirty is True
-        refresh_mock.assert_called_once()
+        assert self.window.search_input.text() == ""
+        assert self.window._advanced_filters == {"situacao": ["STE"], "setor_executor": ["IEE3"]}
+        assert self.window._advanced_filters_active is True
+        assert self.window._adv_options_dirty is False
+        assert refresh_mock.call_count >= 1
 
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
