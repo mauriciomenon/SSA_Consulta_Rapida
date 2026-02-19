@@ -39,28 +39,28 @@ def debug_ssa_extraction():
 
             # Amostrar dados brutos
             sample = df_raw[col_ssa].dropna().head(5)
-            print(f"   Dados BRUTOS (str):")
+            print("   Dados BRUTOS (str):")
             for i, val in enumerate(sample):
                 print(f"     [{i+1}] '{val}' (tipo: {type(val)}, len: {len(str(val))})")
 
         # 2. Ler como números
-        print(f"\n2. LEITURA COMO NÚMEROS:")
+        print("\n2. LEITURA COMO NÚMEROS:")
         df_num = pd.read_excel(arquivo_teste, header=1)
 
         if ssa_cols and ssa_cols[0] in df_num.columns:
             col_ssa = ssa_cols[0]
             sample_num = df_num[col_ssa].dropna().head(5)
-            print(f"   Dados NUMÉRICOS:")
+            print("   Dados NUMÉRICOS:")
             for i, val in enumerate(sample_num):
                 print(f"     [{i+1}] {val} (tipo: {type(val)})")
 
         # 3. Aplicar pd.to_numeric
-        print(f"\n3. APÓS pd.to_numeric:")
+        print("\n3. APÓS pd.to_numeric:")
         if ssa_cols and ssa_cols[0] in df_raw.columns:
             col_ssa = ssa_cols[0]
             processed = pd.to_numeric(df_raw[col_ssa], errors='coerce')
             sample_proc = processed.dropna().head(5)
-            print(f"   Dados PROCESSADOS:")
+            print("   Dados PROCESSADOS:")
             for i, val in enumerate(sample_proc):
                 print(f"     [{i+1}] {val} (tipo: {type(val)})")
 
