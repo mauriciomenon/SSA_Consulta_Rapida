@@ -596,12 +596,14 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
                 window._data_revision = int(getattr(window, "_data_revision", 0) or 0) + 1
             try:
                 window._data_uuid = uuid.uuid4().hex
-            except Exception:
+            except Exception as exc:
+                logger.debug("Falha ao gerar UUID de dados; usando fallback textual: %s", exc)
                 window._data_uuid = (
                     f"fallback-{time.time_ns()}-{int(getattr(window, '_data_revision', 0) or 0)}"
                 )
             window._data_revision_request_id = request_id
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao atualizar revisao de dados; resetando para baseline: %s", exc)
         window._data_revision = 1
     try:
         window.clear_filter_cache()
