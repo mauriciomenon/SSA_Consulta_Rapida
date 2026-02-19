@@ -21,10 +21,12 @@ class _SignalKeywordQueuedOnly:
     def __init__(self, queued_token):
         self.queued_token = queued_token
         self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        self.positional_typeerror_count = 0
 
     def connect(self, _slot, *args, **kwargs):
         self.calls.append((args, kwargs))
         if args:
+            self.positional_typeerror_count += 1
             raise TypeError("positional type not supported")
         if kwargs.get("type") is self.queued_token:
             return None
@@ -58,6 +60,7 @@ def test_connect_filter_signal_falls_back_to_keyword_queued(monkeypatch):
     second_args, second_kwargs = signal.calls[1]
     assert first_args == (queued_token,)
     assert first_kwargs == {}
+    assert signal.positional_typeerror_count == 1
     assert second_args == ()
     assert second_kwargs == {"type": queued_token}
 
