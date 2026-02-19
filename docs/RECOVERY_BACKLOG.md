@@ -519,3 +519,14 @@ Regra de lint para este ciclo:
 4. [pending-blocked] checks externos sem acao local:
    - `code/snyk` limite de plano.
    - `security/snyk` limite de plano.
+
+## Update 2026-02-19 (codex/import-review - gui workers structural follow-up)
+
+1. [pending-nonblocking] item estrutural identificado por revisao automatica:
+   - `gui/ssa/gui_workers.py`: funcao `on_data_loaded` concentra responsabilidades de sanitizacao, estado e atualizacao de UI.
+   - impacto atual: nao bloqueia funcionamento, mas aumenta custo de manutencao e teste.
+2. [next-sprint] tratar em sprint dedicado, sem mexer em layout:
+   - extrair bloco de processamento de dataframe para helper puro.
+   - manter `on_data_loaded` como coordenador de fluxo/UI.
+3. [scope-note] fora do patch minimo desta rodada:
+   - nenhuma refatoracao ampla aplicada agora para evitar risco de regressao.
