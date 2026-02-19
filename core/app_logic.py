@@ -11,6 +11,7 @@ import os
 import sys
 import logging
 import json
+import sqlite3
 import pandas as pd
 import re
 from pathlib import Path
@@ -24,6 +25,7 @@ sys.path.insert(0, project_root)
 from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
+from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
@@ -148,9 +150,9 @@ def _get_files_to_process(
         )
         return files_to_process
 
-    except Exception as e:
-        logger.error(f"Erro ao determinar arquivos para processamento: {e}")
-        raise CacheError(f"Falha na verificacao de arquivos: {e}") from e
+    except Exception as exc:
+        logger.error("Erro ao determinar arquivos para processamento: %s", exc)
+        raise CacheError(f"Falha na verificacao de arquivos: {exc}") from exc
 
 
 def _import_single_file(
@@ -178,14 +180,10 @@ def _import_single_file(
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
-        if df is None:
-            raise ExtractionError(
-                f"Extractor returned None for file: {os.path.basename(file_path)}"
-            )
-        if df is not None and not df.empty:
+        if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
-                raise extractor.ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled")
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(
@@ -270,7 +268,7 @@ def _import_single_file(
 
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             if should_cancel and should_cancel():
-                raise extractor.ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled")
             success = database.insert_dataframe_with_smart_upsert(
                 df, db_path, table_name
             )
@@ -290,11 +288,220 @@ def _import_single_file(
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
         raise ExtractionError(str(e)) from e
-    except ExtractionError:
+    except DatabaseError:
+        raise
+    except ImporterError:
         raise
     except Exception as e:
         logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
-        raise ExtractionError(f"Erro ao importar {file_path}") from e
+        raise ExtractionError(f"Erro ao importar {file_path}: {e}") from e
+
+
+def _is_derivadas_sheet_file(file_path: str) -> bool:
+    base_name = os.path.basename(file_path).strip().casefold()
+    return base_name.startswith("ssas derivadas e relacionadas") and base_name.endswith(".xlsx")
+
+
+def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
+    try:
+        all_xlsx_files = caching.get_all_xlsx_files(docs_dir)
+    except Exception as exc:
+        logger.warning("Falha ao listar planilhas especiais de derivadas em '%s': %s", docs_dir, exc)
+        return []
+    return sorted(
+        {path for path in all_xlsx_files if _is_derivadas_sheet_file(path)},
+        key=lambda path: os.path.basename(path).casefold(),
+    )
+
+
+def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
+    """Decide if derivadas sync should run with DB-only source when no files changed."""
+
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
+        logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
+        return False
+
+    try:
+        with database.get_db_connection(db_path) as conn:
+            db_edges_count = int(
+                conn.execute(
+                    f"""
+                    SELECT COUNT(*)
+                    FROM (
+                        SELECT numero_ssa, derivada_de
+                        FROM "{table_name}"
+                        WHERE derivada_de IS NOT NULL
+                        GROUP BY numero_ssa, derivada_de
+                    ) AS db_edges
+                    """
+                ).fetchone()[0]
+            )
+            if db_edges_count <= 0:
+                return False
+
+            ready_tables = {
+                "ssa_derivada_matrix",
+                "ssa_derivada_summary",
+                "ssa_derivada_sync_run",
+            }
+            existing_tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
+            if not ready_tables.issubset(existing_tables):
+                return True
+
+            matrix_active = int(
+                conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
+            )
+            summary_total = int(conn.execute("SELECT COUNT(*) FROM ssa_derivada_summary").fetchone()[0])
+            latest = conn.execute(
+                """
+                SELECT db_edges
+                FROM ssa_derivada_sync_run
+                WHERE status = 'ok'
+                ORDER BY sync_run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+            if latest is None:
+                return True
+            latest_db_edges = int(latest[0] or 0)
+            return matrix_active <= 0 or summary_total <= 0 or latest_db_edges != db_edges_count
+    except sqlite3.Error as exc:
+        logger.warning("Preflight DB-only de derivadas falhou com sqlite error: %s", exc)
+        return False
+    except Exception as exc:
+        logger.warning("Preflight DB-only de derivadas falhou: %s", exc)
+        return False
+
+
+def _run_derivadas_sync_phase(
+    db_path: str,
+    table_name: str,
+    derivadas_sheet_files: List[str],
+) -> tuple[bool, List[str], Dict[str, Any]]:
+    def _has_sheet_parse_evidence(entry: Dict[str, Any]) -> bool:
+        raw_stats = entry.get("stats")
+        stats: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
+        has_flag = bool(entry.get("has_parse_evidence"))
+        accepted = int(stats.get("accepted_edges", 0) or 0)
+        special_layout = int(stats.get("special_layout_detected", 0) or 0)
+        informational = int(stats.get("informational_rows_skipped", 0) or 0)
+        return has_flag or accepted > 0 or special_layout > 0 or informational > 0
+
+    existing_files = sorted(
+        {path for path in derivadas_sheet_files if os.path.exists(path)},
+        key=lambda path: os.path.basename(path).casefold(),
+    )
+    sync_kwargs: Dict[str, Any] = {
+        "db_path": db_path,
+        "table_name": table_name,
+        "include_db_source": True,
+        "actor": "importer-derivadas-sync",
+    }
+    if existing_files:
+        sync_kwargs["sheet_files"] = existing_files
+
+    report = sync_derivadas(**sync_kwargs)
+    sheet_stats = report.get("sheet_stats") or {}
+    reported_files = report.get("sheet_files") or []
+    sheet_file_reports = report.get("sheet_file_reports") or []
+    sheet_evidence = report.get("sheet_evidence") or {}
+    accepted_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+    special_layout_detected = int(sheet_stats.get("special_layout_detected", 0) or 0)
+    has_sheet_evidence = accepted_edges > 0 or special_layout_detected > 0
+    db_stats = report.get("db_stats") or {}
+    db_edges = int(db_stats.get("accepted_edges", 0) or 0)
+    merge_stats = report.get("merge_stats") or {}
+    merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
+    has_graph_evidence = db_edges > 0 or merged_edges > 0
+
+    expected_files_set = {os.path.abspath(path) for path in existing_files}
+    reported_files_set = {os.path.abspath(str(path)) for path in reported_files}
+    if existing_files and reported_files_set != expected_files_set:
+        logger.error(
+            "Sync de derivadas especiais sem cobertura completa de arquivos (esperado=%s, recebido=%s).",
+            len(existing_files),
+            len(reported_files),
+        )
+        return False, existing_files, report
+    if existing_files and len(sheet_file_reports) != len(existing_files):
+        logger.error(
+            "Sync de derivadas especiais sem relatorio individual por arquivo (esperado=%s, recebido=%s).",
+            len(existing_files),
+            len(sheet_file_reports),
+        )
+        return False, existing_files, report
+
+    files_without_evidence: list[str] = []
+    if existing_files:
+        reports_by_file: dict[str, Dict[str, Any]] = {}
+        for entry in sheet_file_reports:
+            if not isinstance(entry, dict):
+                continue
+            raw_sheet_file = str(entry.get("sheet_file") or "").strip()
+            if not raw_sheet_file:
+                continue
+            reports_by_file[os.path.abspath(raw_sheet_file)] = entry
+        for expected_file in existing_files:
+            normalized = os.path.abspath(expected_file)
+            current = reports_by_file.get(normalized)
+            if current is None or not _has_sheet_parse_evidence(current):
+                files_without_evidence.append(os.path.basename(expected_file))
+    if files_without_evidence:
+        logger.error(
+            "Sync de derivadas especiais sem evidencia individual em %s arquivo(s): %s",
+            len(files_without_evidence),
+            ", ".join(sorted(files_without_evidence)),
+        )
+        report = dict(report)
+        report["sheet_files_without_evidence"] = sorted(files_without_evidence)
+        return False, existing_files, report
+    if existing_files and not bool(sheet_evidence.get("is_complete", True)):
+        report = dict(report)
+        report["sheet_files_without_evidence"] = sorted(
+            os.path.basename(str(path))
+            for path in (sheet_evidence.get("files_without_evidence") or [])
+            if str(path).strip()
+        )
+        missing_count = len(report["sheet_files_without_evidence"])
+        logger.error(
+            "Sync de derivadas especiais reportou evidencia incompleta no sumario agregado (%s arquivo(s)).",
+            missing_count,
+        )
+        return False, existing_files, report
+    if existing_files and not has_sheet_evidence and not has_graph_evidence:
+        logger.error(
+            "Sync de derivadas especiais sem evidencia de parse valido (accepted_edges=0, special_layout_detected=0)."
+        )
+        return False, existing_files, report
+    if not has_graph_evidence:
+        logger.warning("Sync de derivadas concluido sem arestas materializadas no grafo.")
+
+    consistency = scan_derivadas_consistency(db_path=db_path)
+    report = dict(report)
+    report["consistency_scan"] = consistency
+    if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
+        issue_counts = consistency.get("issue_counts") or {}
+        logger.error(
+            "Sync de derivadas finalizou com inconsistencias no scan pos-sync. issue_counts=%s",
+            json.dumps(issue_counts, ensure_ascii=True),
+        )
+        return False, existing_files, report
+
+    cached_sheets = list(existing_files) if has_sheet_evidence else []
+    logger.info(
+        "Sync de derivadas concluido (planilhas=%s, merged_edges=%s, db_edges=%s, sheet_edges=%s).",
+        len(existing_files),
+        merged_edges,
+        db_edges,
+        accepted_edges,
+    )
+    return True, cached_sheets, report
 
 
 def _update_cache_after_import(
@@ -316,9 +523,9 @@ def _update_cache_after_import(
         # Atualiza o cache apenas para os arquivos processados com sucesso
         caching.update_cache_for_files(processed_files, cache_file)
         logger.info("Cache atualizado com sucesso.")
-    except Exception as e:
-        logger.error(f"Erro ao atualizar o cache: {e}")
-        raise CacheError("Falha ao atualizar o cache apos importacao.") from e
+    except Exception as exc:
+        logger.error("Erro ao atualizar o cache: %s", exc)
+        raise CacheError("Falha ao atualizar o cache apos importacao.") from exc
 
 
 # --- Funcao Principal Refatorada ---
@@ -431,6 +638,8 @@ def run_importer_logic(
 
         # --- 1. Determinar arquivos a serem processados ---
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
+        derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
+        db_only_derivadas_sync = False
         total_files = len(files_to_process)
         progress_cb = progress_callback
 
@@ -451,12 +660,21 @@ def run_importer_logic(
 
         _emit_progress("start", {"total": total_files})
 
-        if not files_to_process:
+        if not files_to_process and not derivadas_sheet_files:
+            db_only_derivadas_sync = _needs_db_only_derivadas_sync(db_path=db_path, table_name=table_name)
+            if not db_only_derivadas_sync:
+                logger.info(
+                    "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
+                )
+                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                return False
+            logger.info("Nenhum arquivo novo detectado; executando sync DB-only de derivadas por preflight.")
+
+        if derivadas_sheet_files:
             logger.info(
-                "Nenhum arquivo novo ou modificado encontrado para processamento."
+                "Fase dedicada de derivadas habilitada com %s planilha(s) especial(is).",
+                len(derivadas_sheet_files),
             )
-            _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
-            return False
 
         logger.info(
             f"{len(files_to_process)} arquivo(s) identificado(s) para importacao."
@@ -485,6 +703,12 @@ def run_importer_logic(
 
                 if base_name.startswith("~$"):
                     logger.info("Ignorando arquivo temporario '%s'", base_name)
+                    continue
+                if _is_derivadas_sheet_file(file_path):
+                    logger.info(
+                        "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
+                        base_name,
+                    )
                     continue
                 try:
                     success, record_count = _import_single_file(
@@ -593,6 +817,75 @@ def run_importer_logic(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
                     continue
+            sync_materialized = False
+            derivadas_sync_blocking_error = False
+            should_run_derivadas_sync = (
+                bool(successfully_processed_files)
+                or bool(derivadas_sheet_files)
+                or bool(db_only_derivadas_sync)
+            )
+            if should_run_derivadas_sync:
+                if should_cancel and should_cancel():
+                    logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
+                else:
+                    try:
+                        sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
+                            db_path=db_path,
+                            table_name=table_name,
+                            derivadas_sheet_files=derivadas_sheet_files,
+                        )
+                        if sync_ok and not derivadas_sync_blocking_error:
+                            for special_file in synced_sheets:
+                                if special_file not in successfully_processed_files:
+                                    successfully_processed_files.append(special_file)
+                            db_edges = int(((sync_report.get("db_stats") or {}).get("accepted_edges", 0) or 0))
+                            merged_edges = int(((sync_report.get("merge_stats") or {}).get("merged_edges", 0) or 0))
+                            if db_edges > 0 or merged_edges > 0:
+                                sync_materialized = True
+                            _emit_progress(
+                                "file_success",
+                                {
+                                    "filename": (
+                                        os.path.basename(synced_sheets[0])
+                                        if len(synced_sheets) == 1
+                                        else f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                                    ),
+                                    "records": int((sync_report.get("merge_stats") or {}).get("merged_edges", 0)),
+                                },
+                            )
+                        if not sync_ok:
+                            derivadas_sync_blocking_error = True
+                            consistency_scan = sync_report.get("consistency_scan") or {}
+                            issue_counts = consistency_scan.get("issue_counts") or {}
+                            missing_files = sorted(sync_report.get("sheet_files_without_evidence") or [])
+                            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+                            error_message = (
+                                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                                if issue_counts
+                                else "Sync de derivadas sem evidencia valida"
+                            )
+                            if missing_files:
+                                error_message += f" | files_without_evidence={','.join(missing_files)}"
+                            critical_errors.append(("derivadas_sync", docs_dir, error_message))
+                            _emit_progress(
+                                "file_error",
+                                {
+                                    "filename": "SSAs Derivadas e Relacionadas",
+                                    "error": error_message,
+                                },
+                            )
+                    except Exception as e:
+                        derivadas_sync_blocking_error = True
+                        logger.error(
+                            "Falha ao sincronizar derivadas a partir de planilhas especiais: %s",
+                            e,
+                            exc_info=True,
+                        )
+                        critical_errors.append(("derivadas_sync", docs_dir, str(e)))
+                        _emit_progress(
+                            "file_error",
+                            {"filename": "SSAs Derivadas e Relacionadas", "error": str(e)},
+                        )
         finally:
             _emit_progress(
                 "finish",
@@ -613,12 +906,22 @@ def run_importer_logic(
                     f"  - {error_type}: {os.path.basename(file_path)} -> {message}"
                 )
 
+        if derivadas_sync_blocking_error:
+            logger.error(
+                "Importacao concluida com falha bloqueante de integridade em derivadas. "
+                "Cache nao sera atualizado nesta execucao."
+            )
+            return False
+
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
             _update_cache_after_import(
                 successfully_processed_files, cache_file, docs_dir
             )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
+            return True
+        elif sync_materialized:
+            logger.info("=== Processo de importacao concluiu sync de derivadas materializado (sem novos arquivos em cache) ===")
             return True
         else:
             logger.info("Nenhum arquivo foi processado com sucesso.")
@@ -642,20 +945,23 @@ def get_filter_alias_map() -> Dict[str, Any]:
     Returns:
         Dicionário com aliases globais e por coluna
     """
+    # Resolve config path relative to repository root
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
+
+    if not os.path.exists(cfg_path):
+        return {}
+
     try:
-        import os
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning("Falha ao carregar aliases de filtro de '%s': %s", cfg_path, exc)
+        return {}
 
-        # Resolve config path relative to repository root
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cfg_path = os.path.join(repo_root, "config", "filter_aliases.json")
-
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
+    if isinstance(data, dict):
+        return data
+    logger.warning("Arquivo de aliases em formato invalido: '%s'.", cfg_path)
     return {}
 
 

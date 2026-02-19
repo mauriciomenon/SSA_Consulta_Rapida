@@ -4,7 +4,7 @@ Elimina inconsistências nas assinaturas dos handlers (1-6 parâmetros).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, cast
 import pandas as pd
 from pathlib import Path
 
@@ -114,7 +114,9 @@ class HandlerResult:
 
     def get_row_count(self) -> int:
         """Retorna número de linhas no resultado."""
-        return len(self.data) if self.has_data() else 0
+        if not isinstance(self.data, pd.DataFrame):
+            return 0
+        return len(self.data) if not self.data.empty else 0
 
 
 class HandlerBase(ABC):
@@ -189,7 +191,7 @@ class HandlerBase(ABC):
         format_type = context.output_format.lower()
 
         if format_type == 'json':
-            return data.to_json(orient='records', indent=2)
+            return cast(str, data.to_json(orient='records', indent=2))
         elif format_type == 'csv':
             return data.to_csv(index=False)
         else:  # table (default)

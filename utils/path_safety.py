@@ -78,7 +78,17 @@ def ensure_path_is_allowed(
     if raw_path is None:
         raise PathSafetyError(f"{purpose}: caminho vazio nao permitido")
 
-    candidate = Path(raw_path).expanduser()  # type: ignore[arg-type]
+    raw_path_value = os.fspath(raw_path)
+    if isinstance(raw_path_value, bytes):
+        try:
+            raw_path_value = os.fsdecode(raw_path_value)
+        except Exception as exc:
+            raise PathSafetyError(f"{purpose}: caminho com encoding invalido") from exc
+
+    if isinstance(raw_path_value, str) and not raw_path_value.strip():
+        raise PathSafetyError(f"{purpose}: caminho vazio nao permitido")
+
+    candidate = Path(raw_path_value).expanduser()
     if base and not candidate.is_absolute():
         candidate = (base / candidate).resolve()
     else:

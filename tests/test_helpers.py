@@ -6,9 +6,9 @@ from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_sea
 # Test 1: normalize_chunk_for_parse
 print("=== Test 1: normalize_chunk_for_parse ===")
 result1 = normalize_chunk_for_parse('svp')
-print(f"Input: 'svp'")
+print("Input: 'svp'")
 print(f"Output: {result1}")
-print(f"Expected: ['svp']")
+print("Expected: ['svp']")
 print(f"Match: {result1 == ['svp']}")
 
 # Test 2: format_search_display
@@ -17,7 +17,7 @@ chunks = [['svp']]
 result2 = format_search_display(chunks)
 print(f"Input: {chunks}")
 print(f"Output: '{result2}'")
-print(f"Expected: 'svp'")
+print("Expected: 'svp'")
 print(f"Match: {result2 == 'svp'}")
 
 # Test 3: Full flow simulation
@@ -30,5 +30,5 @@ print(f"2. raw_chunks: {raw_chunks}")
 print(f"3. chunk_terms_lists: {chunk_terms_lists}")
 display_text = format_search_display(chunk_terms_lists)
 print(f"4. display_text: '{display_text}'")
-print(f"Expected: 'svp'")
+print("Expected: 'svp'")
 print(f"Match: {display_text == 'svp'}")

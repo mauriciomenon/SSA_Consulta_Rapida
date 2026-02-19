@@ -19,7 +19,6 @@ def clean_file(path: Path) -> bool:
     changed = []
     modified = False
     for line in original.splitlines():
-        raw = line
         # Replace tabs with 4 spaces
         line = line.replace('\t', '    ')
         # Strip trailing whitespace

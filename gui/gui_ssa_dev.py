@@ -17,9 +17,8 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 import threading
 import sys
 
@@ -27,9 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtWidgets  # noqa: E402
 
-from utils.remote_itaipu import (
+from utils.remote_itaipu import (  # noqa: E402
     fetch_pending_ssas,
     RequestOptions,
     map_to_dataframe,
@@ -130,7 +129,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.addTab(self.json_edit, "JSON")
         layout.addWidget(self.tabs)
 
-        self.status = self.statusBar()
+        status_bar = self.statusBar()
+        if not isinstance(status_bar, QtWidgets.QStatusBar):
+            status_bar = QtWidgets.QStatusBar(self)
+            self.setStatusBar(status_bar)
+        self.status = status_bar
         self._thr: Optional[QtCore.QThread] = None
         self.worker: Optional[FetchWorker] = None
 
@@ -188,7 +191,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.table.setRowCount(0)
             self.table.setColumnCount(0)
             return
-        items: List[Dict[str, Any]] = list(payload) if isinstance(payload, list) else []
+        items: List[Dict[str, Any]] = []
+        if isinstance(payload, list):
+            items = [cast(Dict[str, Any], item) for item in payload if isinstance(item, dict)]
         self.json_edit.setPlainText(to_json_pretty(items))
         df = map_to_dataframe(items)
         if df is None:

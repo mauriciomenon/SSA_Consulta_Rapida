@@ -20,11 +20,13 @@ fragile - if get_db_connection moves lower in database.py, circular import will 
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
 from .identifier_utils import is_valid_identifier
+from .numero_ssa_utils import _normalize_numero_ssa_value
 from .schema_manager import ensure_columns_exist
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,16 @@ logger = logging.getLogger(__name__)
 SQLITE_MAX_VARIABLES = 999
 SQLITE_SAFETY_EXTRA_COLUMNS = 1
 SQLITE_DEFAULT_CHUNK_CAP = 500
+
+
+def _normalize_ssa_storage_value(value) -> str | None:
+    normalized_int = _normalize_numero_ssa_value(value)
+    if normalized_int is None:
+        return None
+    try:
+        return str(int(normalized_int))
+    except Exception:
+        return None
 
 
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
@@ -67,6 +79,9 @@ def _resolve_physical_table(conn, table_name: str) -> str:
 
 def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
     """Check if any table defines foreign keys referencing target_table."""
+    if not is_valid_identifier(target_table):
+        logger.warning("Identificador de tabela invalido para scan de FKs: %r", target_table)
+        return False
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
@@ -76,7 +91,7 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
             if not is_valid_identifier(table):
                 continue
             try:
-                fk_rows = conn.execute(f"PRAGMA foreign_key_list({table})").fetchall()
+                fk_rows = conn.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
             except Exception:
                 continue
             for fk in fk_rows:
@@ -123,10 +138,11 @@ def insert_dataframe_optimized(
     try:
         work = df.copy().reset_index(drop=True)
 
-        # Normalizar numero_ssa de forma vetorizada
+        # Normalize SSA identifiers in storage path to avoid persisting decimal artifacts.
         if 'numero_ssa' in work.columns:
-            work['numero_ssa'] = work['numero_ssa'].astype(str).str.strip()
-            work['numero_ssa'] = work['numero_ssa'].replace(['nan', 'None', ''], None)
+            work['numero_ssa'] = work['numero_ssa'].map(_normalize_ssa_storage_value)
+        if 'derivada_de' in work.columns:
+            work['derivada_de'] = work['derivada_de'].map(_normalize_ssa_storage_value)
 
         # Converter datas de forma mais eficiente (vetorizada)
         date_columns = [
@@ -200,11 +216,19 @@ def insert_dataframe_optimized(
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
                 # Verificar se tabela existe antes de fazer SELECT
-                table_exists = pd.read_sql_query(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    conn,
-                    params=(target_table,),
-                )
+                try:
+                    table_exists = pd.read_sql_query(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                        conn,
+                        params=[target_table],
+                    )
+                except (sqlite3.Error, pd.errors.DatabaseError) as exc:
+                    logger.error(
+                        "Falha ao verificar existencia da tabela alvo '%s': %s",
+                        target_table,
+                        exc,
+                    )
+                    return False
 
                 # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
                 lookup_start = time.time()

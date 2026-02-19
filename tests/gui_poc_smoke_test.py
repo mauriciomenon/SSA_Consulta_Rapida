@@ -44,7 +44,7 @@ def main():
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-    from gui.gui_ssa import SSAMainWindow  # type: ignore
+    from gui.gui_ssa import SSAMainWindow
 
     win = SSAMainWindow()
 
@@ -65,13 +65,17 @@ def main():
     item0 = win.table_widget.item(0, 0)
     if item0 is not None:
         win.copy_cell_value(item0)
-        text = QApplication.clipboard().text()
+        clipboard = QApplication.clipboard()
+        assert clipboard is not None
+        text = clipboard.text()
         assert text.strip() != ""
 
     # Testa copiar linha
     if win.table_widget.rowCount() > 0:
         win.copy_row_data(0)
-        text = QApplication.clipboard().text()
+        clipboard = QApplication.clipboard()
+        assert clipboard is not None
+        text = clipboard.text()
         assert "\t" in text or text.strip() != ""
 
     print("GUI PoC smoke test passed.")

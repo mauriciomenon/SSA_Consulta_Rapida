@@ -5,7 +5,6 @@ Debug: Por que CLI está mostrando "-" no lugar dos números SSA?
 
 import sqlite3
 import pandas as pd
-import sys
 
 def debug_ssa_formatting():
     """Debug da formatação de número SSA na CLI."""

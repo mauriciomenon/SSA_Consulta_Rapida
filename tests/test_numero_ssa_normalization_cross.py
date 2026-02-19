@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from core.numero_ssa import normalize_strict
-from utils.robust_importer import _clean_numero_ssa_series  # type: ignore
+from utils.robust_importer import _clean_numero_ssa_series
 from armazenamento import database
 
 CASES = [
@@ -39,7 +39,7 @@ def test_cross_layer_normalization(raw, expected):
     got = series.iloc[0] if mask.iloc[0] else None
     assert got == expected
     # Legacy int normalizer should match when expected not None
-    legacy = database._normalize_numero_ssa_value(raw)  # type: ignore[attr-defined]
+    legacy = database._normalize_numero_ssa_value(raw)
     if expected is None:
         assert legacy is None or str(legacy).zfill(9) != expected
     else:

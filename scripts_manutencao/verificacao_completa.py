@@ -25,7 +25,7 @@ try:
     if missing:
         print(f"   WARN  Colunas faltando: {missing}")
     else:
-        print(f"   OK Todas as colunas críticas presentes")
+        print("   OK Todas as colunas críticas presentes")
 
 except Exception as e:
     print(f"   ERR Erro no banco: {e}")
@@ -45,7 +45,7 @@ try:
     if missing_mappings:
         print(f"   WARN  Mapeamentos faltando: {missing_mappings}")
     else:
-        print(f"   OK Todos os mapeamentos críticos presentes")
+        print("   OK Todos os mapeamentos críticos presentes")
 
 except Exception as e:
     print(f"   ERR Erro no JSON: {e}")
@@ -63,9 +63,9 @@ try:
         if df is not None and len(df) > 0:
             print(f"   OK Arquivo processado: {len(df)} registros, {len(df.columns)} colunas")
         else:
-            print(f"   WARN  Arquivo processado mas sem dados")
+            print("   WARN  Arquivo processado mas sem dados")
     else:
-        print(f"   WARN  Arquivo de teste não encontrado")
+        print("   WARN  Arquivo de teste não encontrado")
 
 except Exception as e:
     print(f"   ERR Erro na importação: {e}")

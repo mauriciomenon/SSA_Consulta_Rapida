@@ -27,7 +27,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -38,8 +38,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.robust_importer import import_excel_robust  # type: ignore  # noqa: E402
-from armazenamento import database  # type: ignore  # noqa: E402
+from utils.robust_importer import import_excel_robust  # noqa: E402
+from armazenamento import database  # noqa: E402
 
 logger = logging.getLogger("backfill_reprocessar")
 
@@ -209,7 +209,10 @@ def main(argv: List[str]) -> int:
         report_path = args.report_path
         os.makedirs(os.path.dirname(report_path) or '.', exist_ok=True)
     else:
-        report_path = os.path.join('reports', f'backfill_report_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.json')
+        report_path = os.path.join(
+            'reports',
+            f'backfill_report_{datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")}.json',
+        )
     with open(report_path, 'w', encoding='utf-8') as fh:
         json.dump({
             'summary': summary,

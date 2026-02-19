@@ -1,9 +1,9 @@
+# ruff: noqa: E402
 # tests/test_extracao.py
 import pytest
 import pandas as pd
 import os
 import sys
-import json
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -89,5 +89,4 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     # Verifica se os dados foram lidos corretamente
     assert df['numero_ssa'].iloc[0] == 101
     assert df['localizacao'].iloc[1] == 'Sala B'
-
 

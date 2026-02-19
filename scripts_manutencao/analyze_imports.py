@@ -1,7 +1,7 @@
 import os
 import ast
 from pathlib import Path
-from collections import defaultdict, deque
+from collections import defaultdict
 
 ROOT = Path(__file__).resolve().parents[1]
 

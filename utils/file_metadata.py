@@ -49,11 +49,11 @@ def parse_datetime_from_filename(filename: str) -> Optional[datetime]:
             continue
         gd = m.groupdict()
         try:
-            y = int(gd.get("y"))
-            mth = int(gd.get("m"))
-            d = int(gd.get("d"))
-            h = int(gd.get("h"))
-            M = int(gd.get("M"))
+            y = int(gd.get("y") or "0")
+            mth = int(gd.get("m") or "0")
+            d = int(gd.get("d") or "0")
+            h = int(gd.get("h") or "0")
+            M = int(gd.get("M") or "0")
             ampm = gd.get("ampm")
             if ampm:
                 ampm = ampm.upper()

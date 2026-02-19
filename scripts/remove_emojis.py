@@ -11,9 +11,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import sys
 import shutil
-import io
 
 # Unicode ranges commonly used for emojis
 EMOJI_RANGES = [

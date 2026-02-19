@@ -13,11 +13,17 @@ Expected: All tests PASS with 'v' character preserved in all cases.
 
 import sys
 import os
+from typing import Any
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.app_logic import parse_search_terms
+
+
+def _to_search_terms(value: Any) -> list[str]:
+    assert isinstance(value, list)
+    return [str(item) for item in value]
 
 def test_v_character():
     """Test that v character is preserved in search terms."""
@@ -69,7 +75,7 @@ def test_v_character():
         print(f"\nTest {i}: {test['description']}")
         print(f"  Input: {test['input']}")
 
-        result = parse_search_terms(test['input'])
+        result = parse_search_terms(_to_search_terms(test['input']))
 
         if 'expected_values' in test:
             # Multiple terms test
@@ -88,12 +94,12 @@ def test_v_character():
                 print(f"  Expected: {expected}")
             else:
                 passed = False
-                print(f"  ERROR: No result returned!")
+                print("  ERROR: No result returned!")
 
         if passed:
-            print(f"  Status: PASS")
+            print("  Status: PASS")
         else:
-            print(f"  Status: FAIL")
+            print("  Status: FAIL")
             all_passed = False
 
     print("\n" + "="*60)
@@ -140,7 +146,7 @@ def test_no_logical_operators():
         print(f"\nTest {i}: {test['description']}")
         print(f"  Input: {test['input']}")
 
-        result = parse_search_terms(test['input'])
+        result = parse_search_terms(_to_search_terms(test['input']))
         count = len(result)
         expected = test['expected_count']
         passed = count == expected
@@ -156,9 +162,9 @@ def test_no_logical_operators():
             passed = False
 
         if passed:
-            print(f"  Status: PASS")
+            print("  Status: PASS")
         else:
-            print(f"  Status: FAIL")
+            print("  Status: FAIL")
             all_passed = False
 
     print("\n" + "="*60)

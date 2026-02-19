@@ -21,18 +21,31 @@ class FilterCache:
         # Protect internal state to prevent races (e.g., key in cache then pop KeyError).
         self._lock = lock or threading.Lock()
 
-    def _generate_key(self, df_hash: str, search_chunks: list, default_mode: str) -> str:
+    def _generate_key(
+        self,
+        df_hash: str,
+        search_chunks: list,
+        default_mode: str,
+        cache_context: str | None = None,
+    ) -> str:
         """Gera chave unica para cache baseada nos parametros de filtro."""
         # Converte search_chunks em string deterministica
         chunks_str = str(sorted([str(sorted(chunk)) if isinstance(chunk, list) else str(chunk) for chunk in search_chunks]))
 
         # Cria hash combinado
-        combined = f"{df_hash}|{chunks_str}|{default_mode}"
+        context_str = cache_context or ""
+        combined = f"{df_hash}|{chunks_str}|{default_mode}|{context_str}"
         return hashlib.md5(combined.encode('utf-8')).hexdigest()
 
-    def get(self, df_hash: str, search_chunks: list, default_mode: str) -> pd.DataFrame | None:
+    def get(
+        self,
+        df_hash: str,
+        search_chunks: list,
+        default_mode: str,
+        cache_context: str | None = None,
+    ) -> pd.DataFrame | None:
         """Recupera resultado do cache se disponivel."""
-        key = self._generate_key(df_hash, search_chunks, default_mode)
+        key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
         result = None
 
         with self._lock:
@@ -53,9 +66,16 @@ class FilterCache:
         logger.debug("Cache hit sem DataFrame valido para key: %s", key[:8])
         return None
 
-    def put(self, df_hash: str, search_chunks: list, default_mode: str, result: pd.DataFrame):
+    def put(
+        self,
+        df_hash: str,
+        search_chunks: list,
+        default_mode: str,
+        result: pd.DataFrame,
+        cache_context: str | None = None,
+    ):
         """Armazena resultado no cache."""
-        key = self._generate_key(df_hash, search_chunks, default_mode)
+        key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
         result_copy = result.copy()
 
         with self._lock:

@@ -41,7 +41,7 @@ def verificar_integridade():
 
         # Status geral
         duplicatas = total - unicos
-        print(f"\nOK RESULTADO GERAL:")
+        print("\nOK RESULTADO GERAL:")
         print(f"  - Zero duplicatas: {'OK SIM' if duplicatas == 0 else 'ERR NÃO - ' + str(duplicatas) + ' duplicatas'}")
         print(f"  - Dados válidos: {'OK SIM' if nulls_ssa == 0 else 'WARN ' + str(nulls_ssa) + ' registros sem numero_ssa'}")
         print(f"  - Importação: {'OK SUCESSO' if total > 0 else 'ERR FALHOU'}")

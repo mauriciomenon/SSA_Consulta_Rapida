@@ -1,5 +1,6 @@
 import os
 import sys
+import builtins
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
@@ -23,3 +24,44 @@ def test_save_settings_handler_delegates_to_config_manager(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Configuracoes salvas" in out
 
+
+def test_save_settings_handler_reraises_save_errors(monkeypatch, capsys):
+    def _fake_save_settings(_settings):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(command_handlers, "save_settings", _fake_save_settings)
+
+    try:
+        command_handlers._save_settings_handler({"k": "v"})
+        assert False, "expected OSError"
+    except OSError:
+        pass
+
+    out = capsys.readouterr().out
+    assert "Nao foi possivel salvar as configuracoes" in out
+
+
+def test_column_visibility_loop_continues_when_save_fails(monkeypatch):
+    settings = {
+        "display_settings": {
+            "column_visibility": {"numero_ssa": True},
+        }
+    }
+
+    monkeypatch.setattr(
+        command_handlers,
+        "_load_mappings_handler",
+        lambda _file: {"numero_ssa": "Numero SSA"},
+    )
+
+    def _raise_save(_settings):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(command_handlers, "_save_settings_handler", _raise_save)
+
+    answers = iter(["1", "0"])
+    monkeypatch.setattr(builtins, "input", lambda _prompt="": next(answers))
+
+    command_handlers._handle_column_visibility(settings)
+
+    assert settings["display_settings"]["column_visibility"]["numero_ssa"] is False

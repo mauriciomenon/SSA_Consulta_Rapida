@@ -4,7 +4,6 @@ Teste do sistema de configuração JSON da GUI PoC
 """
 
 import json
-import os
 from pathlib import Path
 
 def test_gui_configuration():
@@ -51,14 +50,14 @@ def test_gui_configuration():
             print(f"WARN {col} - não está na lista de ocultas")
 
     # 6. Estatísticas
-    print(f"\nINFO Estatísticas:")
+    print("\nINFO Estatísticas:")
     print(f"• Colunas para exibir: {len(display_columns)}")
     print(f"• Colunas ocultas: {len(hidden_columns)}")
     print(f"• Larguras configuradas: {len(config.get('column_widths', {}))}")
     print(f"• Nomes alternativos: {len(config.get('column_display_names', {}))}")
 
     # 7. Testar importação da GUI
-    print(f"\nINFO Testando Importação GUI Principal:")
+    print("\nINFO Testando Importação GUI Principal:")
     from gui.gui_ssa import GUI_MAIN_PREFERENCES
     print("OK GUI Principal importada com sucesso!")
     loaded_display = GUI_MAIN_PREFERENCES.get('display_columns', [])

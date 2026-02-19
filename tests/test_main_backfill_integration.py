@@ -1,4 +1,7 @@
-import os, json, subprocess, sys, pathlib
+import json
+import subprocess
+import sys
+import pathlib
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
 MAIN = BASE / 'main.py'

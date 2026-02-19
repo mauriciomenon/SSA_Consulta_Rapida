@@ -85,6 +85,10 @@ def test_import_cli():
             bufsize=1,
             universal_newlines=True
         )
+        if process.stdout is None or process.stderr is None:
+            raise RuntimeError("Falha ao iniciar pipes de stdout/stderr para monitoramento")
+        stdout_pipe = process.stdout
+        stderr_pipe = process.stderr
 
         print("\n[SAIDA DO PROCESSO]")
         print("-"*80)
@@ -98,7 +102,7 @@ def test_import_cli():
             retcode = process.poll()
 
             # Le stdout
-            line = process.stdout.readline()
+            line = stdout_pipe.readline()
             if line:
                 line = line.rstrip()
                 print(line)
@@ -125,12 +129,12 @@ def test_import_cli():
             # Se processo terminou, sai
             if retcode is not None:
                 # Le resto do output
-                remaining = process.stdout.read()
+                remaining = stdout_pipe.read()
                 if remaining:
                     print(remaining)
 
                 # Le stderr
-                stderr = process.stderr.read()
+                stderr = stderr_pipe.read()
                 if stderr:
                     print("\n[STDERR]")
                     print(stderr)

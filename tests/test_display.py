@@ -8,13 +8,14 @@ import pandas as pd
 import sys
 import os
 from io import StringIO
+from typing import cast
 from unittest.mock import patch
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from interface.display import pretty_print_details
+from interface.display import pretty_print_details  # noqa: E402
 
 # --- Fixtures ---
 
@@ -99,7 +100,7 @@ def test_pretty_print_details_invalid_series_type(display_map):
 def test_pretty_print_details_invalid_display_map(sample_series):
     """Testa pretty_print_details com um display_map inválido."""
     with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-        pretty_print_details(sample_series, "invalid_dict")
+        pretty_print_details(sample_series, cast(dict[str, str], "invalid_dict"))
         output = mock_stdout.getvalue()
 
     assert "Erro: Configuração de exibição inválida." in output

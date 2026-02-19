@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -51,11 +52,31 @@ def _print_list(title: str, values: list[str]) -> None:
         print(f"  - {value}")
 
 
+def _list_special_sheet_files(docs_dir: str) -> list[str]:
+    if not isinstance(docs_dir, str) or not docs_dir.strip():
+        raise ValueError("special docs dir must be a non-empty path")
+    normalized = os.path.abspath(os.path.expanduser(docs_dir.strip()))
+    if not os.path.isdir(normalized):
+        raise ValueError(f"special docs dir not found: {normalized}")
+    files: list[str] = []
+    for base_name in os.listdir(normalized):
+        lowered = str(base_name).strip().casefold()
+        if lowered.startswith("ssas derivadas e relacionadas") and lowered.endswith(".xlsx"):
+            files.append(os.path.join(normalized, base_name))
+    return sorted(files, key=lambda path: os.path.basename(path).casefold())
+
+
 def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
-    return sync_derivadas(
+    sheet_files: list[str] = []
+    if args.sheet_files_glob:
+        sheet_files = sorted(glob.glob(args.sheet_files_glob))
+    if args.special_docs_dir:
+        sheet_files.extend(_list_special_sheet_files(args.special_docs_dir))
+    report = sync_derivadas(
         db_path=args.db,
         table_name=args.table_name,
         sheet_file=args.sheet_file,
+        sheet_files=sheet_files or None,
         sheet_parent_col=args.sheet_parent_col,
         sheet_child_col=args.sheet_child_col,
         sheet_label_col=args.sheet_label_col,
@@ -65,6 +86,13 @@ def _handle_sync(args: argparse.Namespace) -> dict[str, Any]:
         verify_only=args.verify_only,
         actor=args.actor,
     )
+    if args.require_consistency and not args.verify_only:
+        scan = scan_derivadas_consistency(db_path=args.db)
+        report["consistency_scan"] = scan
+        if not bool(scan.get("schema_ready")) or not bool(scan.get("is_consistent")):
+            issue_counts = scan.get("issue_counts") or {}
+            raise RuntimeError(f"Derivadas consistency check failed: {json.dumps(issue_counts, ensure_ascii=True)}")
+    return report
 
 
 def _handle_stats(args: argparse.Namespace) -> dict[str, Any]:
@@ -165,12 +193,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sync_parser = sub.add_parser("sync", help="Synchronize derivadas tables")
     sync_parser.add_argument("--sheet-file", help="Optional sheet/csv source path")
+    sync_parser.add_argument(
+        "--sheet-files-glob",
+        help="Optional glob pattern to pass multiple sheet files to derivadas sync",
+    )
+    sync_parser.add_argument(
+        "--special-docs-dir",
+        help="Optional docs dir to auto-discover SSAs Derivadas e Relacionadas_*.xlsx files",
+    )
     sync_parser.add_argument("--sheet-name", help="Optional sheet name when using xlsx")
     sync_parser.add_argument("--sheet-parent-col", default="parent_ssa", help="Sheet parent column")
     sync_parser.add_argument("--sheet-child-col", default="child_ssa", help="Sheet child column")
     sync_parser.add_argument("--sheet-label-col", default="relation_label", help="Sheet relation label column")
     sync_parser.add_argument("--full-rebuild", action="store_true", help="Hard cleanup stale matrix rows")
     sync_parser.add_argument("--verify-only", action="store_true", help="Only validate and report without writing")
+    sync_parser.add_argument(
+        "--require-consistency",
+        action="store_true",
+        help="Fail sync command when post-sync consistency scan is not clean",
+    )
     sync_parser.add_argument("--no-db-source", action="store_true", help="Ignore DB derivada_de source")
     sync_parser.set_defaults(func=_handle_sync)
 
@@ -269,5 +310,13 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _main_entrypoint() -> int:
+    try:
+        return main()
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}, ensure_ascii=True))
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_main_entrypoint())

@@ -16,7 +16,7 @@ Retorna: (DataFrame normalizado, stats_dict).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import json
 import logging
 import os
@@ -24,7 +24,7 @@ import re
 import unicodedata
 from typing import Any, Dict, List, Tuple
 
-import pandas as pd  # type: ignore
+import pandas as pd
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from shared.date_utils import parse_any_date
 
@@ -68,7 +68,7 @@ class ImportStats:
     mapped_columns_count: int = 0
     dropped_columns: List[str] | None = None
     merged_columns: Dict[str, List[str]] | None = None
-    date_parse_failures: Dict[str, int] | None = None
+    date_parse_failures: Dict[str, int] = field(default_factory=dict)
     duplicate_rows_dropped: int = 0
     invalid_numero_ssa_rows: int = 0
     file_path: str = ""

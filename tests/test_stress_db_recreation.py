@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 import pytest
 from utils.robust_importer import import_excel_robust

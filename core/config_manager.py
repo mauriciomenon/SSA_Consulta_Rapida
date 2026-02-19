@@ -10,7 +10,6 @@ import os
 import shutil
 import logging
 import tempfile
-from contextlib import suppress
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -37,11 +36,25 @@ def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: 
         tmp_path = None
     finally:
         if fd is not None:
-            with suppress(Exception):
+            try:
                 os.close(fd)
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao fechar file descriptor temporario de config '%s': %s",
+                    path,
+                    exc,
+                )
         if tmp_path:
-            with suppress(Exception):
+            try:
                 os.remove(tmp_path)
+            except FileNotFoundError:
+                pass
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao remover arquivo temporario de config '%s': %s",
+                    tmp_path,
+                    exc,
+                )
 
 def atomic_write_json_file(
     path: str,
@@ -66,8 +79,12 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         try:
             os.close(fd)
             fd = None
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Falha ao fechar file descriptor temporario para copia atomica '%s': %s",
+                dst,
+                exc,
+            )
         shutil.copyfile(src, tmp_path)
         try:
             with open(tmp_path, "rb") as f:
@@ -78,11 +95,25 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         tmp_path = None
     finally:
         if fd is not None:
-            with suppress(Exception):
+            try:
                 os.close(fd)
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao fechar file descriptor temporario para copia '%s': %s",
+                    dst,
+                    exc,
+                )
         if tmp_path:
-            with suppress(Exception):
+            try:
                 os.remove(tmp_path)
+            except FileNotFoundError:
+                pass
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao remover arquivo temporario de copia '%s': %s",
+                    tmp_path,
+                    exc,
+                )
 
 # Caminhos padrão
 CONFIG_DIR = 'config'
@@ -440,7 +471,7 @@ def load_display_mappings_integrity() -> Dict[str, str]:
             return data
         else:
             logger.warning(f"display_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
         logger.warning(f"display_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
     # Restore
     try:
@@ -451,6 +482,13 @@ def load_display_mappings_integrity() -> Dict[str, str]:
         logger.error(f"Falha ao restaurar display_mappings.json: {e}")
         logger.error("Usando defaults em memoria; arquivo nao foi atualizado.")
         return DEFAULT_DISPLAY_MAPPINGS.copy()
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            restored_data = json.load(f)
+        if isinstance(restored_data, dict) and restored_data:
+            return restored_data
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.warning(f"Falha ao reler display_mappings restaurado em '{path}': {e}")
     return DEFAULT_DISPLAY_MAPPINGS.copy()
 
 def load_column_mappings_integrity() -> Dict[str, list]:
@@ -472,7 +510,7 @@ def load_column_mappings_integrity() -> Dict[str, list]:
                 logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
         else:
             logger.warning(f"column_mappings.json inválido em '{path}'. Será restaurado para o padrão.")
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
         logger.warning(f"column_mappings.json ausente ou ilegível em '{path}'. Será restaurado para o padrão.")
     # Restore
     try:
@@ -483,6 +521,15 @@ def load_column_mappings_integrity() -> Dict[str, list]:
         logger.error(f"Falha ao restaurar column_mappings.json: {e}")
         logger.error("Usando defaults em memoria; arquivo nao foi atualizado.")
         return DEFAULT_COLUMN_MAPPINGS.copy()
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            restored_data = json.load(f)
+        if isinstance(restored_data, dict) and restored_data:
+            ok = all(isinstance(v, list) and len(v) > 0 for v in restored_data.values())
+            if ok:
+                return restored_data
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.warning(f"Falha ao reler column_mappings restaurado em '{path}': {e}")
     return DEFAULT_COLUMN_MAPPINGS.copy()
 
 def load_settings() -> Dict[str, Any]:

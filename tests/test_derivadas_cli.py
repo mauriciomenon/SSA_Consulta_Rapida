@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
+import scripts.derivadas_cli as derivadas_cli
 from scripts.derivadas_cli import main
 
 
@@ -159,3 +161,126 @@ def test_cli_snapshot_returns_hierarchy_payload(temp_db, capsys):
     assert parsed["ssa"] == "202500001"
     assert parsed["children_count"] == 1
     assert parsed["hierarchy_profile"]["descendants_count"] >= 1
+
+
+def test_cli_sync_accepts_sheet_files_glob(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
+    first.write_bytes(b"x")
+    second.write_bytes(b"y")
+
+    captured: dict = {}
+
+    def _fake_sync_derivadas(**kwargs):
+        captured.update(kwargs)
+        return {"verify_only": False, "merge_stats": {"merged_edges": 0}}
+
+    monkeypatch.setattr(derivadas_cli, "sync_derivadas", _fake_sync_derivadas)
+
+    rc = main(
+        [
+            "--db",
+            "data/ssas.db",
+            "--output",
+            "json",
+            "sync",
+            "--sheet-files-glob",
+            str(tmp_path / "SSAs Derivadas e Relacionadas_*.xlsx"),
+            "--no-db-source",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["include_db_source"] is False
+    assert captured["sheet_files"] == [str(first), str(second)]
+
+
+def test_cli_sync_accepts_special_docs_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    first = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    second = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0137PM.xlsx"
+    regular = tmp_path / "Consulta SSA - 13-02-2026_0121PM.xlsx"
+    first.write_bytes(b"x")
+    second.write_bytes(b"y")
+    regular.write_bytes(b"z")
+
+    captured: dict = {}
+
+    def _fake_sync_derivadas(**kwargs):
+        captured.update(kwargs)
+        return {"verify_only": False, "merge_stats": {"merged_edges": 0}}
+
+    monkeypatch.setattr(derivadas_cli, "sync_derivadas", _fake_sync_derivadas)
+
+    rc = main(
+        [
+            "--db",
+            "data/ssas.db",
+            "--output",
+            "json",
+            "sync",
+            "--special-docs-dir",
+            str(tmp_path),
+            "--no-db-source",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["include_db_source"] is False
+    assert captured["sheet_files"] == [str(first), str(second)]
+
+
+def test_cli_sync_special_docs_dir_requires_existing_dir(tmp_path: Path):
+    missing = tmp_path / "missing"
+    with pytest.raises(ValueError, match="special docs dir not found"):
+        main(
+            [
+                "--db",
+                "data/ssas.db",
+                "--output",
+                "json",
+                "sync",
+                "--special-docs-dir",
+                str(missing),
+                "--no-db-source",
+            ]
+        )
+
+
+def test_cli_sync_require_consistency_fails_when_scan_detects_issues(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        derivadas_cli,
+        "sync_derivadas",
+        lambda **kwargs: {"verify_only": False, "merge_stats": {"merged_edges": 1}},
+    )
+    monkeypatch.setattr(
+        derivadas_cli,
+        "scan_derivadas_consistency",
+        lambda **kwargs: {
+            "schema_ready": True,
+            "is_consistent": False,
+            "issue_counts": {"flag_mismatch_pairs": 1},
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="consistency check failed"):
+        main(
+            [
+                "--db",
+                "data/ssas.db",
+                "--output",
+                "json",
+                "sync",
+                "--require-consistency",
+            ]
+        )
+
+
+def test_cli_entrypoint_returns_error_code_and_json_on_exception(monkeypatch: pytest.MonkeyPatch, capsys):
+    monkeypatch.setattr(derivadas_cli, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    rc = derivadas_cli._main_entrypoint()
+    out = capsys.readouterr().out
+    parsed = json.loads(out)
+
+    assert rc == 1
+    assert parsed["error"] == "boom"

@@ -6,17 +6,23 @@ Testes de performance e carga para o sistema SSA Consulta Rápida.
 import os
 import sys
 import time
-import psutil
-import sqlite3
+import importlib
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Any, Dict, cast
 import threading
 import concurrent.futures
 
+try:
+    psutil = cast(Any, importlib.import_module("psutil"))
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
+
 # Verificar se memory_profiler está disponível
 try:
-    from memory_profiler import profile
+    profile = getattr(importlib.import_module("memory_profiler"), "profile")
     MEMORY_PROFILER_AVAILABLE = True
 except ImportError:
     MEMORY_PROFILER_AVAILABLE = False
@@ -27,9 +33,9 @@ except ImportError:
 # Adicionar diretório raiz ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from armazenamento.database import get_db_connection
-from core.app_logic import get_filtered_data
-from extracao.extractor import extract_data_from_excel as extract_data_from_file
+from armazenamento.database import get_db_connection  # noqa: E402
+from core.app_logic import get_filtered_data  # noqa: E402
+from extracao.extractor import extract_data_from_excel as extract_data_from_file  # noqa: E402
 
 class PerformanceMetrics:
     """Coletores de métricas de performance."""
@@ -45,16 +51,20 @@ class PerformanceMetrics:
     def start_monitoring(self):
         """Inicia monitoramento de recursos."""
         self.start_time = time.time()
-        self.start_memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
+        if PSUTIL_AVAILABLE and psutil is not None:
+            self.start_memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
+        else:
+            self.start_memory_mb = 0
         self.peak_memory_mb = self.start_memory_mb
         self.monitoring = True
 
         # Thread para monitoramento contínuo
         def monitor():
             while self.monitoring:
-                current_memory = psutil.Process().memory_info().rss / 1024 / 1024
-                self.peak_memory_mb = max(self.peak_memory_mb, current_memory)
-                self.cpu_percent.append(psutil.cpu_percent())
+                if PSUTIL_AVAILABLE and psutil is not None:
+                    current_memory = psutil.Process().memory_info().rss / 1024 / 1024
+                    self.peak_memory_mb = max(self.peak_memory_mb, current_memory)
+                    self.cpu_percent.append(psutil.cpu_percent())
                 time.sleep(0.1)
 
         self.monitor_thread = threading.Thread(target=monitor)
@@ -65,13 +75,20 @@ class PerformanceMetrics:
         """Para monitoramento e calcula métricas finais."""
         self.monitoring = False
         self.end_time = time.time()
+        if self.start_time is None:
+            raise RuntimeError("start_monitoring nao foi chamado")
+        if self.end_time is None:
+            raise RuntimeError("end_time nao definido")
+        cpu_samples = len(self.cpu_percent)
+        avg_cpu_percent = (sum(self.cpu_percent) / cpu_samples) if cpu_samples > 0 else 0.0
+        max_cpu_percent = max(self.cpu_percent) if cpu_samples > 0 else 0.0
 
         return {
             'duration_seconds': self.end_time - self.start_time,
             'memory_used_mb': self.peak_memory_mb - self.start_memory_mb,
             'peak_memory_mb': self.peak_memory_mb,
-            'avg_cpu_percent': sum(self.cpu_percent) / len(self.cpu_percent) if self.cpu_percent else 0,
-            'max_cpu_percent': max(self.cpu_percent) if self.cpu_percent else 0
+            'avg_cpu_percent': avg_cpu_percent,
+            'max_cpu_percent': max_cpu_percent,
         }
 
 class PerformanceTester:
@@ -354,7 +371,7 @@ class PerformanceTester:
 
         try:
             for i in range(10):
-                filtered_data = get_filtered_data(
+                _ = get_filtered_data(
                     db_path=self.db_path,
                     filters={'situacao': 'EM EXECUÇÃO'} if i % 2 == 0 else {}
                 )
