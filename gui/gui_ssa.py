@@ -135,8 +135,12 @@ except ImportError as exc:
     class QWidget:
         def findChildren(self, *a, **k):
             return []
+        def __getattr__(self, _name):
+            def _noop(*_args, **_kwargs):
+                return None
+            return _noop
 
-    class QMainWindow:
+    class QMainWindow(QWidget):
         pass
 
     class QFont:
@@ -198,17 +202,17 @@ except ImportError as exc:
 
     class QGridLayout(QVBoxLayout):
         pass
-    class QTabWidget:
+    class QTabWidget(QWidget):
         def __init__(self, *a, **k):
             self.currentChanged = _Sig()
         def addTab(self, *a, **k):
             pass
         def setStyleSheet(self, *a, **k):
             pass
-    class QLabel:
+    class QLabel(QWidget):
         def __init__(self, *a, **k):
             pass
-    class QPushButton:
+    class QPushButton(QWidget):
         def __init__(self, *a, **k):
             self.clicked = _Sig()
             self._text = a[0] if a else ""
@@ -222,7 +226,9 @@ except ImportError as exc:
             return self._text
         def setStyleSheet(self, *a, **k):
             pass
-    class QLineEdit:
+        def setMaximumWidth(self, *a, **k):
+            pass
+    class QLineEdit(QWidget):
         def __init__(self, *a, **k):
             self._text = ""
             self.returnPressed = _Sig()
@@ -253,15 +259,18 @@ except ImportError as exc:
             pass
         def setStyleSheet(self, *a, **k):
             pass
-    class QTableWidget:
-        pass
+    class QTableWidget(QWidget):
+        class EditTrigger:
+            NoEditTriggers = 0
 
     class QTableWidgetItem:
         def __init__(self, *a, **k):
             pass
 
-    class QHeaderView:
+    class QHeaderView(QWidget):
         Stretch = 1
+        class ResizeMode:
+            Stretch = 1
     class QMessageBox:
         @staticmethod
         def information(*a, **k):
@@ -273,9 +282,9 @@ except ImportError as exc:
         def critical(*a, **k):
             return 0
 
-    class QProgressBar:
+    class QProgressBar(QWidget):
         pass
-    class QComboBox:
+    class QComboBox(QWidget):
         class SizeAdjustPolicy:
             AdjustToContents = 0
 
@@ -336,16 +345,19 @@ except ImportError as exc:
                 return self._data.index(data)
             except ValueError:
                 return -1
-    class QSpinBox:
+    class QSpinBox(QWidget):
         pass
 
     class QAbstractItemView:
         NoEditTriggers = 0
+        class SelectionBehavior:
+            SelectRows = 0
 
-    class QMenu:
+    class QMenu(QWidget):
         def __init__(self, *a, **k):
             self._actions = []
-        def addAction(self, action):
+        def addAction(self, *args, **kwargs):
+            action = args[0] if args else None
             self._actions.append(action)
             return action
         def addSeparator(self):
@@ -369,7 +381,7 @@ except ImportError as exc:
         def setDefaultWidget(self, widget):
             self._widget = widget
 
-    class QToolButton:
+    class QToolButton(QWidget):
         class ToolButtonPopupMode:
             InstantPopup = 0
         def __init__(self, *a, **k):
@@ -396,13 +408,13 @@ except ImportError as exc:
         def setStyleSheet(self, *a, **k):
             pass
 
-    class QGroupBox:
+    class QGroupBox(QWidget):
         def setVisible(self, *a, **k):
             pass
         def setEnabled(self, *a, **k):
             pass
 
-    class QTextEdit:
+    class QTextEdit(QWidget):
         def __init__(self, *a, **k):
             pass
         def setReadOnly(self, *a, **k):
@@ -431,7 +443,7 @@ except ImportError as exc:
         def setOpenExternalLinks(self, *a, **k):
             pass
 
-    class QScrollArea:
+    class QScrollArea(QWidget):
         def __init__(self, *a, **k):
             pass
         def setWidgetResizable(self, *a, **k):
@@ -451,7 +463,7 @@ except ImportError as exc:
         def __init__(self, *a, **k):
             self.triggered = _Sig()
 
-    class QDialog:
+    class QDialog(QWidget):
         class DialogCode:
             Accepted = 1
             Rejected = 0
@@ -468,7 +480,7 @@ except ImportError as exc:
         def reject(self):
             return self.DialogCode.Rejected
 
-    class QListWidget:
+    class QListWidget(QWidget):
         def __init__(self, *a, **k):
             self._items = []
 
@@ -540,7 +552,7 @@ except ImportError as exc:
             self.accepted = _Sig()
             self.rejected = _Sig()
 
-    class QCheckBox:
+    class QCheckBox(QWidget):
         def __init__(self, *a, **k):
             self._checked = False
             self._text = a[0] if a else ""
@@ -581,6 +593,15 @@ except ImportError as exc:
         def __init__(self, *_args, **_kwargs): pass
     class Qt:
         AlignLeft = 0
+        class SortOrder:
+            AscendingOrder = 0
+            DescendingOrder = 1
+        class ContextMenuPolicy:
+            CustomContextMenu = 0
+        class MouseButton:
+            RightButton = 2
+        class ItemDataRole:
+            UserRole = 32
         class WidgetAttribute:
             WA_DeleteOnClose = 0
 
