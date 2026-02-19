@@ -507,7 +507,28 @@ def load_data(
         window.search_button.setEnabled(True)
         return
 
-    worker = data_loader_cls(db_path, table_name)
+    try:
+        worker = data_loader_cls(db_path, table_name)
+    except Exception as exc:
+        logger.error("Falha ao instanciar DataLoaderWorker: %s", _mask_db_path(str(exc), db_path))
+        handler = getattr(window, "on_load_error", None)
+        if callable(handler):
+            handler(str(exc), request_id=request_id)
+        else:
+            on_load_error(
+                window,
+                str(exc),
+                request_id=request_id,
+                db_path=db_path,
+                qmessagebox=qmessagebox,
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=max_global_workers,
+                retired_ttl_sec=retired_ttl_sec,
+                retired_force_wait_ms=retired_force_wait_ms,
+                sip_module=sip_module,
+            )
+        return
     window.data_loader_thread = worker
 
     def _handle_data_loaded(df, rid=request_id):
