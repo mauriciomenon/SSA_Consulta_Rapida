@@ -844,7 +844,11 @@ class TestGUIFilterLogic:
         assert mae_filhas == {"100": ["101", "102"]}
         assert filha_mae == {"101": "100", "102": "100"}
 
-    def test_update_derivadas_button_state_is_noop_without_specific_button(self):
+    def test_update_derivadas_button_state_ignores_invalid_values(self):
+        btn = getattr(self.window, "adv_derivadas_especificas_button", None)
+        if btn is None:
+            btn = self.window._adv_ctx["adv_derivadas_especificas_button"]
+
         self.window._df_last_search_filtered = pd.DataFrame(
             {
                 "numero_ssa": ["1", "2", "3"],
@@ -852,7 +856,16 @@ class TestGUIFilterLogic:
             }
         )
         self.window._update_derivadas_button_state()
-        assert "adv_derivadas_especificas_button" not in self.window._adv_ctx
+        assert btn.isEnabled() is False
+
+        self.window._df_last_search_filtered = pd.DataFrame(
+            {
+                "numero_ssa": ["1", "2"],
+                "derivada_de": ["None", "1001"],
+            }
+        )
+        self.window._update_derivadas_button_state()
+        assert btn.isEnabled() is True
 
     def test_update_derivadas_from_sources_runs_db_then_special_sync(self, monkeypatch, tmp_path):
         db_file = tmp_path / "ssas.db"
@@ -1060,15 +1073,43 @@ class TestGUIFilterLogic:
         resolved = self.window._resolve_derivadas_table_name(str(db_file))
         assert resolved == "ssa_table"
 
-    def test_update_derivadas_button_state_keeps_compatibility_contract(self):
+    def test_update_derivadas_button_state_uses_materialized_summary_when_series_is_empty(self, tmp_path):
+        btn = getattr(self.window, "adv_derivadas_especificas_button", None)
+        if btn is None:
+            btn = self.window._adv_ctx["adv_derivadas_especificas_button"]
+
+        db_path = tmp_path / "derivadas_summary.db"
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE ssa_derivada_summary (
+                    ssa TEXT PRIMARY KEY,
+                    direct_parents_count INTEGER,
+                    direct_children_count INTEGER,
+                    ancestors_count INTEGER,
+                    descendants_count INTEGER,
+                    has_cycle INTEGER
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO ssa_derivada_summary (
+                    ssa, direct_parents_count, direct_children_count, ancestors_count, descendants_count, has_cycle
+                ) VALUES ('1001', 0, 3, 0, 3, 0)
+                """
+            )
+            conn.commit()
+
         self.window._df_last_search_filtered = pd.DataFrame(
             {
                 "numero_ssa": ["1001", "1002"],
                 "derivada_de": ["", "None"],
             }
         )
-        self.window._update_derivadas_button_state()
-        assert "adv_derivadas_especificas_button" not in self.window._adv_ctx
+        with patch.object(gui_ssa, "DB_PATH", str(db_path)):
+            self.window._update_derivadas_button_state()
+        assert btn.isEnabled() is True
 
     def test_reorganize_advanced_filters_grid_handles_removed_emissor_responsavel_widget(self):
         filter_tab_idx = next(
