@@ -17,11 +17,10 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 # Configuracao de logging
 logging.basicConfig(
@@ -193,7 +192,11 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     logger.info(f"Criando pacote ZIP para {BUILD_SYSTEMS[build_system]['name']}")
 
     build_info = BUILD_SYSTEMS[build_system]
-    build_dir = PROJECT_ROOT / build_info["base_dir"]
+    base_dir_value = build_info.get("base_dir")
+    if not isinstance(base_dir_value, str):
+        logger.error("Configuracao invalida: base_dir ausente para %s", build_system)
+        return None
+    build_dir = PROJECT_ROOT / base_dir_value
 
     if not build_dir.exists():
         logger.error(f"Diretorio de build nao encontrado: {build_dir}")
@@ -221,7 +224,11 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
                     shutil.copytree(item, package_dir / item.name, dirs_exist_ok=True)
         else:
             # PyInstaller/PyOxidizer: copiar executavel
-            exe_src = PROJECT_ROOT / build_info["exe_path"]
+            exe_path_value = build_info.get("exe_path")
+            if not isinstance(exe_path_value, str):
+                logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
+                return None
+            exe_src = PROJECT_ROOT / exe_path_value
             exe_dest = package_dir / exe_src.name
             shutil.copy2(exe_src, exe_dest)
 
@@ -493,9 +500,9 @@ def main():
         if result["zip"]:
             logger.info(f"  ZIP: {result['zip'].name}")
         if result["installer"]:
-            logger.info(f"  Instalador: Criado com sucesso")
+            logger.info("  Instalador: Criado com sucesso")
         elif result["installer"] is False:
-            logger.info(f"  Instalador: Nao criado (Inno Setup nao disponivel)")
+            logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
         logger.info("")
 
     logger.info(f"Pacotes salvos em: {DIST_OUTPUT}")
