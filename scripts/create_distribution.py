@@ -229,6 +229,9 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
                 logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
                 return None
             exe_src = PROJECT_ROOT / exe_path_value
+            if not exe_src.is_file():
+                logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
+                return None
             exe_dest = package_dir / exe_src.name
             shutil.copy2(exe_src, exe_dest)
 
@@ -499,6 +502,8 @@ def main():
         logger.info(f"{BUILD_SYSTEMS[bs]['name']}:")
         if result["zip"]:
             logger.info(f"  ZIP: {result['zip'].name}")
+        elif not args.installer_only:
+            logger.info("  ZIP: Nao criado")
         if result["installer"]:
             logger.info("  Instalador: Criado com sucesso")
         elif result["installer"] is False:
