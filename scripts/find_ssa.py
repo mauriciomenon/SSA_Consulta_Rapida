@@ -4,7 +4,6 @@
 import os
 import sys
 import pandas as pd
-from datetime import datetime
 
 # Add root to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -59,7 +58,7 @@ for i, filename in enumerate(files, 1):
                     print(f"  Is NaT/NaN: {pd.isna(data_cad)}")
 
                 # Print all columns for this row
-                print(f"\n  All columns in this row:")
+                print("\n  All columns in this row:")
                 for k, v in row_data.items():
                     if pd.notna(v):
                         print(f"    {k}: {v} (type: {type(v).__name__})")

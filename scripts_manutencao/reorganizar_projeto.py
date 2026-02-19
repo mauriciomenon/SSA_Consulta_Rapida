@@ -30,12 +30,6 @@ def reorganize_project():
         "LICENSE", "README.md", "build.py"
     ]
 
-    # Pastas que já existem e devem ser preservadas
-    existing_folders = [
-        "armazenamento", "core", "extracao", "exportacao", "gui",
-        "interface", "utils", "tests", "data", "__pycache__"
-    ]
-
     # Criar pastas se não existirem
     os.makedirs("scripts_manutencao", exist_ok=True)
     os.makedirs("scripts_desenvolvimento", exist_ok=True)
@@ -98,7 +92,7 @@ def show_current_structure():
         dev_files = list(Path('scripts_desenvolvimento').glob('*.py'))
         print(f"  DIR scripts_desenvolvimento/: {len(dev_files)} arquivos")
 
-    print(f"\nArquivos na raiz que serão reorganizados:")
+    print("\nArquivos na raiz que serão reorganizados:")
     for i, file_path in enumerate(root_py_files[:10]):  # Mostra os primeiros 10
         print(f"  - {file_path.name}")
     if len(root_py_files) > 10:

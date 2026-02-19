@@ -105,7 +105,7 @@ def copy_data_to_build(
             print(f"   Total: {copied_count} arquivo(s) Excel copiado(s)")
     else:
         if verbose:
-            print(f"WARN  Diretorio docs_entrada nao encontrado")
+            print("WARN  Diretorio docs_entrada nao encontrado")
 
     return success
 

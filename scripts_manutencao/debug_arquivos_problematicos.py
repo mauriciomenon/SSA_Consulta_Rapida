@@ -37,7 +37,7 @@ def investigar_arquivos_problematicos():
 
                 # Verificar se há problemas de index
                 if df.index.duplicated().any():
-                    print(f"  WARN  PROBLEMA: Índices duplicados detectados")
+                    print("  WARN  PROBLEMA: Índices duplicados detectados")
                     duplicados = df.index.duplicated().sum()
                     print(f"     Total de duplicados: {duplicados}")
 
@@ -46,7 +46,7 @@ def investigar_arquivos_problematicos():
                 print(f"  INFO Tamanho total: {len(df_full)} linhas")
 
                 if df_full.index.duplicated().any():
-                    print(f"   CONFIRMADO: Arquivo tem índices duplicados")
+                    print("   CONFIRMADO: Arquivo tem índices duplicados")
                     print(f"     Duplicados: {df_full.index.duplicated().sum()}")
 
             except Exception as e:
