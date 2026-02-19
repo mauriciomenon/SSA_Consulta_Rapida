@@ -235,6 +235,8 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
         "ano_execucao_exclude",
         "responsavel_solicitante",
         "responsavel_solicitante_exclude_values",
+        "divisao",
+        "divisao_exclude_values",
     }
 
     consumed_keys = detector_keys | direct_logic_keys | column_group_keys | alias_keys
