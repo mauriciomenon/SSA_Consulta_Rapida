@@ -8,7 +8,6 @@ import os
 import re
 import sys
 import json
-from collections import defaultdict
 
 def analisar_implementacoes_misturadas():
     """Identifica implementações conflitantes ou misturadas."""

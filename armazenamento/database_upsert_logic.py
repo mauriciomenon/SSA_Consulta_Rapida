@@ -252,7 +252,7 @@ def _upsert_cache_key(numero: Any) -> str | None:
 def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int = 100) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     status_rank, description_columns, date_columns = _resolve_upsert_config()
-    terminal_statuses_env = os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
+    os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
     total_inserted = 0
     for start in range(0, len(has_ssa), chunk_size):

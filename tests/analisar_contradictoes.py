@@ -52,7 +52,7 @@ def analisar_contradictoes():
             warnings.append(f"WARN  CLI: Muitas importações ({len(imports)}) - pode ser otimizado")
 
         # Verificar handlers inconsistentes
-        handlers_with_cache = cli_content.count('print_cache')
+        cli_content.count('print_cache')
         handlers_without_cache = cli_content.count('pretty_print_df(') - cli_content.count('_cached_pretty_print_df')
         if handlers_without_cache > 0:
             issues.append(f"ERR CLI: {handlers_without_cache} handlers ainda usando pretty_print_df sem cache")
@@ -104,7 +104,7 @@ def analisar_contradictoes():
     if os.path.exists(gui_path):
         # Verificar se há múltiplas estratégias de cálculo de largura
         best_fit_mentions = gui_content.count('best-fit')
-        min_char_sizes = gui_content.count('MIN_CHAR_SIZES')
+        gui_content.count('MIN_CHAR_SIZES')
         fixed_widths = gui_content.count('fixed_widths')
 
         if best_fit_mentions > 0 and fixed_widths > 0:

@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # interface/cli.py (CLI refatorada – Command Pattern, integrada)
 """
 Interface de Linha de Comando (CLI) para interação com o usuário.

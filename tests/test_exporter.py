@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # tests/test_exporter.py
 """
 Testes unitários para o módulo exportacao.exporter.
@@ -9,7 +10,7 @@ import os
 import sys
 import tempfile
 import shutil
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Adiciona a raiz do projeto ao path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

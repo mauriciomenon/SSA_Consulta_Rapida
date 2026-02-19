@@ -4,12 +4,10 @@ Build simplificado para gerar executaveis locais.
 IMPORTANTE: Este script usa dist_simple que e temporario e NAO deve ir para o git!
 """
 
-import os
 import sys
 import subprocess
 import shutil
 import atexit
-from pathlib import Path
 
 from version_info import REPO_ROOT, get_current_version
 
@@ -66,7 +64,7 @@ def main():
     print(f"Comando: {' '.join(cmd_cli)}")
 
     try:
-        result = subprocess.run(cmd_cli, cwd=base_dir, check=True, capture_output=True, text=True)
+        subprocess.run(cmd_cli, cwd=base_dir, check=True, capture_output=True, text=True)
         print("OK Build CLI concluído com sucesso!")
 
         # Testar executável
