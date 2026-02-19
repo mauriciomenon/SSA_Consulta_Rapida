@@ -288,6 +288,8 @@ def _import_single_file(
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
         raise ExtractionError(str(e)) from e
+    except DatabaseError:
+        raise
     except ImporterError:
         raise
     except Exception as e:
