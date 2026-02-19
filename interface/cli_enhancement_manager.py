@@ -128,11 +128,13 @@ class CLIEnhancementManager:
                 mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
                 try:
                     current_pos = f.tell()
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Nao foi possivel ler posicao atual do lock file: %s", exc)
                     current_pos = 0
                 try:
                     file_size = os.fstat(f.fileno()).st_size
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Nao foi possivel ler tamanho do lock file: %s", exc)
                     file_size = 0
                 remaining = file_size - current_pos
                 lock_len = max(remaining, 1)
