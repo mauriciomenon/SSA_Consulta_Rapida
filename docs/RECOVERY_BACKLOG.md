@@ -440,3 +440,17 @@ Regra de lint para este ciclo:
    - alvo futuro: reduzir sem refactor amplo de layout/arquitetura.
 4. [pending-blocked] checks externos:
    - `code/snyk` e `security/snyk` continuam bloqueados por limite de plano.
+
+## Update 2026-02-19 (codex/import-review - ty errors zerados)
+
+1. [resolved] Ty global sem erros:
+   - `113 -> 28 diagnostics` no gate global.
+   - `uv run ty check . --output-format concise` nao retorna mais `error[...]`.
+2. [resolved] Tipagem de `gui/gui_ssa.py` estabilizada sem alterar layout:
+   - `86 -> 1 diagnostic` (restou somente warning `unsupported-base`).
+   - commits principais: `50031a1e`, `7cab4edb`, `1ba5b0d7`.
+3. [pending-nonblocking] warning residual:
+   - `gui/gui_ssa.py`: `unsupported-base` no mixin em ambiente headless/stub.
+4. [pending-blocked] checks externos:
+   - `code/snyk` limite de plano.
+   - `security/snyk` limite de plano.
