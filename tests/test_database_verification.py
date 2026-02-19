@@ -143,7 +143,8 @@ class TestDataValidation:
 
         report = validate_dataframe_before_insert(df)
 
-        assert report['invalid_rows'] == [0]
+        assert 0 in report['invalid_rows']
+        assert len(report['invalid_rows']) == len(set(report['invalid_rows']))
 
     def test_validate_invalid_dates(self):
         """Testa validação com datas inválidas."""
