@@ -294,6 +294,28 @@ class TestGUIFilterLogic:
         assert self.window._adv_options_dirty is True
         refresh_mock.assert_called_once()
 
+    def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._advanced_filters = {"setor_executor": ["IEE3"]}
+        self.window._advanced_filters_active = True
+        self.window._adv_options_dirty = False
+        self.window._adv_options_scheduled = True
+
+        with patch.object(self.window, "_refresh_advanced_filter_options", return_value=None) as refresh_mock:
+            self.window._clear_advanced_filters()
+            QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert self.window._adv_options_dirty is False
+        refresh_mock.assert_called_once()
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()

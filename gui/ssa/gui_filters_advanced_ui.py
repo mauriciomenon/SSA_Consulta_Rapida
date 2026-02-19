@@ -1563,6 +1563,16 @@ def _clear_advanced_filters(self):
     except Exception as exc:
         logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
     try:
+        if (
+            getattr(self, "_current_tab_kind", None) == "filters"
+            and bool(getattr(self, "_adv_options_dirty", False))
+            and hasattr(self, "_refresh_advanced_filter_options")
+        ):
+            self._refresh_advanced_filter_options()
+            self._adv_options_dirty = False
+    except Exception as exc:
+        logger.warning("Falha ao executar refresh imediato de filtros avancados apos limpar: %s", exc)
+    try:
         self._refresh_after_filter_change()
     except Exception as exc:
         logger.warning("Falha ao reaplicar filtros apos limpeza de avancados: %s", exc)
