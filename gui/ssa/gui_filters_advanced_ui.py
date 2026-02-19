@@ -1553,6 +1553,12 @@ def _clear_advanced_filters(self):
     self._advanced_filters = {}
     self._advanced_filters_active = False
     try:
+        setattr(self, "_adv_options_dirty", True)
+        if hasattr(self, "_schedule_adv_options_refresh"):
+            self._schedule_adv_options_refresh()
+    except Exception as exc:
+        logger.debug("Falha ao agendar refresh apos limpar filtros avancados: %s", exc)
+    try:
         self._sync_advanced_filter_ui()
     except Exception as exc:
         logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)

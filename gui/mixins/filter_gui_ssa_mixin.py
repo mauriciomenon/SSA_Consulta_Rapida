@@ -556,6 +556,20 @@ class FilterGUISSAMixin:
                 except Exception as unblock_exc:
                     logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
+        # Limpa estado de filtros avancados para manter o botao Limpar consistente.
+        self._advanced_filters = {}
+        self._advanced_filters_active = False
+        try:
+            if hasattr(self, "_sync_advanced_filter_ui"):
+                self._sync_advanced_filter_ui()
+        except Exception as exc:
+            logger.warning("Falha ao sincronizar UI avancada em clear_filter: %s", exc)
+        try:
+            setattr(self, "_adv_options_dirty", True)
+            if hasattr(self, "_schedule_adv_options_refresh"):
+                self._schedule_adv_options_refresh()
+        except Exception as exc:
+            logger.debug("Falha ao agendar refresh de opcoes avancadas em clear_filter: %s", exc)
         # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
         # Limpa o cache de filtros ao limpar filtros
         self.clear_filter_cache()
