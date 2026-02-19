@@ -391,3 +391,20 @@ Regra de lint para este ciclo:
    - manter patch minimo neste sprint e quebrar responsabilidades em ciclo dedicado.
 5. [pending-blocked] checks externos:
    - `code/snyk` e `security/snyk` continuam limitados por plano.
+
+## Update 2026-02-19 (codex/import-review)
+
+1. [resolved] Ty baseline reduziu com slices focados em testes utilitarios:
+   - `204 -> 177 diagnostics` no gate global `uv run ty check .`.
+   - commits: `7cea46ac`, `b3b75fd9`, `45cc0f79`.
+2. [resolved] Gate estatico em arquivos criticos segue verde:
+   - `uv run ruff check armazenamento/database.py gui/ssa/gui_filters_advanced_ui.py`.
+   - `uv run ty check armazenamento/database.py gui/ssa/gui_filters_advanced_ui.py`.
+3. [pending] Maior bloco restante de ty e ruido de tipagem:
+   - `gui/gui_ssa.py` (tipagem PyQt dinamica e fallbacks de runtime).
+   - `gui/gui_ssa_dev.py`, `gui/ssa/gui_theme.py`.
+4. [pending] Pendencias menores fora de fluxo principal:
+   - `launchers/convert_icon.py` (deps opcionais `PIL` e `cairosvg`).
+   - `scripts/run_all_tests.py` e wrappers `run_pytest_*`.
+5. [pending-blocked] checks externos continuam sem acao local:
+   - `code/snyk` por limite de plano.
