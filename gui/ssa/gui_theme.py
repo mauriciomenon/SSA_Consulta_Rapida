@@ -414,7 +414,8 @@ def _apply_theme_widget_styles(
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
             " border-radius:4px; padding:2px 6px; }"
             "QToolButton:pressed {"
-            f" background: {accent_soft}; }}"
+            f" background: {accent_soft}; "
+            "}"
         )
         adv_buttons = [
             "adv_executor_button",
