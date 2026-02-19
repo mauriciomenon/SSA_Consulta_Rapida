@@ -1403,6 +1403,93 @@ class TestGUIFilterLogic:
         assert first_worker.deleted is True
         assert second_worker.start_called is True
 
+    def test_initiate_filtering_aborts_when_critical_signal_connection_fails(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste")
+
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+        class _FakeWorker:
+            def __init__(self, *_args, **_kwargs):
+                self.filter_finished = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self.start_called = False
+                self.quit_called = False
+                self.wait_called_ms = None
+                self.deleted = False
+                self._running = False
+
+            def start(self):
+                self.start_called = True
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self.quit_called = True
+                self._running = False
+
+            def wait(self, ms):
+                self.wait_called_ms = ms
+                return True
+
+            def deleteLater(self):
+                self.deleted = True
+
+        def _connect_side_effect(_signal, _slot, *, label):
+            if label == "filter_worker.filter_finished":
+                return False
+            return True
+
+        with patch("gui.mixins.filter_gui_ssa_mixin.FilterWorker", _FakeWorker):
+            with patch(
+                "gui.mixins.filter_gui_ssa_mixin._connect_filter_signal",
+                side_effect=_connect_side_effect,
+            ):
+                self.window.initiate_filtering()
+
+        assert self.window.filter_thread is None
+        assert self.window.status_label.text() == "Status: Erro ao aplicar filtro."
+        assert self.window.progress_bar.isVisible() is False
+        assert self.window.load_button.isEnabled() is True
+        assert self.window.search_button.isEnabled() is True
+
+    def test_retain_filter_worker_releases_immediately_when_release_hook_fails(self):
+        class _FakeWorker:
+            def __init__(self):
+                self.finished = object()
+
+            def deleteLater(self):
+                return None
+
+        worker = _FakeWorker()
+        self.window._retired_filter_workers = []
+        filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS[:] = []
+
+        def _connect_side_effect(_signal, _slot, *, label):
+            if label == "filter_worker.finished.release":
+                return False
+            return True
+
+        with patch(
+            "gui.mixins.filter_gui_ssa_mixin._connect_filter_signal",
+            side_effect=_connect_side_effect,
+        ):
+            self.window._retain_filter_worker_until_finished(worker)
+
+        assert worker not in self.window._retired_filter_workers
+        assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
+
     def test_close_event_cleans_filter_worker_with_centralized_cleanup(self):
         class _FakeSignal:
             def disconnect(self, _callback=None):

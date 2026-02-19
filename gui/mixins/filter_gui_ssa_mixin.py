@@ -368,12 +368,12 @@ class FilterGUISSAMixin:
             cache_context=filter_cache_context,
         )
         self.filter_thread = worker
-        _connect_filter_signal(
+        filter_finished_connected = _connect_filter_signal(
             worker.filter_finished,
             lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
             label="filter_worker.filter_finished",
         )
-        _connect_filter_signal(
+        error_connected = _connect_filter_signal(
             worker.error_occurred,
             lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
             label="filter_worker.error_occurred",
@@ -383,11 +383,23 @@ class FilterGUISSAMixin:
             lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid),
             label="filter_worker.finished.cleanup",
         )
+        if not (filter_finished_connected and error_connected):
+            logger.warning(
+                "Falha ao conectar sinais criticos de filtro; abortando inicio do worker."
+            )
+            self.on_filter_error(
+                "Falha ao iniciar filtro: conexoes de sinais indisponiveis.",
+                request_id=request_id,
+            )
+            self.on_filter_finished_cleanup(worker, request_id=request_id)
+            return
         # Garante destruição segura do objeto thread após terminar
-        try:
-            _connect_filter_signal(worker.finished, worker.deleteLater, label="filter_worker.finished.deleteLater")
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no worker de filtro atual: %s", exc)
+        if not _connect_filter_signal(
+            worker.finished,
+            worker.deleteLater,
+            label="filter_worker.finished.deleteLater",
+        ):
+            logger.debug("Falha ao conectar deleteLater no worker de filtro atual.")
         worker.start()
 
 
@@ -489,15 +501,21 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao podar lista de workers de filtro apos release: %s", exc)
 
-        try:
-            _connect_filter_signal(worker.finished, _release_worker_ref, label="filter_worker.finished.release")
-        except Exception as exc:
-            logger.debug("Falha ao conectar release de worker finalizado: %s", exc)
+        if not _connect_filter_signal(
+            worker.finished,
+            _release_worker_ref,
+            label="filter_worker.finished.release",
+        ):
+            logger.debug(
+                "Falha ao conectar release de worker finalizado; liberando referencia imediato."
+            )
             _release_worker_ref()
-        try:
-            _connect_filter_signal(worker.finished, worker.deleteLater, label="filter_worker.finished.deleteLater")
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater do worker de filtro: %s", exc)
+        if not _connect_filter_signal(
+            worker.finished,
+            worker.deleteLater,
+            label="filter_worker.finished.deleteLater",
+        ):
+            logger.debug("Falha ao conectar deleteLater do worker de filtro.")
 
     def _is_filter_worker_running(self, worker) -> bool:
         if worker is None:
