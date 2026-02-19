@@ -154,7 +154,8 @@ def _select_columns_for_width(
     try:
         cfg = _load_priority_config()
         short_labels = cfg.get('short_labels', {})
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao carregar short_labels de prioridade; usando vazio: %s", exc)
         short_labels = {}
     ordered: list[str] = []
     seen: set[str] = set()
@@ -294,7 +295,7 @@ def _build_headers(params: HeaderBuildParams) -> tuple[list[str], dict[str, int]
                 logger.debug("Falha ao normalizar label para ASCII '%s': %s", label, exc)
             label = safe
         renamed[c] = label
-    # Renomeia inplace para refletir labels de exibição
+    # Renomeia inplace para refletir labels de exibicao no dataframe de trabalho.
     df.rename(columns=renamed, inplace=True)
     widths: dict[str, int] = {}
     for c in cols:
