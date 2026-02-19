@@ -198,7 +198,8 @@ except ImportError as exc:
             pass
 
     class QHBoxLayout(QVBoxLayout):
-        pass
+        def addItem(self, *a, **k):
+            pass
 
     class QGridLayout(QVBoxLayout):
         pass
@@ -271,6 +272,8 @@ except ImportError as exc:
         Stretch = 1
         class ResizeMode:
             Stretch = 1
+            Interactive = 2
+            Fixed = 3
     class QMessageBox:
         @staticmethod
         def information(*a, **k):
@@ -416,6 +419,8 @@ except ImportError as exc:
             pass
 
     class QGroupBox(QWidget):
+        def __init__(self, *a, **k):
+            pass
         def setVisible(self, *a, **k):
             pass
         def setEnabled(self, *a, **k):
@@ -2126,11 +2131,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
 
-            menu.addAction(apply_action)
+            cast(Any, menu).addAction(apply_action)
             if col_name in self._active_column_filters:
-                menu.addAction(clear_action)
+                cast(Any, menu).addAction(clear_action)
             if self._active_column_filters:
-                menu.addAction(clear_all_action)
+                cast(Any, menu).addAction(clear_all_action)
             menu.exec(header.mapToGlobal(pos))
         except Exception as exc:
             logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
@@ -2319,15 +2324,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Acoes para celulas
             copy_cell_action = QAction("Copiar Valor da Celula", self)
             copy_cell_action.triggered.connect(self.copy_cell_value)
-            menu.addAction(copy_cell_action)
+            cast(Any, menu).addAction(copy_cell_action)
 
             copy_row_action = QAction("Copiar Linha Completa", self)
             copy_row_action.triggered.connect(self.copy_row_data)
-            menu.addAction(copy_row_action)
+            cast(Any, menu).addAction(copy_row_action)
 
             export_action = QAction("Exportar lista (txt)", self)
             export_action.triggered.connect(self._export_current_list_txt)
-            menu.addAction(export_action)
+            cast(Any, menu).addAction(export_action)
 
             menu.addSeparator()
 
@@ -2346,16 +2351,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if derivada_de:
                     origem_action = QAction("Ir para SSA origem", self)
                     origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))
-                    menu.addAction(origem_action)
+                    cast(Any, menu).addAction(origem_action)
                 if derived_list:
                     label = f"Mostrar derivadas ({len(derived_list)})"
                     derivadas_action = QAction(label, self)
                     derivadas_action.triggered.connect(lambda: self._filter_by_derivadas(numero_ssa))
-                    menu.addAction(derivadas_action)
+                    cast(Any, menu).addAction(derivadas_action)
                 if self._last_derivada_origem:
                     voltar_action = QAction("Voltar SSA origem", self)
                     voltar_action.triggered.connect(self._clear_derivadas_filter)
-                    menu.addAction(voltar_action)
+                    cast(Any, menu).addAction(voltar_action)
                 menu.addSeparator()
 
             # Acoes para colunas
@@ -2366,11 +2371,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                     remove_column_action = QAction(f"Remover Coluna '{column_name}'", self)
                     remove_column_action.triggered.connect(lambda: self.remove_column_by_index(column))
-                    menu.addAction(remove_column_action)
+                    cast(Any, menu).addAction(remove_column_action)
 
                     auto_fit_action = QAction(f"Ajustar Largura '{column_name}'", self)
                     auto_fit_action.triggered.connect(lambda: self.auto_fit_column(column))
-                    menu.addAction(auto_fit_action)
+                    cast(Any, menu).addAction(auto_fit_action)
 
             menu.exec(self.table_widget.mapToGlobal(position))
 
