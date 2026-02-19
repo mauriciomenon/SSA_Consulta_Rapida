@@ -12,7 +12,7 @@ import shutil
 sys.path.insert(0, '.')
 
 from core.app_logic import import_files_to_database
-from armazenamento.database import get_db_connection, initialize_database
+from armazenamento.database import get_db_connection
 from extracao.extractor import extract_data_from_excel
 
 

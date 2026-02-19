@@ -2,7 +2,6 @@
 """Check which columns actually exist in database."""
 
 import sqlite3
-import os
 
 db_path = 'data/ssas.db'
 
