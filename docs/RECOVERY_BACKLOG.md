@@ -500,3 +500,16 @@ Regra de lint para este ciclo:
 4. [pending-blocked] checks externos sem acao local:
    - `code/snyk` limite de plano.
    - `security/snyk` limite de plano.
+
+## Update 2026-02-19 (codex/import-review - distribution packaging guard)
+
+1. [resolved] Protecao no empacotamento ZIP:
+   - `scripts/create_distribution.py` agora valida existencia do executavel antes de `copy2`.
+   - erro fica explicito e evita stacktrace generico de arquivo ausente.
+2. [resolved] Relatorio final de empacotamento mais claro:
+   - quando ZIP nao e criado, log explicita `ZIP: Nao criado`.
+3. [resolved] Cobertura de regressao adicionada:
+   - `tests/test_create_distribution.py` valida retorno `None` + log esperado quando `exe` ausente.
+4. [pending-blocked] checks externos sem acao local:
+   - `code/snyk` limite de plano.
+   - `security/snyk` limite de plano.
