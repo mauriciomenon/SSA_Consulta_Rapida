@@ -24,7 +24,8 @@ _GLOBAL_WORKERS_LOCK = threading.Lock()
 try:
     from PyQt6.QtCore import Qt as _Qt
     _QT_QUEUED = _Qt.ConnectionType.QueuedConnection
-except Exception:
+except Exception as exc:
+    logger.debug("Falha ao importar Qt.ConnectionType para conexao enfileirada: %s", exc)
     _QT_QUEUED = None
 
 
