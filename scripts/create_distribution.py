@@ -227,10 +227,14 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
             exe_path_value = build_info.get("exe_path")
             if not isinstance(exe_path_value, str):
                 logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir)
                 return None
             exe_src = PROJECT_ROOT / exe_path_value
             if not exe_src.is_file():
                 logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir)
                 return None
             exe_dest = package_dir / exe_src.name
             shutil.copy2(exe_src, exe_dest)
