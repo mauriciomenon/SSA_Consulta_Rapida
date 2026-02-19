@@ -487,3 +487,16 @@ Regra de lint para este ciclo:
 5. [pending-blocked] checks externos sem acao local:
    - `code/snyk` limite de plano.
    - `security/snyk` limite de plano.
+
+## Update 2026-02-19 (codex/import-review - legacy setup module hardening)
+
+1. [resolved] Mitigacao de execucao de modulo externo via env:
+   - `utils/setup_project_structure.py` bloqueia `SSA_LEGACY_SETUP_MODULE` fora da raiz do projeto por padrao.
+   - opt-in explicito disponivel via `SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE=1`.
+2. [resolved] Cobertura de regressao adicionada:
+   - `tests/test_setup_project_structure.py` valida bloqueio padrao e fluxo opt-in.
+3. [resolved] Repro de seguranca validado localmente:
+   - modulo temporario externo nao e executado sem opt-in (side effect bloqueado).
+4. [pending-blocked] checks externos sem acao local:
+   - `code/snyk` limite de plano.
+   - `security/snyk` limite de plano.

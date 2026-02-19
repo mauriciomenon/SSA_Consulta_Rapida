@@ -26,6 +26,17 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+
+def _is_within_base(path: str, base: str) -> bool:
+    """Return True when `path` is inside `base` after realpath normalization."""
+    try:
+        path_real = os.path.realpath(path)
+        base_real = os.path.realpath(base)
+        return os.path.commonpath([path_real, base_real]) == base_real
+    except Exception:
+        return False
+
+
 # Base imutável; cópia de trabalho é derivada em runtime
 # para evitar mutação global por chamadas repetidas
 _BASE_REQUIRED_DIRS = [
@@ -54,8 +65,17 @@ def _load_legacy_required_dirs() -> list[str]:  # pragma: no cover - caminho opc
 
     Segurança: não lança exceções fatais; falhas geram log DEBUG e retorna [].
     """
-    module_path = os.environ.get("SSA_LEGACY_SETUP_MODULE")
-    if not module_path:
+    module_path_raw = os.environ.get("SSA_LEGACY_SETUP_MODULE")
+    if not module_path_raw:
+        return []
+    module_path = os.path.realpath(os.path.abspath(module_path_raw))
+    project_root = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+    allow_external = os.environ.get("SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE") == "1"
+    if not allow_external and not _is_within_base(module_path, project_root):
+        logger.warning(
+            "SSA_LEGACY_SETUP_MODULE fora da raiz do projeto foi bloqueado: %s",
+            module_path,
+        )
         return []
     try:
         if not os.path.isfile(module_path):
