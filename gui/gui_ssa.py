@@ -1039,7 +1039,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(cast(Any, central_widget))
 
 
         # --- Barra de Ferramentas Superior ---
@@ -1049,29 +1049,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.load_button = QPushButton("Carregar Dados")
         self.load_button.setToolTip("Carregar dados do banco de dados existente")
         self.load_button.clicked.connect(self.load_data)
-        toolbar_layout.addWidget(self.load_button)
+        toolbar_layout.addWidget(cast(Any, self.load_button))
 
         self.load_other_db_button = QPushButton("Carregar Outro DB")
         self.load_other_db_button.setToolTip("Selecionar e carregar outro arquivo de banco de dados")
         self.load_other_db_button.clicked.connect(self.load_other_database)
-        toolbar_layout.addWidget(self.load_other_db_button)
+        toolbar_layout.addWidget(cast(Any, self.load_other_db_button))
 
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
         self.rescan_button.clicked.connect(self.rescan_data)
-        toolbar_layout.addWidget(self.rescan_button)
+        toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
         self.explorer_button = QPushButton("Abrir Pasta")
         self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
         self.explorer_button.clicked.connect(self.open_docs_folder)
-        toolbar_layout.addWidget(self.explorer_button)
+        toolbar_layout.addWidget(cast(Any, self.explorer_button))
         self.update_derivadas_button = QPushButton("Atualizar Derivadas")
         self.update_derivadas_button.setToolTip(
             "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
         )
         self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
-        toolbar_layout.addWidget(self.update_derivadas_button)
+        toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
         # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, nção clicãvel)
         try:
             from datetime import date
@@ -1087,7 +1087,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual (nção clicãvel)")
         toolbar_layout.addSpacing(6)
-        toolbar_layout.addWidget(self.week_label)
+        toolbar_layout.addWidget(cast(Any, self.week_label))
 
         # Espaçamento antes do status
         toolbar_layout.addStretch()
@@ -1101,31 +1101,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
 
-        toolbar_layout.addWidget(self.status_label)
-        toolbar_layout.addWidget(self.progress_bar)
+        toolbar_layout.addWidget(cast(Any, self.status_label))
+        toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
         # Botção de Ajuda (como na PoC)
         help_button = QPushButton("Ajuda")
         help_button.setToolTip("Ajuda sobre filtros e uso da interface")
         help_button.clicked.connect(self.show_filter_help)
-        toolbar_layout.addWidget(help_button)
+        toolbar_layout.addWidget(cast(Any, help_button))
 
         # Botção de Tema (Claro/Escuro/Gruvbox)
         theme_button = QPushButton("Tema")
         theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
         theme_button.clicked.connect(self.toggle_theme_menu)
-        toolbar_layout.addWidget(theme_button)
+        toolbar_layout.addWidget(cast(Any, theme_button))
 
-        main_layout.addLayout(toolbar_layout)
+        main_layout.addLayout(cast(Any, toolbar_layout))
         self.main_tabs = QTabWidget()
         tab_main = QWidget()
         ctx_main = self._build_tab_content(tab_main, "main")
-        self.main_tabs.addTab(tab_main, "SSAs")
+        self.main_tabs.addTab(cast(Any, tab_main), "SSAs")
         tab_filters = QWidget()
         ctx_filters = self._build_tab_content(tab_filters, "filters")
-        self.main_tabs.addTab(tab_filters, "Filtros")
+        self.main_tabs.addTab(cast(Any, tab_filters), "Filtros")
         self._tab_contexts = [ctx_main, ctx_filters]
-        main_layout.addWidget(self.main_tabs)
+        main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
 
@@ -1191,10 +1191,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         clear_filter_button = QPushButton("Limpar Filtro")
         clear_filter_button.clicked.connect(self.clear_filter)
         clear_filter_button.setEnabled(False)
-        left.addWidget(search_label)
-        left.addWidget(search_input)
-        left.addWidget(search_button)
-        left.addWidget(clear_filter_button)
+        left.addWidget(cast(Any, search_label))
+        left.addWidget(cast(Any, search_input))
+        left.addWidget(cast(Any, search_button))
+        left.addWidget(cast(Any, clear_filter_button))
 
         right = QHBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
@@ -1206,12 +1206,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(column_selector)
+        right.addWidget(cast(Any, column_selector))
 
-        search_row.addLayout(left)
+        search_row.addLayout(cast(Any, left))
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(right)
-        tab_layout.addLayout(search_row)
+        search_row.addLayout(cast(Any, right))
+        tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
             "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
@@ -1243,17 +1243,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         profile_selector = QComboBox()
         try:
             profile_selector.setMinimumWidth(150)
-            profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            profile_selector.setSizeAdjustPolicy(cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents))
         except Exception as exc:
             logger.debug("Falha ao configurar seletor de perfil de filtro: %s", exc)
         profile_selector.addItem("Personalizado", None)
         for profile_name in self.filter_profiles.keys():
             profile_selector.addItem(profile_name, profile_name)
         profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(profile_label)
-        profile_layout.addWidget(profile_selector)
+        profile_layout.addWidget(cast(Any, profile_label))
+        profile_layout.addWidget(cast(Any, profile_selector))
         pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(profile_layout)
+        pagination_filters_layout.addLayout(cast(Any, profile_layout))
 
         pagination_filters_layout.addSpacing(12)
 
@@ -1264,7 +1264,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         save_filter_button.setMaximumWidth(100)
         save_filter_button.setToolTip("Salvar filtro atual como persistente")
         save_filter_button.clicked.connect(self.save_current_filter)
-        persistent_filters_layout.addWidget(save_filter_button)
+        persistent_filters_layout.addWidget(cast(Any, save_filter_button))
 
         exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
@@ -1280,21 +1280,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
         except Exception as exc:
             logger.warning("Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc)
-        persistent_filters_layout.addWidget(exclude_ste_checkbox)
+        persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
 
         filter_tags_widget = QWidget()
-        filter_tags_layout = QHBoxLayout(filter_tags_widget)
+        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
         filter_tags_layout.setContentsMargins(0, 0, 0, 0)
         filter_tags_layout.setSpacing(5)
-        persistent_filters_layout.addWidget(filter_tags_widget)
+        persistent_filters_layout.addWidget(cast(Any, filter_tags_widget))
 
-        pagination_filters_layout.addLayout(persistent_filters_layout)
+        pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()
 
         col_filter_indicator = QLabel("")
         try:
             if self._info_font is not None:
-                col_filter_indicator.setFont(QFont(self._info_font))
+                col_filter_indicator.setFont(cast(Any, QFont(self._info_font)))
         except Exception as exc:
             logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
         col_filter_indicator.setToolTip(
@@ -1306,7 +1306,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
 
-        tab_layout.addLayout(pagination_filters_layout)
+        tab_layout.addLayout(cast(Any, pagination_filters_layout))
 
         filters_summary_frame = None
         filters_summary_label = None
@@ -1316,13 +1316,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
-            summary_layout = QHBoxLayout(filters_summary_frame)
+            summary_layout = QHBoxLayout(cast(Any, filters_summary_frame))
             summary_layout.setContentsMargins(6, 4, 6, 4)
             summary_layout.setSpacing(8)
             filters_summary_label = QLabel("Nenhum filtro ativo")
             if self._info_font is not None:
                 try:
-                    filters_summary_label.setFont(QFont(self._info_font))
+                    filters_summary_label.setFont(cast(Any, QFont(self._info_font)))
                 except Exception as exc:
                     logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
@@ -1348,11 +1348,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 undo_filter_btn.setStyleSheet(self._week_label_style)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no botao undo de filtros: %s", exc)
-            summary_layout.addWidget(clear_all_filters_btn, 0)
-            summary_layout.addWidget(export_list_btn, 0)
-            summary_layout.addWidget(undo_filter_btn, 0)
-            summary_layout.addWidget(filters_summary_label, 1)
-            tab_layout.addWidget(filters_summary_frame)
+            summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
+            summary_layout.addWidget(cast(Any, export_list_btn), 0)
+            summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
+            summary_layout.addWidget(cast(Any, filters_summary_label), 1)
+            tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
             try:
                 self._update_undo_button_state()
@@ -1415,12 +1415,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         table_widget.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
         table_widget.customContextMenuRequested.connect(self.show_context_menu)
 
-        tab_layout.addWidget(table_widget)
+        tab_layout.addWidget(cast(Any, table_widget))
 
         # Details + column filters
         bottom_layout = QHBoxLayout()
         details_group = QGroupBox("Detalhes da SSA Selecionada")
-        details_layout = QVBoxLayout(details_group)
+        details_layout = QVBoxLayout(cast(Any, details_group))
         details_layout.setContentsMargins(2, 2, 2, 2)
         details_layout.setSpacing(2)
         details_text = QTextBrowser()
@@ -1429,7 +1429,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
         try:
-            details_text.viewport().setAutoFillBackground(False)
+            details_viewport = details_text.viewport()
+            if details_viewport is not None:
+                details_viewport.setAutoFillBackground(False)
         except Exception as exc:
             logger.debug("Falha ao configurar preenchimento do viewport de detalhes: %s", exc)
         details_text.setReadOnly(True)
@@ -1439,56 +1441,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             details_text.anchorClicked.connect(self._on_details_anchor_clicked)
         except Exception as exc:
             logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
-        details_layout.addWidget(details_text)
-        bottom_layout.addWidget(details_group, 2)
+        details_layout.addWidget(cast(Any, details_text))
+        bottom_layout.addWidget(cast(Any, details_group), 2)
 
         col_filters_group = QGroupBox("Filtros por Coluna")
-        col_filters_outer = QVBoxLayout(col_filters_group)
+        col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
         col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
         try:
             col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
         except Exception as exc:
             logger.debug("Falha ao aplicar estilo da dica de filtros por coluna: %s", exc)
-        col_filters_outer.addWidget(col_filters_hint)
+        col_filters_outer.addWidget(cast(Any, col_filters_hint))
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
-        col_filters_list_layout = QVBoxLayout(col_filters_container)
-        col_filters_scroll.setWidget(col_filters_container)
-        col_filters_outer.addWidget(col_filters_scroll, 1)
+        col_filters_list_layout = QVBoxLayout(cast(Any, col_filters_container))
+        col_filters_scroll.setWidget(cast(Any, col_filters_container))
+        col_filters_outer.addWidget(cast(Any, col_filters_scroll), 1)
         footer = QHBoxLayout()
         footer.addStretch()
         add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
         add_column_filter_btn.setMaximumWidth(260)
         add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
-        footer.addWidget(add_column_filter_btn)
+        footer.addWidget(cast(Any, add_column_filter_btn))
         footer.addSpacing(8)
         clear_all_btn = QPushButton("Limpar todos filtros de colunas")
         clear_all_btn.setMaximumWidth(260)
         clear_all_btn.clicked.connect(self._clear_all_column_filters)
-        footer.addWidget(clear_all_btn)
+        footer.addWidget(cast(Any, clear_all_btn))
         footer.addStretch()
-        col_filters_outer.addLayout(footer)
+        col_filters_outer.addLayout(cast(Any, footer))
 
         right_col_widget = QWidget()
-        right_col = QVBoxLayout(right_col_widget)
+        right_col = QVBoxLayout(cast(Any, right_col_widget))
         right_col.setContentsMargins(0, 0, 0, 0)
         if tab_kind == "filters":
             adv_group, adv_ctx = self._build_advanced_filters_panel()
-            right_col.addWidget(adv_group, 1)
+            right_col.addWidget(cast(Any, adv_group), 1)
             col_filters_group.setVisible(False)
-            right_col.addWidget(col_filters_group)
+            right_col.addWidget(cast(Any, col_filters_group))
             # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
-            bottom_layout.addWidget(right_col_widget, 3)
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
         else:
-            right_col.addWidget(col_filters_group)
+            right_col.addWidget(cast(Any, col_filters_group))
             # CORRECAO 2026-01-08: Aba SSAs com proporcao 50/50 (igual stretch)
             # Detalhes ja tem stretch=2, filtros coluna tambem com stretch=2
-            bottom_layout.addWidget(right_col_widget, 2)
+            bottom_layout.addWidget(cast(Any, right_col_widget), 2)
 
         tab_layout.addSpacing(12)
-        tab_layout.addLayout(bottom_layout)
+        tab_layout.addLayout(cast(Any, bottom_layout))
 
         ctx.update(
             {
