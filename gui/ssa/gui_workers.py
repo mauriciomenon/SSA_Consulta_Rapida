@@ -643,7 +643,8 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._widths_computed_for_df_hash = None
     try:
         window.clear_filter_button.setEnabled(window._has_any_active_filters())
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao avaliar filtros ativos; habilitando botao de limpeza por fallback: %s", exc)
         window.clear_filter_button.setEnabled(True)
     window._refresh_after_filter_change()
     try:
@@ -680,7 +681,8 @@ def _mask_db_path(error_msg: str, db_path: str | None) -> str:
             if candidate_str:
                 msg = str(msg).replace(candidate_str, "<db_path>")
         return msg
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao mascarar db_path em mensagem de erro; retornando texto bruto: %s", exc)
         return error_msg
 
 
