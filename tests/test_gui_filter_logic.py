@@ -298,6 +298,40 @@ class TestGUIFilterLogic:
         assert self.window._adv_options_dirty is False
         assert refresh_mock.call_count >= 1
 
+    def test_clear_filter_preserves_column_filters_and_result_set(self):
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+
+        self.window.search_input.setText("Teste")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
+        assert Counter(self._extract_visible_ssa()) == Counter([1])
+        assert self.window.clear_filter_button.isEnabled() is True
+
+    def test_clear_filter_preserves_exclude_ste_sca_state(self):
+        self.window._on_exclude_ste_sca_toggled(True)
+        self.window.search_input.setText("Teste")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 4, 5])
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._exclude_ste_sca is True
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 4, 5])
+        assert self.window.clear_filter_button.isEnabled() is True
+
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)
@@ -942,6 +976,27 @@ class TestGUIFilterLogic:
             checkbox = ctx.get("exclude_ste_checkbox")
             if checkbox is not None:
                 assert checkbox.isChecked() is False
+        assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_clear_all_filters_global_resets_full_filter_state_matrix(self):
+        self.window.search_input.setText("Teste A")
+        self.window._active_column_filters["descricao_ssa"] = "Teste"
+        self.window._on_exclude_ste_sca_toggled(True)
+        self.window._advanced_filters = {"situacao": ["STE"]}
+        self.window._advanced_filters_active = True
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        for ctx in self.window._tab_contexts:
+            assert ctx["search_input"].text().strip() == ""
+        assert all(not str(v).strip() for v in self.window._active_column_filters.values())
+        assert self.window._exclude_ste_sca is False
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is False
 
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
