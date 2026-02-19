@@ -1210,11 +1210,9 @@ class FilterGUISSAMixin:
         """Atualiza o resumo de filtros ativos na interface"""
         # Coleta filtros ativos
         active_filters = []
-        tab_kind = getattr(self, "_current_tab_kind", None)
-        show_basic = tab_kind != "filters"
 
         # Filtro de busca geral
-        if show_basic and hasattr(self, 'search_input') and self.search_input.text().strip():
+        if hasattr(self, 'search_input') and self.search_input.text().strip():
             active_filters.append(f"Busca: '{self.search_input.text().strip()}'")
 
         def _display_name(col: str) -> str:
@@ -1230,11 +1228,11 @@ class FilterGUISSAMixin:
 
         # Filtro OU dedicado (exibição)
         or_text = str(getattr(self, '_dedicated_or_text', '') or '').strip()
-        if show_basic and or_text:
+        if or_text:
             active_filters.append(f"Filtro OU: {self._format_column_filter_display_value(or_text)}")
 
         # Filtros de coluna (exibição)
-        if show_basic and hasattr(self, '_active_column_filters') and self._active_column_filters:
+        if hasattr(self, '_active_column_filters') and self._active_column_filters:
             processed_groups = set()
             for group in getattr(self, '_column_or_groups', []):
                 if not group.get('values'):
@@ -1343,7 +1341,7 @@ class FilterGUISSAMixin:
                 macro_label = "SSAs para baixar" if macro_val == "ssas_para_baixar" else str(macro_val)
                 active_filters.append(f"Macro: {macro_label}")
 
-        if show_basic and getattr(self, '_exclude_ste_sca', False):
+        if getattr(self, '_exclude_ste_sca', False):
             active_filters.append("situacao!=STE/SCA")
 
         # Monta texto do resumo
