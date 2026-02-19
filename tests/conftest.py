@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import os
@@ -98,4 +99,3 @@ def normalization_cases() -> list[tuple[str | int | None, str | None]]:
         ("202512345678", "202512345"),
         ("2101234", "202101234"),  # caso especial 7 dígitos iniciando 21
     ]
-

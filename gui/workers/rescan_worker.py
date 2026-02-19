@@ -5,7 +5,6 @@ import os
 import sys
 import logging
 import threading
-from contextlib import suppress
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # Add project root to path for imports
@@ -72,12 +71,19 @@ class RescanWorker(QThread):
             if not self._logger_attached:
                 return
             if self.log_handler in self.logger.handlers:
-                self.logger.removeHandler(self.log_handler)
+                try:
+                    self.logger.removeHandler(self.log_handler)
+                except Exception as exc:
+                    logger.warning("Falha ao remover handler de logger do reescaneamento: %s", exc)
             if _LOGGER_REFCOUNT > 0:
                 _LOGGER_REFCOUNT -= 1
             if _LOGGER_REFCOUNT == 0 and _LOGGER_PREV_LEVEL is not None:
-                self.logger.setLevel(_LOGGER_PREV_LEVEL)
-                _LOGGER_PREV_LEVEL = None
+                try:
+                    self.logger.setLevel(_LOGGER_PREV_LEVEL)
+                except Exception as exc:
+                    logger.warning("Falha ao restaurar nivel de logger do reescaneamento: %s", exc)
+                else:
+                    _LOGGER_PREV_LEVEL = None
             self._logger_attached = False
 
     def _progress_callback(self, event_type, data):
@@ -151,15 +157,18 @@ class RescanWorker(QThread):
             else:
                 self.finished_error.emit("Importacao concluida mas nenhum dado foi atualizado")
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Erro inesperado no reescaneamento")
-            self.error_line.emit("Erro ao executar reescaneamento.")
-            self.finished_error.emit("Erro ao executar reescaneamento.")
+            message = f"Erro ao executar reescaneamento: {exc}"
+            self.error_line.emit(message)
+            self.finished_error.emit(message)
         finally:
-            # Ensure we never deadlock the GUI due to cleanup failures here.
+            # Keep cleanup best-effort but never silence a real detach failure.
             if self._logger_attached:
-                with suppress(Exception):
+                try:
                     self._detach_logger()
+                except Exception as exc:
+                    logger.warning("Falha ao limpar logger do reescaneamento: %s", exc)
 
     def stop(self):
         """Request thread to stop."""

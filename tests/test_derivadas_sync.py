@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import csv
+import os
 import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Any, cast
 
+import pandas as pd
 import pytest
 
 import armazenamento.derivadas_sync as derivadas_sync
@@ -180,6 +183,156 @@ def test_sync_resolves_sheet_column_aliases(temp_db, tmp_path: Path):
     assert row == ("202500001", "202500002", 2, "Derivada da")
 
 
+def test_sync_merges_edges_from_multiple_sheet_files(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+
+    sheet_one = tmp_path / "derivadas_part_1.csv"
+    with sheet_one.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+
+    sheet_two = tmp_path / "derivadas_part_2.csv"
+    with sheet_two.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500003", "relation_label": "Derivada da"})
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_files=[str(sheet_one), str(sheet_two)],
+    )
+
+    assert report["sheet_stats"]["accepted_edges"] == 2
+    assert report["sheet_stats"]["files_count"] == 2
+    assert report["merge_stats"]["merged_edges"] == 2
+    assert sorted(report["sheet_files"]) == sorted([str(sheet_one), str(sheet_two)])
+    file_reports = report["sheet_file_reports"]
+    assert len(file_reports) == 2
+    assert all(bool(entry["has_parse_evidence"]) for entry in file_reports)
+    evidence = report["sheet_evidence"]
+    assert evidence["files_total"] == 2
+    assert evidence["files_with_evidence"] == 2
+    assert evidence["files_without_evidence"] == []
+    assert evidence["is_complete"] is True
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            ORDER BY parent_ssa, child_ssa
+            """
+        ).fetchall()
+
+    assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
+def test_sync_deduplicates_sheet_files_across_relative_and_absolute_paths(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "derivadas.csv"
+    with sheet_file.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["parent_ssa", "child_ssa", "relation_label"])
+        writer.writeheader()
+        writer.writerow({"parent_ssa": "202500001", "child_ssa": "202500002", "relation_label": "Derivada da"})
+
+    relative = os.path.relpath(str(sheet_file.resolve()), start=str(Path.cwd()))
+    absolute = str(sheet_file.resolve())
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_files=[relative, absolute],
+    )
+
+    assert report["sheet_stats"]["accepted_edges"] == 1
+    assert report["sheet_stats"]["files_count"] == 1
+    assert report["sheet_files"] == [absolute]
+    assert len(report["sheet_file_reports"]) == 1
+    assert report["sheet_file_reports"][0]["sheet_file"] == absolute
+    assert report["sheet_file_reports"][0]["has_parse_evidence"] is True
+
+
+def test_sync_parses_special_visual_derivadas_sheet_layout(temp_db, tmp_path: Path):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", None),
+            ("202500003", None),
+        ],
+    )
+
+    sheet_file = tmp_path / "SSAs Derivadas e Relacionadas_13-02-2026_0124PM.xlsx"
+    visual_rows = [
+        [None, None, None, "SSAs Derivadas e Relacionadas", None, None, None, None, None, None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Localizacao",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+            "Numero da SSA",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+            "Relacao",
+            "Numero da SSA",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+        ],
+        ["202500001", None, None, None, None, None, None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, "202500001", None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, "Sem derivadas em visualizacao simplificada.", None, None, None, None, None, None, None, None],
+        [None, None, None, None, None, "202500002", None, None, None, "Derivada da", "202500001", None, None, None],
+        [None, None, None, None, None, "202500003", None, None, None, "Derivada da", "202500001", None, None, None],
+    ]
+    pd.DataFrame(visual_rows).to_excel(sheet_file, index=False, header=False)
+
+    report = sync_derivadas(
+        temp_db,
+        include_db_source=False,
+        sheet_file=str(sheet_file),
+    )
+
+    assert report["sheet_stats"]["special_layout_detected"] == 1
+    assert report["sheet_stats"]["accepted_edges"] == 2
+    assert report["sheet_stats"]["informational_rows_skipped"] >= 3
+    assert report["sheet_stats"]["invalid_parent"] == 0
+    assert report["merge_stats"]["merged_edges"] == 2
+    assert len(report["sheet_file_reports"]) == 1
+    assert report["sheet_file_reports"][0]["has_parse_evidence"] is True
+    assert report["sheet_evidence"]["is_complete"] is True
+
+    with sqlite3.connect(temp_db) as conn:
+        rows = conn.execute(
+            """
+            SELECT parent_ssa, child_ssa
+            FROM ssa_derivada_matrix
+            WHERE active = 1
+            ORDER BY parent_ssa, child_ssa
+            """
+        ).fetchall()
+
+    assert rows == [("202500001", "202500002"), ("202500001", "202500003")]
+
+
 def test_full_rebuild_hard_removes_stale_matrix_rows(temp_db):
     _insert_ssa_rows(
         temp_db,
@@ -274,7 +427,7 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
         begin_called.set()
         return original_begin(conn)
 
-    derivadas_sync._begin_derivadas_write_transaction = patched_begin  # type: ignore[assignment]
+    derivadas_sync._begin_derivadas_write_transaction = cast(Any, patched_begin)
 
     def release_lock() -> None:
         begin_called.wait(timeout=2.0)
@@ -286,7 +439,7 @@ def test_sync_succeeds_after_short_write_lock_contention(temp_db):
     try:
         report = sync_derivadas(temp_db)
     finally:
-        derivadas_sync._begin_derivadas_write_transaction = original_begin  # type: ignore[assignment]
+        derivadas_sync._begin_derivadas_write_transaction = cast(Any, original_begin)
         releaser.join(timeout=2.0)
 
     assert report["active_edges"] == 1
@@ -415,4 +568,58 @@ def test_sync_rolls_back_partial_writes_and_persists_error_run(temp_db, monkeypa
     assert matrix_total == 0
     assert closure_total == 0
     assert summary_total == 0
+    assert latest_run == ("error", 0)
+
+
+def test_sync_aborts_when_integrity_check_fails(temp_db, monkeypatch):
+    _insert_ssa_rows(
+        temp_db,
+        [
+            ("202500001", None),
+            ("202500002", "202500001"),
+        ],
+    )
+
+    def _fake_integrity_scan(_conn):
+        return {
+            "is_consistent": False,
+            "issue_counts": {
+                "missing_source_pairs": 1,
+                "source_without_matrix_pairs": 0,
+                "flag_mismatch_pairs": 0,
+                "invalid_matrix_pairs": 0,
+                "closure_self_rows": 0,
+                "summary_missing_nodes": 0,
+                "summary_extra_nodes": 0,
+            },
+            "matrix_active_edges": 1,
+            "source_active_edges": 1,
+            "summary_nodes": 2,
+            "samples": {
+                "missing_source_pairs": ["202500001->202500002"],
+                "source_without_matrix_pairs": [],
+                "flag_mismatch_pairs": [],
+                "invalid_matrix_pairs": [],
+                "summary_missing_nodes": [],
+                "summary_extra_nodes": [],
+            },
+        }
+
+    monkeypatch.setattr(derivadas_sync, "_scan_materialization_integrity", _fake_integrity_scan)
+
+    with pytest.raises(RuntimeError, match="integrity check failed"):
+        sync_derivadas(temp_db)
+
+    with sqlite3.connect(temp_db) as conn:
+        matrix_total = conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix").fetchone()[0]
+        latest_run = conn.execute(
+            """
+            SELECT status, active_edges
+            FROM ssa_derivada_sync_run
+            ORDER BY sync_run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    assert matrix_total == 0
     assert latest_run == ("error", 0)

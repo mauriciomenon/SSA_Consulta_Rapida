@@ -48,3 +48,27 @@ def test_rescan_progress_dialog_reject_after_finished_does_not_emit_cancel():
     QApplication.processEvents()
 
     assert emitted == []
+
+
+def test_rescan_progress_dialog_set_finished_failure_without_message_shows_default_error():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    dlg.set_finished(False, "")
+    QApplication.processEvents()
+
+    assert "Reescaneamento falhou" in dlg.status_label.text()
+    assert "Erro nao detalhado" in dlg.status_label.text()
+    assert "ERRO FINAL" in dlg.error_text.toPlainText()
+
+
+def test_rescan_progress_dialog_update_progress_clamps_percentage():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+
+    dlg.update_progress(-10, "negativo")
+    assert dlg.progress_bar.value() == 0
+
+    dlg.update_progress(150, "alto")
+    assert dlg.progress_bar.value() == 100

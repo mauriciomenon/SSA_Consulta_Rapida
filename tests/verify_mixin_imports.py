@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: F401
 """
 Script de verificação completa de imports em mixins.
 Detecta imports faltantes que são efeito colateral de separar código em mixins.

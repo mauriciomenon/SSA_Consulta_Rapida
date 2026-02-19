@@ -47,31 +47,32 @@ def main() -> int:
         fh.flush()
         proc = subprocess.Popen(base_cmd, cwd=str(REPO_ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         assert proc.stdout is not None
-    try:
-      for line in proc.stdout:
-        fh.write(line)
-        fh.flush()
-        # também ecoa no stdout para feedback em tempo real
         try:
-          sys.stdout.write(line)
+            for line in proc.stdout:
+                fh.write(line)
+                fh.flush()
+                # também ecoa no stdout para feedback em tempo real
+                try:
+                    sys.stdout.write(line)
+                except KeyboardInterrupt:
+                    # Se o usuário interromper enquanto escreve no stdout, ignoramos
+                    pass
         except KeyboardInterrupt:
-          # Se o usuário interromper enquanto escreve no stdout, ignoramos
-          pass
-    except KeyboardInterrupt:
-      fh.write("\n# WARNING: KeyboardInterrupt capturado durante leitura do stdout do pytest; aguardando término do processo.\n")
-    finally:
-      try:
-        proc.wait(timeout=10)
-      except subprocess.TimeoutExpired:
-        fh.write('\n# Pytest não finalizou em 10s após interrupção; terminando forçadamente.\n')
-        proc.terminate()
-        try:
-          proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-          fh.write('\n# Forçando kill do processo pytest.\n')
-          proc.kill()
-        fh.write(f"\nExit code: {proc.returncode}\n")
-        return proc.returncode
+            fh.write("\n# WARNING: KeyboardInterrupt capturado durante leitura do stdout do pytest; aguardando término do processo.\n")
+        finally:
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                fh.write('\n# Pytest não finalizou em 10s após interrupção; terminando forçadamente.\n')
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    fh.write('\n# Forçando kill do processo pytest.\n')
+                    proc.kill()
+
+            fh.write(f"\nExit code: {proc.returncode}\n")
+            return int(proc.returncode or 0)
 
 
 if __name__ == '__main__':  # pragma: no cover

@@ -1,11 +1,14 @@
 # interface/command_handlers.py 20250723 163500 (v1.0 - Funcoes de Tratamento de Comandos)
 import os
 import json
+import logging
 
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
 from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
+
+logger = logging.getLogger(__name__)
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
@@ -14,9 +17,14 @@ def _load_mappings_handler(file_name: str) -> dict:
     path = os.path.join('config', file_name)
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning("Falha ao carregar mapping '%s': %s", path, exc)
         return {}
+    if isinstance(data, dict):
+        return data
+    logger.warning("Mapping '%s' em formato invalido; usando fallback vazio.", path)
+    return {}
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
@@ -24,8 +32,10 @@ def _save_settings_handler(settings: dict):
         # Delegate to core.config_manager for atomic writes and consistent formatting.
         save_settings(settings)
         print("Configuracoes salvas com sucesso.")
-    except Exception as e:  # noqa: BLE001
+    except (OSError, ValueError, TypeError, RuntimeError) as e:
+        logger.exception("Falha ao salvar configuracoes da CLI")
         print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
+        raise
 
 def print_help():
     """Exibe a mensagem de ajuda para os comandos da CLI."""
@@ -112,7 +122,11 @@ def _handle_column_visibility(settings: dict):
                 selected_col = column_names[idx]
                 current_state = column_visibility.get(selected_col, True)
                 column_visibility[selected_col] = not current_state
-                _save_settings_handler(settings) # Usar a propria funcao de save
+                try:
+                    _save_settings_handler(settings) # Usar a propria funcao de save
+                except (OSError, ValueError, TypeError, RuntimeError):
+                    # Mantem menu interativo ativo mesmo com erro de persistencia.
+                    pass
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -161,7 +175,11 @@ def _handle_column_widths(settings: dict):
                 else:
                     print("Entrada invalida. Por favor, digite um numero ou 'Auto'.")
 
-                _save_settings_handler(settings) # Usar a propria funcao de save
+                try:
+                    _save_settings_handler(settings) # Usar a propria funcao de save
+                except (OSError, ValueError, TypeError, RuntimeError):
+                    # Mantem menu interativo ativo mesmo com erro de persistencia.
+                    pass
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -186,7 +204,11 @@ def _handle_user_preferences(settings: dict):
         if choice == '1':
             current_state = user_preferences.get('auto_scroll_to_end', False)
             user_preferences['auto_scroll_to_end'] = not current_state
-            _save_settings_handler(settings) # Usar a propria funcao de save
+            try:
+                _save_settings_handler(settings) # Usar a propria funcao de save
+            except (OSError, ValueError, TypeError, RuntimeError):
+                # Mantem menu interativo ativo mesmo com erro de persistencia.
+                pass
             print(f"Rolagem automatica agora esta {'ATIVADA' if not current_state else 'DESATIVADA'}.")
         elif choice == '2':
             _handle_default_filters(settings)
@@ -213,7 +235,11 @@ def _handle_default_filters(settings: dict):
             new_filter = input("Digite o novo termo de filtro para adicionar: ").strip()
             if new_filter and new_filter not in default_filters:
                 default_filters.append(new_filter)
-                _save_settings_handler(settings) # Usar a propria funcao de save
+                try:
+                    _save_settings_handler(settings) # Usar a propria funcao de save
+                except (OSError, ValueError, TypeError, RuntimeError):
+                    # Mantem menu interativo ativo mesmo com erro de persistencia.
+                    pass
                 print(f"'{new_filter}' adicionado aos filtros padrao.")
             else:
                 print("Termo invalido ou ja existente.")
@@ -229,7 +255,11 @@ def _handle_default_filters(settings: dict):
                 filter_index = int(input("Digite o numero do filtro para remover: ").strip()) - 1
                 if 0 <= filter_index < len(default_filters):
                     removed_filter = default_filters.pop(filter_index)
-                    _save_settings_handler(settings) # Usar a propria funcao de save
+                    try:
+                        _save_settings_handler(settings) # Usar a propria funcao de save
+                    except (OSError, ValueError, TypeError, RuntimeError):
+                        # Mantem menu interativo ativo mesmo com erro de persistencia.
+                        pass
                     print(f"'{removed_filter}' removido dos filtros padrao.")
                 else:
                     print("Numero de filtro invalido.")

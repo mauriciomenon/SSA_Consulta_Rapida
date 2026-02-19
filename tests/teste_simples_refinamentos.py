@@ -24,7 +24,7 @@ def teste_cache_operacoes():
     for i in range(1000):
         # Simula a operação original: list comprehension + set conversion repetida
         df_columns_set = set(test_columns)
-        expandable_in_view = [col for col in expandable_columns if col in df_columns_set]
+        [col for col in expandable_columns if col in df_columns_set]
     time_without_cache = time.time() - start_time
 
     # Teste com cache (operação otimizada)
@@ -39,7 +39,7 @@ def teste_cache_operacoes():
         expandable_key = f"expandable_{cache_key}"
         if expandable_key not in cache:
             cache[expandable_key] = [col for col in expandable_columns if col in df_columns_set]
-        expandable_in_view = cache[expandable_key]
+        cache[expandable_key]
     time_with_cache = time.time() - start_time
 
     improvement = (time_without_cache / time_with_cache) if time_with_cache > 0 else float('inf')

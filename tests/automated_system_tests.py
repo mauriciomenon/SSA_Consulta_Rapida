@@ -11,14 +11,12 @@ import sys
 import subprocess
 import tempfile
 import shutil
-import sqlite3
 import pandas as pd
 import json
-import time
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 
 # Adicionar diretório raiz ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,7 +40,7 @@ class SystemTestResult:
         self.details = {}
         self.duration = None
 
-    def complete(self, success: bool, error_message: str = None, **details):
+    def complete(self, success: bool, error_message: Optional[str] = None, **details):
         """Completa o teste com resultado."""
         self.end_time = datetime.now()
         self.duration = self.end_time - self.start_time
@@ -65,12 +63,12 @@ class SystemTestResult:
 class AutomatedSystemTester:
     """Executor de testes automatizados do sistema."""
 
-    def __init__(self, base_dir: str = None):
+    def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = base_dir or os.getcwd()
         self.test_results = []
-        self.temp_dir = None
+        self.temp_dir: str = ""
         self.original_db_path = "data/ssas.db"
-        self.test_db_path = None
+        self.test_db_path: str = ""
 
     def setup_test_environment(self) -> bool:
         """Configura ambiente de teste isolado."""
@@ -343,7 +341,7 @@ class AutomatedSystemTester:
                 pyqt_available = False
 
             result.complete(
-                module_tests.get('gui_ssa_import', False),
+                bool(module_tests.get('gui_ssa_import', False)),
                 module_tests=module_tests,
                 pyqt_available=pyqt_available
             )
@@ -646,7 +644,7 @@ class AutomatedSystemTester:
             # Limpar ambiente de teste
             self.cleanup_test_environment()
 
-    def generate_test_report(self, test_summary: Dict, output_file: str = None) -> str:
+    def generate_test_report(self, test_summary: Dict, output_file: Optional[str] = None) -> str:
         """Gera relatório detalhado dos testes."""
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -755,7 +753,7 @@ def main():
     test_summary = tester.run_all_tests()
 
     # Gerar relatório
-    report_file = tester.generate_test_report(test_summary)
+    tester.generate_test_report(test_summary)
 
     # Retornar código de saída baseado no sucesso
     return 0 if test_summary.get('success', False) else 1

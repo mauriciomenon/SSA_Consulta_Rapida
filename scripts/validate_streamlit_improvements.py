@@ -16,7 +16,7 @@ from collections import OrderedDict
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from core.app_logic import filter_dataframe, parse_search_terms
+from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
 
 
 class SimpleFilterCache:
@@ -181,7 +181,7 @@ def test_streamlit_cache_performance():
     
     stats = cache.get_stats()
     
-    print(f"\n   STAT Resultados:")
+    print("\n   STAT Resultados:")
     print(f"     • Tempo médio (miss): {avg_miss*1000:.1f}ms")
     print(f"     • Tempo médio (hit): {avg_hit*1000:.2f}ms")
     print(f"     • Speedup: {speedup:.0f}x")
@@ -206,12 +206,12 @@ def test_cache_with_different_datasets():
         
         # Primeira execução (miss)
         start_miss = time.perf_counter()
-        result1 = apply_streamlit_filters(df, *filter_params, cache)
+        apply_streamlit_filters(df, *filter_params, cache)
         miss_time = time.perf_counter() - start_miss
         
         # Segunda execução (hit)
         start_hit = time.perf_counter()
-        result2 = apply_streamlit_filters(df, *filter_params, cache)
+        apply_streamlit_filters(df, *filter_params, cache)
         hit_time = time.perf_counter() - start_hit
         
         speedup = miss_time / hit_time if hit_time > 0 else float('inf')
@@ -252,7 +252,7 @@ def test_filter_complexity():
         
         # Segunda execução (cache hit)
         start = time.perf_counter()
-        result2 = apply_streamlit_filters(df, search, situacoes, executores, emissores, cache)
+        apply_streamlit_filters(df, search, situacoes, executores, emissores, cache)
         second_time = time.perf_counter() - start
         
         print(f"   Filtro {i}: {len(result1):4d} resultados │ {first_time*1000:5.1f}ms → {second_time*1000:5.2f}ms")

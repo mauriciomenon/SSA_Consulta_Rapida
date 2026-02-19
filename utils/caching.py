@@ -10,7 +10,6 @@ import json
 import hashlib
 import logging
 import tempfile
-from contextlib import suppress
 from typing import List, Dict, Union, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -41,11 +40,15 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
         tmp_path = None
     finally:
         if fd is not None:
-            with suppress(Exception):
+            try:
                 os.close(fd)
+            except OSError as exc:
+                logger.warning("Failed to close cache temp file descriptor for '%s': %s", cache_file, exc)
         if tmp_path:
-            with suppress(Exception):
+            try:
                 os.remove(tmp_path)
+            except OSError as exc:
+                logger.warning("Failed to remove cache temp file '%s': %s", tmp_path, exc)
 
 
 def _safe_file_stat(file_path: str) -> Optional[Tuple[int, int]]:

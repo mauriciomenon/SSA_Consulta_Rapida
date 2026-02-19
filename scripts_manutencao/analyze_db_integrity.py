@@ -26,7 +26,7 @@ def analyze_database_integrity():
 
     duplicates = pd.read_sql_query(duplicates_query, conn)
     if len(duplicates) > 0:
-        print(f"\nERR DUPLICATAS ENCONTRADAS:")
+        print("\nERR DUPLICATAS ENCONTRADAS:")
         print(f"   {len(duplicates)} números de SSA duplicados")
         print("   Top 10 mais duplicados:")
         for _, row in duplicates.head().iterrows():
@@ -46,7 +46,7 @@ def analyze_database_integrity():
         print("\nOK Nenhuma duplicata encontrada por numero_ssa")
 
     # 3. Verificar campos vazios críticos
-    print(f"\nINFO VERIFICAÇÃO DE CAMPOS OBRIGATÓRIOS:")
+    print("\nINFO VERIFICACAO DE CAMPOS OBRIGATORIOS:")
 
     critical_fields = [
         'numero_ssa', 'situacao_ssa', 'descricao_da_ssa',
@@ -89,21 +89,22 @@ def analyze_database_integrity():
         """, conn)
 
         if len(import_dates) > 0:
-            print(f"\n IMPORTAÇÕES RECENTES:")
+            print("\n IMPORTACOES RECENTES:")
             for _, row in import_dates.iterrows():
                 print(f"   {row['date']}: {row['count']:,} registros")
-    except:
-        print(f"\nWARN Campo data_importacao não encontrado")
+    except Exception as exc:
+        print(f"DEBUG Detalhe da consulta data_importacao: {exc}")
+        print("\nWARN Campo data_importacao nao encontrado")
 
     conn.close()
 
     # 6. Recomendações
-    print(f"\nFIX RECOMENDAÇÕES:")
+    print("\nFIX RECOMENDACOES:")
     if len(duplicates) > 0:
         print(f"   1. Remover {total_duplicated:,} registros duplicados")
-    print(f"   2. Implementar verificação de duplicatas antes da inserção")
-    print(f"   3. Validar campos obrigatórios na importação")
-    print(f"   4. Adicionar índices únicos para prevenir duplicatas futuras")
+    print("   2. Implementar verificacao de duplicatas antes da insercao")
+    print("   3. Validar campos obrigatorios na importacao")
+    print("   4. Adicionar indices unicos para prevenir duplicatas futuras")
 
     return {
         'total_records': total_records,
@@ -114,5 +115,5 @@ def analyze_database_integrity():
 
 if __name__ == "__main__":
     result = analyze_database_integrity()
-    print(f"\n" + "=" * 60)
-    print("OK Análise concluída!")
+    print("\n" + "=" * 60)
+    print("OK Analise concluida!")

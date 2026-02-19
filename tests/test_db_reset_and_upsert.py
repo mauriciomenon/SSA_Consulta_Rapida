@@ -1,8 +1,5 @@
 import os
 import pandas as pd
-import sqlite3
-import tempfile
-import shutil
 
 from armazenamento.database import (
     get_db_connection,

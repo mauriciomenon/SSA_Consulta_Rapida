@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import pandas as pd
 from armazenamento.database import normalize_numero_ssa_dataframe, _normalize_numero_ssa_value
 
@@ -22,7 +23,6 @@ def test_normalize_numero_ssa_dataframe_apply():
 # tests/test_ssa_normalization_db.py
 import os
 import sys
-import pandas as pd
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)

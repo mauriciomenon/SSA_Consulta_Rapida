@@ -12,7 +12,7 @@ import logging
 import builtins
 
 try:
-    from tabulate import tabulate  # type: ignore
+    from tabulate import tabulate
     _TABULATE_AVAILABLE = True
 except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
     _TABULATE_AVAILABLE = False
@@ -50,7 +50,7 @@ except ModuleNotFoundError:  # pragma: no cover - depende do ambiente
             if isinstance(row, (list, tuple)):
                 cells = list(row)
             elif hasattr(row, 'tolist'):
-                cells = list(row.tolist())  # type: ignore[arg-type]
+                cells = list(row.tolist())
             else:
                 cells = [row]
             if column_count:
@@ -128,7 +128,12 @@ class EnhancedTablePrinter:
         """
         if df.empty:
             print("Nenhum resultado para exibir.")
-            return
+            return {
+                'next_page': None,
+                'total_pages': 0,
+                'rendered_pages': 0,
+                'page_size': 0,
+            }
 
         # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
         try:
@@ -155,7 +160,12 @@ class EnhancedTablePrinter:
 
         if not selected_columns or len(selected_columns) <= 1:
             print("Nenhuma coluna adequada para exibição encontrada.")
-            return
+            return {
+                'next_page': None,
+                'total_pages': 0,
+                'rendered_pages': 0,
+                'page_size': 0,
+            }
 
         # Prepara DataFrame de trabalho
         data_columns = [col for col in selected_columns if col != '#']
@@ -472,7 +482,12 @@ class EnhancedTablePrinter:
                     user_input = input(prompt).strip().lower()
                 except KeyboardInterrupt:
                     print("\n...exibição interrompida.")
-                    return
+                    return {
+                        'next_page': None,
+                        'total_pages': total_pages,
+                        'rendered_pages': rendered_pages,
+                        'page_size': page_size,
+                    }
 
                 if not user_input:
                     current_page += 1

@@ -117,7 +117,7 @@ class TestRobustLogging(unittest.TestCase):
         formatter = JSONFormatter(include_metrics=True)
         
         # Criar um record de teste
-        logger = logging.getLogger('test')
+        logging.getLogger('test')
         record = logging.LogRecord(
             name='test.module',
             level=logging.INFO,

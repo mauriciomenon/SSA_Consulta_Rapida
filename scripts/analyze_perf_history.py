@@ -4,7 +4,10 @@
  - reports/perf_history_plot.png (se matplotlib disponível)
 """
 from __future__ import annotations
-import json, time, os, statistics, math
+import json
+import time
+import statistics
+import math
 from pathlib import Path
 
 try:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# ruff: noqa: E402
 """
 Teste simples das melhorias de performance.
 2025-10-31T09:30:00

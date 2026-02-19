@@ -10,7 +10,7 @@ import pandas as pd
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-from extracao.extractor import extract_data_from_excel
+from extracao.extractor import extract_data_from_excel  # noqa: E402
 
 def diagnosticar_arquivos_problematicos():
     print(" DIAGNÓSTICO DOS ARQUIVOS PROBLEMÁTICOS")
@@ -43,14 +43,14 @@ def diagnosticar_arquivos_problematicos():
                 duplicados = df.index.duplicated().sum()
                 print(f"  WARN ÍNDICES DUPLICADOS: {duplicados}")
             else:
-                print(f"  OK Índices únicos")
+                print("  OK Índices únicos")
 
             # Verifica se tem colunas duplicadas
             if df.columns.duplicated().any():
                 col_dup = df.columns[df.columns.duplicated()].tolist()
                 print(f"  WARN COLUNAS DUPLICADAS: {col_dup}")
             else:
-                print(f"  OK Colunas únicas")
+                print("  OK Colunas únicas")
 
             # Amostra
             if len(df) > 0:
@@ -68,7 +68,7 @@ def diagnosticar_arquivos_problematicos():
                 print(f"  INFO Leitura direta: {len(df_raw)} registros")
 
                 if df_raw.index.duplicated().any():
-                    print(f"  WARN Índices duplicados na leitura direta!")
+                    print("  WARN Índices duplicados na leitura direta!")
 
                 if df_raw.columns.duplicated().any():
                     col_dup = df_raw.columns[df_raw.columns.duplicated()].tolist()

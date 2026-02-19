@@ -20,13 +20,15 @@ import time
 import shutil
 import threading
 from datetime import datetime, timezone
+from typing import Any
 
 # Ensure scripts directory is importable for helper modules
 _SCRIPT_DIR = os.path.dirname(__file__)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 try:
-    import pwsh_discovery
+    import pwsh_discovery as _pwsh_discovery
+    pwsh_discovery: Any | None = _pwsh_discovery
 except Exception:
     pwsh_discovery = None
 
@@ -106,6 +108,8 @@ def main():
 
     if getattr(args, "list_candidates", False):
         try:
+            if pwsh_discovery is None:
+                raise RuntimeError("pwsh_discovery module unavailable")
             c = pwsh_discovery.find_pwsh_candidates(os.getcwd())
             for p in c:
                 print(p)
@@ -116,6 +120,8 @@ def main():
     # If verbose, print discovered candidates before proceeding
     if getattr(args, "verbose", False):
         try:
+            if pwsh_discovery is None:
+                raise RuntimeError("pwsh_discovery module unavailable")
             c = pwsh_discovery.find_pwsh_candidates(os.getcwd())
             print("Detected pwsh/powershell candidates:")
             for p in c:
@@ -249,7 +255,7 @@ def main():
                                 if res.returncode != 0:
                                     # fallback to PowerShell Stop-Process
                                     pwsh = None
-                                    if pwsh_discovery:
+                                    if pwsh_discovery is not None:
                                         pwsh = pwsh_discovery.pick_pwsh(os.getcwd())
                                     if not pwsh:
                                         pwsh = shutil.which("pwsh") or shutil.which("powershell")

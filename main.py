@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from typing import Any, Optional, cast
 
 # CRITICAL FIX: PyOxidizer monkey patch for pandas delvewheel
 # pandas._libs uses __file__ which is None in PyOxidizer causing crash
@@ -25,11 +25,16 @@ if getattr(sys, 'oxidized', False):
     _original_import = builtins.__import__
     def _patched_import(name, *args, **kwargs):
         module = _original_import(name, *args, **kwargs)
-        if not hasattr(module, '__file__') or module.__file__ is None:
-            # Set a dummy __file__ for modules that need it
-            module.__file__ = os.path.join(os.path.dirname(sys.executable), f"{name.replace('.', os.sep)}.py")
+        module_name = getattr(module, "__name__", name)
+        if module_name == "pandas" or module_name.startswith("pandas."):
+            if not hasattr(module, '__file__') or module.__file__ is None:
+                # Set a dummy __file__ only for pandas modules in PyOxidizer mode.
+                module.__file__ = os.path.join(
+                    os.path.dirname(sys.executable),
+                    f"{name.replace('.', os.sep)}.py",
+                )
         return module
-    builtins.__import__ = _patched_import
+    builtins.__import__ = cast(Any, _patched_import)
 
 # Suppress pandas FutureWarnings about chained assignment
 import warnings
@@ -631,11 +636,19 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             logger.info("Acao=backfill selecionada. Encaminhando argumentos ao backfill: %s", backfill_args)
             try:
                 from scripts.migracao.backfill_reprocessar import main as backfill_main
-            except ModuleNotFoundError:
-                # garantir path root
+            except ModuleNotFoundError as exc:
+                missing_name = getattr(exc, "name", "")
+                expected_missing = {
+                    "scripts",
+                    "scripts.migracao",
+                    "scripts.migracao.backfill_reprocessar",
+                }
+                if missing_name not in expected_missing:
+                    raise
+                # garantir path root quando o pacote de backfill nao foi resolvido
                 if project_root not in sys.path:
                     sys.path.insert(0, project_root)
-                from scripts.migracao.backfill_reprocessar import main as backfill_main  # type: ignore
+                from scripts.migracao.backfill_reprocessar import main as backfill_main
             # Executa backfill (retorna exit code int)
             exit_code = backfill_main(backfill_args)
             logger.info("Backfill finalizado (exit_code=%s)", exit_code)
@@ -799,7 +812,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
                 window = SSAMainWindow()
-                window.show()  # type: ignore[attr-defined]
+                window.show()
                 # Executa o loop de eventos
                 app.exec()
             except Exception as e:

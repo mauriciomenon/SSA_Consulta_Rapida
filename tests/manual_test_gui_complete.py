@@ -26,7 +26,6 @@ print(f"[OK] Banco existe: {os.path.getsize(DB_PATH):,} bytes")
 print()
 print("[2] Importando DataLoaderWorker...")
 try:
-    from gui.workers.data_loader_worker import DataLoaderWorker
     from armazenamento.database import query_db
     print("[OK] Imports bem sucedidos")
 except Exception as e:
@@ -44,7 +43,7 @@ try:
         print("[ERRO] Query retornou DataFrame vazio")
         sys.exit(1)
 
-    print(f"[OK] Query funcionou:")
+    print("[OK] Query funcionou:")
     print(f"     - {len(df):,} linhas")
     print(f"     - {len(df.columns)} colunas")
     print(f"     - Primeiras 5 colunas: {list(df.columns)[:5]}")
@@ -65,7 +64,7 @@ if missing:
     print(f"[ERRO] Colunas faltando: {missing}")
     sys.exit(1)
 
-print(f"[OK] Todas as colunas essenciais presentes")
+print("[OK] Todas as colunas essenciais presentes")
 
 # Test 5: Sample data
 print()

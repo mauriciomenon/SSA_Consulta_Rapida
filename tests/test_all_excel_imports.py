@@ -6,7 +6,6 @@ Este teste verifica se cada arquivo pode ser importado corretamente.
 
 import os
 import sys
-import sqlite3
 import pandas as pd
 import tempfile
 import shutil
@@ -27,8 +26,8 @@ class ExcelImportTester:
     def __init__(self, docs_entrada_dir: str = "docs_entrada"):
         self.docs_entrada_dir = docs_entrada_dir
         self.test_results = []
-        self.temp_dir = None
-        self.test_db_path = None
+        self.temp_dir: str | None = None
+        self.test_db_path: str | None = None
 
     def setup_test_database(self) -> bool:
         """Configura banco de dados de teste."""
@@ -118,7 +117,7 @@ class ExcelImportTester:
                     'file_size_mb': os.path.getsize(file_path) / 1024 / 1024
                 }
 
-                print(f"  ERR Falhou: DataFrame vazio")
+                print("  ERR Falhou: DataFrame vazio")
                 return result
 
         except Exception as e:
@@ -145,25 +144,30 @@ class ExcelImportTester:
         start_time = datetime.now()
 
         try:
+            if self.test_db_path is None or self.temp_dir is None:
+                raise RuntimeError("Banco de teste nao configurado")
+            test_db_path = self.test_db_path
+            temp_dir = self.temp_dir
+
             # Obter contagem inicial
-            with get_db_connection(self.test_db_path) as conn:
+            with get_db_connection(test_db_path) as conn:
                 initial_count = pd.read_sql_query("SELECT COUNT(*) as count FROM ssas", conn).iloc[0]['count']
 
             # Criar diretório temporário com apenas este arquivo
-            temp_single_file_dir = os.path.join(self.temp_dir, "single_file")
+            temp_single_file_dir = os.path.join(temp_dir, "single_file")
             os.makedirs(temp_single_file_dir, exist_ok=True)
 
             temp_file_path = os.path.join(temp_single_file_dir, file_name)
             shutil.copy2(file_path, temp_file_path)
 
             # Importar arquivo
-            import_success = import_files_to_database(temp_single_file_dir, self.test_db_path)
+            import_success = import_files_to_database(temp_single_file_dir, test_db_path)
 
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
 
             # Verificar se dados foram importados
-            with get_db_connection(self.test_db_path) as conn:
+            with get_db_connection(test_db_path) as conn:
                 final_count = pd.read_sql_query("SELECT COUNT(*) as count FROM ssas", conn).iloc[0]['count']
 
                 # Obter amostra dos dados importados
@@ -286,6 +290,8 @@ class ExcelImportTester:
             total_records_imported = sum(r.get('records_added', 0) for r in import_results if r.get('success'))
 
             # Verificar estado final do banco
+            if self.test_db_path is None:
+                raise RuntimeError("Banco de teste nao configurado")
             with get_db_connection(self.test_db_path) as conn:
                 final_db_count = pd.read_sql_query("SELECT COUNT(*) as count FROM ssas", conn).iloc[0]['count']
 
@@ -333,7 +339,7 @@ class ExcelImportTester:
         finally:
             self.cleanup()
 
-    def generate_detailed_report(self, test_result: dict, output_file: str = None) -> str:
+    def generate_detailed_report(self, test_result: dict, output_file: str | None = None) -> str:
         """Gera relatório detalhado dos testes de importação."""
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

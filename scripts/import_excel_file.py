@@ -24,8 +24,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.robust_importer import import_excel_robust  # type: ignore  # noqa: E402
-from armazenamento import database  # type: ignore  # noqa: E402
+from utils.robust_importer import import_excel_robust  # noqa: E402
+from armazenamento import database  # noqa: E402
 
 logger = logging.getLogger("import_excel_file")
 

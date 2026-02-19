@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 # tests/test_interface.py
 import pandas as pd
 import sys

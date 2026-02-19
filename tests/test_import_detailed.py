@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """
 Teste LEVE de importação - usa apenas 3 arquivos para validação rápida.
 Para teste completo, use: python tests/run_import_detailed.py
@@ -25,8 +26,11 @@ def test_import_limited():
     # Verificar se diretório existe
     assert os.path.exists(docs_dir), f"Diretório {docs_dir} não encontrado"
     
-    # Listar arquivos Excel
-    arquivos = [f for f in os.listdir(docs_dir) if f.endswith('.xlsx')]
+    # Listar arquivos Excel de importacao regular (exclui planilhas especiais de derivadas)
+    arquivos = [
+        f for f in os.listdir(docs_dir)
+        if f.endswith('.xlsx') and not f.strip().casefold().startswith('ssas derivadas e relacionadas')
+    ]
     assert len(arquivos) > 0, "Nenhum arquivo .xlsx encontrado"
     
     # Pegar apenas os 3 primeiros

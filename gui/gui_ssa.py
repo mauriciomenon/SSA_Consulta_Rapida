@@ -24,8 +24,10 @@ import subprocess
 import re
 import logging
 import copy
+import sqlite3
 from collections import OrderedDict
 from time import perf_counter
+from typing import Any, cast
 
 
 try:
@@ -41,7 +43,12 @@ if project_root not in sys.path:
 
 # Importações dos managers unificados
 from gui.simple_width_manager import SimpleWidthManager, SimpleCacheManager  # noqa: E402
-from utils.themes import get_palette, get_theme_roles, normalize_theme  # noqa: E402
+from gui.ssa import gui_theme as ssa_gui_theme  # noqa: E402
+from gui.ssa import gui_workers as ssa_gui_workers  # noqa: E402
+from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
+from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
+from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
@@ -84,6 +91,7 @@ from utils.formatting import format_dataframe_for_display, format_cell  # noqa: 
 from core.app_logic import filter_dataframe, parse_search_terms  # noqa: E402
 import hashlib
 from armazenamento.database import query_db  # noqa: E402
+from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
 
 # --- Importações do PyQt6 (com fallback headless para CI) ---
 QT_AVAILABLE = True
@@ -105,18 +113,17 @@ try:
     from gui.cache import FilterCache  # noqa: E402
     from gui.widgets import ColumnManagerDialog, ColumnSelector, DataPaginator, FilterHelpDialog  # noqa: E402
     from gui.helpers import (  # noqa: E402
-        build_global_widget_qss, build_central_widget_qss, build_group_box_qss, build_line_edit_qss,
         normalize_chunk_for_parse, format_search_display, highlight_text
     )
     # Import mixins for code organization
-    from gui.mixins import FilterGUISSAMixin  # noqa: E402
+    from gui.mixins import FilterGUISSAMixin, TabContextGUISSAMixin  # noqa: E402
 except ImportError as exc:
     QT_AVAILABLE = False
-    sip = None
+    sip = cast(Any, None)
     logger.warning("PyQt6 import failed, using headless stub mode: %s", exc)
-    DataLoaderWorker = None
-    FilterWorker = None
-    FilterCache = None
+    DataLoaderWorker = cast(Any, None)
+    FilterWorker = cast(Any, None)
+    FilterCache = cast(Any, None)
     # Stubs mánimos para permitir import em ambiente CI sem libs grãficas
     class _Sig:
         def emit(self, *a, **k):
@@ -128,13 +135,13 @@ except ImportError as exc:
     class QWidget:
         def findChildren(self, *a, **k):
             return []
+        def __getattr__(self, _name):
+            def _noop(*_args, **_kwargs):
+                return None
+            return _noop
 
-    class QMainWindow:
+    class QMainWindow(QWidget):
         pass
-
-    class QAction:
-        def __init__(self, *a, **k):
-            pass
 
     class QFont:
         def __init__(self, *a, **k):
@@ -164,31 +171,65 @@ except ImportError as exc:
     class QApplication:
         def __init__(self, *a, **k): pass
         def exec(self): return 0
+        @staticmethod
+        def processEvents(*a, **k):
+            return None
+        @staticmethod
+        def clipboard():
+            class _Clipboard:
+                def setText(self, *a, **k):
+                    pass
+            return _Clipboard()
+
     class QVBoxLayout:
         def __init__(self, *a, **k):
             pass
+        def addWidget(self, *a, **k):
+            pass
+        def addLayout(self, *a, **k):
+            pass
+        def addStretch(self, *a, **k):
+            pass
+        def addSpacing(self, *a, **k):
+            pass
+        def setSpacing(self, *a, **k):
+            pass
+        def setContentsMargins(self, *a, **k):
+            pass
 
     class QHBoxLayout(QVBoxLayout):
-        pass
+        def addItem(self, *a, **k):
+            pass
 
     class QGridLayout(QVBoxLayout):
         pass
-    class QTabWidget:
+    class QTabWidget(QWidget):
         def __init__(self, *a, **k):
             self.currentChanged = _Sig()
         def addTab(self, *a, **k):
             pass
         def setStyleSheet(self, *a, **k):
             pass
-    class QLabel:
+    class QLabel(QWidget):
         def __init__(self, *a, **k):
             pass
-    class QPushButton:
+    class QPushButton(QWidget):
         def __init__(self, *a, **k):
+            self.clicked = _Sig()
+            self._text = a[0] if a else ""
+        def setToolTip(self, *a, **k):
             pass
-        def clicked(self):
-            return _Sig()
-    class QLineEdit:
+        def setEnabled(self, *a, **k):
+            pass
+        def setText(self, text):
+            self._text = text
+        def text(self):
+            return self._text
+        def setStyleSheet(self, *a, **k):
+            pass
+        def setMaximumWidth(self, *a, **k):
+            pass
+    class QLineEdit(QWidget):
         def __init__(self, *a, **k):
             self._text = ""
             self.returnPressed = _Sig()
@@ -219,21 +260,34 @@ except ImportError as exc:
             pass
         def setStyleSheet(self, *a, **k):
             pass
-    class QTableWidget:
-        pass
+    class QTableWidget(QWidget):
+        class EditTrigger:
+            NoEditTriggers = 0
 
     class QTableWidgetItem:
         def __init__(self, *a, **k):
             pass
 
-    class QHeaderView:
+    class QHeaderView(QWidget):
         Stretch = 1
+        class ResizeMode:
+            Stretch = 1
+            Interactive = 2
+            Fixed = 3
     class QMessageBox:
-        pass
+        @staticmethod
+        def information(*a, **k):
+            return 0
+        @staticmethod
+        def warning(*a, **k):
+            return 0
+        @staticmethod
+        def critical(*a, **k):
+            return 0
 
-    class QProgressBar:
+    class QProgressBar(QWidget):
         pass
-    class QComboBox:
+    class QComboBox(QWidget):
         class SizeAdjustPolicy:
             AdjustToContents = 0
 
@@ -294,16 +348,26 @@ except ImportError as exc:
                 return self._data.index(data)
             except ValueError:
                 return -1
-    class QSpinBox:
+    class QSpinBox(QWidget):
         pass
 
     class QAbstractItemView:
         NoEditTriggers = 0
+        class SelectionBehavior:
+            SelectRows = 0
 
-    class QMenu:
+    class QMenu(QWidget):
         def __init__(self, *a, **k):
             self._actions = []
-        def addAction(self, action):
+        def addAction(self, *args, **kwargs):
+            if args and isinstance(args[0], QAction):
+                action = args[0]
+            else:
+                label = str(args[0]) if args else ""
+                action = QAction(label)
+                callback = args[1] if len(args) > 1 else None
+                if callable(callback):
+                    action.triggered.connect(callback)
             self._actions.append(action)
             return action
         def addSeparator(self):
@@ -327,7 +391,7 @@ except ImportError as exc:
         def setDefaultWidget(self, widget):
             self._widget = widget
 
-    class QToolButton:
+    class QToolButton(QWidget):
         class ToolButtonPopupMode:
             InstantPopup = 0
         def __init__(self, *a, **k):
@@ -354,13 +418,15 @@ except ImportError as exc:
         def setStyleSheet(self, *a, **k):
             pass
 
-    class QGroupBox:
+    class QGroupBox(QWidget):
+        def __init__(self, *a, **k):
+            pass
         def setVisible(self, *a, **k):
             pass
         def setEnabled(self, *a, **k):
             pass
 
-    class QTextEdit:
+    class QTextEdit(QWidget):
         def __init__(self, *a, **k):
             pass
         def setReadOnly(self, *a, **k):
@@ -384,10 +450,12 @@ except ImportError as exc:
             pass
 
     class QTextBrowser(QTextEdit):
+        def setOpenLinks(self, *a, **k):
+            pass
         def setOpenExternalLinks(self, *a, **k):
             pass
 
-    class QScrollArea:
+    class QScrollArea(QWidget):
         def __init__(self, *a, **k):
             pass
         def setWidgetResizable(self, *a, **k):
@@ -396,12 +464,18 @@ except ImportError as exc:
             pass
 
     class QFileDialog:
-        pass
+        @staticmethod
+        def getSaveFileName(*a, **k):
+            return ("", "")
+        @staticmethod
+        def getOpenFileName(*a, **k):
+            return ("", "")
 
     class QAction:
-        pass
+        def __init__(self, *a, **k):
+            self.triggered = _Sig()
 
-    class QDialog:
+    class QDialog(QWidget):
         class DialogCode:
             Accepted = 1
             Rejected = 0
@@ -418,7 +492,7 @@ except ImportError as exc:
         def reject(self):
             return self.DialogCode.Rejected
 
-    class QListWidget:
+    class QListWidget(QWidget):
         def __init__(self, *a, **k):
             self._items = []
 
@@ -490,7 +564,7 @@ except ImportError as exc:
             self.accepted = _Sig()
             self.rejected = _Sig()
 
-    class QCheckBox:
+    class QCheckBox(QWidget):
         def __init__(self, *a, **k):
             self._checked = False
             self._text = a[0] if a else ""
@@ -514,7 +588,15 @@ except ImportError as exc:
         Select = 0
 
     class QTimer:
-        pass
+        def __init__(self, *a, **k):
+            self.timeout = _Sig()
+        def setSingleShot(self, *a, **k):
+            pass
+        def setInterval(self, *a, **k):
+            pass
+        @staticmethod
+        def singleShot(*a, **k):
+            pass
     class QThread:
         def __init__(self, *a, **k): pass
         def start(self): pass
@@ -523,12 +605,48 @@ except ImportError as exc:
         def __init__(self, *_args, **_kwargs): pass
     class Qt:
         AlignLeft = 0
+        class SortOrder:
+            AscendingOrder = 0
+            DescendingOrder = 1
+        class ContextMenuPolicy:
+            CustomContextMenu = 0
+        class MouseButton:
+            RightButton = 2
+        class ItemDataRole:
+            UserRole = 32
+        class WidgetAttribute:
+            WA_DeleteOnClose = 0
 
     # Stub for FilterGUISSAMixin in headless mode
     class FilterGUISSAMixin:
         """Stub mixin for headless testing."""
         pass
 
+    class TabContextGUISSAMixin:
+        """Stub mixin for headless testing."""
+        pass
+
+    # Type-checking bridge: fallback stubs are runtime-safe but too strict for static unions.
+    QWidget = cast(Any, QWidget)
+    QApplication = cast(Any, QApplication)
+    QMainWindow = cast(Any, QMainWindow)
+    QVBoxLayout = cast(Any, QVBoxLayout)
+    QHBoxLayout = cast(Any, QHBoxLayout)
+    QGridLayout = cast(Any, QGridLayout)
+    QLabel = cast(Any, QLabel)
+    QPushButton = cast(Any, QPushButton)
+    QLineEdit = cast(Any, QLineEdit)
+    QTableWidget = cast(Any, QTableWidget)
+    QProgressBar = cast(Any, QProgressBar)
+    QTabWidget = cast(Any, QTabWidget)
+    QMessageBox = cast(Any, QMessageBox)
+    QFileDialog = cast(Any, QFileDialog)
+    QMenu = cast(Any, QMenu)
+    QAction = cast(Any, QAction)
+    QTimer = cast(Any, QTimer)
+    Qt = cast(Any, Qt)
+    FilterGUISSAMixin = cast(Any, FilterGUISSAMixin)
+    TabContextGUISSAMixin = cast(Any, TabContextGUISSAMixin)
 
 def _is_widget_valid(widget) -> bool:
     """Return True when a Qt widget reference still points to a live object."""
@@ -557,7 +675,7 @@ HIGHLIGHT_FONT_WEIGHT = 'bold'
 # trying (and failing) to resolve a generic "Monospace" alias.
 MONO_FONT_FAMILY = (
     # macOS first
-    "'SF Mono', Menlo, Monaco, 'Andale Mono', "
+    "Menlo, Monaco, 'Andale Mono', "
     # Windows 11 common monospace families
     "Consolas, 'Cascadia Mono', 'Cascadia Code', 'Segoe UI Mono', 'Lucida Console', "
     # Debian / Linux common monospace families
@@ -577,6 +695,14 @@ DIVISAO_SETORES = {
     "SMMG": ["MEG1", "MEG2", "MEG3", "MEG4"],
 }
 SECTOR_TO_DIV = {sec: div for div, secs in DIVISAO_SETORES.items() for sec in secs}
+try:
+    ssa_gui_filters.configure_adv_filters_constants(
+        DIVISAO_SETORES,
+        SECTOR_TO_DIV,
+        MONO_FONT_FAMILY,
+    )
+except Exception as exc:
+    logger.debug("Falha ao configurar constantes de filtros avancados: %s", exc)
 
 # Prioridade de campos para ordenacao em detalhes
 DETAIL_FIELD_PRIORITY = [
@@ -622,6 +748,20 @@ DETAIL_DISPLAY_OVERRIDES = {
     'execucao_parcial': 'Execucao Parcial',
 }
 
+try:
+    ssa_gui_details.configure_details_constants(
+        details_dialog_font_size=DETAILS_DIALOG_FONT_SIZE,
+        details_dialog_table_padding=DETAILS_DIALOG_TABLE_PADDING,
+        details_dialog_border_color=DETAILS_DIALOG_BORDER_COLOR,
+        detail_field_priority=DETAIL_FIELD_PRIORITY,
+        detail_display_overrides=DETAIL_DISPLAY_OVERRIDES,
+        highlight_background_color=HIGHLIGHT_BACKGROUND_COLOR,
+        highlight_font_weight=HIGHLIGHT_FONT_WEIGHT,
+        mono_font_family=MONO_FONT_FAMILY,
+    )
+except Exception as exc:
+    logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
+
 TABLE_NAME = 'ssas'
 
 # --- Funções Auxiliares ---
@@ -639,126 +779,17 @@ def load_display_mappings():
 # --- Componentes da GUI ---
 
 # --- Janela Principal da Aplicacao ---
-class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
+class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     """
     Janela principal da aplicação GUI.
 
     Inherits from FilterGUISSAMixin for filter-related methods.
     """
-    TAB_WIDGET_ATTRS = (
-        "search_label",
-        "search_input",
-        "search_button",
-        "clear_filter_button",
-        "column_selector",
-        "search_help",
-        "paginator",
-        "profile_selector",
-        "persistent_filters_layout",
-        "filter_tags_widget",
-        "filter_tags_layout",
-        "exclude_ste_checkbox",
-        "col_filter_indicator",
-        "filters_summary_frame",
-        "filters_summary_label",
-        "clear_all_filters_btn",
-        "export_list_btn",
-        "undo_filter_btn",
-        "table_widget",
-        "details_group",
-        "details_text",
-        "col_filters_group",
-        "col_filters_hint",
-        "col_filters_scroll",
-        "col_filters_container",
-        "col_filters_list_layout",
-        "add_column_filter_btn",
-        "clear_all_btn",
-        "adv_filters_group",
-        "adv_executor_button",
-        "adv_executor_menu",
-        "adv_executor_checks",
-        "adv_executor_exclude",
-        "adv_emissor_button",
-        "adv_emissor_menu",
-        "adv_emissor_checks",
-        "adv_emissor_exclude",
-        "adv_divisao_button",
-        "adv_divisao_menu",
-        "adv_divisao_checks",
-        "adv_divisao_exclude",
-        "adv_status_button",
-        "adv_status_menu",
-        "adv_status_checks",
-        "adv_status_exclude",
-        "adv_year_emissao_button",
-        "adv_year_emissao_menu",
-        "adv_year_emissao_checks",
-        "adv_year_execucao_button",
-        "adv_year_execucao_menu",
-        "adv_year_execucao_checks",
-        "adv_week_emissao_start",
-        "adv_week_emissao_end",
-        "adv_week_emissao_exclude",
-        "adv_week_execucao_start",
-        "adv_week_execucao_end",
-        "adv_week_execucao_exclude",
-        "adv_prioridade_emissao_button",
-        "adv_prioridade_emissao_menu",
-        "adv_prioridade_emissao_checks",
-        "adv_prioridade_planejamento_button",
-        "adv_prioridade_planejamento_menu",
-        "adv_prioridade_planejamento_checks",
-        "adv_derivada_has",
-        "adv_derivada_all_ste",
-        "adv_derivada_is",
-        "adv_derivadas_especificas_button",
-        "adv_macro_combo",
-        "adv_responsavel_solicitante_button",
-        "adv_responsavel_solicitante_menu",
-        "adv_responsavel_solicitante_checks",
-        "adv_responsavel_solicitante_exclude",
-        "adv_responsavel_solicitante_box",
-        "adv_responsavel_programacao_button",
-        "adv_responsavel_programacao_menu",
-        "adv_responsavel_programacao_checks",
-        "adv_responsavel_programacao_exclude",
-        "adv_responsavel_programacao_box",
-        "adv_responsavel_execucao_button",
-        "adv_responsavel_execucao_menu",
-        "adv_responsavel_execucao_checks",
-        "adv_responsavel_execucao_exclude",
-        "adv_responsavel_execucao_box",
-        "adv_responsavel_emissor_button",
-        "adv_responsavel_emissor_menu",
-        "adv_responsavel_emissor_checks",
-        "adv_responsavel_emissor_exclude",
-        "adv_responsavel_emissor_box",
-        "adv_save_defaults_btn",
-    )
     def _get_theme_catalog(self):
-        light_themes = [
-            ("Classico", 'classico'),
-            ("Mint Light", 'mint-light'),
-            ("Paper", 'paper'),
-            ("Solarized Light", 'solarized-light'),
-            ("Windows 7", 'windows7'),
-        ]
-        dark_themes = [
-            ("Catppuccin (Mocha)", 'catppuccin'),
-            ("Dark", 'dark'),
-            ("Dracula", 'dracula'),
-            ("Grayscale", 'grayscale'),
-            ("Gruvbox", 'gruvbox'),
-            ("Nord", 'nord'),
-            ("Solarized Dark", 'solarized-dark'),
-            ("Tokyo Night", 'tokyo-night'),
-        ]
-        return light_themes, dark_themes
+        return ssa_gui_theme.get_theme_catalog()
 
     def _get_theme_keys(self):
-        light_themes, dark_themes = self._get_theme_catalog()
-        return {key for _, key in light_themes + dark_themes}
+        return ssa_gui_theme.get_theme_keys()
 
     def _persist_gui_preferences(self):
         try:
@@ -768,20 +799,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 indent=2,
                 ensure_ascii=False,
             )
-        except Exception as e:
-            logger.warning("Falha ao persistir preferencias GUI: %s", e)
+            return True
+        except Exception as exc:
+            logger.warning("Falha ao persistir preferencias GUI: %s", exc)
+            return False
 
     def _resolve_startup_theme(self):
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-        theme_default = gui_settings.get("theme_default")
-        last_theme = gui_settings.get("theme")
-        theme_keys = self._get_theme_keys()
-        for candidate in (theme_default, last_theme, "gruvbox"):
-            if isinstance(candidate, str) and candidate.strip():
-                normalized = normalize_theme(candidate)
-                if normalized in theme_keys:
-                    return normalized
-        return "gruvbox"
+        return ssa_gui_theme.resolve_startup_theme(gui_settings)
 
     def __init__(self):
         super().__init__()
@@ -871,6 +896,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._advanced_filters = dict(adv_default) if isinstance(adv_default, dict) else {}
         self._advanced_filters_active = False
         self._adv_options_dirty = True
+        self._adv_cache_token = -1
         self._last_derivada_origem = None
         self._adv_sector_syncing = False
         self._adv_sector_handler_running = False
@@ -880,7 +906,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             "adv_responsavel_solicitante",
             "adv_responsavel_programacao",
             "adv_responsavel_execucao",
-            "adv_responsavel_emissor",
         )
         self._responsavel_materialized_prefixes = set()
         self._responsavel_dirty_prefixes = set(self._responsavel_all_prefixes)
@@ -929,7 +954,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(cast(Any, central_widget))
 
 
         # --- Barra de Ferramentas Superior ---
@@ -939,23 +964,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.load_button = QPushButton("Carregar Dados")
         self.load_button.setToolTip("Carregar dados do banco de dados existente")
         self.load_button.clicked.connect(self.load_data)
-        toolbar_layout.addWidget(self.load_button)
+        toolbar_layout.addWidget(cast(Any, self.load_button))
 
         self.load_other_db_button = QPushButton("Carregar Outro DB")
         self.load_other_db_button.setToolTip("Selecionar e carregar outro arquivo de banco de dados")
         self.load_other_db_button.clicked.connect(self.load_other_database)
-        toolbar_layout.addWidget(self.load_other_db_button)
+        toolbar_layout.addWidget(cast(Any, self.load_other_db_button))
 
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
         self.rescan_button.clicked.connect(self.rescan_data)
-        toolbar_layout.addWidget(self.rescan_button)
+        toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
         self.explorer_button = QPushButton("Abrir Pasta")
         self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
         self.explorer_button.clicked.connect(self.open_docs_folder)
-        toolbar_layout.addWidget(self.explorer_button)
+        toolbar_layout.addWidget(cast(Any, self.explorer_button))
+        self.update_derivadas_button = QPushButton("Atualizar Derivadas")
+        self.update_derivadas_button.setToolTip(
+            "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
+        )
+        self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
+        toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
         # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, nção clicãvel)
         try:
             from datetime import date
@@ -971,7 +1002,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.week_label.setStyleSheet(self._week_label_style)
         self.week_label.setToolTip("Semana ISO atual (nção clicãvel)")
         toolbar_layout.addSpacing(6)
-        toolbar_layout.addWidget(self.week_label)
+        toolbar_layout.addWidget(cast(Any, self.week_label))
 
         # Espaçamento antes do status
         toolbar_layout.addStretch()
@@ -985,31 +1016,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
 
-        toolbar_layout.addWidget(self.status_label)
-        toolbar_layout.addWidget(self.progress_bar)
+        toolbar_layout.addWidget(cast(Any, self.status_label))
+        toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
         # Botção de Ajuda (como na PoC)
         help_button = QPushButton("Ajuda")
         help_button.setToolTip("Ajuda sobre filtros e uso da interface")
         help_button.clicked.connect(self.show_filter_help)
-        toolbar_layout.addWidget(help_button)
+        toolbar_layout.addWidget(cast(Any, help_button))
 
         # Botção de Tema (Claro/Escuro/Gruvbox)
         theme_button = QPushButton("Tema")
         theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
         theme_button.clicked.connect(self.toggle_theme_menu)
-        toolbar_layout.addWidget(theme_button)
+        toolbar_layout.addWidget(cast(Any, theme_button))
 
-        main_layout.addLayout(toolbar_layout)
+        main_layout.addLayout(cast(Any, toolbar_layout))
         self.main_tabs = QTabWidget()
         tab_main = QWidget()
         ctx_main = self._build_tab_content(tab_main, "main")
-        self.main_tabs.addTab(tab_main, "SSAs")
+        self.main_tabs.addTab(cast(Any, tab_main), "SSAs")
         tab_filters = QWidget()
         ctx_filters = self._build_tab_content(tab_filters, "filters")
-        self.main_tabs.addTab(tab_filters, "Filtros")
+        self.main_tabs.addTab(cast(Any, tab_filters), "Filtros")
         self._tab_contexts = [ctx_main, ctx_filters]
-        main_layout.addWidget(self.main_tabs)
+        main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
 
@@ -1021,8 +1052,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._retired_filter_workers = []
         self._data_load_request_seq = 0
         self._active_data_load_request_id = 0
+        self._data_revision = 0
+        self._data_revision_request_id = None
+        self._data_uuid = None
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
+        self._active_filter_search_request_id = None
+        self._active_filter_search_display = ""
         # Flag de fallback síncrono (para estabilizar testes headless / CI)
         self._sync_filtering = os.environ.get("SSA_SYNC_FILTER", "").lower() in ("1", "true", "yes", "on")
         # Em ambiente de testes (pytest), force modo síncrono para previsibilidade
@@ -1072,10 +1108,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         clear_filter_button = QPushButton("Limpar Filtro")
         clear_filter_button.clicked.connect(self.clear_filter)
         clear_filter_button.setEnabled(False)
-        left.addWidget(search_label)
-        left.addWidget(search_input)
-        left.addWidget(search_button)
-        left.addWidget(clear_filter_button)
+        left.addWidget(cast(Any, search_label))
+        left.addWidget(cast(Any, search_input))
+        left.addWidget(cast(Any, search_button))
+        left.addWidget(cast(Any, clear_filter_button))
 
         right = QHBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
@@ -1087,12 +1123,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(column_selector)
+        right.addWidget(cast(Any, column_selector))
 
-        search_row.addLayout(left)
+        search_row.addLayout(cast(Any, left))
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(right)
-        tab_layout.addLayout(search_row)
+        search_row.addLayout(cast(Any, right))
+        tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
             "Separe por virgulas (logica E: todos os termos obrigatorios). Use ! para excluir. A busca vale para qualquer coluna."
@@ -1124,17 +1160,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         profile_selector = QComboBox()
         try:
             profile_selector.setMinimumWidth(150)
-            profile_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            profile_selector.setSizeAdjustPolicy(cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents))
         except Exception as exc:
             logger.debug("Falha ao configurar seletor de perfil de filtro: %s", exc)
         profile_selector.addItem("Personalizado", None)
         for profile_name in self.filter_profiles.keys():
             profile_selector.addItem(profile_name, profile_name)
         profile_selector.currentIndexChanged.connect(self.on_profile_changed)
-        profile_layout.addWidget(profile_label)
-        profile_layout.addWidget(profile_selector)
+        profile_layout.addWidget(cast(Any, profile_label))
+        profile_layout.addWidget(cast(Any, profile_selector))
         pagination_filters_layout.addSpacing(12)
-        pagination_filters_layout.addLayout(profile_layout)
+        pagination_filters_layout.addLayout(cast(Any, profile_layout))
 
         pagination_filters_layout.addSpacing(12)
 
@@ -1145,7 +1181,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         save_filter_button.setMaximumWidth(100)
         save_filter_button.setToolTip("Salvar filtro atual como persistente")
         save_filter_button.clicked.connect(self.save_current_filter)
-        persistent_filters_layout.addWidget(save_filter_button)
+        persistent_filters_layout.addWidget(cast(Any, save_filter_button))
 
         exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
@@ -1161,21 +1197,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             exclude_ste_checkbox.toggled.connect(self._on_exclude_ste_sca_toggled)
         except Exception as exc:
             logger.warning("Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc)
-        persistent_filters_layout.addWidget(exclude_ste_checkbox)
+        persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
 
         filter_tags_widget = QWidget()
-        filter_tags_layout = QHBoxLayout(filter_tags_widget)
+        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
         filter_tags_layout.setContentsMargins(0, 0, 0, 0)
         filter_tags_layout.setSpacing(5)
-        persistent_filters_layout.addWidget(filter_tags_widget)
+        persistent_filters_layout.addWidget(cast(Any, filter_tags_widget))
 
-        pagination_filters_layout.addLayout(persistent_filters_layout)
+        pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()
 
         col_filter_indicator = QLabel("")
         try:
             if self._info_font is not None:
-                col_filter_indicator.setFont(QFont(self._info_font))
+                col_filter_indicator.setFont(cast(Any, QFont(self._info_font)))
         except Exception as exc:
             logger.debug("Falha ao aplicar fonte no indicador de filtro por coluna: %s", exc)
         col_filter_indicator.setToolTip(
@@ -1187,7 +1223,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao ocultar indicador de filtro por coluna: %s", exc)
 
-        tab_layout.addLayout(pagination_filters_layout)
+        tab_layout.addLayout(cast(Any, pagination_filters_layout))
 
         filters_summary_frame = None
         filters_summary_label = None
@@ -1197,13 +1233,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         try:
             filters_summary_frame = QFrame()
             filters_summary_frame.setFrameShape(QFrame.Shape.StyledPanel)
-            summary_layout = QHBoxLayout(filters_summary_frame)
+            summary_layout = QHBoxLayout(cast(Any, filters_summary_frame))
             summary_layout.setContentsMargins(6, 4, 6, 4)
             summary_layout.setSpacing(8)
             filters_summary_label = QLabel("Nenhum filtro ativo")
             if self._info_font is not None:
                 try:
-                    filters_summary_label.setFont(QFont(self._info_font))
+                    filters_summary_label.setFont(cast(Any, QFont(self._info_font)))
                 except Exception as exc:
                     logger.debug("Falha ao aplicar fonte no resumo de filtros: %s", exc)
             clear_all_filters_btn = QPushButton("Limpar todos os filtros")
@@ -1229,11 +1265,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 undo_filter_btn.setStyleSheet(self._week_label_style)
             except Exception as exc:
                 logger.debug("Falha ao aplicar estilo no botao undo de filtros: %s", exc)
-            summary_layout.addWidget(clear_all_filters_btn, 0)
-            summary_layout.addWidget(export_list_btn, 0)
-            summary_layout.addWidget(undo_filter_btn, 0)
-            summary_layout.addWidget(filters_summary_label, 1)
-            tab_layout.addWidget(filters_summary_frame)
+            summary_layout.addWidget(cast(Any, clear_all_filters_btn), 0)
+            summary_layout.addWidget(cast(Any, export_list_btn), 0)
+            summary_layout.addWidget(cast(Any, undo_filter_btn), 0)
+            summary_layout.addWidget(cast(Any, filters_summary_label), 1)
+            tab_layout.addWidget(cast(Any, filters_summary_frame))
             filters_summary_frame.setVisible(True)
             try:
                 self._update_undo_button_state()
@@ -1254,49 +1290,58 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Table
         table_widget = QTableWidget()
-        table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        table_widget.verticalHeader().setVisible(False)
-        table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        table_widget.verticalHeader().setDefaultSectionSize(24)
+        table_widget.setEditTriggers(cast(Any, QTableWidget.EditTrigger.NoEditTriggers))
+        table_widget.setSelectionBehavior(cast(Any, QAbstractItemView.SelectionBehavior.SelectRows))
+        try:
+            table_widget.setMinimumHeight(220)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar altura minima na tabela principal: %s", exc)
+        header = table_widget.horizontalHeader()
+        vertical_header = table_widget.verticalHeader()
+        if header is not None and vertical_header is not None:
+            header.setSectionResizeMode(cast(Any, QHeaderView.ResizeMode.Interactive))
+            vertical_header.setVisible(False)
+            vertical_header.setSectionResizeMode(cast(Any, QHeaderView.ResizeMode.Fixed))
+            vertical_header.setDefaultSectionSize(24)
+            header.sectionResized.connect(self._on_header_section_resized)
+        else:
+            logger.warning("Header da tabela indisponivel; configuracao avancada de colunas ignorada.")
 
         table_widget.doubleClicked.connect(self.on_table_double_click)
         table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-        table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
 
         try:
-            header = table_widget.horizontalHeader()
-            header.setSectionsClickable(True)
-            header.setSortIndicatorShown(True)
-            try:
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
-            except Exception as exc:
-                logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
-            try:
-                f = header.font()
-                f.setBold(False)
-                header.setFont(f)
-                header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estilo/fonte no header da tabela: %s", exc)
-            header.sectionClicked.connect(self.on_header_clicked)
-            header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            header.customContextMenuRequested.connect(self.show_header_context_menu)
-            header.installEventFilter(self)
+            if header is not None:
+                header.setSectionsClickable(True)
+                header.setSortIndicatorShown(True)
+                try:
+                    header.setMinimumSectionSize(80)
+                    header.setDefaultSectionSize(100)
+                except Exception as exc:
+                    logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
+                try:
+                    f = header.font()
+                    f.setBold(False)
+                    header.setFont(f)
+                    header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo/fonte no header da tabela: %s", exc)
+                header.sectionClicked.connect(self.on_header_clicked)
+                header.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
+                header.customContextMenuRequested.connect(self.show_header_context_menu)
+                header.installEventFilter(self)
         except Exception as exc:
             logger.warning("Falha ao configurar comportamento do header da tabela: %s", exc)
 
-        table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table_widget.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
         table_widget.customContextMenuRequested.connect(self.show_context_menu)
 
-        tab_layout.addWidget(table_widget)
+        tab_layout.addWidget(cast(Any, table_widget), 6)
 
         # Details + column filters
         bottom_layout = QHBoxLayout()
         details_group = QGroupBox("Detalhes da SSA Selecionada")
-        details_layout = QVBoxLayout(details_group)
+        details_layout = QVBoxLayout(cast(Any, details_group))
         details_layout.setContentsMargins(2, 2, 2, 2)
         details_layout.setSpacing(2)
         details_text = QTextBrowser()
@@ -1305,65 +1350,67 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         except Exception as exc:
             logger.debug("Falha ao remover frame do painel de detalhes: %s", exc)
         try:
-            details_text.viewport().setAutoFillBackground(False)
+            details_viewport = details_text.viewport()
+            if details_viewport is not None:
+                details_viewport.setAutoFillBackground(False)
         except Exception as exc:
             logger.debug("Falha ao configurar preenchimento do viewport de detalhes: %s", exc)
         details_text.setReadOnly(True)
         try:
+            details_text.setOpenLinks(False)
             details_text.setOpenExternalLinks(False)
             details_text.anchorClicked.connect(self._on_details_anchor_clicked)
         except Exception as exc:
             logger.debug("Falha ao configurar links no painel de detalhes: %s", exc)
-        details_layout.addWidget(details_text)
-        bottom_layout.addWidget(details_group, 2)
+        details_layout.addWidget(cast(Any, details_text))
+        bottom_layout.addWidget(cast(Any, details_group), 2)
 
         col_filters_group = QGroupBox("Filtros por Coluna")
-        col_filters_outer = QVBoxLayout(col_filters_group)
+        col_filters_outer = QVBoxLayout(cast(Any, col_filters_group))
         col_filters_hint = QLabel("Use virgulas para alternativas (logica OU dentro da coluna). Entre colunas mantemos logica E.")
         try:
             col_filters_hint.setStyleSheet("color: palette(windowText); font-size: 11px;")
         except Exception as exc:
             logger.debug("Falha ao aplicar estilo da dica de filtros por coluna: %s", exc)
-        col_filters_outer.addWidget(col_filters_hint)
+        col_filters_outer.addWidget(cast(Any, col_filters_hint))
         col_filters_scroll = QScrollArea()
         col_filters_scroll.setWidgetResizable(True)
         col_filters_container = QWidget()
-        col_filters_list_layout = QVBoxLayout(col_filters_container)
-        col_filters_scroll.setWidget(col_filters_container)
-        col_filters_outer.addWidget(col_filters_scroll, 1)
+        col_filters_list_layout = QVBoxLayout(cast(Any, col_filters_container))
+        col_filters_scroll.setWidget(cast(Any, col_filters_container))
+        col_filters_outer.addWidget(cast(Any, col_filters_scroll), 1)
         footer = QHBoxLayout()
         footer.addStretch()
         add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
         add_column_filter_btn.setMaximumWidth(260)
         add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
-        footer.addWidget(add_column_filter_btn)
+        footer.addWidget(cast(Any, add_column_filter_btn))
         footer.addSpacing(8)
         clear_all_btn = QPushButton("Limpar todos filtros de colunas")
         clear_all_btn.setMaximumWidth(260)
         clear_all_btn.clicked.connect(self._clear_all_column_filters)
-        footer.addWidget(clear_all_btn)
+        footer.addWidget(cast(Any, clear_all_btn))
         footer.addStretch()
-        col_filters_outer.addLayout(footer)
+        col_filters_outer.addLayout(cast(Any, footer))
 
         right_col_widget = QWidget()
-        right_col = QVBoxLayout(right_col_widget)
+        right_col = QVBoxLayout(cast(Any, right_col_widget))
         right_col.setContentsMargins(0, 0, 0, 0)
         if tab_kind == "filters":
             adv_group, adv_ctx = self._build_advanced_filters_panel()
-            right_col.addWidget(adv_group, 1)
+            right_col.addWidget(cast(Any, adv_group), 1)
             col_filters_group.setVisible(False)
-            right_col.addWidget(col_filters_group)
+            right_col.addWidget(cast(Any, col_filters_group))
             # APENAS na aba Filtros: Detalhes max 40% (2) vs Filtros 60% (3)
-            bottom_layout.addWidget(right_col_widget, 3)
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
         else:
-            right_col.addWidget(col_filters_group)
-            # CORRECAO 2026-01-08: Aba SSAs com proporcao 50/50 (igual stretch)
-            # Detalhes ja tem stretch=2, filtros coluna tambem com stretch=2
-            bottom_layout.addWidget(right_col_widget, 2)
+            right_col.addWidget(cast(Any, col_filters_group))
+            # Aba SSAs: manter Detalhes em 40% (2) e painel da direita em 60% (3).
+            bottom_layout.addWidget(cast(Any, right_col_widget), 3)
 
         tab_layout.addSpacing(12)
-        tab_layout.addLayout(bottom_layout)
+        tab_layout.addLayout(cast(Any, bottom_layout), 4)
 
         ctx.update(
             {
@@ -1403,154 +1450,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             ctx.update(adv_ctx)
         return ctx
 
-    def _bind_tab_context(self, ctx: dict) -> None:
-        self._current_tab_kind = ctx.get("tab_kind")
-        for name in self.TAB_WIDGET_ATTRS:
-            if name in ctx:
-                setattr(self, name, ctx[name])
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar estado do botao limpar filtro no bind de aba: %s", exc)
-        try:
-            if ctx.get("tab_kind") == "filters":
-                try:
-                    debounce_timer = getattr(self, "_debounce_timer", None)
-                    if debounce_timer is not None:
-                        debounce_timer.stop()
-                except Exception as exc:
-                    logger.debug("Falha ao parar debounce no bind da aba de filtros: %s", exc)
-                self.search_input.blockSignals(True)
-                self.search_input.clear()
-        except Exception as exc:
-            logger.debug("Falha ao limpar busca durante bind da aba de filtros: %s", exc)
-        finally:
-            try:
-                if ctx.get("tab_kind") == "filters":
-                    self.search_input.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais da busca no bind da aba de filtros: %s", exc)
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar apos bind de aba: %s", exc)
-
-        tab_kind = ctx.get("tab_kind")
-        try:
-            if tab_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
-                if getattr(self, "_adv_options_dirty", False) or not getattr(self, "_adv_values_cache", None):
-                    try:
-                        self._refresh_advanced_filter_options()
-                        self._adv_options_dirty = False
-                    except Exception as exc:
-                        logger.warning("Falha ao atualizar opcoes avancadas no bind da aba filtros: %s", exc)
-        except Exception as exc:
-            logger.debug("Falha no bloco de refresh de opcoes avancadas no bind de aba: %s", exc)
-
-        try:
-            if hasattr(self, "exclude_ste_checkbox") and not self.exclude_ste_checkbox.isVisible():
-                self._exclude_ste_sca = False
-        except Exception as exc:
-            logger.debug("Falha ao normalizar estado exclude_ste no bind de aba: %s", exc)
-
-        try:
-            if self.current_filter_profile:
-                idx = self.profile_selector.findData(self.current_filter_profile)
-            else:
-                idx = 0
-            if idx >= 0:
-                self.profile_selector.blockSignals(True)
-                self.profile_selector.setCurrentIndex(idx)
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
-        finally:
-            try:
-                self.profile_selector.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
-
-        try:
-            self.column_selector.set_selected_columns(self.visible_columns)
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar colunas visiveis no seletor da aba: %s", exc)
-
-        try:
-            df_id = id(self.df_exibido)
-            if ctx.get("_paginator_df_id") != df_id:
-                self.paginator.set_dataframe(self.df_exibido)
-                ctx["_paginator_df_id"] = df_id
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar dataframe no paginator durante bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self._build_column_filters_panel()
-        except Exception as exc:
-            logger.debug("Falha ao reconstruir painel de filtros por coluna no bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters" and getattr(self, "_pending_theme_refresh_column_filters", None):
-                self._refresh_column_filter_widgets()
-                self._pending_theme_refresh_column_filters = None
-        except Exception as exc:
-            logger.debug("Falha ao aplicar refresh pendente de tema nos filtros por coluna: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self._update_col_filter_indicator()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar indicador de filtros por coluna no bind de aba: %s", exc)
-        try:
-            self._update_filters_summary()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar resumo de filtros no bind de aba: %s", exc)
-        try:
-            self._update_undo_button_state()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao undo no bind de aba: %s", exc)
-        try:
-            if tab_kind != "filters":
-                self.update_filter_tags()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar tags de filtros no bind de aba: %s", exc)
-        try:
-            current_theme = getattr(self, "_current_theme", None)
-            if current_theme and ctx.get("_theme_name") != current_theme:
-                self.apply_theme(current_theme)
-                ctx["_theme_name"] = current_theme
-        except Exception as exc:
-            logger.warning("Falha ao reaplicar tema no bind de aba: %s", exc)
-        try:
-            current_page = max(1, getattr(self.paginator, "current_page", 1))
-            render_key = (id(self.df_exibido), current_page, tuple(self.visible_columns))
-            if ctx.get("_last_render_key") != render_key:
-                ctx["_last_render_key"] = render_key
-                self.display_current_page(current_page)
-        except Exception as exc:
-            logger.warning("Falha ao renderizar pagina no bind de aba: %s", exc)
-
-    def _sync_checks_to_tab_context(self):
-        """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""
-        try:
-            if not hasattr(self, "_tab_contexts"):
-                return
-            filters_ctx = None
-            for ctx in self._tab_contexts:
-                if ctx.get("tab_kind") == "filters":
-                    filters_ctx = ctx
-                    break
-            if filters_ctx is None:
-                return
-
-            synced = 0
-            for attr, value in vars(self).items():
-                if not attr.startswith("adv_") or not attr.endswith("_checks"):
-                    continue
-                if value is None:
-                    continue
-                filters_ctx[attr] = value
-                synced += 1
-            logger.debug("_sync_checks_to_tab_context: %s atributos sincronizados", synced)
-        except Exception as e:
-            logger.error("Erro em _sync_checks_to_tab_context: %s", e)
-
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
             return
@@ -1586,295 +1485,37 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         self._bind_tab_context(ctx)
 
     def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
-        box = QGroupBox(title)
-        layout = QHBoxLayout(box)
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(2)
-        button = QToolButton()
-        button.setText(placeholder)
-        try:
-            button.setMaximumWidth(100)
-        except Exception as exc:
-            logger.debug("Falha ao definir largura maxima do botao multiselect '%s': %s", title, exc)
-        try:
-            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        except Exception as exc:
-            logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
-        menu = QMenu(button)
-        try:
-            menu.setMaximumHeight(360)
-        except Exception as exc:
-            logger.debug("Falha ao definir altura maxima do menu multiselect '%s': %s", title, exc)
-        self._attach_multiselect_menu(button, menu)
-        button.setToolTip(placeholder)
-        try:
-            box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        except Exception as exc:
-            logger.debug("Falha ao definir size policy do groupbox multiselect '%s': %s", title, exc)
-        exclude = None
-        if with_exclude:
-            exclude = QCheckBox("Diferente")
-            try:
-                exclude.setVisible(False)
-            except Exception as exc:
-                logger.debug("Falha ao ocultar checkbox de exclusao no multiselect '%s': %s", title, exc)
-        layout.addWidget(button, 1)
-        return box, button, menu, exclude
+        return ssa_gui_filters._make_multiselect_box(self, title, placeholder, with_exclude)
 
-    def _set_menu_pre_show_hook(self, button, callback) -> None:
-        if button is None:
-            return
-        hooks = getattr(self, "_menu_pre_show_hooks", None)
-        if not isinstance(hooks, dict):
-            hooks = {}
-            self._menu_pre_show_hooks = hooks
-        hooks[id(button)] = callback
+    def _set_menu_pre_show_hook(self, button, callback):
+        return ssa_gui_filters._set_menu_pre_show_hook(self, button, callback)
 
-    def _run_menu_pre_show_hook(self, button) -> None:
-        hooks = getattr(self, "_menu_pre_show_hooks", None)
-        if not isinstance(hooks, dict) or button is None:
-            return
-        callback = hooks.get(id(button))
-        if not callable(callback):
-            return
-        try:
-            callback()
-        except Exception as exc:
-            logger.debug("Falha ao preparar menu antes de abrir: %s", exc)
+    def _run_menu_pre_show_hook(self, button):
+        return ssa_gui_filters._run_menu_pre_show_hook(self, button)
 
-    def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> bool:
-        """Atualiza estado de checkbox sem propagar sinais e sem deixar bloqueio preso."""
-        if not _is_widget_valid(checkbox):
-            return False
-        try:
-            desired = bool(checked)
-            if bool(checkbox.isChecked()) == desired:
-                return False
-        except Exception as exc:
-            logger.debug("Falha ao ler estado atual de checkbox em _set_checkbox_checked_quietly: %s", exc)
-            desired = bool(checked)
-        blocker = None
-        used_signal_blocker = False
-        try:
-            blocker = QSignalBlocker(checkbox)
-            used_signal_blocker = True
-        except Exception:
-            try:
-                checkbox.blockSignals(True)
-            except Exception as exc:
-                logger.debug("Falha ao bloquear sinais de checkbox sem QSignalBlocker: %s", exc)
-        changed = False
-        try:
-            checkbox.setChecked(desired)
-            changed = True
-        except Exception as exc:
-            logger.debug("Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc)
-            changed = False
-        finally:
-            if not used_signal_blocker:
-                try:
-                    checkbox.blockSignals(False)
-                except Exception as exc:
-                    logger.debug("Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s", exc)
-        return changed
+    def _set_checkbox_checked_quietly(self, checkbox, checked: bool):
+        return ssa_gui_filters._set_checkbox_checked_quietly(self, checkbox, checked)
 
-    def _sync_responsavel_flags(self) -> None:
-        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        self._responsavel_filters_materialized = bool(all_prefixes) and all_prefixes.issubset(built)
-        self._responsavel_options_dirty = bool(dirty)
+    def _sync_responsavel_flags(self):
+        return ssa_gui_filters._sync_responsavel_flags(self)
 
-    def _mark_responsavel_dirty(self, prefixes=None) -> None:
-        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-        if prefixes is None:
-            dirty |= all_prefixes
-        else:
-            dirty |= {p for p in prefixes if p in all_prefixes}
-        self._responsavel_dirty_prefixes = dirty
-        self._sync_responsavel_flags()
+    def _mark_responsavel_dirty(self, prefixes=None):
+        return ssa_gui_filters._mark_responsavel_dirty(self, prefixes)
 
-    def _on_sector_debounce_timeout(self) -> None:
-        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-        target = built & dirty
-        if not target:
-            return
-        try:
-            self._refresh_responsavel_options(target_prefixes=target)
-        except Exception as exc:
-            logger.warning("Falha no refresh de responsaveis apos debounce de setor: %s", exc)
+    def _on_sector_debounce_timeout(self):
+        return ssa_gui_filters._on_sector_debounce_timeout(self)
 
-    def _ensure_responsavel_options_materialized(self, target_prefix: str | None = None, force: bool = False) -> None:
-        """Materializa menus de responsaveis sob demanda para reduzir freeze da aba."""
-        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-        if target_prefix:
-            if target_prefix not in all_prefixes:
-                return
-            target_prefixes = {target_prefix}
-        else:
-            target_prefixes = set(all_prefixes)
-        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        if not force and target_prefixes.issubset(built) and not (target_prefixes & dirty):
-            return
-        if getattr(self, "_responsavel_refreshing", False):
-            return
-        self._responsavel_refreshing = True
-        try:
-            self._refresh_responsavel_options(target_prefixes=target_prefixes)
-        finally:
-            self._responsavel_refreshing = False
+    def _ensure_responsavel_options_materialized(self, target_prefix: str | None = None, force: bool = False):
+        return ssa_gui_filters._ensure_responsavel_options_materialized(self, target_prefix, force)
 
-    def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
-        """Atualiza resumo dos botões de responsavel sem materializar menus completos."""
-        selected_prefixes = None
-        if only_prefixes is not None:
-            selected_prefixes = {p for p in only_prefixes}
-        filters = self._advanced_filters or {}
-        pairs = (
-            (
-                "adv_responsavel_solicitante",
-                "adv_responsavel_solicitante_button",
-                "solicitante",
-                "solicitante_exclude_values",
-            ),
-            (
-                "adv_responsavel_programacao",
-                "adv_responsavel_programacao_button",
-                "responsavel_programacao",
-                "responsavel_programacao_exclude_values",
-            ),
-            (
-                "adv_responsavel_execucao",
-                "adv_responsavel_execucao_button",
-                "responsavel_execucao",
-                "responsavel_execucao_exclude_values",
-            ),
-            (
-                "adv_responsavel_emissor",
-                "adv_responsavel_emissor_button",
-                "responsavel_emissor",
-                "responsavel_emissor_exclude_values",
-            ),
-        )
-        for prefix, button_attr, include_key, exclude_key in pairs:
-            if selected_prefixes is not None and prefix not in selected_prefixes:
-                continue
-            button = getattr(self, button_attr, None)
-            if button is None:
-                continue
-            include_values = [str(v) for v in (filters.get(include_key) or []) if str(v).strip()]
-            exclude_values = [str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()]
-            if include_values and exclude_values:
-                text = f"{len(include_values)} inc, {len(exclude_values)} dif"
-            elif include_values:
-                text = f"{len(include_values)} incluir"
-            elif exclude_values:
-                text = f"{len(exclude_values)} diferente"
-            else:
-                text = "Selecionar"
-            try:
-                button.setText(text)
-                button.setEnabled(True)
-                if include_values or exclude_values:
-                    tooltip = "Incluir: " + ", ".join(include_values)
-                    if exclude_values:
-                        tooltip += "\nDiferente: " + ", ".join(exclude_values)
-                    button.setToolTip(tooltip)
-                else:
-                    button.setToolTip("Selecionar")
-            except Exception as exc:
-                logger.debug("Falha ao sincronizar resumo de botao de responsavel (%s): %s", button_attr, exc)
+    def _sync_responsavel_button_summaries(self, only_prefixes=None):
+        return ssa_gui_filters._sync_responsavel_button_summaries(self, only_prefixes)
 
     def _attach_multiselect_menu(self, button, menu):
-        if button is None or menu is None:
-            return
-        def _show_menu():
-            if not _is_widget_valid(button) or not _is_widget_valid(menu):
-                return
-            try:
-                self._run_menu_pre_show_hook(button)
-            except Exception as exc:
-                logger.debug("Falha no pre-show do menu multiselect: %s", exc)
-            try:
-                rect = button.rect()
-                pos = button.mapToGlobal(rect.bottomLeft())
-                try:
-                    menu_size = menu.sizeHint()
-                    screen = QApplication.primaryScreen().geometry()
-                    if menu_size and screen and pos.y() + menu_size.height() > screen.bottom():
-                        pos = button.mapToGlobal(rect.topLeft())
-                        pos.setY(pos.y() - menu_size.height())
-                except Exception as exc:
-                    logger.debug("Falha ao ajustar posicao do menu multiselect na tela: %s", exc)
-                menu.exec(pos)
-                return
-            except Exception as exc:
-                logger.warning("Falha ao abrir menu multiselect: %s", exc)
-        try:
-            button.clicked.connect(_show_menu)
-        except Exception as exc:
-            logger.warning("Falha ao conectar abertura de menu multiselect: %s", exc)
+        return ssa_gui_filters._attach_multiselect_menu(self, button, menu)
 
     def _update_multiselect_button(self, button, checks, placeholder: str = "Selecionar", exclude_checks=None):
-        if not _is_widget_valid(button):
-            return
-        selected = []
-        for cb in checks or []:
-            try:
-                if not _is_widget_valid(cb):
-                    continue
-                if cb.isChecked():
-                    value = self._checkbox_value(cb)
-                    if value:
-                        selected.append(value)
-            except Exception as exc:
-                logger.debug("Failed to read include checkbox state in multiselect summary: %s", exc)
-        excluded = []
-        for cb in exclude_checks or []:
-            try:
-                if not _is_widget_valid(cb):
-                    continue
-                if cb.isChecked():
-                    value = self._checkbox_value(cb)
-                    if value:
-                        excluded.append(value)
-            except Exception as exc:
-                logger.debug("Failed to read exclude checkbox state in multiselect summary: %s", exc)
-        total = len(checks or [])
-        if total == 0:
-            text = "Sem dados"
-        elif not selected and not excluded:
-            text = placeholder
-        elif len(selected) == total and not excluded:
-            text = "Todos"
-        elif selected and excluded:
-            text = f"{len(selected)} inc, {len(excluded)} dif"
-        elif selected:
-            text = f"{len(selected)} incluir"
-        elif excluded:
-            text = f"{len(excluded)} diferente"
-        else:
-            text = f"{len(selected)} selecionados"
-        try:
-            button.setText(text)
-            # Esmaecimento visual para botoes sem dados
-            if total == 0:
-                button.setEnabled(False)
-                button.setStyleSheet("color: #888; background-color: #f0f0f0;")
-            else:
-                button.setEnabled(True)
-                button.setStyleSheet("")  # Remove estilo customizado
-            if selected or excluded:
-                button.setToolTip(
-                    "Incluir: " + ", ".join(selected) + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
-                )
-            else:
-                button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
-        except Exception as exc:
-            logger.debug("Falha ao atualizar resumo/tooltip do botao multiselect: %s", exc)
+        return ssa_gui_filters._update_multiselect_button(self, button, checks, placeholder, exclude_checks)
 
     def _rebuild_multiselect_menu(
         self,
@@ -1887,2791 +1528,249 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         exclude_selected_set=None,
         on_exclude_toggle=None,
     ):
-        try:
-            menu.clear()
-        except Exception as exc:
-            logger.debug("Falha ao limpar menu multiselect antes de reconstruir: %s", exc)
-        selected_norm = {str(v).casefold() for v in (selected_set or [])}
-        exclude_norm = {str(v).casefold() for v in (exclude_selected_set or [])}
-        checks = []
-        exclude_checks = []
+        return ssa_gui_filters._rebuild_multiselect_menu(
+            self,
+            button,
+            menu,
+            values,
+            selected_set,
+            on_toggle,
+            on_apply,
+            exclude_selected_set,
+            on_exclude_toggle,
+        )
 
-        # Obter nome do filtro do titulo do GroupBox pai (subindo na hierarquia)
-        filter_name = ""
-        try:
-            parent = button.parent()
-            seen = set()
-            for _ in range(50):
-                if parent is None:
-                    break
-                pid = id(parent)
-                if pid in seen:
-                    logger.debug("Ciclo detectado ao subir parent() no menu multiselect; abortando.")
-                    break
-                seen.add(pid)
-                if isinstance(parent, QGroupBox):
-                    candidate = parent.title()
-                    # Ignorar titulos genericos como "Valores"
-                    if candidate and candidate not in ("Valores", ""):
-                        filter_name = candidate
-                        break
-                parent = parent.parent()
-        except Exception as exc:
-            logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
-
-        try:
-            try:
-                max_label_len = max((len(str(v)) for v in values), default=4)
-            except Exception:
-                max_label_len = 4
-            computed = max_label_len * 8 + 70
-            min_width = max(int(getattr(button, "width", lambda: 0)() or 0), min(360, max(160, computed)))
-            menu.setMinimumWidth(min_width)
-        except Exception as exc:
-            logger.debug("Falha ao ajustar largura minima do menu multiselect: %s", exc)
-
-        container = QWidget()
-        grid = QGridLayout(container)
-        grid.setContentsMargins(6, 4, 14, 4)
-        grid.setHorizontalSpacing(6)
-        grid.setVerticalSpacing(4)
-        try:
-            grid.setAlignment(Qt.AlignmentFlag.AlignTop)
-        except Exception as exc:
-            logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 0)
-        grid.setColumnStretch(2, 0)
-        row_idx = 0
-
-        # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
-        if filter_name:
-            label_filter = QLabel(filter_name)
-            try:
-                label_filter.setStyleSheet("font-weight: bold; font-size: 11px;")
-            except Exception as exc:
-                logger.debug("Failed to style multiselect menu header label: %s", exc)
-            grid.addWidget(label_filter, row_idx, 0)
-
-            if exclude_selected_set is not None:
-                label_inc = QLabel("==")
-                label_exc = QLabel("!=")
-                try:
-                    # == com destaque (borda), != sem destaque (invertido conforme solicitado)
-                    label_inc.setStyleSheet("font-size: 10px; color: #888; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;")
-                    label_exc.setStyleSheet("font-size: 10px; color: #555;")
-                    label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                    label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                except Exception as exc:
-                    logger.debug("Falha ao estilizar header include/exclude do menu multiselect: %s", exc)
-                grid.addWidget(label_inc, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-                grid.addWidget(label_exc, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-
-            # Separador entre header e conteudo
-            header_sep = QFrame()
-            header_sep.setFrameShape(QFrame.Shape.HLine)
-            header_sep.setFrameShadow(QFrame.Shadow.Sunken)
-            col_span = 3 if exclude_selected_set is not None else 1
-            grid.addWidget(header_sep, row_idx, 0, 1, col_span)
-            row_idx += 1
-
-        # Estilo para checkboxes com indicacao visual clara quando marcados
-        # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual
-        cb_style_include = """
-            QCheckBox::indicator {
-                background-color: #f0f0f0;
-                border: 1px solid #888;
-                border-radius: 2px;
-                width: 13px;
-                height: 13px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #4a90d9;
-                border: 1px solid #2a70b9;
-                image: none;
-            }
-        """
-        cb_style_exclude = """
-            QCheckBox::indicator {
-                background-color: #f5f5f5;
-                border: 1px solid #bbb;
-                border-radius: 2px;
-                width: 13px;
-                height: 13px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #d94a4a;
-                border: 1px solid #b92a2a;
-                image: none;
-            }
-        """
-
-        for val in values:
-            label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
-            cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
-            # Ignorar valores vazios ou apenas espacos
-            if not label_text or not label_text.strip():
-                continue
-            label = QLabel(label_text)
-            try:
-                label.setStyleSheet("font-size: 11px;")
-            except Exception as exc:
-                logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
-            include_cb = QCheckBox()
-            exclude_cb = QCheckBox() if exclude_selected_set is not None else None
-            try:
-                include_cb.setProperty("value", str(cb_value))
-                include_cb.setStyleSheet(cb_style_include)
-            except Exception as exc:
-                logger.debug("Falha ao configurar checkbox include do menu multiselect: %s", exc)
-            if exclude_cb is not None:
-                try:
-                    exclude_cb.setProperty("value", str(cb_value))
-                    exclude_cb.setStyleSheet(cb_style_exclude)
-                except Exception as exc:
-                    logger.debug("Falha ao configurar checkbox exclude do menu multiselect: %s", exc)
-            try:
-                include_cb.setChecked(str(cb_value).casefold() in selected_norm)
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estado inicial do checkbox include: %s", exc)
-            if exclude_cb is not None:
-                try:
-                    exclude_cb.setChecked(str(cb_value).casefold() in exclude_norm)
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar estado inicial do checkbox exclude: %s", exc)
-            grid.addWidget(label, row_idx, 0)
-            grid.addWidget(include_cb, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            if exclude_cb is not None:
-                grid.addWidget(exclude_cb, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-            checks.append(include_cb)
-            if exclude_cb is not None:
-                exclude_checks.append(exclude_cb)
-            if exclude_cb is not None:
-                def _toggle_include(checked, other=exclude_cb):
-                    if checked and _is_widget_valid(other) and other.isChecked():
-                        other.blockSignals(True)
-                        other.setChecked(False)
-                        other.blockSignals(False)
-                def _toggle_exclude(checked, other=include_cb):
-                    if checked and _is_widget_valid(other) and other.isChecked():
-                        other.blockSignals(True)
-                        other.setChecked(False)
-                        other.blockSignals(False)
-                try:
-                    include_cb.toggled.connect(_toggle_include)
-                    exclude_cb.toggled.connect(_toggle_exclude)
-                except Exception as exc:
-                    logger.warning("Falha ao conectar mutual exclusion include/exclude no menu multiselect: %s", exc)
-            if on_toggle is not None:
-                try:
-                    include_cb.toggled.connect(on_toggle)
-                except Exception as exc:
-                    logger.warning("Falha ao conectar callback on_toggle do menu multiselect: %s", exc)
-            if exclude_cb is not None and on_exclude_toggle is not None:
-                try:
-                    exclude_cb.toggled.connect(on_exclude_toggle)
-                except Exception as exc:
-                    logger.warning("Falha ao conectar callback on_exclude_toggle do menu multiselect: %s", exc)
-
-        # Separador antes de Selecionar/Desmarcar
-        if exclude_selected_set is not None:
-            separator = QFrame()
-            separator.setFrameShape(QFrame.Shape.HLine)
-            separator.setFrameShadow(QFrame.Shadow.Sunken)
-            grid.addWidget(separator, row_idx, 0, 1, 3)
-            row_idx += 1
-
-            # Selecionar/Desmarcar ao fim da lista
-            select_all_include = QCheckBox()
-            deselect_all_include = QCheckBox()
-            select_all_exclude = QCheckBox()
-            deselect_all_exclude = QCheckBox()
-
-            for cb in [select_all_include, deselect_all_include]:
-                cb.setStyleSheet(cb_style_include)
-            for cb in [select_all_exclude, deselect_all_exclude]:
-                cb.setStyleSheet(cb_style_exclude)
-
-            label_select = QLabel("Selecionar tudo")
-            label_deselect = QLabel("Desmarcar tudo")
-            try:
-                label_select.setStyleSheet("font-size: 11px;")
-                label_deselect.setStyleSheet("font-size: 11px;")
-            except Exception as exc:
-                logger.debug("Falha ao estilizar labels de selecionar/desmarcar no menu multiselect: %s", exc)
-
-            grid.addWidget(label_select, row_idx, 0)
-            grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-
-            grid.addWidget(label_deselect, row_idx, 0)
-            grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-            grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
-            row_idx += 1
-
-        scroll = QScrollArea()
-        scroll.setWidget(container)
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        try:
-            scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
-        except Exception as exc:
-            logger.debug("Falha ao alinhar scroll do menu multiselect no topo: %s", exc)
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            pal = (button or scroll).palette()
-            border = pal.color(_QPal.ColorRole.Mid).name()
-            bg = pal.color(_QPal.ColorRole.Base).name()
-            container.setStyleSheet(f"QWidget {{ background: {bg}; }} QLabel {{ font-size: 11px; }}")
-            scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {border}; }}")
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc)
-        try:
-            scroll.setFixedHeight(320)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar altura fixa do scroll no menu multiselect: %s", exc)
-        scroll_act = QWidgetAction(menu)
-        scroll_act.setDefaultWidget(scroll)
-        try:
-            menu.addAction(scroll_act)
-        except Exception as exc:
-            logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
-
-        # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals
-        # CORRECAO 2026-01-08: Reset do checkbox apos acao para feedback visual correto
-        if exclude_selected_set is not None:
-            def _select_all_include():
-                for cb in checks:
-                    if not _is_widget_valid(cb):
-                        continue
-                    cb.blockSignals(True)
-                    cb.setChecked(True)
-                    cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                select_all_include.blockSignals(True)
-                select_all_include.setChecked(False)
-                select_all_include.blockSignals(False)
-                if on_toggle:
-                    on_toggle()
-
-            def _deselect_all_include():
-                for cb in checks:
-                    if not _is_widget_valid(cb):
-                        continue
-                    cb.blockSignals(True)
-                    cb.setChecked(False)
-                    cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                deselect_all_include.blockSignals(True)
-                deselect_all_include.setChecked(False)
-                deselect_all_include.blockSignals(False)
-                if on_toggle:
-                    on_toggle()
-
-            def _select_all_exclude():
-                for cb in exclude_checks:
-                    if not _is_widget_valid(cb):
-                        continue
-                    cb.blockSignals(True)
-                    cb.setChecked(True)
-                    cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                select_all_exclude.blockSignals(True)
-                select_all_exclude.setChecked(False)
-                select_all_exclude.blockSignals(False)
-                if on_exclude_toggle:
-                    on_exclude_toggle()
-
-            def _deselect_all_exclude():
-                for cb in exclude_checks:
-                    if not _is_widget_valid(cb):
-                        continue
-                    cb.blockSignals(True)
-                    cb.setChecked(False)
-                    cb.blockSignals(False)
-                # Reset checkbox de acao apos executar
-                deselect_all_exclude.blockSignals(True)
-                deselect_all_exclude.setChecked(False)
-                deselect_all_exclude.blockSignals(False)
-                if on_exclude_toggle:
-                    on_exclude_toggle()
-
-            try:
-                select_all_include.toggled.connect(lambda checked: _select_all_include() if checked else None)
-                deselect_all_include.toggled.connect(lambda checked: _deselect_all_include() if checked else None)
-                select_all_exclude.toggled.connect(lambda checked: _select_all_exclude() if checked else None)
-                deselect_all_exclude.toggled.connect(lambda checked: _deselect_all_exclude() if checked else None)
-            except Exception as exc:
-                logger.debug("Failed to connect select-all toggles in multiselect menu: %s", exc)
-
-        # Botoes OK e Cancelar - OK sempre a direita
-        # OTIMIZACAO 2026-01-08: OK apenas fecha o menu, NAO aplica filtro
-        # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle)
-        if on_apply is not None:
-            cancel_btn = QPushButton("Cancelar")
-            cancel_btn.setFixedWidth(70)
-            cancel_btn.setToolTip("Fechar sem aplicar")
-            ok_btn = QPushButton("OK")
-            ok_btn.setFixedWidth(70)
-            ok_btn.setToolTip("Confirmar selecao (use botao Aplicar para filtrar)")
-            try:
-                cancel_btn.clicked.connect(menu.close)
-            except Exception as exc:
-                logger.debug("Falha ao conectar botao Cancelar no menu multiselect: %s", exc)
-            try:
-                ok_btn.clicked.connect(menu.close)
-                # REMOVIDO: ok_btn.clicked.connect(on_apply)
-                # Agora o filtro so e aplicado pelo botao "Aplicar" geral
-            except Exception as exc:
-                logger.debug("Falha ao conectar botao OK no menu multiselect: %s", exc)
-            ok_row = QWidget()
-            ok_layout = QHBoxLayout(ok_row)
-            ok_layout.setContentsMargins(6, 4, 6, 6)
-            ok_layout.addStretch()
-            ok_layout.addWidget(cancel_btn)
-            ok_layout.addSpacing(8)
-            ok_layout.addWidget(ok_btn)
-            ok_act = QWidgetAction(menu)
-            ok_act.setDefaultWidget(ok_row)
-            try:
-                menu.addAction(ok_act)
-            except Exception as exc:
-                logger.debug("Falha ao adicionar rodape de acoes no menu multiselect: %s", exc)
-        self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
-        if exclude_selected_set is not None:
-            return checks, exclude_checks
-        return checks, []
-
-    def _checkbox_value(self, checkbox) -> str:
-        try:
-            text = checkbox.text()
-            if text:
-                return text
-        except Exception as exc:
-            logger.debug("Falha ao obter texto do checkbox em _checkbox_value: %s", exc)
-        try:
-            value = checkbox.property("value")
-            if value is not None:
-                return str(value)
-        except Exception as exc:
-            logger.debug("Falha ao obter propriedade 'value' do checkbox em _checkbox_value: %s", exc)
-        return ""
+    def _checkbox_value(self, checkbox):
+        return ssa_gui_filters._checkbox_value(self, checkbox)
 
     def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None, exclude_selected=None):
-        selected_set = {str(v).casefold() for v in (selected or [])}
-        for cb in checks or []:
-            try:
-                cb.setChecked(self._checkbox_value(cb).casefold() in selected_set)
-            except Exception as exc:
-                logger.debug("Falha ao sincronizar checkbox include em multiselect: %s", exc)
-        exclude_set = {str(v).casefold() for v in (exclude_selected or [])}
-        for cb in exclude_checks or []:
-            try:
-                cb.setChecked(self._checkbox_value(cb).casefold() in exclude_set)
-            except Exception as exc:
-                logger.debug("Falha ao sincronizar checkbox exclude em multiselect: %s", exc)
-        self._update_multiselect_button(button, checks, exclude_checks=exclude_checks)
+        return ssa_gui_filters._sync_multiselect_checks(self, button, checks, selected, exclude_checks, exclude_selected)
 
     def _build_advanced_filters_panel(self):
-        group = QGroupBox("Filtros Avancados")
-        outer = QVBoxLayout(group)
-        outer.setContentsMargins(2, 2, 2, 2)
-        outer.setSpacing(2)
-
-        # Container para grid (preparado para scroll futuro)
-        grid_container = QWidget()
-        grid_container_layout = QVBoxLayout(grid_container)
-        grid_container_layout.setContentsMargins(0, 0, 0, 0)
-        grid_container_layout.setSpacing(0)
-
-        emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
-        exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
-        div_box, div_button, div_menu, div_exclude = self._make_multiselect_box("Divisao")
-        status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
-        year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box("Ano Emissao", with_exclude=False)
-        year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box("Ano Execucao", with_exclude=False)
-
-        reprog_box = QGroupBox("Reprogramacoes")
-        reprog_layout = QHBoxLayout(reprog_box)
-        reprog_layout.setContentsMargins(2, 1, 2, 1)
-        reprog_layout.setSpacing(2)
-        reprog_mode = QComboBox()
-        reprog_mode.addItem("= Igual", "eq")
-        reprog_mode.addItem("<= Menor", "lte")
-        reprog_mode.addItem(">= Maior", "gte")
-        try:
-            reprog_mode.setFixedWidth(80)
-        except Exception as exc:
-            logger.debug("Falha ao definir largura fixa do seletor de reprogramacoes: %s", exc)
-        reprog_layout.addWidget(reprog_mode)
-        reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
-        try:
-            reprog_button.setFixedWidth(80)
-        except Exception as exc:
-            logger.debug("Falha ao definir largura fixa do botao de reprogramacoes: %s", exc)
-        reprog_layout.addWidget(reprog_button, 1)
-        self.adv_reprog_mode = reprog_mode
-        self.adv_reprog_button = reprog_button
-        self.adv_reprog_menu = reprog_menu
-        self.adv_reprog_checks = []
-
-        prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio. Emissao")
-        prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio. Planejamento")
-
-        deriv_box = QGroupBox("Derivadas")
-        deriv_layout = QHBoxLayout(deriv_box)
-        deriv_layout.setContentsMargins(2, 1, 2, 1)
-        deriv_layout.setSpacing(2)
-        deriv_has = QCheckBox("Tem")
-        deriv_all_ste = QCheckBox("STE")
-        deriv_is = QCheckBox("Sou Derivada")
-        derivadas_select_btn = QPushButton("Especificas...")
-        try:
-            derivadas_select_btn.setMaximumWidth(100)
-            derivadas_select_btn.setEnabled(False)  # Habilitado quando existir derivadas
-        except Exception as exc:
-            logger.debug("Falha ao configurar botao de derivadas especificas: %s", exc)
-        derivadas_select_btn.setToolTip("Ver arvore de derivadas (habilitado quando existirem derivadas na lista)")
-        try:
-            derivadas_select_btn.clicked.connect(self._show_derivadas_popup)
-        except Exception as exc:
-            logger.debug("Falha ao conectar evento de popup de derivadas: %s", exc)
-        try:
-            deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
-            deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
-        except Exception as exc:
-            logger.debug("Falha ao conectar handlers de filtros de derivadas: %s", exc)
-        deriv_layout.addWidget(deriv_has)
-        deriv_layout.addWidget(deriv_all_ste)
-        deriv_layout.addWidget(deriv_is)
-        deriv_layout.addWidget(derivadas_select_btn)
-        deriv_layout.addStretch()
-
-        week_emis_box = QGroupBox("Emissao (AnoSemana)")
-        week_emis_layout = QHBoxLayout(week_emis_box)
-        week_emis_layout.setContentsMargins(2, 1, 2, 1)
-        week_emis_layout.setSpacing(2)
-        week_emissao_start = QLineEdit()
-        week_emissao_start.setPlaceholderText("Ini")
-        try:
-            week_emissao_start.setMaxLength(6)
-            week_emissao_start.setFixedWidth(60)
-        except Exception as exc:
-            logger.debug("Falha ao configurar campo de semana inicial de emissao: %s", exc)
-        week_emissao_end = QLineEdit()
-        week_emissao_end.setPlaceholderText("Fim")
-        try:
-            week_emissao_end.setMaxLength(6)
-            week_emissao_end.setFixedWidth(60)
-        except Exception as exc:
-            logger.debug("Falha ao configurar campo de semana final de emissao: %s", exc)
-        week_emissao_exclude = None
-        week_emis_layout.addWidget(week_emissao_start)
-        week_emis_layout.addWidget(week_emissao_end)
-
-        week_exec_box = QGroupBox("Execucao (AnoSemana)")
-        week_exec_layout = QHBoxLayout(week_exec_box)
-        week_exec_layout.setContentsMargins(2, 1, 2, 1)
-        week_exec_layout.setSpacing(2)
-        week_exec_start = QLineEdit()
-        week_exec_start.setPlaceholderText("Ini")
-        try:
-            week_exec_start.setMaxLength(6)
-            week_exec_start.setFixedWidth(60)
-        except Exception as exc:
-            logger.debug("Falha ao configurar campo de semana inicial de execucao: %s", exc)
-        week_exec_end = QLineEdit()
-        week_exec_end.setPlaceholderText("Fim")
-        try:
-            week_exec_end.setMaxLength(6)
-            week_exec_end.setFixedWidth(60)
-        except Exception as exc:
-            logger.debug("Falha ao configurar campo de semana final de execucao: %s", exc)
-        week_exec_exclude = None
-        week_exec_layout.addWidget(week_exec_start)
-        week_exec_layout.addWidget(week_exec_end)
-
-        macro_box = QGroupBox("Macro")
-        macro_layout = QHBoxLayout(macro_box)
-        macro_layout.setContentsMargins(2, 1, 2, 1)
-        macro_combo = QComboBox()
-        try:
-            macro_combo.setMinimumWidth(100)
-        except Exception as exc:
-            logger.debug("Falha ao definir largura minima do filtro macro: %s", exc)
-        macro_combo.addItem("Nenhum", None)
-        macro_combo.addItem("Baixar", "ssas_para_baixar")
-        macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
-        macro_layout.addWidget(macro_combo)
-
-        sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
-        prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
-        exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Exec")
-        emis_resp_box, emis_resp_button, emis_resp_menu, emis_resp_exclude = self._make_multiselect_box("Resp Emis")
-        self._set_menu_pre_show_hook(
-            sol_button,
-            lambda prefix="adv_responsavel_solicitante": self._ensure_responsavel_options_materialized(
-                target_prefix=prefix
-            ),
-        )
-        self._set_menu_pre_show_hook(
-            prog_button,
-            lambda prefix="adv_responsavel_programacao": self._ensure_responsavel_options_materialized(
-                target_prefix=prefix
-            ),
-        )
-        self._set_menu_pre_show_hook(
-            exec_resp_button,
-            lambda prefix="adv_responsavel_execucao": self._ensure_responsavel_options_materialized(
-                target_prefix=prefix
-            ),
-        )
-        self._set_menu_pre_show_hook(
-            emis_resp_button,
-            lambda prefix="adv_responsavel_emissor": self._ensure_responsavel_options_materialized(
-                target_prefix=prefix
-            ),
-        )
-
-        main_grid = QGridLayout()
-        main_grid.setContentsMargins(0, 0, 0, 0)
-        main_grid.setHorizontalSpacing(4)
-        main_grid.setVerticalSpacing(8)  # Espacamento entre linhas para conforto visual
-        main_grid.addWidget(emis_box, 0, 0)
-        main_grid.addWidget(exec_box, 0, 1)
-        main_grid.addWidget(div_box, 0, 2)
-        main_grid.addWidget(status_box, 0, 3)
-        main_grid.addWidget(year_emissao_box, 0, 4)
-        main_grid.addWidget(year_execucao_box, 0, 5)
-        main_grid.addWidget(reprog_box, 1, 0)
-        main_grid.addWidget(prio_emis_box, 1, 1)
-        main_grid.addWidget(prio_plan_box, 1, 2)
-        main_grid.addWidget(deriv_box, 1, 3, 1, 2)
-        main_grid.addWidget(macro_box, 1, 5)
-        main_grid.addWidget(week_emis_box, 2, 0)
-        main_grid.addWidget(week_exec_box, 2, 1)
-        main_grid.addWidget(sol_box, 2, 2)
-        main_grid.addWidget(prog_box, 2, 3)
-        main_grid.addWidget(exec_resp_box, 2, 4)
-        main_grid.addWidget(emis_resp_box, 2, 5)
-        for col in range(6):
-            main_grid.setColumnStretch(col, 1)
-
-        # Adiciona grid ao container
-        grid_container_layout.addLayout(main_grid)
-        outer.addWidget(grid_container, 1)
-
-        # Armazena referencia ao grid para reorganizacao responsiva
-        self._adv_filters_main_grid = main_grid
-        self._adv_filters_grid_widgets = {
-            "emis_box": emis_box, "exec_box": exec_box, "div_box": div_box,
-            "status_box": status_box, "year_emissao_box": year_emissao_box,
-            "year_execucao_box": year_execucao_box, "reprog_box": reprog_box,
-            "prio_emis_box": prio_emis_box, "prio_plan_box": prio_plan_box,
-            "deriv_box": deriv_box, "macro_box": macro_box,
-            "week_emis_box": week_emis_box, "week_exec_box": week_exec_box,
-            "sol_box": sol_box, "prog_box": prog_box,
-            "exec_resp_box": exec_resp_box, "emis_resp_box": emis_resp_box
-        }
-
-        buttons_row = QHBoxLayout()
-        buttons_row.setContentsMargins(0, 2, 0, 0)
-        buttons_row.addStretch()
-        apply_btn = QPushButton("Aplicar")
-        clear_btn = QPushButton("Limpar")
-        save_defaults_btn = QPushButton("Salvar padrao")
-        apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-        clear_btn.clicked.connect(self._clear_advanced_filters)
-        save_defaults_btn.clicked.connect(self._save_advanced_filters_default)
-        buttons_row.addWidget(apply_btn)
-        buttons_row.addSpacing(4)
-        buttons_row.addWidget(clear_btn)
-        buttons_row.addSpacing(4)
-        buttons_row.addWidget(save_defaults_btn)
-        buttons_row.addStretch()
-
-        outer.addLayout(buttons_row)
-
-        ctx = {
-            "adv_filters_group": group,
-            "adv_executor_button": exec_button,
-            "adv_executor_menu": exec_menu,
-            "adv_executor_checks": [],
-            "adv_executor_exclude": exec_exclude,
-            "adv_emissor_button": emis_button,
-            "adv_emissor_menu": emis_menu,
-            "adv_emissor_checks": [],
-            "adv_emissor_exclude": emis_exclude,
-            "adv_divisao_button": div_button,
-            "adv_divisao_menu": div_menu,
-            "adv_divisao_checks": [],
-            "adv_divisao_exclude": div_exclude,
-            "adv_status_button": status_button,
-            "adv_status_menu": status_menu,
-            "adv_status_checks": [],
-            "adv_status_exclude": status_exclude,
-            "adv_year_emissao_button": year_emissao_button,
-            "adv_year_emissao_menu": year_emissao_menu,
-            "adv_year_emissao_checks": [],
-            "adv_year_execucao_button": year_execucao_button,
-            "adv_year_execucao_menu": year_execucao_menu,
-            "adv_year_execucao_checks": [],
-            "adv_reprog_box": reprog_box,
-            "adv_reprog_mode": reprog_mode,
-            "adv_reprog_button": reprog_button,
-            "adv_reprog_menu": reprog_menu,
-            "adv_reprog_checks": [],
-            "adv_week_emissao_start": week_emissao_start,
-            "adv_week_emissao_end": week_emissao_end,
-            "adv_week_emissao_exclude": week_emissao_exclude,
-            "adv_week_execucao_start": week_exec_start,
-            "adv_week_execucao_end": week_exec_end,
-            "adv_week_execucao_exclude": week_exec_exclude,
-            "adv_prioridade_emissao_button": prio_emis_button,
-            "adv_prioridade_emissao_menu": prio_emis_menu,
-            "adv_prioridade_emissao_checks": [],
-            "adv_prioridade_planejamento_button": prio_plan_button,
-            "adv_prioridade_planejamento_menu": prio_plan_menu,
-            "adv_prioridade_planejamento_checks": [],
-            "adv_derivada_has": deriv_has,
-            "adv_derivada_all_ste": deriv_all_ste,
-            "adv_derivada_is": deriv_is,
-            "adv_derivadas_especificas_button": derivadas_select_btn,
-            "adv_responsavel_solicitante_button": sol_button,
-            "adv_responsavel_solicitante_menu": sol_menu,
-            "adv_responsavel_solicitante_checks": [],
-            "adv_responsavel_solicitante_exclude": sol_exclude,
-            "adv_responsavel_solicitante_box": sol_box,
-            "adv_responsavel_programacao_button": prog_button,
-            "adv_responsavel_programacao_menu": prog_menu,
-            "adv_responsavel_programacao_checks": [],
-            "adv_responsavel_programacao_exclude": prog_exclude,
-            "adv_responsavel_programacao_box": prog_box,
-            "adv_responsavel_execucao_button": exec_resp_button,
-            "adv_responsavel_execucao_menu": exec_resp_menu,
-            "adv_responsavel_execucao_checks": [],
-            "adv_responsavel_execucao_exclude": exec_resp_exclude,
-            "adv_responsavel_execucao_box": exec_resp_box,
-            "adv_responsavel_emissor_button": emis_resp_button,
-            "adv_responsavel_emissor_menu": emis_resp_menu,
-            "adv_responsavel_emissor_checks": [],
-            "adv_responsavel_emissor_exclude": emis_resp_exclude,
-            "adv_responsavel_emissor_box": emis_resp_box,
-            "adv_macro_combo": macro_combo,
-            "adv_save_defaults_btn": save_defaults_btn,
-        }
-        return group, ctx
+        return ssa_gui_filters._build_advanced_filters_panel(self)
 
     def _on_derivada_has_toggled(self, checked: bool):
-        """Quando 'Tem' é desmarcado, 'STE' também deve ser desmarcado."""
-        if not checked:
-            try:
-                if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
-                    self.adv_derivada_all_ste.setChecked(False)
-            except Exception as exc:
-                logger.debug("Falha ao desmarcar filtro derivada STE ao desabilitar 'Tem': %s", exc)
+        return ssa_gui_filters._on_derivada_has_toggled(self, checked)
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
-        if not checked:
-            return
-        try:
-            if hasattr(self, "adv_derivada_has"):
-                self.adv_derivada_has.setChecked(True)
-        except Exception as exc:
-            logger.debug("Falha ao forcar 'Tem derivada' quando STE foi marcado: %s", exc)
+        return ssa_gui_filters._on_derivada_all_ste_toggled(self, checked)
 
     def _show_derivadas_popup(self):
-        """Mostra popup com arvore de derivadas em texto plano."""
-        try:
-            df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
-            if df is None or df.empty:
-                return
-
-            # Buscar coluna de derivada_de
-            derivada_col = None
-            numero_col = None
-            for col in df.columns:
-                col_lower = col.lower()
-                if "derivada" in col_lower:
-                    derivada_col = col
-                elif "numero" in col_lower and "ssa" in col_lower:
-                    numero_col = col
-
-            if derivada_col is None or numero_col is None:
-                return
-
-            mae_filhas, filha_mae = self._build_derivadas_tree(df, numero_col, derivada_col)
-
-            if not mae_filhas and not filha_mae:
-                return
-
-            # Construir texto
-            lines = []
-
-            # Derivadas (maes com suas filhas)
-            if mae_filhas:
-                lines.append("Derivadas")
-                for mae in sorted(mae_filhas.keys()):
-                    filhas = mae_filhas[mae]
-                    # Verificar se alguma filha tambem e mae
-                    filhas_str_parts = []
-                    for f in sorted(filhas):
-                        if f in mae_filhas:
-                            # Filha tambem e mae, incluir netas entre parenteses
-                            netas = mae_filhas[f]
-                            filhas_str_parts.append(f"{f}({','.join(sorted(netas))})")
-                        else:
-                            filhas_str_parts.append(f)
-                    lines.append(f"{mae} -> {', '.join(filhas_str_parts)}")
-
-            lines.append("")
-
-            # SSA de origem (filhas com suas maes)
-            if filha_mae:
-                lines.append("SSA de origem")
-                for filha in sorted(filha_mae.keys()):
-                    mae = filha_mae[filha]
-                    lines.append(f"{filha} -> {mae}")
-
-            text = "\n".join(lines)
-
-            # Criar dialogo com texto copiavel e pesquisavel
-            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Arvore de Derivadas")
-            dialog.setMinimumSize(500, 400)
-            layout = QVBoxLayout(dialog)
-
-            text_edit = QTextEdit()
-            text_edit.setPlainText(text)
-            text_edit.setReadOnly(True)
-            try:
-                text_edit.setStyleSheet(f"font-family: {MONO_FONT_FAMILY}; font-size: 11px;")
-            except Exception as exc:
-                logger.debug("Failed to style derivadas popup text editor: %s", exc)
-            layout.addWidget(text_edit)
-
-            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-            buttons.rejected.connect(dialog.close)
-            layout.addWidget(buttons)
-
-            dialog.exec()
-        except Exception as e:
-            logger.warning("Erro ao mostrar popup de derivadas: %s", e)
+        return ssa_gui_filters._show_derivadas_popup(self)
 
     def _build_derivadas_tree(self, df: pd.DataFrame, numero_col: str, derivada_col: str):
-        """Constroi arvore de derivadas com normalizacao robusta de SSA."""
-        mae_filhas_set: dict[str, set[str]] = {}
-        mae_filhas: dict[str, list[str]] = {}
-        filha_mae: dict[str, str] = {}
-        if df is None or df.empty:
-            return mae_filhas, filha_mae
-        if numero_col not in df.columns or derivada_col not in df.columns:
-            return mae_filhas, filha_mae
-
-        try:
-            df_work = df[[numero_col, derivada_col]].copy()
-        except Exception:
-            return mae_filhas, filha_mae
-
-        for numero_raw, derivada_raw in df_work.itertuples(index=False, name=None):
-            numero = self._normalize_ssa_value(numero_raw)
-            derivada_de = self._normalize_ssa_value(derivada_raw)
-            if not numero or not derivada_de:
-                continue
-            filha_mae[numero] = derivada_de
-            mae_filhas_set.setdefault(derivada_de, set()).add(numero)
-
-        for mae, filhas in list(mae_filhas_set.items()):
-            mae_filhas[mae] = sorted(filhas, key=lambda value: str(value).casefold())
-
-        return mae_filhas, filha_mae
+        cache_token = ssa_gui_filters._cache_token(
+            getattr(self, "_data_load_request_seq", None),
+            getattr(self, "_active_data_load_request_id", None),
+            (id(df), df.shape, getattr(self, "_data_uuid", None)),
+        )
+        return ssa_gui_filters._build_derivadas_tree(
+            self,
+            df,
+            numero_col,
+            derivada_col,
+            cache_token=cache_token,
+            normalize_ssa_series=self._normalize_ssa_series,
+        )
 
     def _update_derivadas_button_state(self):
-        """Habilita/desabilita botao Especificas baseado em existencia de derivadas."""
-        try:
-            btn = getattr(self, "adv_derivadas_especificas_button", None)
-            if btn is None:
-                btn = getattr(self, "_adv_ctx", {}).get("adv_derivadas_especificas_button")
-            if btn is None:
-                return
-
-            df = self._df_last_search_filtered if hasattr(self, "_df_last_search_filtered") else None
-            if df is None or df.empty:
-                btn.setEnabled(False)
-                return
-
-            # Verificar se existe coluna derivada_de com valores
-            derivada_col = None
-            for col in df.columns:
-                if "derivada" in col.lower():
-                    derivada_col = col
-                    break
-
-            if derivada_col is None:
-                btn.setEnabled(False)
-                return
-
-            # Verificar se ha valores normalizados validos (ignora '', None, NaN)
-            normalized = self._normalize_ssa_series(df[derivada_col])
-            has_derivadas = normalized.ne("").any()
-            btn.setEnabled(bool(has_derivadas))
-        except Exception as exc:
-            logger.warning("Falha ao atualizar estado do botao de derivadas especificas: %s", exc)
+        return ssa_gui_filters._update_derivadas_button_state(self)
 
     def _save_advanced_filters_default(self):
-        self._apply_advanced_filters_from_ui(store_only=True)
-        try:
-            gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-            gui_settings["advanced_filters_default"] = copy.deepcopy(self._advanced_filters or {})
-            self._persist_gui_preferences()
-        except Exception as e:
-            logger.warning("Falha ao salvar filtros avancados default: %s", e)
+        return ssa_gui_filters._save_advanced_filters_default(self)
 
     def _on_macro_filter_changed(self):
-        try:
-            choice = self.adv_macro_combo.currentData()
-        except Exception:
-            choice = None
-        if choice == "ssas_para_baixar":
-            try:
-                if hasattr(self, "adv_derivada_has"):
-                    self.adv_derivada_has.setChecked(True)
-                if hasattr(self, "adv_derivada_all_ste"):
-                    self.adv_derivada_all_ste.setChecked(True)
-            except Exception as exc:
-                logger.warning("Falha ao aplicar preset de derivadas no macro filtro: %s", exc)
-            try:
-                self._sync_multiselect_checks(
-                    getattr(self, "adv_status_button", None),
-                    getattr(self, "adv_status_checks", None),
-                    [],
-                    getattr(self, "adv_status_exclude_checks", None),
-                    ["STE", "SCA"],
-                )
-            except Exception as exc:
-                logger.warning("Falha ao aplicar preset de status no macro filtro: %s", exc)
-            try:
-                if hasattr(self, "adv_executor_button"):
-                    self.adv_executor_button.showMenu()
-            except Exception as exc:
-                logger.debug("Falha ao abrir menu de executor apos macro filtro: %s", exc)
-        self._apply_advanced_filters_from_ui()
+        return ssa_gui_filters._on_macro_filter_changed(self)
 
     def _reorganize_advanced_filters_grid(self, width: int):
-        """Reorganiza grid de filtros avancados baseado na largura disponivel."""
-        if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
-            return
-
-        grid = self._adv_filters_main_grid
-        w = self._adv_filters_grid_widgets
-
-        # Remove todos os widgets do grid
-        while grid.count():
-            item = grid.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-
-        # Define layout baseado na largura
-        # Largura > 1400px: Grid 6x3 (layout original denso)
-        if width > 1400:
-            grid.addWidget(w["emis_box"], 0, 0)
-            grid.addWidget(w["exec_box"], 0, 1)
-            grid.addWidget(w["div_box"], 0, 2)
-            grid.addWidget(w["status_box"], 0, 3)
-            grid.addWidget(w["year_emissao_box"], 0, 4)
-            grid.addWidget(w["year_execucao_box"], 0, 5)
-            grid.addWidget(w["reprog_box"], 1, 0)
-            grid.addWidget(w["prio_emis_box"], 1, 1)
-            grid.addWidget(w["prio_plan_box"], 1, 2)
-            grid.addWidget(w["deriv_box"], 1, 3, 1, 2)
-            grid.addWidget(w["macro_box"], 1, 5)
-            grid.addWidget(w["week_emis_box"], 2, 0)
-            grid.addWidget(w["week_exec_box"], 2, 1)
-            grid.addWidget(w["sol_box"], 2, 2)
-            grid.addWidget(w["prog_box"], 2, 3)
-            grid.addWidget(w["exec_resp_box"], 2, 4)
-            grid.addWidget(w["emis_resp_box"], 2, 5)
-            for col in range(6):
-                grid.setColumnStretch(col, 1)
-
-        # Largura 900-1400px: Grid 3x6 (meio termo)
-        elif width > 900:
-            grid.addWidget(w["emis_box"], 0, 0)
-            grid.addWidget(w["exec_box"], 0, 1)
-            grid.addWidget(w["div_box"], 0, 2)
-            grid.addWidget(w["status_box"], 1, 0)
-            grid.addWidget(w["year_emissao_box"], 1, 1)
-            grid.addWidget(w["year_execucao_box"], 1, 2)
-            grid.addWidget(w["reprog_box"], 2, 0)
-            grid.addWidget(w["prio_emis_box"], 2, 1)
-            grid.addWidget(w["prio_plan_box"], 2, 2)
-            grid.addWidget(w["deriv_box"], 3, 0, 1, 2)
-            grid.addWidget(w["macro_box"], 3, 2)
-            grid.addWidget(w["week_emis_box"], 4, 0)
-            grid.addWidget(w["week_exec_box"], 4, 1)
-            grid.addWidget(w["sol_box"], 4, 2)
-            grid.addWidget(w["prog_box"], 5, 0)
-            grid.addWidget(w["exec_resp_box"], 5, 1)
-            grid.addWidget(w["emis_resp_box"], 5, 2)
-            for col in range(3):
-                grid.setColumnStretch(col, 1)
-
-        # Largura < 900px: Grid 2x9 (mais vertical)
-        else:
-            grid.addWidget(w["emis_box"], 0, 0)
-            grid.addWidget(w["exec_box"], 0, 1)
-            grid.addWidget(w["div_box"], 1, 0)
-            grid.addWidget(w["status_box"], 1, 1)
-            grid.addWidget(w["year_emissao_box"], 2, 0)
-            grid.addWidget(w["year_execucao_box"], 2, 1)
-            grid.addWidget(w["reprog_box"], 3, 0)
-            grid.addWidget(w["prio_emis_box"], 3, 1)
-            grid.addWidget(w["prio_plan_box"], 4, 0)
-            grid.addWidget(w["deriv_box"], 4, 1, 1, 1)
-            grid.addWidget(w["macro_box"], 5, 0)
-            grid.addWidget(w["week_emis_box"], 5, 1)
-            grid.addWidget(w["week_exec_box"], 6, 0)
-            grid.addWidget(w["sol_box"], 6, 1)
-            grid.addWidget(w["prog_box"], 7, 0)
-            grid.addWidget(w["exec_resp_box"], 7, 1)
-            grid.addWidget(w["emis_resp_box"], 8, 0, 1, 2)
-            for col in range(2):
-                grid.setColumnStretch(col, 1)
+        return ssa_gui_filters._reorganize_advanced_filters_grid(self, width)
 
     def _on_adv_sector_selection_changed(self, *_):
-        if getattr(self, "_adv_sector_syncing", False):
-            return
-        if getattr(self, "_adv_sector_handler_running", False):
-            return
-        self._adv_sector_handler_running = True
-        try:
-            try:
-                self._apply_divisao_to_setor_checks()
-            except Exception as exc:
-                logger.warning("Falha ao sincronizar divisao->setor: %s", exc)
-            try:
-                self._update_multiselect_button(
-                    self.adv_executor_button,
-                    self.adv_executor_checks,
-                    exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
-                )
-            except Exception as exc:
-                logger.warning("Falha ao atualizar botao de setor executor: %s", exc)
-            try:
-                self._update_multiselect_button(
-                    self.adv_emissor_button,
-                    self.adv_emissor_checks,
-                    exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
-                )
-            except Exception as exc:
-                logger.warning("Falha ao atualizar botao de setor emissor: %s", exc)
-            try:
-                self._update_multiselect_button(
-                    self.adv_divisao_button,
-                    self.adv_divisao_checks,
-                    exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
-                )
-            except Exception as exc:
-                logger.warning("Falha ao atualizar botao de divisao: %s", exc)
-            self._schedule_sector_options_refresh()
-        finally:
-            self._adv_sector_handler_running = False
+        return ssa_gui_filters._on_adv_sector_selection_changed(self, *_)
 
     def _on_adv_sector_exclude_changed(self, *_):
-        """Atualiza filtros de exclusão de setor com debouncing."""
-        if getattr(self, "_adv_sector_syncing", False):
-            return
-        if getattr(self, "_adv_sector_handler_running", False):
-            return
-        try:
-            self._update_multiselect_button(
-                self.adv_executor_button,
-                self.adv_executor_checks,
-                exclude_checks=getattr(self, "adv_executor_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de setor executor (exclude): %s", exc)
-        try:
-            self._update_multiselect_button(
-                self.adv_emissor_button,
-                self.adv_emissor_checks,
-                exclude_checks=getattr(self, "adv_emissor_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de setor emissor (exclude): %s", exc)
-        try:
-            self._update_multiselect_button(
-                self.adv_divisao_button,
-                self.adv_divisao_checks,
-                exclude_checks=getattr(self, "adv_divisao_exclude_checks", None),
-            )
-        except Exception as exc:
-            logger.warning("Falha ao atualizar botao de divisao (exclude): %s", exc)
-
-        self._schedule_sector_options_refresh()
+        return ssa_gui_filters._on_adv_sector_exclude_changed(self, *_)
 
     def _schedule_sector_options_refresh(self):
-        """Agenda refresh de opções dependentes de setor evitando rajadas de sinais."""
-        timer = getattr(self, "_sector_debounce_timer", None)
-        built = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        if not built:
-            self._mark_responsavel_dirty()
-            try:
-                if timer is not None and _is_widget_valid(timer):
-                    timer.stop()
-            except Exception as exc:
-                logger.debug("Falha ao parar debounce de setores sem prefixos materializados: %s", exc)
-            return
-        self._mark_responsavel_dirty(prefixes=built)
-        if timer is None:
-            try:
-                self._on_sector_debounce_timeout()
-            except Exception as exc:
-                logger.warning("Falha no refresh imediato de setores (sem timer): %s", exc)
-            return
-        try:
-            if _is_widget_valid(timer):
-                timer.stop()
-                timer.start()
-                return
-        except Exception as exc:
-            logger.warning("Falha ao reiniciar timer de debounce de setores: %s", exc)
-        try:
-            self._on_sector_debounce_timeout()
-        except Exception as exc:
-            logger.warning("Falha no fallback de refresh de setores: %s", exc)
+        return ssa_gui_filters._schedule_sector_options_refresh(self)
 
     def _collect_divisao_setores(self, divisao_values):
-        setores = set()
-        for div in divisao_values or []:
-            try:
-                setores.update(DIVISAO_SETORES.get(str(div), []))
-            except Exception as exc:
-                logger.debug("Falha ao coletar setores para divisao %r: %s", div, exc)
-        return setores
+        return ssa_gui_filters._collect_divisao_setores(self, divisao_values)
 
     def _sector_sort_key(self, sector: str):
-        div = SECTOR_TO_DIV.get(sector, "")
-        # Ordem: SMIN primeiro (0), SMME segundo (1), outras divisoes alfabeticamente (2+)
-        if div == "SMIN":
-            div_rank = 0
-        elif div == "SMME":
-            div_rank = 1
-        elif div:
-            div_rank = 2
-        else:
-            div_rank = 3
-        return (div_rank, div.casefold(), sector.casefold())
+        return ssa_gui_filters._sector_sort_key(self, sector)
 
     def _sort_sectors(self, values):
-        return sorted(values, key=self._sector_sort_key)
+        return ssa_gui_filters._sort_sectors(self, values)
 
     def _sort_responsavel_values(self, df_subset, values, resp_col: str):
-        if not values:
-            return []
-        sector_cols = [c for c in ["setor_executor", "setor_emissor"] if c in df_subset.columns]
-        sector_counts = {}
-        for col in sector_cols:
-            try:
-                pairs = df_subset[[col, resp_col]].dropna()
-            except Exception as exc:
-                logger.debug("Falha ao montar pares responsavel/setor (%s, %s): %s", col, resp_col, exc)
-                continue
-            for sec, person in pairs.itertuples(index=False):
-                sec_str = str(sec).strip()
-                person_str = str(person).strip()
-                if not person_str:
-                    continue
-                sector_counts.setdefault(person_str, {})
-                sector_counts[person_str][sec_str] = sector_counts[person_str].get(sec_str, 0) + 1
-
-        def _best_sector(person):
-            counts = sector_counts.get(person, {})
-            if not counts:
-                return ""
-            return max(counts.items(), key=lambda t: (t[1], -len(t[0]), t[0].casefold()))[0]
-
-        def _key(person):
-            sec = _best_sector(person)
-            div = SECTOR_TO_DIV.get(sec, "")
-            div_rank = 0 if div == "SMIN" else 1 if div else 2
-            return (div_rank, div.casefold(), sec.casefold(), person.casefold())
-
-        ordered = sorted(values, key=_key)
-        decorated = []
-        for person in ordered:
-            sec = _best_sector(person)
-            div = SECTOR_TO_DIV.get(sec, "")
-            prefix = ""
-            if div and sec:
-                prefix = f"{div} / {sec} - "
-            elif sec:
-                prefix = f"{sec} - "
-            display = f"{prefix}{person}"
-            decorated.append((person, display))
-        return decorated
+        return ssa_gui_filters._sort_responsavel_values(self, df_subset, values, resp_col)
 
     def _apply_divisao_to_setor_checks(self):
-        """Aplica selecao de divisao aos checkboxes de setor.
-
-        CORRECAO 2026-01-08: Adicionado blockSignals() para evitar loop infinito
-        de signals que causava travamento da interface.
-        """
-        if getattr(self, "_adv_sector_syncing", False):
-            return
-        selected_div = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-        setores = self._collect_divisao_setores(selected_div)
-        if not setores:
-            return
-        setores_norm = {str(s).casefold() for s in setores}
-        self._adv_sector_syncing = True
-        try:
-            for cb in getattr(self, "adv_executor_checks", None) or []:
-                try:
-                    if not _is_widget_valid(cb):
-                        continue
-                    if cb.text().casefold() in setores_norm:
-                        self._set_checkbox_checked_quietly(cb, True)
-                except Exception as exc:
-                    logger.debug("Falha ao marcar checkbox de setor executor: %s", exc)
-            for cb in getattr(self, "adv_emissor_checks", None) or []:
-                try:
-                    if not _is_widget_valid(cb):
-                        continue
-                    if cb.text().casefold() in setores_norm:
-                        self._set_checkbox_checked_quietly(cb, True)
-                except Exception as exc:
-                    logger.debug("Falha ao marcar checkbox de setor emissor: %s", exc)
-        finally:
-            self._adv_sector_syncing = False
+        return ssa_gui_filters._apply_divisao_to_setor_checks(self)
 
     def _refresh_responsavel_options(self, target_prefixes=None):
-        all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
-        if target_prefixes is None:
-            requested_prefixes = set(all_prefixes)
-        else:
-            requested_prefixes = {p for p in target_prefixes if p in all_prefixes}
-        if not requested_prefixes:
-            return
-        if self.df_completo is None or self.df_completo.empty:
-            self._mark_responsavel_dirty(prefixes=requested_prefixes)
-            return
-        exec_values = self._get_checked_values(getattr(self, "adv_executor_checks", None))
-        emis_values = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
-        div_values = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-        exec_excluded = self._get_checked_values(getattr(self, "adv_executor_exclude_checks", None))
-        emis_excluded = self._get_checked_values(getattr(self, "adv_emissor_exclude_checks", None))
-        div_excluded = self._get_checked_values(getattr(self, "adv_divisao_exclude_checks", None))
-        has_sector = bool(exec_values or emis_values or div_values or exec_excluded or emis_excluded or div_excluded)
-        apply_cb = lambda: self._apply_advanced_filters_from_ui()
-
-        def _set_enabled(widget, enabled):
-            if widget is None:
-                return
-            try:
-                widget.setEnabled(bool(enabled))
-            except Exception as exc:
-                logger.debug("Falha ao ajustar estado enabled de widget %r: %s", widget, exc)
-
-        def _set_visible(widget, visible):
-            if widget is None:
-                return
-            try:
-                widget.setVisible(bool(visible))
-            except Exception as exc:
-                logger.debug("Falha ao ajustar visibilidade de widget %r: %s", widget, exc)
-
-        df = self.df_completo
-        exec_col = "setor_executor"
-        emis_col = "setor_emissor"
-        selected_exec = set(exec_values)
-        selected_emis = set(emis_values)
-        selected_div = set(div_values)
-        selected_exec_excluded = set(exec_excluded)
-        selected_emis_excluded = set(emis_excluded)
-        selected_div_excluded = set(div_excluded)
-        div_setores = self._collect_divisao_setores(selected_div)
-        div_setores_excluded = self._collect_divisao_setores(selected_div_excluded)
-        filters = self._advanced_filters or {}
-
-        def _apply_sector_subset(frame):
-            subset = frame
-            if exec_col in subset.columns:
-                allowed = set(selected_exec) | set(div_setores)
-                excluded = set(selected_exec_excluded) | set(div_setores_excluded)
-                if allowed:
-                    subset = subset[subset[exec_col].astype(str).isin(allowed)]
-                if excluded:
-                    subset = subset[~subset[exec_col].astype(str).isin(excluded)]
-            if emis_col in subset.columns and selected_emis:
-                subset = subset[subset[emis_col].astype(str).isin(selected_emis)]
-            if emis_col in subset.columns and selected_emis_excluded:
-                subset = subset[~subset[emis_col].astype(str).isin(selected_emis_excluded)]
-            return subset
-
-        if has_sector:
-            df = _apply_sector_subset(df)
-
-        def _unique_sorted(col):
-            try:
-                vals = df[col].dropna().astype(str).str.strip()
-                vals = vals[vals != ""]
-                vals = [v for v in set(vals) if v]
-                return sorted(vals, key=lambda v: v.casefold())
-            except Exception:
-                return []
-
-        resp_cols = [
-            ("solicitante", "adv_responsavel_solicitante"),
-            ("responsavel_programacao", "adv_responsavel_programacao"),
-            ("responsavel_execucao", "adv_responsavel_execucao"),
-            ("responsavel_emissor", "adv_responsavel_emissor"),
-        ]
-        processed_prefixes = set()
-        for col, prefix in resp_cols:
-            if prefix not in requested_prefixes:
-                continue
-            box = getattr(self, f"{prefix}_box", None)
-            button = getattr(self, f"{prefix}_button", None)
-            menu = getattr(self, f"{prefix}_menu", None)
-            checks_attr = f"{prefix}_checks"
-            exclude_checks_attr = f"{prefix}_exclude_checks"
-            exclude = getattr(self, f"{prefix}_exclude", None)
-            col_exists = col in self.df_completo.columns
-            _set_visible(box, col_exists)
-            if not col_exists:
-                _set_enabled(button, False)
-                _set_enabled(exclude, False)
-                setattr(self, checks_attr, [])
-                setattr(self, exclude_checks_attr, [])
-                processed_prefixes.add(prefix)
-                continue
-            values = _unique_sorted(col)
-            try:
-                values = self._sort_responsavel_values(df, values, col)
-            except Exception as exc:
-                logger.debug("Failed to sort responsavel values for column '%s': %s", col, exc)
-            _set_enabled(button, True)
-            _set_enabled(exclude, True)
-            selected = set((self._advanced_filters or {}).get(col) or [])
-            excluded = set((self._advanced_filters or {}).get(f"{col}_exclude_values") or [])
-            include_checks, exclude_checks = self._rebuild_multiselect_menu(
-                button,
-                menu,
-                values,
-                selected,
-                lambda *_: self._update_multiselect_button(
-                    button,
-                    getattr(self, checks_attr, []),
-                    exclude_checks=getattr(self, exclude_checks_attr, None),
-                ),
-                apply_cb,
-                excluded,
-                lambda *_: self._update_multiselect_button(
-                    button,
-                    getattr(self, checks_attr, []),
-                    exclude_checks=getattr(self, exclude_checks_attr, None),
-                ),
-            )
-            setattr(self, checks_attr, include_checks)
-            setattr(self, exclude_checks_attr, exclude_checks)
-            processed_prefixes.add(prefix)
-
-        # Reprogramacoes (código duplicado removido)
-        reprog_values = getattr(self, "_adv_values_cache", {}).get("reprog_vals", [])
-        try:
-            include_checks, _ = self._rebuild_multiselect_menu(
-                getattr(self, "adv_reprog_button", None),
-                getattr(self, "adv_reprog_menu", None),
-                reprog_values,
-                set((self._advanced_filters or {}).get("num_reprogramacoes_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    getattr(self, "adv_reprog_button", None),
-                    getattr(self, "adv_reprog_checks", None),
-                ),
-                lambda *_: self._apply_advanced_filters_from_ui(),
-                None,
-                None,
-            )
-            self.adv_reprog_checks = include_checks
-            try:
-                mode = (self._advanced_filters or {}).get("num_reprogramacoes_mode")
-                if mode is not None and getattr(self, "adv_reprog_mode", None):
-                    idx = getattr(self, "adv_reprog_mode").findData(mode)
-                    if idx >= 0:
-                        getattr(self, "adv_reprog_mode").setCurrentIndex(idx)
-            except Exception as exc:
-                logger.debug("Failed to restore reprogramacoes mode in advanced filter UI: %s", exc)
-        except Exception as exc:
-            logger.debug("Failed to rebuild reprogramacoes menu in advanced filter UI: %s", exc)
-            self.adv_reprog_checks = []
-
-        # SSAs Derivadas Específicas (novo filtro granular)
-        adv_cache = getattr(self, "_adv_values_cache", {}) or {}
-        derivadas_numbers = adv_cache.get("derivadas_vals", [])
-        if not derivadas_numbers:
-            # Extrai numeros unicos de SSAs derivadas se nao estiver em cache
-            try:
-                if "derivada_de" in df.columns:
-                    derivadas_series = self._normalize_ssa_series(df["derivada_de"])
-                    derivadas_numbers = sorted(
-                        {v for v in derivadas_series.unique() if v and str(v).strip()},
-                        key=lambda x: str(x).casefold()
-                    )
-                    adv_cache["derivadas_vals"] = derivadas_numbers
-                    self._adv_values_cache = adv_cache
-            except Exception as exc:
-                logger.debug("Falha ao atualizar cache de derivadas em filtros avancados: %s", exc)
-        materialized = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        materialized |= processed_prefixes
-        self._responsavel_materialized_prefixes = materialized
-        dirty = set(getattr(self, "_responsavel_dirty_prefixes", set()))
-        dirty -= processed_prefixes
-        self._responsavel_dirty_prefixes = dirty
-        self._sync_responsavel_flags()
+        return ssa_gui_filters._refresh_responsavel_options(self, target_prefixes)
 
     def _clear_advanced_filters(self):
-        try:
-            self._store_last_filter_state()
-        except Exception as exc:
-            logger.warning("Falha ao salvar estado antes de limpar filtros avancados: %s", exc)
-        self._advanced_filters = {}
-        self._advanced_filters_active = False
-        try:
-            self._sync_advanced_filter_ui()
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar UI apos limpar filtros avancados: %s", exc)
-        try:
-            self._refresh_after_filter_change()
-        except Exception as exc:
-            logger.warning("Falha ao reaplicar filtros apos limpeza de avancados: %s", exc)
+        return ssa_gui_filters._clear_advanced_filters(self)
 
-    def _has_active_advanced_filters(self, data: dict) -> bool:
-        if not isinstance(data, dict) or not data:
-            return False
-        list_keys = (
-            "setor_executor",
-            "setor_emissor",
-            "divisao",
-            "situacao",
-            "solicitante",
-            "responsavel_programacao",
-            "responsavel_execucao",
-            "responsavel_emissor",
-        )
-        for key in list_keys:
-            if data.get(key):
-                return True
-        exclude_list_keys = (
-            "setor_executor_exclude_values",
-            "setor_emissor_exclude_values",
-            "divisao_exclude_values",
-            "situacao_exclude_values",
-            "solicitante_exclude_values",
-            "responsavel_programacao_exclude_values",
-            "responsavel_execucao_exclude_values",
-            "responsavel_emissor_exclude_values",
-            "prioridade_emissao_exclude_values",
-            "prioridade_planejamento_exclude_values",
-        )
-        for key in exclude_list_keys:
-            if data.get(key):
-                return True
-        if data.get("ano_emissao") or data.get("ano_execucao"):
-            return True
-        if data.get("ano_emissao_values") or data.get("ano_execucao_values"):
-            return True
-        if data.get("ano_emissao_exclude_values") or data.get("ano_execucao_exclude_values"):
-            return True
-        if data.get("prioridade_emissao_values") or data.get("prioridade_planejamento_values"):
-            return True
-        if data.get("semana_emissao_inicio") is not None or data.get("semana_emissao_fim") is not None:
-            return True
-        if data.get("semana_execucao_inicio") is not None or data.get("semana_execucao_fim") is not None:
-            return True
-        if data.get("derivada_has") or data.get("derivada_all_ste") or data.get("derivada_is"):
-            return True
-        if data.get("macro_filter"):
-            return True
+    def _has_active_advanced_filters(self, data: dict):
+        handler = getattr(ssa_gui_filters, "_has_active_advanced_filters", None)
+        if callable(handler):
+            return handler(self, data)
+        from gui.ssa import gui_filters_advanced_ui as ssa_gui_filters_ui  # local fallback during split
+
+        fallback_handler = getattr(ssa_gui_filters_ui, "_has_active_advanced_filters", None)
+        if callable(fallback_handler):
+            return fallback_handler(self, data)
+        logger.warning("Advanced filters activity handler is unavailable; assuming inactive filters.")
         return False
 
     def _apply_advanced_filters_from_ui(self, store_only: bool = False):
-        if not store_only:
-            try:
-                self._store_last_filter_state()
-            except Exception as exc:
-                logger.warning("Falha ao salvar estado antes de aplicar filtros avancados: %s", exc)
-        data = {}
-        try:
-            data["setor_executor"] = self._get_checked_values(getattr(self, "adv_executor_checks", None))
-        except Exception:
-            data["setor_executor"] = []
-        try:
-            data["setor_executor_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_executor_exclude_checks", None)
-            )
-        except Exception:
-            data["setor_executor_exclude_values"] = []
-        try:
-            data["setor_emissor"] = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
-        except Exception:
-            data["setor_emissor"] = []
-        try:
-            data["setor_emissor_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_emissor_exclude_checks", None)
-            )
-        except Exception:
-            data["setor_emissor_exclude_values"] = []
-        try:
-            data["divisao"] = self._get_checked_values(getattr(self, "adv_divisao_checks", None))
-        except Exception:
-            data["divisao"] = []
-        try:
-            data["divisao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_divisao_exclude_checks", None)
-            )
-        except Exception:
-            data["divisao_exclude_values"] = []
-        try:
-            data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
-        except Exception:
-            data["situacao"] = []
-        try:
-            data["situacao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_status_exclude_checks", None)
-            )
-        except Exception:
-            data["situacao_exclude_values"] = []
-        try:
-            data["ano_emissao_values"] = self._get_checked_values(
-                getattr(self, "adv_year_emissao_checks", None)
-            )
-        except Exception:
-            data["ano_emissao_values"] = []
-        try:
-            data["ano_emissao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_year_emissao_exclude_checks", None)
-            )
-        except Exception:
-            data["ano_emissao_exclude_values"] = []
-        try:
-            data["ano_execucao_values"] = self._get_checked_values(
-                getattr(self, "adv_year_execucao_checks", None)
-            )
-        except Exception:
-            data["ano_execucao_values"] = []
-        try:
-            data["ano_execucao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_year_execucao_exclude_checks", None)
-            )
-        except Exception:
-            data["ano_execucao_exclude_values"] = []
-        try:
-            data["semana_emissao_inicio"] = self._parse_week(self.adv_week_emissao_start.text())
-            data["semana_emissao_fim"] = self._parse_week(self.adv_week_emissao_end.text())
-        except Exception:
-            data["semana_emissao_inicio"] = None
-            data["semana_emissao_fim"] = None
-        try:
-            data["semana_execucao_inicio"] = self._parse_week(self.adv_week_execucao_start.text())
-            data["semana_execucao_fim"] = self._parse_week(self.adv_week_execucao_end.text())
-        except Exception:
-            data["semana_execucao_inicio"] = None
-            data["semana_execucao_fim"] = None
-        data["semana_emissao_exclude"] = False
-        data["semana_execucao_exclude"] = False
-        try:
-            data["derivada_has"] = bool(getattr(self, "adv_derivada_has", None).isChecked())
-        except Exception:
-            data["derivada_has"] = False
-        try:
-            data["derivada_all_ste"] = bool(getattr(self, "adv_derivada_all_ste", None).isChecked())
-        except Exception:
-            data["derivada_all_ste"] = False
-        if data.get("derivada_all_ste"):
-            data["derivada_has"] = True
-        try:
-            data["derivada_is"] = bool(getattr(self, "adv_derivada_is", None).isChecked())
-        except Exception:
-            data["derivada_is"] = False
-        # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
-        adv_current = getattr(self, "_advanced_filters", None) or {}
-        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-
-        def _collect_responsavel_values(checks_attr: str, key_name: str, prefix: str) -> list[str]:
-            if prefix not in built_prefixes:
-                return list(adv_current.get(key_name) or [])
-            try:
-                return self._get_checked_values(getattr(self, checks_attr, None))
-            except Exception:
-                return []
-
-        data["solicitante"] = _collect_responsavel_values(
-            "adv_responsavel_solicitante_checks",
-            "solicitante",
-            "adv_responsavel_solicitante",
-        )
-        data["solicitante_exclude_values"] = _collect_responsavel_values(
-            "adv_responsavel_solicitante_exclude_checks",
-            "solicitante_exclude_values",
-            "adv_responsavel_solicitante",
-        )
-        data["responsavel_programacao"] = _collect_responsavel_values(
-            "adv_responsavel_programacao_checks",
-            "responsavel_programacao",
-            "adv_responsavel_programacao",
-        )
-        data["responsavel_programacao_exclude_values"] = _collect_responsavel_values(
-            "adv_responsavel_programacao_exclude_checks",
-            "responsavel_programacao_exclude_values",
-            "adv_responsavel_programacao",
-        )
-        data["responsavel_execucao"] = _collect_responsavel_values(
-            "adv_responsavel_execucao_checks",
-            "responsavel_execucao",
-            "adv_responsavel_execucao",
-        )
-        data["responsavel_execucao_exclude_values"] = _collect_responsavel_values(
-            "adv_responsavel_execucao_exclude_checks",
-            "responsavel_execucao_exclude_values",
-            "adv_responsavel_execucao",
-        )
-        data["responsavel_emissor"] = _collect_responsavel_values(
-            "adv_responsavel_emissor_checks",
-            "responsavel_emissor",
-            "adv_responsavel_emissor",
-        )
-        data["responsavel_emissor_exclude_values"] = _collect_responsavel_values(
-            "adv_responsavel_emissor_exclude_checks",
-            "responsavel_emissor_exclude_values",
-            "adv_responsavel_emissor",
-        )
-        try:
-            data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
-        except Exception:
-            data["num_reprogramacoes_values"] = []
-        try:
-            mode_idx = getattr(self, "adv_reprog_mode", None).currentIndex()
-            data["num_reprogramacoes_mode"] = getattr(self, "adv_reprog_mode", None).itemData(mode_idx)
-        except Exception:
-            data["num_reprogramacoes_mode"] = None
-        try:
-            data["prioridade_emissao_values"] = self._get_checked_values(
-                getattr(self, "adv_prioridade_emissao_checks", None)
-            )
-        except Exception:
-            data["prioridade_emissao_values"] = []
-        try:
-            data["prioridade_emissao_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_prioridade_emissao_exclude_checks", None)
-            )
-        except Exception:
-            data["prioridade_emissao_exclude_values"] = []
-        try:
-            data["prioridade_planejamento_values"] = self._get_checked_values(
-                getattr(self, "adv_prioridade_planejamento_checks", None)
-            )
-        except Exception:
-            data["prioridade_planejamento_values"] = []
-        try:
-            data["prioridade_planejamento_exclude_values"] = self._get_checked_values(
-                getattr(self, "adv_prioridade_planejamento_exclude_checks", None)
-            )
-        except Exception:
-            data["prioridade_planejamento_exclude_values"] = []
-        try:
-            data["macro_filter"] = self.adv_macro_combo.currentData()
-        except Exception:
-            data["macro_filter"] = None
-
-        self._advanced_filters = data
-        if store_only:
-            return
-        self._advanced_filters_active = self._has_active_advanced_filters(data)
-        try:
-            self._refresh_after_filter_change()
-        except Exception as exc:
-            logger.warning("Falha ao atualizar resultado apos aplicar filtros avancados: %s", exc)
+        return ssa_gui_filters._apply_advanced_filters_from_ui(self, store_only)
 
     def _parse_week(self, raw: str):
-        s = str(raw or "").strip()
-        if not s:
-            return None
-        if not s.isdigit():
-            return None
-        if len(s) != 6:
-            return None
-        return int(s)
+        return ssa_gui_filters._parse_week(self, raw)
 
     def _get_checked_values(self, source):
-        values = []
-        if source is None:
-            return values
-        if isinstance(source, list):
-            for child in source:
-                try:
-                    if not _is_widget_valid(child):
-                        continue
-                    if child.isChecked():
-                        value = self._checkbox_value(child)
-                        if value:
-                            values.append(value)
-                except Exception as exc:
-                    logger.debug("Failed to read checkbox from list source in _get_checked_values: %s", exc)
-            return values
-        if hasattr(source, "findChildren"):
-            try:
-                children = source.findChildren(QCheckBox)
-            except Exception:
-                children = []
-            for child in children:
-                try:
-                    if not _is_widget_valid(child):
-                        continue
-                    if child.isChecked():
-                        value = self._checkbox_value(child)
-                        if value:
-                            values.append(value)
-                except Exception as exc:
-                    logger.debug("Failed to read checkbox from widget source in _get_checked_values: %s", exc)
-        return values
+        return ssa_gui_filters._get_checked_values(self, source)
 
     def _sync_advanced_filter_ui(self):
-        data = self._advanced_filters or {}
-        self._sync_multiselect_checks(
-            getattr(self, "adv_executor_button", None),
-            getattr(self, "adv_executor_checks", None),
-            data.get("setor_executor"),
-            getattr(self, "adv_executor_exclude_checks", None),
-            data.get("setor_executor_exclude_values"),
+        return ssa_gui_filters._sync_advanced_filter_ui(self)
+
+    def _refresh_sector_menus(self, exec_vals, emis_vals, status_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_sector_menus(
+            self, exec_vals, emis_vals, status_vals, filters, apply_cb
         )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_emissor_button", None),
-            getattr(self, "adv_emissor_checks", None),
-            data.get("setor_emissor"),
-            getattr(self, "adv_emissor_exclude_checks", None),
-            data.get("setor_emissor_exclude_values"),
+
+    def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
+        return ssa_gui_filters._refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb)
+
+    def _refresh_priority_menus(self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_priority_menus(
+            self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
         )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_divisao_button", None),
-            getattr(self, "adv_divisao_checks", None),
-            data.get("divisao"),
-            getattr(self, "adv_divisao_exclude_checks", None),
-            data.get("divisao_exclude_values"),
-        )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_status_button", None),
-            getattr(self, "adv_status_checks", None),
-            data.get("situacao"),
-            getattr(self, "adv_status_exclude_checks", None),
-            data.get("situacao_exclude_values"),
-        )
-        responsavel_cfg = (
-            (
-                "adv_responsavel_solicitante",
-                "adv_responsavel_solicitante_button",
-                "adv_responsavel_solicitante_checks",
-                "solicitante",
-                "adv_responsavel_solicitante_exclude_checks",
-                "solicitante_exclude_values",
-            ),
-            (
-                "adv_responsavel_programacao",
-                "adv_responsavel_programacao_button",
-                "adv_responsavel_programacao_checks",
-                "responsavel_programacao",
-                "adv_responsavel_programacao_exclude_checks",
-                "responsavel_programacao_exclude_values",
-            ),
-            (
-                "adv_responsavel_execucao",
-                "adv_responsavel_execucao_button",
-                "adv_responsavel_execucao_checks",
-                "responsavel_execucao",
-                "adv_responsavel_execucao_exclude_checks",
-                "responsavel_execucao_exclude_values",
-            ),
-            (
-                "adv_responsavel_emissor",
-                "adv_responsavel_emissor_button",
-                "adv_responsavel_emissor_checks",
-                "responsavel_emissor",
-                "adv_responsavel_emissor_exclude_checks",
-                "responsavel_emissor_exclude_values",
-            ),
-        )
-        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        unbuilt_prefixes = set()
-        for prefix, button_attr, checks_attr, key_name, excl_checks_attr, excl_key_name in responsavel_cfg:
-            if prefix in built_prefixes:
-                self._sync_multiselect_checks(
-                    getattr(self, button_attr, None),
-                    getattr(self, checks_attr, None),
-                    data.get(key_name),
-                    getattr(self, excl_checks_attr, None),
-                    data.get(excl_key_name),
-                )
-            else:
-                unbuilt_prefixes.add(prefix)
-        if unbuilt_prefixes:
-            self._sync_responsavel_button_summaries(only_prefixes=unbuilt_prefixes)
-        self._sync_multiselect_checks(
-            getattr(self, "adv_prioridade_emissao_button", None),
-            getattr(self, "adv_prioridade_emissao_checks", None),
-            data.get("prioridade_emissao_values"),
-            getattr(self, "adv_prioridade_emissao_exclude_checks", None),
-            data.get("prioridade_emissao_exclude_values"),
-        )
-        self._sync_multiselect_checks(
-            getattr(self, "adv_prioridade_planejamento_button", None),
-            getattr(self, "adv_prioridade_planejamento_checks", None),
-            data.get("prioridade_planejamento_values"),
-            getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
-            data.get("prioridade_planejamento_exclude_values"),
-        )
-        try:
-            emissao_values = data.get("ano_emissao_values")
-            emissao_exclude = data.get("ano_emissao_exclude_values")
-            if emissao_values is None and data.get("ano_emissao") is not None:
-                emissao_values = [data.get("ano_emissao")]
-            if emissao_exclude is None and data.get("ano_emissao_exclude") and data.get("ano_emissao") is not None:
-                emissao_exclude = [data.get("ano_emissao")]
-            self._sync_multiselect_checks(
-                getattr(self, "adv_year_emissao_button", None),
-                getattr(self, "adv_year_emissao_checks", None),
-                emissao_values,
-                getattr(self, "adv_year_emissao_exclude_checks", None),
-                emissao_exclude,
-            )
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar filtro avancado de ano de emissao: %s", exc)
-        try:
-            execucao_values = data.get("ano_execucao_values")
-            execucao_exclude = data.get("ano_execucao_exclude_values")
-            if execucao_values is None and data.get("ano_execucao") is not None:
-                execucao_values = [data.get("ano_execucao")]
-            if execucao_exclude is None and data.get("ano_execucao_exclude") and data.get("ano_execucao") is not None:
-                execucao_exclude = [data.get("ano_execucao")]
-            self._sync_multiselect_checks(
-                getattr(self, "adv_year_execucao_button", None),
-                getattr(self, "adv_year_execucao_checks", None),
-                execucao_values,
-                getattr(self, "adv_year_execucao_exclude_checks", None),
-                execucao_exclude,
-            )
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar filtro avancado de ano de execucao: %s", exc)
-        try:
-            week_fields = (
-                ("adv_week_emissao_start", "semana_emissao_inicio"),
-                ("adv_week_emissao_end", "semana_emissao_fim"),
-                ("adv_week_execucao_start", "semana_execucao_inicio"),
-                ("adv_week_execucao_end", "semana_execucao_fim"),
-            )
-            for attr, key in week_fields:
-                widget = getattr(self, attr, None)
-                if widget is None:
-                    continue
-                value = data.get(key)
-                widget.setText("" if value is None else str(value))
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc)
-        try:
-            if hasattr(self, "adv_derivada_has"):
-                if data.get("derivada_all_ste"):
-                    self.adv_derivada_has.setChecked(True)
-                else:
-                    self.adv_derivada_has.setChecked(bool(data.get("derivada_has")))
-            if hasattr(self, "adv_derivada_all_ste"):
-                self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
-            if hasattr(self, "adv_derivada_is"):
-                self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar toggles de derivadas nos filtros avancados: %s", exc)
-        try:
-            if hasattr(self, "adv_macro_combo"):
-                self.adv_macro_combo.blockSignals(True)
-                idx = self.adv_macro_combo.findData(data.get("macro_filter"))
-                self.adv_macro_combo.setCurrentIndex(max(0, idx))
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar seletor macro dos filtros avancados: %s", exc)
-        finally:
-            try:
-                if hasattr(self, "adv_macro_combo"):
-                    self.adv_macro_combo.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais do seletor macro apos sync: %s", exc)
-        try:
-            self._apply_divisao_to_setor_checks()
-        except Exception as exc:
-            logger.warning("Falha ao reaplicar sincronizacao divisao->setor apos sync de filtros avancados: %s", exc)
 
     def _refresh_advanced_filter_options(self):
-        """Atualiza opcoes de filtros avancados com cache granular otimizado."""
-        if self.df_completo is None or self.df_completo.empty:
-            logger.debug("_refresh_advanced_filter_options: df_completo vazio ou None")
-            return
-        start = perf_counter()
-        df = self.df_completo
-        logger.debug(f"_refresh_advanced_filter_options: iniciando com {len(df)} registros")
-        filters = self._advanced_filters or {}
-        apply_cb = lambda: self._apply_advanced_filters_from_ui()
+        return ssa_gui_filters._refresh_advanced_filter_options(self)
 
-        # Cache granular: permite invalidacao parcial por tipo de filtro
-        cache = getattr(self, "_adv_values_cache", None)
-        df_key = (
-            len(df),
-            tuple(df.columns),
-            getattr(self, "_data_load_token", None),
+    def _apply_advanced_filters(self, df: pd.DataFrame):
+        cache_token = ssa_gui_filters._cache_token(
+            getattr(self, "_data_load_request_seq", None),
+            getattr(self, "_active_data_load_request_id", None),
+            (id(df), df.shape, getattr(self, "_data_uuid", None)),
         )
-
-        # Verifica se pode reutilizar cache completo
-        if cache and cache.get("df_key") == df_key and not getattr(self, "_adv_options_dirty", False):
-            self._adv_options_scheduled = False
-            return
-
-        df_id = id(df)
-
-        # Inicializa cache granular se necessário
-        if not isinstance(cache, dict) or cache.get("df_id") != df_id:
-            cache = {"df_id": df_id, "df_key": df_key}
-            self._adv_values_cache = cache
-
-        def _unique_sorted(col):
-            try:
-                vals = df[col].dropna().astype(str).str.strip()
-                vals = vals[vals != ""]
-                return sorted(set(vals), key=lambda v: v.casefold())
-            except Exception:
-                return []
-
-        def _sort_sector_values(values):
-            try:
-                return self._sort_sectors(set(values))
-            except Exception:
-                return sorted(set(values), key=lambda v: str(v).casefold())
-
-        def _div_key(val):
-            text = str(val).upper()
-            # Ordem: SMIN primeiro (0), SMME segundo (1), outras alfabetico (2)
-            if text == "SMIN":
-                return (0, text)
-            elif text == "SMME":
-                return (1, text)
-            return (2, text)
-
-        # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
-        if cache.get("exec_vals") is None:
-            cache["exec_vals"] = (
-                _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
-            )
-            cache["emis_vals"] = (
-                _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
-            )
-            cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
-            cache["divisao_vals"] = sorted(DIVISAO_SETORES.keys(), key=_div_key)
-
-            def _collect_years_from_dates(series):
-                """Extrai anos de datas usando operações vetorizadas (otimizado)."""
-                try:
-                    # Vetorizado: converte diretamente para datetime sem apply()
-                    ts = pd.to_datetime(series, errors="coerce")
-                    # Extrai anos e remove NaT
-                    years = ts.dt.year.dropna().astype(int).unique()
-                    return sorted(years, reverse=True)
-                except Exception:
-                    return []
-
-            def _collect_years_from_weeks(series):
-                """Extrai anos de semanas (formato YYYYWW) vetorizado."""
-                try:
-                    nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
-                    # Vetorizado: unique() em vez de tolist() + set() + sorted()
-                    years = (nums // 100).unique()
-                    return sorted(years, reverse=True)
-                except Exception:
-                    return []
-
-            emissao_years = []
-            if "data_cadastro" in df.columns:
-                emissao_years = _collect_years_from_dates(df["data_cadastro"])
-            elif "semana_cadastro" in df.columns:
-                emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
-
-            execucao_years = []
-            if "semana_executada" in df.columns:
-                execucao_years = _collect_years_from_weeks(df["semana_executada"])
-
-            cache["emissao_years"] = emissao_years
-            cache["execucao_years"] = execucao_years
-            cache["prio_emissao_vals"] = (
-                _unique_sorted("grau_prioridade_emissao") if "grau_prioridade_emissao" in df.columns else []
-            )
-            cache["prio_planejamento_vals"] = (
-                _unique_sorted("grau_prioridade_planejamento") if "grau_prioridade_planejamento" in df.columns else []
-            )
-            if "num_reprogramacoes" in df.columns:
-                try:
-                    # Vetorizado: dropna() já remove NaN, sem necessidade de lambda
-                    reprog_series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
-                    # unique() evita tolist() + set() + sorted()
-                    reprog_vals = reprog_series.astype(int).unique()
-                    cache["reprog_vals"] = sorted(reprog_vals, reverse=True)
-                except Exception:
-                    cache["reprog_vals"] = []
-            else:
-                cache["reprog_vals"] = []
-            self._adv_values_cache = cache
-            logger.debug(f"_refresh_advanced_filter_options: cache populado - exec={len(cache.get('exec_vals', []))}, emis={len(cache.get('emis_vals', []))}, status={len(cache.get('status_vals', []))}")
-
-        exec_vals = cache.get("exec_vals", [])
-        emis_vals = cache.get("emis_vals", [])
-        status_vals = cache.get("status_vals", [])
-        divisao_vals = cache.get("divisao_vals", [])
-        emissao_years = cache.get("emissao_years", [])
-        execucao_years = cache.get("execucao_years", [])
-        prio_emissao_vals = cache.get("prio_emissao_vals", [])
-        prio_planejamento_vals = cache.get("prio_planejamento_vals", [])
-
-        if hasattr(self, "adv_executor_menu"):
-            exec_include, exec_exclude = self._rebuild_multiselect_menu(
-                self.adv_executor_button,
-                self.adv_executor_menu,
-                exec_vals,
-                set(filters.get("setor_executor") or []),
-                self._on_adv_sector_selection_changed,
-                apply_cb,
-                set(filters.get("setor_executor_exclude_values") or []),
-                self._on_adv_sector_exclude_changed,
-            )
-            self.adv_executor_checks = exec_include
-            self.adv_executor_exclude_checks = exec_exclude
-        if hasattr(self, "adv_emissor_menu"):
-            emis_include, emis_exclude = self._rebuild_multiselect_menu(
-                self.adv_emissor_button,
-                self.adv_emissor_menu,
-                emis_vals,
-                set(filters.get("setor_emissor") or []),
-                self._on_adv_sector_selection_changed,
-                apply_cb,
-                set(filters.get("setor_emissor_exclude_values") or []),
-                self._on_adv_sector_exclude_changed,
-            )
-            self.adv_emissor_checks = emis_include
-            self.adv_emissor_exclude_checks = emis_exclude
-        if hasattr(self, "adv_divisao_menu"):
-            div_include, div_exclude = self._rebuild_multiselect_menu(
-                self.adv_divisao_button,
-                self.adv_divisao_menu,
-                divisao_vals,
-                set(filters.get("divisao") or []),
-                self._on_adv_sector_selection_changed,
-                apply_cb,
-                set(filters.get("divisao_exclude_values") or []),
-                self._on_adv_sector_exclude_changed,
-            )
-            self.adv_divisao_checks = div_include
-            self.adv_divisao_exclude_checks = div_exclude
-        if hasattr(self, "adv_status_menu"):
-            status_include, status_exclude = self._rebuild_multiselect_menu(
-                self.adv_status_button,
-                self.adv_status_menu,
-                status_vals,
-                set(filters.get("situacao") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_status_button,
-                    getattr(self, "adv_status_checks", None),
-                    exclude_checks=getattr(self, "adv_status_exclude_checks", None),
-                ),
-                apply_cb,
-                set(filters.get("situacao_exclude_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_status_button,
-                    getattr(self, "adv_status_checks", None),
-                    exclude_checks=getattr(self, "adv_status_exclude_checks", None),
-                ),
-            )
-            self.adv_status_checks = status_include
-            self.adv_status_exclude_checks = status_exclude
-
-        if hasattr(self, "adv_year_emissao_menu"):
-            inc_vals = filters.get("ano_emissao_values")
-            exc_vals = filters.get("ano_emissao_exclude_values")
-            if inc_vals is None and filters.get("ano_emissao") is not None:
-                inc_vals = [filters.get("ano_emissao")]
-            if exc_vals is None and filters.get("ano_emissao_exclude") and filters.get("ano_emissao") is not None:
-                exc_vals = [filters.get("ano_emissao")]
-            # Filtra valores vazios/nulos
-            year_values = [str(y) for y in emissao_years if y and str(y).strip()]
-            inc_set = {str(v) for v in (inc_vals or [])}
-            exc_set = {str(v) for v in (exc_vals or [])}
-            year_include, year_exclude = self._rebuild_multiselect_menu(
-                self.adv_year_emissao_button,
-                self.adv_year_emissao_menu,
-                year_values,
-                inc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_emissao_button,
-                    getattr(self, "adv_year_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
-                ),
-                apply_cb,
-                exc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_emissao_button,
-                    getattr(self, "adv_year_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_emissao_exclude_checks", None),
-                ),
-            )
-            self.adv_year_emissao_checks = year_include
-            self.adv_year_emissao_exclude_checks = year_exclude
-        if hasattr(self, "adv_year_execucao_menu"):
-            inc_vals = filters.get("ano_execucao_values")
-            exc_vals = filters.get("ano_execucao_exclude_values")
-            if inc_vals is None and filters.get("ano_execucao") is not None:
-                inc_vals = [filters.get("ano_execucao")]
-            if exc_vals is None and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
-                exc_vals = [filters.get("ano_execucao")]
-            # Filtra valores vazios/nulos
-            year_values = [str(y) for y in execucao_years if y and str(y).strip()]
-            inc_set = {str(v) for v in (inc_vals or [])}
-            exc_set = {str(v) for v in (exc_vals or [])}
-            year_include, year_exclude = self._rebuild_multiselect_menu(
-                self.adv_year_execucao_button,
-                self.adv_year_execucao_menu,
-                year_values,
-                inc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_execucao_button,
-                    getattr(self, "adv_year_execucao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
-                ),
-                apply_cb,
-                exc_set,
-                lambda *_: self._update_multiselect_button(
-                    self.adv_year_execucao_button,
-                    getattr(self, "adv_year_execucao_checks", None),
-                    exclude_checks=getattr(self, "adv_year_execucao_exclude_checks", None),
-                ),
-            )
-            self.adv_year_execucao_checks = year_include
-            self.adv_year_execucao_exclude_checks = year_exclude
-
-        if hasattr(self, "adv_prioridade_emissao_menu"):
-            prio_include, prio_exclude = self._rebuild_multiselect_menu(
-                self.adv_prioridade_emissao_button,
-                self.adv_prioridade_emissao_menu,
-                prio_emissao_vals,
-                set(filters.get("prioridade_emissao_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_prioridade_emissao_button,
-                    getattr(self, "adv_prioridade_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
-                ),
-                apply_cb,
-                set(filters.get("prioridade_emissao_exclude_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_prioridade_emissao_button,
-                    getattr(self, "adv_prioridade_emissao_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_emissao_exclude_checks", None),
-                ),
-            )
-            self.adv_prioridade_emissao_checks = prio_include
-            self.adv_prioridade_emissao_exclude_checks = prio_exclude
-        if hasattr(self, "adv_prioridade_planejamento_menu"):
-            prio_include, prio_exclude = self._rebuild_multiselect_menu(
-                self.adv_prioridade_planejamento_button,
-                self.adv_prioridade_planejamento_menu,
-                prio_planejamento_vals,
-                set(filters.get("prioridade_planejamento_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_prioridade_planejamento_button,
-                    getattr(self, "adv_prioridade_planejamento_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
-                ),
-                apply_cb,
-                set(filters.get("prioridade_planejamento_exclude_values") or []),
-                lambda *_: self._update_multiselect_button(
-                    self.adv_prioridade_planejamento_button,
-                    getattr(self, "adv_prioridade_planejamento_checks", None),
-                    exclude_checks=getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
-                ),
-            )
-            self.adv_prioridade_planejamento_checks = prio_include
-            self.adv_prioridade_planejamento_exclude_checks = prio_exclude
-
-        self._mark_responsavel_dirty()
-        built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
-        if built_prefixes:
-            self._refresh_responsavel_options(target_prefixes=built_prefixes)
-        else:
-            self._sync_responsavel_button_summaries()
-        self._sync_checks_to_tab_context()
-        self._sync_advanced_filter_ui()
-        try:
-            elapsed_ms = (perf_counter() - start) * 1000.0
-            logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
-        except Exception as exc:
-            logger.debug("Failed to log advanced filter options refresh timing: %s", exc)
-
-    def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        if df is None or df.empty:
-            return df
-        filters = self._advanced_filters or {}
-        if not filters:
-            return df
-        if not getattr(self, "_advanced_filters_active", False):
-            return df
-        mask = pd.Series(True, index=df.index)
-
-        def _apply_in(col, values, exclude_values=None):
-            nonlocal mask
-            if col not in df.columns:
-                return
-            try:
-                series = df[col].astype(str)
-                series_norm = series.str.casefold()
-                if values:
-                    values_norm = {str(v).casefold() for v in values}
-                    mask &= series_norm.isin(values_norm)
-                if exclude_values:
-                    exclude_norm = {str(v).casefold() for v in exclude_values}
-                    mask &= ~series_norm.isin(exclude_norm)
-            except Exception as exc:
-                logger.debug("Failed to apply include/exclude filter for column '%s': %s", col, exc)
-
-        exec_values = filters.get("setor_executor") or []
-        emis_values = filters.get("setor_emissor") or []
-        div_values = filters.get("divisao") or []
-        exec_excluded = filters.get("setor_executor_exclude_values") or []
-        emis_excluded = filters.get("setor_emissor_exclude_values") or []
-        div_excluded = filters.get("divisao_exclude_values") or []
-
-        if "setor_executor" in df.columns:
-            allowed = set(exec_values) | self._collect_divisao_setores(div_values)
-            excluded = set(exec_excluded) | self._collect_divisao_setores(div_excluded)
-            try:
-                series = df["setor_executor"].astype(str)
-                series_norm = series.str.casefold()
-                allowed_norm = {str(v).casefold() for v in allowed}
-                excluded_norm = {str(v).casefold() for v in excluded}
-                if allowed_norm:
-                    mask &= series_norm.isin(allowed_norm)
-                if excluded_norm:
-                    mask &= ~series_norm.isin(excluded_norm)
-            except Exception as exc:
-                logger.debug("Failed to apply setor_executor advanced filters: %s", exc)
-
-        _apply_in("setor_emissor", emis_values, emis_excluded)
-
-        situacao_vals = filters.get("situacao") or []
-        situacao_excluded = filters.get("situacao_exclude_values") or []
-        _apply_in("situacao", situacao_vals, situacao_excluded)
-
-        _apply_in(
-            "solicitante",
-            filters.get("solicitante") or [],
-            filters.get("solicitante_exclude_values") or [],
+        notice_callback = getattr(self, "_adv_notice_callback", None)
+        return ssa_gui_filters._apply_advanced_filters(
+            self,
+            df,
+            cache_token=cache_token,
+            normalize_ssa_series=self._normalize_ssa_series,
+            notice_callback=notice_callback,
         )
-        _apply_in(
-            "responsavel_programacao",
-            filters.get("responsavel_programacao") or [],
-            filters.get("responsavel_programacao_exclude_values") or [],
-        )
-        _apply_in(
-            "responsavel_execucao",
-            filters.get("responsavel_execucao") or [],
-            filters.get("responsavel_execucao_exclude_values") or [],
-        )
-        _apply_in(
-            "responsavel_emissor",
-            filters.get("responsavel_emissor") or [],
-            filters.get("responsavel_emissor_exclude_values") or [],
-        )
-        _apply_in(
-            "grau_prioridade_emissao",
-            filters.get("prioridade_emissao_values") or [],
-            filters.get("prioridade_emissao_exclude_values") or [],
-        )
-        _apply_in(
-            "grau_prioridade_planejamento",
-            filters.get("prioridade_planejamento_values") or [],
-            filters.get("prioridade_planejamento_exclude_values") or [],
-        )
-        try:
-            reprog_vals = filters.get("num_reprogramacoes_values") or []
-            mode = filters.get("num_reprogramacoes_mode")
-            if reprog_vals and mode and "num_reprogramacoes" in df.columns:
-                nums = pd.to_numeric(df["num_reprogramacoes"], errors="coerce")
-                vals = []
-                for raw in reprog_vals:
-                    text = str(raw).strip()
-                    if text.isdigit():
-                        vals.append(int(text))
-                if vals:
-                    if mode == "eq":
-                        mask &= nums.isin(vals)
-                    elif mode == "lte":
-                        threshold = max(vals)
-                        mask &= nums <= threshold
-                    elif mode == "gte":
-                        threshold = min(vals)
-                        mask &= nums >= threshold
-        except Exception as exc:
-            logger.debug("Failed to apply reprogramacoes advanced filter: %s", exc)
-
-        # Early bailouts: avoid expensive parsing work when mask is already empty.
-        try:
-            if not bool(mask.any()):
-                return df.iloc[0:0]
-        except Exception as exc:
-            logger.debug("Failed to evaluate advanced filter mask.any(): %s", exc)
-
-        def _to_int_set(values):
-            result = set()
-            for raw in values or []:
-                text = str(raw).strip()
-                if text.isdigit():
-                    result.add(int(text))
-            return result
-
-        emissao_inc = _to_int_set(filters.get("ano_emissao_values") or [])
-        emissao_exc = _to_int_set(filters.get("ano_emissao_exclude_values") or [])
-        if not emissao_inc and filters.get("ano_emissao") is not None:
-            emissao_inc = _to_int_set([filters.get("ano_emissao")])
-        if not emissao_exc and filters.get("ano_emissao_exclude") and filters.get("ano_emissao") is not None:
-            emissao_exc = _to_int_set([filters.get("ano_emissao")])
-
-        if emissao_inc or emissao_exc:
-            if "data_cadastro" in df.columns:
-                try:
-                    from shared.date_utils import parse_any_date
-                    parsed = df["data_cadastro"].apply(parse_any_date)
-                    ts = pd.to_datetime(parsed, errors="coerce", format="%Y-%m-%d %H:%M:%S")
-                    years = ts.dt.year
-                    if emissao_inc:
-                        mask &= years.isin(emissao_inc)
-                    if emissao_exc:
-                        mask &= ~years.isin(emissao_exc)
-                except Exception as exc:
-                    logger.debug("Failed to apply ano emissao filter from data_cadastro: %s", exc)
-            elif "semana_cadastro" in df.columns:
-                try:
-                    nums = pd.to_numeric(df["semana_cadastro"], errors="coerce").astype("Int64")
-                    years = (nums // 100).astype("Int64")
-                    if emissao_inc:
-                        mask &= years.isin(emissao_inc)
-                    if emissao_exc:
-                        mask &= ~years.isin(emissao_exc)
-                except Exception as exc:
-                    logger.debug("Failed to apply ano emissao filter from semana_cadastro: %s", exc)
-
-        execucao_inc = _to_int_set(filters.get("ano_execucao_values") or [])
-        execucao_exc = _to_int_set(filters.get("ano_execucao_exclude_values") or [])
-        if not execucao_inc and filters.get("ano_execucao") is not None:
-            execucao_inc = _to_int_set([filters.get("ano_execucao")])
-        if not execucao_exc and filters.get("ano_execucao_exclude") and filters.get("ano_execucao") is not None:
-            execucao_exc = _to_int_set([filters.get("ano_execucao")])
-
-        if "semana_executada" in df.columns and (execucao_inc or execucao_exc):
-            try:
-                nums = pd.to_numeric(df["semana_executada"], errors="coerce").astype("Int64")
-                years = (nums // 100).astype("Int64")
-                if execucao_inc:
-                    mask &= years.isin(execucao_inc)
-                if execucao_exc:
-                    mask &= ~years.isin(execucao_exc)
-            except Exception as exc:
-                logger.debug("Failed to apply ano execucao filter from semana_executada: %s", exc)
-
-        def _apply_week_range(col, start_key, end_key, exclude_key):
-            nonlocal mask
-            if col not in df.columns:
-                return
-            start = filters.get(start_key)
-            end = filters.get(end_key)
-            if start is None and end is None:
-                return
-            try:
-                nums = pd.to_numeric(df[col], errors="coerce")
-                range_mask = pd.Series(True, index=df.index)
-                if start is not None:
-                    range_mask &= nums.ge(int(start))
-                if end is not None:
-                    range_mask &= nums.le(int(end))
-                if filters.get(exclude_key):
-                    mask &= ~range_mask
-                else:
-                    mask &= range_mask
-            except Exception as exc:
-                logger.debug("Failed to apply week range filter '%s': %s", col, exc)
-
-        _apply_week_range("semana_cadastro", "semana_emissao_inicio", "semana_emissao_fim", "semana_emissao_exclude")
-        _apply_week_range("semana_executada", "semana_execucao_inicio", "semana_execucao_fim", "semana_execucao_exclude")
-
-        try:
-            if not bool(mask.any()):
-                return df.iloc[0:0]
-        except Exception as exc:
-            logger.debug("Failed to evaluate advanced filter mask.any() after week ranges: %s", exc)
-
-        derivada_has = bool(filters.get("derivada_has"))
-        derivada_all_ste = bool(filters.get("derivada_all_ste"))
-        derivada_is = bool(filters.get("derivada_is"))
-
-        if "derivada_de" in df.columns:
-            series_derivada = self._normalize_ssa_series(df["derivada_de"])
-            has_derivada = series_derivada.ne("")
-            if derivada_is:
-                mask &= has_derivada
-
-            if (derivada_has or derivada_all_ste) and "numero_ssa" in df.columns:
-                try:
-                    origins = set(series_derivada[has_derivada].unique())
-                except Exception:
-                    origins = set()
-                if derivada_all_ste and "situacao" in df.columns:
-                    try:
-                        derived = df[has_derivada].copy()
-                        derived["_derivada_norm"] = series_derivada[has_derivada].values
-                        grouped = derived.groupby("_derivada_norm")["situacao"].apply(
-                            lambda s: s.astype(str).str.upper().eq("STE").all()
-                        )
-                        origins = set(grouped[grouped].index.astype(str).tolist())
-                    except Exception as exc:
-                        logger.debug("Failed to compute derivada_all_ste origin set: %s", exc)
-                        origins = set()
-                if origins:
-                    try:
-                        origin_norm = {str(o) for o in origins if str(o).strip()}
-                        numero_norm = self._normalize_ssa_series(df["numero_ssa"])
-                        mask &= numero_norm.isin(origin_norm)
-                    except Exception as exc:
-                        logger.debug("Failed to apply derivada origin filter to numero_ssa: %s", exc)
-                else:
-                    mask &= False
-
-        if mask.all():
-            return df
-        return df[mask]
 
     def _retain_data_loader_worker_until_finished(self, worker) -> None:
-        if worker is None:
-            return
-        self._prune_retired_data_loader_workers()
-        retired = getattr(self, "_retired_data_loader_workers", None)
-        if retired is None:
-            retired = []
-            self._retired_data_loader_workers = retired
-        if worker in retired:
-            return
-        retired.append(worker)
-        GLOBAL_RETIRED_DATA_LOADER_META[worker] = perf_counter()
-        if worker not in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            GLOBAL_RETIRED_DATA_LOADER_WORKERS.append(worker)
-
-        def _release_worker_ref(w=worker):
-            try:
-                if w in self._retired_data_loader_workers:
-                    self._retired_data_loader_workers.remove(w)
-            except Exception as exc:
-                logger.debug("Falha ao remover worker de carga da lista local aposentada: %s", exc)
-            try:
-                if w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-                    GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(w)
-            except Exception as exc:
-                logger.debug("Falha ao remover worker de carga da lista global aposentada: %s", exc)
-            try:
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-            except Exception as exc:
-                logger.debug("Falha ao remover meta do worker de carga: %s", exc)
-
-        try:
-            worker.finished.connect(_release_worker_ref)
-        except Exception as exc:
-            logger.debug("Falha ao conectar cleanup no signal finished do worker de carga: %s", exc)
-            _release_worker_ref()
-        try:
-            worker.destroyed.connect(_release_worker_ref)
-        except Exception as exc:
-            logger.debug("Falha ao conectar cleanup no signal destroyed do worker de carga: %s", exc)
-        try:
-            worker.finished.connect(worker.deleteLater)
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no worker de carga: %s", exc)
-        self._prune_retired_data_loader_workers()
+        ssa_gui_workers.retain_data_loader_worker_until_finished(
+            self,
+            worker,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _is_data_loader_worker_alive(self, worker) -> bool:
-        if worker is None:
-            return False
-        if sip is None:
-            return True
-        try:
-            return not sip.isdeleted(worker)
-        except TypeError:
-            # Objetos de teste podem nao ser QObject reais.
-            return True
-        except Exception:
-            return False
+        return ssa_gui_workers.is_data_loader_worker_alive(worker, sip_module=sip)
 
     def _is_data_loader_worker_running(self, worker) -> bool:
-        if not self._is_data_loader_worker_alive(worker):
-            return False
-        try:
-            if hasattr(worker, "isRunning"):
-                return bool(worker.isRunning())
-        except Exception:
-            return False
-        return False
+        return ssa_gui_workers.is_data_loader_worker_running(worker, sip_module=sip)
 
     def _prune_retired_data_loader_workers(self) -> None:
-        """Remove referencias globais/locais para workers ja finalizados."""
-        now = perf_counter()
-        retired_local = list(getattr(self, "_retired_data_loader_workers", []) or [])
-        pruned_local = []
-        for w in retired_local:
-            if not self._is_data_loader_worker_running(w):
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-                try:
-                    stopped = self._cleanup_data_loader_worker(
-                        w,
-                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-                    stopped = False
-                if stopped:
-                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
-            pruned_local.append(w)
-        self._retired_data_loader_workers = pruned_local
-
-        running_global = []
-        for w in GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            if not self._is_data_loader_worker_running(w):
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_DATA_LOADER_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-                try:
-                    stopped = self._cleanup_data_loader_worker(
-                        w,
-                        wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-                    stopped = False
-                if stopped:
-                    GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_DATA_LOADER_META[w] = now
-            running_global.append(w)
-        if len(running_global) > MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:
-            running_global = running_global[-MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS:]
-        GLOBAL_RETIRED_DATA_LOADER_WORKERS[:] = running_global
-        for w in list(GLOBAL_RETIRED_DATA_LOADER_META.keys()):
-            if w not in GLOBAL_RETIRED_DATA_LOADER_WORKERS and w not in self._retired_data_loader_workers:
-                GLOBAL_RETIRED_DATA_LOADER_META.pop(w, None)
+        ssa_gui_workers.prune_retired_data_loader_workers(
+            self,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _is_rescan_worker_running(self, worker) -> bool:
-        if not self._is_data_loader_worker_alive(worker):
-            return False
-        try:
-            if hasattr(worker, "isRunning"):
-                return bool(worker.isRunning())
-        except Exception:
-            return False
-        return False
+        return ssa_gui_workers.is_rescan_worker_running(worker, sip_module=sip)
 
     def _prune_retired_rescan_workers(self) -> None:
-        now = perf_counter()
-        running_global = []
-        for w in GLOBAL_RETIRED_RESCAN_WORKERS:
-            if not self._is_rescan_worker_running(w):
-                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
-                continue
-            started_at = GLOBAL_RETIRED_RESCAN_META.get(w, now)
-            age = now - started_at
-            if age > RETIRED_WORKER_TTL_SEC:
-                logger.warning("Rescan worker excedeu TTL; solicitando stop.")
-                try:
-                    if hasattr(w, "stop"):
-                        w.stop()
-                    if hasattr(w, "quit"):
-                        w.quit()
-                    if hasattr(w, "wait"):
-                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
-                    if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
-                        w.terminate()
-                        w.wait(int(RETIRED_WORKER_FORCE_WAIT_MS))
-                except Exception as exc:
-                    logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
-                if not self._is_rescan_worker_running(w):
-                    GLOBAL_RETIRED_RESCAN_META.pop(w, None)
-                    continue
-                GLOBAL_RETIRED_RESCAN_META[w] = now
-            running_global.append(w)
-        if len(running_global) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-            running_global = running_global[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-        GLOBAL_RETIRED_RESCAN_WORKERS[:] = running_global
-        for w in list(GLOBAL_RETIRED_RESCAN_META.keys()):
-            if w not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                GLOBAL_RETIRED_RESCAN_META.pop(w, None)
+        ssa_gui_workers.prune_retired_rescan_workers(
+            self,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def _cleanup_data_loader_worker(self, worker, wait_ms: int = 1500) -> bool:
-        """Finaliza worker de carga com modo bloqueante opcional.
-
-        Retorna True quando o worker já está parado e pronto para descarte.
-        Retorna False quando permanece em execução após tentativa de encerramento.
-        """
-        if worker is None:
-            return True
-        try:
-            try:
-                worker.data_loaded.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar data_loaded do worker de carga: %s", exc)
-            try:
-                worker.error_occurred.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar error_occurred do worker de carga: %s", exc)
-            try:
-                worker.finished.disconnect()
-            except Exception as exc:
-                logger.debug("Falha ao desconectar finished do worker de carga: %s", exc)
-            still_running = False
-            try:
-                if hasattr(worker, "cancel"):
-                    worker.cancel()
-                elif hasattr(worker, "requestInterruption"):
-                    worker.requestInterruption()
-                if hasattr(worker, "isRunning") and worker.isRunning():
-                    worker.quit()
-                    if int(wait_ms or 0) > 0:
-                        worker.wait(int(wait_ms))
-                still_running = bool(hasattr(worker, "isRunning") and worker.isRunning())
-            except Exception as exc:
-                logger.warning("Falha ao solicitar encerramento do worker de carga: %s", exc)
-                still_running = True
-            if still_running:
-                self._retain_data_loader_worker_until_finished(worker)
-                return False
-            try:
-                worker.deleteLater()
-            except Exception as exc:
-                logger.debug("Falha ao chamar deleteLater no worker de carga: %s", exc)
-        except Exception as exc:
-            logger.warning("Falha durante cleanup do worker de carga: %s", exc)
-            try:
-                self._prune_retired_data_loader_workers()
-            except Exception as prune_exc:
-                logger.debug("Falha ao podar workers de carga apos erro de cleanup: %s", prune_exc)
-            return False
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga apos cleanup: %s", exc)
-        return True
+        return ssa_gui_workers.cleanup_data_loader_worker(
+            self,
+            worker,
+            wait_ms=wait_ms,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def load_data(self):
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga antes de novo load: %s", exc)
-        if not os.path.exists(DB_PATH):
-            missing_db_msg = f"Banco de dados '{DB_PATH}' nao encontrado. Execute o programa principal primeiro."
-            logger.warning(missing_db_msg)
-            try:
-                self.status_label.setText("Status: Banco de dados nao encontrado.")
-            except Exception:
-                pass
-            # Evita deadlock por dialogo modal durante testes automatizados.
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                return
-            QMessageBox.warning(self, "Erro", missing_db_msg)
-            return
-
-        # Cancela pipeline de filtro em andamento para evitar mistura entre datasets.
-        try:
-            if hasattr(self, "_invalidate_active_filter_request"):
-                self._invalidate_active_filter_request("load_data_new_dataset")
-        except Exception as exc:
-            logger.warning("Falha ao invalidar request de filtro antes do load: %s", exc)
-        try:
-            if hasattr(self, "_cancel_active_filter_worker"):
-                self._cancel_active_filter_worker("load_data_new_dataset", wait_ms=0)
-        except Exception as exc:
-            logger.warning("Falha ao cancelar worker de filtro antes do load: %s", exc)
-        # Evita disparo tardio de filtro por debounce enquanto o novo dataset carrega.
-        try:
-            self._debounce_timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce de filtro antes do load: %s", exc)
-
-        request_id = int(getattr(self, "_data_load_request_seq", 0) or 0) + 1
-        self._data_load_request_seq = request_id
-        self._active_data_load_request_id = request_id
-
-        self.status_label.setText("Status: Carregando dados...")
-        self.progress_bar.setVisible(True)
-        self.load_button.setEnabled(False)
-        self.search_button.setEnabled(False)
-
-        previous_worker = getattr(self, "data_loader_thread", None)
-        if previous_worker is not None:
-            self._cleanup_data_loader_worker(previous_worker, wait_ms=0)
-            if getattr(self, "data_loader_thread", None) is previous_worker:
-                self.data_loader_thread = None
-
-        if DataLoaderWorker is None:
-            logger.error("DataLoaderWorker indisponivel para load_data")
-            # Evita deadlock por dialogo modal durante testes automatizados.
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                logger.debug("PYTEST_CURRENT_TEST set; skipping modal DataLoaderWorker error dialog.")
-            else:
-                QMessageBox.critical(
-                    self,
-                    "Erro de Carregamento",
-                    "Data loader indisponivel neste ambiente. Consulte os logs.",
-                )
-            self.status_label.setText("Status: Erro ao carregar dados.")
-            self.progress_bar.setVisible(False)
-            self.load_button.setEnabled(True)
-            self.search_button.setEnabled(True)
-            return
-
-        worker = DataLoaderWorker(DB_PATH, TABLE_NAME)
-        self.data_loader_thread = worker
-        worker.data_loaded.connect(lambda df, rid=request_id: self.on_data_loaded(df, request_id=rid))
-        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_load_error(msg, request_id=rid))
-        worker.finished.connect(lambda w=worker, rid=request_id: self.on_load_finished(worker=w, request_id=rid))
-        try:
-            worker.finished.connect(worker.deleteLater)
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no worker de carga atual: %s", exc)
-        worker.start()
+        ssa_gui_workers.load_data(
+            self,
+            db_path=DB_PATH,
+            table_name=TABLE_NAME,
+            data_loader_cls=DataLoaderWorker,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_data_loaded(self, df: pd.DataFrame, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        if request_id is not None and active_id is not None and request_id != active_id:
-            logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
-            return
-        df_copy = df.copy()
-        self.df_completo = df_copy
-        try:
-            self.clear_filter_cache()
-        except Exception as exc:
-            logger.debug("Falha ao limpar cache de filtros apos recarga de dados: %s", exc)
-        self._adv_options_dirty = True
-        self._adv_values_cache = None
-        self._responsavel_materialized_prefixes = set()
-        self._mark_responsavel_dirty()
-        try:
-            timer = getattr(self, "_sector_debounce_timer", None)
-            if timer is not None:
-                timer.stop()
-        except Exception as exc:
-            logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
-        # Inicialmente, exibimos todos os dados
-        base = df_copy
-        # Ordenacao padrao: nao-STE primeiro; depois numero SSA desc
-        try:
-            if 'situacao' in base.columns:
-                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
-            else:
-                is_ste = pd.Series([False]*len(base), index=base.index)
-            if 'numero_ssa' in base.columns:
-                ssa_text = base["numero_ssa"].astype(str)
-                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
-            else:
-                ssa_int = pd.Series([-1]*len(base), index=base.index)
-            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
-                by=['__is_ste','__ssa'], ascending=[True, False], na_position='last'
-            ).drop(columns=['__is_ste','__ssa'])
-        except Exception as e:
-            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
-        self.df_exibido = base
-        self._df_last_search_filtered = df_copy
-        self._widths_computed_for_df_hash = None
-        try:
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception:
-            self.clear_filter_button.setEnabled(True)
-        self._refresh_after_filter_change()
-        try:
-            self._refresh_advanced_filter_options()
-        except Exception as e:
-            logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
-        try:
-            self._update_derivadas_button_state()
-        except Exception as exc:
-            logger.warning("Falha ao atualizar estado do botao de derivadas: %s", exc)
-        profile_hint = f" (perfil: {self.current_filter_profile})" if self.current_filter_profile else ""
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.")
+        ssa_gui_workers.on_data_loaded(self, df, request_id=request_id)
 
     def on_load_error(self, error_msg: str, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        if request_id is not None and active_id is not None and request_id != active_id:
-            logger.debug("Ignorando erro de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
-            return
-        safe_error_msg = "Nao foi possivel carregar os dados. Consulte os logs para detalhes tecnicos."
-        logger.error("Erro no carregamento de dados (request_id=%s): %s", request_id, error_msg)
-        # Avoid modal dialogs during automated tests (can deadlock the pytest runner).
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            logger.debug("PYTEST_CURRENT_TEST set; skipping modal load error dialog.")
-        else:
-            QMessageBox.critical(self, "Erro de Carregamento", safe_error_msg)
-        self.status_label.setText("Status: Erro ao carregar dados.")
-        self.load_button.setEnabled(True)
-        self.search_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        try:
-            self._prune_retired_data_loader_workers()
-        except Exception as exc:
-            logger.debug("Falha ao podar workers de carga aposentados apos erro: %s", exc)
+        ssa_gui_workers.on_load_error(
+            self,
+            error_msg,
+            request_id=request_id,
+            db_path=DB_PATH,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_load_finished(self, worker=None, request_id: int | None = None):
-        active_id = getattr(self, "_active_data_load_request_id", None)
-        is_stale = request_id is not None and active_id is not None and request_id != active_id
-        target_worker = worker if worker is not None else getattr(self, "data_loader_thread", None)
-        if is_stale:
-            try:
-                self._cleanup_data_loader_worker(target_worker)
-            finally:
-                if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
-                    self.data_loader_thread = None
-                try:
-                    self._prune_retired_data_loader_workers()
-                except Exception as exc:
-                    logger.debug("Falha ao podar workers de carga no cleanup de request obsoleto: %s", exc)
-            return
-
-        self.progress_bar.setVisible(False)
-        self.load_button.setEnabled(True)
-        self.search_button.setEnabled(True)
-        # Finalização segura do loader
-        try:
-            self._cleanup_data_loader_worker(target_worker)
-        finally:
-            if target_worker is not None and getattr(self, "data_loader_thread", None) is target_worker:
-                self.data_loader_thread = None
-            try:
-                self._prune_retired_data_loader_workers()
-            except Exception as exc:
-                logger.debug("Falha ao podar workers de carga no fim do load: %s", exc)
+        ssa_gui_workers.on_load_finished(
+            self,
+            worker=worker,
+            request_id=request_id,
+            global_workers=GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            global_meta=GLOBAL_RETIRED_DATA_LOADER_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_DATA_LOADER_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def on_header_clicked(self, logical_index: int):
         try:
@@ -4701,6 +1800,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                     ascending=self.sort_ascending,
                     na_position='last'
                 )
+                self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(
                     "Falha ao ordenar coluna '%s' (ascending=%s): %s",
@@ -4746,13 +1846,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _apply():
                 term = None
-                try:
-                    from PyQt6.QtWidgets import QInputDialog
-                except Exception:
-                    QInputDialog = None
-                if QInputDialog:
+                input_dialog_cls = cast(Any, None)
+                if QT_AVAILABLE:
+                    try:
+                        from PyQt6.QtWidgets import QInputDialog
+
+                        input_dialog_cls = QInputDialog
+                    except Exception as exc:
+                        logger.debug("Falha ao importar QInputDialog no filtro por coluna: %s", exc)
+                if input_dialog_cls is not None:
                     ok = False
-                    term, ok = QInputDialog.getText(self, "Filtro por coluna", f"Termo para '{full_name}':")
+                    term, ok = input_dialog_cls.getText(self, "Filtro por coluna", f"Termo para '{full_name}':")
                     if not ok:
                         term = None
                 else:
@@ -4773,11 +1877,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
 
-            menu.addAction(apply_action)
+            cast(Any, menu).addAction(apply_action)
             if col_name in self._active_column_filters:
-                menu.addAction(clear_action)
+                cast(Any, menu).addAction(clear_action)
             if self._active_column_filters:
-                menu.addAction(clear_all_action)
+                cast(Any, menu).addAction(clear_all_action)
             menu.exec(header.mapToGlobal(pos))
         except Exception as exc:
             logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
@@ -4808,568 +1912,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
     # --- Helpers: painel e aplicaçção dos filtros por coluna ---
     def toggle_theme_menu(self):
-        from PyQt6.QtWidgets import QMenu, QWidgetAction, QCheckBox
-        from functools import partial
-        menu = QMenu(self)
-        # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
-        try:
-            from PyQt6.QtWidgets import QApplication
-            from PyQt6.QtCore import Qt as _Qt
-            from PyQt6.QtGui import QPalette as _QPal
-            app = QApplication.instance()
-            pal = app.palette() if app is not None else self.palette()
-            if app is not None:
-                menu.setPalette(pal)
-            try:
-                menu.setAttribute(_Qt.WidgetAttribute.WA_StyledBackground, True)
-            except Exception as exc:
-                logger.debug("Falha ao habilitar styled background no menu de temas: %s", exc)
-            win = pal.color(_QPal.ColorRole.Window).name()
-            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
-            mid = pal.color(_QPal.ColorRole.Mid).name()
-            hi = pal.color(_QPal.ColorRole.Highlight).name()
-            hitxt = pal.color(_QPal.ColorRole.HighlightedText).name()
-            menu.setStyleSheet(
-                f"QMenu {{ background-color: {win}; color: {wtxt}; border:1px solid {mid}; }}"
-                f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}"
-                f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}"
-            )
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo/paleta no menu de temas: %s", exc)
-        light_themes, dark_themes = self._get_theme_catalog()
-        gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
-        theme_default = gui_settings.get("theme_default")
-        current_theme = normalize_theme(getattr(self, "_current_theme", "") or theme_default or "gruvbox")
-        roles = get_theme_roles(current_theme)
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            pal = menu.palette()
-            wtxt = pal.color(_QPal.ColorRole.WindowText).name()
-            win = pal.color(_QPal.ColorRole.Window).name()
-        except Exception as exc:
-            logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
-            wtxt = "#ffffff"
-            win = "#000000"
-        support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
-        if support_color.lower() == win.lower():
-            support_color = wtxt
-
-        try:
-            check_action = QWidgetAction(menu)
-            check_widget = QCheckBox("Usar tema atual como padrao")
-            check_widget.setChecked(normalize_theme(theme_default or "") == current_theme)
-            try:
-                check_widget.setStyleSheet(f"color: {wtxt}; padding: 4px 10px;")
-            except Exception as exc:
-                logger.debug("Falha ao estilizar checkbox do menu de temas: %s", exc)
-            def _toggle_default(checked):
-                gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-                if checked:
-                    active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
-                    gui_settings["theme_default"] = active_theme
-                else:
-                    gui_settings.pop("theme_default", None)
-                self._persist_gui_preferences()
-            check_widget.toggled.connect(_toggle_default)
-            check_action.setDefaultWidget(check_widget)
-            menu.addAction(check_action)
-        except Exception as exc:
-            logger.debug("Falha ao construir checkbox de tema padrao; usando fallback de action: %s", exc)
-            default_action = menu.addAction("Usar tema atual como padrao")
-            if default_action is not None:
-                try:
-                    default_action.setCheckable(True)
-                    default_action.setChecked(normalize_theme(theme_default or "") == current_theme)
-                    def _toggle_default_action(checked):
-                        gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-                        if checked:
-                            active_theme = normalize_theme(getattr(self, "_current_theme", "") or "gruvbox")
-                            gui_settings["theme_default"] = active_theme
-                        else:
-                            gui_settings.pop("theme_default", None)
-                        self._persist_gui_preferences()
-                    default_action.triggered.connect(_toggle_default_action)
-                except Exception as fallback_exc:
-                    logger.debug("Falha no fallback de action para tema padrao: %s", fallback_exc)
-        menu.addSeparator()
-
-        def _add_label(text: str):
-            try:
-                from PyQt6.QtWidgets import QWidgetAction
-                label = QLabel(text)
-                try:
-                    label_color = support_color
-                    label.setStyleSheet(
-                        f"color: {label_color}; font-weight: 600; padding: 4px 10px;"
-                    )
-                except Exception as exc:
-                    logger.debug("Falha ao estilizar label de grupo no menu de temas: %s", exc)
-                action = QWidgetAction(menu)
-                action.setDefaultWidget(label)
-                menu.addAction(action)
-            except Exception as exc:
-                logger.debug("Falha ao criar label custom no menu de temas; usando action simples: %s", exc)
-                act = menu.addAction(text)
-                if act is not None:
-                    try:
-                        act.setEnabled(False)
-                    except Exception as disable_exc:
-                        logger.debug("Falha ao desabilitar action de label no menu de temas: %s", disable_exc)
-
-        def _add_group(items):
-            for label, key in items:
-                act = menu.addAction(label)
-                if act is not None:
-                    trigger = getattr(act, "triggered", None)
-                    if trigger is not None:
-                        try:
-                            trigger.connect(partial(self.apply_theme, key))
-                        except Exception as exc:
-                            logger.warning("Falha ao conectar action de tema %s: %s", key, exc)
-
-        _add_label("Light")
-        _add_group(sorted(light_themes, key=lambda item: item[0].lower()))
-        menu.addSeparator()
-        _add_label("Dark")
-        _add_group(sorted(dark_themes, key=lambda item: item[0].lower()))
-
-        try:
-            labels = [name for name, _ in light_themes + dark_themes]
-            fm = menu.fontMetrics()
-            widest = max(fm.horizontalAdvance(lbl) for lbl in labels)
-            menu.setMinimumWidth(widest + 48)
-        except Exception as exc:
-            logger.debug("Falha ao calcular largura minima do menu de temas: %s", exc)
-        btn = self.sender()
-        try:
-            if btn is not None:
-                menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
-        except Exception as exc:
-            logger.warning("Falha ao abrir menu de temas: %s", exc)
+        return ssa_gui_theme.toggle_theme_menu(
+            self,
+            gui_prefs=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+        )
 
     def apply_theme(self, name: str):
-        """
-        Apply theme to the entire application and all widgets.
-
-        This method is organized into clear sections for easy maintenance.
-        See temp/THEME_ROLES_MAPPING.md for mapping of theme roles to widgets.
-
-        Args:
-            name: Theme name (will be normalized: 'dark', 'grayscale', 'gruvbox', etc.)
-        """
-        # ============================================================
-        # SECTION 1: Theme Setup and Palette Loading
-        # ============================================================
-        # Normalize theme name and load QPalette from utils.themes
-        normalized = normalize_theme(name)
-        current_theme = normalize_theme(getattr(self, "_current_theme", "") or "")
-        same_theme = bool(current_theme and normalized == current_theme)
-        roles = get_theme_roles(normalized)
-        if same_theme:
-            # Fast path: evita repolish global caro sem pular atualizacao local de estilos.
-            pal = self.palette()
-        else:
-            try:
-                from PyQt6.QtWidgets import QApplication, QStyleFactory
-                app = QApplication.instance()
-                pal = get_palette(normalized)
-                # Em Windows, alguns estilos ignoram QPalette em QMenu/ToolTip.
-                # Para consistencia, force "Fusion" em todos os temas.
-                try:
-                    if app is not None:
-                        styles = QStyleFactory.keys()
-                        if styles and 'Fusion' in styles:
-                            app.setStyle('Fusion')
-                except Exception as exc:
-                    logger.debug("Falha ao forcar estilo Fusion na aplicacao: %s", exc)
-                # Aplica paleta no aplicativo inteiro para garantir consistência
-                if app is not None:
-                    app.setPalette(pal)
-                    # Injeta QSS com cores hex da paleta para Menu/Tooltip/ListViews (evita branco com letras claras)
-                    try:
-                        block = build_global_widget_qss(pal)
-                        if getattr(self, "_last_global_theme_qss", None) != block:
-                            app.setStyleSheet(block)
-                            self._last_global_theme_qss = block
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
-                # Garante também na janela atual
-                self.setPalette(pal)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Falha ao aplicar paleta global do tema '%s'; seguindo fallback local: %s", normalized, exc)
-                pal = get_palette(normalized)
-                self.setPalette(pal)
-
-        # ============================================================
-        # SECTION 2: Application-Wide Widget Settings
-        # ============================================================
-        # Set central widget background and table header styling
-        # Ensure central widget background matches the palette to avoid white boxes
-        try:
-            central = self.centralWidget()
-            if central is not None:
-                existing = central.styleSheet() or ""
-                start = existing.find("/* SSA_MAIN_BG_START */")
-                if start != -1:
-                    end = existing.find("/* SSA_MAIN_BG_END */", start)
-                    if end != -1:
-                        end += len("/* SSA_MAIN_BG_END */")
-                        existing = (existing[:start] + existing[end:]).rstrip()
-                    else:
-                        existing = existing[:start].rstrip()
-                normalized_name = normalize_theme(normalized)
-                if normalized_name in {'grayscale', 'gruvbox', 'dark', 'dracula', 'solarized-dark', 'tokyo-night', 'catppuccin', 'nord'}:
-                    bg = pal.window().color().name()
-                    block = build_central_widget_qss(bg)
-                    new_css = existing
-                    if new_css:
-                        if not new_css.endswith("\n"):
-                            new_css += "\n"
-                        new_css += block
-                    else:
-                        new_css = block
-                    if central.styleSheet() != new_css:
-                        central.setStyleSheet(new_css)
-                else:
-                    if central.styleSheet() != existing:
-                        central.setStyleSheet(existing)
-        except Exception as exc:
-            logger.warning("Falha ao aplicar tema no central widget: %s", exc)
-        try:
-            if hasattr(self, "main_tabs") and self.main_tabs is not None:
-                from PyQt6.QtGui import QPalette as _QPal
-                tab_bg = pal.color(_QPal.ColorRole.Window).name()
-                tab_text = pal.color(_QPal.ColorRole.WindowText).name()
-                tab_mid = pal.color(_QPal.ColorRole.Mid).name()
-                accent = roles.get('accent', tab_text)
-                support_color = roles.get('support_text_color', tab_text)
-                tab_css = (
-                    "QTabWidget::pane {"
-                    f" border:1px solid {tab_mid};"
-                    f" background:{tab_bg};"
-                    " margin:0; padding:0;"
-                    " }"
-                    "QTabBar::tab {"
-                    f" color:{support_color}; background:{tab_bg};"
-                    " padding:4px 10px; font-weight:500; border:1px solid transparent;"
-                    " }"
-                    "QTabBar::tab:selected {"
-                    f" color:{tab_text}; font-weight:600; background:{tab_bg};"
-                    f" border:1px solid {accent}; border-bottom:2px solid {accent};"
-                    " margin-bottom:-1px; margin-top:1px;"
-                    " }"
-                    "QTabBar::tab:!selected {"
-                    f" color:{support_color};"
-                    " }"
-                )
-                self.main_tabs.setStyleSheet(tab_css)
-        except Exception as exc:
-            logger.warning("Falha ao aplicar estilo de tabs no tema atual: %s", exc)
-        try:
-            header = self.table_widget.horizontalHeader()
-            header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-        except Exception as exc:
-            logger.debug("Falha ao aplicar estilo no header da tabela durante apply_theme: %s", exc)
-
-        # ============================================================
-        # SECTION 3: Extract Theme Color Roles
-        # ============================================================
-        # Load all color roles from theme for widget styling
-        # These variables are used in subsequent sections
-        self._current_theme = normalized
-        try:
-            tab_contexts = getattr(self, "_tab_contexts", None)
-            if isinstance(tab_contexts, list):
-                # Only mark the active tab context as themed.
-                # Other tabs must be re-themed on demand when they get bound, otherwise
-                # they can keep stale styles after theme switches.
-                active_kind = getattr(self, "_current_tab_kind", None)
-                active_search = getattr(self, "search_input", None)
-                for ctx in tab_contexts:
-                    if not isinstance(ctx, dict):
-                        continue
-                    if active_kind and ctx.get("tab_kind") == active_kind:
-                        ctx["_theme_name"] = normalized
-                        break
-                    if active_search is not None and ctx.get("search_input") is active_search:
-                        ctx["_theme_name"] = normalized
-                        break
-        except Exception as exc:
-            logger.debug("Falha ao registrar tema atual nos contextos de aba: %s", exc)
-        try:
-            light_themes = {'windows7', 'classico', 'solarized-light', 'mint-light', 'paper'}
-            selector = getattr(self, 'column_selector', None)
-            pal_active = self.palette()
-            from PyQt6.QtGui import QPalette as _QPal
-            roles = get_theme_roles(normalized)
-            txt = pal_active.color(_QPal.ColorRole.WindowText).name()
-            base = pal_active.color(_QPal.ColorRole.Base).name()
-            mid = pal_active.color(_QPal.ColorRole.Mid).name()
-            high = pal_active.color(_QPal.ColorRole.Highlight).name()
-            label_color = roles.get('label_color', txt)
-            support_color = roles.get('support_text_color', label_color)
-            indicator_color = roles.get('indicator_text_color', support_color)
-            summary_color = roles.get('summary_text_color', label_color)
-            summary_bg = roles.get('summary_frame_bg', roles.get('panel_bg', base))
-            summary_border = roles.get('summary_frame_border', roles.get('panel_border', mid))
-            accent = roles.get('accent', high)
-            accent_soft = roles.get('accent_soft', support_color)
-            input_bg = roles.get('input_bg', base)
-            input_text = roles.get('input_text', txt)
-            input_border = roles.get('input_border', mid)
-            input_focus = roles.get('input_border_focus', accent)
-            input_placeholder = roles.get('input_placeholder', support_color)
-            panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
-            panel_text = roles.get('panel_text', txt)
-            panel_border = roles.get('panel_border', input_border)
-            try:
-                highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
-            except Exception as exc:
-                logger.debug("Falha ao obter cor de texto destacado da paleta: %s", exc)
-                highlight_fg = None
-            self._highlight_bg_color = high or HIGHLIGHT_BACKGROUND_COLOR
-            self._highlight_text_color = highlight_fg or None
-            self._highlight_font_weight = HIGHLIGHT_FONT_WEIGHT
-
-            # ============================================================
-            # SECTION 4: Search Bar Components
-            # ============================================================
-            # Style the search label and search input field
-            if hasattr(self, 'search_label'):
-                self.search_label.setStyleSheet(f"color: {label_color}; font-weight: 600;")
-
-            if hasattr(self, 'search_input') and self.search_input is not None:
-                self.search_input.setStyleSheet(
-                    build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
-                )
-
-            tool_btn_css = (
-                "QToolButton {"
-                f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
-                " border-radius:4px; padding:2px 6px; }"
-                "QToolButton:pressed {"
-                f" background: {accent_soft}; }}"
-            )
-            adv_buttons = [
-                "adv_executor_button",
-                "adv_emissor_button",
-                "adv_divisao_button",
-                "adv_status_button",
-                "adv_year_emissao_button",
-                "adv_year_execucao_button",
-                "adv_prioridade_emissao_button",
-                "adv_prioridade_planejamento_button",
-                "adv_responsavel_solicitante_button",
-                "adv_responsavel_programacao_button",
-                "adv_responsavel_execucao_button",
-                "adv_responsavel_emissor_button",
-            ]
-            for name in adv_buttons:
-                btn = getattr(self, name, None)
-                if btn is not None:
-                    try:
-                        btn.setStyleSheet(tool_btn_css)
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar estilo no botao avancado %s: %s", name, exc)
-            adv_line_edits = [
-                "adv_week_emissao_start",
-                "adv_week_emissao_end",
-                "adv_week_execucao_start",
-                "adv_week_execucao_end",
-            ]
-            for name in adv_line_edits:
-                widget = getattr(self, name, None)
-                if widget is not None:
-                    try:
-                        widget.setStyleSheet(
-                            build_line_edit_qss(input_text, input_bg, input_border, input_focus, input_placeholder)
-                        )
-                    except Exception as exc:
-                        logger.debug("Falha ao aplicar estilo no campo avancado %s: %s", name, exc)
-
-            # ============================================================
-            # SECTION 5: Details Panel
-            # ============================================================
-            # Style the SSA details text widget and its group box
-            if hasattr(self, 'details_text'):
-                if hasattr(self, 'details_group'):
-                    try:
-                        base_font = self.details_group.font()
-                        small_font = QFont(base_font)
-                        size = small_font.pointSizeF()
-                        if size <= 0:
-                            size = float(small_font.pointSize())
-                        if size > 0:
-                            small_font.setPointSizeF(max(size - 1.5, 1.0))
-                        self.details_text.setFont(small_font)
-                    except Exception as exc:
-                        logger.debug("Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc)
-                if normalized in light_themes:
-                    self.details_text.setStyleSheet('')
-                else:
-                    self.details_text.setStyleSheet(
-                        "QTextEdit {"
-                        f" color: {panel_text}; background: {panel_bg}; border: none; padding:4px;"
-                        " }"
-                    )
-
-            group_css = build_group_box_qss(panel_text, panel_border, panel_bg)
-
-            if hasattr(self, 'details_group'):
-                if normalized in light_themes:
-                    self.details_group.setStyleSheet('')
-                else:
-                    self.details_group.setStyleSheet(group_css)
-
-            # ============================================================
-            # SECTION 6: Column Filters Panel
-            # ============================================================
-            # Style the column filters group box
-            if hasattr(self, 'col_filters_group'):
-                if normalized in light_themes:
-                    self.col_filters_group.setStyleSheet('')
-                else:
-                    self.col_filters_group.setStyleSheet(group_css)
-            if hasattr(self, 'adv_filters_group'):
-                if normalized in light_themes:
-                    self.adv_filters_group.setStyleSheet('')
-                else:
-                    self.adv_filters_group.setStyleSheet(group_css)
-
-            # ============================================================
-            # SECTION 7: Status and Week Labels
-            # ============================================================
-            # Style the week indicator and status bar label
-            highlight_style = (
-                f"font-weight:600; color:{accent}; background:{panel_bg}; "
-                f"border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-            )
-            self._week_label_style = highlight_style
-            if hasattr(self, 'week_label'):
-                self.week_label.setStyleSheet(highlight_style)
-
-            if hasattr(self, 'status_label'):
-                self.status_label.setStyleSheet(
-                    f"color:{accent}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:2px 6px;"
-                )
-
-            # ============================================================
-            # SECTION 8: Support Text and Indicators
-            # ============================================================
-            # Style help text and filter indicator labels
-            if hasattr(self, 'search_help'):
-                css = f"font-size:10px; color:{support_color}; margin:0; padding:0;"
-                if hasattr(self, 'status_label'):
-                    try:
-                        self.search_help.setFont(self.status_label.font())
-                    except Exception as exc:
-                        logger.debug("Falha ao sincronizar fonte de search_help com status_label: %s", exc)
-                self.search_help.setStyleSheet(css)
-
-            if hasattr(self, 'col_filter_indicator'):
-                self.col_filter_indicator.setStyleSheet(f"color:{indicator_color};")
-
-            # ============================================================
-            # SECTION 9: Filters Summary
-            # ============================================================
-            # Style the summary label and frame showing active filters
-            if hasattr(self, 'filters_summary_label'):
-                self.filters_summary_label.setStyleSheet(f"color:{summary_color};")
-
-            if hasattr(self, 'filters_summary_frame'):
-                self.filters_summary_frame.setStyleSheet(
-                    "QFrame {"
-                    f" background:{summary_bg}; border:1px solid {summary_border}; border-radius:4px; padding:4px;"
-                    " }"
-                )
-            if hasattr(self, 'clear_all_filters_btn'):
-                self.clear_all_filters_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'export_list_btn'):
-                self.export_list_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'undo_filter_btn'):
-                self.undo_filter_btn.setStyleSheet(highlight_style)
-            if hasattr(self, 'clear_all_btn'):
-                self.clear_all_btn.setStyleSheet(highlight_style)
-
-            # ============================================================
-            # SECTION 10: Column Selector and Hints
-            # ============================================================
-            # Style the column selector widget and filter hints
-            if selector is not None and hasattr(selector, 'summary_label'):
-                selector.summary_label.setStyleSheet(f"color:{indicator_color};")
-
-            if hasattr(self, 'col_filters_hint'):
-                self.col_filters_hint.setStyleSheet(f"color:{support_color}; font-size: 11px;")
-        except Exception as exc:
-            logger.warning("Falha no bloco principal de estilizacao do tema: %s", exc)
-
-        # ============================================================
-        # SECTION 11: Dynamic Column Filter Widgets
-        # ============================================================
-        # Refresh all dynamically created column filter input widgets
-        try:
-            if getattr(self, "_current_tab_kind", None) == "filters":
-                # Evita custo alto na aba de filtros; reaplica quando voltar para SSAs.
-                self._pending_theme_refresh_column_filters = normalized
-            else:
-                self._refresh_column_filter_widgets()
-                self._pending_theme_refresh_column_filters = None
-        except Exception as exc:
-            logger.debug("Falha ao atualizar widgets dinamicos de filtro por coluna no tema: %s", exc)
-
-        # ============================================================
-        # SECTION 12: Persistence and Platform Adjustments
-        # ============================================================
-        # Save theme preference and apply macOS-specific contrast fixes
-        try:
-            # Persistencia simples do tema sem normalizacao adicional
-            gui_settings = GUI_MAIN_PREFERENCES.setdefault('gui_settings', {})
-            if gui_settings.get('theme') != normalized:
-                gui_settings['theme'] = normalized
-                atomic_write_json_file(
-                    os.path.join(project_root, "config", "gui_main_preferences.json"),
-                    GUI_MAIN_PREFERENCES,
-                    indent=2,
-                    ensure_ascii=False,
-                )
-        except Exception as exc:
-            logger.warning("Falha ao persistir tema em gui_main_preferences.json: %s", exc)
-        self._apply_macos_contrast(normalized)
-        try:
-            self.update_details_from_selection()
-        except Exception as exc:
-            logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+        ssa_gui_theme.apply_theme(
+            self,
+            name,
+            gui_prefs=GUI_MAIN_PREFERENCES,
+            project_root=project_root,
+            highlight_defaults=(HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT),
+        )
 
     def _apply_macos_contrast(self, theme_name: str):
-        if sys.platform != 'darwin':
-            return
-        normalized = normalize_theme(theme_name)
-        roles = get_theme_roles(normalized)
-        text_color = roles.get('panel_text')
-        bg_color = roles.get('panel_bg')
-        border_color = roles.get('panel_border')
-        label_color = roles.get('label_color')
-        block = (
-            "/* SSA_MAC_QSS_START */\n"
-            "QLineEdit, QTextEdit, QTextBrowser {"
-            f" color:{text_color}; background-color:{bg_color}; border:1px solid {border_color}; }}\n"
-            "QGroupBox, QLabel {"
-            f" color:{label_color}; }}\n"
-            "/* SSA_MAC_QSS_END */"
-        )
-        try:
-            central = self.centralWidget()
-            if central is not None:
-                existing = central.styleSheet() or ""
-                start = existing.find("/* SSA_MAC_QSS_START */")
-                end = existing.find("/* SSA_MAC_QSS_END */", start)
-                if start != -1 and end != -1 and end > start:
-                    end += len("/* SSA_MAC_QSS_END */")
-                    existing = existing[:start] + existing[end:]
-                new_qss = (existing + ("\n" if existing and not existing.endswith("\n") else "") + block).strip()
-                central.setStyleSheet(new_qss)
-        except Exception as exc:
-            logger.debug("Falha ao aplicar ajustes de contraste macOS no tema %s: %s", normalized, exc)
+        ssa_gui_theme.apply_macos_contrast(self, theme_name)
 
     def on_columns_changed(self, new_columns):
         """Chamado quando a seleçção de colunas muda."""
@@ -5385,598 +1944,57 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         # As configurações ficam no arquivo gui_main_preferences.json
 
     def display_current_page(self, page_number):
-        """Exibe a pãgina especificada do DataFrame filtrado."""
-        # Obtem o slice de dados para a pãgina atual do paginator
-        self.df_para_tabela = self.paginator.get_current_slice()
+        return ssa_gui_table.display_current_page(self, page_number)
 
-        # Congela redimensionamento automático durante a reconstrução da tabela
-        try:
-            header = self.table_widget.horizontalHeader()
-            header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        except Exception as exc:
-            logger.debug("Falha ao congelar modo de resize do header: %s", exc)
-            header = None
-
-        if self.df_para_tabela.empty:
-            # Mesmo sem linhas, mantenha as colunas visíveis e larguras aplicadas
-            self.table_widget.setRowCount(0)
-            # Determina colunas válidas a partir de df_exibido (mesmo vazio, mantém schema)
-            valid_cols = []
-            try:
-                base_cols = list(getattr(self, 'df_exibido', pd.DataFrame()).columns)
-                if base_cols:
-                    valid_cols = [c for c in self.visible_columns if c in base_cols]
-            except Exception as exc:
-                logger.debug("Falha ao resolver colunas validas para tabela vazia: %s", exc)
-                valid_cols = list(self.visible_columns)
-
-            if not valid_cols:
-                valid_cols = [c for c in self.default_columns if c in base_cols] if base_cols else list(self.visible_columns)
-
-            # Atualiza colunas atuais (inclui '#') e aplica cabeçalhos
-            self._current_display_columns = ['#'] + list(valid_cols)
-            self.table_widget.setColumnCount(len(self._current_display_columns))
-            headers = []
-            for col in self._current_display_columns:
-                base = '#' if col == '#' else self.internal_to_display.get(col, col)
-                term = self._active_column_filters.get(col)
-                has_filter = bool(term) and str(term).strip() != '' and col != '#'
-                headers.append(f"[f] {base}" if has_filter else base)
-            try:
-                self.table_widget.setHorizontalHeaderLabels(headers)
-            except Exception as exc:
-                logger.debug("Falha ao aplicar cabecalhos da tabela vazia: %s", exc)
-
-            # Aplica larguras salvas ou fallbacks seguros
-            for i, col_name in enumerate(self._current_display_columns):
-                px = self._saved_gui_column_widths.get(col_name)
-                if px is None:
-                    if col_name == '#':
-                        px = 30
-                    elif col_name == 'numero_ssa':
-                        px = 110
-                    elif col_name == 'localizacao_codigo':
-                        px = 86
-                    elif col_name == 'situacao':
-                        px = 51
-                    elif col_name == 'descricao_ssa':
-                        px = 296
-                    elif col_name == 'data_cadastro':
-                        px = 100
-                    elif col_name == 'setor_emissor':
-                        px = 58
-                    elif col_name == 'derivada_de':
-                        px = 93
-                    elif col_name == 'semana_programada':
-                        px = 72
-                    elif col_name == 'descricao_execucao':
-                        px = 280
-                    else:
-                        px = 80
-                try:
-                    self.table_widget.setColumnWidth(i, max(30, int(px)))
-                except Exception as exc:
-                    logger.debug("Falha ao aplicar largura da coluna %s em tabela vazia: %s", col_name, exc)
-
-            # Garantia extra para a primeira coluna de dados
-            try:
-                if self.table_widget.columnCount() > 1 and self.table_widget.columnWidth(1) == 0:
-                    self.table_widget.setColumnWidth(1, 80)
-            except Exception as exc:
-                logger.debug("Falha ao reforcar largura da primeira coluna de dados em tabela vazia: %s", exc)
-
-            # Restaura modo interativo com limites mínimos após aplicar larguras
-            try:
-                if header is not None:
-                    header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-                    header.setMinimumSectionSize(80)
-                    header.setDefaultSectionSize(100)
-            except Exception as exc:
-                logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
-            return
-
-        # Seleciona apenas as colunas visáveis
-        cols_to_show = [col for col in self.visible_columns if col in self.df_para_tabela.columns]
-        if not cols_to_show:
-            # Se nenhuma coluna selecionada for valida, mostra as padroes
-            cols_to_show = [col for col in self.default_columns if col in self.df_para_tabela.columns]
-            if not cols_to_show:
-                # Ultimo recurso: mostra todas
-                cols_to_show = self.df_para_tabela.columns.tolist()
-
-        # Mantêm a ordem EXATA definida em gui_main_preferences.json
-        # Sem reordenacao para garantir correspondencia com as larguras calculadas
-
-        display_df = self.df_para_tabela[cols_to_show].copy()
-        # Mantêm colunas atuais para mapear ándice->nome ao salvar larguras
-        self._current_display_columns = ['#'] + list(display_df.columns)
-
-        # Adiciona a coluna de ándice '#'
-        if '#' not in display_df.columns:
-            display_df.insert(
-                0,
-                '#',
-                range(
-                    (self.paginator.current_page - 1) * self.paginator.page_size + 1,
-                    (self.paginator.current_page - 1) * self.paginator.page_size + 1 + len(display_df)
-                ),
-            )
-
-        # Single display-formatting entrypoint for GUI table rendering.
-        # Keep format_dataframe_for_display here to avoid scattered per-cell rules.
-        # OTIMIZACAO: Cache formatacao para evitar reformatar dados inalterados
-        display_df_hash = hash(str(display_df.shape) + str(list(display_df.columns)) + str(display_df.iloc[0].values.tobytes() if len(display_df) > 0 else ''))
-
-        # Usa CacheManager unificado para cache de DataFrame formatado
-        cached_formatted = self.cache_manager.get_cached_formatted_df(display_df_hash)
-        if cached_formatted is None:
-            try:
-                formatted_df = format_dataframe_for_display(display_df)
-                self.cache_manager.cache_formatted_df(display_df_hash, formatted_df)
-                display_df = formatted_df
-            except Exception as exc:
-                # Falha de formatacao nao deve quebrar a GUI; segue sem formatar.
-                logger.debug("Falha ao formatar DataFrame para exibicao na tabela: %s", exc)
-        else:
-            # Usa versção formatada do cache
-            display_df = cached_formatted
-
-    # Configura a tabela
-        self.table_widget.setRowCount(len(display_df))
-        self.table_widget.setColumnCount(len(display_df.columns))
-
-        # Define cabeçalhos de exibiçção com indicador de filtro [f] por coluna
-        display_headers = []
-        for col in display_df.columns:
-            base = '#' if col == '#' else self.internal_to_display.get(col, col)
-            term = self._active_column_filters.get(col)
-            has_filter = bool(term) and str(term).strip() != ''
-            if has_filter and col != '#':
-                base = f"[f] {base}"
-            display_headers.append(base)
-        self.table_widget.setHorizontalHeaderLabels(display_headers)
-
-        # Preenche os dados usando batch operations para melhor performance
-        columns_list = list(display_df.columns)
-        for row_idx in range(len(display_df)):
-            row_data = display_df.iloc[row_idx]
-            for col_idx, col_name in enumerate(columns_list):
-                value = row_data.iloc[col_idx]
-                item_text = "" if pd.isna(value) else str(value)
-
-                # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
-                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
-                    # Trunca apenas colunas que nção sção de descriçção
-                    max_chars = self._calculate_max_chars_for_column(col_name, col_idx)
-                    if len(item_text) > max_chars:
-                        item_text = item_text[:max_chars-3] + "..."
-
-                item = QTableWidgetItem(item_text)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-                # Armazena o indice da linha original nos dados filtrados para referencia
-                if col_name == '#':
-                    item.setData(
-                        Qt.ItemDataRole.UserRole,
-                        row_idx + (self.paginator.current_page - 1) * self.paginator.page_size,
-                    )
-                self.table_widget.setItem(row_idx, col_idx, item)
-
-        # Recalcula larguras APENAS quando o conjunto/ordem de colunas muda
-        # ou quando a largura util do viewport mudar significativamente
-        cols_sig = tuple(display_df.columns)
-        try:
-            vw = self.table_widget.viewport().width()
-        except Exception:
-            vw = -1
-        need_cols = (not hasattr(self, '_widths_columns_sig')) or (self._widths_columns_sig != cols_sig)
-        need_vw = (not hasattr(self, '_last_viewport_w')) or (abs(vw - self._last_viewport_w) > 12)
-        if need_cols or need_vw:
-            self._compute_gui_column_widths(display_df)
-            self._widths_columns_sig = cols_sig
-            self._last_viewport_w = vw
-
-        # Continuamos com header congelado (Fixed) até aplicar larguras calculadas
-        header = self.table_widget.horizontalHeader()
-
-        for i, col_name in enumerate(display_df.columns):
-            # Usa a coluna diretamente do DataFrame (que jã inclui '#')
-            col_key = col_name
-
-            px = getattr(self, '_gui_column_pixel_widths', {}).get(col_key)
-
-            # Se nção hã largura calculada, usa configuraçção salva manualmente pelo usuãrio
-            if px is None:
-                px = self._saved_gui_column_widths.get(col_key)
-
-            # Fallbacks apenas se nenhuma das anteriores estiver disponável
-            if px is None:
-                if col_key == '#':
-                    px = 30
-                elif col_key == 'numero_ssa':
-                    px = 110  # leve aumento para leitura do n┬║ SSA
-                elif col_key == 'localizacao_codigo':
-                    px = 86  # 10 chars * 7 + 16
-                elif col_key == 'situacao':
-                    px = 51  # 5 chars * 7 + 16
-                elif col_key == 'descricao_ssa':
-                    px = 296  # 40 chars * 7 + 16
-                elif col_key == 'data_cadastro':
-                    px = 100  # 12 chars * 7 + 16
-                elif col_key == 'setor_emissor':
-                    px = 58  # 6 chars * 7 + 16
-                elif col_key == 'derivada_de':
-                    px = 93  # 11 chars * 7 + 16
-                elif col_key == 'semana_programada':
-                    px = 72  # 8 chars * 7 + 16
-                elif col_key == 'descricao_execucao':
-                    px = 280  # Menor que descriçção_ssa
-                else:
-                    px = 80  # Fallback geral
-
-            # Aplica limites de segurança apenas
-            px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
-
-            self.table_widget.setColumnWidth(i, px)
-
-        # Reforça larguras após preencher dados para evitar zeragem em ambientes headless/CI
-        try:
-            self._force_column_widths()
-        except Exception as exc:
-            logger.debug("Falha ao reforcar larguras salvas da tabela: %s", exc)
-
-        # Garantia final: se alguma coluna ainda ficou com largura 0, aplica fallback seguro
-        try:
-            self._ensure_nonzero_column_widths()
-        except Exception as exc:
-            logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
-
-        # Após aplicar larguras, restaura modo interativo com limites mínimos
-        try:
-            if header is not None:
-                header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
-        except Exception as exc:
-            logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
-
-        # Seleciona a primeira linha (se houver) e atualiza detalhes
-        if self.table_widget.rowCount() > 0:
-            self.table_widget.selectRow(0)
-        self.update_details_from_selection()
-
-        # Reaplica garantia de larguras não zeradas após eventos de layout pendentes
-        try:
-            QTimer.singleShot(0, self._ensure_nonzero_column_widths)
-        except Exception as exc:
-            logger.debug("Falha ao agendar reforco de largura de colunas: %s", exc)
-
-    # --- Wrappers de compatibilidade com testes antigos (PoC) ---
-    def display_data(self, df):  # usado em testes legados
-        try:
-            if df is None or getattr(df, 'empty', True):
-                return
-            self.df_completo = df.copy()
-            self.df_exibido = df.copy()
-            self.paginator.set_dataframe(self.df_exibido)
-            self.display_current_page(getattr(self.paginator, 'current_page', 1))
-        except Exception as exc:
-            logger.warning("Falha ao exibir DataFrame via display_data de compatibilidade: %s", exc)
+    def display_data(self, df):
+        return ssa_gui_table.display_data(self, df)
 
     def _force_column_widths(self):
-        """Força reaplicaçção das larguras das colunas para garantir que sejam respeitadas."""
-        if not hasattr(self, 'visible_columns') or not self.visible_columns:
-            return
-
-        for i, col_name in enumerate(['#'] + self.visible_columns):
-            # Busca largura salva das configurações
-            px = self._saved_gui_column_widths.get(col_name)
-            if px is not None:
-                current_width = self.table_widget.columnWidth(i)
-                if current_width != px:
-                    self.table_widget.setColumnWidth(i, int(px))
+        return ssa_gui_table._force_column_widths(self)
 
     def _ensure_nonzero_column_widths(self):
-        """Garante que nenhuma coluna permaneça com largura 0.
-        Estratégia simples por índice: se alguma coluna estiver com 0px, define 80px.
-        """
-        try:
-            col_count = self.table_widget.columnCount()
-            if col_count <= 0:
-                return
-            for i in range(col_count):
-                if self.table_widget.columnWidth(i) == 0:
-                    # Primeiro tenta dimensionar pelo conteúdo
-                    try:
-                        self.table_widget.resizeColumnToContents(i)
-                    except Exception as exc:
-                        logger.debug("Falha ao redimensionar coluna %s por conteudo: %s", i, exc)
-                    if self.table_widget.columnWidth(i) == 0:
-                        self.table_widget.setColumnWidth(i, 80)
-        except Exception as exc:
-            logger.debug("Falha ao garantir larguras nao zeradas da tabela: %s", exc)
+        return ssa_gui_table._ensure_nonzero_column_widths(self)
 
     def _set_safe_width_for_col_index(self, idx: int, px: int = 80):
-        """Define uma largura segura para um índice de coluna, se possível."""
-        try:
-            if idx < 0:
-                return
-            if self.table_widget.columnCount() <= idx:
-                return
-            if self.table_widget.columnWidth(idx) == 0:
-                self.table_widget.setColumnWidth(idx, max(30, int(px)))
-        except Exception as exc:
-            logger.debug("Falha ao aplicar largura segura para coluna %s: %s", idx, exc)
+        return ssa_gui_table._set_safe_width_for_col_index(self, idx, px)
 
     def _compute_gui_column_widths(self, df: pd.DataFrame):
-        """
-        Calcula larguras de colunas usando o WidthManager unificado.
-        Substitui 150+ linhas de codigo frankenstein por uma chamada limpa.
-        """
-        try:
-            # Garante que visible_columns esteja definido
-            if not hasattr(self, 'visible_columns') or not self.visible_columns:
-                return
+        return ssa_gui_table._compute_gui_column_widths(self, df)
 
-            # CORRECAO CRITICA: Filtra visible_columns para incluir apenas colunas que EXISTEM no DataFrame
-            if hasattr(df, 'columns'):
-                existing_visible_cols = [col for col in self.visible_columns if col in df.columns]
-                if not existing_visible_cols:
-                    print("ERRO: Nenhuma coluna visível encontrada no DataFrame")
-                    return
-
-                # IMPORTANTE: Mantêm a ordem exata de self.visible_columns
-                visible_df = df[existing_visible_cols].reindex(columns=existing_visible_cols)
-            else:
-                visible_df = df
-
-            # Obtêm largura da tabela
-            widget_width = self.table_widget.width()
-
-            if widget_width < 500:  # Tabela ainda nção inicializada
-                table_width = max(1000 if sys.platform == 'darwin' else 1400, self.width() - 50)
-            else:
-                table_width = widget_width - 40  # Margem para scrollbars
-
-            min_width = 1100 if sys.platform == 'darwin' else 1400
-            table_width = max(table_width, min_width)
-
-            # Usa o WidthManager para calcular larguras otimizadas
-            # IMPORTANTE: Força ordem correta das colunas (adiciona '#' no inácio)
-            correct_column_order = ['#'] + existing_visible_cols
-            column_widths = self.width_manager.compute_optimal_widths(
-                df=visible_df,
-                available_width=table_width,
-                display_mappings=self.internal_to_display,
-                saved_widths=self._saved_gui_column_widths,
-                column_order=correct_column_order
-            )
-
-            if sys.platform == "darwin":
-                column_widths = {
-                    key: (value + 2 if key != '#' else value)
-                    for key, value in column_widths.items()
-                }
-
-            # Mantem compatibilidade com codigo existente
-            self._gui_column_pixel_widths = column_widths
-
-        except Exception as e:
-            print(f"ERRO em _compute_gui_column_widths: {e}")
-            # Fallback para larguras mánimas das colunas visáveis apenas
-            visible_cols = ['#'] + (self.visible_columns if hasattr(self, 'visible_columns') else [])
-            self._gui_column_pixel_widths = {col: 100 for col in visible_cols}
-
-    def _calculate_max_chars_for_column(self, col_name: str, col_idx: int) -> int:
-        """Calcula o numero maximo de caracteres baseado na largura da coluna."""
-        try:
-            # Usa largura calculada pelo WidthManager ou largura atual da coluna
-            width_px = getattr(self, '_gui_column_pixel_widths', {}).get(col_name)
-            if width_px is None:
-                width_px = self.table_widget.columnWidth(col_idx)
-
-            # Converte pixels em caracteres (aproximadamente 7px por caractere)
-            max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores proporções
-
-            # Limites especáficos por tipo de coluna
-            if col_name in ['descricao_ssa', 'descricao_execucao']:
-                # Descrições podem usar toda largura disponável
-                max_chars = max(50, max_chars)  # Mánimo mais alto para descrições
-            elif col_name in ['numero_ssa', 'localizacao_codigo']:
-                # Campos curtos nção precisam de muito espaço
-                max_chars = min(max_chars, 25)
-            elif col_name == 'solicitante':
-                # Solicitante deve caber pelo menos "MAURICIO MENON"
-                max_chars = max(15, max_chars)  # Garante pelo menos 15 caracteres
-            else:
-                # Campos gerais - mais generoso
-                max_chars = min(max_chars, 80)  # Limite mais alto
-
-            return max_chars
-        except Exception:  # noqa: BLE001
-            # Fallback mais generoso
-            return 80
+    def _calculate_max_chars_for_column(self, col_name: str, col_idx: int):
+        return ssa_gui_table._calculate_max_chars_for_column(self, col_name, col_idx)
 
     def _on_header_section_resized(self, logical_index: int, old_size: int, new_size: int):
-        """Salva a largura ajustada pelo usuãrio na configuraçção persistente."""
-        try:
-            cols = getattr(self, '_current_display_columns', None)
-            if not cols or logical_index < 0 or logical_index >= len(cols):
-                return
-            col_name = cols[logical_index]
-            new_px = max(30, min(int(new_size), 1200))
-            if col_name:
-                self._saved_gui_column_widths[col_name] = new_px
-                if hasattr(self, '_gui_column_pixel_widths'):
-                    self._gui_column_pixel_widths[col_name] = new_px
-        except Exception:  # noqa: BLE001
-            # Evita quebrar a GUI por falhas de IO
-            pass
+        return ssa_gui_table._on_header_section_resized(self, logical_index, old_size, new_size)
 
     def _normalize_highlight_term(self, term):
-        """Remove modos e negacoes para uso no highlight."""
-        if term is None:
-            return ""
-        cleaned = str(term).strip()
-        if not cleaned:
-            return ""
-        if cleaned.startswith('!') or cleaned.startswith('-'):
-            cleaned = cleaned[1:]
-        if cleaned.startswith('~') or cleaned.startswith('=') or cleaned.startswith('^'):
-            cleaned = cleaned[1:]
-        if cleaned.endswith('$'):
-            cleaned = cleaned[:-1]
-        return cleaned.strip()
+        return ssa_gui_details._normalize_highlight_term(self, term)
 
     def _get_current_search_terms(self):
-        """Retorna lista de termos de busca atuais."""
-        search_text = self.search_input.text().strip()
-        if not search_text:
-            return []
-        # Split por virgulas
-        terms = [term.strip() for term in search_text.split(',') if term.strip()]
-        clean_terms = []
-        for term in terms:
-            normalized = self._normalize_highlight_term(term)
-            if normalized:
-                clean_terms.append(normalized)
-        return clean_terms
+        return ssa_gui_details._get_current_search_terms(self)
 
     def _collect_highlight_terms(self):
-        """Combina termos da busca geral e filtros de coluna para realce."""
-        aggregated = []
-        seen = set()
-        for term in self._get_current_search_terms():
-            if term and term not in seen:
-                aggregated.append(term)
-                seen.add(term)
-        for raw in getattr(self, '_active_column_filters', {}).values():
-            if not raw:
-                continue
-            normalized_raw = str(raw).replace(';', ',')
-            tokens = [tok.strip() for tok in normalized_raw.split(',') if tok.strip()]
-            for tok in tokens:
-                normalized = self._normalize_highlight_term(tok)
-                if normalized and normalized not in seen:
-                    aggregated.append(normalized)
-                    seen.add(normalized)
-        return aggregated
+        return ssa_gui_details._collect_highlight_terms(self)
 
     def _highlight_text(self, text, terms):
-        """Delegate to helper function."""
-        bg = getattr(self, '_highlight_bg_color', HIGHLIGHT_BACKGROUND_COLOR)
-        fg = getattr(self, '_highlight_text_color', None)
-        weight = getattr(self, '_highlight_font_weight', HIGHLIGHT_FONT_WEIGHT)
-        try:
-            return highlight_text(
-                text,
-                terms,
-                bg_color=bg,
-                font_weight=weight,
-                text_color=fg,
-            )
-        except TypeError:
-            # Compat with legacy helper signatures (without text_color).
-            try:
-                return highlight_text(text, terms, bg, weight)
-            except TypeError:
-                return highlight_text(text, terms)
+        return ssa_gui_details._highlight_text(self, text, terms)
 
-    def _format_details_html(self, series, highlight_search_terms=False, font_size_pt=None, linkify=False):
-        """Formata dados da SSA como HTML com highlight opcional."""
-        # Single display-formatting entrypoint for details panel; keep format_cell here.
-        # HTML is required here to keep search hit highlighting in the details panel.
-        import html as html_module
-        HIDDEN_DETAIL_FIELDS = {"id", "derivada_de"}
-
-        if font_size_pt is None:
-            font_size_pt = DETAILS_DIALOG_FONT_SIZE
-
-        # Obtem termos de busca se necessario
-        search_terms = (
-            self._collect_highlight_terms() if highlight_search_terms else []
+    def _format_details_html(
+        self,
+        series,
+        highlight_search_terms=False,
+        font_size_pt=None,
+        linkify=False,
+        label_font_size_pt=None,
+    ):
+        return ssa_gui_details._format_details_html(
+            self,
+            series,
+            highlight_search_terms=highlight_search_terms,
+            font_size_pt=font_size_pt,
+            linkify=linkify,
+            label_font_size_pt=label_font_size_pt,
         )
-
-        try:
-            from PyQt6.QtGui import QPalette as _QPal
-            text_color = self.palette().color(_QPal.ColorRole.WindowText).name()
-            link_color = self.palette().color(_QPal.ColorRole.Highlight).name()
-        except Exception:
-            text_color = "#000000"
-            link_color = text_color
-
-        html_lines = [
-            f'<html><body style="font-family: {MONO_FONT_FAMILY}; font-size: {font_size_pt}pt; color: {text_color};">'
-        ]
-        html_lines.append('<table style="width: 100%; border-collapse: collapse;">')
-
-        # Ordenar campos: prioridade primeiro, depois alfabetico
-        def field_sort_key(item):
-            col, _ = item
-            try:
-                return (0, DETAIL_FIELD_PRIORITY.index(col))
-            except ValueError:
-                return (1, col)
-
-        sorted_items = sorted(series.items(), key=field_sort_key)
-
-        for col, value in sorted_items:
-            if col in HIDDEN_DETAIL_FIELDS or str(col).startswith("_"):
-                continue
-            # Formata valor
-            formatted_value = format_cell(value, col)
-
-            # Pula campos vazios
-            if not formatted_value:
-                continue
-
-            # Nome de exibicao
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-
-            # Aplica highlight se necessario
-            if highlight_search_terms and search_terms:
-                formatted_value = self._highlight_text(formatted_value, search_terms)
-            else:
-                formatted_value = html_module.escape(formatted_value)
-
-            # Adiciona linha
-            html_lines.append(
-                f'<tr>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(display_name)}:</td>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{formatted_value}</td>'
-                f'</tr>'
-            )
-
-        try:
-            derived_list = self._get_derivadas_for_ssa(series.get("numero_ssa"))
-        except Exception:
-            derived_list = []
-        if derived_list:
-            if linkify:
-                items = []
-                for item in derived_list:
-                    href = self._normalize_ssa_value(item)
-                    display = html_module.escape(item)
-                    items.append(
-                        f'<a href="ssa://{href}" style="color:{link_color}; text-decoration:none; border-bottom: 1px solid {link_color};">'
-                        f'{display}</a>'
-                    )
-                derived_text = ", ".join(items)
-            else:
-                derived_text = ", ".join(derived_list)
-                if highlight_search_terms and search_terms:
-                    derived_text = self._highlight_text(derived_text, search_terms)
-                else:
-                    derived_text = html_module.escape(derived_text)
-            label = f"SSAs derivadas ({len(derived_list)})"
-            html_lines.append(
-                f'<tr>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; font-weight: bold; width: 30%; vertical-align: top;">{html_module.escape(label)}:</td>'
-                f'<td style="padding: {DETAILS_DIALOG_TABLE_PADDING}px; border-bottom: 1px solid {DETAILS_DIALOG_BORDER_COLOR}; width: 70%;">{derived_text}</td>'
-                f'</tr>'
-            )
-
-        html_lines.append('</table></body></html>')
-        return '\n'.join(html_lines)
 
     def on_table_double_click(self, index):
         """Mostra janela de detalhes formatada ao duplo clique."""
@@ -5989,35 +2007,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             QMessageBox.information(self, "Info", "Nao foi possivel encontrar os dados detalhados para esta linha.")
             return
 
-        # Obtem dados da SSA
         series = self.df_exibido.iloc[int(original_index)]
-
-        # Cria janela de dialogo
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Detalhes da SSA #{series.get('numero_ssa', 'N/A')}")
-        dialog.setMinimumWidth(DETAILS_DIALOG_MIN_WIDTH)
-        dialog.setMinimumHeight(DETAILS_DIALOG_MIN_HEIGHT)
-
-        layout = QVBoxLayout(dialog)
-
-        # Texto formatado com HTML
-        # CORRECAO 2026-01-08: linkify=True e conectar anchorClicked para navegacao funcionar
-        text_browser = QTextBrowser()
-        text_browser.setOpenExternalLinks(False)
-        text_browser.anchorClicked.connect(self._on_details_anchor_clicked)
-
-        # Formata conteudo com links clicaveis
-        html_content = self._format_details_html(series, highlight_search_terms=True, linkify=True)
-        text_browser.setHtml(html_content)
-
-        layout.addWidget(text_browser)
-
-        # Botao fechar
-        close_button = QPushButton("Fechar")
-        close_button.clicked.connect(dialog.accept)
-        layout.addWidget(close_button)
-
-        dialog.exec()
+        numero_ssa = series.get("numero_ssa")
+        self._open_details_dialog_for_ssa(numero_ssa)
 
     def _save_page_size_pref(self, new_size: int):
         """Persiste o tamanho da pãgina no settings."""
@@ -6044,199 +2036,31 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             return None
 
     def _normalize_ssa_value(self, value):
-        try:
-            raw = value or ""
-        except Exception:
-            raw = ""
-        text = str(raw).strip()
-        if not text:
-            return ""
-        lowered = text.casefold()
-        if lowered in ("nan", "none", "nat", "<na>"):
-            return ""
-        try:
-            digits = re.sub(r"\D", "", text)
-        except Exception:
-            digits = ""
-        if digits:
-            return digits
-        return lowered
+        return ssa_gui_details._normalize_ssa_value(self, value)
 
     def _normalize_ssa_series(self, series: pd.Series) -> pd.Series:
-        """Normaliza valores de SSA em modo vetorizado (mais rapido que apply).
-
-        Regra: se houver digitos, retorna apenas os digitos; senao retorna o texto casefold.
-        Valores vazios/NaN/None/NaT/<NA> viram string vazia.
-        """
-        try:
-            s = series.astype(str).str.strip()
-            lowered = s.str.casefold()
-            empty_mask = s.eq("") | lowered.isin(("nan", "none", "nat", "<na>"))
-            digits = s.str.replace(r"\D+", "", regex=True)
-            out = digits.where(digits.ne(""), lowered)
-            return out.where(~empty_mask, "")
-        except Exception as exc:
-            logger.debug("Falha ao normalizar SSA series; fallback apply: %s", exc)
-            try:
-                return series.apply(self._normalize_ssa_value)
-            except Exception:
-                return pd.Series([""] * len(series), index=getattr(series, "index", None))
+        return ssa_gui_details._normalize_ssa_series(self, series)
 
     def update_details_from_selection(self):
-        """Atualiza o painel de detalhes com base na linha selecionada."""
-        if self.table_widget.rowCount() == 0:
-            self.details_text.clear()
-            return
-        selected_rows = self.table_widget.selectionModel().selectedRows()
-        if not selected_rows:
-            self.details_text.clear()
-            return
-        row = selected_rows[0].row()
-        series = self._get_series_from_row(row)
-        if series is None:
-            self.details_text.clear()
-            return
-
-        try:
-            font_size_pt = None
-            if hasattr(self, 'details_group'):
-                try:
-                    base_font = self.details_group.font()
-                    size = base_font.pointSizeF()
-                    if size <= 0:
-                        size = float(base_font.pointSize())
-                    if size > 0:
-                        # HTML content sets its own font-size; adjust here to keep details smaller.
-                        font_size_pt = max(size - 1.0, 8.0)
-                except Exception:
-                    font_size_pt = None
-            html_content = self._format_details_html(
-                series,
-                highlight_search_terms=True,
-                font_size_pt=font_size_pt,
-                linkify=True,
-            )
-            self.details_text.setHtml(html_content)
-            return
-        except Exception as exc:
-            logger.debug("Falha ao renderizar detalhes em HTML; aplicando fallback texto: %s", exc)
-
-        # Fallback para texto simples se HTML nao estiver disponivel
-        def field_sort_key(item):
-            col, _ = item
-            try:
-                return (0, DETAIL_FIELD_PRIORITY.index(col))
-            except ValueError:
-                return (1, col)
-
-        sorted_items = sorted(series.items(), key=field_sort_key)
-        lines = []
-        for col, value in sorted_items:
-            if col in {"id", "derivada_de"} or str(col).startswith("_"):
-                continue
-            formatted_value = format_cell(value, col)
-            if not formatted_value:
-                continue
-            display_name = DETAIL_DISPLAY_OVERRIDES.get(col, self.internal_to_display.get(col, col))
-            lines.append(f"{display_name}: {formatted_value}")
-        details_str = "\n".join(lines)
-        try:
-            self.details_text.setPlainText(details_str)
-        except Exception as exc:
-            logger.debug("Falha ao renderizar detalhes em texto simples: %s", exc)
+        return ssa_gui_details.update_details_from_selection(self)
 
     def _get_derivadas_for_ssa(self, numero_ssa):
-        if self.df_completo is None or self.df_completo.empty:
-            return []
-        if "derivada_de" not in self.df_completo.columns or "numero_ssa" not in self.df_completo.columns:
-            return []
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return []
-        try:
-            series_norm = self._normalize_ssa_series(self.df_completo["derivada_de"])
-            mask = series_norm.eq(num_norm)
-            derived_raw = self.df_completo.loc[mask, "numero_ssa"].tolist()
-            derived = []
-            for value in derived_raw:
-                formatted = format_cell(value, "numero_ssa")
-                if formatted:
-                    derived.append(formatted)
-            return derived
-        except Exception as exc:
-            logger.debug("Falha ao coletar derivadas para SSA %s: %s", numero_ssa, exc)
-            return []
+        return ssa_gui_details._get_derivadas_for_ssa(self, numero_ssa)
 
     def _jump_to_ssa(self, numero_ssa):
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return
-        try:
-            df_reset = self.df_exibido.reset_index(drop=True)
-            if "numero_ssa" not in df_reset.columns:
-                return
-            series_norm = self._normalize_ssa_series(df_reset["numero_ssa"])
-            mask = series_norm.eq(num_norm)
-            if not mask.any():
-                self.search_input.setText(f"={num_norm}")
-                self.initiate_filtering()
-                return
-            pos = int(mask[mask].index[0])
-            page_size = int(getattr(self.paginator, "page_size", 50))
-            page = int(pos // page_size + 1)
-            try:
-                self.paginator.current_page = page
-            except Exception as exc:
-                logger.debug("Falha ao atualizar pagina atual no salto para SSA %s: %s", num_norm, exc)
-            self.display_current_page(page)
-            row_in_page = int(pos % page_size)
-            try:
-                self.table_widget.selectRow(row_in_page)
-            except Exception as exc:
-                logger.debug("Falha ao selecionar linha %s no salto para SSA %s: %s", row_in_page, num_norm, exc)
-        except Exception as exc:
-            logger.debug("Falha ao navegar para SSA %s: %s", numero_ssa, exc)
+        return ssa_gui_details._jump_to_ssa(self, numero_ssa)
 
     def _on_details_anchor_clicked(self, url):
-        try:
-            href = url.toString()
-        except Exception:
-            return
-        if not href:
-            return
-        if href.startswith("ssa://"):
-            target = href[len("ssa://"):]
-        elif href.startswith("ssa:"):
-            target = href[len("ssa:"):]
-        else:
-            return
-        target = target.strip().lstrip("/")
-        if target:
-            self._jump_to_ssa(target)
+        return ssa_gui_details._on_details_anchor_clicked(self, url)
+
+    def _open_details_dialog_for_ssa(self, numero_ssa):
+        return ssa_gui_details._open_details_dialog_for_ssa(self, numero_ssa)
 
     def _filter_by_derivadas(self, numero_ssa):
-        num_norm = self._normalize_ssa_value(numero_ssa)
-        if not num_norm:
-            return
-        self._last_derivada_origem = num_norm
-        self._active_column_filters["derivada_de"] = num_norm
-        try:
-            self._build_column_filters_panel()
-        except Exception as exc:
-            logger.warning("Falha ao reconstruir painel de filtros ao filtrar por derivadas: %s", exc)
-        self._refresh_after_filter_change()
+        return ssa_gui_details._filter_by_derivadas(self, numero_ssa)
 
     def _clear_derivadas_filter(self):
-        if "derivada_de" in self._active_column_filters:
-            self._active_column_filters.pop("derivada_de", None)
-        try:
-            self._build_column_filters_panel()
-        except Exception as exc:
-            logger.warning("Falha ao reconstruir painel de filtros ao limpar filtro de derivadas: %s", exc)
-        self._refresh_after_filter_change()
-        if self._last_derivada_origem:
-            self._jump_to_ssa(self._last_derivada_origem)
-            self._last_derivada_origem = None
+        return ssa_gui_details._clear_derivadas_filter(self)
 
     def show_context_menu(self, position):
         """Mostra menu de contexto na tabela."""
@@ -6246,15 +2070,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             # Acoes para celulas
             copy_cell_action = QAction("Copiar Valor da Celula", self)
             copy_cell_action.triggered.connect(self.copy_cell_value)
-            menu.addAction(copy_cell_action)
+            cast(Any, menu).addAction(copy_cell_action)
 
             copy_row_action = QAction("Copiar Linha Completa", self)
             copy_row_action.triggered.connect(self.copy_row_data)
-            menu.addAction(copy_row_action)
+            cast(Any, menu).addAction(copy_row_action)
 
             export_action = QAction("Exportar lista (txt)", self)
             export_action.triggered.connect(self._export_current_list_txt)
-            menu.addAction(export_action)
+            cast(Any, menu).addAction(export_action)
 
             menu.addSeparator()
 
@@ -6273,16 +2097,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 if derivada_de:
                     origem_action = QAction("Ir para SSA origem", self)
                     origem_action.triggered.connect(lambda: self._jump_to_ssa(derivada_de))
-                    menu.addAction(origem_action)
+                    cast(Any, menu).addAction(origem_action)
                 if derived_list:
                     label = f"Mostrar derivadas ({len(derived_list)})"
                     derivadas_action = QAction(label, self)
                     derivadas_action.triggered.connect(lambda: self._filter_by_derivadas(numero_ssa))
-                    menu.addAction(derivadas_action)
+                    cast(Any, menu).addAction(derivadas_action)
                 if self._last_derivada_origem:
                     voltar_action = QAction("Voltar SSA origem", self)
                     voltar_action.triggered.connect(self._clear_derivadas_filter)
-                    menu.addAction(voltar_action)
+                    cast(Any, menu).addAction(voltar_action)
                 menu.addSeparator()
 
             # Acoes para colunas
@@ -6293,11 +2117,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
                     remove_column_action = QAction(f"Remover Coluna '{column_name}'", self)
                     remove_column_action.triggered.connect(lambda: self.remove_column_by_index(column))
-                    menu.addAction(remove_column_action)
+                    cast(Any, menu).addAction(remove_column_action)
 
                     auto_fit_action = QAction(f"Ajustar Largura '{column_name}'", self)
                     auto_fit_action.triggered.connect(lambda: self.auto_fit_column(column))
-                    menu.addAction(auto_fit_action)
+                    cast(Any, menu).addAction(auto_fit_action)
 
             menu.exec(self.table_widget.mapToGlobal(position))
 
@@ -6306,7 +2130,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         current_item = self.table_widget.currentItem()
         if current_item:
             clipboard = QApplication.clipboard()
-            clipboard.setText(current_item.text())
+            if clipboard is not None:
+                clipboard.setText(current_item.text())
 
     def copy_row_data(self, *_):  # aceita args opcionais de QAction
         """Copia todos os dados da linha selecionada."""
@@ -6318,7 +2143,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 row_data.append(item.text() if item else "")
 
             clipboard = QApplication.clipboard()
-            clipboard.setText("\t".join(row_data))
+            if clipboard is not None:
+                clipboard.setText("\t".join(row_data))
 
     def _export_current_list_txt(self):
         if self.df_exibido is None or self.df_exibido.empty:
@@ -6368,108 +2194,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         from gui.workers import RescanWorker
         from gui.widgets import RescanProgressDialog
 
-        active_worker = getattr(self, "_active_rescan_worker", None)
-        if active_worker is not None:
-            try:
-                if hasattr(active_worker, "isRunning") and active_worker.isRunning():
-                    self.status_label.setText("Status: Reescaneamento ja em andamento.")
-                    return
-            except Exception as exc:
-                logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
-
-        # Check if main.py exists
-        main_py_path = os.path.join(project_root, 'main.py')
-        if not os.path.exists(main_py_path):
-            QMessageBox.warning(self, "Erro", f"Arquivo main.py nao encontrado em {main_py_path}")
-            return
-
-        # Create progress dialog
-        progress_dialog = RescanProgressDialog(self)
-
-        # Create and configure worker
-        worker = RescanWorker(main_py_path, project_root)
-        self._active_rescan_worker = worker
-
-        # Connect signals
-        worker.output_line.connect(progress_dialog.append_output)
-        worker.error_line.connect(progress_dialog.append_error)
-        worker.progress.connect(progress_dialog.update_progress)
-
-        cancelled = False
-
-        def _release_worker_ref(*_args) -> None:
-            try:
-                if getattr(self, "_active_rescan_worker", None) is worker:
-                    self._active_rescan_worker = None
-            except Exception as exc:
-                logger.debug("Falha ao liberar referencia do RescanWorker: %s", exc)
-            try:
-                if worker in GLOBAL_RETIRED_RESCAN_WORKERS:
-                    GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
-            except Exception as exc:
-                logger.debug("Falha ao remover RescanWorker da lista global: %s", exc)
-            try:
-                GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
-            except Exception as exc:
-                logger.debug("Falha ao remover meta do RescanWorker: %s", exc)
-
-        def on_success():
-            nonlocal cancelled
-            if cancelled:
-                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-                self.status_label.setText("Status: Reescaneamento cancelado.")
-                _release_worker_ref()
-                return
-            _release_worker_ref()
-            progress_dialog.set_finished(True)
-            self.status_label.setText("Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar.")
-
-        def on_error(error_msg):
-            nonlocal cancelled
-            if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
-                cancelled = True
-                progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-                self.status_label.setText("Status: Reescaneamento cancelado.")
-                _release_worker_ref()
-                return
-            progress_dialog.set_finished(False, error_msg)
-            self.status_label.setText("Status: Erro no reescaneamento.")
-            _release_worker_ref()
-
-        worker.finished_success.connect(on_success)
-        worker.finished_error.connect(on_error)
-        try:
-            worker.finished.connect(_release_worker_ref)
-        except Exception as exc:
-            logger.debug("Falha ao conectar signal finished do RescanWorker: %s", exc)
-        try:
-            worker.finished.connect(worker.deleteLater)
-        except Exception as exc:
-            logger.debug("Falha ao conectar deleteLater no RescanWorker: %s", exc)
-
-        # Cancelamento cooperativo: solicita cancelamento e permite fechar o dialogo.
-        def on_cancel_requested():
-            nonlocal cancelled
-            cancelled = True
-            if worker.isRunning():
-                worker.stop()
-                self.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
-
-        progress_dialog.cancel_requested.connect(on_cancel_requested)
-
-        # Start worker and show dialog
-        worker.start()
-        progress_dialog.exec()
-
-        # Cleanup (best-effort, sem bloquear a UI)
-        if worker.isRunning():
-            if worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                GLOBAL_RETIRED_RESCAN_WORKERS.append(worker)
-                GLOBAL_RETIRED_RESCAN_META[worker] = perf_counter()
-                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-            self._prune_retired_rescan_workers()
-            logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
+        return ssa_gui_workers.rescan_data(
+            self,
+            project_root=project_root,
+            rescan_worker_cls=RescanWorker,
+            rescan_dialog_cls=RescanProgressDialog,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+        )
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
@@ -6506,6 +2243,191 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
             QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+
+    def _list_special_derivadas_sheets(self) -> list[str]:
+        docs_path = os.path.join(project_root, "docs_entrada")
+        if not os.path.isdir(docs_path):
+            return []
+        files: list[str] = []
+        for base_name in os.listdir(docs_path):
+            lowered = str(base_name).strip().casefold()
+            if lowered.startswith("ssas derivadas e relacionadas") and lowered.endswith(".xlsx"):
+                files.append(os.path.join(docs_path, base_name))
+        return sorted(files, key=lambda path: os.path.basename(path).casefold())
+
+    def _resolve_derivadas_table_name(self, db_path: str) -> str:
+        candidates: list[str] = []
+        for name in (TABLE_NAME, "ssa_table", "ssas"):
+            if isinstance(name, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                if name not in candidates:
+                    candidates.append(name)
+        if not candidates:
+            return "ssa_table"
+        try:
+            with sqlite3.connect(db_path) as conn:
+                existing = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
+                required_cols = {"numero_ssa", "derivada_de"}
+                compatible: set[str] = set()
+                for name in candidates:
+                    if name not in existing:
+                        continue
+                    cols = {
+                        str(row[1]).strip()
+                        for row in conn.execute(f'PRAGMA table_info("{name}")').fetchall()
+                    }
+                    if required_cols.issubset(cols):
+                        compatible.add(name)
+            for name in candidates:
+                if name in compatible:
+                    return name
+        except Exception as exc:
+            logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
+        return "ssa_table"
+
+    def update_derivadas_from_sources(self):
+        def _has_sheet_parse_evidence(entry: dict) -> bool:
+            if not isinstance(entry, dict):
+                return False
+            raw_stats = entry.get("stats")
+            stats = raw_stats if isinstance(raw_stats, dict) else {}
+            has_flag = bool(entry.get("has_parse_evidence"))
+            accepted = int(stats.get("accepted_edges", 0) or 0)
+            special_layout = int(stats.get("special_layout_detected", 0) or 0)
+            informational = int(stats.get("informational_rows_skipped", 0) or 0)
+            return has_flag or accepted > 0 or special_layout > 0 or informational > 0
+
+        db_path = DB_PATH
+        if not db_path or not os.path.exists(db_path):
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
+            return
+
+        special_files = self._list_special_derivadas_sheets()
+        table_name = self._resolve_derivadas_table_name(db_path)
+        previous_status = self.status_label.text() if hasattr(self, "status_label") else ""
+        previous_progress_visible = bool(self.progress_bar.isVisible()) if hasattr(self, "progress_bar") else False
+        previous_progress_range = (
+            (self.progress_bar.minimum(), self.progress_bar.maximum())
+            if hasattr(self, "progress_bar")
+            else (0, 0)
+        )
+        previous_progress_value = int(self.progress_bar.value()) if hasattr(self, "progress_bar") else 0
+
+        try:
+            self.update_derivadas_button.setEnabled(False)
+            if hasattr(self, "progress_bar"):
+                # Do not force visibility here; showing/hiding this widget changes
+                # toolbar geometry and causes perceived layout shifts in filters tab.
+                if previous_progress_visible:
+                    self.progress_bar.setVisible(True)
+                self.progress_bar.setRange(0, 0)
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Atualizando derivadas via DB...")
+            if QT_AVAILABLE:
+                QApplication.processEvents()
+
+            db_report = sync_derivadas(
+                db_path=db_path,
+                table_name=table_name,
+                include_db_source=True,
+                verify_only=False,
+                actor="gui-derivadas-db-phase",
+            )
+
+            final_report = db_report
+            db_stats = db_report.get("db_stats") or {}
+            db_edges = int(db_stats.get("accepted_edges", 0) or 0)
+            if special_files:
+                if hasattr(self, "status_label"):
+                    self.status_label.setText(
+                        f"Status: Atualizando derivadas via planilhas especiais ({len(special_files)})..."
+                    )
+                if QT_AVAILABLE:
+                    QApplication.processEvents()
+                final_report = sync_derivadas(
+                    db_path=db_path,
+                    table_name=table_name,
+                    include_db_source=False,
+                    sheet_files=special_files,
+                    verify_only=False,
+                    actor="gui-derivadas-sheet-phase",
+                )
+                reported_files = {
+                    os.path.abspath(str(path))
+                    for path in (final_report.get("sheet_files") or [])
+                }
+                expected_files = {os.path.abspath(path) for path in special_files}
+                if reported_files != expected_files:
+                    raise RuntimeError(
+                        "Sync de planilhas especiais sem cobertura completa de arquivos "
+                        f"(esperado={len(expected_files)}, recebido={len(reported_files)})."
+                    )
+                sheet_file_reports = final_report.get("sheet_file_reports") or []
+                reports_by_file = {}
+                for entry in sheet_file_reports:
+                    if not isinstance(entry, dict):
+                        continue
+                    current_file = str(entry.get("sheet_file") or "").strip()
+                    if not current_file:
+                        continue
+                    reports_by_file[os.path.abspath(current_file)] = entry
+                files_without_evidence = []
+                for current_file in sorted(expected_files):
+                    current_entry = reports_by_file.get(current_file)
+                    if current_entry is None or not _has_sheet_parse_evidence(current_entry):
+                        files_without_evidence.append(os.path.basename(current_file))
+                if files_without_evidence:
+                    raise RuntimeError(
+                        "Planilhas especiais sem evidencia individual: "
+                        + ", ".join(files_without_evidence)
+                    )
+
+            merge_stats = final_report.get("merge_stats") or {}
+            sheet_stats = final_report.get("sheet_stats") or {}
+            merged_edges = int(merge_stats.get("merged_edges", 0) or 0)
+            sheet_edges = int(sheet_stats.get("accepted_edges", 0) or 0)
+            consistency = scan_derivadas_consistency(db_path=db_path)
+            if not bool(consistency.get("schema_ready")) or not bool(consistency.get("is_consistent")):
+                issue_counts = consistency.get("issue_counts") or {}
+                raise RuntimeError(
+                    "Derivadas inconsistente apos sync manual: "
+                    f"{json.dumps(issue_counts, ensure_ascii=True)}"
+                )
+            if hasattr(self, "status_label"):
+                self.status_label.setText(
+                    "Status: Derivadas atualizadas (merged="
+                    f"{merged_edges}, db={db_edges}, sheet={sheet_edges})."
+                )
+            try:
+                self._update_derivadas_button_state()
+            except Exception as exc:
+                logger.warning("Falha ao atualizar estado do botao de derivadas apos sync manual: %s", exc)
+        except Exception as exc:
+            logger.exception("Falha ao atualizar derivadas manualmente: %s", exc)
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Falha ao atualizar derivadas.")
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.critical(self, "Erro", f"Falha ao atualizar derivadas: {exc}")
+        finally:
+            self.update_derivadas_button.setEnabled(True)
+            if hasattr(self, "progress_bar"):
+                self.progress_bar.setVisible(previous_progress_visible)
+                self.progress_bar.setRange(previous_progress_range[0], previous_progress_range[1])
+                self.progress_bar.setValue(previous_progress_value)
+            if hasattr(self, "status_label"):
+                current_status = self.status_label.text()
+                keep_status = current_status.startswith("Status: Derivadas atualizadas") or current_status.startswith(
+                    "Status: Falha ao atualizar derivadas"
+                )
+                if not keep_status:
+                    self.status_label.setText(previous_status)
 
     def load_other_database(self):
         """Permite selecionar e carregar outro arquivo de banco de dados."""
@@ -6577,10 +2499,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 not self.table_widget or not self.table_widget.isVisible()):
                 return
 
-            # Recalcula larguras com nova dimensção da janela usando WidthManager
-            self._compute_gui_column_widths(self.df_para_tabela)
+            width_key = (
+                id(self.df_para_tabela),
+                len(self.df_para_tabela.index),
+                len(self.df_para_tabela.columns),
+                int(getattr(self, "_data_revision", 0) or 0),
+                int(getattr(self, "_last_window_width", 0) or 0),
+            )
+            if getattr(self, "_last_resize_width_key", None) == width_key:
+                return
+
+            # Recalcula larguras com nova dimensção da janela usando WidthManager.
+            # Em datasets grandes usa amostragem para reduzir custo no thread de UI.
+            width_df = self.df_para_tabela
+            if len(width_df.index) > 2000:
+                width_df = width_df.head(2000)
+            self._compute_gui_column_widths(width_df)
             # Aplica as novas larguras
             self._apply_computed_widths_only()
+            self._last_resize_width_key = width_key
         except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
             logger.exception("Column width recompute failed during resize")
 
@@ -6663,11 +2600,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                         logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
                     try:
                         if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
-                            if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
+                            if workers_lock is None:
+                                if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                    GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                    GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
+                                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                        GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            else:
+                                with workers_lock:
+                                    if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                        GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
+                                        GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
+                                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
                             self._prune_retired_rescan_workers()
                             logger.debug(
                                 "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."

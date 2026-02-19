@@ -76,19 +76,18 @@ def normalize_strict(value) -> str | None:
     if len(digits) != LENGTH:
         return None
     # 3. Year validation
-    with suppress(Exception):  # noqa: F821 - defined below
+    try:
         ano = int(digits[:4])
-        if not (YEAR_MIN <= ano <= YEAR_MAX):  # noqa: PLR2004
-            return None
+    except ValueError:
+        return None
+    if not (YEAR_MIN <= ano <= YEAR_MAX):  # noqa: PLR2004
+        return None
     # Rejeitar padrao com hifen quando ultimos 5 digitos todos iguais (ex.: 2025-22222)
     if had_dash and len(digits) == LENGTH:
         tail = digits[4:]
         if len(set(tail)) == 1:  # todos caracteres identicos
             return None
     return digits
-
-# fallback for Python <3.11 typing of suppress (local import to keep footprint tiny)
-from contextlib import suppress  # noqa: E402  (placed after function docs)
 
 def is_valid_numero_ssa(value) -> bool:
     return normalize_strict(value) is not None

@@ -21,8 +21,7 @@ def teste_performance_cli():
 
     try:
         from interface.cli import _cached_pretty_print_df
-        from utils.table_printer import pretty_print_df
-        from core.config_manager import get_settings, load_display_mappings
+        from core.config_manager import load_settings, load_display_mappings_integrity
 
         # Cria DataFrame de teste
         test_data = {
@@ -33,8 +32,8 @@ def teste_performance_cli():
         }
         df = pd.DataFrame(test_data)
 
-        display_map = load_display_mappings()
-        settings = get_settings()
+        display_map = load_display_mappings_integrity()
+        settings = load_settings()
         cache = {}
 
         # Teste 1: Primeira execução (sem cache)
@@ -80,14 +79,12 @@ def teste_otimizacoes_gui():
     try:
         # Testa cache de sets de colunas
         test_columns = ['col1', 'col2', 'col3', 'col4', 'col5']
-        cache = {}
-
         # Simula operações de set que foram otimizadas
         start_time = time.time()
         for i in range(1000):
             # Operação original (sem cache)
             expandable_cols = ['col1', 'col3']
-            result = [col for col in expandable_cols if col in set(test_columns)]
+            _ = [col for col in expandable_cols if col in set(test_columns)]
         original_time = time.time() - start_time
 
         # Operação otimizada (com cache simulado)
@@ -95,7 +92,7 @@ def teste_otimizacoes_gui():
         test_columns_set = set(test_columns)  # Cached
         for i in range(1000):
             expandable_cols = ['col1', 'col3']
-            result = [col for col in expandable_cols if col in test_columns_set]
+            _ = [col for col in expandable_cols if col in test_columns_set]
         optimized_time = time.time() - start_time
 
         speedup = (original_time / optimized_time) if optimized_time > 0 else float('inf')

@@ -6,6 +6,7 @@ Separado do main.py principal
 
 import os
 import sys
+import traceback
 
 # Adicionar diretorio raiz ao path CORRETAMENTE
 if getattr(sys, 'frozen', False):
@@ -40,13 +41,21 @@ def main():
             sys.exit(1)
 
     try:
-        from interface.cli import main as cli_main
-        cli_main()
+        from interface.cli import start_cli_loop
+        db_path = os.environ.get("SSA_DB_PATH") or os.path.join(app_dir, "data", "ssas.db")
+        table_name = os.environ.get("SSA_TABLE_NAME") or "ssa_table"
+        start_cli_loop(db_path, table_name)
     except ImportError as e:
         print(f"ERRO: Nao foi possivel importar interface.cli: {e}")
         print(f"Path atual: {sys.path}")
         print(f"App dir: {app_dir}")
         print(f"Arquivos em app_dir: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"ERRO: Falha inesperada ao iniciar CLI: {e}")
+        traceback.print_exc()
+        print(f"Path atual: {sys.path}")
+        print(f"App dir: {app_dir}")
         sys.exit(1)
 
 if __name__ == "__main__":

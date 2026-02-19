@@ -68,7 +68,7 @@ def investigar_ssa_truncados():
             print(f"\nERR Arquivo não encontrado: {arquivo}")
 
     # 2. Verificar o mapeamento de colunas
-    print(f"\nINFO VERIFICANDO MAPEAMENTO DE COLUNAS:")
+    print("\nINFO VERIFICANDO MAPEAMENTO DE COLUNAS:")
     try:
         with open("config/column_mappings.json", "r", encoding="utf-8") as f:
             import json
@@ -77,16 +77,16 @@ def investigar_ssa_truncados():
         if "numero_ssa" in mappings:
             print(f"   Mapeamento numero_ssa: {mappings['numero_ssa']}")
         else:
-            print(f"   ERR 'numero_ssa' não encontrado no mapeamento")
+            print("   ERR 'numero_ssa' não encontrado no mapeamento")
 
     except Exception as e:
         print(f"   ERR Erro ao ler mapeamentos: {e}")
 
-    print(f"\n{'='*50}")
-    print(f"DONE OBJETIVO DA INVESTIGAÇÃO:")
-    print(f"   • Determinar se Excel tem 7 ou 9 dígitos")
-    print(f"   • Verificar se problema é na importação")
-    print(f"   • Corrigir processo para preservar 9 dígitos")
+    print("\n" + "=" * 50)
+    print("DONE OBJETIVO DA INVESTIGAÇÃO:")
+    print("   • Determinar se Excel tem 7 ou 9 dígitos")
+    print("   • Verificar se problema é na importação")
+    print("   • Corrigir processo para preservar 9 dígitos")
 
 if __name__ == "__main__":
     investigar_ssa_truncados()

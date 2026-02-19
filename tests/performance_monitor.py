@@ -14,6 +14,8 @@ import os
 import time
 import signal
 from datetime import datetime
+from typing import Any
+from typing import TypedDict
 
 # Ajuste do sys.path deve ocorrer antes dos imports locais do projeto; permitido aqui.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -23,27 +25,39 @@ if project_root not in sys.path:
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 from PyQt6.QtCore import QTimer  # noqa: E402
 from gui.gui_ssa import QT_AVAILABLE  # noqa: E402
+SSAMainWindow: type[Any] | None
 try:
-    from gui.gui_ssa import SSAMainWindow  # type: ignore
+    from gui.gui_ssa import SSAMainWindow as _GuiSSAMainWindow
+    SSAMainWindow = _GuiSSAMainWindow
 except Exception:
     # Se não conseguir importar a GUI principal, marcamos como indisponível
-    SSAMainWindow = None  # type: ignore
-    QT_AVAILABLE = False  # type: ignore
+    SSAMainWindow = None
+    QT_AVAILABLE = False
+
+
+class MonitorStats(TypedDict):
+    filtros_testados: int
+    tempo_total: float
+    tempo_max: float
+    tempo_min: float
+    travamentos_detectados: int
+    inicio: datetime
 
 
 class PerformanceMonitor:
     """Monitor de performance para detectar travamentos."""
 
     def __init__(self):
-        if not QT_AVAILABLE or SSAMainWindow is None:  # type: ignore
+        window_cls = SSAMainWindow
+        if not QT_AVAILABLE or window_cls is None:
             raise RuntimeError("Qt/GUI principal não disponível para monitor")
         self.app = QApplication([])
-        self.window = SSAMainWindow()  # type: ignore
+        self.window = window_cls()
         self.running = True
-        self.stats = {
+        self.stats: MonitorStats = {
             'filtros_testados': 0,
-            'tempo_total': 0,
-            'tempo_max': 0,
+            'tempo_total': 0.0,
+            'tempo_max': 0.0,
             'tempo_min': float('inf'),
             'travamentos_detectados': 0,
             'inicio': datetime.now()

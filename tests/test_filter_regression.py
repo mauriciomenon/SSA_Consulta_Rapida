@@ -23,7 +23,8 @@ class TestFilterRegression:
         """Test that commas are preserved and used as term separators."""
         # User should be able to type commas
         search_text = "term1,term2,term3"
-        terms = parse_search_terms(search_text.split(','))
+        search_terms = [str(term) for term in search_text.split(',')]
+        terms = parse_search_terms(search_terms)
 
         assert len(terms) == 3
         assert terms[0]['value'] == 'term1'
@@ -46,7 +47,7 @@ class TestFilterRegression:
             assert len(terms) == 1, f"'{search_term}' should be treated as single literal term"
             # Value should be the search term itself (case may be preserved)
             assert terms[0]['value'].upper() == search_term.upper(), f"'{search_term}' should be treated as literal"
-            assert terms[0]['group'] == 0, f"All terms should be in group 0 (AND logic)"
+            assert terms[0]['group'] == 0, "All terms should be in group 0 (AND logic)"
 
     def test_no_operator_splitting(self):
         """Test that old operator keywords don't cause term splitting."""

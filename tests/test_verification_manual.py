@@ -20,7 +20,7 @@ def test_existing_database():
         print(f"Verificando banco: {db_path}")
         report = verify_database_integrity(db_path)
 
-        print(f"\nResultado da verificação:")
+        print("\nResultado da verificação:")
         print(f"  Válido: {report['is_valid']}")
         print(f"  Banco existe: {report['database_exists']}")
         print(f"  Banco acessível: {report['database_accessible']}")
@@ -31,12 +31,12 @@ def test_existing_database():
         print(f"  Permissões OK: {report['file_permissions_ok']}")
 
         if report['issues']:
-            print(f"\nProblemas encontrados:")
+            print("\nProblemas encontrados:")
             for issue in report['issues']:
                 print(f"  - {issue}")
 
         if report['warnings']:
-            print(f"\nAvisos:")
+            print("\nAvisos:")
             for warning in report['warnings']:
                 print(f"  - {warning}")
     else:

@@ -1,4 +1,8 @@
-import os, json, subprocess, sys, tempfile, shutil, pathlib
+import os
+import json
+import subprocess
+import sys
+import pathlib
 import pandas as pd
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
@@ -6,7 +10,7 @@ SCRIPT = BASE / 'scripts' / 'migracao' / 'backfill_reprocessar.py'
 
 
 def _run(cmd: list[str]):
-    env = os.environ.copy()
+    os.environ.copy()
     result = subprocess.run([sys.executable, *cmd], cwd=BASE, capture_output=True, text=True)
     return result
 

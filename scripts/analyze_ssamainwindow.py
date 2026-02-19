@@ -24,14 +24,14 @@ for i, line in enumerate(lines, 1):
 
         # Check for method definition
         if re.match(r'^    def ', line):
-            if current_method:
+            if current_method and current_line is not None:
                 methods.append((current_line, current_method, i - current_line))
             method_name = line.strip().split('(')[0].replace('def ', '')
             current_method = method_name
             current_line = i
 
 # Add last method
-if current_method:
+if current_method and current_line is not None:
     methods.append((current_line, current_method, len(lines) - current_line))
 
 print(f"\nTotal methods in SSAMainWindow: {len(methods)}")
@@ -72,29 +72,29 @@ print("=== THEME METHODS ===")
 for line_num, method in theme_methods:
     print(f"  {line_num}: {method}")
 
-print(f"\n=== FILTER METHODS ===")
+print("\n=== FILTER METHODS ===")
 for line_num, method in filter_methods:
     print(f"  {line_num}: {method}")
 
-print(f"\n=== EXPORT METHODS ===")
+print("\n=== EXPORT METHODS ===")
 for line_num, method in export_methods:
     print(f"  {line_num}: {method}")
 
-print(f"\n=== UI BUILDING METHODS ===")
+print("\n=== UI BUILDING METHODS ===")
 for line_num, method in ui_methods:
     print(f"  {line_num}: {method}")
 
-print(f"\n=== DATA METHODS ===")
+print("\n=== DATA METHODS ===")
 for line_num, method in data_methods:
     print(f"  {line_num}: {method}")
 
-print(f"\n=== EVENT HANDLERS ===")
+print("\n=== EVENT HANDLERS ===")
 for line_num, method in event_methods[:20]:  # First 20
     print(f"  {line_num}: {method}")
 if len(event_methods) > 20:
     print(f"  ... and {len(event_methods) - 20} more")
 
-print(f"\n=== OTHER METHODS ===")
+print("\n=== OTHER METHODS ===")
 for line_num, method in other_methods:
     print(f"  {line_num}: {method}")
 

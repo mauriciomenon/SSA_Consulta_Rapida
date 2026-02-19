@@ -93,7 +93,7 @@ def test_gui_principal_disponivel():
     print("\nTEST TESTANDO DISPONIBILIDADE GUI PRINCIPAL")
     print("=" * 50)
     try:
-        from gui.gui_ssa import SSAMainWindow  # type: ignore
+        from gui.gui_ssa import SSAMainWindow
         _ = SSAMainWindow  # acesso simbólico
         print("OK GUI Principal disponível")
         return True

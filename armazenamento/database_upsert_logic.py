@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 import os
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 import logging
 import re
 
@@ -93,8 +93,7 @@ def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool
         return True
 
 
-def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int = 100) -> int:  # type: ignore[no-untyped-def]
-    complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
+def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
     status_order_env = os.environ.get("SSA_STATUS_ORDER")
     status_order_list = (
         [s.strip() for s in status_order_env.split(',') if s.strip()]
@@ -102,7 +101,6 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         else ["ABERTO", "EM_ANALISE", "EM_EXECUCAO", "SCA", "STE"]
     )
     status_rank = {s: i for i, s in enumerate(status_order_list)}
-    terminal_statuses_env = os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
     desc_cols_env = os.environ.get("SSA_DESC_COLUMNS")
     description_columns = [c.strip() for c in desc_cols_env.split(',') if c.strip()] if desc_cols_env else [
         "descricao_ssa", "descricao", "detalhes", "comentarios"
@@ -125,112 +123,190 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         "executado",
         "concluido",
     ]
+    return status_rank, description_columns, date_columns
 
-    def _is_empty(val) -> bool:
-        if val is None:
-            return True
-        if isinstance(val, float) and pd.isna(val):
-            return True
-        if isinstance(val, str) and (val.strip() == '' or val.strip().lower() in {"n/a", "na", "null", "-"}):
-            return True
-        return False
 
-    def _parse_dt(v):
-        try:
-            if _is_empty(v):
-                return None
-            return pd.to_datetime(v, errors='coerce')
-        except Exception:
+def _is_empty_upsert_value(val: Any) -> bool:
+    if val is None:
+        return True
+    if isinstance(val, float) and pd.isna(val):
+        return True
+    if isinstance(val, str) and (val.strip() == '' or val.strip().lower() in {"n/a", "na", "null", "-"}):
+        return True
+    return False
+
+
+def _parse_upsert_dt(value: Any):
+    try:
+        if _is_empty_upsert_value(value):
             return None
+        return pd.to_datetime(value, errors='coerce')
+    except Exception:
+        return None
 
-    def _merge_complement(existing_row: pd.Series, new_row: pd.Series) -> pd.Series:
-        result = existing_row.copy()
-        for col in new_row.index:
-            new_val = new_row[col]
-            if col == 'numero_ssa':
-                continue
-            if col == 'situacao':
-                old_val = result.get(col)
-                if _is_empty(old_val) and not _is_empty(new_val):
-                    result[col] = new_val
-                else:
-                    old_rank = status_rank.get(str(old_val), -1)
-                    new_rank = status_rank.get(str(new_val), -1)
-                    if new_rank > old_rank:
-                        result[col] = new_val
-                continue
-            if col in date_columns:
-                old_dt = _parse_dt(result.get(col))
-                new_dt = _parse_dt(new_val)
-                if old_dt is None and new_dt is not None:
-                    result[col] = new_val
-                elif old_dt is not None and new_dt is not None and new_dt > old_dt:
-                    result[col] = new_val
-                continue
-            if col in description_columns:
-                old_val = result.get(col)
-                if _is_empty(old_val) and not _is_empty(new_val):
-                    result[col] = new_val
-                else:
-                    if isinstance(new_val, str) and isinstance(old_val, str) and len(new_val) > len(old_val) + 10:
-                        result[col] = new_val
-                continue
+
+def _merge_complement_row(
+    existing_row: pd.Series,
+    new_row: pd.Series,
+    status_rank: dict[str, int],
+    description_columns: list[str],
+    date_columns: list[str],
+) -> pd.Series:
+    result = existing_row.copy()
+    for col in new_row.index:
+        new_val = new_row[col]
+        if col == 'numero_ssa':
+            continue
+        if col == 'situacao':
             old_val = result.get(col)
-            if _is_empty(old_val) and not _is_empty(new_val):
+            if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
                 result[col] = new_val
-        return result
+            else:
+                old_rank = status_rank.get(str(old_val), -1)
+                new_rank = status_rank.get(str(new_val), -1)
+                if new_rank > old_rank:
+                    result[col] = new_val
+            continue
+        if col in date_columns:
+            old_dt = _parse_upsert_dt(result.get(col))
+            new_dt = _parse_upsert_dt(new_val)
+            if old_dt is None and new_dt is not None:
+                result[col] = new_val
+            elif old_dt is not None and new_dt is not None and new_dt > old_dt:
+                result[col] = new_val
+            continue
+        if col in description_columns:
+            old_val = result.get(col)
+            if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
+                result[col] = new_val
+            else:
+                if isinstance(new_val, str) and isinstance(old_val, str) and len(new_val) > len(old_val) + 10:
+                    result[col] = new_val
+            continue
+        old_val = result.get(col)
+        if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
+            result[col] = new_val
+    return result
+
+
+def _merge_preserve_existing_row(existing_row: pd.Series, new_row: pd.Series) -> pd.Series:
+    incoming = new_row.reindex(existing_row.index, fill_value=None)
+    empty_mask = incoming.apply(
+        lambda value: pd.isna(value) or value in (None, '') or (isinstance(value, str) and value.strip() == '')
+    )
+    merged = existing_row.where(empty_mask, incoming)
+    for col in new_row.index:
+        if col not in merged.index:
+            merged[col] = new_row[col]
+    return merged
+
+
+def _persist_upsert_chunk(
+    conn: Any,
+    table_name: str,
+    rows_to_persist: dict[Any, pd.Series],
+    delete_keys: set[Any],
+) -> None:
+    if delete_keys:
+        placeholders = ", ".join(["?"] * len(delete_keys))
+        conn.execute(
+            f"DELETE FROM {table_name} WHERE numero_ssa IN ({placeholders})",  # noqa: S608
+            list(delete_keys),
+        )
+    if rows_to_persist:
+        persist_df = pd.DataFrame([row.copy() for row in rows_to_persist.values()])
+        persist_df.to_sql(table_name, conn, if_exists='append', index=False)
+
+
+def _prepare_upsert_target_row(
+    row: pd.Series,
+    existing_row: pd.Series | None,
+    complementary_mode: bool,
+    status_rank: dict[str, int],
+    description_columns: list[str],
+    date_columns: list[str],
+) -> tuple[pd.DataFrame, bool]:
+    if existing_row is None:
+        return row.to_frame().T, True
+
+    if not complementary_mode:
+        merged_row = _merge_preserve_existing_row(existing_row, row)
+        return merged_row.to_frame().T, _should_update_existing(existing_row, row)
+
+    merged_series = _merge_complement_row(
+        existing_row,
+        row,
+        status_rank,
+        description_columns,
+        date_columns,
+    )
+    return merged_series.to_frame().T, not merged_series.equals(existing_row)
+
+
+def _upsert_cache_key(numero: Any) -> str | None:
+    if pd.isna(numero):
+        return None
+    return str(numero).strip()
+
+
+def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int = 100) -> int:
+    complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
+    status_rank, description_columns, date_columns = _resolve_upsert_config()
+    os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
     total_inserted = 0
     for start in range(0, len(has_ssa), chunk_size):
         chunk = has_ssa.iloc[start:start + chunk_size]
+
+        chunk_num_ssa: list[Any] = []
+        for numero in chunk['numero_ssa'].tolist():
+            if pd.isna(numero):
+                continue
+            if any(existing_num == numero for existing_num in chunk_num_ssa):
+                continue
+            chunk_num_ssa.append(numero)
+
+        existing_by_ssa: dict[str, pd.Series] = {}
+        if chunk_num_ssa:
+            placeholders = ", ".join(["?"] * len(chunk_num_ssa))
+            existing_chunk = pd.read_sql_query(
+                f"SELECT * FROM {table_name} WHERE numero_ssa IN ({placeholders})",  # noqa: S608
+                conn,
+                params=chunk_num_ssa,
+            )
+            if not existing_chunk.empty and 'numero_ssa' in existing_chunk.columns:
+                for _, existing_row in existing_chunk.iterrows():
+                    numero_val = existing_row.get('numero_ssa')
+                    cache_key = _upsert_cache_key(numero_val)
+                    if cache_key is None:
+                        continue
+                    existing_by_ssa[cache_key] = existing_row
+
+        rows_to_persist: dict[str, pd.Series] = {}
+        delete_keys: set[Any] = set()
         for _, row in chunk.iterrows():
             numero_ssa = row['numero_ssa']
-            existing = pd.read_sql_query(
-                f"SELECT * FROM {table_name} WHERE numero_ssa = ?",  # noqa: S608
-                conn,
-                params=[numero_ssa],
+            cache_key = _upsert_cache_key(numero_ssa)
+            if cache_key is None:
+                continue
+            existing_row = existing_by_ssa.get(cache_key)
+            has_existing = existing_row is not None
+            target_df, should_persist = _prepare_upsert_target_row(
+                row,
+                existing_row,
+                complementary_mode,
+                status_rank,
+                description_columns,
+                date_columns,
             )
-            if not complementary_mode:
-                if existing.empty:
-                    target_df = row.to_frame().T
-                else:
-                    old = existing.iloc[0]
-                    merged = {}
-                    for col in existing.columns:
-                        new_val = row[col] if col in row.index else None
-                        is_empty_new = (
-                            pd.isna(new_val) or new_val in (None, '') or (isinstance(new_val, str) and new_val.strip() == '')
-                        )
-                        merged[col] = old[col] if is_empty_new else new_val
-                    for col in row.index:
-                        if col not in merged:
-                            merged[col] = row[col]
-                    target_df = pd.DataFrame([merged])
-                if existing.empty or _should_update_existing(existing.iloc[0], row):
-                    if not existing.empty:
-                        conn.execute(
-                            f"DELETE FROM {table_name} WHERE numero_ssa = ?",  # noqa: S608
-                            [numero_ssa],
-                        )
-                    target_df.to_sql(table_name, conn, if_exists='append', index=False)
-                    total_inserted += 1
-            else:
-                if existing.empty:
-                    target_df = row.to_frame().T
-                    perform_update = True
-                else:
-                    old_row = existing.iloc[0]
-                    merged_series = _merge_complement(old_row, row)
-                    perform_update = not merged_series.equals(old_row)
-                    target_df = merged_series.to_frame().T
-                if perform_update:
-                    if not existing.empty:
-                        conn.execute(
-                            f"DELETE FROM {table_name} WHERE numero_ssa = ?",  # noqa: S608
-                            [numero_ssa],
-                        )
-                    target_df.to_sql(table_name, conn, if_exists='append', index=False)
-                    total_inserted += 1
+            if should_persist:
+                if has_existing and existing_row is not None:
+                    delete_keys.add(existing_row.get('numero_ssa'))
+                merged_cache_row = target_df.iloc[0].copy()
+                rows_to_persist[cache_key] = merged_cache_row
+                existing_by_ssa[cache_key] = merged_cache_row
+                total_inserted += 1
+        _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
     return total_inserted
 
 
@@ -313,11 +389,11 @@ def insert_dataframe_with_smart_upsert_impl(
     from . import database as _db_mod  # lazy import evita circularidade
     conn_cm = None
     if hasattr(db_path, 'cursor'):  # conexão externa
-        conn: Any = db_path  # type: ignore[assignment]
+        conn: Any = db_path
         close_after = False
     else:
-        conn_cm = _db_mod.get_db_connection(db_path)  # type: ignore[arg-type]
-        conn = conn_cm.__enter__()  # type: ignore[assignment]
+        conn_cm = _db_mod.get_db_connection(db_path)
+        conn = conn_cm.__enter__()
         close_after = True
     try:
         cursor = conn.cursor()  # type: ignore[attr-defined]
@@ -326,7 +402,7 @@ def insert_dataframe_with_smart_upsert_impl(
         if table_name not in existing_tables:
             for alias in ("ssa_table", "ssas", "ssa_chamados"):
                 if alias in existing_tables:
-                    table_name = alias  # type: ignore[assignment]
+                    table_name = alias
                     break
         table_exists = table_name in existing_tables
         if table_exists:

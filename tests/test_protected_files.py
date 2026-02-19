@@ -13,5 +13,6 @@ def test_choose_latest_ignores_protected_files(tmp_path):
     os.utime(protected, None)
 
     chosen = choose_latest([str(protected), str(data)])
+    assert chosen is not None
     # choose_latest should not pick the protected README, so it must pick the data file
     assert os.path.basename(chosen) == os.path.basename(data)

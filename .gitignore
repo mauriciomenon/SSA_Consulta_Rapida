@@ -55,9 +55,6 @@ build_env/
 *.msi
 
 # Icones gerados
-resources/app_icon.ico
-resources/app_icon.icns
-resources/app_icon.png
 
 # Installer logs
 pip-log.txt
@@ -463,3 +460,4 @@ profile.bkp
 .specstory/
 source_ssaconsultarapida*.txt
 omp.cache
+.alma-snapshots

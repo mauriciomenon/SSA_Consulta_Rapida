@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import sqlite3
+import unicodedata
 from collections import defaultdict, deque
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -23,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd
 
 from armazenamento.database import get_db_connection
 from armazenamento.derivadas_schema import (
@@ -78,6 +79,10 @@ SHEET_LABEL_ALIASES: tuple[str, ...] = (
     "descricao_relacao",
     "relation_raw_label",
 )
+SPECIAL_SHEET_HEADER_ROW_INDEX = 1
+SPECIAL_SHEET_CHILD_COL_INDEX = 5
+SPECIAL_SHEET_RELATION_COL_INDEX = 9
+SPECIAL_SHEET_PARENT_COL_INDEX = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +210,40 @@ def _validate_table_name(table_name: str) -> str:
     return table_name
 
 
+def _normalize_sheet_file_path(value: Any) -> str:
+    normalized = str(value).strip()
+    if not normalized:
+        return ""
+    return os.path.abspath(os.path.expanduser(normalized))
+
+
+def _sheet_stats_has_parse_evidence(stats: dict[str, Any] | None) -> bool:
+    current = stats or {}
+    accepted_edges = int(current.get("accepted_edges", 0) or 0)
+    special_layout_detected = int(current.get("special_layout_detected", 0) or 0)
+    informational_rows = int(current.get("informational_rows_skipped", 0) or 0)
+    return accepted_edges > 0 or special_layout_detected > 0 or informational_rows > 0
+
+
+def _build_sheet_evidence_summary(sheet_file_reports: list[dict[str, Any]]) -> dict[str, Any]:
+    files_total = len(sheet_file_reports)
+    files_with_evidence = 0
+    files_without_evidence: list[str] = []
+    for entry in sheet_file_reports:
+        current_file = str(entry.get("sheet_file") or "").strip()
+        has_evidence = bool(entry.get("has_parse_evidence"))
+        if has_evidence:
+            files_with_evidence += 1
+            continue
+        files_without_evidence.append(current_file)
+    return {
+        "files_total": files_total,
+        "files_with_evidence": files_with_evidence,
+        "files_without_evidence": files_without_evidence,
+        "is_complete": files_total == files_with_evidence,
+    }
+
+
 def collect_db_edges(conn: sqlite3.Connection, table_name: str = "ssa_table") -> dict[str, Any]:
     """Collect normalized parent->child edges from `numero_ssa -> derivada_de`."""
 
@@ -294,6 +333,8 @@ def _load_sheet_dataframe(sheet_file: str, sheet_name: str | None = None) -> lis
 
 def _normalize_sheet_column_name(value: Any) -> str:
     text = str(value).strip().casefold()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
     return "".join(ch for ch in text if ch.isalnum())
 
 
@@ -418,6 +459,122 @@ def collect_sheet_edges(
                     source_flag=SOURCE_FLAG_SHEET,
                     relation_type=RELATION_TYPE_SHEET,
                     relation_raw_label=relation_label,
+                )
+            )
+
+    stats["accepted_edges"] = len(edges)
+    if not edges and int(stats.get("missing_columns", 0)) > 0:
+        fallback = _collect_special_visual_sheet_edges(sheet_file=sheet_file, sheet_name=sheet_name)
+        fallback_stats = fallback.get("stats") or {}
+        if int(fallback_stats.get("special_layout_detected", 0)) > 0:
+            return fallback
+    multiparent = {child: sorted(parents) for child, parents in child_to_parents.items() if len(parents) > 1}
+    stats["multiparent_in_source"] = len(multiparent)
+    return {"edges": edges, "stats": stats, "multiparent_detail": multiparent}
+
+
+def _collect_special_visual_sheet_edges(
+    sheet_file: str,
+    sheet_name: str | None = None,
+) -> dict[str, Any]:
+    """Fallback parser for "SSAs Derivadas e Relacionadas" visual matrix layout."""
+
+    ext = os.path.splitext(sheet_file)[1].lower()
+    if ext not in {".xlsx", ".xlsm", ".xls"}:
+        return {
+            "edges": [],
+            "stats": {"accepted_edges": 0, "special_layout_detected": 0},
+            "multiparent_detail": {},
+        }
+
+    if sheet_name:
+        raw_frames = [pd.read_excel(sheet_file, sheet_name=sheet_name, header=None)]
+    else:
+        loaded = pd.read_excel(sheet_file, sheet_name=None, header=None)
+        raw_frames = list(loaded.values()) if isinstance(loaded, dict) else [loaded]
+
+    edges: list[SourceEdge] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    child_to_parents: dict[str, set[str]] = defaultdict(set)
+    stats = {
+        "input_rows": 0,
+        "accepted_edges": 0,
+        "invalid_parent": 0,
+        "invalid_child": 0,
+        "self_loop": 0,
+        "duplicated": 0,
+        "informational_rows_skipped": 0,
+        "missing_columns": 0,
+        "missing_label_column_rows": 0,
+        "resolved_parent_alias_rows": 0,
+        "resolved_child_alias_rows": 0,
+        "resolved_label_alias_rows": 0,
+        "special_layout_detected": 0,
+    }
+
+    for frame in raw_frames:
+        if frame is None or frame.empty:
+            continue
+        if frame.shape[0] <= SPECIAL_SHEET_HEADER_ROW_INDEX:
+            continue
+        if frame.shape[1] <= SPECIAL_SHEET_PARENT_COL_INDEX:
+            continue
+
+        header_row = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX]
+        child_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX])
+        relation_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX])
+        parent_header = _normalize_sheet_column_name(header_row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX])
+
+        # Detect expected visual matrix markers before parsing.
+        if child_header != "numerodassa" or parent_header != "numerodassa" or relation_header != "relacao":
+            continue
+
+        stats["special_layout_detected"] += 1
+        data_rows = frame.iloc[SPECIAL_SHEET_HEADER_ROW_INDEX + 1 :]
+        stats["input_rows"] += int(len(data_rows))
+
+        for _, row in data_rows.iterrows():
+            child_raw = row.iloc[SPECIAL_SHEET_CHILD_COL_INDEX]
+            relation_raw = row.iloc[SPECIAL_SHEET_RELATION_COL_INDEX]
+            parent_raw = row.iloc[SPECIAL_SHEET_PARENT_COL_INDEX]
+
+            child_norm = _normalize_ssa(child_raw)
+            parent_norm = _normalize_ssa(parent_raw)
+            relation_norm = _clean_relation_label(relation_raw)
+            # Visual sheets include many context/info rows with no edge payload.
+            # Do not classify those as invalid parent/child to keep signal useful.
+            if not parent_norm and not child_norm and relation_norm is None:
+                stats["informational_rows_skipped"] += 1
+                continue
+            # Root/context rows often carry only child SSA with empty relation/parent.
+            # Treat these as informational instead of invalid parent.
+            if not parent_norm and relation_norm is None:
+                stats["informational_rows_skipped"] += 1
+                continue
+            if not parent_norm:
+                stats["invalid_parent"] += 1
+                continue
+            if not child_norm:
+                stats["invalid_child"] += 1
+                continue
+            if parent_norm == child_norm:
+                stats["self_loop"] += 1
+                continue
+
+            key = (parent_norm, child_norm)
+            if key in seen_pairs:
+                stats["duplicated"] += 1
+                continue
+            seen_pairs.add(key)
+            child_to_parents[child_norm].add(parent_norm)
+            edges.append(
+                SourceEdge(
+                    parent_ssa=parent_norm,
+                    child_ssa=child_norm,
+                    source_name=SOURCE_SHEET_DERIVADAS,
+                    source_flag=SOURCE_FLAG_SHEET,
+                    relation_type=RELATION_TYPE_SHEET,
+                    relation_raw_label=relation_norm,
                 )
             )
 
@@ -1018,7 +1175,10 @@ def _start_sync_run(
         """,
         (mode, actor, ",".join(managed_sources), started_at, db_edges, sheet_edges, merged_edges),
     )
-    return int(row.lastrowid)
+    run_id = row.lastrowid
+    if run_id is None:
+        raise RuntimeError("Failed to persist sync run metadata: missing lastrowid")
+    return int(run_id)
 
 
 def _finish_sync_run(
@@ -1063,11 +1223,105 @@ def _finish_sync_run(
     )
 
 
+def _scan_materialization_integrity(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Validate materialized derivadas tables inside current transaction."""
+
+    matrix_rows = conn.execute(
+        """
+        SELECT parent_ssa, child_ssa, source_flags
+        FROM ssa_derivada_matrix
+        WHERE active = 1
+        """
+    ).fetchall()
+    source_rows = conn.execute(
+        """
+        SELECT parent_ssa, child_ssa, source_flag
+        FROM ssa_derivada_source
+        WHERE is_active = 1
+        """
+    ).fetchall()
+
+    matrix_pairs: dict[tuple[str, str], int] = {
+        (row[0], row[1]): int(row[2]) for row in matrix_rows
+    }
+    source_flags_by_pair: dict[tuple[str, str], int] = defaultdict(int)
+    for parent, child, source_flag in source_rows:
+        source_flags_by_pair[(parent, child)] |= int(source_flag or 0)
+
+    missing_source_pairs = sorted(
+        [pair for pair in matrix_pairs if pair not in source_flags_by_pair]
+    )
+    source_without_matrix_pairs = sorted(
+        [pair for pair in source_flags_by_pair if pair not in matrix_pairs]
+    )
+    flag_mismatch_pairs = sorted(
+        [
+            pair
+            for pair in matrix_pairs
+            if pair in source_flags_by_pair and matrix_pairs[pair] != source_flags_by_pair[pair]
+        ]
+    )
+    invalid_matrix_pairs = sorted(
+        [
+            pair
+            for pair in matrix_pairs
+            if pair[0] == pair[1] or not _normalize_ssa(pair[0]) or not _normalize_ssa(pair[1])
+        ]
+    )
+
+    closure_self = int(
+        conn.execute(
+            "SELECT COUNT(*) FROM ssa_derivada_closure WHERE ancestor_ssa = descendant_ssa"
+        ).fetchone()[0]
+    )
+
+    nodes_in_matrix: set[str] = set()
+    for parent, child, _flags in matrix_rows:
+        nodes_in_matrix.add(parent)
+        nodes_in_matrix.add(child)
+    summary_nodes = {
+        row[0]
+        for row in conn.execute("SELECT ssa FROM ssa_derivada_summary").fetchall()
+    }
+    summary_missing_nodes = sorted(nodes_in_matrix - summary_nodes)
+    summary_extra_nodes = sorted(summary_nodes - nodes_in_matrix)
+
+    issue_counts = {
+        "missing_source_pairs": len(missing_source_pairs),
+        "source_without_matrix_pairs": len(source_without_matrix_pairs),
+        "flag_mismatch_pairs": len(flag_mismatch_pairs),
+        "invalid_matrix_pairs": len(invalid_matrix_pairs),
+        "closure_self_rows": closure_self,
+        "summary_missing_nodes": len(summary_missing_nodes),
+        "summary_extra_nodes": len(summary_extra_nodes),
+    }
+    is_consistent = all(count == 0 for count in issue_counts.values())
+
+    return {
+        "is_consistent": is_consistent,
+        "issue_counts": issue_counts,
+        "matrix_active_edges": len(matrix_rows),
+        "source_active_edges": len(source_rows),
+        "summary_nodes": len(summary_nodes),
+        "samples": {
+            "missing_source_pairs": [f"{parent}->{child}" for parent, child in missing_source_pairs[:20]],
+            "source_without_matrix_pairs": [
+                f"{parent}->{child}" for parent, child in source_without_matrix_pairs[:20]
+            ],
+            "flag_mismatch_pairs": [f"{parent}->{child}" for parent, child in flag_mismatch_pairs[:20]],
+            "invalid_matrix_pairs": [f"{parent}->{child}" for parent, child in invalid_matrix_pairs[:20]],
+            "summary_missing_nodes": summary_missing_nodes[:20],
+            "summary_extra_nodes": summary_extra_nodes[:20],
+        },
+    }
+
+
 def sync_derivadas(
     db_path: str,
     table_name: str = "ssa_table",
     *,
     sheet_file: str | None = None,
+    sheet_files: list[str] | None = None,
     sheet_parent_col: str = "parent_ssa",
     sheet_child_col: str = "child_ssa",
     sheet_label_col: str | None = "relation_label",
@@ -1079,7 +1333,20 @@ def sync_derivadas(
 ) -> dict[str, Any]:
     """Run a full derivadas sync/validation cycle."""
 
-    if not include_db_source and not sheet_file:
+    normalized_sheet_files: list[str] = []
+    seen_sheet_files: set[str] = set()
+    for candidate in ([sheet_file] if sheet_file else []):
+        normalized = _normalize_sheet_file_path(candidate)
+        if normalized and normalized not in seen_sheet_files:
+            normalized_sheet_files.append(normalized)
+            seen_sheet_files.add(normalized)
+    for candidate in sheet_files or []:
+        normalized = _normalize_sheet_file_path(candidate)
+        if normalized and normalized not in seen_sheet_files:
+            normalized_sheet_files.append(normalized)
+            seen_sheet_files.add(normalized)
+
+    if not include_db_source and not normalized_sheet_files:
         raise ValueError(
             "sync_derivadas requires at least one source: include_db_source=True or sheet_file provided"
         )
@@ -1096,6 +1363,7 @@ def sync_derivadas(
         sheet_stats: dict[str, Any] = {"accepted_edges": 0}
         db_multiparent: dict[str, Any] = {}
         sheet_multiparent: dict[str, Any] = {}
+        sheet_file_reports: list[dict[str, Any]] = []
 
         if include_db_source:
             db_result = collect_db_edges(conn, table_name=table_name)
@@ -1103,17 +1371,41 @@ def sync_derivadas(
             db_stats = db_result["stats"]
             db_multiparent = db_result["multiparent_detail"]
 
-        if sheet_file:
-            sheet_result = collect_sheet_edges(
-                sheet_file=sheet_file,
-                parent_col=sheet_parent_col,
-                child_col=sheet_child_col,
-                label_col=sheet_label_col,
-                sheet_name=sheet_name,
-            )
-            source_edges.extend(sheet_result["edges"])
-            sheet_stats = sheet_result["stats"]
-            sheet_multiparent = sheet_result["multiparent_detail"]
+        if normalized_sheet_files:
+            merged_sheet_stats: dict[str, Any] = {}
+            merged_sheet_multiparent: dict[str, set[str]] = defaultdict(set)
+            for current_sheet_file in normalized_sheet_files:
+                sheet_result = collect_sheet_edges(
+                    sheet_file=current_sheet_file,
+                    parent_col=sheet_parent_col,
+                    child_col=sheet_child_col,
+                    label_col=sheet_label_col,
+                    sheet_name=sheet_name,
+                )
+                source_edges.extend(sheet_result["edges"])
+                current_stats = dict(sheet_result.get("stats") or {})
+                for key, value in current_stats.items():
+                    if isinstance(value, int):
+                        merged_sheet_stats[key] = int(merged_sheet_stats.get(key, 0)) + value
+                    else:
+                        merged_sheet_stats[key] = value
+                sheet_file_reports.append(
+                    {
+                        "sheet_file": current_sheet_file,
+                        "stats": current_stats,
+                        "has_parse_evidence": _sheet_stats_has_parse_evidence(current_stats),
+                    }
+                )
+                current_multiparent = sheet_result.get("multiparent_detail") or {}
+                for child_ssa, parents in current_multiparent.items():
+                    if isinstance(parents, list):
+                        merged_sheet_multiparent[str(child_ssa)].update(str(parent) for parent in parents)
+            sheet_stats = merged_sheet_stats if merged_sheet_stats else {"accepted_edges": 0}
+            sheet_stats["files_count"] = len(normalized_sheet_files)
+            sheet_multiparent = {
+                child_ssa: sorted(parents)
+                for child_ssa, parents in merged_sheet_multiparent.items()
+            }
 
         merged_edges = _merge_edges(source_edges)
 
@@ -1131,6 +1423,9 @@ def sync_derivadas(
             "managed_sources": managed_sources,
             "db_stats": db_stats,
             "sheet_stats": sheet_stats,
+            "sheet_files": list(normalized_sheet_files),
+            "sheet_file_reports": sheet_file_reports,
+            "sheet_evidence": _build_sheet_evidence_summary(sheet_file_reports),
             "merge_stats": {
                 "source_edges": len(source_edges),
                 "merged_edges": len(merged_edges),
@@ -1203,6 +1498,11 @@ def sync_derivadas(
                 timestamp=timestamp,
             )
             _replace_summary(conn, summary_rows=summary_rows)
+            integrity_scan = _scan_materialization_integrity(conn)
+            if not bool(integrity_scan.get("is_consistent")):
+                issue_counts = integrity_scan.get("issue_counts", {})
+                logger.error("Derivadas sync integrity check failed: %s", issue_counts)
+                raise RuntimeError("Derivadas sync integrity check failed")
 
             reconciliation_post = _analyze_reconciliation(
                 all_ssa=all_ssa,
@@ -1232,6 +1532,7 @@ def sync_derivadas(
                     "reconciliation": reconciliation_post,
                     "graph_fingerprint": edge_fingerprint,
                     "finished_at": finished_at,
+                    "integrity_check": integrity_scan,
                 }
             )
             return report
@@ -1408,6 +1709,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             }
 
 
+        integrity_scan = _scan_materialization_integrity(conn)
         matrix_rows = conn.execute(
             """
             SELECT parent_ssa, child_ssa, source_flags
@@ -1415,58 +1717,7 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             WHERE active = 1
             """
         ).fetchall()
-        source_rows = conn.execute(
-            """
-            SELECT parent_ssa, child_ssa, source_flag
-            FROM ssa_derivada_source
-            WHERE is_active = 1
-            """
-        ).fetchall()
-
-        matrix_pairs: dict[tuple[str, str], int] = {
-            (row[0], row[1]): int(row[2]) for row in matrix_rows
-        }
-        source_flags_by_pair: dict[tuple[str, str], int] = defaultdict(int)
-        for parent, child, source_flag in source_rows:
-            source_flags_by_pair[(parent, child)] |= int(source_flag or 0)
-
-        missing_source_pairs = sorted(
-            [pair for pair in matrix_pairs if pair not in source_flags_by_pair]
-        )
-        source_without_matrix_pairs = sorted(
-            [pair for pair in source_flags_by_pair if pair not in matrix_pairs]
-        )
-        flag_mismatch_pairs = sorted(
-            [
-                pair
-                for pair in matrix_pairs
-                if pair in source_flags_by_pair and matrix_pairs[pair] != source_flags_by_pair[pair]
-            ]
-        )
-        invalid_matrix_pairs = sorted(
-            [
-                pair
-                for pair in matrix_pairs
-                if pair[0] == pair[1] or not _normalize_ssa(pair[0]) or not _normalize_ssa(pair[1])
-            ]
-        )
-
-        closure_self = int(
-            conn.execute(
-                "SELECT COUNT(*) FROM ssa_derivada_closure WHERE ancestor_ssa = descendant_ssa"
-            ).fetchone()[0]
-        )
-
-        nodes_in_matrix: set[str] = set()
-        for parent, child, _flags in matrix_rows:
-            nodes_in_matrix.add(parent)
-            nodes_in_matrix.add(child)
-        summary_nodes = {
-            row[0]
-            for row in conn.execute("SELECT ssa FROM ssa_derivada_summary").fetchall()
-        }
-        summary_missing_nodes = sorted(nodes_in_matrix - summary_nodes)
-        summary_extra_nodes = sorted(summary_nodes - nodes_in_matrix)
+        issue_counts = dict(integrity_scan["issue_counts"])
 
         latest = conn.execute(
             """
@@ -1495,25 +1746,16 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
             else 0
         )
 
-        issue_counts = {
-            "missing_source_pairs": len(missing_source_pairs),
-            "source_without_matrix_pairs": len(source_without_matrix_pairs),
-            "flag_mismatch_pairs": len(flag_mismatch_pairs),
-            "invalid_matrix_pairs": len(invalid_matrix_pairs),
-            "closure_self_rows": closure_self,
-            "summary_missing_nodes": len(summary_missing_nodes),
-            "summary_extra_nodes": len(summary_extra_nodes),
-            "fingerprint_mismatch": fingerprint_mismatch,
-        }
+        issue_counts["fingerprint_mismatch"] = fingerprint_mismatch
         is_consistent = all(count == 0 for count in issue_counts.values())
 
         return {
             "schema_ready": True,
             "is_consistent": is_consistent,
             "issue_counts": issue_counts,
-            "matrix_active_edges": len(matrix_rows),
-            "source_active_edges": len(source_rows),
-            "summary_nodes": len(summary_nodes),
+            "matrix_active_edges": int(integrity_scan["matrix_active_edges"]),
+            "source_active_edges": int(integrity_scan["source_active_edges"]),
+            "summary_nodes": int(integrity_scan["summary_nodes"]),
             "graph_fingerprint": edge_fingerprint,
             "latest_sync": (
                 {
@@ -1526,20 +1768,13 @@ def scan_derivadas_consistency(db_path: str) -> dict[str, Any]:
                 if latest
                 else None
             ),
-            "samples": {
-                "missing_source_pairs": [f"{parent}->{child}" for parent, child in missing_source_pairs[:20]],
-                "source_without_matrix_pairs": [
-                    f"{parent}->{child}" for parent, child in source_without_matrix_pairs[:20]
-                ],
-                "flag_mismatch_pairs": [f"{parent}->{child}" for parent, child in flag_mismatch_pairs[:20]],
-                "invalid_matrix_pairs": [f"{parent}->{child}" for parent, child in invalid_matrix_pairs[:20]],
-                "summary_missing_nodes": summary_missing_nodes[:20],
-                "summary_extra_nodes": summary_extra_nodes[:20],
-                "fingerprint": {
+            "samples": dict(
+                integrity_scan["samples"],
+                fingerprint={
                     "current": edge_fingerprint,
                     "latest_sync": latest_fingerprint,
                 },
-            },
+            ),
         }
 
 
