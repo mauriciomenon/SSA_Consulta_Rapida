@@ -1218,6 +1218,7 @@ def _on_adv_sector_selection_changed(self, *_):
         return
     self._adv_sector_handler_running = True
     try:
+        self._apply_divisao_to_setor_checks()
         try:
             self._update_multiselect_button(
                 self.adv_executor_button,
