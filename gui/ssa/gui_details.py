@@ -151,12 +151,15 @@ def _format_details_html(
     font_size_pt=None,
     linkify=False,
     label_font_size_pt=None,
+    font_family=None,
 ):
     """Formata dados da SSA como HTML com highlight opcional."""
     if font_size_pt is None:
         font_size_pt = DETAILS_DIALOG_FONT_SIZE
     if label_font_size_pt is None:
         label_font_size_pt = font_size_pt
+    if not font_family:
+        font_family = MONO_FONT_FAMILY
 
     search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
 
@@ -171,7 +174,7 @@ def _format_details_html(
 
     html_lines = [
         (
-            f'<html><body style="font-family: {MONO_FONT_FAMILY}; '
+            f'<html><body style="font-family: {font_family}; '
             f'font-size: {font_size_pt}pt; color: {text_color};">'
         )
     ]
@@ -705,7 +708,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
     }
 
 
-def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
+def _build_derivadas_tree_html(
+    window,
+    numero_ssa,
+    link_color="#2d5af0",
+    tree_font_pt=None,
+    font_family=None,
+):
     data = _collect_derivadas_tree_data(window, numero_ssa)
     target = data.get("target", "")
     if not target:
@@ -722,9 +731,12 @@ def _build_derivadas_tree_html(window, numero_ssa, link_color="#2d5af0"):
         )
 
     lines = []
-    tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
+    if tree_font_pt is None:
+        tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
+    if not font_family:
+        font_family = MONO_FONT_FAMILY
     lines.append(
-        f'<div style="font-family:{MONO_FONT_FAMILY}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
+        f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
     lines.append("<b>Arvore de derivadas:</b><br/><br/>")
     lines.append(f"<b>SSA {_ssa_link(target)}</b><br/><br/>")
@@ -819,6 +831,24 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         link_color = "#2d5af0"
 
     current_target = {"ssa": target}
+    dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
+    dialog_label_font_pt = DERIVADAS_DIALOG_LABEL_FONT_PT
+    dialog_tree_font_pt = DERIVADAS_DIALOG_TREE_FONT_PT
+    dialog_font_family = MONO_FONT_FAMILY
+    try:
+        base_font = window.font()
+        size = base_font.pointSizeF()
+        if size <= 0:
+            size = float(base_font.pointSize())
+        if size > 0:
+            dialog_font_pt = size
+            dialog_label_font_pt = size
+            dialog_tree_font_pt = size
+        family = str(base_font.family() or "").strip()
+        if family:
+            dialog_font_family = family
+    except Exception as exc:
+        logger.debug("Falha ao obter fonte base da UI para dialogo de detalhes: %s", exc)
 
     def _render_target(ssa_target):
         normalized = _normalize_ssa_value(window, ssa_target)
@@ -828,17 +858,23 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         if series_target is None:
             return False
         current_target["ssa"] = normalized
-        dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT
         html_details = _format_details_html(
             window,
             series_target,
             highlight_search_terms=True,
             font_size_pt=dialog_font_pt,
             linkify=True,
-            label_font_size_pt=DERIVADAS_DIALOG_LABEL_FONT_PT,
+            label_font_size_pt=dialog_label_font_pt,
+            font_family=dialog_font_family,
         )
         details_browser.setHtml(html_details)
-        tree_html = _build_derivadas_tree_html(window, normalized, link_color=link_color)
+        tree_html = _build_derivadas_tree_html(
+            window,
+            normalized,
+            link_color=link_color,
+            tree_font_pt=dialog_tree_font_pt,
+            font_family=dialog_font_family,
+        )
         if tree_html:
             tree_browser.setHtml(tree_html)
         else:
