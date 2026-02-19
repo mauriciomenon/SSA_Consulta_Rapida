@@ -280,6 +280,20 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == ''
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_filter_resets_advanced_filters_and_schedules_refresh(self):
+        self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
+        self.window._advanced_filters_active = True
+        self.window._adv_options_dirty = False
+
+        with patch.object(self.window, "_schedule_adv_options_refresh") as refresh_mock:
+            self.window.clear_filter()
+            QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert self.window._adv_options_dirty is True
+        refresh_mock.assert_called_once()
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
