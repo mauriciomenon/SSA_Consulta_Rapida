@@ -471,3 +471,19 @@ Regra de lint para este ciclo:
 4. [pending-blocked] checks externos sem acao local:
    - `code/snyk` limite de plano.
    - `security/snyk` limite de plano.
+
+## Update 2026-02-19 (codex/import-review - risk patch runtime)
+
+1. [resolved] Correcao de risco em validacao de caminho:
+   - `utils/path_safety.py`: `ensure_path_is_allowed('')` agora falha com `PathSafetyError`.
+   - repro anterior retornava cwd; comportamento inseguro removido.
+2. [resolved] Correcao de mascaramento de erro real no backfill:
+   - `main.py`: retry de import para backfill agora so ocorre quando `ModuleNotFoundError` e do proprio modulo alvo.
+   - erro interno de dependencia volta a propagar corretamente.
+3. [resolved] Diagnostico operacional melhor no bootstrap CLI:
+   - `launchers/cli_entry.py`: adicionada saida explicita para excecao inesperada no startup.
+4. [resolved] Regressao coberta:
+   - novo teste `tests/test_path_safety.py` validando rejeicao de string vazia e espacos.
+5. [pending-blocked] checks externos sem acao local:
+   - `code/snyk` limite de plano.
+   - `security/snyk` limite de plano.
