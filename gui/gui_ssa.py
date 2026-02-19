@@ -2063,13 +2063,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
             def _apply():
                 term = None
-                try:
-                    from PyQt6.QtWidgets import QInputDialog
-                except Exception:
-                    QInputDialog = None
-                if QInputDialog:
+                input_dialog_cls = cast(Any, None)
+                if QT_AVAILABLE:
+                    try:
+                        from PyQt6.QtWidgets import QInputDialog
+
+                        input_dialog_cls = QInputDialog
+                    except Exception as exc:
+                        logger.debug("Falha ao importar QInputDialog no filtro por coluna: %s", exc)
+                if input_dialog_cls is not None:
                     ok = False
-                    term, ok = QInputDialog.getText(self, "Filtro por coluna", f"Termo para '{full_name}':")
+                    term, ok = input_dialog_cls.getText(self, "Filtro por coluna", f"Termo para '{full_name}':")
                     if not ok:
                         term = None
                 else:
@@ -2343,7 +2347,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
         current_item = self.table_widget.currentItem()
         if current_item:
             clipboard = QApplication.clipboard()
-            clipboard.setText(current_item.text())
+            if clipboard is not None:
+                clipboard.setText(current_item.text())
 
     def copy_row_data(self, *_):  # aceita args opcionais de QAction
         """Copia todos os dados da linha selecionada."""
@@ -2355,7 +2360,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
                 row_data.append(item.text() if item else "")
 
             clipboard = QApplication.clipboard()
-            clipboard.setText("\t".join(row_data))
+            if clipboard is not None:
+                clipboard.setText("\t".join(row_data))
 
     def _export_current_list_txt(self):
         if self.df_exibido is None or self.df_exibido.empty:
