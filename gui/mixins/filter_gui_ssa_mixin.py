@@ -618,7 +618,7 @@ class FilterGUISSAMixin:
 
 
     def clear_filter(self):
-        """Limpa o filtro e mostra todos os dados."""
+        """Limpa apenas a busca geral e reaplica filtros ativos."""
         self._safe_store_last_filter_state("clear_filter")
         self._invalidate_active_filter_request("clear_filter")
         self._cancel_active_filter_worker("clear_filter", wait_ms=0)
@@ -641,34 +641,11 @@ class FilterGUISSAMixin:
                 except Exception as unblock_exc:
                     logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
-        # Limpa estado de filtros avancados para manter o botao Limpar consistente.
-        self._advanced_filters = {}
-        self._advanced_filters_active = False
-        try:
-            if hasattr(self, "_sync_advanced_filter_ui"):
-                self._sync_advanced_filter_ui()
-        except Exception as exc:
-            logger.warning("Falha ao sincronizar UI avancada em clear_filter: %s", exc)
-        try:
-            setattr(self, "_adv_options_dirty", True)
-            if hasattr(self, "_schedule_adv_options_refresh"):
-                self._schedule_adv_options_refresh()
-        except Exception as exc:
-            logger.debug("Falha ao agendar refresh de opcoes avancadas em clear_filter: %s", exc)
-        # self._active_column_filters.clear()  # Comentado para não limpar filtros por coluna
-        # Limpa o cache de filtros ao limpar filtros
-        self.clear_filter_cache()
-        self.df_exibido = self.df_completo.copy()
+        # Nao limpa filtros avancados nem filtros de coluna aqui.
+        # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
         self._df_last_search_filtered = self.df_completo.copy()
-        try:
-            if hasattr(self, "_bump_data_revision"):
-                self._bump_data_revision("clear_filter")
-        except Exception as exc:
-            logger.debug("Falha ao atualizar data revision em clear_filter: %s", exc)
-        self.paginator.set_dataframe(self.df_exibido)
-        (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
-        self.status_label.setText(f"Status: Filtro limpo. {len(self.df_exibido)} SSAs exibidas.")
-        self._build_column_filters_panel()
+        self._refresh_after_filter_change()
+        self.status_label.setText(f"Status: Busca geral limpa. {len(self.df_exibido)} SSAs exibidas.")
         try:
             if hasattr(self, 'clear_filter_button'):
                 self.clear_filter_button.setEnabled(self._has_any_active_filters())
