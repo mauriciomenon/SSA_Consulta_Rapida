@@ -1368,41 +1368,46 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin):
 
         # Table
         table_widget = QTableWidget()
-        table_widget.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        table_widget.verticalHeader().setVisible(False)
-        table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        table_widget.verticalHeader().setDefaultSectionSize(24)
+        table_widget.setEditTriggers(cast(Any, QTableWidget.EditTrigger.NoEditTriggers))
+        table_widget.setSelectionBehavior(cast(Any, QAbstractItemView.SelectionBehavior.SelectRows))
+        header = table_widget.horizontalHeader()
+        vertical_header = table_widget.verticalHeader()
+        if header is not None and vertical_header is not None:
+            header.setSectionResizeMode(cast(Any, QHeaderView.ResizeMode.Interactive))
+            vertical_header.setVisible(False)
+            vertical_header.setSectionResizeMode(cast(Any, QHeaderView.ResizeMode.Fixed))
+            vertical_header.setDefaultSectionSize(24)
+            header.sectionResized.connect(self._on_header_section_resized)
+        else:
+            logger.warning("Header da tabela indisponivel; configuracao avancada de colunas ignorada.")
 
         table_widget.doubleClicked.connect(self.on_table_double_click)
         table_widget.itemSelectionChanged.connect(self.update_details_from_selection)
-        table_widget.horizontalHeader().sectionResized.connect(self._on_header_section_resized)
 
         try:
-            header = table_widget.horizontalHeader()
-            header.setSectionsClickable(True)
-            header.setSortIndicatorShown(True)
-            try:
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
-            except Exception as exc:
-                logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
-            try:
-                f = header.font()
-                f.setBold(False)
-                header.setFont(f)
-                header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
-            except Exception as exc:
-                logger.debug("Falha ao aplicar estilo/fonte no header da tabela: %s", exc)
-            header.sectionClicked.connect(self.on_header_clicked)
-            header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            header.customContextMenuRequested.connect(self.show_header_context_menu)
-            header.installEventFilter(self)
+            if header is not None:
+                header.setSectionsClickable(True)
+                header.setSortIndicatorShown(True)
+                try:
+                    header.setMinimumSectionSize(80)
+                    header.setDefaultSectionSize(100)
+                except Exception as exc:
+                    logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
+                try:
+                    f = header.font()
+                    f.setBold(False)
+                    header.setFont(f)
+                    header.setStyleSheet("QHeaderView::section{font-weight: normal;}")
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo/fonte no header da tabela: %s", exc)
+                header.sectionClicked.connect(self.on_header_clicked)
+                header.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
+                header.customContextMenuRequested.connect(self.show_header_context_menu)
+                header.installEventFilter(self)
         except Exception as exc:
             logger.warning("Falha ao configurar comportamento do header da tabela: %s", exc)
 
-        table_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table_widget.setContextMenuPolicy(cast(Any, Qt.ContextMenuPolicy.CustomContextMenu))
         table_widget.customContextMenuRequested.connect(self.show_context_menu)
 
         tab_layout.addWidget(table_widget)
