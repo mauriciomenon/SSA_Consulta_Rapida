@@ -23,6 +23,11 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 try:
+    from PyQt6.QtCore import Qt as _Qt
+    _FILTER_QT_QUEUED = _Qt.ConnectionType.QueuedConnection
+except Exception:
+    _FILTER_QT_QUEUED = None
+try:
     from PyQt6 import sip
 except Exception:
     sip = cast(Any, None)
@@ -70,6 +75,30 @@ def _is_search_widget_valid(widget: Any) -> bool:
     try:
         return not sip.isdeleted(widget)
     except Exception:
+        return False
+
+
+def _connect_filter_signal(signal, slot, *, label: str) -> bool:
+    if signal is None:
+        logger.debug("Signal ausente para %s; pulando conexao.", label)
+        return False
+    if not hasattr(signal, "connect"):
+        logger.debug("Signal invalido para %s; sem metodo connect.", label)
+        return False
+    try:
+        if _FILTER_QT_QUEUED is not None:
+            try:
+                signal.connect(slot, _FILTER_QT_QUEUED)
+            except TypeError:
+                try:
+                    signal.connect(slot, type=_FILTER_QT_QUEUED)
+                except TypeError:
+                    signal.connect(slot)
+        else:
+            signal.connect(slot)
+        return True
+    except Exception as exc:
+        logger.debug("Falha ao conectar signal de filtro %s: %s", label, exc)
         return False
 
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
@@ -339,12 +368,24 @@ class FilterGUISSAMixin:
             cache_context=filter_cache_context,
         )
         self.filter_thread = worker
-        worker.filter_finished.connect(lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid))
-        worker.error_occurred.connect(lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid))
-        worker.finished.connect(lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid))
+        _connect_filter_signal(
+            worker.filter_finished,
+            lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid),
+            label="filter_worker.filter_finished",
+        )
+        _connect_filter_signal(
+            worker.error_occurred,
+            lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid),
+            label="filter_worker.error_occurred",
+        )
+        _connect_filter_signal(
+            worker.finished,
+            lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid),
+            label="filter_worker.finished.cleanup",
+        )
         # Garante destruição segura do objeto thread após terminar
         try:
-            worker.finished.connect(worker.deleteLater)
+            _connect_filter_signal(worker.finished, worker.deleteLater, label="filter_worker.finished.deleteLater")
         except Exception as exc:
             logger.debug("Falha ao conectar deleteLater no worker de filtro atual: %s", exc)
         worker.start()
@@ -449,12 +490,12 @@ class FilterGUISSAMixin:
                 logger.debug("Falha ao podar lista de workers de filtro apos release: %s", exc)
 
         try:
-            worker.finished.connect(_release_worker_ref)
+            _connect_filter_signal(worker.finished, _release_worker_ref, label="filter_worker.finished.release")
         except Exception as exc:
             logger.debug("Falha ao conectar release de worker finalizado: %s", exc)
             _release_worker_ref()
         try:
-            worker.finished.connect(worker.deleteLater)
+            _connect_filter_signal(worker.finished, worker.deleteLater, label="filter_worker.finished.deleteLater")
         except Exception as exc:
             logger.debug("Falha ao conectar deleteLater do worker de filtro: %s", exc)
 
