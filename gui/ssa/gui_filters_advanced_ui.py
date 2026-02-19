@@ -758,11 +758,19 @@ def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None
 
 def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
+    try:
+        group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    except Exception as exc:
+        logger.debug("Falha ao definir size policy do grupo de filtros avancados: %s", exc)
     outer = QVBoxLayout(group)
     outer.setContentsMargins(2, 2, 2, 2)
     outer.setSpacing(2)
 
     grid_container = QWidget()
+    try:
+        grid_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+    except Exception as exc:
+        logger.debug("Falha ao definir size policy do container do grid de filtros avancados: %s", exc)
     grid_container_layout = QVBoxLayout(grid_container)
     grid_container_layout.setContentsMargins(0, 0, 0, 0)
     grid_container_layout.setSpacing(0)
@@ -925,7 +933,7 @@ def _build_advanced_filters_panel(self):
         main_grid.setColumnStretch(col, 1)
 
     grid_container_layout.addLayout(main_grid)
-    outer.addWidget(grid_container, 1)
+    outer.addWidget(grid_container)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -947,7 +955,7 @@ def _build_advanced_filters_panel(self):
     }
 
     buttons_row = QHBoxLayout()
-    buttons_row.setContentsMargins(0, 2, 0, 0)
+    buttons_row.setContentsMargins(0, 0, 0, 0)
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
