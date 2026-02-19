@@ -133,6 +133,18 @@ class TestDataValidation:
         assert "inválidos" in str(report['warnings'])
         assert len(report['invalid_rows']) > 0
 
+    def test_validate_invalid_rows_has_no_duplicate_indexes(self):
+        """Garante que invalid_rows nao repete indice para numero_ssa ausente."""
+        df = pd.DataFrame({
+            'numero_ssa': [None, 202312345],
+            'situacao': ['Pendente', 'Executada'],
+            'data_cadastro': ['2023-12-01 10:00:00', '2023-12-02 15:30:00'],
+        })
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report['invalid_rows'] == [0]
+
     def test_validate_invalid_dates(self):
         """Testa validação com datas inválidas."""
         df = pd.DataFrame({
