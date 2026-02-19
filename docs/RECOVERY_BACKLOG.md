@@ -425,3 +425,18 @@ Regra de lint para este ciclo:
 4. [pending-blocked] checks externos sem acao local:
    - `code/snyk` fail por limite de plano.
    - `security/snyk` fail por limite de plano.
+
+## Update 2026-02-19 (codex/import-review - gui typing hardening)
+
+1. [resolved] Ty baseline reduziu novamente com slices em launcher/main/gui:
+   - `155 -> 113 diagnostics` no gate global `uv run ty check .`.
+   - commits: `5e66e2fb`, `2f49ec5f`, `46c1f2a6`, `8948c85d`, `b23d97ec`, `8fe3ed2c`.
+2. [resolved] Correcoes de risco real e estabilidade:
+   - guarda de `clipboard` e `QInputDialog` em `gui/gui_ssa.py`.
+   - stubs headless Qt mais consistentes para execucao sem PyQt6.
+   - import patch de PyOxidizer limitado a `pandas`.
+3. [pending] Bloco restante de tipagem ainda concentrado:
+   - `gui/gui_ssa.py` (`86 diagnostics` no arquivo).
+   - alvo futuro: reduzir sem refactor amplo de layout/arquitetura.
+4. [pending-blocked] checks externos:
+   - `code/snyk` e `security/snyk` continuam bloqueados por limite de plano.
