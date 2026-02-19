@@ -636,6 +636,8 @@ class TestGUIFilterLogic:
 
         # O dataset nao pode ser resetado por disparo tardio no contexto da aba errada.
         assert Counter(self._extract_visible_ssa()) == Counter([1])
+        for ctx in self.window._tab_contexts:
+            assert ctx["search_input"].text().strip() == "Teste A, Teste D"
 
     def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
         self.window.search_input.setText("Teste A")
@@ -661,6 +663,18 @@ class TestGUIFilterLogic:
         for ctx in self.window._tab_contexts:
             assert ctx["search_input"].text().strip() == ""
         assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_on_filter_finished_uses_pending_search_display_for_status(self):
+        self.window._active_filter_request_id = 31
+        self.window._active_filter_search_request_id = 31
+        self.window._active_filter_search_display = "Teste A"
+        self.window.search_input.setText("")
+        filtered = self.base_df.iloc[:1].copy()
+
+        self.window.on_filter_finished(filtered)
+        QApplication.processEvents()
+
+        assert "para 'Teste A'" in self.window.status_label.text()
 
     def test_resize_event_reorganizes_advanced_grid_on_filters_tab(self):
         filter_tab_idx = next(
@@ -1109,6 +1123,16 @@ class TestGUIFilterLogic:
         self.window.on_filter_finished(stale_df, request_id=9)
 
         assert self.window._df_last_search_filtered.equals(original)
+
+    def test_on_filter_finished_uses_request_scoped_search_display(self):
+        self.window._active_filter_request_id = 22
+        self.window._active_filter_search_request_id = 22
+        self.window._active_filter_search_display = "Busca nova"
+        filtered = self.base_df.iloc[:1].copy()
+
+        self.window.on_filter_finished(filtered, request_id=22)
+
+        assert "para 'Busca nova'" in self.window.status_label.text()
 
     def test_clear_filter_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 20

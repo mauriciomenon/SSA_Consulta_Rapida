@@ -73,16 +73,8 @@ class TabContextGUISSAMixin:
                     pass
                 except Exception as exc:
                     logger.debug("Falha ao parar debounce no bind da aba de filtros: %s", exc)
-                self.search_input.blockSignals(True)
-                self.search_input.clear()
         except Exception as exc:
-            logger.debug("Falha ao limpar busca durante bind da aba de filtros: %s", exc)
-        finally:
-            try:
-                if ctx.get("tab_kind") == "filters":
-                    self.search_input.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais da busca no bind da aba de filtros: %s", exc)
+            logger.debug("Falha ao sincronizar busca durante bind da aba de filtros: %s", exc)
         try:
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
         except Exception as exc:

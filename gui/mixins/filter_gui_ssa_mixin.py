@@ -22,6 +22,10 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QSizePolicy,
     QWidget
 )
+try:
+    from PyQt6 import sip
+except Exception:
+    sip = cast(Any, None)
 
 # Imports condicionais (podem nao estar disponiveis em modo headless)
 try:
@@ -56,6 +60,17 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 def _qt_parent(obj: Any) -> QWidget | None:
     return cast(QWidget | None, obj)
+
+
+def _is_search_widget_valid(widget: Any) -> bool:
+    if widget is None:
+        return False
+    if sip is None:
+        return True
+    try:
+        return not sip.isdeleted(widget)
+    except Exception:
+        return False
 
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
 GLOBAL_RETIRED_FILTER_WORKERS = []
@@ -112,18 +127,39 @@ class FilterGUISSAMixin:
             seen.add(widget_id)
             yield widget
 
+    def _get_live_search_inputs_snapshot(self) -> list[Any]:
+        widgets: list[Any] = []
+        for widget in self._iter_search_inputs():
+            if not _is_search_widget_valid(widget):
+                continue
+            try:
+                widget.objectName()
+            except RuntimeError:
+                continue
+            except Exception:
+                pass
+            widgets.append(widget)
+        return widgets
+
     def _set_search_text_across_tabs(self, text: str) -> None:
         """Aplica o mesmo texto em todos os campos de busca para evitar divergência entre abas."""
         normalized_text = str(text or "")
-        for widget in self._iter_search_inputs():
+        for widget in self._get_live_search_inputs_snapshot():
+            blocked = False
             try:
                 widget.blockSignals(True)
+                blocked = True
                 widget.setText(normalized_text)
+            except RuntimeError as exc:
+                logger.debug("Widget de busca invalido durante sync global entre abas: %s", exc)
             finally:
-                try:
-                    widget.blockSignals(False)
-                except Exception as exc:
-                    logger.debug("Falha ao reativar sinais do campo de busca sincronizado: %s", exc)
+                if blocked:
+                    try:
+                        widget.blockSignals(False)
+                    except RuntimeError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais do campo de busca sincronizado: %s", exc)
 
     def _has_any_active_filters(self) -> bool:
         has_search = False
@@ -219,6 +255,8 @@ class FilterGUISSAMixin:
         else:
             display_text = search_text if search_text else ''
         self._pending_search_display = display_text
+        self._active_filter_search_display = display_text
+        self._active_filter_search_request_id = request_id
 
         self.status_label.setText("Status: Filtrando dados...")
         self.progress_bar.setVisible(True)
@@ -301,9 +339,9 @@ class FilterGUISSAMixin:
             cache_context=filter_cache_context,
         )
         self.filter_thread = worker
-        worker.filter_finished.connect(lambda df, rid=request_id: self.on_filter_finished(df, request_id=rid))
-        worker.error_occurred.connect(lambda msg, rid=request_id: self.on_filter_error(msg, request_id=rid))
-        worker.finished.connect(lambda w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid))
+        worker.filter_finished.connect(lambda df, *_, rid=request_id: self.on_filter_finished(df, request_id=rid))
+        worker.error_occurred.connect(lambda msg, *_, rid=request_id: self.on_filter_error(msg, request_id=rid))
+        worker.finished.connect(lambda *_, w=worker, rid=request_id: self.on_filter_finished_cleanup(w, request_id=rid))
         # Garante destruição segura do objeto thread após terminar
         try:
             worker.finished.connect(worker.deleteLater)
@@ -314,6 +352,7 @@ class FilterGUISSAMixin:
 
     def on_filter_finished(self, df_filtrado: pd.DataFrame, request_id: int | None = None):
         active_id = getattr(self, "_active_filter_request_id", None)
+        effective_request_id = request_id if request_id is not None else active_id
         if request_id is not None and active_id is not None and request_id != active_id:
             logger.debug("Ignorando resultado de filtro obsoleto (request_id=%s, active=%s)", request_id, active_id)
             return
@@ -325,7 +364,12 @@ class FilterGUISSAMixin:
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
         total_original = len(self.df_completo) if hasattr(self, 'df_completo') and self.df_completo is not None else 0
         total_filtrado = len(self.df_exibido)
-        search_text = self.search_input.text().strip() if hasattr(self, 'search_input') else ''
+        search_text = ""
+        current_search_request_id = getattr(self, "_active_filter_search_request_id", None)
+        if effective_request_id is not None and effective_request_id == current_search_request_id:
+            search_text = str(getattr(self, "_active_filter_search_display", "") or "").strip()
+        if not search_text:
+            search_text = str(getattr(self, "_pending_search_display", "") or "").strip()
         if search_text:
             self.status_label.setText(f"Status: {total_filtrado} de {total_original} SSAs encontradas para '{search_text}'")
         else:
@@ -599,6 +643,29 @@ class FilterGUISSAMixin:
 
     def _on_search_text_changed(self, _text: str):
         """Reinicia o temporizador de debounce ao digitar na busca."""
+        try:
+            current_widget = getattr(self, "search_input", None)
+            normalized_text = str(_text or "")
+            for widget in self._get_live_search_inputs_snapshot():
+                if widget is current_widget:
+                    continue
+                blocked = False
+                try:
+                    widget.blockSignals(True)
+                    blocked = True
+                    widget.setText(normalized_text)
+                except RuntimeError as exc:
+                    logger.debug("Widget de busca invalido durante sincronizacao entre abas: %s", exc)
+                finally:
+                    if blocked:
+                        try:
+                            widget.blockSignals(False)
+                        except RuntimeError:
+                            pass
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais do campo de busca sincronizado: %s", exc)
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar texto de busca entre abas: %s", exc)
         # Chamar start() novamente reinicia o QTimer automaticamente
         try:
             self._debounce_timer.start()
@@ -812,20 +879,24 @@ class FilterGUISSAMixin:
                         logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
-            # Botão para remover a linha da exibição (não altera o valor do filtro)
-            clear_btn = QPushButton("Remover")  # Corrigido capitalização
+            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
+            clear_btn = QPushButton("Ocultar")
             try:
                 clear_btn.setMinimumHeight(26)
             except Exception as exc:
-                logger.debug("Falha ao aplicar altura minima no botao Remover da coluna %s: %s", col, exc)
+                logger.debug("Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s", col, exc)
             try:
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:
-                logger.debug("Falha ao aplicar size policy no botao Remover da coluna %s: %s", col, exc)
+                logger.debug("Falha ao aplicar size policy no botao Ocultar da coluna %s: %s", col, exc)
             try:
                 clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
             except Exception as exc:
-                logger.debug("Falha ao aplicar largura fixa no botao Remover da coluna %s: %s", col, exc)
+                logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
+            try:
+                clear_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
+            except Exception as exc:
+                logger.debug("Falha ao aplicar tooltip no botao Ocultar da coluna %s: %s", col, exc)
             
             def _mk_remove_line(c=col):
                 def _inner():
@@ -840,19 +911,19 @@ class FilterGUISSAMixin:
             try:
                 clear_btn.clicked.connect(_mk_remove_line())
             except Exception as exc:
-                logger.debug("Falha ao conectar botao remover para filtro de coluna %s: %s", col, exc)
+                logger.debug("Falha ao conectar botao ocultar para filtro de coluna %s: %s", col, exc)
             # Oculta o botão para colunas fixas que não devem ser removidas da exibição
             try:
                 fixed_cols = {"descricao_ssa", "setor_executor", "situacao", "localizacao_codigo", "descricao_localizacao"}
                 if col in fixed_cols:
                     clear_btn.setVisible(False)
             except Exception as exc:
-                logger.debug("Falha ao ajustar visibilidade do botao remover da coluna %s: %s", col, exc)
+                logger.debug("Falha ao ajustar visibilidade do botao ocultar da coluna %s: %s", col, exc)
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
             row.addWidget(clear_btn)
-            # Layout order: label, input, Aplicar, Remover (OU button removed - only commas needed)
+            # Layout order: label, input, Aplicar, Ocultar (OU button removed - only commas needed)
             row_w = QWidget()
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
@@ -1657,18 +1728,29 @@ class FilterGUISSAMixin:
         if display_text is None:
             return
 
-        # Don't modify text while user is typing
-        if self.search_input.hasFocus():
-            return
-
+        widgets = self._get_live_search_inputs_snapshot()
         try:
-            self.search_input.blockSignals(True)
-            if display_text:
-                self.search_input.setText(display_text)
-            else:
-                self.search_input.clear()
-        finally:
-            self.search_input.blockSignals(False)
+            for widget in widgets:
+                if widget.hasFocus():
+                    return
+        except Exception as exc:
+            logger.debug("Falha ao verificar foco durante sync de busca: %s", exc)
+        for widget in widgets:
+            blocked = False
+            try:
+                widget.blockSignals(True)
+                blocked = True
+                widget.setText(display_text)
+            except RuntimeError as exc:
+                logger.debug("Widget de busca invalido durante apply_search_display: %s", exc)
+            finally:
+                if blocked:
+                    try:
+                        widget.blockSignals(False)
+                    except RuntimeError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Falha ao reativar sinais do campo em apply_search_display: %s", exc)
         self._pending_search_display = None
 
 
