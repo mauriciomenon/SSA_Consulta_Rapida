@@ -67,7 +67,7 @@ def _load_priority_config() -> dict[str, Any]:
         try:
             with open(path, encoding='utf-8') as f:
                 return json.load(f)
-        except Exception as e:  # pragma: no cover
+        except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:  # pragma: no cover
             logger.warning("Falha ao ler config prioridade: %s", e)
     return {}
 
