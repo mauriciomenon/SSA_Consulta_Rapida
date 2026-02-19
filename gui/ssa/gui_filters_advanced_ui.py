@@ -2149,7 +2149,7 @@ def _refresh_advanced_filter_options(self):
         return
     start = perf_counter()
     df = self.df_completo
-    logger.debug(f"_refresh_advanced_filter_options: iniciando com {len(df)} registros")
+    logger.debug("_refresh_advanced_filter_options: iniciando com %s registros", len(df))
     filters = self._advanced_filters or {}
     def apply_cb():
         return self._apply_advanced_filters_from_ui()
