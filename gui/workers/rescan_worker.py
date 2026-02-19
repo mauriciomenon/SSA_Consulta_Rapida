@@ -82,7 +82,8 @@ class RescanWorker(QThread):
                     self.logger.setLevel(_LOGGER_PREV_LEVEL)
                 except Exception as exc:
                     logger.warning("Falha ao restaurar nivel de logger do reescaneamento: %s", exc)
-                _LOGGER_PREV_LEVEL = None
+                else:
+                    _LOGGER_PREV_LEVEL = None
             self._logger_attached = False
 
     def _progress_callback(self, event_type, data):
