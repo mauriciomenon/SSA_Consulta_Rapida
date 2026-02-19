@@ -131,6 +131,24 @@ uv run pytest -q tests/test_gui_filters_advanced_logic.py
 - Lint policy for this cycle:
   - ignore `E501` findings.
 
+## Latest update (2026-02-19, critical filters-tab overlap fix)
+
+- Head commit for this fix: `d3d9410f`.
+- Root cause:
+  - vertical area allocation between main table and bottom panel in `Filtros` tab was not hard constrained for low-row scenarios.
+- Minimal fix applied in `gui/gui_ssa.py`:
+  - table min height set to `220`;
+  - vertical stretch set to `6` (table) and `4` (bottom panel).
+- Regression lock:
+  - `tests/test_gui_filter_logic.py::test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows`.
+- Validation evidence:
+  - `py_compile`, `ruff`, `ty` green for touched scope;
+  - focused pytest gates green, including advanced-filters suites;
+  - runtime geometry matrix check reported no overlap in tested combinations.
+- Rule for next chat:
+  1. preserve `table min height + vertical stretch 6/4` unless user asks explicit layout change;
+  2. if changing this area, provide before/after geometry evidence with numeric values.
+
 ## Latest update (2026-02-18, behavior and dialog baseline)
 
 - Double-click details dialog (`gui/ssa/gui_details.py`) baseline is now:
