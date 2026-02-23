@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-02-23T19:30:26.056307",
+  "overall_success": false,
+  "success_rate": 0.5,
+  "total_suites": 2,
+  "successful_suites": 1,
+  "total_duration_seconds": 0.055036,
+  "test_results": [
+    {
+      "test_name": "smoke_tests",
+      "total_tests": 3,
+      "successful_tests": 3,
+      "success": true,
+      "test_details": [
+        {
+          "test": "cli_help",
+          "success": true,
+          "details": "CLI --help funciona"
+        },
+        {
+          "test": "essential_files",
+          "success": true,
+          "missing_files": [],
+          "total_checked": 6
+        },
+        {
+          "test": "database_check",
+          "success": true,
+          "record_count": 20356
+        }
+      ]
+    },
+    {
+      "test_name": "Testes Funcionais Automatizados",
+      "script": "tests/automated_system_tests.py",
+      "success": false,
+      "duration_seconds": 0.055036,
+      "return_code": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/app/tests/automated_system_tests.py\", line 14, in <module>\n    import pandas as pd\nModuleNotFoundError: No module named 'pandas'\n",
+      "start_time": "2026-02-23T19:30:26.000088",
+      "end_time": "2026-02-23T19:30:26.055124"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ssa-consulta-rapida
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
