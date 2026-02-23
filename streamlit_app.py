@@ -115,7 +115,8 @@ class StreamlitFilterCache:
         }
 
         params_str = str(sorted(params.items()))
-        return hashlib.md5(params_str.encode('utf-8')).hexdigest()
+                # MD5 usado apenas para chave de cache, nao para seguranca
+        return hashlib.md5(params_str.encode('utf-8'), usedforsecurity=False).hexdigest()
 
     def get(self, df_shape: Tuple[int, int], search_terms: str,
            situacoes: list, executores: list, emissores: list) -> Optional[pd.DataFrame]:
