@@ -37,6 +37,8 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
+LAYOUT_MIN_WIDTH_THRESHOLD = 100  # px - minimum width before skipping layout reorganization
+
 
 def _is_widget_valid(widget) -> bool:
     if widget is None:
@@ -1091,7 +1093,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         return
 
     # Guard clause para evitar layout colapsado durante inicializacao ou resize minimo (ex: hidden)
-    if width < 100:
+    if width < LAYOUT_MIN_WIDTH_THRESHOLD:
         return
 
     # Otimizacao de breakpoints para evitar layout vertical (narrow) em telas comuns
