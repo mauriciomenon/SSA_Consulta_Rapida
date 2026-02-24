@@ -445,3 +445,17 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (2 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (canonical write parity in non-optimized upsert)
+
+- `armazenamento/database_upsert_logic.py`:
+  - added canonical storage normalization helper for SSA ids;
+  - applied normalization to both `numero_ssa` and `derivada_de`;
+  - added fail-fast canonical validation for storage id columns.
+- tests:
+  - added `tests/test_database_upsert_canonical_write.py`.
+- gate local deste slice:
+  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
+  - `ruff check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
+  - `ty check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
+  - `uv run pytest -q tests/test_database_upsert_canonical_write.py tests/test_database_optimized_alias_views.py`: pass (3 tests).
