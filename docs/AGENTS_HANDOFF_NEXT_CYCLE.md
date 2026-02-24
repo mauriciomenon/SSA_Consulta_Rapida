@@ -633,3 +633,11 @@ Entregavel de cada slice:
 - `resolved` stability(streamlit): safe import fallback when streamlit is unavailable + stronger runtime detection.
 - `resolved` perf(cache): key token memoization + backend resolver reuse.
 - `resolved` tests: extended streamlit cache helper coverage.
+
+## Update 2026-02-24 (streamlit long cycle v2)
+
+- `resolved` UX/perf(streamlit): filters now use form submit/reset (on-demand apply).
+- `resolved` perf(streamlit): full multiselect selection collapses to no-op filter.
+- `resolved` layout(streamlit): table toolbar expanded with sorting + paged controls.
+- `resolved` stability(streamlit): rerun compatibility fallback for older streamlit APIs.
+- `resolved` tests: streamlit helper coverage expanded for mixed types and filter normalization.

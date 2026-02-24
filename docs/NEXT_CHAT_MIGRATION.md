@@ -577,3 +577,21 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (6 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit long cycle v2)
+
+- `dev_env/streamlit_app.py`:
+  - filters tab now uses form submit/reset workflow (state stored in `session_state`);
+  - introduced `_normalize_filter_selection(...)` to skip no-op full selections;
+  - mixed-type safe `_build_filter_options(...)` sorting;
+  - table tab now supports sorting before pagination;
+  - rerun fallback supports `rerun` and `experimental_rerun` APIs.
+- tests:
+  - expanded `tests/test_streamlit_filter_cache.py`.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (8 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
