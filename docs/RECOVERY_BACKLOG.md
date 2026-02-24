@@ -627,3 +627,43 @@ Regra de lint para este ciclo:
    - `PRAGMA table_info` check before date query.
 4. [resolved] regression lock expanded:
    - `tests/test_scripts_manutencao_schema_targets.py` validates duplicate-count correctness beyond top-10 sample.
+
+## Pendencias longas (triagem kluster consolidada 2026-02-24)
+
+1. [pending-long] `armazenamento/database_upsert_logic.py`:
+   - row-by-row upsert (`iterrows`) e merge por linha; custo alto em lotes grandes.
+2. [pending-long] `interface/cli.py`:
+   - estado de paginacao baseado em `id(df)`;
+   - risco de perda de estado em copias e crescimento do tracker.
+3. [pending-long] `interface/cli.py`:
+   - fluxo `-x` (remove termo) com comportamento inconsistente em ordem nao-recente.
+4. [pending-long] `interface/cli.py`:
+   - busca por SSA apos falha de carga pode cair em `KeyError` sem guarda dedicada.
+5. [pending-long] `core/app_logic.py` + filtros:
+   - semantica de delimitador por virgula diverge entre busca geral e filtros por coluna.
+6. [pending-long] regex/filtros:
+   - falta de salvaguarda para regex de usuario com custo alto (ReDoS/latencia).
+7. [pending-long] `interface/table_printer.py`:
+   - formatacao/sanitizacao eager no dataframe inteiro antes de paginacao.
+8. [pending-long] `utils/robust_importer.py`:
+   - funcao monolitica com IO + heuristica + relatorio acoplados.
+9. [pending-long] `main.py`:
+   - funcao `main` extensa com multiplas responsabilidades.
+10. [pending-long] `core/config_manager.py` / `gui/gui_config.py`:
+    - duplicacao de mapeamentos e possivel divergencia de path/config.
+
+## Pendencias para sprint exclusivo (fora de patch minimo)
+
+1. [next-sprint-exclusive] God Class GUI:
+   - `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`.
+   - objetivo: split por responsabilidades sem alterar layout.
+2. [next-sprint-exclusive] Circular deps em `armazenamento`:
+   - mapear grafo de imports e reduzir acoplamento sem quebrar startup.
+3. [next-sprint-exclusive] Arquitetura CLI:
+   - separar loop principal, parser, estado e dispatch (`start_cli_loop`).
+4. [next-sprint-exclusive] Threading/performance GUI filtros:
+   - geracao de opcoes e aplicacao de filtros com pontos sincronos na UI thread.
+5. [next-sprint-exclusive] Unificacao de config path/source:
+   - consolidar caminho canonico e remover duplicacao core/gui.
+6. [next-sprint-exclusive] Refactor de manutencao/migracao:
+   - parser de schema em scripts de migracao com estrategia robusta e testavel.

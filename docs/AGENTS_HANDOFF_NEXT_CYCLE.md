@@ -31,6 +31,9 @@ This handoff is ready to reuse in the next conversation.
     - `docs/RECOVERY_BACKLOG.md` atualizado com triagem kluster e itens deferidos.
     - `docs/NEXT_CHAT_MIGRATION.md` sincronizado com este branch/scope (override 2026-02-24).
     - controle de diario mantido em 3 arquivos: `AGENTS_HANDOFF_NEXT_CYCLE.md`, `RECOVERY_BACKLOG.md`, `NEXT_CHAT_MIGRATION.md`.
+  - Triagem pendencias:
+    - long-list consolidada em `RECOVERY_BACKLOG.md` (secao "Pendencias longas");
+    - itens que exigem sprint exclusivo em `RECOVERY_BACKLOG.md` (secao "Pendencias para sprint exclusivo").
 - Nota operacional:
   - Nao fechar branch antigo por automacao; encerramento de branch fica com o usuario.
 
