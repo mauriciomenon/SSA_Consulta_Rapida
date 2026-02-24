@@ -562,3 +562,13 @@ Regra de lint para este ciclo:
    - config path/source unification between `core/config_manager.py` and `gui/gui_config.py`.
 6. [pending-blocked] external check noise and plan limits:
    - keep Snyk plan-limit failures as external blocker with no local code fix.
+
+## Update 2026-02-24 (control docs sync)
+
+1. [resolved] diario de ciclo sincronizado para continuidade segura:
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` atualizado com status do override 2026-02-24.
+   - `docs/NEXT_CHAT_MIGRATION.md` atualizado com contexto ativo em `codex/dev-filtros-stability`.
+2. [resolved] risco de migracao com contexto antigo reduzido:
+   - contexto de `codex/import-review` e PR `#31` mantido apenas como historico.
+3. [pending-nonblocking] manter disciplina de update ao fechar cada slice:
+   - registrar sempre em `AGENTS_HANDOFF_NEXT_CYCLE.md`, `RECOVERY_BACKLOG.md` e `NEXT_CHAT_MIGRATION.md`.
