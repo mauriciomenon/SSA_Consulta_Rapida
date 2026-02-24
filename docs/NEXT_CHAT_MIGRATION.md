@@ -332,3 +332,13 @@ Relatorio final por slice:
 - checks PR
 - pendencias reais
 ```
+
+## Latest update 2026-02-24 (gui invalid regex fallback guard)
+
+- `gui/mixins/filter_gui_ssa_mixin.py`:
+  - fallback de regex invalido em `_build_column_mask` agora usa busca literal (`regex=False`);
+  - cobre ambos caminhos: token explicito `~...` e modo padrao `regex`.
+- focused regression:
+  - `tests/test_filter_regex_invalid_fallback.py` com 2 cenarios:
+    - regex explicita invalida (`~abc[`);
+    - regex invalida no modo default `regex` (`abc[`).

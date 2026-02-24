@@ -2062,7 +2062,7 @@ class FilterGUISSAMixin:
                     pat = re.compile(t[1:], re.IGNORECASE)
                     res = s.str.contains(pat, na=False)
                 except Exception:
-                    res = s.str.contains(t[1:], case=False, na=False)
+                    res = s.str.contains(t[1:], case=False, na=False, regex=False)
             elif t.startswith('='):
                 res = s.str.casefold().eq(t[1:].casefold())
             elif t.startswith('^'):
@@ -2082,7 +2082,7 @@ class FilterGUISSAMixin:
                         pat = re.compile(t, re.IGNORECASE)
                         res = s.str.contains(pat, na=False)
                     except Exception:
-                        res = s.str.contains(t, case=False, na=False)
+                        res = s.str.contains(t, case=False, na=False, regex=False)
                 else:  # contains
                     res = s.str.contains(t, case=False, na=False)
             return ~res if neg else res

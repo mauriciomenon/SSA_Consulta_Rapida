@@ -677,3 +677,13 @@ Regra de lint para este ciclo:
    - exact match is used when strict normalized SSA is available.
 3. [resolved] regression lock:
    - `tests/test_cli_loop_missing_numero_ssa_guard.py` validates no crash when dataframe lacks `numero_ssa`.
+
+## Update 2026-02-24 (invalid regex fallback hardening in GUI column filter)
+
+1. [resolved] fixed unsafe fallback for invalid regex token in GUI column filter:
+   - `gui/mixins/filter_gui_ssa_mixin.py` now uses literal fallback with `regex=False`
+     in both explicit `~regex` and default `regex` mode when pattern compilation fails.
+2. [resolved] avoided crash/unsafe path on malformed user regex:
+   - invalid patterns no longer re-enter regex evaluation in fallback path.
+3. [resolved] regression lock:
+   - `tests/test_filter_regex_invalid_fallback.py` validates fallback behavior in both modes.

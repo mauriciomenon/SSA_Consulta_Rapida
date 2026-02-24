@@ -461,3 +461,13 @@ Entregavel de cada slice:
   3. `80a73363` fix(gui-details,docs): set 20/80 split and prepare strict next-chat handoff
 - Bloqueio externo conhecido:
   - `code/snyk` e `security/snyk` por limite de plano.
+
+## Update 2026-02-24 (gui invalid regex fallback guard)
+
+- `resolved` fix(gui-filters): malformed regex fallback em `_build_column_mask` agora usa caminho literal com `regex=False`.
+- `resolved` test(gui-filters): add `tests/test_filter_regex_invalid_fallback.py` para lock de regressao nos dois caminhos (`~token` e modo default `regex`).
+- gate local deste slice:
+  - `python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_regex_invalid_fallback.py`: pass.
+  - `ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_regex_invalid_fallback.py`: pass.
+  - `ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_regex_invalid_fallback.py`: pass.
+  - `uv run pytest -q tests/test_filter_regex_invalid_fallback.py`: pass.
