@@ -13,6 +13,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   - `resolved` test(db): add schema_manager identifier guard regression lock.
   - `resolved` fix(maintenance): harden analyze_db_integrity for empty-table and report consistency.
   - `resolved` perf(maintenance): refactor verify_database_integrity query flow.
+  - `resolved` fix(cli): guard direct SSA search when `numero_ssa` is absent.
 - Scope ativo:
   - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
   - hardening pontual de CLI/schema/scripts de manutencao;
@@ -65,6 +66,14 @@ Use this file to migrate context to a new chat without losing execution quality.
 - duplicate total now computed across full grouped set while keeping top-10 display;
 - added guard before import-date query when `data_importacao` is not present;
 - regression test expanded for duplicate-count correctness beyond top-10.
+
+## Latest update 2026-02-24 (cli direct search guard)
+
+- `interface/cli.py`:
+  - avoids `KeyError` when `numero_ssa` column is absent in current dataframe;
+  - uses exact match on normalized SSA and literal contains fallback with `regex=False`.
+- focused regression:
+  - `tests/test_cli_loop_missing_numero_ssa_guard.py`.
 
 ## Scope
 
