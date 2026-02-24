@@ -352,3 +352,11 @@ Relatorio final por slice:
   - `tests/test_cli_remove_filter_non_lifo.py`:
     - remove termo do meio e garante base state;
     - remove ultimo termo e garante previous state.
+
+## Nova regra 2026-02-24 (error-handling e performance)
+
+- Manter tratamento de erro sempre presente, mas cobrindo porcoes relevantes de fluxo.
+- Evitar `if/try` em excesso a cada poucas linhas, pois isso degrada legibilidade e pode introduzir custo.
+- Nao usar `try/except` vazio nem suppress que esconda erro real.
+- Para cada captura de erro, exigir saida objetiva (log curto) e tratamento coerente (retorno/raise/rollback).
+- Em cada patch, revisar custo computacional para evitar solucoes caras por seguranca excessiva.
