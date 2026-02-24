@@ -37,11 +37,6 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
-LAYOUT_MIN_WIDTH_THRESHOLD = 100  # px - minimum width before skipping layout reorganization
-# Layout breakpoint constants for advanced filters responsive grid
-LAYOUT_WIDE_MIN_WIDTH = 1050  # px
-LAYOUT_MID_MIN_WIDTH = 650  # px
-
 
 def _is_widget_valid(widget) -> bool:
     if widget is None:
@@ -1096,14 +1091,14 @@ def _reorganize_advanced_filters_grid(self, width: int):
         return
 
     # Guard clause para evitar layout colapsado durante inicializacao ou resize minimo (ex: hidden)
-    if width < LAYOUT_MIN_WIDTH_THRESHOLD:
+    if width < 100:
         return
 
     # Otimizacao de breakpoints para evitar layout vertical (narrow) em telas comuns
     # Wide (>1050): 5 colunas
     # Mid (>650): 3 colunas
     # Narrow (<=650): 2 colunas
-    mode = "wide" if width > LAYOUT_WIDE_MIN_WIDTH else "mid" if width > LAYOUT_MID_MIN_WIDTH else "narrow"
+    mode = "wide" if width > 1050 else "mid" if width > 650 else "narrow"
 
     if getattr(self, "_adv_filters_layout_mode", None) == mode:
         return
@@ -1121,8 +1116,8 @@ def _reorganize_advanced_filters_grid(self, width: int):
             widget.hide()
         del item
 
-    # Largura > LAYOUT_WIDE_MIN_WIDTH px (Wide: 5 colunas)
-    if width > LAYOUT_WIDE_MIN_WIDTH:
+    # Largura > 1050px (Wide: 5 colunas)
+    if width > 1050:
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1156,8 +1151,8 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(5):
             grid.setColumnStretch(col, 1)
 
-    # Largura LAYOUT_MID_MIN_WIDTH-LAYOUT_WIDE_MIN_WIDTH px (Mid: 3 colunas)
-    elif width > LAYOUT_MID_MIN_WIDTH:
+    # Largura 650-1050px (Mid: 3 colunas)
+    elif width > 650:
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1191,7 +1186,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(3):
             grid.setColumnStretch(col, 1)
 
-    # Largura <= LAYOUT_MID_MIN_WIDTH px (Narrow: 2 colunas)
+    # Largura <= 650px (Narrow: 2 colunas)
     else:
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
