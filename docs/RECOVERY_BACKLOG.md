@@ -572,3 +572,13 @@ Regra de lint para este ciclo:
    - contexto de `codex/import-review` e PR `#31` mantido apenas como historico.
 3. [pending-nonblocking] manter disciplina de update ao fechar cada slice:
    - registrar sempre em `AGENTS_HANDOFF_NEXT_CYCLE.md`, `RECOVERY_BACKLOG.md` e `NEXT_CHAT_MIGRATION.md`.
+
+## Update 2026-02-24 (tempo_excedido parser ambiguity fix)
+
+1. [resolved] semantic fix with minimal risk in parser:
+   - `extracao/extractor.py`: `_normalize_tempo_excedido_value` now maps `m` to minutes and keeps months as explicit `mo`.
+   - reason: avoids contradictory interpretation in common duration inputs (example `1h 30m`).
+2. [resolved] regression coverage added:
+   - `tests/test_extracao.py`: added focused checks for `1h 30m`, `15mi`, and `2mo 5d`.
+3. [scope-note] no broad refactor applied:
+   - only parser token mapping and targeted tests changed.

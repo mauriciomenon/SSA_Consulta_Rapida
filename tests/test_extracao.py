@@ -9,7 +9,7 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from extracao.extractor import read_report
+from extracao.extractor import _normalize_tempo_excedido_value, read_report
 
 # --- Fixtures: Preparando o Ambiente de Teste ---
 
@@ -90,3 +90,16 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert df['numero_ssa'].iloc[0] == 101
     assert df['localizacao'].iloc[1] == 'Sala B'
 
+
+def test_normalize_tempo_excedido_minutes_with_m_suffix():
+    assert _normalize_tempo_excedido_value("1h 30m") == "PT1H30M"
+    assert _normalize_tempo_excedido_value("15mi") == "PT15M"
+
+
+def test_normalize_tempo_excedido_months_with_mo_suffix():
+    assert _normalize_tempo_excedido_value("2mo 5d") == "P2M5D"
+
+
+def test_normalize_tempo_excedido_does_not_match_partial_words():
+    assert _normalize_tempo_excedido_value("15minutes") == "15minutes"
+    assert _normalize_tempo_excedido_value("1h30m") == "PT1H30M"
