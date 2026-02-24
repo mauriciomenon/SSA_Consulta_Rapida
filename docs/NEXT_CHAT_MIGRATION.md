@@ -342,3 +342,13 @@ Relatorio final por slice:
   - `tests/test_filter_regex_invalid_fallback.py` com 2 cenarios:
     - regex explicita invalida (`~abc[`);
     - regex invalida no modo default `regex` (`abc[`).
+
+## Latest update 2026-02-24 (cli remove-filter non-lifo guard)
+
+- `interface/cli.py`:
+  - `_handle_remove_filter` reaplica da base apenas quando a remocao e fora de ordem;
+  - mantem reaplicacao do estado anterior para remocao LIFO (otimizacao).
+- focused regression:
+  - `tests/test_cli_remove_filter_non_lifo.py`:
+    - remove termo do meio e garante base state;
+    - remove ultimo termo e garante previous state.

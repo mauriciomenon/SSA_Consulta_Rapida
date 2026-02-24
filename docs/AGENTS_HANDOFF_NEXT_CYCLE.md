@@ -471,3 +471,14 @@ Entregavel de cada slice:
   - `ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_regex_invalid_fallback.py`: pass.
   - `ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_filter_regex_invalid_fallback.py`: pass.
   - `uv run pytest -q tests/test_filter_regex_invalid_fallback.py`: pass.
+
+## Update 2026-02-24 (cli remove-filter non-lifo guard)
+
+- `resolved` fix(cli): `_handle_remove_filter` corrige remocao fora de ordem reaplicando do estado base.
+- `resolved` perf(cli): remocao LIFO continua usando estado anterior para evitar custo desnecessario.
+- `resolved` test(cli): add `tests/test_cli_remove_filter_non_lifo.py` cobrindo ambos os caminhos.
+- gate local deste slice:
+  - `python -m py_compile interface/cli.py tests/test_cli_remove_filter_non_lifo.py`: pass.
+  - `ruff check interface/cli.py tests/test_cli_remove_filter_non_lifo.py`: pass.
+  - `ty check interface/cli.py tests/test_cli_remove_filter_non_lifo.py`: pass.
+  - `uv run pytest -q tests/test_cli_remove_filter_non_lifo.py`: pass.

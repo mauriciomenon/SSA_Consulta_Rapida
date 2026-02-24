@@ -687,3 +687,12 @@ Regra de lint para este ciclo:
    - invalid patterns no longer re-enter regex evaluation in fallback path.
 3. [resolved] regression lock:
    - `tests/test_filter_regex_invalid_fallback.py` validates fallback behavior in both modes.
+
+## Update 2026-02-24 (cli remove-filter non-lifo consistency)
+
+1. [resolved] fixed semantic inconsistency in `-x <termo>`:
+   - `interface/cli.py` now reapplies from base state when removing non-last term.
+2. [resolved] preserved performance for common LIFO removal:
+   - when removed term is only the trailing term, reapply uses previous stack state.
+3. [resolved] regression lock:
+   - `tests/test_cli_remove_filter_non_lifo.py` covers non-lifo and lifo branches.
