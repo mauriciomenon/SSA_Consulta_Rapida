@@ -65,3 +65,39 @@ def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> No
         assert str(row[1]) == "202500123"
     finally:
         disable_optimized_import()
+
+
+def test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "test_decimal_lookup.db")
+    database.initialize_database(db_path, "config/schema.sql")
+
+    with database.get_db_connection(db_path) as conn:
+        conn.execute(
+            "INSERT INTO ssa_table (numero_ssa, data_cadastro, situacao, descricao_ssa) VALUES (?, ?, ?, ?)",
+            ("202500777.0", "2024-01-01", "LEGACY", "legacy-row"),
+        )
+        conn.commit()
+
+    enable_optimized_import()
+    try:
+        df = pd.DataFrame(
+            {
+                "numero_ssa": ["202500777"],
+                "data_cadastro": [pd.Timestamp("2025-01-01")],
+                "situacao": ["ATUALIZADO"],
+                "descricao_ssa": ["new-row"],
+            }
+        )
+
+        ok = database.insert_dataframe_with_smart_upsert(df, db_path, table_name="ssas")
+        assert ok is True
+
+        with database.get_db_connection(db_path) as conn:
+            rows = conn.execute(
+                "SELECT numero_ssa, situacao FROM ssa_table WHERE numero_ssa LIKE ? ORDER BY numero_ssa",
+                ("202500777%",),
+            ).fetchall()
+
+        assert rows == [("202500777", "ATUALIZADO")]
+    finally:
+        disable_optimized_import()

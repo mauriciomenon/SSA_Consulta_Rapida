@@ -563,3 +563,11 @@ Entregavel de cada slice:
   - `ruff check interface/command_handlers.py`: pass.
   - `ty check interface/command_handlers.py`: pass.
   - `uv run pytest -q tests/test_command_handlers_project_root_mapping.py`: pass.
+
+## Update 2026-02-24 (optimized upsert legacy decimal key normalization)
+
+- `resolved` fix(db-optimized): lookup now checks canonical and legacy decimal SSA variants (`value` and `value.0`).
+- `resolved` fix(db-optimized): update delete-set now removes legacy decimal keys and canonical key before reinserting normalized row.
+- `resolved` fix(db-optimized): replaced `to_sql` under savepoint in update branch with parameterized `executemany` to keep transaction semantics stable.
+- `resolved` test(db-optimized): `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
+- `deferred` quality(P4): function-size/god-function concern in `insert_dataframe_optimized` intentionally left for exclusive refactor sprint.

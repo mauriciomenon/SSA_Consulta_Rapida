@@ -768,3 +768,17 @@ Regra de lint para este ciclo:
    - helper renamed to `_attempt_save_settings` and now returns explicit boolean success/failure.
 4. [resolved] save-failure rollback in menu actions:
    - when persistence fails, local menu mutations are reverted to avoid misleading transient state.
+
+## Update 2026-02-24 (optimized upsert legacy decimal key normalization)
+
+1. [resolved] fixed legacy key match in optimized lookup path:
+   - `armazenamento/database_optimized.py` now queries both canonical `numero_ssa` and legacy `numero_ssa + ".0"` variants during chunked lookup.
+2. [resolved] fixed duplicate risk on legacy decimal keys during update path:
+   - delete set now includes both canonical and matched legacy storage keys before reinserting normalized rows.
+3. [resolved] fixed savepoint failure in `DELETE + INSERT` branch:
+   - replaced `to_sql` inside savepoint with parameterized `executemany` insert batches.
+4. [resolved] focused regression lock:
+   - `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
+5. [pending-long] kluster quality note (P4):
+   - `insert_dataframe_optimized` remains large and multi-responsibility.
+   - deferred by scope policy (no broad refactor in this sprint); keep for dedicated architecture sprint.
