@@ -487,3 +487,19 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_database_upsert_prepare.py tests/test_db_reset_and_upsert.py`: pass (6 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (logging mapping interpolation fix)
+
+- files:
+  - `main.py`
+  - `dev_env/streamlit_app.py`
+  - `tests/test_ascii_logging_filter.py`
+- change:
+  - ASCII logging filter keeps `dict` args intact for named interpolation (`%(name)s`) and keeps tuple path unchanged.
+- gate local deste slice:
+  - `python -m py_compile main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
+  - `ruff check main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
+  - `ty check main.py dev_env/streamlit_app.py tests/test_ascii_logging_filter.py`: pass.
+  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
+- ops clarification:
+  - legacy DB reset is operational/controlled; code path now enforces canonical write and validation for new writes.

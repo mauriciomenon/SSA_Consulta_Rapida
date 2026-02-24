@@ -57,7 +57,10 @@ class _ASCIIOnlyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = self._to_ascii(record.msg)
         if record.args:
-            record.args = tuple(self._to_ascii(arg) for arg in record.args)
+            if isinstance(record.args, dict):
+                record.args = {key: self._to_ascii(value) for key, value in record.args.items()}
+            else:
+                record.args = tuple(self._to_ascii(arg) for arg in record.args)
         if record.exc_text:
             record.exc_text = self._to_ascii(record.exc_text)
         return True
