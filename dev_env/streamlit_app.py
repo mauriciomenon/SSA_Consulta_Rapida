@@ -21,6 +21,8 @@ from core.app_logic import (
     parse_search_terms,
 )
 from core.config_manager import load_display_mappings_integrity
+from gui.simple_width_manager import SimpleWidthManager
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed
 from utils.remote_itaipu import RequestOptions, fetch_pending_ssas, map_to_dataframe
 
 try:
@@ -263,6 +265,7 @@ class StreamlitFilterCache:
 
 # Instancia cache global
 filter_cache = StreamlitFilterCache()
+width_manager = SimpleWidthManager()
 
 
 def load_dataframe(db_path: str) -> pd.DataFrame:
@@ -309,6 +312,10 @@ def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
         return cached_token
 
     columns = tuple(str(col) for col in df.columns)
+    if len(df.columns) == 0:
+        token = (len(df), columns, None, None)
+        df.attrs["_streamlit_cache_token"] = token
+        return token
     if df.empty:
         token = (0, columns, None, None)
         df.attrs["_streamlit_cache_token"] = token
@@ -320,6 +327,35 @@ def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
     token = (len(df), columns, str(sample_column), head_values, tail_values)
     df.attrs["_streamlit_cache_token"] = token
     return token
+
+
+def _build_streamlit_column_config(
+    page_df: pd.DataFrame,
+    rename_map: dict[str, str],
+    available_width: int = 1600,
+) -> dict[str, Any]:
+    column_config_api = getattr(st, "column_config", None)
+    if column_config_api is None:
+        return {}
+    computed_buckets = width_manager.compute_streamlit_width_buckets(
+        page_df,
+        available_width=available_width,
+        column_order=list(page_df.columns),
+    )
+    config: dict[str, Any] = {}
+    for col in page_df.columns:
+        display_name = rename_map.get(col, col)
+        bucket = str(computed_buckets.get(col, "medium"))
+        if "data" in col.lower():
+            config[display_name] = column_config_api.DatetimeColumn(width=bucket)
+        elif col == "numero_ssa":
+            config[display_name] = column_config_api.TextColumn(
+                width=bucket,
+                help="Numero da SSA",
+            )
+        else:
+            config[display_name] = column_config_api.TextColumn(width=bucket)
+    return config
 
 
 def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
@@ -485,6 +521,28 @@ def _normalize_filter_selection(selected: list[Any], options: list[Any]) -> list
     return normalized
 
 
+def _default_visible_columns(columns: list[str]) -> list[str]:
+    core = [
+        'numero_ssa',
+        'situacao',
+        'descricao_ssa',
+        'setor_executor',
+        'setor_emissor',
+        'data_cadastro',
+        'prazo_limite',
+    ]
+    picked = [col for col in columns if col in core]
+    return picked if picked else list(columns[:10])
+
+
+def _build_column_presets(columns: list[str]) -> dict[str, list[str]]:
+    defaults = _default_visible_columns(columns)
+    return {
+        "core": defaults,
+        "all": list(columns),
+    }
+
+
 def _is_real_streamlit_runtime() -> bool:
     # Evita executar UI completa fora do runtime do streamlit.
     try:
@@ -536,6 +594,24 @@ if REAL_RUNTIME:
         st.subheader("Fonte de dados")
         db_path = st.text_input("Arquivo do banco", value=DB_PATH_DEFAULT)
         docs_dir = st.text_input("Pasta com planilhas", value=DOCS_DIR_DEFAULT)
+        try:
+            db_path = str(
+                ensure_path_is_allowed(
+                    db_path,
+                    purpose="Arquivo do banco",
+                    expect_directory=False,
+                )
+            )
+            docs_dir = str(
+                ensure_path_is_allowed(
+                    docs_dir,
+                    purpose="Pasta com planilhas",
+                    expect_directory=True,
+                )
+            )
+        except PathSafetyError as exc:
+            st.error(str(exc))
+            st.stop()
 
         btn_col_load, btn_col_reimport = st.columns(2)
         status_holder = st.empty()
@@ -615,19 +691,8 @@ if REAL_RUNTIME and not raw_df.empty:
         default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
         default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
         column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in raw_df.columns}
-        default_columns = [
-            col for col in raw_df.columns if col in (
-                'numero_ssa',
-                'situacao',
-                'descricao_ssa',
-                'setor_executor',
-                'setor_emissor',
-                'data_cadastro',
-                'prazo_limite',
-            )
-        ]
-        if not default_columns:
-            default_columns = list(raw_df.columns[:10])
+        default_columns = _default_visible_columns(list(raw_df.columns))
+        column_presets = _build_column_presets(list(raw_df.columns))
 
         state_key = "streamlit_filters_state"
         if state_key not in st.session_state:
@@ -647,6 +712,25 @@ if REAL_RUNTIME and not raw_df.empty:
         valid_display_values = set(column_display_names.values())
         selected_display_state = [value for value in filter_state.get("selected_display", []) if value in valid_display_values]
         filter_state["selected_display"] = selected_display_state or [column_display_names[col] for col in default_columns]
+
+        table_state_key = "streamlit_table_state"
+        if table_state_key not in st.session_state:
+            st.session_state[table_state_key] = {
+                "sort_column": "(Sem ordenacao)",
+                "sort_desc": False,
+                "page_size": 250,
+                "table_height": 600,
+                "auto_width": True,
+                "page_number": 1,
+                "width_profile": "Padrao (1600)",
+            }
+        table_state = st.session_state[table_state_key]
+        table_state["page_size"] = int(table_state.get("page_size", 250))
+        table_state["table_height"] = int(table_state.get("table_height", 600))
+        table_state["auto_width"] = bool(table_state.get("auto_width", True))
+        table_state["sort_desc"] = bool(table_state.get("sort_desc", False))
+        table_state["page_number"] = int(table_state.get("page_number", 1))
+        table_state["width_profile"] = str(table_state.get("width_profile", "Padrao (1600)"))
 
         with st.form("filters_form", clear_on_submit=False):
             search_input = st.text_input(
@@ -688,6 +772,10 @@ if REAL_RUNTIME and not raw_df.empty:
                 options=[column_display_names[col] for col in raw_df.columns],
                 default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
             )
+            preset_cols = st.columns(3)
+            preset_core = preset_cols[0].form_submit_button("Preset core")
+            preset_all = preset_cols[1].form_submit_button("Preset all")
+            preset_keep = preset_cols[2].form_submit_button("Manter custom")
             with st.expander("Ajuda rapida", expanded=False):
                 st.markdown(
                     "* Sintaxe basica: `svp, !ste, mel4`\n"
@@ -710,6 +798,15 @@ if REAL_RUNTIME and not raw_df.empty:
                 "limit_rows": 500,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
+            st.session_state[table_state_key] = {
+                "sort_column": "(Sem ordenacao)",
+                "sort_desc": False,
+                "page_size": 250,
+                "table_height": 600,
+                "auto_width": True,
+                "page_number": 1,
+                "width_profile": "Padrao (1600)",
+            }
             rerun_fn = getattr(st, "rerun", None)
             if callable(rerun_fn):
                 rerun_fn()
@@ -717,6 +814,13 @@ if REAL_RUNTIME and not raw_df.empty:
                 legacy_rerun_fn = getattr(st, "experimental_rerun", None)
                 if callable(legacy_rerun_fn):
                     legacy_rerun_fn()
+
+        if preset_core:
+            filter_state["selected_display"] = [column_display_names[col] for col in column_presets["core"]]
+        elif preset_all:
+            filter_state["selected_display"] = [column_display_names[col] for col in column_presets["all"]]
+        elif preset_keep:
+            filter_state["selected_display"] = selected_display_input
 
         if apply_filters:
             st.session_state[state_key] = {
@@ -773,43 +877,78 @@ if REAL_RUNTIME and not raw_df.empty:
         total_ssas = len(filtered_df)
         original_count = len(raw_df)
         reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
-        status_cols = st.columns(4)
-        status_cols[0].metric("Total filtrado", total_ssas)
-        status_cols[1].metric("Total original", original_count)
-        status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
-        if 'situacao' in filtered_df.columns and total_ssas:
-            status_counts = filtered_df['situacao'].value_counts()
-            executadas = int(status_counts.get('EXECUTADA', 0))
-            exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
-            status_cols[3].metric("Execucao concluida", f"{exec_rate:.1f}%")
-        else:
-            status_cols[3].metric("Execucao concluida", "-")
+        table_left, table_right = st.columns([4, 1.2])
+        with table_left:
+            status_cols = st.columns(4)
+            status_cols[0].metric("Total filtrado", total_ssas)
+            status_cols[1].metric("Total original", original_count)
+            status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
+            if 'situacao' in filtered_df.columns and total_ssas:
+                status_counts = filtered_df['situacao'].value_counts()
+                executadas = int(status_counts.get('EXECUTADA', 0))
+                exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
+                status_cols[3].metric("Execucao concluida", f"{exec_rate:.1f}%")
+            else:
+                status_cols[3].metric("Execucao concluida", "-")
 
-        control_cols = st.columns([2, 1, 1, 1, 1, 2])
+        with table_right:
+            st.caption("Resumo")
+            st.write(f"Registros visiveis: {len(view_df)}")
+            st.write(f"Colunas visiveis: {len(view_df.columns)}")
+            st.write(f"Cache hit rate: {filter_cache.get_stats()['hit_rate']:.1f}%")
+
+        control_cols = st.columns([2, 1, 1, 1, 1, 1.5])
         sort_options = ["(Sem ordenacao)"] + list(view_df.columns)
         sort_column = str(
             control_cols[0].selectbox(
                 "Ordenar por",
                 sort_options,
-                index=0,
+                index=sort_options.index(table_state.get("sort_column", "(Sem ordenacao)"))
+                if table_state.get("sort_column", "(Sem ordenacao)") in sort_options
+                else 0,
             )
         )
-        sort_desc = bool(control_cols[1].checkbox("Desc", value=False))
+        sort_desc = bool(control_cols[1].checkbox("Desc", value=table_state.get("sort_desc", False)))
         page_size = int(
             control_cols[2].selectbox(
                 "Linhas por pagina",
                 [100, 250, 500, 1000, 2000],
-                index=1,
+                index=[100, 250, 500, 1000, 2000].index(table_state.get("page_size", 250))
+                if table_state.get("page_size", 250) in [100, 250, 500, 1000, 2000]
+                else 1,
             )
         )
         table_height = int(
             control_cols[3].selectbox(
                 "Altura tabela (px)",
                 [400, 600, 800, 1000],
-                index=1,
+                index=[400, 600, 800, 1000].index(table_state.get("table_height", 600))
+                if table_state.get("table_height", 600) in [400, 600, 800, 1000]
+                else 1,
             )
         )
-        auto_width = bool(control_cols[4].checkbox("Auto largura", value=True))
+        auto_width = bool(control_cols[4].checkbox("Auto largura", value=table_state.get("auto_width", True)))
+        width_profile_options = [
+            "Compacto (1200)",
+            "Padrao (1600)",
+            "Largo (2000)",
+            "XL (2400)",
+        ]
+        width_profile = str(
+            control_cols[5].selectbox(
+                "Perfil largura",
+                width_profile_options,
+                index=width_profile_options.index(table_state.get("width_profile", "Padrao (1600)"))
+                if table_state.get("width_profile", "Padrao (1600)") in width_profile_options
+                else 1,
+            )
+        )
+        width_profile_pixels = {
+            "Compacto (1200)": 1200,
+            "Padrao (1600)": 1600,
+            "Largo (2000)": 2000,
+            "XL (2400)": 2400,
+        }
 
         table_view_df = view_df
         if sort_column != "(Sem ordenacao)" and sort_column in table_view_df.columns:
@@ -823,9 +962,10 @@ if REAL_RUNTIME and not raw_df.empty:
                 logger.warning("Falha ao ordenar por %s: %s", sort_column, exc)
 
         _, total_pages = _paginate_dataframe(table_view_df, page=1, page_size=page_size)
-        default_page = min(max(page_number, 1), total_pages)
+        default_page = min(max(int(table_state.get("page_number", 1)), 1), total_pages)
+        page_col_left, page_col_right = st.columns([1, 4])
         page_number = int(
-            control_cols[5].number_input(
+            page_col_left.number_input(
                 f"Pagina (1..{total_pages})",
                 min_value=1,
                 max_value=total_pages,
@@ -833,23 +973,28 @@ if REAL_RUNTIME and not raw_df.empty:
                 step=1,
             )
         )
+        page_col_right.caption(
+            "Dica: use perfil de largura maior para reduzir truncamento de descricao."
+        )
         page_df, total_pages = _paginate_dataframe(table_view_df, page=page_number, page_size=page_size)
+        table_state.update(
+            {
+                "sort_column": sort_column,
+                "sort_desc": sort_desc,
+                "page_size": page_size,
+                "table_height": table_height,
+                "auto_width": auto_width,
+                "page_number": page_number,
+                "width_profile": width_profile,
+            }
+        )
 
         display_df = ensure_arrow_compatible(page_df.rename(columns=rename_map))
-        column_config = {}
-        for col in page_df.columns:
-            display_name = rename_map.get(col, col)
-            if col in {"situacao", "setor_executor", "setor_emissor"}:
-                column_config[display_name] = st.column_config.TextColumn(width="small")
-            elif col == "numero_ssa":
-                column_config[display_name] = st.column_config.TextColumn(
-                    width="medium",
-                    help="Numero da SSA",
-                )
-            elif "data" in col.lower():
-                column_config[display_name] = st.column_config.DatetimeColumn(width="small")
-            elif col == "descricao_ssa":
-                column_config[display_name] = st.column_config.TextColumn(width="large")
+        column_config = _build_streamlit_column_config(
+            page_df,
+            rename_map,
+            available_width=width_profile_pixels.get(width_profile, 1600),
+        )
 
         st.dataframe(
             display_df,

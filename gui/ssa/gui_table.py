@@ -408,8 +408,6 @@ def _compute_widths_for_df(
     column_widths = width_manager.compute_optimal_widths(
         df=visible_df,
         available_width=table_width,
-        display_mappings=internal_to_display,
-        saved_widths=saved_widths,
         column_order=correct_column_order
     )
     if sys.platform == "darwin":

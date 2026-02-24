@@ -4,11 +4,16 @@ import pandas as pd
 
 from dev_env.streamlit_app import (
     StreamlitFilterCache,
+    _build_streamlit_column_config,
+    _build_column_presets,
     _build_filter_options,
     _compute_df_cache_token,
+    _default_visible_columns,
     _normalize_filter_selection,
     _paginate_dataframe,
+    st,
 )
+from gui.simple_width_manager import SimpleWidthManager
 
 
 def test_streamlit_filter_cache_compat_methods_work_in_local_fallback() -> None:
@@ -90,3 +95,60 @@ def test_normalize_filter_selection_collapses_full_selection() -> None:
     options = ["A", "B", "C"]
     assert _normalize_filter_selection(["A", "B", "C"], options) == []
     assert _normalize_filter_selection(["A"], options) == ["A"]
+
+
+def test_default_visible_columns_prefers_core_columns() -> None:
+    columns = ["id", "numero_ssa", "situacao", "descricao_ssa", "outro"]
+    out = _default_visible_columns(columns)
+    assert out == ["numero_ssa", "situacao", "descricao_ssa"]
+
+
+def test_build_column_presets_contains_core_and_all() -> None:
+    columns = ["numero_ssa", "situacao", "descricao_ssa", "x"]
+    presets = _build_column_presets(columns)
+    assert presets["all"] == columns
+    assert presets["core"] == ["numero_ssa", "situacao", "descricao_ssa"]
+
+
+def test_compute_df_cache_token_handles_rows_without_columns() -> None:
+    df = pd.DataFrame(index=[0, 1, 2])
+    token = _compute_df_cache_token(df)
+    assert token == (3, tuple(), None, None)
+
+
+def test_build_streamlit_column_config_uses_rename_map() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "situacao": ["ABERTO"],
+            "data_cadastro": ["2025-01-01"],
+        }
+    )
+    rename_map = {
+        "numero_ssa": "Numero SSA",
+        "situacao": "Situacao",
+        "data_cadastro": "Data Cadastro",
+    }
+    config = _build_streamlit_column_config(df, rename_map, available_width=1200)
+    if getattr(st, "column_config", None) is None:
+        assert config == {}
+    else:
+        assert set(config.keys()) == {"Numero SSA", "Situacao", "Data Cadastro"}
+
+
+def test_simple_width_manager_prioritizes_descricao_columns() -> None:
+    manager = SimpleWidthManager()
+    df = pd.DataFrame(
+        {
+            "descricao_ssa": ["texto curto"],
+            "descricao_execucao": ["texto curto"],
+            "situacao": ["ABERTO"],
+        }
+    )
+    buckets = manager.compute_streamlit_width_buckets(
+        df,
+        available_width=1200,
+        column_order=list(df.columns),
+    )
+    assert buckets["descricao_ssa"] == "large"
+    assert buckets["descricao_execucao"] == "large"

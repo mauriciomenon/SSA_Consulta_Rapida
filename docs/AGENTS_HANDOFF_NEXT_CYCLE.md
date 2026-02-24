@@ -641,3 +641,34 @@ Entregavel de cada slice:
 - `resolved` layout(streamlit): table toolbar expanded with sorting + paged controls.
 - `resolved` stability(streamlit): rerun compatibility fallback for older streamlit APIs.
 - `resolved` tests: streamlit helper coverage expanded for mixed types and filter normalization.
+
+## Update 2026-02-24 (streamlit long cycle v3)
+
+- `resolved` logic(streamlit): fixed table-tab flow so table rendering is no longer nested under `consult_api`.
+- `resolved` layout(streamlit): table controls reorganized in two rows; width profile selector added.
+- `resolved` perf/usability(streamlit): `SimpleWidthManager` now drives table `column_config` through `_build_streamlit_column_config(...)`.
+- `resolved` stability(streamlit): safe fallback when `st.column_config` is unavailable.
+- `resolved` tests: `tests/test_streamlit_filter_cache.py` expanded for width bucket and column-config behavior.
+
+## Update 2026-02-24 (streamlit long cycle v4)
+
+- `resolved` security(streamlit): sidebar paths now validated with `ensure_path_is_allowed` (`db_path` and `docs_dir`), with explicit stop on invalid path.
+- `resolved` stability(cache-token): `_compute_df_cache_token` now handles DataFrame with zero columns before sample-column access.
+- `resolved` width-manager rule alignment:
+  - `SimpleWidthManager` now exposes `compute_streamlit_width_buckets(...)` with explicit priority for `descricao_ssa`/`descricao_execucao`.
+  - `compute_optimal_widths` contract simplified to deterministic inputs only.
+  - `gui/ssa/gui_table.py` updated to new `compute_optimal_widths` signature.
+- `resolved` tests: `tests/test_streamlit_filter_cache.py` expanded and now passing with 11 tests.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - multiple re-check cycles in this slice; final `kluster_code_review_auto`: clean (no issues).
+
+## Update 2026-02-24 (streamlit long cycle v5 final alignment)
+
+- `resolved` width-manager contract: `compute_optimal_widths` voltou a assinatura deterministica minima (sem parametros externos de override).
+- `resolved` compatibility call site: `gui/ssa/gui_table.py` alinhado ao contrato final.
+- `resolved` compliance: final `kluster_code_review_auto` clean.

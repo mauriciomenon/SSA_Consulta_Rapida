@@ -35,22 +35,18 @@ class SimpleWidthManager:
         self,
         df,  # DataFrame
         available_width: int,
-        display_mappings=None,
-        saved_widths=None,
         column_order=None
     ):
         """
-        ALGORITMO SIMPLES E FUNCIONAL - LARGURAS FIXAS DETERMINÍSTICAS COM CRESCIMENTO
+        ALGORITMO SIMPLES E FUNCIONAL - BASE DETERMINISTICA COM CRESCIMENTO
 
-        Larguras fixas para colunas estáticas + crescimento proporcional para descrições.
-        Divisão 50/50 entre descricao_ssa e descricao_execucao para espaço extra.
+        Baseline de larguras fixas para colunas estaticas + crescimento proporcional
+        para descricoes (divisao 50/50 entre descricao_ssa e descricao_execucao).
+        Nao aplica overrides externos para manter resultado deterministico.
 
         Args:
             column_order: Lista explícita da ordem correta das colunas (inclui '#')
         """
-        display_mappings = display_mappings or {}
-        saved_widths = saved_widths or {}
-
         if df is None or df.empty:
             return {}
 
@@ -62,9 +58,6 @@ class SimpleWidthManager:
             df_columns = sorted(df.columns.tolist())
             columns = ['#'] + df_columns if '#' not in df_columns else sorted(df.columns.tolist())
 
-        # IMPORTANTE: Para forçar larguras fixas, ignora saved_widths temporariamente
-        saved_widths = {}  # FORÇA uso das larguras fixas
-
         # LARGURAS FIXAS CONSTANTES - TAMANHO EXATO SEMPRE IGUAL
         fixed_widths = {}
         expandable_cols = []  # Colunas que podem crescer
@@ -73,9 +66,6 @@ class SimpleWidthManager:
 
             if col == '#':
                 fixed_widths[col] = 20  # Ajuste v3.0.4: 25px → 20px (-5px)
-
-            elif col in saved_widths and saved_widths[col] > 0:
-                fixed_widths[col] = saved_widths[col]
 
             elif col == 'numero_ssa':
                 fixed_widths[col] = 85  # leve incremento adicional
@@ -142,6 +132,35 @@ class SimpleWidthManager:
                 fixed_widths[col] += total_extra
 
         return fixed_widths
+
+    def compute_streamlit_width_buckets(
+        self,
+        df,
+        available_width: int,
+        column_order=None,
+    ):
+        """Return deterministic streamlit width buckets per column."""
+        if df is None or df.empty:
+            return {}
+
+        widths = self.compute_optimal_widths(
+            df,
+            available_width=available_width,
+            column_order=column_order,
+        )
+        buckets = {}
+        for col in (column_order or list(df.columns)):
+            pixel_width = int(widths.get(col, 120))
+            # Keep proportional-priority columns expanded whenever possible.
+            if col in {"descricao_ssa", "descricao_execucao"}:
+                pixel_width = max(pixel_width, 260)
+            if pixel_width <= 90:
+                buckets[col] = "small"
+            elif pixel_width <= 220:
+                buckets[col] = "medium"
+            else:
+                buckets[col] = "large"
+        return buckets
 
 
 class SimpleCacheManager:
