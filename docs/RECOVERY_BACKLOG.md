@@ -757,3 +757,14 @@ Regra de lint para este ciclo:
    - added lightweight manager to avoid repeated mapping loads in config menus.
 4. [resolved] regression lock:
    - `tests/test_command_handlers_project_root_mapping.py`.
+
+## Update 2026-02-24 (command handlers save flow cleanup)
+
+1. [resolved] reduced repeated error branches in config menu handlers:
+   - repeated `try/except ... pass` blocks replaced by `_try_save_settings(...)`.
+2. [resolved] behavior preserved:
+   - menu keeps running on save failure, while user feedback/log remains centralized in `_save_settings_handler`.
+3. [resolved] helper semantics clarified:
+   - helper renamed to `_attempt_save_settings` and now returns explicit boolean success/failure.
+4. [resolved] save-failure rollback in menu actions:
+   - when persistence fails, local menu mutations are reverted to avoid misleading transient state.

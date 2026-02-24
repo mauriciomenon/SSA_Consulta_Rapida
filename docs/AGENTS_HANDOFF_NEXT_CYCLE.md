@@ -551,3 +551,15 @@ Entregavel de cada slice:
   - `ruff check interface/command_handlers.py tests/test_command_handlers_project_root_mapping.py`: pass.
   - `ty check interface/command_handlers.py tests/test_command_handlers_project_root_mapping.py`: pass.
   - `uv run pytest -q tests/test_command_handlers_project_root_mapping.py`: pass.
+
+## Update 2026-02-24 (command handlers save flow cleanup)
+
+- `resolved` quality(cli): repeated `try/except ... pass` save blocks replaced by `_attempt_save_settings(...)`.
+- `resolved` behavior(cli): save error feedback/log remains centralized and menu flow preserved.
+- `resolved` semantics(cli): helper now returns explicit boolean success/failure.
+- `resolved` consistency(cli): menu changes now rollback when save fails.
+- gate local deste slice:
+  - `python -m py_compile interface/command_handlers.py`: pass.
+  - `ruff check interface/command_handlers.py`: pass.
+  - `ty check interface/command_handlers.py`: pass.
+  - `uv run pytest -q tests/test_command_handlers_project_root_mapping.py`: pass.

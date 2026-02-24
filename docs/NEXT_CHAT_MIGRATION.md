@@ -406,3 +406,11 @@ Relatorio final por slice:
   - mappings cache moved to a small dedicated manager in-module.
 - focused regression:
   - `tests/test_command_handlers_project_root_mapping.py`.
+
+## Latest update 2026-02-24 (command handlers save flow cleanup)
+
+- `interface/command_handlers.py`:
+  - extracted `_attempt_save_settings(...)` to remove repeated `try/except ... pass` blocks;
+  - helper returns explicit boolean (success/failure) for clear semantics;
+  - call sites now rollback local changes when save fails;
+  - save error handling remains centralized in `_save_settings_handler`.
