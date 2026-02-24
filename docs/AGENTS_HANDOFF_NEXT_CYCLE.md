@@ -11,6 +11,7 @@ This handoff is ready to reuse in the next conversation.
     - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
     - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and lock with focused tests.
     - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
+    - `resolved` test(db): add schema_manager identifier guard regression lock.
   - Scope atual:
     - estabilizacao de filtros avancados (resize/layout de grid e botoes internos);
     - hardening pontual CLI/schema/scripts de manutencao;
@@ -22,6 +23,7 @@ This handoff is ready to reuse in the next conversation.
       - suites focadas de CLI/config/schema/db: pass.
       - `tests/test_extracao.py` (tempo_excedido parser): pass.
       - `tests/test_scripts_manutencao_schema_targets.py`: pass.
+      - `tests/test_schema_manager_identifier_guards.py`: pass.
   - Registro de controle obrigatorio:
     - `docs/RECOVERY_BACKLOG.md` atualizado com triagem kluster e itens deferidos.
     - `docs/NEXT_CHAT_MIGRATION.md` sincronizado com este branch/scope (override 2026-02-24).
