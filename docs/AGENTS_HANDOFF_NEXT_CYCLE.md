@@ -526,3 +526,15 @@ Entregavel de cada slice:
   - `ruff check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
   - `ty check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
   - `uv run pytest -q tests/test_cli_pagination_tracker_prune.py`: pass (3 tests).
+
+## Update 2026-02-24 (cli enhancement settings lock and root)
+
+- `resolved` fix(cli): `_save_settings` keeps lock in lockfile write path (tempfile lock removed).
+- `resolved` quality(cli): module root resolution switched to `_get_project_root()`.
+- `resolved` quality(cli): module logger switched to robust logger API.
+- `resolved` test(cli): update/add `tests/test_cli_enhancement_manager_lock_usage.py`.
+- gate local deste slice:
+  - `python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass.
+  - `ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass.
+  - `ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass.
+  - `uv run pytest -q tests/test_cli_enhancement_manager_lock_usage.py`: pass.

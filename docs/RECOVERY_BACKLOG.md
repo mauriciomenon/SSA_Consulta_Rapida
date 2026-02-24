@@ -734,3 +734,14 @@ Regra de lint para este ciclo:
    - tracker key now persists in `df.attrs`, avoiding strict dependence on `id(df)`.
 4. [resolved] regression lock:
    - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation scenario).
+
+## Update 2026-02-24 (cli enhancement settings lock and root rule)
+
+1. [resolved] lock behavior clarified in settings save:
+   - lock is applied on lockfile; temp-file lock was removed to avoid redundant lock path.
+2. [resolved] project-root rule alignment:
+   - `interface/cli_enhancement_manager.py` now uses `_get_project_root()`.
+3. [resolved] robust logging alignment:
+   - module logger switched to `get_robust_logger().get_logger(__name__, "cli")`.
+4. [resolved] regression lock:
+   - `tests/test_cli_enhancement_manager_lock_usage.py`.
