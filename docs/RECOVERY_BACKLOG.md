@@ -909,3 +909,24 @@ Regra de lint para este ciclo:
    - `st.rerun()` with fallback to `st.experimental_rerun()`.
 6. [resolved] regression expansion:
    - `tests/test_streamlit_filter_cache.py` now covers mixed-type options and normalized full selection behavior.
+
+## Update 2026-02-24 (streamlit pending after long cycle v3)
+
+1. [deferred][P4][streamlit/perf] Profile optional virtualization path for very large pages (>2000 rows) in table render.
+   - reason: current cycle prioritized stable layout/flow fix with low-risk patch.
+2. [deferred][P4][streamlit/usability] Add responsive preset memory per device width bucket.
+   - reason: requires broader UX validation and should run in dedicated UI sprint.
+3. [deferred][P4][streamlit/tests] Add integration-level smoke for tab rendering and API toggle permutations.
+   - reason: needs streamlit runtime harness beyond current focused unit scope.
+
+## Update 2026-02-24 (post streamlit long cycle v4)
+
+1. [deferred][P4][architecture] Streamlit god-module split (`dev_env/streamlit_app.py`) remains for dedicated refactor sprint.
+   - rationale: this cycle prioritized functional/layout/security fixes with minimal risk and rollback-friendly slices.
+2. [deferred][P4][streamlit/perf] Evaluate optional row virtualization strategy for very large page sizes (>2000).
+3. [deferred][P4][streamlit/tests] Add runtime integration smoke for sidebar path validation and tab rendering permutations.
+
+## Update 2026-02-24 (streamlit long cycle final note)
+
+1. [note] Width manager override semantics intentionally fixed to deterministic baseline in this cycle.
+2. [deferred][P4] If future sprint needs user-resizable persistent widths, implement as explicit feature with dedicated tests.

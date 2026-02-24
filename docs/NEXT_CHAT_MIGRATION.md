@@ -595,3 +595,45 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (8 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit long cycle v3)
+
+- `dev_env/streamlit_app.py`:
+  - fixed scope bug: table tab now renders regardless of API toggle state;
+  - introduced width profile state (`Compacto/Padrao/Largo/XL`) for deterministic table width behavior;
+  - replaced hardcoded table `column_config` with `_build_streamlit_column_config(...)` + `SimpleWidthManager`;
+  - added fallback path in column-config builder when streamlit column API is unavailable.
+- tests:
+  - expanded `tests/test_streamlit_filter_cache.py` with width-bucket and column-config assertions.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (10 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit long cycle v4)
+
+- final scope delivered in this cycle:
+  - table tab flow fix (no hidden coupling with API toggle);
+  - width profile controls + deterministic width buckets from `SimpleWidthManager`;
+  - path safety validation for sidebar file-system inputs;
+  - cache token guard for zero-column frames;
+  - width manager signature alignment in GUI table call site.
+- regression/tests:
+  - `tests/test_streamlit_filter_cache.py` now 11 passing tests.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster progression:
+  - intermediate P4/P3 findings resolved in-sequence;
+  - final `kluster_code_review_auto`: clean.
+
+## Latest update 2026-02-24 (streamlit long cycle v5 final)
+
+- final width-manager decision for this cycle: deterministic signature without external override params.
+- `gui/ssa/gui_table.py` updated to same deterministic call contract.
+- final kluster state: clean after iterative fixes.
