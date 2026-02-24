@@ -4,6 +4,27 @@ This handoff is ready to reuse in the next conversation.
 
 ## Estado atual
 
+- OVERRIDE 2026-02-24 (estado valido para proxima conversa):
+  - Branch atual de trabalho: `codex/dev-filtros-stability` (base `origin/dev`).
+  - Commits recentes deste ciclo:
+    - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
+    - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
+  - Scope atual:
+    - estabilizacao de filtros avancados (resize/layout de grid e botoes internos);
+    - hardening pontual CLI/schema/scripts de manutencao;
+    - sem refactor amplo.
+  - Validacao recente:
+    - `py_compile`, `ruff`, `ty` em arquivos tocados: ok;
+    - `uv run pytest` focado:
+      - `tests/test_gui_filter_logic.py` (casos de resize): pass;
+      - suites focadas de CLI/config/schema/db: pass.
+  - Registro de controle obrigatorio:
+    - `docs/RECOVERY_BACKLOG.md` atualizado com triagem kluster e itens deferidos.
+    - `docs/NEXT_CHAT_MIGRATION.md` sincronizado com este branch/scope (override 2026-02-24).
+    - controle de diario mantido em 3 arquivos: `AGENTS_HANDOFF_NEXT_CYCLE.md`, `RECOVERY_BACKLOG.md`, `NEXT_CHAT_MIGRATION.md`.
+- Nota operacional:
+  - Nao fechar branch antigo por automacao; encerramento de branch fica com o usuario.
+
 - Branch `codex/import-review`, PR #31 aberto e em andamento (base `dev`, head `codex/import-review`).
 - Backlog de follow-up em `docs/RECOVERY_BACKLOG.md`.
 - Refactor gui em andamento: facade em `gui/gui_ssa.py`, modulo agregado em `gui/ssa/gui_filters_advanced.py`, e submodulos versionados:

@@ -2,11 +2,26 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## OVERRIDE 2026-02-24 (ativo)
+
+- Branch ativa para continuidade: `codex/dev-filtros-stability` (base `origin/dev`).
+- Commits base desta rodada:
+  - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
+  - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
+- Scope ativo:
+  - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
+  - hardening pontual de CLI/schema/scripts de manutencao;
+  - sem refactor amplo.
+- Status de PR:
+  - nenhum PR novo deve ser aberto sem autorizacao explicita do usuario.
+- Nota de migracao:
+  - secoes antigas com `codex/import-review` e PR `#31` abaixo ficam como historico de auditoria.
+
 ## Scope
 
-- Branch: `codex/import-review`
-- PR: `#31` (base `dev`)
-- Goal now: close PR with minimal-risk fixes and no GUI layout changes.
+- Branch: `codex/dev-filtros-stability`
+- PR: sem PR ativo para esta branch neste momento
+- Goal now: seguir com patches minimos de estabilidade e validar por slice.
 
 ## What to provide in the next chat
 
