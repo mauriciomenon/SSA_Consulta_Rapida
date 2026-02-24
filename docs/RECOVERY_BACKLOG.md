@@ -739,6 +739,7 @@ Regra de lint para este ciclo:
 
 1. [resolved] lock behavior clarified in settings save:
    - lock is applied on lockfile; temp-file lock was removed to avoid redundant lock path.
+   - when lock acquisition fails, save is aborted (no unlocked write path).
 2. [resolved] project-root rule alignment:
    - `interface/cli_enhancement_manager.py` now uses `_get_project_root()`.
 3. [resolved] robust logging alignment:

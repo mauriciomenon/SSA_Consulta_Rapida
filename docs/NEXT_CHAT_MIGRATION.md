@@ -393,6 +393,7 @@ Relatorio final por slice:
 - `interface/cli_enhancement_manager.py`:
   - logger now uses robust logger API;
   - project root now resolved via `_get_project_root()`;
-  - settings save keeps lock only on lockfile (no lock on temp file).
+  - settings save keeps lock only on lockfile (no lock on temp file);
+  - if lock cannot be acquired, save aborts and write is skipped.
 - focused regression:
   - `tests/test_cli_enhancement_manager_lock_usage.py`.
