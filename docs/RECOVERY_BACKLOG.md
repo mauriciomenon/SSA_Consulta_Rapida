@@ -850,3 +850,12 @@ Regra de lint para este ciclo:
    - replaced `st.info` per miss with structured logger message.
 3. [scope] no layout changes:
    - patch limited to runtime filter safety and telemetry behavior.
+
+## Update 2026-02-24 (streamlit import flow ui unblock)
+
+1. [resolved] removed artificial UI blocking after import action:
+   - deleted `time.sleep(0.5)` from `_execute_import` finalization path.
+2. [impact] responsiveness improvement:
+   - progress placeholder is now cleared immediately after import flow ends.
+3. [scope] minimal change:
+   - no import semantics/layout changes.

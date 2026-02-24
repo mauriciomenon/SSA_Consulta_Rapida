@@ -528,3 +528,15 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit import ui unblock)
+
+- `dev_env/streamlit_app.py`:
+  - removed `time.sleep(0.5)` from `_execute_import` finally block.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py`: pass.
+  - `ty check dev_env/streamlit_app.py`: pass.
+  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).

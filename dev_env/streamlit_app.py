@@ -476,7 +476,6 @@ if _is_real_streamlit_runtime():
                 progress_holder.progress(0)
                 status_holder.error(f"Importacao falhou: {exc}")
             finally:
-                time.sleep(0.5)
                 progress_holder.empty()
 
         if btn_col_load.button("Carregar dados"):

@@ -612,3 +612,8 @@ Entregavel de cada slice:
 - `resolved` stability(streamlit): no KeyError when optional filter columns are absent.
 - `resolved` perf/ux(streamlit): removed per-miss `st.info` in hot filter path; now logs via logger.
 - `scope` patch-minimo: no GUI layout/position changes.
+
+## Update 2026-02-24 (streamlit import ui unblock)
+
+- `resolved` perf/ux(streamlit): removed forced 0.5s delay at end of import action.
+- `scope` patch-minimo: same import behavior, faster UI return.
