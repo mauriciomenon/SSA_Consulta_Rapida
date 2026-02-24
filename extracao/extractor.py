@@ -92,7 +92,7 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     text = str(value).strip()
     if not text:
         return None
-    matches = re.findall(r"(\d+)\s*(mi|m|d|h)", text.lower())
+    matches = re.findall(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", text.lower())
     if not matches:
         return text
     units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
@@ -104,6 +104,8 @@ def _normalize_tempo_excedido_value(value) -> str | None:
         if unit == 'mi':
             units['minutes'] += qty
         elif unit == 'm':
+            units['minutes'] += qty
+        elif unit == 'mo':
             units['months'] += qty
         elif unit == 'd':
             units['days'] += qty

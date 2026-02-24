@@ -8,6 +8,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Commits base desta rodada:
   - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
   - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
+  - `pending` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
 - Scope ativo:
   - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
   - hardening pontual de CLI/schema/scripts de manutencao;
@@ -16,6 +17,15 @@ Use this file to migrate context to a new chat without losing execution quality.
   - nenhum PR novo deve ser aberto sem autorizacao explicita do usuario.
 - Nota de migracao:
   - secoes antigas com `codex/import-review` e PR `#31` abaixo ficam como historico de auditoria.
+
+## Latest update 2026-02-24 (tempo_excedido)
+
+- Parser update in `extracao/extractor.py`:
+  - `m` interpreted as minutes.
+  - months require explicit `mo`.
+- Regression tests added in `tests/test_extracao.py`.
+- Local validation for touched scope:
+  - `python -m py_compile`, `ruff check`, `ty check`, `uv run pytest -q tests/test_extracao.py` all green.
 
 ## Scope
 
