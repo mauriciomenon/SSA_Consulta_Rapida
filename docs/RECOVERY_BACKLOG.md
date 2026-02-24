@@ -746,3 +746,14 @@ Regra de lint para este ciclo:
    - module logger switched to `get_robust_logger().get_logger(__name__, "cli")`.
 4. [resolved] regression lock:
    - `tests/test_cli_enhancement_manager_lock_usage.py`.
+
+## Update 2026-02-24 (command handlers root-safe mappings cache)
+
+1. [resolved] cwd-independent mapping path:
+   - `interface/command_handlers.py` now resolves config path from project root helper.
+2. [resolved] robust logger alignment:
+   - module logger now uses `get_robust_logger().get_logger(__name__, "cli")`.
+3. [resolved] mapping cache manager:
+   - added lightweight manager to avoid repeated mapping loads in config menus.
+4. [resolved] regression lock:
+   - `tests/test_command_handlers_project_root_mapping.py`.

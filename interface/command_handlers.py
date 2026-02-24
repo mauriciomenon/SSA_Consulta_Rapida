@@ -1,20 +1,52 @@
 # interface/command_handlers.py 20250723 163500 (v1.0 - Funcoes de Tratamento de Comandos)
 import os
 import json
-import logging
 
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
 from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+
+def _get_project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+logger = get_robust_logger().get_logger(__name__, "cli")
+
+
+class _MappingsCacheManager:
+    def __init__(self) -> None:
+        self._cache: dict[str, dict] = {}
+
+    def get(self, file_name: str) -> dict | None:
+        value = self._cache.get(file_name)
+        if value is None:
+            return None
+        return value.copy()
+
+    def set(self, file_name: str, value: dict) -> None:
+        self._cache[file_name] = value.copy()
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
+_MAPPINGS_CACHE_MANAGER = _MappingsCacheManager()
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
+    cached = _MAPPINGS_CACHE_MANAGER.get(file_name)
+    if cached is not None:
+        return cached
     if file_name == 'display_mappings.json':
-        return load_display_mappings_integrity()
-    path = os.path.join('config', file_name)
+        data = load_display_mappings_integrity()
+        if isinstance(data, dict):
+            _MAPPINGS_CACHE_MANAGER.set(file_name, data)
+            return data.copy()
+        return {}
+    path = os.path.join(_get_project_root(), 'config', file_name)
     try:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -22,7 +54,8 @@ def _load_mappings_handler(file_name: str) -> dict:
         logger.warning("Falha ao carregar mapping '%s': %s", path, exc)
         return {}
     if isinstance(data, dict):
-        return data
+        _MAPPINGS_CACHE_MANAGER.set(file_name, data)
+        return data.copy()
     logger.warning("Mapping '%s' em formato invalido; usando fallback vazio.", path)
     return {}
 
