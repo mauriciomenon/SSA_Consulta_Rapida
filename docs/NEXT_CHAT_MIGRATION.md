@@ -360,3 +360,14 @@ Relatorio final por slice:
 - Nao usar `try/except` vazio nem suppress que esconda erro real.
 - Para cada captura de erro, exigir saida objetiva (log curto) e tratamento coerente (retorno/raise/rollback).
 - Em cada patch, revisar custo computacional para evitar solucoes caras por seguranca excessiva.
+
+## Latest update 2026-02-24 (cli config refresh and query guard)
+
+- `interface/cli.py`:
+  - novo helper local para refresh pos `c/config`, removendo bloco duplicado;
+  - refresh completo apenas quando `default_filters` muda;
+  - sem mudanca de `default_filters`, mantem dataframe atual e evita requery caro;
+  - `get_ssa_query` aplica allowlist de tabela (`ssa_table` + aliases legados).
+- focused regression:
+  - `tests/test_cli_config_preserve_session.py` valida caminho com reload e sem reload;
+  - `tests/test_cli_get_ssa_query_identifier_guard.py` valida bloqueio de tabela fora da allowlist.

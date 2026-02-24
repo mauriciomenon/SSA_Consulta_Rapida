@@ -703,3 +703,16 @@ Regra de lint para este ciclo:
    - manter tratamento de erro por bloco funcional relevante, sem excesso de `if/try` fragmentado;
    - exigir saida objetiva e tratamento coerente para cada erro capturado;
    - evitar fallback caro e reprocessamento amplo como efeito colateral de hardening.
+
+## Update 2026-02-24 (cli config refresh com custo controlado)
+
+1. [resolved] config refresh sem reset cego de sessao:
+   - `interface/cli.py` centraliza refresh pos-config em helper local e remove duplicacao de blocos.
+2. [resolved] custo controlado no refresh:
+   - recarrega estado inicial apenas quando `default_filters` mudou;
+   - quando nao mudou, reaproveita dataframe atual e apenas re-renderiza.
+3. [resolved] seguranca na query estrutural:
+   - `get_ssa_query` agora aceita apenas `ssa_table` e aliases legados (`ssas`, `ssa_chamados`).
+4. [resolved] regression lock:
+   - `tests/test_cli_config_preserve_session.py` cobre reload condicional por mudanca de `default_filters`;
+   - `tests/test_cli_get_ssa_query_identifier_guard.py` cobre bloqueio de tabela fora da allowlist.
