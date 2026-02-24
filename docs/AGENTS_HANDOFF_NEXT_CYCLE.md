@@ -482,3 +482,11 @@ Entregavel de cada slice:
   - `ruff check interface/cli.py tests/test_cli_remove_filter_non_lifo.py`: pass.
   - `ty check interface/cli.py tests/test_cli_remove_filter_non_lifo.py`: pass.
   - `uv run pytest -q tests/test_cli_remove_filter_non_lifo.py`: pass.
+
+## Nova regra 2026-02-24 (error-handling e performance)
+
+- Tratamento de erro deve existir, mas por bloco funcional relevante, nao a cada poucas linhas.
+- Evitar excesso de condicionais e `try/except` fragmentado que reduz legibilidade e custo de manutencao.
+- Proibido `try/except` vazio e proibido esconder falha real.
+- Cada tratamento deve ter saida clara: log objetivo e retorno/acao coerente com o fluxo.
+- Em qualquer fix, validar que a solucao nao cria custo alto desnecessario (reprocessamento amplo, loops redundantes, fallback caro).

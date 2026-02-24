@@ -696,3 +696,10 @@ Regra de lint para este ciclo:
    - when removed term is only the trailing term, reapply uses previous stack state.
 3. [resolved] regression lock:
    - `tests/test_cli_remove_filter_non_lifo.py` covers non-lifo and lifo branches.
+
+## Update 2026-02-24 (governanca ativa para sprint de qualidade)
+
+1. [active-rule] equilibrio entre error-handling e performance:
+   - manter tratamento de erro por bloco funcional relevante, sem excesso de `if/try` fragmentado;
+   - exigir saida objetiva e tratamento coerente para cada erro capturado;
+   - evitar fallback caro e reprocessamento amplo como efeito colateral de hardening.
