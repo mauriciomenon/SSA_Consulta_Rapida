@@ -592,8 +592,6 @@ Regra de lint para este ciclo:
 3. [resolved] regression tests added for script targets and execution:
    - `tests/test_scripts_manutencao_schema_targets.py` validates:
      - `analyze_db_integrity.py` uses `ssa_table` and runs on canonical schema.
-     - `verificar_integridade.py` uses `ssa_table` and returns success on valid data.
-     - `limpar_banco.py` clears `ssa_table` without `VACUUM` transaction failure.
 
 ## Update 2026-02-24 (schema_manager identifier guard regression lock)
 
@@ -602,3 +600,30 @@ Regra de lint para este ciclo:
 2. [resolved] verified expected behavior:
    - invalid dynamic column name raises `ValueError`;
    - valid missing column is added successfully.
+
+## Update 2026-02-24 (analyze_db_integrity hardening)
+
+1. [resolved] fixed semantic/report consistency in integrity analyzer:
+   - `scripts_manutencao/analyze_db_integrity.py` now aggregates `empty_fields` with complete-empty-record checks.
+2. [resolved] fixed empty-table safety:
+   - no division-by-zero during percentage calc;
+   - `SUM(...)` null results now normalized to zero.
+3. [resolved] logging and maintenance contract alignment:
+   - migrated script output to robust logger;
+   - exposed `verify_database_integrity` + compatibility alias `analyze_database_integrity`;
+   - integrated `repair_database_if_needed` wrapper to call core repair flow only when needed.
+4. [resolved] focused regression tests for this script:
+   - `tests/test_scripts_manutencao_schema_targets.py` now locks:
+     - aggregate empty-fields flag behavior;
+     - empty-table no-crash behavior.
+
+## Update 2026-02-24 (verify_database_integrity performance refactor)
+
+1. [resolved] reduced query round-trips in integrity analyzer:
+   - merged core metrics into one query (`total_records`, critical empty counts, complete-empty records).
+2. [resolved] duplicate aggregation fixed and optimized:
+   - top-10 listing preserved while `duplicate_count` now reflects total duplicates across all groups.
+3. [resolved] import-date check avoids exception path when column is absent:
+   - `PRAGMA table_info` check before date query.
+4. [resolved] regression lock expanded:
+   - `tests/test_scripts_manutencao_schema_targets.py` validates duplicate-count correctness beyond top-10 sample.

@@ -11,6 +11,8 @@ Use this file to migrate context to a new chat without losing execution quality.
   - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
   - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
   - `resolved` test(db): add schema_manager identifier guard regression lock.
+  - `resolved` fix(maintenance): harden analyze_db_integrity for empty-table and report consistency.
+  - `resolved` perf(maintenance): refactor verify_database_integrity query flow.
 - Scope ativo:
   - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
   - hardening pontual de CLI/schema/scripts de manutencao;
@@ -36,13 +38,30 @@ Use this file to migrate context to a new chat without losing execution quality.
 - logging aligned with local rule in same script:
   - `print()` replaced by robust logger calls.
 - regression lock:
-  - new `tests/test_scripts_manutencao_schema_targets.py` for `analyze_db_integrity`, `verificar_integridade`, `limpar_banco`.
+  - new `tests/test_scripts_manutencao_schema_targets.py` for `analyze_db_integrity` paths.
 
 ## Latest update 2026-02-24 (schema_manager guard lock)
 
 - new `tests/test_schema_manager_identifier_guards.py`:
   - asserts invalid column identifiers are rejected with `ValueError`;
   - asserts valid missing columns are added.
+
+## Latest update 2026-02-24 (analyze_db_integrity hardening)
+
+- `scripts_manutencao/analyze_db_integrity.py`:
+  - moved to robust logger outputs;
+  - added `verify_database_integrity` entrypoint with compatibility alias;
+  - fixed empty-table edge cases (`0` totals and `SUM NULL` handling);
+  - aligned return payload with `stats_dict`.
+- focused tests:
+  - `tests/test_scripts_manutencao_schema_targets.py` validates aggregate empty-fields and empty-table no-crash path.
+
+## Latest update 2026-02-24 (verify_database_integrity performance refactor)
+
+- consolidated integrity metrics into one core SQL query;
+- duplicate total now computed across full grouped set while keeping top-10 display;
+- added guard before import-date query when `data_importacao` is not present;
+- regression test expanded for duplicate-count correctness beyond top-10.
 
 ## Scope
 
