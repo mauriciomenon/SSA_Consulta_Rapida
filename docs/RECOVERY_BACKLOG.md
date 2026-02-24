@@ -832,3 +832,12 @@ Regra de lint para este ciclo:
    - `tests/test_ascii_logging_filter.py` covers mapping args and tuple args.
 4. [operational-note] legacy DB reset policy:
    - canonical-write enforcement is in code paths; legacy cleanup reset remains an explicit operational action, not an automatic runtime mutation.
+
+## Update 2026-02-24 (streamlit cache compatibility fallback fix)
+
+1. [resolved] fixed fallback inconsistency in compatibility cache methods:
+   - `get_cached_filter` and `cache_filter_result` now respect active backend (`session_state` or local fallback).
+2. [resolved] reduced non-runtime fragility:
+   - cache stats and eviction counters now update in local fallback path as well.
+3. [scope] minimal patch:
+   - no layout/UI changes and no filter algorithm changes.

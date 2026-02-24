@@ -503,3 +503,15 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
 - ops clarification:
   - legacy DB reset is operational/controlled; code path now enforces canonical write and validation for new writes.
+
+## Latest update 2026-02-24 (streamlit cache fallback parity)
+
+- `dev_env/streamlit_app.py`:
+  - `get_cached_filter` and `cache_filter_result` now branch by `_use_session_state` and update proper stats backend.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py`: pass.
+  - `ty check dev_env/streamlit_app.py`: pass.
+  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
