@@ -571,3 +571,9 @@ Entregavel de cada slice:
 - `resolved` fix(db-optimized): replaced `to_sql` under savepoint in update branch with parameterized `executemany` to keep transaction semantics stable.
 - `resolved` test(db-optimized): `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
 - `deferred` quality(P4): function-size/god-function concern in `insert_dataframe_optimized` intentionally left for exclusive refactor sprint.
+
+## Update 2026-02-24 (canonical write policy for optimized upsert)
+
+- `resolved` policy: canonical write is mandatory; no runtime legacy `*.0` lookup compatibility in optimized path.
+- `resolved` validation: write flow now fails fast if normalized storage ids still contain decimal artifacts.
+- `decision` operational: legacy data handling in this cycle should use controlled DB reset/migration.

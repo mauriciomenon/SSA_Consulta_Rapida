@@ -430,3 +430,18 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (3 tests).
 - deferred-by-scope:
   - kluster P4 quality concern about function size in `insert_dataframe_optimized` (requires dedicated refactor sprint, out of current minimal patch scope).
+
+## Latest update 2026-02-24 (canonical write policy for SSA ids)
+
+- `armazenamento/database_optimized.py`:
+  - removed legacy read compatibility branch for `numero_ssa + ".0"`.
+  - added `_validate_canonical_storage_ids(...)` to reject decimal artifacts in write path.
+- tests:
+  - removed legacy-runtime compatibility test from `tests/test_database_optimized_alias_views.py`.
+- gate local deste slice:
+  - `python -m py_compile armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ruff check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ty check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (2 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
