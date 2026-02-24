@@ -841,3 +841,12 @@ Regra de lint para este ciclo:
    - cache stats and eviction counters now update in local fallback path as well.
 3. [scope] minimal patch:
    - no layout/UI changes and no filter algorithm changes.
+
+## Update 2026-02-24 (streamlit filter guard + ui-noise reduction)
+
+1. [resolved] guard against missing filter columns in streamlit path:
+   - `apply_all_filters_cached` now checks column presence before `isin(...)` filters.
+2. [resolved] reduced UI noise/perf overhead on cache miss telemetry:
+   - replaced `st.info` per miss with structured logger message.
+3. [scope] no layout changes:
+   - patch limited to runtime filter safety and telemetry behavior.

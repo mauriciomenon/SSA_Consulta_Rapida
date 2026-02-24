@@ -515,3 +515,16 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit filter guards and telemetry)
+
+- `dev_env/streamlit_app.py`:
+  - column-presence guards added for `situacao`, `setor_executor`, `setor_emissor` filters;
+  - slow-filter telemetry now uses logger instead of `st.info` per cache miss.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py`: pass.
+  - `ty check dev_env/streamlit_app.py`: pass.
+  - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
