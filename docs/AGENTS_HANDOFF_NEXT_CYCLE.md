@@ -625,3 +625,11 @@ Entregavel de cada slice:
 - `resolved` correctness(cache): keying now accepts lightweight dataframe token to reduce stale cache collisions.
 - `resolved` maintenance: removed deprecated pandas CoW setting.
 - `resolved` tests: new focused coverage for fallback cache backend and token behavior.
+
+## Update 2026-02-24 (streamlit long cycle)
+
+- `resolved` layout(streamlit): tabs introduced and table positioning updated with dedicated pagination controls.
+- `resolved` ops(streamlit): API fetch is now manual/on-demand and snapshot-based.
+- `resolved` stability(streamlit): safe import fallback when streamlit is unavailable + stronger runtime detection.
+- `resolved` perf(cache): key token memoization + backend resolver reuse.
+- `resolved` tests: extended streamlit cache helper coverage.

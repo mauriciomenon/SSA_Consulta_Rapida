@@ -873,3 +873,22 @@ Regra de lint para este ciclo:
    - removed deprecated `pd.options.mode.copy_on_write` assignment.
 5. [resolved] regression coverage for fallback/cache token:
    - `tests/test_streamlit_filter_cache.py`.
+
+## Update 2026-02-24 (streamlit long cycle: layout + runtime hardening)
+
+1. [resolved] broader layout/positioning update in streamlit UI:
+   - replaced monolithic single-flow rendering with tabs (`Filtros`, `Tabela`, `Exportacao`, `Cache e API`).
+   - table area now uses explicit pagination controls (page size + page number).
+2. [resolved] API fetch behavior improved:
+   - API access changed from automatic-per-rerun to manual action button in `Cache e API` tab.
+   - latest API snapshot persisted in `session_state` until explicit refresh/clear.
+3. [resolved] runtime hardening:
+   - safe fallback stub when `streamlit` package is missing.
+   - improved runtime detection (`st.runtime.exists()` when available).
+4. [resolved] cache consistency/performance:
+   - unified backend resolver reused across all cache methods.
+   - cache key includes lightweight `df_token` with memoization in `df.attrs`.
+5. [resolved] maintenance/perf cleanup:
+   - removed deprecated pandas CoW option assignment.
+6. [resolved] expanded focused tests:
+   - `tests/test_streamlit_filter_cache.py` now covers fallback cache methods, token differentiation, option builder and pagination helper.

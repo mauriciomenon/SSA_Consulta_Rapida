@@ -558,3 +558,22 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (4 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit long cycle: layout and broad improvements)
+
+- `dev_env/streamlit_app.py`:
+  - UI repositioning/layout expanded to tabs: `Filtros`, `Tabela`, `Exportacao`, `Cache e API`.
+  - table rendering now paginates filtered data (`_paginate_dataframe`) before arrow conversion/render.
+  - API fetch now manual via button; snapshot persisted in session state and clearable.
+  - runtime detection strengthened and non-streamlit import fallback added.
+  - cache backend logic centralized; cache keys now include lightweight memoized dataframe token.
+  - removed deprecated pandas CoW option write.
+- tests:
+  - expanded `tests/test_streamlit_filter_cache.py`.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (6 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
