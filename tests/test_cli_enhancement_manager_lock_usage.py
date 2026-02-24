@@ -17,3 +17,19 @@ def test_save_settings_applies_single_lock_on_lockfile(tmp_path, monkeypatch):
     manager._save_settings()
 
     assert calls["count"] == 1
+
+
+def test_save_settings_aborts_when_lock_acquisition_fails(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+    manager.settings = {"enhanced_table_printer": True}
+
+    monkeypatch.setattr(
+        manager,
+        "_lock_file_if_possible",
+        lambda _f: (_ for _ in ()).throw(RuntimeError("lock busy")),
+    )
+
+    manager._save_settings()
+
+    assert not (tmp_path / "cli_enhancements.json").exists()

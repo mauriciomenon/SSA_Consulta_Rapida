@@ -530,6 +530,7 @@ Entregavel de cada slice:
 ## Update 2026-02-24 (cli enhancement settings lock and root)
 
 - `resolved` fix(cli): `_save_settings` keeps lock in lockfile write path (tempfile lock removed).
+- `resolved` safety(cli): when lock acquisition fails, save aborts (no unlocked write).
 - `resolved` quality(cli): module root resolution switched to `_get_project_root()`.
 - `resolved` quality(cli): module logger switched to robust logger API.
 - `resolved` test(cli): update/add `tests/test_cli_enhancement_manager_lock_usage.py`.

@@ -73,13 +73,14 @@ class CLIEnhancementManager:
                     raise
                 self._lock_file_if_possible(lock_file)
             except Exception as exc:
-                logger.debug("Nao foi possivel preparar lock para settings: %s", exc)
+                logger.warning("Nao foi possivel adquirir lock de settings; gravacao abortada: %s", exc)
                 if lock_file is not None:
                     try:
                         lock_file.close()
                     except Exception as close_exc:
                         logger.warning("Falha ao fechar lock file de settings: %s", close_exc)
                 lock_file = None
+                return
 
             fd = None
             tmp_path = None
@@ -121,30 +122,34 @@ class CLIEnhancementManager:
                     logger.warning("Falha ao fechar lock file final de settings: %s", close_exc)
 
     def _lock_file_if_possible(self, f: Any) -> None:
-        """Best-effort file lock to avoid races on settings writes."""
-        try:
-            if fcntl is not None:
-                flags = fcntl.LOCK_EX
-                if hasattr(fcntl, "LOCK_NB"):
-                    flags |= fcntl.LOCK_NB
+        """Acquire advisory lock for settings writes."""
+        if fcntl is not None:
+            flags = fcntl.LOCK_EX
+            if hasattr(fcntl, "LOCK_NB"):
+                flags |= fcntl.LOCK_NB
+            try:
                 fcntl.flock(f.fileno(), flags)
-            elif msvcrt is not None:  # pragma: no cover - Windows
-                mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
-                try:
-                    current_pos = f.tell()
-                except Exception as exc:
-                    logger.debug("Nao foi possivel ler posicao atual do lock file: %s", exc)
-                    current_pos = 0
-                try:
-                    file_size = os.fstat(f.fileno()).st_size
-                except Exception as exc:
-                    logger.debug("Nao foi possivel ler tamanho do lock file: %s", exc)
-                    file_size = 0
-                remaining = file_size - current_pos
-                lock_len = max(remaining, 1)
+            except OSError as exc:
+                raise RuntimeError(f"Falha ao aplicar flock no settings: {exc}") from exc
+            return
+        if msvcrt is not None:  # pragma: no cover - Windows
+            mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
+            try:
+                current_pos = f.tell()
+            except Exception:
+                current_pos = 0
+            try:
+                file_size = os.fstat(f.fileno()).st_size
+            except Exception:
+                file_size = 0
+            remaining = file_size - current_pos
+            lock_len = max(remaining, 1)
+            try:
                 msvcrt.locking(f.fileno(), mode, lock_len)
-        except Exception as exc:
-            logger.debug("Nao foi possivel aplicar lock no settings: %s", exc)
+            except OSError as exc:
+                raise RuntimeError(f"Falha ao aplicar msvcrt.locking no settings: {exc}") from exc
+            return
+        raise RuntimeError("Nenhum backend de lock disponivel para settings")
 
     def is_enhanced_printer_enabled(self) -> bool:
         """Verifica se enhanced table printer está habilitado."""
