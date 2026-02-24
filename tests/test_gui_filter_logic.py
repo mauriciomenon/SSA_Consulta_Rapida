@@ -1294,6 +1294,40 @@ class TestGUIFilterLogic:
         self.window._reorganize_advanced_filters_grid(800)
         assert self.window._adv_filters_main_grid.count() > 0
 
+    def test_reorganize_advanced_filters_grid_allows_narrow_valid_width(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._reorganize_advanced_filters_grid(90)
+        assert self.window._adv_filters_layout_mode == "narrow"
+
+        grid = self.window._adv_filters_main_grid
+        widgets = self.window._adv_filters_grid_widgets
+        exec_resp_item = grid.itemAtPosition(7, 0)
+        assert exec_resp_item is not None
+        assert exec_resp_item.widget() is widgets["exec_resp_box"]
+
+    def test_reorganize_advanced_filters_grid_ignores_non_positive_width_and_recomputes(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._reorganize_advanced_filters_grid(1501)
+        assert self.window._adv_filters_layout_mode == "wide"
+
+        self.window._reorganize_advanced_filters_grid(0)
+        assert self.window._adv_filters_layout_mode is None
+
+        self.window._reorganize_advanced_filters_grid(800)
+        assert self.window._adv_filters_layout_mode == "mid"
+
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
         self.window._save_advanced_filters_default()

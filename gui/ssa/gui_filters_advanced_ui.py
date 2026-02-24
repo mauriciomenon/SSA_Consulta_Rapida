@@ -37,6 +37,13 @@ from .gui_filters_advanced_state import DIVISAO_SETORES, SECTOR_TO_DIV
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 
+# Layout constants
+LAYOUT_MIN_VALID_WIDTH = 1
+LAYOUT_WIDE_MIN_WIDTH = 1050
+LAYOUT_MID_MIN_WIDTH = 650
+LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT = 116
+LAYOUT_ACTION_BTN_MIN_WIDTH_NARROW = 96
+
 
 def _is_widget_valid(widget) -> bool:
     if widget is None:
@@ -71,6 +78,29 @@ def _safe_len(value: Any) -> int:
         return len(value)
     except Exception:
         return 0
+
+
+def _update_advanced_filters_action_buttons(self, width: int) -> None:
+    """Ajusta tamanho minimo dos botoes de acao conforme largura util."""
+    apply_btn = getattr(self, "_adv_filters_apply_btn", None)
+    clear_btn = getattr(self, "_adv_filters_clear_btn", None)
+    if apply_btn is None or clear_btn is None:
+        return
+    if width <= 0:
+        return
+    min_width = (
+        LAYOUT_ACTION_BTN_MIN_WIDTH_NARROW
+        if width <= LAYOUT_MID_MIN_WIDTH
+        else LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT
+    )
+    if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
+        return
+    self._adv_filters_action_btn_min_width = min_width
+    for btn in (apply_btn, clear_btn):
+        try:
+            btn.setMinimumWidth(min_width)
+        except Exception as exc:
+            logger.debug("Falha ao ajustar largura minima de botao de acao: %s", exc)
 
 
 def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
@@ -951,20 +981,24 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(116)
-        clear_btn.setMinimumWidth(116)
+        apply_btn.setMinimumWidth(LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT)
+        clear_btn.setMinimumWidth(LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT)
         apply_btn.setStyleSheet("font-weight: 600; padding: 4px 12px;")
         clear_btn.setStyleSheet("padding: 4px 12px;")
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    buttons_row.addStretch()
+    buttons_row.addStretch(1)
     buttons_row.addWidget(apply_btn)
-    buttons_row.addSpacing(8)
+    buttons_row.addSpacing(10)
     buttons_row.addWidget(clear_btn)
+    buttons_row.addStretch(1)
 
     outer.addLayout(buttons_row)
+    self._adv_filters_apply_btn = apply_btn
+    self._adv_filters_clear_btn = clear_btn
+    self._adv_filters_action_btn_min_width = LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT
 
     ctx = {
         "adv_filters_group": group,
@@ -1089,7 +1123,15 @@ def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados baseado na largura disponivel."""
     if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
         return
-    mode = "wide" if width > 1400 else "mid" if width > 960 else "narrow"
+
+    _update_advanced_filters_action_buttons(self, width)
+
+    # Ignora apenas largura invalida (ex.: hidden), sem bloquear largura estreita valida.
+    if width < LAYOUT_MIN_VALID_WIDTH:
+        self._adv_filters_layout_mode = None
+        return
+
+    mode = "wide" if width > LAYOUT_WIDE_MIN_WIDTH else "mid" if width > LAYOUT_MID_MIN_WIDTH else "narrow"
     if getattr(self, "_adv_filters_layout_mode", None) == mode:
         return
     self._adv_filters_layout_mode = mode
@@ -1106,8 +1148,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             widget.hide()
         del item
 
-    # Largura > 1400px
-    if width > 1400:
+    if mode == "wide":
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1141,8 +1182,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(5):
             grid.setColumnStretch(col, 1)
 
-    # Largura 960-1400px
-    elif width > 960:
+    elif mode == "mid":
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1176,8 +1216,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(3):
             grid.setColumnStretch(col, 1)
 
-    # Largura <= 960px
-    else:
+    else:  # narrow
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
