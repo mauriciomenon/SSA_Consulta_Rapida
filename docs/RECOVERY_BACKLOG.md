@@ -812,3 +812,12 @@ Regra de lint para este ciclo:
    - expanded `tests/test_db_reset_and_upsert.py` with duplicate `numero_ssa` scenario.
 3. [scope] no architecture refactor:
    - change limited to chunk key preparation only.
+
+## Update 2026-02-24 (prepare_dataframe_for_upsert copy-path perf)
+
+1. [resolved] reduced overhead in dataframe preparation for standard upsert:
+   - replaced `pd.DataFrame(frame.values, columns=frame.columns)` with `frame.copy()`.
+2. [resolved] behavior lock:
+   - added focused test to ensure input dataframe is not mutated and normalized output remains canonical.
+3. [scope] minimal patch only:
+   - no flow/algorithm refactor beyond copy-path change.

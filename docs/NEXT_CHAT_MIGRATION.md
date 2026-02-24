@@ -473,3 +473,17 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_db_reset_and_upsert.py tests/test_database_upsert_canonical_write.py`: pass (6 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (prepare_dataframe_for_upsert copy-path perf)
+
+- `armazenamento/database_upsert_logic.py`:
+  - `prepare_dataframe_for_upsert` now uses `frame.copy().reset_index(drop=True)`.
+- tests:
+  - added `tests/test_database_upsert_prepare.py` for immutability + normalization lock.
+- gate local deste slice:
+  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
+  - `ruff check armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
+  - `ty check armazenamento/database_upsert_logic.py tests/test_database_upsert_prepare.py`: pass.
+  - `uv run pytest -q tests/test_database_upsert_prepare.py tests/test_db_reset_and_upsert.py`: pass (6 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).

@@ -589,3 +589,8 @@ Entregavel de cada slice:
 - `resolved` perf(upsert): removed O(n2) duplicate-key scan per chunk in standard upsert path.
 - `resolved` regression: duplicate `numero_ssa` in same import chunk remains functionally correct.
 - `scope` patch-minimo: no broad refactor in `_perform_upsert`.
+
+## Update 2026-02-24 (prepare_dataframe_for_upsert copy-path perf)
+
+- `resolved` perf(upsert): lighter dataframe copy path in `prepare_dataframe_for_upsert`.
+- `resolved` regression: input immutability and canonical/date normalization output covered by focused test.
