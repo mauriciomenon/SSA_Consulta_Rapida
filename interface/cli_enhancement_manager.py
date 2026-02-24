@@ -5,11 +5,16 @@ Permite ativar/desativar enhanced table printer facilmente.
 
 import os
 import json
-import logging
 import tempfile
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "cli")
+
+
+def _get_project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import fcntl
@@ -27,7 +32,7 @@ class CLIEnhancementManager:
 
     def __init__(self):
         """Inicializa o gerenciador de melhorias."""
-        self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.project_root = _get_project_root()
         self.settings_file = os.path.join(self.project_root, 'config', 'cli_enhancements.json')
         self.settings = self._load_settings()
 
@@ -86,7 +91,6 @@ class CLIEnhancementManager:
                     os.close(fd)
                     raise
                 with fobj as f:
-                    self._lock_file_if_possible(f)
                     json.dump(self.settings, f, indent=2, ensure_ascii=False)
                     f.flush()
                     try:

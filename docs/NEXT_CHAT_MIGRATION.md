@@ -387,3 +387,12 @@ Relatorio final por slice:
   - pagination state key is persisted in `df.attrs` to preserve state across dataframe copies.
 - focused regression:
   - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation check).
+
+## Latest update 2026-02-24 (cli enhancement settings lock and root)
+
+- `interface/cli_enhancement_manager.py`:
+  - logger now uses robust logger API;
+  - project root now resolved via `_get_project_root()`;
+  - settings save keeps lock only on lockfile (no lock on temp file).
+- focused regression:
+  - `tests/test_cli_enhancement_manager_lock_usage.py`.
