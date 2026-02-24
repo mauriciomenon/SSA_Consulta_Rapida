@@ -8,7 +8,8 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Commits base desta rodada:
   - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
   - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
-  - `pending` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
+  - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
+  - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
 - Scope ativo:
   - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
   - hardening pontual de CLI/schema/scripts de manutencao;
@@ -26,6 +27,15 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Regression tests added in `tests/test_extracao.py`.
 - Local validation for touched scope:
   - `python -m py_compile`, `ruff check`, `ty check`, `uv run pytest -q tests/test_extracao.py` all green.
+
+## Latest update 2026-02-24 (maintenance scripts)
+
+- `scripts_manutencao/limpar_banco.py` runtime fix:
+  - `VACUUM` executes after `commit`, avoiding transaction error.
+- logging aligned with local rule in same script:
+  - `print()` replaced by robust logger calls.
+- regression lock:
+  - new `tests/test_scripts_manutencao_schema_targets.py` for `analyze_db_integrity`, `verificar_integridade`, `limpar_banco`.
 
 ## Scope
 

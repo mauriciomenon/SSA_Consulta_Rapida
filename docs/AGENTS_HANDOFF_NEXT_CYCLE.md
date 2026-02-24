@@ -9,7 +9,8 @@ This handoff is ready to reuse in the next conversation.
   - Commits recentes deste ciclo:
     - `1c56addb` fix(gui): stabilize advanced filters responsive grid and action buttons.
     - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
-    - `pending` fix(extracao): resolve tempo_excedido `m` ambiguity and lock with focused tests.
+    - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and lock with focused tests.
+    - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
   - Scope atual:
     - estabilizacao de filtros avancados (resize/layout de grid e botoes internos);
     - hardening pontual CLI/schema/scripts de manutencao;
@@ -20,6 +21,7 @@ This handoff is ready to reuse in the next conversation.
       - `tests/test_gui_filter_logic.py` (casos de resize): pass;
       - suites focadas de CLI/config/schema/db: pass.
       - `tests/test_extracao.py` (tempo_excedido parser): pass.
+      - `tests/test_scripts_manutencao_schema_targets.py`: pass.
   - Registro de controle obrigatorio:
     - `docs/RECOVERY_BACKLOG.md` atualizado com triagem kluster e itens deferidos.
     - `docs/NEXT_CHAT_MIGRATION.md` sincronizado com este branch/scope (override 2026-02-24).

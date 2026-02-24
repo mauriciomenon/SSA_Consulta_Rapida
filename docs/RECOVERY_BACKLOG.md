@@ -582,3 +582,15 @@ Regra de lint para este ciclo:
    - `tests/test_extracao.py`: added focused checks for `1h 30m`, `15mi`, and `2mo 5d`.
 3. [scope-note] no broad refactor applied:
    - only parser token mapping and targeted tests changed.
+
+## Update 2026-02-24 (maintenance scripts runtime stability)
+
+1. [resolved] runtime failure fixed in maintenance cleanup:
+   - `scripts_manutencao/limpar_banco.py`: `VACUUM` now runs after `commit` to avoid transaction error.
+2. [resolved] logging rule aligned with minimal change:
+   - `scripts_manutencao/limpar_banco.py`: replaced `print()` usage with robust logger calls.
+3. [resolved] regression tests added for script targets and execution:
+   - `tests/test_scripts_manutencao_schema_targets.py` validates:
+     - `analyze_db_integrity.py` uses `ssa_table` and runs on canonical schema.
+     - `verificar_integridade.py` uses `ssa_table` and returns success on valid data.
+     - `limpar_banco.py` clears `ssa_table` without `VACUUM` transaction failure.
