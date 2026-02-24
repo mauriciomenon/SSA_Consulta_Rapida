@@ -28,6 +28,25 @@ logger = logging.getLogger(__name__)
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
 
+def _normalize_ssa_storage_value(value) -> str | None:
+    normalized_int = _normalize_numero_ssa_value(value)
+    if normalized_int is None:
+        return None
+    try:
+        return str(int(normalized_int))
+    except Exception:
+        return None
+
+
+def _validate_canonical_storage_ids(work_local: pd.DataFrame) -> None:
+    for col in ("numero_ssa", "derivada_de"):
+        if col not in work_local.columns:
+            continue
+        series = work_local[col].dropna().astype(str).str.strip()
+        if series.str.contains(".", regex=False).any():
+            raise ValueError(f"Non-canonical value detected in {col}; decimal artifact is not allowed")
+
+
 def _infer_sql_type(series: pd.Series | None) -> str:
     """Infer a SQLite column type from a pandas Series."""
     if series is None:
@@ -313,7 +332,10 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
 def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     work_local = pd.DataFrame(frame.values, columns=frame.columns).reset_index(drop=True)
     if 'numero_ssa' in work_local.columns:
-        work_local['numero_ssa'] = work_local['numero_ssa'].apply(_normalize_numero_ssa_value)
+        work_local['numero_ssa'] = work_local['numero_ssa'].map(_normalize_ssa_storage_value)
+    if 'derivada_de' in work_local.columns:
+        work_local['derivada_de'] = work_local['derivada_de'].map(_normalize_ssa_storage_value)
+    _validate_canonical_storage_ids(work_local)
     date_columns = [
         'data_cadastro',
         'prazo_limite',

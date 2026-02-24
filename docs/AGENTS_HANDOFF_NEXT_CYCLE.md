@@ -577,3 +577,9 @@ Entregavel de cada slice:
 - `resolved` policy: canonical write is mandatory; no runtime legacy `*.0` lookup compatibility in optimized path.
 - `resolved` validation: write flow now fails fast if normalized storage ids still contain decimal artifacts.
 - `decision` operational: legacy data handling in this cycle should use controlled DB reset/migration.
+
+## Update 2026-02-24 (canonical write policy in standard upsert path)
+
+- `resolved` parity: non-optimized upsert now follows same canonical write rule used in optimized path.
+- `resolved` validation: standard path rejects decimal artifacts in storage ids after normalization.
+- `resolved` test: add dedicated regression for non-optimized canonical write persistence.

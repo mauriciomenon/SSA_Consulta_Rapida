@@ -794,3 +794,12 @@ Regra de lint para este ciclo:
    - canonical lookup chunk and `executemany` update/insert paths preserved.
 4. [decision] migration strategy for this cycle:
    - legacy cleanup to be handled by controlled DB reset/migration, not runtime compatibility branches.
+
+## Update 2026-02-24 (canonical write policy extended to non-optimized upsert)
+
+1. [resolved] extended canonical write enforcement to non-optimized import path:
+   - `armazenamento/database_upsert_logic.py` now normalizes `numero_ssa` and `derivada_de` to canonical storage format.
+2. [resolved] explicit validation in standard upsert path:
+   - fail-fast validation rejects decimal artifacts after normalization in storage id columns.
+3. [resolved] regression lock:
+   - `tests/test_database_upsert_canonical_write.py` validates canonical persistence in non-optimized mode.
