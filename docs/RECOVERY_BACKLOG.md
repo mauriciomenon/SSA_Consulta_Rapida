@@ -594,3 +594,11 @@ Regra de lint para este ciclo:
      - `analyze_db_integrity.py` uses `ssa_table` and runs on canonical schema.
      - `verificar_integridade.py` uses `ssa_table` and returns success on valid data.
      - `limpar_banco.py` clears `ssa_table` without `VACUUM` transaction failure.
+
+## Update 2026-02-24 (schema_manager identifier guard regression lock)
+
+1. [resolved] added focused tests for SQL identifier hardening:
+   - `tests/test_schema_manager_identifier_guards.py`
+2. [resolved] verified expected behavior:
+   - invalid dynamic column name raises `ValueError`;
+   - valid missing column is added successfully.

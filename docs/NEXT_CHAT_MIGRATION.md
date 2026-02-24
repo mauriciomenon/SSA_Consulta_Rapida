@@ -10,6 +10,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   - `06633471` fix(cli,db): harden config flow and maintenance schema targets.
   - `4adcf35b` fix(extracao): resolve tempo_excedido `m` ambiguity and add focused regression tests.
   - `resolved` fix(maintenance): avoid VACUUM-in-transaction and add script regression tests.
+  - `resolved` test(db): add schema_manager identifier guard regression lock.
 - Scope ativo:
   - estabilizacao de filtros avancados (resize/layout interno de botoes no painel de filtros avancados);
   - hardening pontual de CLI/schema/scripts de manutencao;
@@ -36,6 +37,12 @@ Use this file to migrate context to a new chat without losing execution quality.
   - `print()` replaced by robust logger calls.
 - regression lock:
   - new `tests/test_scripts_manutencao_schema_targets.py` for `analyze_db_integrity`, `verificar_integridade`, `limpar_banco`.
+
+## Latest update 2026-02-24 (schema_manager guard lock)
+
+- new `tests/test_schema_manager_identifier_guards.py`:
+  - asserts invalid column identifiers are rejected with `ValueError`;
+  - asserts valid missing columns are added.
 
 ## Scope
 
