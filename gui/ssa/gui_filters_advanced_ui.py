@@ -1121,8 +1121,8 @@ def _reorganize_advanced_filters_grid(self, width: int):
             widget.hide()
         del item
 
-    # Largura > LAYOUT_WIDE_MIN_WIDTH px (Wide: 5 colunas)
-    if width > LAYOUT_WIDE_MIN_WIDTH:
+    # Modo wide (5 colunas)
+    if mode == "wide":
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1156,8 +1156,8 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(5):
             grid.setColumnStretch(col, 1)
 
-    # Largura LAYOUT_MID_MIN_WIDTH-LAYOUT_WIDE_MIN_WIDTH px (Mid: 3 colunas)
-    elif width > LAYOUT_MID_MIN_WIDTH:
+    # Modo mid (3 colunas)
+    elif mode == "mid":
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
         grid.addWidget(w["exec_box"], 0, 1)
@@ -1191,7 +1191,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         for col in range(3):
             grid.setColumnStretch(col, 1)
 
-    # Largura <= LAYOUT_MID_MIN_WIDTH px (Narrow: 2 colunas)
+    # Modo narrow (2 colunas)
     else:
         grid.addWidget(w["emis_box"], 0, 0)
         w["emis_box"].show()
