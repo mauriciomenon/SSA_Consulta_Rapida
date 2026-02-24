@@ -803,3 +803,12 @@ Regra de lint para este ciclo:
    - fail-fast validation rejects decimal artifacts after normalization in storage id columns.
 3. [resolved] regression lock:
    - `tests/test_database_upsert_canonical_write.py` validates canonical persistence in non-optimized mode.
+
+## Update 2026-02-24 (upsert chunk dedupe performance - minimal patch)
+
+1. [resolved] reduced O(n2) dedupe in `_perform_upsert` chunk preparation:
+   - replaced manual loop+`any(...)` with pandas `dropna().drop_duplicates().tolist()`.
+2. [resolved] behavior lock for duplicate key in same chunk:
+   - expanded `tests/test_db_reset_and_upsert.py` with duplicate `numero_ssa` scenario.
+3. [scope] no architecture refactor:
+   - change limited to chunk key preparation only.

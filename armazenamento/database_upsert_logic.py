@@ -277,13 +277,12 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
     for start in range(0, len(has_ssa), chunk_size):
         chunk = has_ssa.iloc[start:start + chunk_size]
 
-        chunk_num_ssa: list[Any] = []
-        for numero in chunk['numero_ssa'].tolist():
-            if pd.isna(numero):
-                continue
-            if any(existing_num == numero for existing_num in chunk_num_ssa):
-                continue
-            chunk_num_ssa.append(numero)
+        chunk_num_ssa: list[Any] = (
+            chunk['numero_ssa']
+            .dropna()
+            .drop_duplicates()
+            .tolist()
+        )
 
         existing_by_ssa: dict[str, pd.Series] = {}
         if chunk_num_ssa:

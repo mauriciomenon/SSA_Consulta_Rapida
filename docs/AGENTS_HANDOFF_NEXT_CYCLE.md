@@ -583,3 +583,9 @@ Entregavel de cada slice:
 - `resolved` parity: non-optimized upsert now follows same canonical write rule used in optimized path.
 - `resolved` validation: standard path rejects decimal artifacts in storage ids after normalization.
 - `resolved` test: add dedicated regression for non-optimized canonical write persistence.
+
+## Update 2026-02-24 (upsert chunk dedupe perf)
+
+- `resolved` perf(upsert): removed O(n2) duplicate-key scan per chunk in standard upsert path.
+- `resolved` regression: duplicate `numero_ssa` in same import chunk remains functionally correct.
+- `scope` patch-minimo: no broad refactor in `_perform_upsert`.

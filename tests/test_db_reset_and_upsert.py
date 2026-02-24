@@ -93,3 +93,55 @@ def test_insert_dataframe_with_smart_upsert(tmp_path):
     assert len(df) == 1
     assert df.iloc[0]['situacao'] == 'NEW'
     assert df.iloc[0]['setor_executor'] == 'MEL2'
+
+
+def test_insert_dataframe_with_smart_upsert_handles_duplicate_numero_ssa_in_chunk(tmp_path):
+    db_path = os.path.join(tmp_path, 'x_dup.sqlite')
+    schema = _make_schema(tmp_path)
+    initialize_database(db_path, schema)
+
+    seed = pd.DataFrame(
+        [
+            {
+                'numero_ssa': '202401999',
+                'situacao': 'BASE',
+                'data_cadastro': '01/01/2025',
+                'descricao_ssa': 'base',
+                'setor_executor': 'A1',
+            }
+        ]
+    )
+    insert_dataframe_to_db(seed, db_path, 'ssas')
+
+    incoming = pd.DataFrame(
+        [
+            {
+                'numero_ssa': '202401999',
+                'situacao': 'UP1',
+                'data_cadastro': '02/01/2025',
+                'descricao_ssa': 'up1',
+                'setor_executor': 'B1',
+            },
+            {
+                'numero_ssa': '202401999',
+                'situacao': 'UP2',
+                'data_cadastro': '03/01/2025',
+                'descricao_ssa': 'up2',
+                'setor_executor': 'C1',
+            },
+        ]
+    )
+
+    assert insert_dataframe_with_smart_upsert(incoming, db_path, 'ssas') is True
+
+    with get_db_connection(db_path) as conn:
+        rows = pd.read_sql_query(
+            "SELECT numero_ssa, situacao, data_cadastro, descricao_ssa, setor_executor FROM ssas",
+            conn,
+        )
+
+    assert len(rows) == 1
+    row = rows.iloc[0]
+    assert str(row['numero_ssa']) == '202401999'
+    assert row['situacao'] == 'UP2'
+    assert row['setor_executor'] == 'C1'
