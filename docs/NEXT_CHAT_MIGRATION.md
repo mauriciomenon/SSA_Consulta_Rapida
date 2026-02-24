@@ -378,3 +378,11 @@ Relatorio final por slice:
   - `clearall` agora respeita `table_name` recebido pelo loop (`get_ssa_query(table_name)`).
 - focused regression:
   - `tests/test_cli_clearall_uses_table_name.py`.
+
+## Latest update 2026-02-24 (cli pagination tracker prune)
+
+- `interface/cli.py`:
+  - pagination tracker now has a small local manager class for state ops;
+  - prune runs after stack mutations to remove orphan tracker entries.
+- focused regression:
+  - `tests/test_cli_pagination_tracker_prune.py`.
