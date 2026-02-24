@@ -384,5 +384,6 @@ Relatorio final por slice:
 - `interface/cli.py`:
   - pagination tracker now has a small local manager class for state ops;
   - prune runs after stack mutations to remove orphan tracker entries.
+  - pagination state key is persisted in `df.attrs` to preserve state across dataframe copies.
 - focused regression:
-  - `tests/test_cli_pagination_tracker_prune.py`.
+  - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation check).

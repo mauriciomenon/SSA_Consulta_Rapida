@@ -45,9 +45,26 @@ class _CLIPaginationTrackerManager:
     def __init__(self, store: Dict[int, Dict[str, Any]]) -> None:
         self._store = store
         self._prune_tick = 0
+        self._next_key = 1
+
+    def key_for(self, df: pd.DataFrame, *, create: bool = True) -> int | None:
+        attrs = getattr(df, "attrs", None)
+        if isinstance(attrs, dict):
+            existing = attrs.get("_cli_pagination_key")
+            if isinstance(existing, int):
+                return existing
+            if create:
+                key = self._next_key
+                self._next_key += 1
+                attrs["_cli_pagination_key"] = key
+                return key
+        return id(df) if create else None
 
     def reset(self, df: pd.DataFrame) -> None:
-        self._store[id(df)] = {
+        key = self.key_for(df)
+        if key is None:
+            return
+        self._store[key] = {
             'next_page': 0,
             'total_pages': 0,
             'rendered_pages': 0,
@@ -55,16 +72,27 @@ class _CLIPaginationTrackerManager:
         }
 
     def update(self, df: pd.DataFrame, state: Optional[Dict[str, Any]]) -> None:
-        if state is None:
-            self._store.pop(id(df), None)
+        key = self.key_for(df)
+        if key is None:
             return
-        self._store[id(df)] = state
+        if state is None:
+            self._store.pop(key, None)
+            return
+        self._store[key] = state
 
     def release(self, df: pd.DataFrame) -> None:
-        self._store.pop(id(df), None)
+        key = self.key_for(df, create=False)
+        if key is not None:
+            self._store.pop(key, None)
 
     def prune_for_stack(self, results_stack: list, *, force: bool = False) -> None:
-        active_ids = {id(entry[0]) for entry in results_stack if entry}
+        active_ids = {
+            key
+            for entry in results_stack
+            if entry
+            for key in [self.key_for(entry[0], create=False)]
+            if key is not None
+        }
         # Hot-path guard: skip full scan when tracker is near active stack size.
         if not force and len(self._store) <= len(active_ids) + 4:
             return
@@ -72,18 +100,24 @@ class _CLIPaginationTrackerManager:
         self._prune_tick = (self._prune_tick + 1) % 4
         if not force and self._prune_tick != 0 and len(self._store) <= 512:
             return
-        for df_id in list(self._store.keys()):
-            if df_id not in active_ids:
-                self._store.pop(df_id, None)
+        for state_key in list(self._store.keys()):
+            if state_key not in active_ids:
+                self._store.pop(state_key, None)
 
     def next_page_for(self, df: pd.DataFrame) -> int:
-        state = self._store.get(id(df))
+        state = self.state_for(df)
         if not state:
             return 0
         next_page = state.get('next_page')
         if next_page is None:
             return int(state.get('total_pages', 0))
         return max(0, int(next_page))
+
+    def state_for(self, df: pd.DataFrame) -> Dict[str, Any]:
+        key = self.key_for(df, create=False)
+        if key is None:
+            return {}
+        return self._store.get(key) or {}
 
 
 _PAGINATION_TRACKER_MANAGER = _CLIPaginationTrackerManager(CLI_PAGINATION_TRACKER)
@@ -107,6 +141,10 @@ def _prune_pagination_tracker_for_stack(results_stack: list, *, force: bool = Fa
 
 def _next_page_for(df: pd.DataFrame) -> int:
     return _PAGINATION_TRACKER_MANAGER.next_page_for(df)
+
+
+def _pagination_state_key_for_df(df: pd.DataFrame) -> int | None:
+    return _PAGINATION_TRACKER_MANAGER.key_for(df, create=False)
 
 # --- Funções Auxiliares Refatoradas ---
 
@@ -903,7 +941,7 @@ def _handle_show_more(
         print("Sem estado atual.")
         return
     current_df, current_terms = results_stack[-1]
-    state = CLI_PAGINATION_TRACKER.get(id(current_df)) or {}
+    state = _PAGINATION_TRACKER_MANAGER.state_for(current_df)
     next_page = state.get('next_page')
     total_pages = state.get('total_pages', 0)
     show_all = bool(args and args[0] in {'z', 'tudo', 'all'})

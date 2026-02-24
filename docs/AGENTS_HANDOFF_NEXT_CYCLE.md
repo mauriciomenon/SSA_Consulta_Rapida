@@ -519,9 +519,10 @@ Entregavel de cada slice:
 
 - `resolved` fix(cli): prune orphan pagination entries after stack mutations.
 - `resolved` quality(cli): local manager class now centralizes tracker state operations.
-- `resolved` test(cli): add `tests/test_cli_pagination_tracker_prune.py`.
+- `resolved` stability(cli): tracker key persisted in `df.attrs` to preserve state in dataframe copies.
+- `resolved` test(cli): add/expand `tests/test_cli_pagination_tracker_prune.py`.
 - gate local deste slice:
   - `python -m py_compile interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
   - `ruff check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
   - `ty check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
-  - `uv run pytest -q tests/test_cli_pagination_tracker_prune.py`: pass.
+  - `uv run pytest -q tests/test_cli_pagination_tracker_prune.py`: pass (3 tests).
