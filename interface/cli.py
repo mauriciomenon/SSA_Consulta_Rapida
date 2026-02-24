@@ -925,7 +925,7 @@ def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list
     # Clona settings sem default_filters
     fresh_settings = dict(settings or {})
     fresh_settings['default_filters'] = []
-    df = query_db(db_path, '', get_ssa_query())
+    df = query_db(db_path, '', get_ssa_query(table_name))
     results_stack.clear()
     results_stack.append((df, []))
     CLI_PAGINATION_TRACKER.clear()

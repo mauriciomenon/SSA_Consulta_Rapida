@@ -371,3 +371,10 @@ Relatorio final por slice:
 - focused regression:
   - `tests/test_cli_config_preserve_session.py` valida caminho com reload e sem reload;
   - `tests/test_cli_get_ssa_query_identifier_guard.py` valida bloqueio de tabela fora da allowlist.
+
+## Latest update 2026-02-24 (cli clearall table consistency)
+
+- `interface/cli.py`:
+  - `clearall` agora respeita `table_name` recebido pelo loop (`get_ssa_query(table_name)`).
+- focused regression:
+  - `tests/test_cli_clearall_uses_table_name.py`.

@@ -504,3 +504,13 @@ Entregavel de cada slice:
   - `ruff check interface/cli.py tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
   - `ty check interface/cli.py tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
   - `uv run pytest -q tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
+
+## Update 2026-02-24 (cli clearall table consistency)
+
+- `resolved` fix(cli): `_handle_clear_all_filters` now uses `get_ssa_query(table_name)`.
+- `resolved` test(cli): add `tests/test_cli_clearall_uses_table_name.py`.
+- gate local deste slice:
+  - `python -m py_compile interface/cli.py tests/test_cli_clearall_uses_table_name.py`: pass.
+  - `ruff check interface/cli.py tests/test_cli_clearall_uses_table_name.py`: pass.
+  - `ty check interface/cli.py tests/test_cli_clearall_uses_table_name.py`: pass.
+  - `uv run pytest -q tests/test_cli_clearall_uses_table_name.py`: pass.

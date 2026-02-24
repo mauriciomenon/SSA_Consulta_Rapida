@@ -716,3 +716,10 @@ Regra de lint para este ciclo:
 4. [resolved] regression lock:
    - `tests/test_cli_config_preserve_session.py` cobre reload condicional por mudanca de `default_filters`;
    - `tests/test_cli_get_ssa_query_identifier_guard.py` cobre bloqueio de tabela fora da allowlist.
+
+## Update 2026-02-24 (cli clearall table consistency)
+
+1. [resolved] fixed table consistency in clearall flow:
+   - `_handle_clear_all_filters` now calls `get_ssa_query(table_name)`.
+2. [resolved] regression lock:
+   - `tests/test_cli_clearall_uses_table_name.py` validates `clearall` uses provided table and alias mapping.
