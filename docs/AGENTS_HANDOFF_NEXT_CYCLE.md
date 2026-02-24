@@ -514,3 +514,14 @@ Entregavel de cada slice:
   - `ruff check interface/cli.py tests/test_cli_clearall_uses_table_name.py`: pass.
   - `ty check interface/cli.py tests/test_cli_clearall_uses_table_name.py`: pass.
   - `uv run pytest -q tests/test_cli_clearall_uses_table_name.py`: pass.
+
+## Update 2026-02-24 (cli pagination tracker prune)
+
+- `resolved` fix(cli): prune orphan pagination entries after stack mutations.
+- `resolved` quality(cli): local manager class now centralizes tracker state operations.
+- `resolved` test(cli): add `tests/test_cli_pagination_tracker_prune.py`.
+- gate local deste slice:
+  - `python -m py_compile interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
+  - `ruff check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
+  - `ty check interface/cli.py tests/test_cli_pagination_tracker_prune.py`: pass.
+  - `uv run pytest -q tests/test_cli_pagination_tracker_prune.py`: pass.

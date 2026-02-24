@@ -41,34 +41,72 @@ CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
 
 
+class _CLIPaginationTrackerManager:
+    def __init__(self, store: Dict[int, Dict[str, Any]]) -> None:
+        self._store = store
+        self._prune_tick = 0
+
+    def reset(self, df: pd.DataFrame) -> None:
+        self._store[id(df)] = {
+            'next_page': 0,
+            'total_pages': 0,
+            'rendered_pages': 0,
+            'page_size': 0,
+        }
+
+    def update(self, df: pd.DataFrame, state: Optional[Dict[str, Any]]) -> None:
+        if state is None:
+            self._store.pop(id(df), None)
+            return
+        self._store[id(df)] = state
+
+    def release(self, df: pd.DataFrame) -> None:
+        self._store.pop(id(df), None)
+
+    def prune_for_stack(self, results_stack: list, *, force: bool = False) -> None:
+        active_ids = {id(entry[0]) for entry in results_stack if entry}
+        # Hot-path guard: skip full scan when tracker is near active stack size.
+        if not force and len(self._store) <= len(active_ids) + 4:
+            return
+        # Amortize pruning to avoid repeated full scans on interactive commands.
+        self._prune_tick = (self._prune_tick + 1) % 4
+        if not force and self._prune_tick != 0 and len(self._store) <= 512:
+            return
+        for df_id in list(self._store.keys()):
+            if df_id not in active_ids:
+                self._store.pop(df_id, None)
+
+    def next_page_for(self, df: pd.DataFrame) -> int:
+        state = self._store.get(id(df))
+        if not state:
+            return 0
+        next_page = state.get('next_page')
+        if next_page is None:
+            return int(state.get('total_pages', 0))
+        return max(0, int(next_page))
+
+
+_PAGINATION_TRACKER_MANAGER = _CLIPaginationTrackerManager(CLI_PAGINATION_TRACKER)
+
+
 def _reset_pagination_state(df: pd.DataFrame) -> None:
-    CLI_PAGINATION_TRACKER[id(df)] = {
-        'next_page': 0,
-        'total_pages': 0,
-        'rendered_pages': 0,
-        'page_size': 0,
-    }
+    _PAGINATION_TRACKER_MANAGER.reset(df)
 
 
 def _update_pagination_state(df: pd.DataFrame, state: Optional[Dict[str, Any]]) -> None:
-    if state is None:
-        CLI_PAGINATION_TRACKER.pop(id(df), None)
-        return
-    CLI_PAGINATION_TRACKER[id(df)] = state
+    _PAGINATION_TRACKER_MANAGER.update(df, state)
 
 
 def _release_pagination_state(df: pd.DataFrame) -> None:
-    CLI_PAGINATION_TRACKER.pop(id(df), None)
+    _PAGINATION_TRACKER_MANAGER.release(df)
+
+
+def _prune_pagination_tracker_for_stack(results_stack: list, *, force: bool = False) -> None:
+    _PAGINATION_TRACKER_MANAGER.prune_for_stack(results_stack, force=force)
 
 
 def _next_page_for(df: pd.DataFrame) -> int:
-    state = CLI_PAGINATION_TRACKER.get(id(df))
-    if not state:
-        return 0
-    next_page = state.get('next_page')
-    if next_page is None:
-        return int(state.get('total_pages', 0))
-    return max(0, int(next_page))
+    return _PAGINATION_TRACKER_MANAGER.next_page_for(df)
 
 # --- Funções Auxiliares Refatoradas ---
 
@@ -573,6 +611,7 @@ def _handle_back(results_stack: list):
         print("...filtro anterior restaurado.")
         if results_stack:
             _reset_pagination_state(results_stack[-1][0])
+        _prune_pagination_tracker_for_stack(results_stack)
     else:
         print("Nenhum filtro anterior para restaurar.")
 
@@ -581,6 +620,7 @@ def _handle_reset(db_path: str, table_name: str, results_stack: list, display_ma
     print("...todos os filtros foram zerados e a base completa (ou com filtros padrão) foi recarregada.")
     initial_df_reset, initial_filter_terms_reset = _get_initial_state(db_path, table_name, settings)
     results_stack.clear()
+    CLI_PAGINATION_TRACKER.clear()
     results_stack.append((initial_df_reset, initial_filter_terms_reset))
     _reset_pagination_state(initial_df_reset)
     # Exibe o novo estado
@@ -807,6 +847,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         new_df = filter_dataframe(base_df, remaining)
         results_stack[-1] = (new_df, remaining)
         _reset_pagination_state(new_df)
+        _prune_pagination_tracker_for_stack(results_stack, force=True)
         print(f"Removido termo '{term_to_remove}'. Filtro atual: {', '.join(remaining)}")
         _render_single_page(
             new_df,
@@ -822,6 +863,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         if results_stack:
             top_df, top_terms = results_stack[-1]
             _reset_pagination_state(top_df)
+            _prune_pagination_tracker_for_stack(results_stack, force=True)
             _render_single_page(
                 top_df,
                 display_map,

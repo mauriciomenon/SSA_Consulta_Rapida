@@ -723,3 +723,12 @@ Regra de lint para este ciclo:
    - `_handle_clear_all_filters` now calls `get_ssa_query(table_name)`.
 2. [resolved] regression lock:
    - `tests/test_cli_clearall_uses_table_name.py` validates `clearall` uses provided table and alias mapping.
+
+## Update 2026-02-24 (cli pagination tracker prune)
+
+1. [resolved] reduced stale pagination state risk:
+   - added prune of orphan entries when `results_stack` changes.
+2. [resolved] manager encapsulation without broad refactor:
+   - pagination tracker operations moved to a dedicated local manager class in CLI module.
+3. [resolved] regression lock:
+   - `tests/test_cli_pagination_tracker_prune.py`.
