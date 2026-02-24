@@ -414,3 +414,19 @@ Relatorio final por slice:
   - helper returns explicit boolean (success/failure) for clear semantics;
   - call sites now rollback local changes when save fails;
   - save error handling remains centralized in `_save_settings_handler`.
+
+## Latest update 2026-02-24 (optimized upsert legacy decimal key normalization)
+
+- `armazenamento/database_optimized.py`:
+  - lookup chunk now matches both canonical and legacy decimal SSA keys;
+  - update branch deletes matched legacy key aliases plus canonical key before reinserting normalized rows;
+  - savepoint-safe batch insert now uses parameterized `executemany` instead of `to_sql` in `DELETE + INSERT` path.
+- focused regression:
+  - `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
+- gate local deste slice:
+  - `python -m py_compile armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ruff check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ty check armazenamento/database_optimized.py tests/test_database_optimized_alias_views.py`: pass.
+  - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass (3 tests).
+- deferred-by-scope:
+  - kluster P4 quality concern about function size in `insert_dataframe_optimized` (requires dedicated refactor sprint, out of current minimal patch scope).

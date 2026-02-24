@@ -233,32 +233,41 @@ def insert_dataframe_optimized(
                 # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
                 lookup_start = time.time()
                 existing_dict = {}
+                existing_storage_keys = {}
                 if not table_exists.empty:
                     unique_ssas = (
                         has_ssa['numero_ssa']
                         .dropna()
-                        .astype(str)
+                        .map(_normalize_ssa_storage_value)
+                        .dropna()
                         .unique()
                         .tolist()
                     )
                     if unique_ssas:
                         # Respeita limite de variaveis do SQLite (999). Usamos margem.
-                        lookup_chunk = max(1, SQLITE_MAX_VARIABLES - 50)
+                        # Cada SSA usa 2 parametros no lookup: canonico e variante legacy ".0".
+                        lookup_chunk = max(1, (SQLITE_MAX_VARIABLES - 50) // 2)
                         for i in range(0, len(unique_ssas), lookup_chunk):
                             chunk_ssas = unique_ssas[i:i + lookup_chunk]
+                            chunk_ssas_legacy = [f"{ssa}.0" for ssa in chunk_ssas]
                             placeholders = ",".join(["?"] * len(chunk_ssas))
+                            placeholders_legacy = ",".join(["?"] * len(chunk_ssas_legacy))
                             query = (
                                 f"SELECT numero_ssa, data_cadastro FROM {target_table} "
-                                f"WHERE numero_ssa IN ({placeholders})"
+                                f"WHERE numero_ssa IN ({placeholders}) "
+                                f"OR numero_ssa IN ({placeholders_legacy})"
                             )
-                            chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
+                            query_params = chunk_ssas + chunk_ssas_legacy
+                            chunk_df = pd.read_sql_query(query, conn, params=query_params)
                             if not chunk_df.empty:
-                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].astype(str).str.strip()
-                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].replace(["nan", "None", ""], None)
+                                chunk_df["numero_ssa_raw"] = chunk_df["numero_ssa"].astype(str).str.strip()
+                                chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(_normalize_ssa_storage_value)
                                 chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
-                                existing_dict.update(
-                                    dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))
-                                )
+                                for current_row in chunk_df.itertuples(index=False):
+                                    existing_dict[current_row.numero_ssa] = current_row.data_cadastro
+                                    existing_storage_keys.setdefault(current_row.numero_ssa, set()).add(
+                                        current_row.numero_ssa_raw
+                                    )
                 lookup_time = time.time() - lookup_start
 
                 logger.info(
@@ -270,6 +279,7 @@ def insert_dataframe_optimized(
                 # Classificar registros em lotes
                 to_insert = []
                 to_update = []
+                to_update_delete_keys = set()
 
                 for idx, row in has_ssa.iterrows():
                     numero_ssa = row['numero_ssa']
@@ -291,6 +301,10 @@ def insert_dataframe_optimized(
                             should_update = True
                     if should_update:
                         to_update.append(row)
+                        to_update_delete_keys.add(numero_ssa)
+                        storage_keys = existing_storage_keys.get(numero_ssa)
+                        if storage_keys:
+                            to_update_delete_keys.update(storage_keys)
 
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
@@ -317,16 +331,26 @@ def insert_dataframe_optimized(
                         if not update_columns:
                             logger.info("Nenhuma coluna atualizavel encontrada; pulando atualizacao")
                         elif _has_referencing_foreign_keys(conn, target_table):
-                            set_clause = ", ".join([f"{col}=?" for col in update_columns])
+                            set_clause = ", ".join([f"{col}=?" for col in update_columns] + ["numero_ssa=?"])
                             update_sql = (
-                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa=?"
+                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa IN (?, ?)"
                             )
                             for i in range(0, len(update_df), CHUNK_SIZE):
                                 chunk = update_df.iloc[i:i + CHUNK_SIZE]
-                                params = list(
-                                    chunk[update_columns + ["numero_ssa"]]
-                                    .itertuples(index=False, name=None)
-                                )
+                                params = []
+                                for current_row in chunk.itertuples(index=False):
+                                    normalized_ssa = getattr(current_row, "numero_ssa")
+                                    row_values = [getattr(current_row, col) for col in update_columns]
+                                    params.append(
+                                        tuple(
+                                            row_values
+                                            + [
+                                                normalized_ssa,
+                                                normalized_ssa,
+                                                f"{normalized_ssa}.0",
+                                            ]
+                                        )
+                                    )
                                 if params:
                                     conn.executemany(update_sql, params)
                             total_inserted += len(update_df)
@@ -335,24 +359,30 @@ def insert_dataframe_optimized(
                                 len(update_df),
                             )
                         else:
-                            ssa_list = list(update_df['numero_ssa'])
-                            for i in range(0, len(ssa_list), CHUNK_SIZE):
-                                chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
+                            delete_keys = list(to_update_delete_keys) if to_update_delete_keys else list(update_df['numero_ssa'])
+                            for i in range(0, len(delete_keys), CHUNK_SIZE):
+                                chunk_ssas = delete_keys[i:i + CHUNK_SIZE]
                                 ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
                                 delete_query = (
                                     f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
                                 )
                                 conn.execute(delete_query, chunk_ssas)
 
-                            # Inserir versões atualizadas com chunk size dinâmico centralizado
-                            # method='multi' ignora chunksize; usar chunksize seguro
-                            update_df.to_sql(
-                                target_table,
-                                conn,
-                                if_exists='append',
-                                index=False,
-                                chunksize=CHUNK_SIZE,
+                            insert_columns = list(update_df.columns)
+                            for col in insert_columns:
+                                if not is_valid_identifier(col):
+                                    raise ValueError(f"Invalid SQL identifier for column: {col!r}")
+                            quoted_columns = ", ".join([f'"{col}"' for col in insert_columns])
+                            value_placeholders = ", ".join(["?"] * len(insert_columns))
+                            insert_sql = (
+                                f"INSERT INTO {target_table} ({quoted_columns}) "
+                                f"VALUES ({value_placeholders})"
                             )
+                            for i in range(0, len(update_df), CHUNK_SIZE):
+                                chunk = update_df.iloc[i:i + CHUNK_SIZE]
+                                params = list(chunk[insert_columns].itertuples(index=False, name=None))
+                                if params:
+                                    conn.executemany(insert_sql, params)
                             total_inserted += len(update_df)
                             logger.info(
                                 "[OK] Atualizados %s registros existentes",
