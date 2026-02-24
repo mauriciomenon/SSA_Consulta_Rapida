@@ -5,6 +5,9 @@ Verificação rápida de integridade do banco após importação
 import sqlite3
 import sys
 
+TABLE_NAME = "ssa_table"
+
+
 def verificar_integridade():
     print("INFO VERIFICAÇÃO DE INTEGRIDADE PÓS-IMPORTAÇÃO")
     print("=" * 60)
@@ -14,10 +17,12 @@ def verificar_integridade():
         cursor = conn.cursor()
 
         # Verificações básicas
-        total = cursor.execute("SELECT COUNT(*) FROM ssas").fetchone()[0]
-        unicos = cursor.execute("SELECT COUNT(DISTINCT numero_ssa) FROM ssas").fetchone()[0]
-        nulls_ssa = cursor.execute("SELECT COUNT(*) FROM ssas WHERE numero_ssa IS NULL").fetchone()[0]
-        vazios_desc = cursor.execute("SELECT COUNT(*) FROM ssas WHERE descricao_ssa IS NULL OR descricao_ssa = ''").fetchone()[0]
+        total = cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()[0]
+        unicos = cursor.execute(f"SELECT COUNT(DISTINCT numero_ssa) FROM {TABLE_NAME}").fetchone()[0]
+        nulls_ssa = cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE numero_ssa IS NULL").fetchone()[0]
+        vazios_desc = cursor.execute(
+            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE descricao_ssa IS NULL OR descricao_ssa = ''"
+        ).fetchone()[0]
 
         print(f"INFO Total de registros: {total}")
         print(f" Registros únicos por numero_ssa: {unicos}")
@@ -26,14 +31,18 @@ def verificar_integridade():
 
         # Amostra de dados
         print("\nINFO AMOSTRA DOS DADOS:")
-        amostras = cursor.execute("SELECT numero_ssa, situacao, descricao_ssa FROM ssas LIMIT 5").fetchall()
+        amostras = cursor.execute(
+            f"SELECT numero_ssa, situacao, descricao_ssa FROM {TABLE_NAME} LIMIT 5"
+        ).fetchall()
         for ssa, situacao, desc in amostras:
             desc_preview = (desc[:50] + "...") if desc and len(desc) > 50 else (desc or "N/A")
             print(f"  SSA {ssa}: {situacao} - {desc_preview}")
 
         # Verificar situações
         print("\nSTAT SITUAÇÕES ENCONTRADAS:")
-        situacoes = cursor.execute("SELECT situacao, COUNT(*) FROM ssas GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10").fetchall()
+        situacoes = cursor.execute(
+            f"SELECT situacao, COUNT(*) FROM {TABLE_NAME} GROUP BY situacao ORDER BY COUNT(*) DESC LIMIT 10"
+        ).fetchall()
         for sit, count in situacoes:
             print(f"  {sit}: {count} registros")
 

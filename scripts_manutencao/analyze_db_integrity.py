@@ -1,6 +1,9 @@
 import sqlite3
 import pandas as pd
 
+TABLE_NAME = "ssa_table"
+
+
 def analyze_database_integrity():
     """Analisa a integridade do banco e identifica problemas"""
 
@@ -10,13 +13,16 @@ def analyze_database_integrity():
     print("=" * 60)
 
     # 1. Estatísticas básicas
-    total_records = pd.read_sql_query("SELECT COUNT(*) as total FROM ssas", conn).iloc[0]['total']
+    total_records = pd.read_sql_query(
+        f"SELECT COUNT(*) as total FROM {TABLE_NAME}",
+        conn,
+    ).iloc[0]['total']
     print(f"\nINFO Total de registros: {total_records:,}")
 
     # 2. Verificar duplicatas por numero_ssa
     duplicates_query = """
     SELECT numero_ssa, COUNT(*) as count
-    FROM ssas
+    FROM ssa_table
     WHERE numero_ssa IS NOT NULL AND numero_ssa != ''
     GROUP BY numero_ssa
     HAVING COUNT(*) > 1
@@ -35,7 +41,7 @@ def analyze_database_integrity():
         total_duplicated = pd.read_sql_query("""
             SELECT SUM(count-1) as total_extra FROM (
                 SELECT numero_ssa, COUNT(*) as count
-                FROM ssas
+                FROM ssa_table
                 WHERE numero_ssa IS NOT NULL AND numero_ssa != ''
                 GROUP BY numero_ssa
                 HAVING COUNT(*) > 1
@@ -49,14 +55,14 @@ def analyze_database_integrity():
     print("\nINFO VERIFICACAO DE CAMPOS OBRIGATORIOS:")
 
     critical_fields = [
-        'numero_ssa', 'situacao_ssa', 'descricao_da_ssa',
-        'local_de_execucao', 'executor', 'semana_de_cadastro'
+        'numero_ssa', 'situacao', 'descricao_ssa',
+        'localizacao_codigo', 'setor_executor', 'semana_cadastro'
     ]
 
     for field in critical_fields:
         empty_count = pd.read_sql_query(f"""
             SELECT COUNT(*) as count
-            FROM ssas
+            FROM ssa_table
             WHERE {field} IS NULL OR {field} = '' OR {field} = '-'
         """, conn).iloc[0]['count']
 
@@ -68,10 +74,10 @@ def analyze_database_integrity():
 
     # 4. Verificar registros completamente vazios
     empty_records = pd.read_sql_query("""
-        SELECT COUNT(*) as count FROM ssas
+        SELECT COUNT(*) as count FROM ssa_table
         WHERE (numero_ssa IS NULL OR numero_ssa = '')
-        AND (situacao_ssa IS NULL OR situacao_ssa = '')
-        AND (descricao_da_ssa IS NULL OR descricao_da_ssa = '')
+        AND (situacao IS NULL OR situacao = '')
+        AND (descricao_ssa IS NULL OR descricao_ssa = '')
     """, conn).iloc[0]['count']
 
     if empty_records > 0:
@@ -81,7 +87,7 @@ def analyze_database_integrity():
     try:
         import_dates = pd.read_sql_query("""
             SELECT DATE(data_importacao) as date, COUNT(*) as count
-            FROM ssas
+            FROM ssa_table
             WHERE data_importacao IS NOT NULL
             GROUP BY DATE(data_importacao)
             ORDER BY date DESC

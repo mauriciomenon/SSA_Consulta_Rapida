@@ -1,11 +1,18 @@
 """Schema manager for dynamic column addition."""
 
 import logging
-from .identifier_utils import is_valid_identifier
 import sqlite3
+
 import pandas as pd
 
+from .identifier_utils import is_valid_identifier
+
 logger = logging.getLogger(__name__)
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Quote validated SQL identifier."""
+    return f'"{identifier}"'
 
 
 def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataFrame) -> None:
@@ -26,14 +33,15 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
     if not is_valid_identifier(table_name):
         raise ValueError(f"Invalid SQL identifier for table: {table_name}")
     cursor.execute(
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
     )
     if not cursor.fetchone():
         # Table doesn't exist yet, will be created by to_sql
         return
 
     # Get existing columns
-    cursor.execute(f"PRAGMA table_info({table_name})")
+    cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")
     existing_cols = {row[1] for row in cursor.fetchall()}
 
     # Find missing columns
@@ -45,6 +53,9 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
 
     # Add missing columns
     for col in missing_cols:
+        if not is_valid_identifier(col):
+            raise ValueError(f"Invalid SQL identifier for column: {col}")
+
         # Infer type from DataFrame
         dtype = df[col].dtype
 
@@ -60,7 +71,10 @@ def ensure_columns_exist(conn: sqlite3.Connection, table_name: str, df: pd.DataF
             sql_type = 'TEXT'
 
         try:
-            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN "{col}" {sql_type}')
+            cursor.execute(
+                f"ALTER TABLE {_quote_identifier(table_name)} "
+                f"ADD COLUMN {_quote_identifier(col)} {sql_type}"
+            )
             logger.info(f"[OK] Coluna adicionada: {col} ({sql_type})")
         except sqlite3.OperationalError as e:
             if 'duplicate column name' not in str(e).lower():

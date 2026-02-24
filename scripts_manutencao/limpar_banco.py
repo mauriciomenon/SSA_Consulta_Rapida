@@ -3,6 +3,9 @@ import sqlite3
 import shutil
 from pathlib import Path
 
+TABLE_NAME = "ssa_table"
+
+
 def limpar_banco():
     """Limpa completamente o banco de dados"""
     db_path = Path('data/ssas.db')
@@ -17,15 +20,15 @@ def limpar_banco():
         # Limpar tabela
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) FROM ssas')
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
             count_before = cursor.fetchone()[0]
             print(f'INFO Registros antes da limpeza: {count_before:,}')
 
-            cursor.execute('DELETE FROM ssas')
+            cursor.execute(f"DELETE FROM {TABLE_NAME}")
             cursor.execute('VACUUM')  # Otimizar o banco
             conn.commit()
 
-            cursor.execute('SELECT COUNT(*) FROM ssas')
+            cursor.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}")
             count_after = cursor.fetchone()[0]
             print(f'INFO Registros após limpeza: {count_after:,}')
             print('OK Banco limpo com sucesso!')

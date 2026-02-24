@@ -540,3 +540,25 @@ Regra de lint para este ciclo:
    - manter `on_data_loaded` como coordenador de fluxo/UI.
 3. [scope-note] fora do patch minimo desta rodada:
    - nenhuma refatoracao ampla aplicada agora para evitar risco de regressao.
+
+## Update 2026-02-24 (kluster triage after filtros stability slice)
+
+1. [resolved] CLI config command bug fixed with low-risk patch:
+   - `interface/cli.py`: removed `display_map = handle_config_command()` in single-char command flow.
+   - behavior now matches full command flow (`c` and `config` do the same refresh/reset path).
+2. [resolved] dynamic schema DDL hardening:
+   - `armazenamento/schema_manager.py`: table lookup switched to parameterized query.
+   - added strict identifier validation for dynamic columns before `ALTER TABLE`.
+   - table/column identifiers now quoted through helper in DDL/PRAGMA paths.
+3. [resolved] maintenance scripts aligned with canonical table and schema fields:
+   - `scripts_manutencao/analyze_db_integrity.py`: switched to `ssa_table` and current field names.
+   - `scripts_manutencao/verificar_integridade.py`: switched to `ssa_table`.
+   - `scripts_manutencao/limpar_banco.py`: switched to `ssa_table`.
+4. [pending-nonblocking] defer to next sprint (requires design/spec confirmation):
+   - `extracao/extractor.py`: ambiguity of `m` in `_normalize_tempo_excedido_value` (`minutes` vs `months`).
+   - action: decide canonical token set (`m` vs `mi` vs `mo`) before changing parser behavior.
+5. [pending-nonblocking] defer to dedicated refactor sprint (outside minimal-risk scope):
+   - God class split in `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`.
+   - config path/source unification between `core/config_manager.py` and `gui/gui_config.py`.
+6. [pending-blocked] external check noise and plan limits:
+   - keep Snyk plan-limit failures as external blocker with no local code fix.

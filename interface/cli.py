@@ -1040,8 +1040,25 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
-                    # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                    display_map = handle_config_command()
+                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
+                     handle_config_command()
+                     _config_changed = True
+                     # Após configurar, força um refresh do estado e exibição
+                     settings = load_settings()
+                     display_map = load_display_mappings_integrity()
+                     # Recarrega o estado inicial com as novas configurações
+                     initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
+                     results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]
+                     CLI_PAGINATION_TRACKER.clear()
+                     _reset_pagination_state(initial_df_after_config)
+                     _render_single_page(
+                         initial_df_after_config,
+                         display_map,
+                         settings,
+                         _print_cache,
+                         initial_filter_terms_after_config,
+                         start_page=0,
+                     )
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
