@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import json
 import logging
+import math
 import os
 import sqlite3
 import time
@@ -449,14 +450,38 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
     return safe
 
 
+def _build_filter_options(df: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
+    situacoes = sorted(df.get('situacao', pd.Series(dtype=str)).dropna().unique().tolist())
+    executores = sorted(df.get('setor_executor', pd.Series(dtype=str)).dropna().unique().tolist())
+    emissores = sorted(df.get('setor_emissor', pd.Series(dtype=str)).dropna().unique().tolist())
+    return situacoes, executores, emissores
+
+
+def _paginate_dataframe(df: pd.DataFrame, page: int, page_size: int) -> tuple[pd.DataFrame, int]:
+    if page_size <= 0:
+        raise ValueError("page_size must be greater than zero")
+    total_pages = max(1, math.ceil(len(df) / page_size))
+    current_page = min(max(page, 1), total_pages)
+    start = (current_page - 1) * page_size
+    end = start + page_size
+    return df.iloc[start:end].reset_index(drop=True), total_pages
+
+
 def _is_real_streamlit_runtime() -> bool:
-    # Evita executar UI completa durante import por testes com mocks
+    # Evita executar UI completa fora do runtime do streamlit.
     try:
-        return callable(getattr(st, 'set_page_config', None)) and callable(getattr(st, 'columns', None))
+        runtime_module = getattr(st, "runtime", None)
+        exists_fn = getattr(runtime_module, "exists", None)
+        if callable(exists_fn):
+            return bool(exists_fn())
+        has_ui_api = callable(getattr(st, 'set_page_config', None)) and callable(getattr(st, 'columns', None))
+        has_state = hasattr(st, 'session_state') and st.session_state is not None
+        return bool(has_ui_api and has_state)
     except Exception:
         return False
+REAL_RUNTIME = _is_real_streamlit_runtime()
 
-if _is_real_streamlit_runtime():
+if REAL_RUNTIME:
     st.set_page_config(
         page_title="SSA Consulta Rapida",
         layout="wide",
@@ -465,31 +490,34 @@ if _is_real_streamlit_runtime():
     st.markdown(
         """
         <style>
-        .block-container { padding-top: 1rem; padding-bottom: 0.5rem; }
-        h1 { font-size: 1.45rem !important; margin-bottom: 0.25rem; }
-        .section-label { font-size: 0.85rem; color: #1f3b6d; margin-bottom: 0.4rem; }
-        .filter-summary { margin-top: 0.4rem; font-weight: 600; font-size: 0.92rem; color: #1f3b6d; }
+        .block-container { padding-top: 0.8rem; padding-bottom: 0.5rem; }
+        h1 { font-size: 1.35rem !important; margin-bottom: 0.15rem; }
+        .section-label { font-size: 0.84rem; color: #1f3b6d; margin-bottom: 0.35rem; }
         .stButton button { width: 100%; }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-# Cabecalho limpo
-if _is_real_streamlit_runtime():
-    header_left, header_right = st.columns([4, 1])
+db_path = DB_PATH_DEFAULT
+docs_dir = DOCS_DIR_DEFAULT
+consult_api = False
+
+if REAL_RUNTIME:
+    header_left, header_right = st.columns([5, 1])
     with header_left:
         st.markdown("<h1>SSA Consulta Rapida</h1>", unsafe_allow_html=True)
-        st.markdown("<p class='section-label'>Dashboard para analise e exportacao de SSAs</p>", unsafe_allow_html=True)
+        st.markdown(
+            "<p class='section-label'>Painel streamlit com filtros, tabela paginada e exportacao</p>",
+            unsafe_allow_html=True,
+        )
     with header_right:
         st.caption(f"Atualizado as {datetime.now().strftime('%H:%M:%S')}")
 
-if _is_real_streamlit_runtime():
     with st.sidebar:
         st.subheader("Fonte de dados")
         db_path = st.text_input("Arquivo do banco", value=DB_PATH_DEFAULT)
         docs_dir = st.text_input("Pasta com planilhas", value=DOCS_DIR_DEFAULT)
-        consult_api = st.checkbox("Sincronizar com API Itaipu", value=False)
 
         btn_col_load, btn_col_reimport = st.columns(2)
         status_holder = st.empty()
@@ -499,23 +527,22 @@ if _is_real_streamlit_runtime():
             try:
                 progress_holder.progress(15)
                 status_holder.info("Verificando arquivos ...")
-
                 ok = import_files_to_database(
                     docs_dir=docs_dir,
                     db_path=db_path,
                     force_import=force,
                     raise_on_error=True,
                 )
-
                 progress_holder.progress(60)
                 status_holder.info("Atualizando cache ...")
                 try:
                     if hasattr(load_dataframe, "clear"):
                         load_dataframe.clear()
-                except Exception as e:
-                    logger.warning(f"Failed to clear load_dataframe cache: {e}")
+                except Exception as exc:
+                    logger.warning("Falha ao limpar cache de load_dataframe: %s", exc)
                 filter_cache.clear()
-
+                if hasattr(st, "session_state") and st.session_state is not None:
+                    st.session_state["recent_api_df"] = None
                 progress_holder.progress(100)
                 if ok:
                     status_holder.info("Importacao concluida com sucesso.")
@@ -529,318 +556,332 @@ if _is_real_streamlit_runtime():
 
         if btn_col_load.button("Carregar dados"):
             _execute_import(force=False)
-
         if btn_col_reimport.button("Reimportar planilhas"):
             _execute_import(force=True)
 
-        st.caption("Use 'Carregar dados' para atualizar o banco existente. 'Reimportar planilhas' reprocessa todas as planilhas do diretorio.")
-        st.divider()
-        st.subheader("Cache")
-        cache_stats = filter_cache.get_stats()
-        st.write(f"Entradas: {cache_stats['size']} / {cache_stats['max_size']}")
-        st.write(f"Hits: {cache_stats['hits']}  |  Falhas: {cache_stats['misses']}")
-        st.write(f"Taxa de acerto: {cache_stats['hit_rate']:.1f}%  |  TTL: {cache_stats['ttl_seconds']}s")
-        if st.button("Limpar cache"):
-            filter_cache.clear()
-            st.info("Cache limpo.")
+        st.caption(
+            "Use 'Carregar dados' para atualizar o banco existente. "
+            "'Reimportar planilhas' refaz o processamento completo."
+        )
 
-# Carregar dados
-raw_df = load_dataframe(db_path) if _is_real_streamlit_runtime() else pd.DataFrame()
-if _is_real_streamlit_runtime() and raw_df.empty:
+raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
+if REAL_RUNTIME and raw_df.empty:
     st.info(
-        "Banco nao encontrado ou sem dados. Utilize o botao 'Atualizar banco' na barra lateral "
-        "para importar as planilhas."
+        "Banco nao encontrado ou sem dados. Use os botoes da barra lateral para importar planilhas."
     )
     st.stop()
 
 search_terms = ""
-situacao_sel = []
-executor_sel = []
-emissor_sel = []
+situacao_sel: list[str] = []
+executor_sel: list[str] = []
+emissor_sel: list[str] = []
 selected_columns = list(raw_df.columns)
+limit_rows = 500
+page_size = 250
+page_number = 1
+table_height = 600
+auto_width = True
+recent_df: pd.DataFrame | None = None
+situacoes: list[str] = []
+executores: list[str] = []
+emissores: list[str] = []
 
-if _is_real_streamlit_runtime() and not raw_df.empty:
-    st.subheader("Filtros rapidos")
-    filter_cols = st.columns([3, 2, 2, 2, 1])
-
-    search_terms = filter_cols[0].text_input(
-        "Busca (mesma sintaxe da CLI)",
-        value="",
-        placeholder="ex.: svp, !ste, mel4",
+if REAL_RUNTIME and not raw_df.empty:
+    tab_filters, tab_table, tab_export, tab_ops = st.tabs(
+        ["Filtros", "Tabela", "Exportacao", "Cache e API"]
     )
 
-    situacoes = sorted(raw_df.get('situacao', pd.Series(dtype=str)).dropna().unique().tolist())
-    default_situacao = situacoes
-    situacao_sel = filter_cols[1].multiselect("Situacao", situacoes, default=default_situacao)
-
-    executores = sorted(raw_df.get('setor_executor', pd.Series(dtype=str)).dropna().unique().tolist())
-    default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
-    executor_sel = filter_cols[2].multiselect("Setor executor", executores, default=default_executor)
-
-    emissores = sorted(raw_df.get('setor_emissor', pd.Series(dtype=str)).dropna().unique().tolist())
-    default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
-    emissor_sel = filter_cols[3].multiselect("Setor emissor", emissores, default=default_emissor)
-
-    limit_rows = int(
-        filter_cols[4].number_input(
-            "Limite",
-            min_value=50,
-            max_value=5000,
-            value=limit_rows,
-            step=50,
-            label_visibility="collapsed",
+    with tab_filters:
+        st.subheader("Filtros")
+        search_terms = st.text_input(
+            "Busca (mesma sintaxe da CLI)",
+            value="",
+            placeholder="ex.: svp, !ste, mel4",
         )
-    )
-    filter_cols[4].caption(f"Limite: {limit_rows}")
+        consult_api = st.checkbox("Ativar consulta manual da API Itaipu", value=False)
 
-    column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in raw_df.columns}
-    default_columns = [col for col in raw_df.columns if col in (
-        'numero_ssa', 'situacao', 'descricao_ssa', 'setor_executor', 'setor_emissor',
-        'data_cadastro', 'prazo_limite'
-    )]
-    if not default_columns:
-        default_columns = list(raw_df.columns[:10])
-
-    column_container = st.container()
-    selected_display = column_container.multiselect(
-        "Colunas",
-        options=[column_display_names[col] for col in raw_df.columns],
-        default=[column_display_names[col] for col in default_columns],
-        label_visibility="collapsed",
-    )
-    column_container.caption("Colunas exibidas")
-    display_to_internal = {v: k for k, v in column_display_names.items()}
-    selected_columns = [display_to_internal.get(name, name) for name in selected_display]
-
-    with st.expander("Ajuda rapida", expanded=False):
-        st.markdown(
-            "* Sintaxe basica: `svp, !ste, mel4`\n"
-            "* Use `OU` ou `OR` para alternativas (`svp OU mel4`)\n"
-            "* Prefixos uteis: `^` inicio, `$` final, `=` igual, `~` regex\n"
-            "* `!` inverte um termo (`!^adm`, `!mel4`)\n"
-            "* Virgulas equivalem a E/AND; espacos tambem separam termos"
+        situacoes, executores, emissores = _build_filter_options(raw_df)
+        row_filters = st.columns([2, 2, 2, 1])
+        situacao_sel = row_filters[0].multiselect(
+            "Situacao",
+            situacoes,
+            default=situacoes,
+        )
+        default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
+        executor_sel = row_filters[1].multiselect(
+            "Setor executor",
+            executores,
+            default=default_executor,
+        )
+        default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
+        emissor_sel = row_filters[2].multiselect(
+            "Setor emissor",
+            emissores,
+            default=default_emissor,
+        )
+        limit_rows = int(
+            row_filters[3].number_input(
+                "Limite de linhas",
+                min_value=50,
+                max_value=20000,
+                value=limit_rows,
+                step=50,
+            )
         )
 
+        column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in raw_df.columns}
+        default_columns = [
+            col for col in raw_df.columns if col in (
+                'numero_ssa',
+                'situacao',
+                'descricao_ssa',
+                'setor_executor',
+                'setor_emissor',
+                'data_cadastro',
+                'prazo_limite',
+            )
+        ]
+        if not default_columns:
+            default_columns = list(raw_df.columns[:10])
+        selected_display = st.multiselect(
+            "Colunas exibidas",
+            options=[column_display_names[col] for col in raw_df.columns],
+            default=[column_display_names[col] for col in default_columns],
+        )
+        display_to_internal = {v: k for k, v in column_display_names.items()}
+        selected_columns = [display_to_internal.get(name, name) for name in selected_display]
 
-# Aplica todos os filtros com cache inteligente (somente em runtime real)
-if _is_real_streamlit_runtime():
+        with st.expander("Ajuda rapida", expanded=False):
+            st.markdown(
+                "* Sintaxe basica: `svp, !ste, mel4`\n"
+                "* Use `OU` ou `OR` para alternativas (`svp OU mel4`)\n"
+                "* Prefixos uteis: `^` inicio, `$` final, `=` igual, `~` regex\n"
+                "* `!` inverte termo (`!^adm`, `!mel4`)\n"
+                "* Virgulas equivalem a E/AND; espacos tambem separam termos"
+            )
+
     filtered_df = apply_all_filters_cached(
-        raw_df, 
+        raw_df,
         search_terms,
-        situacao_sel, 
-        executor_sel, 
-        emissor_sel
+        situacao_sel,
+        executor_sel,
+        emissor_sel,
     )
     if limit_rows and len(filtered_df) > limit_rows:
-        filtered_df = filtered_df.head(limit_rows)
-else:
-    filtered_df = pd.DataFrame()
+        filtered_df = filtered_df.head(limit_rows).reset_index(drop=True)
 
-active_summary: list[str] = []
-if _is_real_streamlit_runtime() and search_terms.strip():
-    active_summary.append(f"Busca: {search_terms.strip()}")
-if _is_real_streamlit_runtime() and situacao_sel and situacoes and len(situacao_sel) != len(situacoes):
-    active_summary.append("Situacao: " + ", ".join(situacao_sel))
-if _is_real_streamlit_runtime() and executor_sel and executores and len(executor_sel) != len(executores):
-    active_summary.append("Executor: " + ", ".join(executor_sel))
-if _is_real_streamlit_runtime() and emissor_sel and emissores and len(emissor_sel) != len(emissores):
-    active_summary.append("Emissor: " + ", ".join(emissor_sel))
-if _is_real_streamlit_runtime() and consult_api:
-    active_summary.append("API: ativada")
-
-if _is_real_streamlit_runtime() and active_summary:
-    st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
-
-# Indicadores rapidos em formato compacto
-if _is_real_streamlit_runtime():
-    total_ssas = len(filtered_df)
-    original_count = len(raw_df)
-    reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
-
-    status_cols = st.columns(4)
-    status_cols[0].markdown(f"**Total filtrado**<br>{total_ssas}", unsafe_allow_html=True)
-    status_cols[1].markdown(f"**Total original**<br>{original_count}", unsafe_allow_html=True)
-    status_cols[2].markdown(f"**Reducao**<br>{reduction_pct:.1f}%", unsafe_allow_html=True)
-
-    if 'situacao' in filtered_df.columns and total_ssas:
-        status_counts = filtered_df['situacao'].value_counts()
-        executadas = int(status_counts.get('EXECUTADA', 0))
-        exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
-        status_cols[3].markdown(f"**Execucao concluida**<br>{exec_rate:.1f}%", unsafe_allow_html=True)
-    else:
-        status_cols[3].markdown("**Execucao concluida**<br>-", unsafe_allow_html=True)
-
-# Consulta opcional da API para dados mais recentes (nao bloqueia fluxo offline)
-recent_df: pd.DataFrame | None = None
-if _is_real_streamlit_runtime() and consult_api:
-    try:
-        api_items = fetch_pending_ssas(years=1, opts=RequestOptions(timeout=5.0))
-        mapped = map_to_dataframe(api_items)
-        if mapped is not None and not mapped.empty:
-            cols = [
-                col
-                for col in (
-                    "numero_ssa",
-                    "situacao",
-                    "setor_emissor",
-                    "setor_executor",
-                    "descricao_ssa",
-                    "data_cadastro",
-                )
-                if col in mapped.columns
-            ]
-            recent_df = mapped[cols].copy()
-            st.success(
-                f"API Itaipu retornou {len(recent_df)} registros recentes (campos limitados)."
-            )
-        else:
-            st.info("API Itaipu respondeu sem novos registros. Exibindo apenas dados do banco local.")
-    except Exception as e:
-            logger.error(f"Failed to fetch data from Itaipu API: {e}")
-            st.warning(
-                "Nao foi possivel acessar dados mais recentes via API. O dashboard continua com o banco local."
-            )
-
-# Secao de dados com controles avancados
-if _is_real_streamlit_runtime():
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        st.subheader(f"Dados filtrados ({len(filtered_df)} registros)")
-    with col2:
-        table_height = st.selectbox("Altura da tabela (px)", [400, 600, 800, 1000], index=1)
-    with col3:
-        auto_width = st.checkbox("Ajuste automatico de largura", value=True)
-else:
-    table_height = 600
-    auto_width = True
-
-if _is_real_streamlit_runtime():
-    # Preparacao dos dados para exibicao
     view_df = filtered_df[selected_columns] if selected_columns else filtered_df
     rename_map = {col: DISPLAY_MAPPINGS.get(col, col) for col in view_df.columns}
-    display_df = ensure_arrow_compatible(view_df.rename(columns=rename_map))
 
-    # Configuracao avancada de colunas
-    column_config = {}
-    for col in view_df.columns:
-        display_name = rename_map.get(col, col)
-        
-        if col in {"situacao", "setor_executor", "setor_emissor"}:
-            column_config[display_name] = st.column_config.TextColumn(width="small")
-        elif col == "numero_ssa":
-            column_config[display_name] = st.column_config.TextColumn(width="medium", help="Numero da SSA")
-        elif "data" in col.lower():
-            column_config[display_name] = st.column_config.DatetimeColumn(width="small")
-        elif col == "descricao_ssa":
-            column_config[display_name] = st.column_config.TextColumn(width="large")
+    active_summary: list[str] = []
+    if search_terms.strip():
+        active_summary.append(f"Busca: {search_terms.strip()}")
+    if situacao_sel and situacoes and len(situacao_sel) != len(situacoes):
+        active_summary.append("Situacao: " + ", ".join(situacao_sel))
+    if executor_sel and executores and len(executor_sel) != len(executores):
+        active_summary.append("Executor: " + ", ".join(executor_sel))
+    if emissor_sel and emissores and len(emissor_sel) != len(emissores):
+        active_summary.append("Emissor: " + ", ".join(emissor_sel))
+    if consult_api:
+        active_summary.append("API: manual")
 
-# Exibe a tabela com configuracoes otimizadas
-if _is_real_streamlit_runtime():
-    if auto_width:
+    with tab_table:
+        total_ssas = len(filtered_df)
+        original_count = len(raw_df)
+        reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
+        status_cols = st.columns(4)
+        status_cols[0].metric("Total filtrado", total_ssas)
+        status_cols[1].metric("Total original", original_count)
+        status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
+        if 'situacao' in filtered_df.columns and total_ssas:
+            status_counts = filtered_df['situacao'].value_counts()
+            executadas = int(status_counts.get('EXECUTADA', 0))
+            exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
+            status_cols[3].metric("Execucao concluida", f"{exec_rate:.1f}%")
+        else:
+            status_cols[3].metric("Execucao concluida", "-")
+
+        control_cols = st.columns([1, 1, 1, 2])
+        page_size = int(
+            control_cols[0].selectbox(
+                "Linhas por pagina",
+                [100, 250, 500, 1000, 2000],
+                index=1,
+            )
+        )
+        table_height = int(
+            control_cols[1].selectbox(
+                "Altura tabela (px)",
+                [400, 600, 800, 1000],
+                index=1,
+            )
+        )
+        auto_width = bool(control_cols[2].checkbox("Auto largura", value=True))
+        page_df_preview, total_pages = _paginate_dataframe(view_df, page=1, page_size=page_size)
+        default_page = min(max(page_number, 1), total_pages)
+        page_number = int(
+            control_cols[3].number_input(
+                f"Pagina (1..{total_pages})",
+                min_value=1,
+                max_value=total_pages,
+                value=default_page,
+                step=1,
+            )
+        )
+        page_df, total_pages = _paginate_dataframe(view_df, page=page_number, page_size=page_size)
+        del page_df_preview
+
+        display_df = ensure_arrow_compatible(page_df.rename(columns=rename_map))
+        column_config = {}
+        for col in page_df.columns:
+            display_name = rename_map.get(col, col)
+            if col in {"situacao", "setor_executor", "setor_emissor"}:
+                column_config[display_name] = st.column_config.TextColumn(width="small")
+            elif col == "numero_ssa":
+                column_config[display_name] = st.column_config.TextColumn(
+                    width="medium",
+                    help="Numero da SSA",
+                )
+            elif "data" in col.lower():
+                column_config[display_name] = st.column_config.DatetimeColumn(width="small")
+            elif col == "descricao_ssa":
+                column_config[display_name] = st.column_config.TextColumn(width="large")
+
         st.dataframe(
             display_df,
-            width="stretch",
+            width="stretch" if auto_width else "content",
             height=table_height,
             column_config=column_config,
-            hide_index=True
+            hide_index=True,
         )
-    else:
-        st.dataframe(
-            display_df,
-            width="content",
-            height=table_height,
-            column_config=column_config,
-            hide_index=True
+        st.caption(
+            f"Exibindo pagina {page_number}/{total_pages} | "
+            f"linhas nesta pagina: {len(page_df)} | linhas filtradas: {len(view_df)}"
         )
+        if active_summary:
+            st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
 
-# Secao de exportacao
-if _is_real_streamlit_runtime():
-    st.markdown("### Exportacao")
-    col1, col2, col3, col4 = st.columns(4)
+        if 'situacao' in filtered_df.columns and not filtered_df.empty:
+            chart_df = (
+                filtered_df['situacao']
+                .value_counts()
+                .rename_axis('Situacao')
+                .reset_index(name='Quantidade')
+            )
+            st.subheader("Distribuicao por Situacao")
+            st.bar_chart(chart_df.set_index('Situacao'))
 
-    with col1:
-        # CSV basico
+    with tab_export:
+        st.subheader("Exportacao")
+        export_cols = st.columns(4)
         csv_data = view_df.to_csv(index=False).encode("utf-8")
-        st.download_button(
+        export_cols[0].download_button(
             "Baixar CSV",
             csv_data,
             file_name=f"ssas_filtradas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
-            help=f"Exporta {len(view_df)} registros em CSV"
+            help=f"Exporta {len(view_df)} registros em CSV",
         )
 
-    with col2:
-        # Excel com formatacao
-        if st.button("Gerar Excel", help="Prepara arquivo Excel com formatacao"):
-            try:
-                import io
-                from openpyxl import Workbook
-                from openpyxl.styles import Font, PatternFill
-                
-                buffer = io.BytesIO()
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "SSAs Filtradas"
-                
-                # Cabecalhos com formatacao
-                for col_num, col_name in enumerate(view_df.columns, 1):
-                    cell = ws.cell(row=1, column=col_num, value=rename_map.get(col_name, col_name))
-                    cell.font = Font(bold=True)
-                    cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-                
-                # Dados
-                for row_num, row_data in enumerate(view_df.itertuples(index=False), 2):
-                    for col_num, value in enumerate(row_data, 1):
-                        ws.cell(row=row_num, column=col_num, value=value)
+        with export_cols[1]:
+            if st.button("Gerar Excel", help="Prepara arquivo Excel com formatacao"):
+                try:
+                    import io
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill
 
-                wb.save(buffer)
-                buffer.seek(0)
-                
-                st.download_button(
-                    "Excel formatado",
-                    buffer.getvalue(),
-                    file_name=f"ssas_filtradas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            except ImportError:
-                st.error("openpyxl nao instalado - usando CSV simples")
+                    buffer = io.BytesIO()
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "SSAs Filtradas"
+                    for col_num, col_name in enumerate(view_df.columns, 1):
+                        cell = ws.cell(row=1, column=col_num, value=rename_map.get(col_name, col_name))
+                        cell.font = Font(bold=True)
+                        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                    for row_num, row_data in enumerate(view_df.itertuples(index=False), 2):
+                        for col_num, value in enumerate(row_data, 1):
+                            ws.cell(row=row_num, column=col_num, value=value)
+                    wb.save(buffer)
+                    buffer.seek(0)
+                    st.download_button(
+                        "Excel formatado",
+                        buffer.getvalue(),
+                        file_name=f"ssas_filtradas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                except ImportError:
+                    st.error("openpyxl nao instalado - usando CSV simples")
 
-    with col3:
-        # JSON para APIs
         json_text = view_df.to_json(orient='records', date_format='iso', indent=2)
         if json_text is None:
             raise RuntimeError("to_json retornou None")
-        json_data = json_text.encode('utf-8')
-        st.download_button(
+        export_cols[2].download_button(
             "Baixar JSON",
-            json_data,
+            json_text.encode('utf-8'),
             file_name=f"ssas_api_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json",
-            help="Formato JSON para integracao com APIs"
+            help="Formato JSON para integracao com APIs",
         )
 
-    with col4:
-        # Estatisticas do filtro
-        if st.button("Resumo estatistico", help="Mostra resumo estatistico"):
+        if export_cols[3].button("Resumo estatistico", help="Mostra resumo estatistico"):
             stats_info = {
                 "total_registros": len(view_df),
                 "colunas_selecionadas": len(selected_columns),
                 "filtros_ativos": len([x for x in [search_terms, situacao_sel, executor_sel, emissor_sel] if x]),
-                "cache_hit_rate": f"{filter_cache.get_stats()['hit_rate']:.1f}%"
+                "cache_hit_rate": f"{filter_cache.get_stats()['hit_rate']:.1f}%",
             }
             st.json(stats_info)
 
-# Grafico simples de situacoes
-if _is_real_streamlit_runtime() and 'situacao' in filtered_df.columns and not filtered_df.empty:
-    chart_df = (
-        filtered_df['situacao']
-        .value_counts()
-        .rename_axis('Situacao')
-        .reset_index(name='Quantidade')
-    )
-    st.subheader("Distribuicao por Situacao")
-    st.bar_chart(chart_df.set_index('Situacao'))
+    with tab_ops:
+        st.subheader("Cache")
+        cache_stats = filter_cache.get_stats()
+        ops_col1, ops_col2, ops_col3 = st.columns(3)
+        ops_col1.metric("Entradas cache", f"{cache_stats['size']} / {cache_stats['max_size']}")
+        ops_col2.metric("Hit rate", f"{cache_stats['hit_rate']:.1f}%")
+        ops_col3.metric("Evictions", cache_stats['evictions'])
+        if st.button("Limpar cache", key="clear_cache_ops"):
+            filter_cache.clear()
+            st.info("Cache limpo.")
 
-if _is_real_streamlit_runtime() and recent_df is not None and not recent_df.empty:
-    st.markdown("### Dados recentes via API (campos limitados)")
-    st.dataframe(ensure_arrow_compatible(recent_df), width='stretch', height=220)
+        st.subheader("API Itaipu")
+        if consult_api:
+            if hasattr(st, "session_state") and st.session_state is not None:
+                if "recent_api_df" not in st.session_state:
+                    st.session_state["recent_api_df"] = None
+            api_actions = st.columns(2)
+            if api_actions[0].button("Atualizar dados API", key="refresh_api_data"):
+                try:
+                    api_items = fetch_pending_ssas(years=1, opts=RequestOptions(timeout=5.0))
+                    mapped = map_to_dataframe(api_items)
+                    if mapped is not None and not mapped.empty:
+                        cols = [
+                            col
+                            for col in (
+                                "numero_ssa",
+                                "situacao",
+                                "setor_emissor",
+                                "setor_executor",
+                                "descricao_ssa",
+                                "data_cadastro",
+                            )
+                            if col in mapped.columns
+                        ]
+                        recent_df = mapped[cols].copy()
+                        if hasattr(st, "session_state") and st.session_state is not None:
+                            st.session_state["recent_api_df"] = recent_df
+                        st.success(f"API retornou {len(recent_df)} registros.")
+                    else:
+                        st.info("API sem novos registros.")
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Falha ao consultar API Itaipu: %s", exc)
+                    st.warning("Nao foi possivel consultar API. Dashboard segue com base local.")
+            if api_actions[1].button("Limpar snapshot API", key="clear_api_data"):
+                if hasattr(st, "session_state") and st.session_state is not None:
+                    st.session_state["recent_api_df"] = None
+                st.info("Snapshot de API removido.")
+            if hasattr(st, "session_state") and st.session_state is not None:
+                recent_df = st.session_state.get("recent_api_df")
+            if recent_df is not None and not recent_df.empty:
+                st.dataframe(ensure_arrow_compatible(recent_df), width='stretch', height=240)
+        else:
+            st.info("Ative a opcao de API na aba Filtros para consultar dados recentes.")
