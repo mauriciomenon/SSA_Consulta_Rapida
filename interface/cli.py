@@ -236,6 +236,10 @@ def get_ssa_query(table_name: str = 'ssa_table') -> str:
     Retorna a query customizada para mapear colunas corretamente.
     Usa os nomes de coluna normalizados da tabela atual.
     """
+    if table_name in {"ssas", "ssa_chamados"}:
+        table_name = "ssa_table"
+    elif table_name != "ssa_table":
+        raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
     return f'''
     SELECT
         numero_ssa,
@@ -1010,6 +1014,50 @@ def start_cli_loop(db_path: str, table_name: str):
         'cols', 'x', 'l', 'listar', 'filtros', 'm', 'mais', 'clear', 'clearall'
     ]
 
+    def _refresh_after_config_change() -> None:
+        nonlocal settings, display_map, results_stack, _config_changed
+        previous_default_filters = list(settings.get('default_filters') or [])
+        handle_config_command()
+        _config_changed = True
+        settings = load_settings()
+        display_map = load_display_mappings_integrity()
+        current_default_filters = list(settings.get('default_filters') or [])
+        if not results_stack:
+            return
+
+        # Recarrega base apenas quando filtros padrao mudam; evita custo desnecessario.
+        if current_default_filters != previous_default_filters:
+            previous_base_terms = list(results_stack[0][1] or [])
+            previous_current_terms = list(results_stack[-1][1] or [])
+            preserved_user_terms: list[str] = []
+            base_len = len(previous_base_terms)
+            if (
+                base_len <= len(previous_current_terms)
+                and previous_current_terms[:base_len] == previous_base_terms
+            ):
+                preserved_user_terms = previous_current_terms[base_len:]
+            refreshed_base_df, refreshed_base_terms = _get_initial_state(db_path, table_name, settings)
+            if preserved_user_terms:
+                refreshed_df = filter_dataframe(refreshed_base_df, preserved_user_terms)
+                refreshed_terms = refreshed_base_terms + preserved_user_terms
+            else:
+                refreshed_df = refreshed_base_df
+                refreshed_terms = refreshed_base_terms
+            results_stack = [(refreshed_df, refreshed_terms)]
+        else:
+            refreshed_df, refreshed_terms = results_stack[-1]
+
+        CLI_PAGINATION_TRACKER.clear()
+        _reset_pagination_state(refreshed_df)
+        _render_single_page(
+            refreshed_df,
+            display_map,
+            settings,
+            _print_cache,
+            refreshed_terms,
+            start_page=0,
+        )
+
     while True:
         try:
             # OTIMIZAÇÃO: Só recarrega configurações quando necessário
@@ -1047,25 +1095,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
-                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                     handle_config_command()
-                     _config_changed = True
-                     # Após configurar, força um refresh do estado e exibição
-                     settings = load_settings()
-                     display_map = load_display_mappings_integrity()
-                     # Recarrega o estado inicial com as novas configurações
-                     initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
-                     results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]
-                     CLI_PAGINATION_TRACKER.clear()
-                     _reset_pagination_state(initial_df_after_config)
-                     _render_single_page(
-                         initial_df_after_config,
-                         display_map,
-                         settings,
-                         _print_cache,
-                         initial_filter_terms_after_config,
-                         start_page=0,
-                     )
+                    _refresh_after_config_change()
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
@@ -1085,25 +1115,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
-                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                     handle_config_command()
-                     _config_changed = True
-                     # Após configurar, força um refresh do estado e exibição
-                     settings = load_settings()
-                     display_map = load_display_mappings_integrity()
-                     # Recarrega o estado inicial com as novas configurações
-                     initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
-                     results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]
-                     CLI_PAGINATION_TRACKER.clear()
-                     _reset_pagination_state(initial_df_after_config)
-                     _render_single_page(
-                         initial_df_after_config,
-                         display_map,
-                         settings,
-                         _print_cache,
-                         initial_filter_terms_after_config,
-                         start_page=0,
-                     )
+                    _refresh_after_config_change()
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])

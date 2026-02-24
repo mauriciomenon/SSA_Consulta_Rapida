@@ -490,3 +490,17 @@ Entregavel de cada slice:
 - Proibido `try/except` vazio e proibido esconder falha real.
 - Cada tratamento deve ter saida clara: log objetivo e retorno/acao coerente com o fluxo.
 - Em qualquer fix, validar que a solucao nao cria custo alto desnecessario (reprocessamento amplo, loops redundantes, fallback caro).
+
+## Update 2026-02-24 (cli config refresh and query guard)
+
+- `resolved` fix(cli): comando `c/config` agora usa refresh unico (sem duplicacao de bloco no loop).
+- `resolved` perf(cli): requery da base ocorre apenas se `default_filters` mudou.
+- `resolved` security(cli): `get_ssa_query` aplica allowlist para tabela canonica e aliases legados.
+- `resolved` tests(cli):
+  - `tests/test_cli_config_preserve_session.py` (2 cenarios: reload condicional e skip requery);
+  - `tests/test_cli_get_ssa_query_identifier_guard.py`.
+- gate local deste slice:
+  - `python -m py_compile interface/cli.py tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
+  - `ruff check interface/cli.py tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
+  - `ty check interface/cli.py tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
+  - `uv run pytest -q tests/test_cli_config_preserve_session.py tests/test_cli_get_ssa_query_identifier_guard.py`: pass.
