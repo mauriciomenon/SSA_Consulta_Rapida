@@ -459,3 +459,17 @@ Relatorio final por slice:
   - `ruff check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
   - `ty check armazenamento/database_upsert_logic.py tests/test_database_upsert_canonical_write.py`: pass.
   - `uv run pytest -q tests/test_database_upsert_canonical_write.py tests/test_database_optimized_alias_views.py`: pass (3 tests).
+
+## Latest update 2026-02-24 (upsert chunk dedupe perf)
+
+- `armazenamento/database_upsert_logic.py`:
+  - `chunk_num_ssa` now uses `dropna().drop_duplicates().tolist()` (removed manual O(n2) loop).
+- tests:
+  - `tests/test_db_reset_and_upsert.py`: added duplicate-in-chunk regression scenario.
+- gate local deste slice:
+  - `python -m py_compile armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
+  - `ruff check armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
+  - `ty check armazenamento/database_upsert_logic.py tests/test_db_reset_and_upsert.py`: pass.
+  - `uv run pytest -q tests/test_db_reset_and_upsert.py tests/test_database_upsert_canonical_write.py`: pass (6 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
