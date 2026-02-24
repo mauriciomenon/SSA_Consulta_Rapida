@@ -636,10 +636,10 @@ if _is_real_streamlit_runtime() and consult_api:
         else:
             st.info("API Itaipu respondeu sem novos registros. Exibindo apenas dados do banco local.")
     except Exception as e:
-        logger.error(f"Failed to fetch data from Itaipu API: {e}")
-        st.warning(
-            "Nao foi possivel acessar dados mais recentes via API. O dashboard continua com o banco local."
-        )
+            logger.error(f"Failed to fetch data from Itaipu API: {e}")
+            st.warning(
+                "Nao foi possivel acessar dados mais recentes via API. O dashboard continua com o banco local."
+            )
 
 # Secao de dados com controles avancados
 if _is_real_streamlit_runtime():
