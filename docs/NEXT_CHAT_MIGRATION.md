@@ -21,6 +21,9 @@ Use this file to migrate context to a new chat without losing execution quality.
   - nenhum PR novo deve ser aberto sem autorizacao explicita do usuario.
 - Nota de migracao:
   - secoes antigas com `codex/import-review` e PR `#31` abaixo ficam como historico de auditoria.
+  - pendencias abertas foram separadas em duas filas no backlog:
+    - `Pendencias longas`
+    - `Pendencias para sprint exclusivo`
 
 ## Latest update 2026-02-24 (tempo_excedido)
 
