@@ -70,6 +70,16 @@ def _save_settings_handler(settings: dict):
         print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
         raise
 
+
+def _attempt_save_settings(settings: dict) -> bool:
+    try:
+        _save_settings_handler(settings)
+        return True
+    except (OSError, ValueError, TypeError, RuntimeError):
+        # _save_settings_handler ja registra erro e feedback ao usuario.
+        return False
+
+
 def print_help():
     """Exibe a mensagem de ajuda para os comandos da CLI."""
     print("\n" + "="*50 + "\nAJUDA DE COMANDOS\n" + "="*50)
@@ -154,12 +164,11 @@ def _handle_column_visibility(settings: dict):
             if 0 <= idx < len(column_names):
                 selected_col = column_names[idx]
                 current_state = column_visibility.get(selected_col, True)
-                column_visibility[selected_col] = not current_state
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
+                new_state = not current_state
+                column_visibility[selected_col] = new_state
+                if not _attempt_save_settings(settings):
+                    column_visibility[selected_col] = current_state
+                    print("Falha ao salvar. Alteracao de visibilidade foi desfeita.")
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -193,26 +202,35 @@ def _handle_column_widths(settings: dict):
             if 0 <= idx < len(display_names):
                 selected_display_name = display_names[idx]
                 new_width_input = input(f"Digite a nova largura para '{selected_display_name}' (numero ou 'Auto' para automatico): ").strip()
+                had_existing_width = selected_display_name in column_widths
+                previous_width = column_widths.get(selected_display_name)
+                changed = False
 
                 if new_width_input.lower() == 'auto':
                     if selected_display_name in column_widths:
                         del column_widths[selected_display_name]
-                    print(f"Largura de '{selected_display_name}' definida como automatica.")
+                        changed = True
+                    if changed:
+                        print(f"Largura de '{selected_display_name}' definida como automatica.")
                 elif new_width_input.isdigit():
                     new_width = int(new_width_input)
                     if new_width > 0:
-                        column_widths[selected_display_name] = new_width
-                        print(f"Largura de '{selected_display_name}' definida como {new_width}.")
+                        if (not had_existing_width) or previous_width != new_width:
+                            column_widths[selected_display_name] = new_width
+                            changed = True
+                        if changed:
+                            print(f"Largura de '{selected_display_name}' definida como {new_width}.")
                     else:
                         print("Largura deve ser um numero positivo.")
                 else:
                     print("Entrada invalida. Por favor, digite um numero ou 'Auto'.")
 
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
+                if changed and not _attempt_save_settings(settings):
+                    if had_existing_width:
+                        column_widths[selected_display_name] = previous_width
+                    else:
+                        column_widths.pop(selected_display_name, None)
+                    print("Falha ao salvar. Alteracao de largura foi desfeita.")
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -236,13 +254,13 @@ def _handle_user_preferences(settings: dict):
 
         if choice == '1':
             current_state = user_preferences.get('auto_scroll_to_end', False)
-            user_preferences['auto_scroll_to_end'] = not current_state
-            try:
-                _save_settings_handler(settings) # Usar a propria funcao de save
-            except (OSError, ValueError, TypeError, RuntimeError):
-                # Mantem menu interativo ativo mesmo com erro de persistencia.
-                pass
-            print(f"Rolagem automatica agora esta {'ATIVADA' if not current_state else 'DESATIVADA'}.")
+            new_state = not current_state
+            user_preferences['auto_scroll_to_end'] = new_state
+            if _attempt_save_settings(settings):
+                print(f"Rolagem automatica agora esta {'ATIVADA' if new_state else 'DESATIVADA'}.")
+            else:
+                user_preferences['auto_scroll_to_end'] = current_state
+                print("Falha ao salvar. Alteracao de rolagem automatica foi desfeita.")
         elif choice == '2':
             _handle_default_filters(settings)
         elif choice == '0':
@@ -268,12 +286,11 @@ def _handle_default_filters(settings: dict):
             new_filter = input("Digite o novo termo de filtro para adicionar: ").strip()
             if new_filter and new_filter not in default_filters:
                 default_filters.append(new_filter)
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
-                print(f"'{new_filter}' adicionado aos filtros padrao.")
+                if _attempt_save_settings(settings):
+                    print(f"'{new_filter}' adicionado aos filtros padrao.")
+                else:
+                    default_filters.pop()
+                    print("Falha ao salvar. Inclusao de filtro foi desfeita.")
             else:
                 print("Termo invalido ou ja existente.")
         elif choice == '2':
@@ -288,12 +305,11 @@ def _handle_default_filters(settings: dict):
                 filter_index = int(input("Digite o numero do filtro para remover: ").strip()) - 1
                 if 0 <= filter_index < len(default_filters):
                     removed_filter = default_filters.pop(filter_index)
-                    try:
-                        _save_settings_handler(settings) # Usar a propria funcao de save
-                    except (OSError, ValueError, TypeError, RuntimeError):
-                        # Mantem menu interativo ativo mesmo com erro de persistencia.
-                        pass
-                    print(f"'{removed_filter}' removido dos filtros padrao.")
+                    if _attempt_save_settings(settings):
+                        print(f"'{removed_filter}' removido dos filtros padrao.")
+                    else:
+                        default_filters.insert(filter_index, removed_filter)
+                        print("Falha ao salvar. Remocao de filtro foi desfeita.")
                 else:
                     print("Numero de filtro invalido.")
             except ValueError:
