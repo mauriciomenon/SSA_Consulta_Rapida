@@ -329,7 +329,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
 
 
 def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
-    work_local = pd.DataFrame(frame.values, columns=frame.columns).reset_index(drop=True)
+    work_local = frame.copy().reset_index(drop=True)
     if 'numero_ssa' in work_local.columns:
         work_local['numero_ssa'] = work_local['numero_ssa'].map(_normalize_ssa_storage_value)
     if 'derivada_de' in work_local.columns:
