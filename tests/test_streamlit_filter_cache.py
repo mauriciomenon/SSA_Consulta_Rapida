@@ -6,6 +6,7 @@ from dev_env.streamlit_app import (
     StreamlitFilterCache,
     _build_filter_options,
     _compute_df_cache_token,
+    _normalize_filter_selection,
     _paginate_dataframe,
 )
 
@@ -63,9 +64,29 @@ def test_build_filter_options_handles_missing_columns() -> None:
     assert emissores == []
 
 
+def test_build_filter_options_allows_mixed_types() -> None:
+    df = pd.DataFrame(
+        {
+            "situacao": ["ABERTO", 100, "EM_EXECUCAO"],
+            "setor_executor": ["IEE3", 7, "MEL4"],
+            "setor_emissor": ["IEE3", 8, "MEL5"],
+        }
+    )
+    situacoes, executores, emissores = _build_filter_options(df)
+    assert len(situacoes) == 3
+    assert len(executores) == 3
+    assert len(emissores) == 3
+
+
 def test_paginate_dataframe_clamps_page_and_returns_total_pages() -> None:
     df = pd.DataFrame({"numero_ssa": [f"2025{i:05d}" for i in range(1, 16)]})
     page_df, total_pages = _paginate_dataframe(df, page=99, page_size=10)
     assert total_pages == 2
     assert len(page_df) == 5
     assert page_df.iloc[0]["numero_ssa"] == "202500011"
+
+
+def test_normalize_filter_selection_collapses_full_selection() -> None:
+    options = ["A", "B", "C"]
+    assert _normalize_filter_selection(["A", "B", "C"], options) == []
+    assert _normalize_filter_selection(["A"], options) == ["A"]

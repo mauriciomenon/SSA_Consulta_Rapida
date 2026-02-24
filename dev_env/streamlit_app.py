@@ -450,10 +450,19 @@ def ensure_arrow_compatible(df: pd.DataFrame) -> pd.DataFrame:
     return safe
 
 
-def _build_filter_options(df: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
-    situacoes = sorted(df.get('situacao', pd.Series(dtype=str)).dropna().unique().tolist())
-    executores = sorted(df.get('setor_executor', pd.Series(dtype=str)).dropna().unique().tolist())
-    emissores = sorted(df.get('setor_emissor', pd.Series(dtype=str)).dropna().unique().tolist())
+def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[Any]]:
+    situacoes = sorted(
+        df.get('situacao', pd.Series(dtype=str)).dropna().unique().tolist(),
+        key=lambda value: str(value),
+    )
+    executores = sorted(
+        df.get('setor_executor', pd.Series(dtype=str)).dropna().unique().tolist(),
+        key=lambda value: str(value),
+    )
+    emissores = sorted(
+        df.get('setor_emissor', pd.Series(dtype=str)).dropna().unique().tolist(),
+        key=lambda value: str(value),
+    )
     return situacoes, executores, emissores
 
 
@@ -465,6 +474,15 @@ def _paginate_dataframe(df: pd.DataFrame, page: int, page_size: int) -> tuple[pd
     start = (current_page - 1) * page_size
     end = start + page_size
     return df.iloc[start:end].reset_index(drop=True), total_pages
+
+
+def _normalize_filter_selection(selected: list[Any], options: list[Any]) -> list[Any]:
+    if not options:
+        return []
+    normalized = [value for value in selected if value in options]
+    if len(normalized) == len(options):
+        return []
+    return normalized
 
 
 def _is_real_streamlit_runtime() -> bool:
@@ -572,9 +590,9 @@ if REAL_RUNTIME and raw_df.empty:
     st.stop()
 
 search_terms = ""
-situacao_sel: list[str] = []
-executor_sel: list[str] = []
-emissor_sel: list[str] = []
+situacao_sel: list[Any] = []
+executor_sel: list[Any] = []
+emissor_sel: list[Any] = []
 selected_columns = list(raw_df.columns)
 limit_rows = 500
 page_size = 250
@@ -582,9 +600,9 @@ page_number = 1
 table_height = 600
 auto_width = True
 recent_df: pd.DataFrame | None = None
-situacoes: list[str] = []
-executores: list[str] = []
-emissores: list[str] = []
+situacoes: list[Any] = []
+executores: list[Any] = []
+emissores: list[Any] = []
 
 if REAL_RUNTIME and not raw_df.empty:
     tab_filters, tab_table, tab_export, tab_ops = st.tabs(
@@ -593,42 +611,9 @@ if REAL_RUNTIME and not raw_df.empty:
 
     with tab_filters:
         st.subheader("Filtros")
-        search_terms = st.text_input(
-            "Busca (mesma sintaxe da CLI)",
-            value="",
-            placeholder="ex.: svp, !ste, mel4",
-        )
-        consult_api = st.checkbox("Ativar consulta manual da API Itaipu", value=False)
-
         situacoes, executores, emissores = _build_filter_options(raw_df)
-        row_filters = st.columns([2, 2, 2, 1])
-        situacao_sel = row_filters[0].multiselect(
-            "Situacao",
-            situacoes,
-            default=situacoes,
-        )
         default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
-        executor_sel = row_filters[1].multiselect(
-            "Setor executor",
-            executores,
-            default=default_executor,
-        )
         default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
-        emissor_sel = row_filters[2].multiselect(
-            "Setor emissor",
-            emissores,
-            default=default_emissor,
-        )
-        limit_rows = int(
-            row_filters[3].number_input(
-                "Limite de linhas",
-                min_value=50,
-                max_value=20000,
-                value=limit_rows,
-                step=50,
-            )
-        )
-
         column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in raw_df.columns}
         default_columns = [
             col for col in raw_df.columns if col in (
@@ -643,29 +628,128 @@ if REAL_RUNTIME and not raw_df.empty:
         ]
         if not default_columns:
             default_columns = list(raw_df.columns[:10])
-        selected_display = st.multiselect(
-            "Colunas exibidas",
-            options=[column_display_names[col] for col in raw_df.columns],
-            default=[column_display_names[col] for col in default_columns],
-        )
+
+        state_key = "streamlit_filters_state"
+        if state_key not in st.session_state:
+            st.session_state[state_key] = {
+                "search_terms": "",
+                "consult_api": False,
+                "situacao_sel": situacoes,
+                "executor_sel": default_executor,
+                "emissor_sel": default_emissor,
+                "limit_rows": limit_rows,
+                "selected_display": [column_display_names[col] for col in default_columns],
+            }
+        filter_state = st.session_state[state_key]
+        filter_state["situacao_sel"] = [value for value in filter_state.get("situacao_sel", []) if value in situacoes] or situacoes
+        filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores] or default_executor
+        filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores] or default_emissor
+        valid_display_values = set(column_display_names.values())
+        selected_display_state = [value for value in filter_state.get("selected_display", []) if value in valid_display_values]
+        filter_state["selected_display"] = selected_display_state or [column_display_names[col] for col in default_columns]
+
+        with st.form("filters_form", clear_on_submit=False):
+            search_input = st.text_input(
+                "Busca (mesma sintaxe da CLI)",
+                value=filter_state.get("search_terms", ""),
+                placeholder="ex.: svp, !ste, mel4",
+            )
+            consult_api_input = st.checkbox(
+                "Ativar consulta manual da API Itaipu",
+                value=bool(filter_state.get("consult_api", False)),
+            )
+            row_filters = st.columns([2, 2, 2, 1])
+            situacao_input = row_filters[0].multiselect(
+                "Situacao",
+                situacoes,
+                default=filter_state.get("situacao_sel", situacoes),
+            )
+            executor_input = row_filters[1].multiselect(
+                "Setor executor",
+                executores,
+                default=filter_state.get("executor_sel", default_executor),
+            )
+            emissor_input = row_filters[2].multiselect(
+                "Setor emissor",
+                emissores,
+                default=filter_state.get("emissor_sel", default_emissor),
+            )
+            limit_input = int(
+                row_filters[3].number_input(
+                    "Limite de linhas",
+                    min_value=50,
+                    max_value=20000,
+                    value=int(filter_state.get("limit_rows", limit_rows)),
+                    step=50,
+                )
+            )
+            selected_display_input = st.multiselect(
+                "Colunas exibidas",
+                options=[column_display_names[col] for col in raw_df.columns],
+                default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
+            )
+            with st.expander("Ajuda rapida", expanded=False):
+                st.markdown(
+                    "* Sintaxe basica: `svp, !ste, mel4`\n"
+                    "* Use `OU` ou `OR` para alternativas (`svp OU mel4`)\n"
+                    "* Prefixos uteis: `^` inicio, `$` final, `=` igual, `~` regex\n"
+                    "* `!` inverte termo (`!^adm`, `!mel4`)\n"
+                    "* Virgulas equivalem a E/AND; espacos tambem separam termos"
+                )
+            form_cols = st.columns(2)
+            apply_filters = form_cols[0].form_submit_button("Aplicar filtros")
+            reset_filters = form_cols[1].form_submit_button("Resetar filtros")
+
+        if reset_filters:
+            st.session_state[state_key] = {
+                "search_terms": "",
+                "consult_api": False,
+                "situacao_sel": situacoes,
+                "executor_sel": default_executor,
+                "emissor_sel": default_emissor,
+                "limit_rows": 500,
+                "selected_display": [column_display_names[col] for col in default_columns],
+            }
+            rerun_fn = getattr(st, "rerun", None)
+            if callable(rerun_fn):
+                rerun_fn()
+            else:
+                legacy_rerun_fn = getattr(st, "experimental_rerun", None)
+                if callable(legacy_rerun_fn):
+                    legacy_rerun_fn()
+
+        if apply_filters:
+            st.session_state[state_key] = {
+                "search_terms": search_input,
+                "consult_api": consult_api_input,
+                "situacao_sel": situacao_input,
+                "executor_sel": executor_input,
+                "emissor_sel": emissor_input,
+                "limit_rows": limit_input,
+                "selected_display": selected_display_input,
+            }
+
+        filter_state = st.session_state[state_key]
+        search_terms = str(filter_state.get("search_terms", ""))
+        consult_api = bool(filter_state.get("consult_api", False))
+        situacao_sel = list(filter_state.get("situacao_sel", situacoes))
+        executor_sel = list(filter_state.get("executor_sel", default_executor))
+        emissor_sel = list(filter_state.get("emissor_sel", default_emissor))
+        limit_rows = int(filter_state.get("limit_rows", 500))
+        selected_display = list(filter_state.get("selected_display", [column_display_names[col] for col in default_columns]))
         display_to_internal = {v: k for k, v in column_display_names.items()}
         selected_columns = [display_to_internal.get(name, name) for name in selected_display]
 
-        with st.expander("Ajuda rapida", expanded=False):
-            st.markdown(
-                "* Sintaxe basica: `svp, !ste, mel4`\n"
-                "* Use `OU` ou `OR` para alternativas (`svp OU mel4`)\n"
-                "* Prefixos uteis: `^` inicio, `$` final, `=` igual, `~` regex\n"
-                "* `!` inverte termo (`!^adm`, `!mel4`)\n"
-                "* Virgulas equivalem a E/AND; espacos tambem separam termos"
-            )
+    situacao_filter = _normalize_filter_selection(situacao_sel, situacoes)
+    executor_filter = _normalize_filter_selection(executor_sel, executores)
+    emissor_filter = _normalize_filter_selection(emissor_sel, emissores)
 
     filtered_df = apply_all_filters_cached(
         raw_df,
         search_terms,
-        situacao_sel,
-        executor_sel,
-        emissor_sel,
+        situacao_filter,
+        executor_filter,
+        emissor_filter,
     )
     if limit_rows and len(filtered_df) > limit_rows:
         filtered_df = filtered_df.head(limit_rows).reset_index(drop=True)
@@ -676,12 +760,12 @@ if REAL_RUNTIME and not raw_df.empty:
     active_summary: list[str] = []
     if search_terms.strip():
         active_summary.append(f"Busca: {search_terms.strip()}")
-    if situacao_sel and situacoes and len(situacao_sel) != len(situacoes):
-        active_summary.append("Situacao: " + ", ".join(situacao_sel))
-    if executor_sel and executores and len(executor_sel) != len(executores):
-        active_summary.append("Executor: " + ", ".join(executor_sel))
-    if emissor_sel and emissores and len(emissor_sel) != len(emissores):
-        active_summary.append("Emissor: " + ", ".join(emissor_sel))
+    if situacao_filter:
+        active_summary.append("Situacao: " + ", ".join(str(value) for value in situacao_filter))
+    if executor_filter:
+        active_summary.append("Executor: " + ", ".join(str(value) for value in executor_filter))
+    if emissor_filter:
+        active_summary.append("Emissor: " + ", ".join(str(value) for value in emissor_filter))
     if consult_api:
         active_summary.append("API: manual")
 
@@ -701,26 +785,47 @@ if REAL_RUNTIME and not raw_df.empty:
         else:
             status_cols[3].metric("Execucao concluida", "-")
 
-        control_cols = st.columns([1, 1, 1, 2])
-        page_size = int(
+        control_cols = st.columns([2, 1, 1, 1, 1, 2])
+        sort_options = ["(Sem ordenacao)"] + list(view_df.columns)
+        sort_column = str(
             control_cols[0].selectbox(
+                "Ordenar por",
+                sort_options,
+                index=0,
+            )
+        )
+        sort_desc = bool(control_cols[1].checkbox("Desc", value=False))
+        page_size = int(
+            control_cols[2].selectbox(
                 "Linhas por pagina",
                 [100, 250, 500, 1000, 2000],
                 index=1,
             )
         )
         table_height = int(
-            control_cols[1].selectbox(
+            control_cols[3].selectbox(
                 "Altura tabela (px)",
                 [400, 600, 800, 1000],
                 index=1,
             )
         )
-        auto_width = bool(control_cols[2].checkbox("Auto largura", value=True))
-        page_df_preview, total_pages = _paginate_dataframe(view_df, page=1, page_size=page_size)
+        auto_width = bool(control_cols[4].checkbox("Auto largura", value=True))
+
+        table_view_df = view_df
+        if sort_column != "(Sem ordenacao)" and sort_column in table_view_df.columns:
+            try:
+                table_view_df = table_view_df.sort_values(
+                    by=sort_column,
+                    ascending=not sort_desc,
+                    kind="stable",
+                )
+            except Exception as exc:
+                logger.warning("Falha ao ordenar por %s: %s", sort_column, exc)
+
+        _, total_pages = _paginate_dataframe(table_view_df, page=1, page_size=page_size)
         default_page = min(max(page_number, 1), total_pages)
         page_number = int(
-            control_cols[3].number_input(
+            control_cols[5].number_input(
                 f"Pagina (1..{total_pages})",
                 min_value=1,
                 max_value=total_pages,
@@ -728,8 +833,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 step=1,
             )
         )
-        page_df, total_pages = _paginate_dataframe(view_df, page=page_number, page_size=page_size)
-        del page_df_preview
+        page_df, total_pages = _paginate_dataframe(table_view_df, page=page_number, page_size=page_size)
 
         display_df = ensure_arrow_compatible(page_df.rename(columns=rename_map))
         column_config = {}
@@ -756,7 +860,7 @@ if REAL_RUNTIME and not raw_df.empty:
         )
         st.caption(
             f"Exibindo pagina {page_number}/{total_pages} | "
-            f"linhas nesta pagina: {len(page_df)} | linhas filtradas: {len(view_df)}"
+            f"linhas nesta pagina: {len(page_df)} | linhas filtradas: {len(table_view_df)}"
         )
         if active_summary:
             st.markdown("**Filtros ativos:** " + " | ".join(active_summary))

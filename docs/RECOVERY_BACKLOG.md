@@ -892,3 +892,20 @@ Regra de lint para este ciclo:
    - removed deprecated pandas CoW option assignment.
 6. [resolved] expanded focused tests:
    - `tests/test_streamlit_filter_cache.py` now covers fallback cache methods, token differentiation, option builder and pagination helper.
+
+## Update 2026-02-24 (streamlit long cycle v2: applied filters workflow + sortable paged table)
+
+1. [resolved] filter workflow moved to explicit form submit/reset:
+   - filter changes now apply on demand (no per-keystroke heavy rerun).
+   - reset action restores defaults and reruns safely.
+2. [resolved] full-selection normalization for multiselect filters:
+   - selecting all values now collapses to no-op filter to avoid unnecessary `isin(...)` passes.
+3. [resolved] robust mixed-type options:
+   - filter option builder now sorts by string key and tolerates mixed types.
+4. [resolved] table usability/layout improvements:
+   - sortable table (`Ordenar por` + `Desc`) before pagination;
+   - pagination controls reorganized in table toolbar.
+5. [resolved] stability guard for rerun API compatibility:
+   - `st.rerun()` with fallback to `st.experimental_rerun()`.
+6. [resolved] regression expansion:
+   - `tests/test_streamlit_filter_cache.py` now covers mixed-type options and normalized full selection behavior.
