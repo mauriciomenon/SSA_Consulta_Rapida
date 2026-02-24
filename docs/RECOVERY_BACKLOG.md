@@ -730,5 +730,7 @@ Regra de lint para este ciclo:
    - added prune of orphan entries when `results_stack` changes.
 2. [resolved] manager encapsulation without broad refactor:
    - pagination tracker operations moved to a dedicated local manager class in CLI module.
-3. [resolved] regression lock:
-   - `tests/test_cli_pagination_tracker_prune.py`.
+3. [resolved] reduced state loss on dataframe copies:
+   - tracker key now persists in `df.attrs`, avoiding strict dependence on `id(df)`.
+4. [resolved] regression lock:
+   - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation scenario).
