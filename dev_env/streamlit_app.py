@@ -21,12 +21,19 @@ from core.app_logic import (
 )
 from core.config_manager import load_display_mappings_integrity
 from utils.remote_itaipu import RequestOptions, fetch_pending_ssas, map_to_dataframe
-st = cast(Any, importlib.import_module("streamlit"))
 
-# Enable copy-on-write mode for performance (pandas 1.5+)
-# With CoW, DataFrame.copy() returns lazy view that only copies on modification
-# This makes cache operations much faster while maintaining safety
-pd.options.mode.copy_on_write = True
+try:
+    st = cast(Any, importlib.import_module("streamlit"))
+except ModuleNotFoundError:
+    class _StreamlitStub:
+        session_state = None
+
+        def __getattr__(self, _name: str):
+            return None
+
+    st = cast(Any, _StreamlitStub())
+
+# pandas >= 3 keeps copy-on-write always enabled.
 
 # Inicializar logging robusto
 class _ASCIIOnlyFilter(logging.Filter):
@@ -90,48 +97,65 @@ class StreamlitFilterCache:
     def __init__(self, max_size: int = 30, ttl_seconds: int = 300):
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
+        self._use_session_state = False
+        self._local_cache: dict[str, dict[str, Any]] = {}
+        self._local_stats: dict[str, int] = {'hits': 0, 'misses': 0, 'evictions': 0}
+        self._initialize_backend()
 
-        # Use Streamlit session_state if available, otherwise use local dict
-        # This allows cache to work in tests and non-Streamlit contexts
-        if hasattr(st, 'session_state') and st.session_state is not None:
-            # Real Streamlit runtime - use session_state
+    def _initialize_backend(self) -> None:
+        if not hasattr(st, 'session_state'):
+            return
+        try:
+            session_state = st.session_state
+            if session_state is None:
+                return
+            if 'filter_cache' not in session_state:
+                session_state.filter_cache = {}
+            if 'cache_stats' not in session_state:
+                session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
             self._use_session_state = True
-            if 'filter_cache' not in st.session_state:
-                st.session_state.filter_cache = {}
-            if 'cache_stats' not in st.session_state:
-                st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
-        else:
-            # Not in Streamlit runtime - use local dict
-            self._use_session_state = False
-            self._local_cache = {}
-            self._local_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+        except Exception as exc:
+            logger.debug("Streamlit session_state unavailable in current runtime: %s", exc)
+
+    def _resolve_backend(self) -> tuple[dict[str, Any], dict[str, int]]:
+        if self._use_session_state:
+            return st.session_state.filter_cache, st.session_state.cache_stats
+        return self._local_cache, self._local_stats
     
-    def _generate_key(self, df_shape: Tuple[int, int], search_terms: str, 
-                     situacoes: list, executores: list, emissores: list) -> str:
+    def _generate_key(
+        self,
+        df_shape: Tuple[int, int],
+        search_terms: str,
+        situacoes: list,
+        executores: list,
+        emissores: list,
+        df_token: Any = None,
+    ) -> str:
         """Gera chave unica para o cache baseada nos parametros de filtro."""
         params = {
             'shape': df_shape,
             'search': search_terms,
             'situacoes': sorted(situacoes) if situacoes else [],
             'executores': sorted(executores) if executores else [],
-            'emissores': sorted(emissores) if emissores else []
+            'emissores': sorted(emissores) if emissores else [],
+            'df_token': df_token,
         }
         
         params_str = str(sorted(params.items()))
         return hashlib.md5(params_str.encode('utf-8')).hexdigest()
     
-    def get(self, df_shape: Tuple[int, int], search_terms: str,
-           situacoes: list, executores: list, emissores: list) -> Optional[pd.DataFrame]:
+    def get(
+        self,
+        df_shape: Tuple[int, int],
+        search_terms: str,
+        situacoes: list,
+        executores: list,
+        emissores: list,
+        df_token: Any = None,
+    ) -> Optional[pd.DataFrame]:
         """Recupera resultado do cache se valido."""
-        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores)
-
-        # Get cache and stats from appropriate source
-        if self._use_session_state:
-            cache = st.session_state.filter_cache
-            stats = st.session_state.cache_stats
-        else:
-            cache = self._local_cache
-            stats = self._local_stats
+        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
+        cache, stats = self._resolve_backend()
 
         if key in cache:
             entry = cache[key]
@@ -148,18 +172,19 @@ class StreamlitFilterCache:
         stats['misses'] += 1
         return None
     
-    def put(self, df_shape: Tuple[int, int], search_terms: str,
-           situacoes: list, executores: list, emissores: list, result: pd.DataFrame):
+    def put(
+        self,
+        df_shape: Tuple[int, int],
+        search_terms: str,
+        situacoes: list,
+        executores: list,
+        emissores: list,
+        result: pd.DataFrame,
+        df_token: Any = None,
+    ):
         """Armazena resultado no cache."""
-        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores)
-
-        # Get cache and stats from appropriate source
-        if self._use_session_state:
-            cache = st.session_state.filter_cache
-            stats = st.session_state.cache_stats
-        else:
-            cache = self._local_cache
-            stats = self._local_stats
+        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
+        cache, stats = self._resolve_backend()
 
         # Remove entrada existente se houver
         if key in cache:
@@ -180,11 +205,9 @@ class StreamlitFilterCache:
     
     def get_stats(self) -> dict:
         """Retorna estatisticas do cache."""
-        stats = st.session_state.cache_stats if self._use_session_state else self._local_stats
+        cache, stats = self._resolve_backend()
         total = stats['hits'] + stats['misses']
         hit_rate = (stats['hits'] / total * 100) if total > 0 else 0
-        
-        cache = st.session_state.filter_cache if self._use_session_state else self._local_cache
 
         return {
             'size': len(cache),
@@ -208,12 +231,7 @@ class StreamlitFilterCache:
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
-        if self._use_session_state:
-            cache = st.session_state.filter_cache
-            stats = st.session_state.cache_stats
-        else:
-            cache = self._local_cache
-            stats = self._local_stats
+        cache, stats = self._resolve_backend()
         entry = cache.get(key)
         if not entry:
             stats['misses'] += 1
@@ -227,12 +245,7 @@ class StreamlitFilterCache:
         return entry['data'].copy()
 
     def cache_filter_result(self, key: str, result: pd.DataFrame, meta: Optional[dict] = None):
-        if self._use_session_state:
-            cache = st.session_state.filter_cache
-            stats = st.session_state.cache_stats
-        else:
-            cache = self._local_cache
-            stats = self._local_stats
+        cache, stats = self._resolve_backend()
         # politica LRU simples
         if key in cache:
             del cache[key]
@@ -288,6 +301,26 @@ def apply_filters_with_cache(df: pd.DataFrame, search_terms: str,
     return apply_all_filters_cached(df, search_terms, situacoes, executores, emissores)
 
 
+def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
+    """Compute lightweight token to reduce stale cache hits on equal shapes."""
+    cached_token = df.attrs.get("_streamlit_cache_token")
+    if cached_token is not None:
+        return cached_token
+
+    columns = tuple(str(col) for col in df.columns)
+    if df.empty:
+        token = (0, columns, None, None)
+        df.attrs["_streamlit_cache_token"] = token
+        return token
+    sample_column = 'numero_ssa' if 'numero_ssa' in df.columns else df.columns[0]
+    sample_series = df[sample_column]
+    head_values = tuple(str(value) for value in sample_series.head(10).tolist())
+    tail_values = tuple(str(value) for value in sample_series.tail(10).tolist())
+    token = (len(df), columns, str(sample_column), head_values, tail_values)
+    df.attrs["_streamlit_cache_token"] = token
+    return token
+
+
 def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
     """Aplica filtros CLI com fallback para caso sem cache."""
     if not search_text.strip():
@@ -300,8 +333,16 @@ def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
 def apply_all_filters_cached(df: pd.DataFrame, search_terms: str, 
                            situacoes: list, executores: list, emissores: list) -> pd.DataFrame:
     """Aplica todos os filtros com cache inteligente."""
+    df_token = _compute_df_cache_token(df)
     # Verifica cache primeiro
-    cached_result = filter_cache.get(df.shape, search_terms, situacoes, executores, emissores)
+    cached_result = filter_cache.get(
+        df.shape,
+        search_terms,
+        situacoes,
+        executores,
+        emissores,
+        df_token=df_token,
+    )
     if cached_result is not None:
         return cached_result
     
@@ -323,7 +364,15 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
     filtered_df = filtered_df.reset_index(drop=True)
     
     # Armazena no cache
-    filter_cache.put(df.shape, search_terms, situacoes, executores, emissores, filtered_df)
+    filter_cache.put(
+        df.shape,
+        search_terms,
+        situacoes,
+        executores,
+        emissores,
+        filtered_df,
+        df_token=df_token,
+    )
     
     # Log performance se demorou mais que 100ms
     elapsed = time.time() - start_time

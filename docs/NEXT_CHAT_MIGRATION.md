@@ -540,3 +540,21 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_ascii_logging_filter.py`: pass (2 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Latest update 2026-02-24 (streamlit broad hardening cycle)
+
+- `dev_env/streamlit_app.py`:
+  - safe import fallback when `streamlit` is missing;
+  - `StreamlitFilterCache` now uses centralized backend resolver;
+  - cache get/put now supports `df_token` and `apply_all_filters_cached` computes token via `_compute_df_cache_token`;
+  - token computation optimized with sample-only string conversion + memoization in `df.attrs`;
+  - removed deprecated pandas CoW option assignment.
+- tests:
+  - added `tests/test_streamlit_filter_cache.py`.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_ascii_logging_filter.py`: pass (4 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).

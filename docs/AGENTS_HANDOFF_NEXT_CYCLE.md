@@ -617,3 +617,11 @@ Entregavel de cada slice:
 
 - `resolved` perf/ux(streamlit): removed forced 0.5s delay at end of import action.
 - `scope` patch-minimo: same import behavior, faster UI return.
+
+## Update 2026-02-24 (streamlit broad hardening cycle)
+
+- `resolved` resilience(streamlit): module now imports safely even when streamlit package is absent.
+- `resolved` consistency(cache): backend selection logic is centralized and reused in all cache methods.
+- `resolved` correctness(cache): keying now accepts lightweight dataframe token to reduce stale cache collisions.
+- `resolved` maintenance: removed deprecated pandas CoW setting.
+- `resolved` tests: new focused coverage for fallback cache backend and token behavior.

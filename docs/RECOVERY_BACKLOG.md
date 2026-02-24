@@ -859,3 +859,17 @@ Regra de lint para este ciclo:
    - progress placeholder is now cleared immediately after import flow ends.
 3. [scope] minimal change:
    - no import semantics/layout changes.
+
+## Update 2026-02-24 (streamlit broad hardening cycle)
+
+1. [resolved] streamlit import resilience for non-streamlit environments:
+   - `dev_env/streamlit_app.py` now falls back to local stub when `streamlit` package is unavailable.
+2. [resolved] cache backend consistency:
+   - centralized backend resolution in `StreamlitFilterCache` to avoid session/local divergence across methods.
+3. [resolved] cache stale-hit reduction with low-overhead token:
+   - added `df_token` support to cache get/put keying;
+   - token uses lightweight head/tail sampling and memoizes on `df.attrs`.
+4. [resolved] pandas deprecation cleanup:
+   - removed deprecated `pd.options.mode.copy_on_write` assignment.
+5. [resolved] regression coverage for fallback/cache token:
+   - `tests/test_streamlit_filter_cache.py`.
