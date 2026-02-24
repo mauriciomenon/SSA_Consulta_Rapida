@@ -539,3 +539,15 @@ Entregavel de cada slice:
   - `ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass.
   - `ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass.
   - `uv run pytest -q tests/test_cli_enhancement_manager_lock_usage.py`: pass.
+
+## Update 2026-02-24 (command handlers root-safe mappings cache)
+
+- `resolved` fix(cli): mapping file path no longer depends on cwd.
+- `resolved` quality(cli): command handlers logger now uses robust logger API.
+- `resolved` perf(cli): mapping cache now uses dedicated in-module manager.
+- `resolved` test(cli): add `tests/test_command_handlers_project_root_mapping.py`.
+- gate local deste slice:
+  - `python -m py_compile interface/command_handlers.py tests/test_command_handlers_project_root_mapping.py`: pass.
+  - `ruff check interface/command_handlers.py tests/test_command_handlers_project_root_mapping.py`: pass.
+  - `ty check interface/command_handlers.py tests/test_command_handlers_project_root_mapping.py`: pass.
+  - `uv run pytest -q tests/test_command_handlers_project_root_mapping.py`: pass.

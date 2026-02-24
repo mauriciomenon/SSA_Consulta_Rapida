@@ -397,3 +397,12 @@ Relatorio final por slice:
   - if lock cannot be acquired, save aborts and write is skipped.
 - focused regression:
   - `tests/test_cli_enhancement_manager_lock_usage.py`.
+
+## Latest update 2026-02-24 (command handlers root-safe mappings cache)
+
+- `interface/command_handlers.py`:
+  - path for mapping files now resolves from project root helper;
+  - module logger aligned to robust logger API;
+  - mappings cache moved to a small dedicated manager in-module.
+- focused regression:
+  - `tests/test_command_handlers_project_root_mapping.py`.
