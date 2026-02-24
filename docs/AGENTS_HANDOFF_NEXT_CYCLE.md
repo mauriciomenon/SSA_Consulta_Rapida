@@ -606,3 +606,9 @@ Entregavel de cada slice:
 - `resolved` stability(streamlit): compatibility cache methods now use the same backend selection logic as primary cache methods.
 - `resolved` behavior parity: local fallback mode now tracks hits/misses/evictions correctly.
 - `scope` patch-minimo: no UI/layout or filter semantics change.
+
+## Update 2026-02-24 (streamlit filter guards)
+
+- `resolved` stability(streamlit): no KeyError when optional filter columns are absent.
+- `resolved` perf/ux(streamlit): removed per-miss `st.info` in hot filter path; now logs via logger.
+- `scope` patch-minimo: no GUI layout/position changes.

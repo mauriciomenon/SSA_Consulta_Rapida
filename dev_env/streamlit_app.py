@@ -312,11 +312,11 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
     filtered_df = apply_cli_filters(df, search_terms)
     
     # Filtros de selecao multipla
-    if situacoes:
+    if situacoes and 'situacao' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['situacao'].isin(situacoes)]
-    if executores:
+    if executores and 'setor_executor' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['setor_executor'].isin(executores)]
-    if emissores:
+    if emissores and 'setor_emissor' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['setor_emissor'].isin(emissores)]
     
     # Reset index
@@ -328,7 +328,7 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
     # Log performance se demorou mais que 100ms
     elapsed = time.time() - start_time
     if elapsed > 0.1:
-        st.info(f" Filtro executado em {elapsed:.2f}s - resultado armazenado no cache")
+        logger.info("Filtro streamlit executado em %.2fs (cache miss)", elapsed)
     
     return filtered_df
 
