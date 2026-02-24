@@ -208,28 +208,38 @@ class StreamlitFilterCache:
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
-        cache = st.session_state.filter_cache
+        if self._use_session_state:
+            cache = st.session_state.filter_cache
+            stats = st.session_state.cache_stats
+        else:
+            cache = self._local_cache
+            stats = self._local_stats
         entry = cache.get(key)
         if not entry:
-            st.session_state.cache_stats['misses'] += 1
+            stats['misses'] += 1
             return None
         if time.time() - entry['timestamp'] >= self.ttl_seconds:
             # expirada
             del cache[key]
-            st.session_state.cache_stats['misses'] += 1
+            stats['misses'] += 1
             return None
-        st.session_state.cache_stats['hits'] += 1
+        stats['hits'] += 1
         return entry['data'].copy()
 
     def cache_filter_result(self, key: str, result: pd.DataFrame, meta: Optional[dict] = None):
-        cache = st.session_state.filter_cache
+        if self._use_session_state:
+            cache = st.session_state.filter_cache
+            stats = st.session_state.cache_stats
+        else:
+            cache = self._local_cache
+            stats = self._local_stats
         # politica LRU simples
         if key in cache:
             del cache[key]
         while len(cache) >= self.max_size:
             oldest_key = next(iter(cache))
             del cache[oldest_key]
-            st.session_state.cache_stats['evictions'] += 1
+            stats['evictions'] += 1
         cache[key] = {
             'data': result.copy(),
             'timestamp': time.time(),

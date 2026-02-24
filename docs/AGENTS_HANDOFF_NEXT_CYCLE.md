@@ -600,3 +600,9 @@ Entregavel de cada slice:
 - `resolved` semantic(logging): `_ASCIIOnlyFilter` now preserves mapping args used by named interpolation.
 - `resolved` parity(logging): same fix in main and streamlit entrypoints.
 - `ops-note` legacy reset: DB reset for legacy decimal artifacts remains controlled operational step; runtime code enforces canonical write only.
+
+## Update 2026-02-24 (streamlit cache fallback parity)
+
+- `resolved` stability(streamlit): compatibility cache methods now use the same backend selection logic as primary cache methods.
+- `resolved` behavior parity: local fallback mode now tracks hits/misses/evictions correctly.
+- `scope` patch-minimo: no UI/layout or filter semantics change.
