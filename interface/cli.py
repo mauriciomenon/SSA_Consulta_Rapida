@@ -788,11 +788,17 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         print("Nenhum termo de filtro atual para remover.")
         return
     remaining = [t for t in current_terms if t.lower() != term_to_remove.lower()]
-    # Base para re-aplicar é o estado anterior, se existir; senão o mesmo current_df
-    if len(results_stack) >= 2:
+    # Otimizacao: remocao LIFO pode reaplicar do estado anterior (menor).
+    # Para remocao fora de ordem, reaplica da base para nao manter filtro removido.
+    remove_key = term_to_remove.lower()
+    is_lifo_remove = bool(current_terms) and (
+        current_terms[-1].lower() == remove_key
+        and all(t.lower() != remove_key for t in current_terms[:-1])
+    )
+    if is_lifo_remove and len(results_stack) >= 2:
         base_df = results_stack[-2][0]
     else:
-        base_df = current_df
+        base_df = results_stack[0][0] if results_stack else current_df
     if remaining:
         new_df = filter_dataframe(base_df, remaining)
         results_stack[-1] = (new_df, remaining)
