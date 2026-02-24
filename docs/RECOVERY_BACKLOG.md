@@ -821,3 +821,14 @@ Regra de lint para este ciclo:
    - added focused test to ensure input dataframe is not mutated and normalized output remains canonical.
 3. [scope] minimal patch only:
    - no flow/algorithm refactor beyond copy-path change.
+
+## Update 2026-02-24 (logging mapping-args interpolation fix)
+
+1. [resolved] fixed semantic bug in ASCII logging filter:
+   - preserved mapping-style `record.args` (`dict`) instead of forcing tuple conversion.
+2. [resolved] consistency applied in both entrypoints:
+   - `main.py` and `dev_env/streamlit_app.py` now share the same mapping-aware behavior.
+3. [resolved] regression lock:
+   - `tests/test_ascii_logging_filter.py` covers mapping args and tuple args.
+4. [operational-note] legacy DB reset policy:
+   - canonical-write enforcement is in code paths; legacy cleanup reset remains an explicit operational action, not an automatic runtime mutation.

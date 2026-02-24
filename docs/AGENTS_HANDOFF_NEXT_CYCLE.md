@@ -594,3 +594,9 @@ Entregavel de cada slice:
 
 - `resolved` perf(upsert): lighter dataframe copy path in `prepare_dataframe_for_upsert`.
 - `resolved` regression: input immutability and canonical/date normalization output covered by focused test.
+
+## Update 2026-02-24 (logging mapping interpolation and ops note)
+
+- `resolved` semantic(logging): `_ASCIIOnlyFilter` now preserves mapping args used by named interpolation.
+- `resolved` parity(logging): same fix in main and streamlit entrypoints.
+- `ops-note` legacy reset: DB reset for legacy decimal artifacts remains controlled operational step; runtime code enforces canonical write only.
