@@ -48,6 +48,16 @@ def _normalize_ssa_storage_value(value) -> str | None:
         return None
 
 
+def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
+    """Fail fast if normalized storage ids still contain decimal artifacts."""
+    for col in ("numero_ssa", "derivada_de"):
+        if col not in work.columns:
+            continue
+        series = work[col].dropna().astype(str).str.strip()
+        if series.str.contains(".", regex=False).any():
+            raise ValueError(f"Non-canonical value detected in {col}; decimal artifact is not allowed")
+
+
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
     """Compute a safe chunksize for SQLite to avoid the 999 variables limit.
 
@@ -143,6 +153,7 @@ def insert_dataframe_optimized(
             work['numero_ssa'] = work['numero_ssa'].map(_normalize_ssa_storage_value)
         if 'derivada_de' in work.columns:
             work['derivada_de'] = work['derivada_de'].map(_normalize_ssa_storage_value)
+        _validate_canonical_storage_ids(work)
 
         # Converter datas de forma mais eficiente (vetorizada)
         date_columns = [
@@ -233,7 +244,6 @@ def insert_dataframe_optimized(
                 # OTIMIZACAO CHAVE: lookup apenas das SSAs que precisamos, em chunks
                 lookup_start = time.time()
                 existing_dict = {}
-                existing_storage_keys = {}
                 if not table_exists.empty:
                     unique_ssas = (
                         has_ssa['numero_ssa']
@@ -245,29 +255,21 @@ def insert_dataframe_optimized(
                     )
                     if unique_ssas:
                         # Respeita limite de variaveis do SQLite (999). Usamos margem.
-                        # Cada SSA usa 2 parametros no lookup: canonico e variante legacy ".0".
-                        lookup_chunk = max(1, (SQLITE_MAX_VARIABLES - 50) // 2)
+                        lookup_chunk = max(1, SQLITE_MAX_VARIABLES - 50)
                         for i in range(0, len(unique_ssas), lookup_chunk):
                             chunk_ssas = unique_ssas[i:i + lookup_chunk]
-                            chunk_ssas_legacy = [f"{ssa}.0" for ssa in chunk_ssas]
                             placeholders = ",".join(["?"] * len(chunk_ssas))
-                            placeholders_legacy = ",".join(["?"] * len(chunk_ssas_legacy))
                             query = (
                                 f"SELECT numero_ssa, data_cadastro FROM {target_table} "
-                                f"WHERE numero_ssa IN ({placeholders}) "
-                                f"OR numero_ssa IN ({placeholders_legacy})"
+                                f"WHERE numero_ssa IN ({placeholders})"
                             )
-                            query_params = chunk_ssas + chunk_ssas_legacy
-                            chunk_df = pd.read_sql_query(query, conn, params=query_params)
+                            chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
                             if not chunk_df.empty:
-                                chunk_df["numero_ssa_raw"] = chunk_df["numero_ssa"].astype(str).str.strip()
                                 chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(_normalize_ssa_storage_value)
                                 chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
-                                for current_row in chunk_df.itertuples(index=False):
-                                    existing_dict[current_row.numero_ssa] = current_row.data_cadastro
-                                    existing_storage_keys.setdefault(current_row.numero_ssa, set()).add(
-                                        current_row.numero_ssa_raw
-                                    )
+                                existing_dict.update(
+                                    dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))
+                                )
                 lookup_time = time.time() - lookup_start
 
                 logger.info(
@@ -279,7 +281,6 @@ def insert_dataframe_optimized(
                 # Classificar registros em lotes
                 to_insert = []
                 to_update = []
-                to_update_delete_keys = set()
 
                 for idx, row in has_ssa.iterrows():
                     numero_ssa = row['numero_ssa']
@@ -301,10 +302,6 @@ def insert_dataframe_optimized(
                             should_update = True
                     if should_update:
                         to_update.append(row)
-                        to_update_delete_keys.add(numero_ssa)
-                        storage_keys = existing_storage_keys.get(numero_ssa)
-                        if storage_keys:
-                            to_update_delete_keys.update(storage_keys)
 
                 # ===== INSERÇÃO EM LOTE DE NOVOS REGISTROS =====
                 if to_insert:
@@ -331,26 +328,16 @@ def insert_dataframe_optimized(
                         if not update_columns:
                             logger.info("Nenhuma coluna atualizavel encontrada; pulando atualizacao")
                         elif _has_referencing_foreign_keys(conn, target_table):
-                            set_clause = ", ".join([f"{col}=?" for col in update_columns] + ["numero_ssa=?"])
+                            set_clause = ", ".join([f"{col}=?" for col in update_columns])
                             update_sql = (
-                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa IN (?, ?)"
+                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa=?"
                             )
                             for i in range(0, len(update_df), CHUNK_SIZE):
                                 chunk = update_df.iloc[i:i + CHUNK_SIZE]
-                                params = []
-                                for current_row in chunk.itertuples(index=False):
-                                    normalized_ssa = getattr(current_row, "numero_ssa")
-                                    row_values = [getattr(current_row, col) for col in update_columns]
-                                    params.append(
-                                        tuple(
-                                            row_values
-                                            + [
-                                                normalized_ssa,
-                                                normalized_ssa,
-                                                f"{normalized_ssa}.0",
-                                            ]
-                                        )
-                                    )
+                                params = list(
+                                    chunk[update_columns + ["numero_ssa"]]
+                                    .itertuples(index=False, name=None)
+                                )
                                 if params:
                                     conn.executemany(update_sql, params)
                             total_inserted += len(update_df)
@@ -359,9 +346,9 @@ def insert_dataframe_optimized(
                                 len(update_df),
                             )
                         else:
-                            delete_keys = list(to_update_delete_keys) if to_update_delete_keys else list(update_df['numero_ssa'])
-                            for i in range(0, len(delete_keys), CHUNK_SIZE):
-                                chunk_ssas = delete_keys[i:i + CHUNK_SIZE]
+                            ssa_list = list(update_df['numero_ssa'])
+                            for i in range(0, len(ssa_list), CHUNK_SIZE):
+                                chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
                                 ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
                                 delete_query = (
                                     f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"

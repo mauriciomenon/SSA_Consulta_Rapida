@@ -782,3 +782,15 @@ Regra de lint para este ciclo:
 5. [pending-long] kluster quality note (P4):
    - `insert_dataframe_optimized` remains large and multi-responsibility.
    - deferred by scope policy (no broad refactor in this sprint); keep for dedicated architecture sprint.
+
+## Update 2026-02-24 (policy shift: canonical write only for SSA ids)
+
+1. [resolved] removed legacy read-compat in optimized upsert path:
+   - lookup/update now uses only canonical `numero_ssa` keys.
+2. [resolved] enforced write validation for canonical storage ids:
+   - added fail-fast validation in `insert_dataframe_optimized` after normalization;
+   - decimal artifacts in `numero_ssa`/`derivada_de` are rejected in write path.
+3. [resolved] kept performance-oriented batch paths:
+   - canonical lookup chunk and `executemany` update/insert paths preserved.
+4. [decision] migration strategy for this cycle:
+   - legacy cleanup to be handled by controlled DB reset/migration, not runtime compatibility branches.
