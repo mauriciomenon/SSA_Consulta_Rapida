@@ -14,6 +14,7 @@ This handoff is ready to reuse in the next conversation.
     - `resolved` test(db): add schema_manager identifier guard regression lock.
     - `resolved` fix(maintenance): harden analyze_db_integrity for empty-table and report consistency.
     - `resolved` perf(maintenance): refactor verify_database_integrity query flow.
+    - `resolved` fix(cli): guard direct SSA search when `numero_ssa` column is missing.
   - Scope atual:
     - estabilizacao de filtros avancados (resize/layout de grid e botoes internos);
     - hardening pontual CLI/schema/scripts de manutencao;
@@ -27,6 +28,7 @@ This handoff is ready to reuse in the next conversation.
       - `tests/test_scripts_manutencao_schema_targets.py`: pass.
       - `tests/test_schema_manager_identifier_guards.py`: pass.
       - `tests/test_scripts_manutencao_schema_targets.py` (analyze_db_integrity + duplicate-count): pass.
+      - `tests/test_cli_loop_missing_numero_ssa_guard.py`: pass.
   - Registro de controle obrigatorio:
     - `docs/RECOVERY_BACKLOG.md` atualizado com triagem kluster e itens deferidos.
     - `docs/NEXT_CHAT_MIGRATION.md` sincronizado com este branch/scope (override 2026-02-24).

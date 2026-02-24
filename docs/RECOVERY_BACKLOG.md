@@ -667,3 +667,13 @@ Regra de lint para este ciclo:
    - consolidar caminho canonico e remover duplicacao core/gui.
 6. [next-sprint-exclusive] Refactor de manutencao/migracao:
    - parser de schema em scripts de migracao com estrategia robusta e testavel.
+
+## Update 2026-02-24 (cli keyerror guard after load failure)
+
+1. [resolved] fixed crash risk in direct SSA search path:
+   - `interface/cli.py`: guard added for missing `numero_ssa` column before direct SSA lookup.
+2. [resolved] security/performance hardening in same path:
+   - direct contains now uses `regex=False` when fallback search is needed;
+   - exact match is used when strict normalized SSA is available.
+3. [resolved] regression lock:
+   - `tests/test_cli_loop_missing_numero_ssa_guard.py` validates no crash when dataframe lacks `numero_ssa`.

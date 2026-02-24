@@ -27,6 +27,7 @@ from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Versão antiga como fallback
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.cli_enhancement_manager import enhancement_manager
+from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from utils.version import get_app_version, get_app_version_long
 
 # Configura logger específico para este módulo
@@ -1134,13 +1135,19 @@ def start_cli_loop(db_path: str, table_name: str):
                     # Verifica se é um número SSA direto (começa com 2025 ou é numérico)
                     if user_input.strip().isdigit() or user_input.strip().startswith('2025'):
                         ssa_number = user_input.strip()
-                        # Procura SSA específica na tabela atual
-                        matching_rows = current_df[current_df['numero_ssa'].astype(str).str.contains(ssa_number, na=False)]
-                        if not matching_rows.empty:
-                            # Mostra detalhes da primeira ocorrência
-                            _show_ssa_details(matching_rows.iloc[0], display_map)
-                            continue
-                        else:
+                        normalized_ssa = normalize_numero_ssa_strict(ssa_number)
+                        if 'numero_ssa' in current_df.columns:
+                            numero_series = current_df['numero_ssa'].astype(str)
+                            # Procura SSA específica na tabela atual
+                            if normalized_ssa:
+                                match_mask = numero_series.eq(normalized_ssa)
+                            else:
+                                match_mask = numero_series.str.contains(ssa_number, na=False, regex=False)
+                            matching_rows = current_df[match_mask]
+                            if not matching_rows.empty:
+                                # Mostra detalhes da primeira ocorrência
+                                _show_ssa_details(matching_rows.iloc[0], display_map)
+                                continue
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
                             continue
 
