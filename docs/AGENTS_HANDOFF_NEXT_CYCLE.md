@@ -27,9 +27,17 @@ This handoff is ready to reuse in the next conversation.
   - high-priority actionable now: stream scripts (`scripts/run_pytest_stream_and_log.py` and `_v2.py`) for path handling and output perf behavior.
   - medium structural items (main/config/gui) remain tracked; keep out of broad refactor in this sprint.
 - Execution order (next cycle):
-  1. Stream scripts security/perf mini-slice (patch minimo + focused tests).
+  1. Stream scripts security/perf mini-slice (delivered in this cycle).
   2. Batch 09/10 residual lock.
   3. Batch 11 resilience lock.
+
+## Update 2026-02-26 (stream scripts security/perf delivered)
+
+- Added `scripts/pytest_stream_common.py` to centralize stream wrappers runtime logic.
+- Hardened `--log` path handling through shared safe resolver.
+- Reduced flush overhead by batch flush policy.
+- Non-blocking sentinel delivery path now uses best-effort queue + reader_done signal.
+- Focused validation lock added: `tests/test_stream_log_wrapper_guards.py`.
 
 ## Estado atual
 

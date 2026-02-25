@@ -17,35 +17,16 @@ Exit codes:
 import argparse
 import json
 import os
-import queue
-import signal
-import shutil
-import subprocess
 import sys
-import threading
-import time
-from datetime import datetime, timezone
 
+from pytest_stream_common import (
+    ensure_log_path,
+    get_stream_logger,
+    resolve_safe_logpath as _resolve_safe_logpath,
+    run_streaming_pytest,
+)
 
-def ensure_log_path(logpath: str):
-    d = os.path.dirname(logpath)
-    if d and not os.path.exists(d):
-        os.makedirs(d, exist_ok=True)
-
-
-def _queue_maxsize() -> int:
-    raw = os.environ.get("PYTEST_STREAM_QUEUE_MAX")
-    if not raw:
-        return 4096
-    try:
-        value = int(raw)
-    except ValueError:
-        return 4096
-    if value < 256:
-        return 256
-    if value > 65536:
-        return 65536
-    return value
+logger = get_stream_logger(__name__)
 
 
 def main():
@@ -73,266 +54,22 @@ def main():
     kill_tree_default = bool(ws_settings.get("pytestWrapper", {}).get("killProcessTree", True))
 
     logdir = os.path.join(os.getcwd(), "local_ai_private")
-    logpath = args.log or os.path.join(logdir, "pytest_terminal_integration_stream.log")
+    try:
+        logpath = _resolve_safe_logpath(logdir, args.log)
+    except ValueError as exc:
+        logger.error("invalid stream log path: %s", exc)
+        return 2
     ensure_log_path(logpath)
 
     cmd = [sys.executable, "-m", "pytest", args.test]
-
-    header = (
-        f"=== pytest streaming run at {datetime.now(timezone.utc).isoformat()} ===\n"
-        f"Command: {' '.join(cmd)}\nTimeout: {args.timeout}s\n\n"
+    return run_streaming_pytest(
+        cmd=cmd,
+        timeout_s=args.timeout,
+        logpath=logpath,
+        fallback_to_tee=fallback_to_tee,
+        test_arg=args.test,
+        kill_tree_default=kill_tree_default,
     )
-
-    start = time.time()
-    # Start process in a new process group on Unix so we can kill the group; on Windows we'll use taskkill
-    if os.name == 'nt':
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    else:
-        p = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-
-    line_queue: "queue.Queue[str | None]" = queue.Queue(maxsize=_queue_maxsize())
-    dropped_lines = 0
-    dropped_lock = threading.Lock()
-    last_warned = 0
-
-    def _safe_queue_put(value: str | None) -> None:
-        nonlocal dropped_lines, last_warned
-        # Never block the reader thread when the queue is full.
-        # Blocking here can deadlock when the child process fills its stdout pipe.
-        if value is None:
-            # Ensure the sentinel is delivered by dropping older lines if needed.
-            while True:
-                try:
-                    line_queue.put_nowait(None)
-                    return
-                except queue.Full:
-                    try:
-                        line_queue.get_nowait()
-                        with dropped_lock:
-                            dropped_lines += 1
-                    except queue.Empty:
-                        time.sleep(0.005)
-
-        try:
-            line_queue.put_nowait(value)
-            return
-        except queue.Full:
-            # Drop the oldest line to make room (best-effort).
-            evicted = False
-            try:
-                line_queue.get_nowait()
-                evicted = True
-            except queue.Empty:
-                pass
-
-            if evicted:
-                with dropped_lock:
-                    dropped_lines += 1
-
-            try:
-                line_queue.put_nowait(value)
-                if evicted:
-                    with dropped_lock:
-                        warn_count = dropped_lines
-                        should_warn = warn_count % 200 == 1 and warn_count != last_warned
-                        if should_warn:
-                            last_warned = warn_count
-                    if should_warn:
-                        warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
-                        try:
-                            line_queue.put_nowait(warn)
-                        except queue.Full:
-                            pass
-                return
-            except queue.Full:
-                # Still no space, drop the line itself.
-                with dropped_lock:
-                    dropped_lines += 1
-                    warn_count = dropped_lines
-                    should_warn = warn_count % 200 == 1 and warn_count != last_warned
-                    if should_warn:
-                        last_warned = warn_count
-                if should_warn:
-                    warn = f"[WARN] output queue full; dropped {warn_count} line(s)\n"
-                    try:
-                        line_queue.put_nowait(warn)
-                    except queue.Full:
-                        pass
-                return
-
-    def _reader_worker() -> None:
-        try:
-            if p.stdout is None:
-                return
-            while True:
-                try:
-                    raw_line = p.stdout.readline()
-                except BaseException as exc:
-                    _safe_queue_put(f"[WARN] reader thread error: {exc}\n")
-                    break
-                if raw_line == "":
-                    break
-                _safe_queue_put(raw_line)
-        finally:
-            _safe_queue_put(None)
-
-    reader_thread = threading.Thread(target=_reader_worker, daemon=True)
-    reader_thread.start()
-
-    with open(logpath, "w", encoding="utf-8", errors="replace") as f:
-        f.write(header)
-        f.flush()
-
-        try:
-            reader_done = False
-            while True:
-                # Timeout must be enforced independently from child stdout flow.
-                if time.time() - start > args.timeout:
-                    # Attempt graceful shutdown of process tree
-                    try:
-                        if os.name == 'nt':
-                            if kill_tree_default:
-                                # Use taskkill to kill process tree on Windows
-                                res = subprocess.run(
-                                    ["taskkill", "/PID", str(p.pid), "/T", "/F"],
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL,
-                                )
-                                if res.returncode != 0:
-                                    # fallback to PowerShell Stop-Process
-                                    pwsh = shutil.which("pwsh") or shutil.which("powershell")
-                                    if pwsh:
-                                        try:
-                                            subprocess.run(
-                                                [
-                                                    pwsh,
-                                                    "-NoProfile",
-                                                    "-NonInteractive",
-                                                    "-Command",
-                                                    f"Stop-Process -Id {p.pid} -Force -ErrorAction SilentlyContinue",
-                                                ],
-                                                stdout=subprocess.DEVNULL,
-                                                stderr=subprocess.DEVNULL,
-                                            )
-                                        except Exception:
-                                            try:
-                                                p.kill()
-                                            except Exception:
-                                                pass
-                                    else:
-                                        try:
-                                            p.kill()
-                                        except Exception:
-                                            pass
-                            else:
-                                try:
-                                    p.kill()
-                                except Exception:
-                                    pass
-                        else:
-                            # Unix: kill process group
-                            try:
-                                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-                            except Exception:
-                                p.kill()
-                    except Exception:
-                        try:
-                            p.kill()
-                        except Exception:
-                            pass
-
-                    try:
-                        p.wait(timeout=5)
-                    except Exception:
-                        try:
-                            if os.name == "nt":
-                                p.kill()
-                            else:
-                                try:
-                                    os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-                                except Exception:
-                                    p.kill()
-                        except Exception:
-                            pass
-                        try:
-                            p.wait(timeout=5)
-                        except Exception:
-                            pass
-
-                    msg = f"\n=== TIMEOUT: pytest exceeded {args.timeout}s and was terminated ===\n"
-                    print(msg)
-                    f.write(msg)
-                    f.flush()
-
-                    if fallback_to_tee:
-                        logpath_ps = logpath.replace("/", "\\")
-                        print(
-                            "Fallback: to stream+log use (PowerShell):\n"
-                            f'python -m pytest "{args.test}" 2>&1 | Tee-Object -FilePath '
-                            f'"{logpath_ps}"'
-                        )
-
-                    reader_thread.join(timeout=1.0)
-                    return 124
-
-                try:
-                    queued_line = line_queue.get(timeout=0.2)
-                except queue.Empty:
-                    queued_line = ""
-
-                if queued_line is None:
-                    reader_done = True
-                elif queued_line:
-                    print(queued_line, end="")
-                    f.write(queued_line)
-                    f.flush()
-
-                if reader_done and p.poll() is not None and line_queue.empty():
-                    break
-
-            ret = p.wait()
-            footer = f"\n=== Process exited with code {ret} ===\n"
-            f.write(footer)
-            print(footer)
-            reader_thread.join(timeout=1.0)
-            return ret
-
-        except BaseException as exc:
-            err_msg = f"[ERR] unexpected failure while streaming pytest output: {exc}"
-            print(err_msg, file=sys.stderr, flush=True)
-            f.write(err_msg + "\n")
-            f.flush()
-            try:
-                if os.name == "nt":
-                    res = subprocess.run(
-                        ["taskkill", "/PID", str(p.pid), "/T", "/F"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    if res.returncode != 0:
-                        p.kill()
-                else:
-                    try:
-                        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-                    except Exception:
-                        p.kill()
-            except Exception:
-                pass
-            try:
-                p.wait(timeout=5)
-            except Exception:
-                pass
-            try:
-                reader_thread.join(timeout=1.0)
-            except Exception:
-                pass
-            raise
 
 
 if __name__ == "__main__":
