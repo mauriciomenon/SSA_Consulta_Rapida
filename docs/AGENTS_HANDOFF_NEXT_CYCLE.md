@@ -996,3 +996,15 @@ Entregavel de cada slice:
   - `pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`: 10 passed.
 - processo:
   - kluster retornou 2 pontos P4 (docstring/logger), corrigidos no mesmo slice e revalidados clean.
+
+## Update 2026-02-26 (batch12 config ids 4/5/73 sync)
+
+- docs alterados:
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 4`, `id 5` e `id 73` sincronizados para `resolved` com evidencia.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update batch12 adicionado.
+- validacao:
+  - `pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: 8 passed.
+- escopo:
+  - ciclo documental com evidencia tecnica; sem mudanca de runtime.
