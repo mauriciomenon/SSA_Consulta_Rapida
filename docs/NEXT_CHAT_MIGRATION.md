@@ -761,3 +761,9 @@ Relatorio final por slice:
 - lock de settings da CLI enhancement recebeu retry limitado e nao bloqueante.
 - comportamento em contencao: tenta poucas vezes e aborta sem travar a CLI.
 - suite focada lock/atomic da CLI enhancement: 7/7.
+
+## Latest update 2026-02-25 (batch04 windows lock retries)
+
+- melhorias no lock Windows da CLI enhancement: `LK_NBLCK` com retry limitado e fail-fast para erro nao relacionado a lock.
+- suite focada lock/atomic da CLI enhancement agora em 9/9.
+- qwen foi usado para tarefas repetitivas de validacao; revisao final continuou sob controle do agente principal.

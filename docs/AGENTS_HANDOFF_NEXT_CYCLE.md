@@ -875,3 +875,13 @@ Entregavel de cada slice:
 - gate local deste slice:
   - py_compile/ruff/ty: pass.
   - pytest lock+atomic CLI enhancement: 7 passed.
+
+## Update 2026-02-25 (batch04 windows lock retries)
+
+- `interface/cli_enhancement_manager.py`
+  - lock do backend Windows endurecido: `LK_NBLCK` + retry limitado.
+  - retries restritos a erros de contencao; erro critico nao fica em loop.
+- `tests/test_cli_enhancement_manager_lock_usage.py`
+  - novos testes do caminho Windows (busy e erro critico).
+- processo:
+  - qwen executou checks repetitivos (ruff/ty/pytest); validacao final tambem executada diretamente pelo agente.

@@ -1179,3 +1179,10 @@ Opcao:
 1. [resolved][batch04] lock de settings agora usa retry limitado e nao bloqueante em backend `fcntl` (`EAGAIN`/`EACCES`) antes de abortar.
 2. [resolved][batch04] lock file aberto em modo `a+` para evitar truncacao desnecessaria.
 3. [resolved][batch04] cobertura focada adicionada para retry com sucesso e retry esgotado no backend `fcntl`.
+
+## Update 2026-02-25 (batch04 windows lock retries)
+
+1. [resolved][batch04] caminho Windows (`msvcrt`) agora usa lock nao bloqueante (`LK_NBLCK`) com retry limitado.
+2. [resolved][batch04] retries no Windows agora distinguem erro de lock busy (`EACCES`/`EAGAIN`) de erro critico (fail-fast).
+3. [resolved][batch04] cobertura adicionada para busy->success e erro critico no backend Windows.
+4. [process][batch04] qwen usado neste slice para execucao repetitiva de `ruff`, `ty` e `pytest`; validacao final independente mantida pelo agente principal.
