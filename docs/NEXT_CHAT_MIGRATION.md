@@ -736,3 +736,22 @@ Relatorio final por slice:
 - `config_manager` agora usa caminho resolvido por env (`SSA_CONFIG_DIR`) de forma consistente tambem em load/save/ensure.
 - env de config agora passa por validacao de path safety, com fallback para `config` quando invalido.
 - suite focada de config verde (5/5).
+
+## Latest update 2026-02-25 (batch03 fail-fast)
+
+- `ensure_default_settings` agora retorna erro explicito (RuntimeError agregado) quando falha em criar/copi ar arquivos de config.
+- cobertura nova valida os dois caminhos de falha (copy e generation).
+- status da suite focada de config: 7/7.
+
+## Latest update 2026-02-25 (batch03 startup contract final)
+
+- estado final de `ensure_default_settings`:
+  - retorna lista de erros para diagnostico.
+  - pode levantar `RuntimeError` quando `fail_fast=True`.
+- `main` utiliza modo resiliente (`fail_fast=False`) com warning explicito.
+
+## Latest update 2026-02-25 (batch03 final stabilization)
+
+- `config_manager._atomic_copy_file` agora usa `NamedTemporaryFile(delete=False)`.
+- `main` segue com `ensure_default_settings(fail_fast=False)` e warning de erros nao bloqueantes.
+- suite focada de config permanece 7/7.

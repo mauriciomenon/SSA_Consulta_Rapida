@@ -627,7 +627,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         logger.debug("Garantindo configuracoes padrao...")
         logger.debug("Iniciando configuracao do sistema...")
         try:
-            ensure_default_settings()
+            config_errors = ensure_default_settings(fail_fast=False)
+            if config_errors:
+                logger.warning(
+                    "Configuracao padrao concluida com erros nao bloqueantes: %s",
+                    "; ".join(config_errors),
+                )
             logger.debug("Configuracoes padrao verificadas.")
             logger.debug("Configuracao do sistema concluida com sucesso.")
         except Exception as e:
