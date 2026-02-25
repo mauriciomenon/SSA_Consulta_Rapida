@@ -1209,3 +1209,9 @@ Opcao:
 1. [resolved][batch07] ids 10/63/65 sincronizados como resolvidos no `PENDING_ACTION_MATRIX` com evidencia de comportamento atual.
 2. [validation][batch07] testes focados verdes: `tests/test_rescan_progress_dialog.py` e `tests/test_gui_workers_rescan_data.py` (6 passed).
 3. [scope] sem mudanca de runtime neste ciclo; apenas sincronizacao documental para remover pendencia stale.
+
+## Update 2026-02-26 (batch07.1 cache/config matrix sync)
+
+1. [resolved] id 53: comportamento de reenfileirar arquivo quando `stat` falha confirmado no codigo e travado por teste novo em `tests/test_caching.py`.
+2. [resolved] id 68: `load_display_mappings_integrity()` segue contrato de reler arquivo restaurado antes de fallback em memoria; matriz atualizada.
+3. [validation] teste focado executado para caching/config mappings sem alterar runtime de producao.

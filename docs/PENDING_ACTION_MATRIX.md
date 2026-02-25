@@ -222,9 +222,10 @@ Legenda:
 - Item: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 116-128, the warning is enqueued before the real output. With a full queue, e...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 
-## 53. [pending] utils/caching.py:154
+## 53. [resolved] utils/caching.py:154
 - Item: _ Potential issue_ | _ Major_ **Don't silently skip files when `stat` fails.** If `_safe_file_stat` returns `None`, the file is ignored and may never be processed. Prefer re-que...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: fluxo atual reenfileira arquivo quando `_safe_file_stat` retorna `None`; cobertura focada adicionada em `tests/test_caching.py`.
 
 ## 54. [stale-doc] core/app_logic.py:184
 - Item: _ Potential issue_ | _ Minor_ **Preserve the explicit `ExtractionError` message.** The `df is None` error gets swallowed by the generic handler, so the specific message is lost....
@@ -290,9 +291,10 @@ Legenda:
 - Item: The `dropped_lines` variable is accessed without synchronization from multiple threads, creating a race condition. The reader thread (calling `_safe_queue_put`) and the main thr...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 68. [pending] core/config_manager.py:453
+## 68. [resolved] core/config_manager.py:453
 - Item: After successfully writing the default mappings to the file, the function returns `DEFAULT_DISPLAY_MAPPINGS.copy()` instead of reading back the newly created file. This is incon...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `load_display_mappings_integrity()` reler arquivo restaurado antes do fallback em memoria; teste focado cobre contrato.
 
 ## 69. [pending] core/config_manager.py:485
 - Item: After successfully writing the default mappings to the file, the function returns `DEFAULT_COLUMN_MAPPINGS.copy()` instead of reading back the newly created file. This is incons...
