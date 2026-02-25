@@ -11,9 +11,8 @@ Use this file to migrate context to a new chat without losing execution quality.
   - Sprint C closed (cli lock ids `13,26,30,31,41,80`).
   - E closed: pytest ignores removed from `pyproject.toml` and former script-like test files converted to deterministic pytest tests.
 - Pending priority queue:
-  1. Batch 10 residual: `87, 88`.
-  2. Main/config/gui residual group: `39, 42, 43, 44, 46, 49, 50, 70, 76`.
-  3. Streamlit stabilization queue (separate track).
+  1. Main/config/gui residual group: `39, 42, 43, 44, 46, 49, 50, 70, 76`.
+  2. Streamlit stabilization queue (separate track).
 - Guardrail:
   - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
 
@@ -30,7 +29,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Practical next queue:
   1. Stream scripts mini-slice: delivered (path guard + buffered flush + shared runner).
   2. Main resilience mini-slice (Batch 11): delivered with deterministic fail-fast behavior.
-  3. Batch 10 residual and main/config/gui residual group.
+  3. Main/config/gui residual group and streamlit stabilization queue.
 
 ## Update 2026-02-26 (batch11 resilience lock delivered)
 

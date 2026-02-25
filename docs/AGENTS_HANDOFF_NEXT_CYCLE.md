@@ -15,7 +15,7 @@ This handoff is ready to reuse in the next conversation.
   - sem mudanca estrutural de GUI fora do aprovado;
   - validacao focada por slice (`py_compile`, `ruff`, `ty`, `pytest` focado).
 - Proximo foco recomendado:
-  - Batch 10 residual e grupo main/config/gui residual (`39, 42, 43, 44, 46, 49, 50, 70, 76`) antes de itens cosmeticos.
+  - grupo main/config/gui residual (`39, 42, 43, 44, 46, 49, 50, 70, 76`) antes de itens cosmeticos.
 
 ## Update 2026-02-26 (deep analysis consolidation)
 
@@ -29,7 +29,7 @@ This handoff is ready to reuse in the next conversation.
 - Execution order (next cycle):
   1. Stream scripts security/perf mini-slice (delivered in this cycle).
   2. Batch 11 resilience lock (delivered in this cycle).
-  3. Batch 10 residual lock + main/config/gui residual group.
+  3. Main/config/gui residual group + streamlit stabilization queue.
 
 ## Update 2026-02-26 (batch11 resilience lock delivered)
 
