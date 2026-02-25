@@ -794,3 +794,15 @@ Relatorio final por slice:
     - `tests/test_rescan_progress_dialog.py`
     - `tests/test_main_skip_import.py`
     - resultado: 16 passed.
+
+## Latest update 2026-02-26 (batch07.1 ids 53/68)
+
+- id 53:
+  - cobertura nova adicionada em `tests/test_caching.py` para garantir reenfileiramento quando `_safe_file_stat` retorna `None`.
+- id 68:
+  - confirmado contrato atual de `load_display_mappings_integrity` (releitura do arquivo restaurado antes de fallback em memoria).
+- docs:
+  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados com status `resolved`.
+- gate do ciclo:
+  - `py_compile`, `ruff`, `ty` em arquivos tocados: pass.
+  - `pytest -q tests/test_caching.py tests/test_config_manager_mappings_integrity.py`: 8 passed.
