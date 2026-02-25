@@ -2,12 +2,13 @@
 # LRU cache for filter results
 
 import hashlib
-import logging
 import pandas as pd
 from collections import OrderedDict
 import threading
 
-logger = logging.getLogger(__name__)
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 class FilterCache:
@@ -74,7 +75,13 @@ class FilterCache:
         result: pd.DataFrame,
         cache_context: str | None = None,
     ):
-        """Armazena resultado no cache."""
+        """Armazena resultado DataFrame no cache; ignora entrada invalida."""
+        if not isinstance(result, pd.DataFrame):
+            logger.warning(
+                "FilterCache.put ignorou valor invalido para cache (tipo=%s)",
+                type(result).__name__,
+            )
+            return
         key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
         result_copy = result.copy()
 

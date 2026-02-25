@@ -38,9 +38,10 @@ Legenda:
 - Item: The code loads column mappings with `_load_column_mappings()` and applies them to the DataFrame. If the mapping is empty (e.g., due to a loading error), columns will not be rena...
 - Solucao proposta: Validar colunas obrigatorias apos parse e falhar cedo com mensagem clara.
 
-## 8. [pending] gui/cache/filter_cache.py:50
+## 8. [resolved] gui/cache/filter_cache.py:50
 - Item: **Potential Exception Risk:** The method `result.copy()` is called without verifying that `result` is a valid DataFrame. If the cached object is not a DataFrame or is `None`, th...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `FilterCache.put()` valida `isinstance(result, pd.DataFrame)` e ignora entrada invalida com warning; teste focado adicionado.
 
 ## 9. [pending] gui/cache/filter_cache.py:59
 - Item: **Performance Concern:** The cache always stores a copy of the DataFrame (`result.copy()`) on every put. For large DataFrames, this can be expensive in both time and memory, esp...
