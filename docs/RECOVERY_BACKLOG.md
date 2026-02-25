@@ -1248,3 +1248,30 @@ Opcao:
 2. [resolved] id 73: caminho antigo de leak de fd em `_atomic_copy_file` nao existe mais com uso de `NamedTemporaryFile`.
 3. [validation] testes focados de config executados com resultado verde (8 passed).
 4. [scope] sincronizacao documental apenas; runtime inalterado neste slice.
+
+## Update 2026-02-26 (global status snapshot)
+
+1. [status] matriz atual `docs/PENDING_ACTION_MATRIX.md`:
+   - total: 108
+   - pending: 65
+   - resolved: 27
+   - stale-doc: 5
+   - deferred: 11
+2. [resolved-recent] ciclos recentes fecharam principalmente:
+   - seguranca/dependencia (`pillow>=12.1.1` em manifests de build no `main`, alerts dependabot fechados),
+   - semantica de erro import/db,
+   - lock/settings,
+   - estabilidade de testes (rescan dialog, caching).
+3. [next-steps][alto impacto][media dificuldade]:
+   - extractor contract/validacao: ids 6, 7, 33, 34, 35, 58.
+   - rescan worker concurrency/lifetime: ids 11, 12, 38, 79.
+   - cli enhancement lock edge cases: ids 13, 26, 30, 31, 41, 80.
+4. [next-steps][alto impacto][media-alta dificuldade]:
+   - main flow resilience/debug fallback: ids 15, 16, 45, 48.
+   - gui worker retention races: ids 70, 76.
+5. [next-steps][test hardening][baixo risco]:
+   - ids 21, 22, 23, 24, 25, 27, 28, 29, 56.
+6. [execution-order recommended]:
+   - sprint A: extractor + tests (ids 6/7/33/34/35/58 + 21/22/23/27).
+   - sprint B: rescan worker + dialog residual (ids 11/12/38/79/71 + 28/29).
+   - sprint C: cli enhancement lock residual + main fallback (ids 13/26/30/31/41/80 + 15/16/45/48).
