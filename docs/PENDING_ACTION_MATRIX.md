@@ -32,13 +32,15 @@ Legenda:
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
 - Evidencia: cleanup de `_atomic_write_json_file` registra warning explicito em falha de close/remove (sem suppress silencioso).
 
-## 6. [pending] extracao/extractor.py:259
+## 6. [resolved] extracao/extractor.py:259
 - Item: After detecting the header row and extracting data, the function does not validate that all required columns are present in the resulting DataFrame. This could lead to downstrea...
 - Solucao proposta: Validar colunas obrigatorias apos parse e falhar cedo com mensagem clara.
+- Evidencia: `extract_data_from_excel` valida `required_columns` e levanta `ExtractionError` quando faltar coluna obrigatoria.
 
-## 7. [pending] extracao/extractor.py:306
+## 7. [resolved] extracao/extractor.py:306
 - Item: The code loads column mappings with `_load_column_mappings()` and applies them to the DataFrame. If the mapping is empty (e.g., due to a loading error), columns will not be rena...
 - Solucao proposta: Validar colunas obrigatorias apos parse e falhar cedo com mensagem clara.
+- Evidencia: mapeamento vazio mantem colunas originais e ainda falha cedo por `required_columns`; teste focado adicionado.
 
 ## 8. [resolved] gui/cache/filter_cache.py:50
 - Item: **Potential Exception Risk:** The method `result.copy()` is called without verifying that `result` is a valid DataFrame. If the cached object is not a DataFrame or is `None`, th...
@@ -144,17 +146,20 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: lookup atual normaliza `numero_ssa` no chunk retornado e no conjunto consultado.
 
-## 33. [pending] extracao/extractor.py:214
+## 33. [resolved] extracao/extractor.py:214
 - Item: A anotao de retorno ainda est como Optional[pd.DataFrame], mas a funo agora retorna DataFrame (incluindo vazio) e levanta ExtractionError nos erros (no retorna None). Ajuste a a...
 - Solucao proposta: Alinhar assinatura, docstring e comportamento real no mesmo commit com teste de contrato.
+- Evidencia: assinatura atual retorna `pd.DataFrame`; teste focado cobre retorno vazio sem `None`.
 
-## 34. [pending] extracao/extractor.py:223
+## 34. [resolved] extracao/extractor.py:223
 - Item: A docstring ainda diz que retorna None em caso de erro, mas o fluxo agora levanta ExtractionError (e retorna DataFrame vazio quando h cabealho mas sem linhas). Atualize a seo Re...
 - Solucao proposta: Alinhar assinatura, docstring e comportamento real no mesmo commit com teste de contrato.
+- Evidencia: docstring atual indica retorno `pd.DataFrame`; caminho de erro levanta `ExtractionError`.
 
-## 35. [pending] extracao/extractor.py:236
+## 35. [resolved] extracao/extractor.py:236
 - Item: pd.ExcelFile() criado mas no fechado explicitamente. Para evitar vazamento de handle/arquivo (especialmente em loops de muitos arquivos), use um context manager (with pd.Excel...
 - Solucao proposta: Validar colunas obrigatorias apos parse e falhar cedo com mensagem clara.
+- Evidencia: uso atual de `with pd.ExcelFile(...)` garante fechamento de recurso.
 
 ## 36. [pending] core/config_manager.py:443
 - Item: load_display_mappings_integrity() passou a levantar RuntimeError se falhar ao restaurar o arquivo, alterando o comportamento anterior (que retornava DEFAULT_DISPLAY_MAPPINGS mes...
@@ -249,9 +254,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: trecho `if df is None` nao esta presente no estado atual.
 
-## 58. [pending] extracao/extractor.py:224
+## 58. [resolved] extracao/extractor.py:224
 - Item: The return type annotation in the docstring (line 221-223) says `Optional[pd.DataFrame]` and mentions "ou None em caso de erro", but the function now never returns None - it eit...
 - Solucao proposta: Alinhar assinatura, docstring e comportamento real no mesmo commit com teste de contrato.
+- Evidencia: teste focado garante contrato `DataFrame` (inclusive vazio) sem retorno `None`.
 
 ## 59. [resolved] core/app_logic.py:294
 - Item: The ExtractionError exception is defined in both `extracao/extractor.py` and `core/app_logic.py`. In `_import_single_file`, when catching `extractor.ExtractionError` at line 290...

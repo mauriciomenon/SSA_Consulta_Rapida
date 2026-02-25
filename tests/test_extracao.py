@@ -9,7 +9,12 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from extracao.extractor import _normalize_tempo_excedido_value, read_report
+from extracao.extractor import (
+    ExtractionError,
+    _normalize_tempo_excedido_value,
+    extract_data_from_excel,
+    read_report,
+)
 
 # --- Fixtures: Preparando o Ambiente de Teste ---
 
@@ -105,3 +110,56 @@ def test_normalize_tempo_excedido_months_with_mo_suffix():
 def test_normalize_tempo_excedido_does_not_match_partial_words():
     assert _normalize_tempo_excedido_value("15minutes") == "15minutes"
     assert _normalize_tempo_excedido_value("1h30m") == "PT1H30M"
+
+
+def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
+    # Header exists, but required canonical columns are not present.
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Local": ["Sala A"],
+            "Descricao sem mapeamento": ["x"],
+        }
+    )
+    file_path = tmp_path / "missing_required.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    with pytest.raises(ExtractionError) as excinfo:
+        extract_data_from_excel(str(file_path))
+
+    assert "Missing required columns" in str(excinfo.value)
+
+
+def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_required(
+    tmp_path, monkeypatch
+):
+    # Empty mapping should keep original names and fail required canonical check.
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Emitida Em": ["01/07/2025"],
+            "Descricao da SSA": ["teste"],
+        }
+    )
+    file_path = tmp_path / "empty_mapping.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    with pytest.raises(ExtractionError) as excinfo:
+        extract_data_from_excel(str(file_path))
+
+    assert "Missing required columns" in str(excinfo.value)
+
+
+def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp_path):
+    # Contract: never returns None. Header-only input returns empty DataFrame.
+    df = pd.DataFrame(columns=["Nº SSA", "Descrição da SSA", "Emitida Em"])
+    file_path = tmp_path / "header_only.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    extracted = extract_data_from_excel(str(file_path))
+    assert isinstance(extracted, pd.DataFrame)
+    assert extracted.empty
