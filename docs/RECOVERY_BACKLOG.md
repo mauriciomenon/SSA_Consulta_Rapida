@@ -1162,3 +1162,9 @@ Opcao:
 1. [resolved][batch03] `_atomic_copy_file` migrado para `NamedTemporaryFile(delete=False)` para eliminar ambiguidade de fechamento de descriptor.
 2. [resolved][batch03] `main` mantem startup resiliente com `ensure_default_settings(fail_fast=False)` e warning explicito de erros retornados.
 3. [resolved][batch03] contrato de `ensure_default_settings` documentado: retorno de lista de erros + `RuntimeError` condicional quando `fail_fast=True`.
+
+## Update 2026-02-25 (batch03 backlog hygiene)
+
+1. [resolved][batch03] stale pendencias de `core/config_manager` ids 36/37/40/78/79: estado atual ja preserva fallback seguro em memoria e reler do arquivo restaurado quando possivel.
+2. [resolved][batch03] stale pendencia id 83: caminho de leak por fd em `_atomic_copy_file` removido com migracao para `NamedTemporaryFile(delete=False)`.
+3. [resolved][batch03] contrato de `ensure_default_settings` agora coberto em ambos modos (`fail_fast=False` e `fail_fast=True`) por testes focados.
