@@ -148,24 +148,18 @@ class CLIEnhancementManager:
             mode = msvcrt.LK_NBLCK  # Always use non-blocking lock
             last_exc = None
             for attempt in range(LOCK_RETRY_ATTEMPTS):
+                lock_len = 1
                 try:
-                    current_pos = f.tell()
+                    f.seek(0)
                 except Exception:
-                    current_pos = 0
-                try:
-                    file_size = os.fstat(f.fileno()).st_size
-                except Exception:
-                    file_size = 0
-                remaining = file_size - current_pos
-                lock_len = max(remaining, 1)
+                    pass
                 try:
                     msvcrt.locking(f.fileno(), mode, lock_len)
                     return
                 except OSError as exc:
                     last_exc = exc
-                    # On Windows, EACCES and EAGAIN typically indicate the file is locked by another process
-                    # Only retry on specific lock-related errors, fail fast on other OS errors
-                    if exc.errno not in (errno.EACCES, errno.EAGAIN) and attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                    # Retry only on lock contention; fail fast on other OS errors.
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN):
                         raise RuntimeError(f"Falha critica ao aplicar msvcrt.locking no settings: {exc}") from exc
                     if attempt + 1 < LOCK_RETRY_ATTEMPTS:
                         time.sleep(LOCK_RETRY_DELAY_SECONDS)

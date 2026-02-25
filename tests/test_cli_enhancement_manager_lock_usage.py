@@ -119,11 +119,13 @@ def test_lock_file_retries_and_succeeds_for_busy_msvcrt(tmp_path, monkeypatch):
     manager = CLIEnhancementManager()
     manager.settings_file = str(tmp_path / "cli_enhancements.json")
 
-    calls = {"count": 0}
+    call_count = {"value": 0}
+    lock_lens: list[int] = []
 
     def _locking(_fd, _mode, _len):
-        calls["count"] += 1
-        if calls["count"] < 3:
+        call_count["value"] += 1
+        lock_lens.append(_len)
+        if call_count["value"] < 3:
             raise OSError(errno_mod.EACCES, "busy")
 
     fake_msvcrt = types.SimpleNamespace(LK_NBLCK=7, locking=_locking)
@@ -139,7 +141,8 @@ def test_lock_file_retries_and_succeeds_for_busy_msvcrt(tmp_path, monkeypatch):
             return 0
 
     manager._lock_file_if_possible(DummyFile())
-    assert calls["count"] == 3
+    assert call_count["value"] == 3
+    assert lock_lens == [1, 1, 1]
 
 
 def test_lock_file_fails_fast_for_non_lock_msvcrt_error(tmp_path, monkeypatch):
