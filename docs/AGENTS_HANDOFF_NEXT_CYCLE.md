@@ -864,3 +864,14 @@ Entregavel de cada slice:
   - atomic copy simplificado com `NamedTemporaryFile` para manter operacao atomica sem caminho ambiguo de fd.
   - startup continua resiliente e observavel (warnings explicitos no `main` quando ensure retorna erros).
 - gate final do slice: ruff/ty/py_compile ok + pytest config 7/7.
+
+## Update 2026-02-25 (batch04 lock retry hardening)
+
+- `interface/cli_enhancement_manager.py`
+  - lock de escrita com retry limitado e nao bloqueante (sem travamento indefinido).
+  - lock file em modo `a+`.
+- `tests/test_cli_enhancement_manager_lock_usage.py`
+  - novos testes de retry (busy->success e busy->fail).
+- gate local deste slice:
+  - py_compile/ruff/ty: pass.
+  - pytest lock+atomic CLI enhancement: 7 passed.

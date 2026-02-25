@@ -1173,3 +1173,9 @@ Opcao:
 
 1. [resolved][batch04] `_lock_file_if_possible` agora falha explicitamente quando `fcntl` nao expor `LOCK_NB`, evitando lock potencialmente bloqueante.
 2. [resolved][batch04] cobertura focada adicionada para backend `fcntl` sem `LOCK_NB` em `tests/test_cli_enhancement_manager_lock_usage.py`.
+
+## Update 2026-02-25 (batch04 lock retry hardening)
+
+1. [resolved][batch04] lock de settings agora usa retry limitado e nao bloqueante em backend `fcntl` (`EAGAIN`/`EACCES`) antes de abortar.
+2. [resolved][batch04] lock file aberto em modo `a+` para evitar truncacao desnecessaria.
+3. [resolved][batch04] cobertura focada adicionada para retry com sucesso e retry esgotado no backend `fcntl`.
