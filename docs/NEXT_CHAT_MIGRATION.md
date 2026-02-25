@@ -9,9 +9,11 @@ Use this file to migrate context to a new chat without losing execution quality.
   - Sprint A closed (extractor contract ids `6,7,33,34,35,58`).
   - Sprint B closed (rescan ids `11,12,28,29,38,79`; `71` stale-doc).
   - Sprint C closed (cli lock ids `13,26,30,31,41,80`).
+  - E closed: pytest ignores removed from `pyproject.toml` and former script-like test files converted to deterministic pytest tests.
 - Pending priority queue:
-  1. Batch 05: `3, 14, 54, 55, 57, 59, 61`.
-  2. Batch 06: `1, 2, 32, 47, 60, 75, 81`.
+  1. Batch 09: `17, 18, 19, 20, 51, 52, 62, 67, 72, 74`.
+  2. Batch 10: `77, 78, 87, 88`.
+  3. Batch 11: `15, 16, 45, 48`.
 - Guardrail:
   - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
 

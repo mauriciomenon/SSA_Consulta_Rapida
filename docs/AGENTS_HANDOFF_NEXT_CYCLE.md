@@ -9,12 +9,13 @@ This handoff is ready to reuse in the next conversation.
   - Sprint A: extractor contract/test closure (`ids 6,7,33,34,35,58`).
   - Sprint B: rescan worker/dialog closure (`ids 11,12,28,29,38,79`; id 71 stale-doc).
   - Sprint C: cli enhancement lock closure (`ids 13,26,30,31,41,80`).
+  - E: pytest ignores removidos em `pyproject.toml` e arquivos script-like de teste convertidos para formato pytest deterministico.
 - Regras mantidas:
   - patch minimo, sem refactor amplo fora do escopo;
   - sem mudanca estrutural de GUI fora do aprovado;
   - validacao focada por slice (`py_compile`, `ruff`, `ty`, `pytest` focado).
 - Proximo foco recomendado:
-  - Batch 05 e Batch 06 (alto impacto) antes de novos itens cosmeticos.
+  - Batch 09, Batch 10 e Batch 11 (alto impacto real ainda pendente) antes de itens cosmeticos.
 
 ## Estado atual
 
