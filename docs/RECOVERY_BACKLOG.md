@@ -1193,3 +1193,13 @@ Opcao:
 2. [resolved][batch04] erros nao relacionados a contencao no backend Windows agora falham imediatamente (sem retry desnecessario).
 3. [resolved][batch04] teste de lock Windows agora valida `lock_len == 1` em todas as tentativas.
 4. [process][batch04] qwen usado para checks repetitivos; quando houve desvio (mypy no lugar de ty), a validacao correta foi reexecutada pelo agente principal.
+
+## Update 2026-02-26 (batch05+06 semantic/safety sync)
+
+1. [resolved][batch05] id 3: `_import_single_file` agora preserva rastreabilidade do tipo original em erro inesperado (`<ErrorType> ao importar ...`) com `logger.exception`.
+2. [resolved][batch05] id 59: cadeia de excecao mantida (`raise ... from e`) e contexto melhorado no caminho inesperado sem refatoracao ampla.
+3. [stale-doc][batch05] ids 14/54/55/57/61: estado atual do codigo ja cobre os pontos; matriz foi sincronizada para evitar retrabalho.
+4. [resolved][batch06] id 60: SQL dinamico no upsert otimizado passou a usar quote estrito de identificador validado para tabela alvo.
+5. [resolved][batch06] ids 1/2/32/47/75/81: evidencias confirmadas no estado atual (savepoint+rollback sem suppress, normalizacao de lookup, validacao de identificador e guardas de PRAGMA).
+6. [validation][batch05+06] gate focado verde no slice: `py_compile`, `ruff`, `ty`, `pytest` (16 passed).
+7. [process] qwen usado para triagem/checklist rapido do lote; decisao tecnica, patch e validacao final mantidos no agente principal.
