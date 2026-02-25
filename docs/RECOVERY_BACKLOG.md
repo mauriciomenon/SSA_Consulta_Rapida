@@ -955,3 +955,145 @@ Regra de lint para este ciclo:
 ## Update 2026-02-25 (streamlit telemetry follow-up)
 
 1. [deferred][P4][streamlit/ops] Consider optional cap/window for telemetry history to limit long-session growth.
+
+## Update 2026-02-25 (delegacao externa por lotes usando PENDING_ACTION_MATRIX)
+
+Decision:
+1. Modelo preferido para delegacao: Qwen Code 3.5.
+2. Motivo: melhor custo/beneficio para lotes pequenos, patch minimo e execucao repetitiva com baixo risco.
+3. Fonte obrigatoria de itens: `docs/PENDING_ACTION_MATRIX.md` (ID numerico).
+
+Regra global para cada lote delegado:
+1. Ler somente os IDs do lote.
+2. Fazer patch minimo sem refatoracao transversal.
+3. Rodar gate local do lote: `py_compile` (arquivos tocados), `ruff`, `ty`, `pytest` focado.
+4. Nao alterar layout GUI fora de item explicitamente de layout.
+5. Registrar resultado por ID: `done`, `blocked`, `deferred`.
+6. Se bloqueado por ambiguidade, retornar com opcao A/B e impacto.
+
+Lotes (simples -> complexo), com itens relacionados e proximos em codigo:
+
+### Batch 01 (tests low-risk quick wins)
+IDs: 21, 22, 23, 24, 25, 27, 28, 29
+Escopo:
+1. Melhorar robustez de testes sem mudar codigo de producao.
+2. Fechar gaps de isolamento, asserts fracos e cobertura de caminhos de sucesso/erro.
+Expected output:
+1. Testes estabilizados e deterministas.
+2. Nenhuma mudanca funcional em runtime.
+
+### Batch 02 (extractor contract consistency)
+IDs: 6, 7, 33, 34, 35, 46, 58, 65
+Escopo:
+1. Alinhar assinatura, docstring e comportamento real de `extracao/extractor.py`.
+2. Garantir validacao de colunas obrigatorias e fechamento de recursos.
+Expected output:
+1. Contrato unico (sem `None` ambiguo).
+2. Erros claros e teste focado.
+
+### Batch 03 (config atomic/io behavior)
+IDs: 4, 5, 36, 37, 40, 68, 69, 73
+Escopo:
+1. Remover falha silenciosa em caminhos de config/restore.
+2. Preservar fallback seguro sem crash desnecessario.
+Expected output:
+1. Fluxo de restore previsivel.
+2. Sem `suppress` ocultando erro relevante.
+
+### Batch 04 (cli settings lock correctness)
+IDs: 13, 26, 30, 31, 41, 80, 90
+Escopo:
+1. Corrigir lock de arquivo de settings para recurso real.
+2. Evitar bloqueio indefinido e condicao de corrida.
+Expected output:
+1. Lock consistente cross-process.
+2. Timeout/saida clara em falha de lock.
+
+### Batch 05 (cli handlers/app error semantics)
+IDs: 3, 14, 54, 55, 57, 59, 61
+Escopo:
+1. Melhorar semantica de erro em CLI/app sem mascarar tipo relevante.
+2. Remover mensagens hardcoded inconsistentes.
+Expected output:
+1. Erros rastreaveis e coerentes.
+2. Regressao coberta por teste focado.
+
+### Batch 06 (optimized db safety + consistency)
+IDs: 1, 2, 32, 47, 60, 75, 81
+Escopo:
+1. Fechar risco de SQL dinamico/identificador e rollback fraco.
+2. Garantir consistencia de chave em lookup/update.
+Expected output:
+1. Sem vetores de injecao por identificador.
+2. Sem perda silenciosa em rollback.
+
+### Batch 07 (rescan dialog behavior)
+IDs: 10, 61, 63, 65, 71, 75, 81
+Escopo:
+1. Corrigir comportamento de cancel/fechamento no dialog de rescan.
+2. Garantir estado UI consistente em sucesso/falha/cancel.
+Expected output:
+1. UX previsivel de cancelamento.
+2. Testes Qt menos flaky.
+
+### Batch 08 (rescan worker concurrency)
+IDs: 11, 12, 38, 64, 76, 79, 86
+Escopo:
+1. Tratar risco de concorrencia em logger/global retention.
+2. Garantir cleanup deterministico de worker/thread.
+Expected output:
+1. Menor risco de race/leak.
+2. Comportamento de cancelamento observavel por teste.
+
+### Batch 09 (pytest stream scripts concurrency/perf)
+IDs: 17, 18, 19, 20, 51, 52, 62, 67, 72, 74
+Escopo:
+1. Corrigir data race, busy-wait e warning duplication.
+2. Parametrizar limites sem degradar throughput.
+Expected output:
+1. Scripts de stream com menor perda de linha e menos CPU ociosa.
+2. Logs de dropped-lines mais consistentes.
+
+### Batch 10 (pytest stream scripts final polish)
+IDs: 77, 78, 87, 88
+Escopo:
+1. Fechar duplicidade residual de warning e edge cases de fila cheia.
+2. Consolidar comportamento v1/v2.
+Expected output:
+1. Comportamento uniforme entre scripts.
+2. Sem spam/duplicacao de aviso.
+
+### Batch 11 (main flow resilience)
+IDs: 15, 16, 45, 48
+Escopo:
+1. Melhorar fallback de import otimizado vs legado.
+2. Limitar custo de debug listing em diretorios grandes.
+Expected output:
+1. Falha controlada com mensagem acionavel.
+2. Menor impacto de performance no modo debug.
+
+### Batch 12 (gui/filter/main structural backlog triage)
+IDs: 39, 43, 44, 50, 70, 82, 83, 84, 91
+Escopo:
+1. Tratar somente fixes locais e seguros.
+2. Nao iniciar refatoracao ampla aqui.
+Opcao:
+1. A: fixes locais + backlog atualizado (recomendado).
+2. B: abrir sprint dedicado para modularizacao ampla.
+
+### Batch 13 (typing/ruff baseline governance)
+IDs: 42, 85, 86, 87, 88, 89, 92, 93, 94, 95, 96, 97
+Escopo:
+1. Reduzir baseline de ty/ruff por modulo, sem bloquear release geral.
+Opcao:
+1. A: regra de "nao piorar baseline" + reduzir por fatias (recomendado).
+2. B: freeze de feature ate limpar baseline inteiro.
+
+### Batch 14 (streamlit deferred roadmap)
+IDs: 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108
+Escopo:
+1. Executar apenas com aprovacao explicita de sprint streamlit dedicado.
+2. Prioridade interna: 106 -> 107 -> 108 -> 98/102 -> 99/105 -> 100/103 -> 101/104.
+Opcao:
+1. A: manter como deferred e executar por fatias pequenas (recomendado).
+2. B: ciclo unico amplo (maior risco de regressao).
