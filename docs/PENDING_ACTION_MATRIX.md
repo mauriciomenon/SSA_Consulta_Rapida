@@ -7,17 +7,20 @@ Legenda:
 - Solucao proposta: caminho recomendado de menor risco
 - Opcao: usado quando ha duvida de escopo/arquitetura
 
-## 1. [pending] armazenamento/database_optimized.py:349
+## 1. [resolved] armazenamento/database_optimized.py:349
 - Item: **Potential Data Integrity Issues During Batch Update (Delete + Insert):** The batch update strategy deletes existing records before inserting updated ones. If the table has for...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: fluxo segue dentro de SAVEPOINT com rollback explicito; cobertura focada de upsert otimizado mantida verde.
 
-## 2. [pending] armazenamento/database_optimized.py:346
+## 2. [resolved] armazenamento/database_optimized.py:346
 - Item: **Error Handling During Rollback May Mask Critical Failures:** The rollback logic uses `with suppress(Exception):` when rolling back to the savepoint. This may hide errors durin...
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
+- Evidencia: rollback atual nao usa suppress; falha de rollback e logada com contexto.
 
-## 3. [pending] core/app_logic.py:297
+## 3. [resolved] core/app_logic.py:297
 - Item: **Loss of Error Type Specificity in Exception Handling** In the `_import_single_file` function, the generic exception handler wraps all exceptions as `ExtractionError`: ```pytho...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: erro inesperado agora inclui tipo original (`RuntimeError`, etc) na mensagem e log com stack.
 
 ## 4. [pending] core/config_manager.py:549
 - Item: **Silent Failure on Default Settings Creation** If the creation of a default configuration file fails (e.g., due to permission issues or disk errors), the error is only logged a...
@@ -59,9 +62,10 @@ Legenda:
 - Item: **Potential Data Race in _save_settings:** The `_save_settings` method uses best-effort file locking via `_lock_file_if_possible`, but this approach may not reliably prevent con...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 14. [pending] interface/command_handlers.py:28
+## 14. [stale-doc] interface/command_handlers.py:28
 - Item: **Overly broad exception handling in `_save_settings_handler`:** Catching all exceptions and only printing the error message does not allow for proper error tracking or programm...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: handler atual captura conjunto explicito, faz logger.exception e re-raise.
 
 ## 15. [pending] main.py:759
 - Item: ### Critical Issue: Incomplete Failure Handling for Optimized and Legacy Import Modes If both the optimized import (`enable_optimized_import`) and the legacy import logic fail, ...
@@ -131,9 +135,10 @@ Legenda:
 - Item: _lock_file_if_possible() usa flock LOCK_EX (bloqueante) em POSIX. Se outro processo ficar segurando o lock, essa chamada pode travar a CLI indefinidamente. Para manter 'best-eff...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 32. [pending] armazenamento/database_optimized.py:237
+## 32. [resolved] armazenamento/database_optimized.py:237
 - Item: existing_dict montado a partir de chunk_df['numero_ssa'] sem normalizao de tipo, mas has_ssa['numero_ssa'] foi normalizado para str. Como SQLite pode conter valores antigos com...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: lookup atual normaliza `numero_ssa` no chunk retornado e no conjunto consultado.
 
 ## 33. [pending] extracao/extractor.py:214
 - Item: A anotao de retorno ainda est como Optional[pd.DataFrame], mas a funo agora retorna DataFrame (incluindo vazio) e levanta ExtractionError nos erros (no retorna None). Ajuste a a...
@@ -191,9 +196,10 @@ Legenda:
 - Item: **P1** | Confidence: High The function signature now includes a `should_cancel` callback. The related context shows the primary caller, `run_importer_logic` in `core/app_logic.p...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 
-## 47. [pending] armazenamento/database_optimized.py:167
+## 47. [resolved] armazenamento/database_optimized.py:167
 - Item: **P1** | Confidence: High The addition of SQL identifier validation (`is_valid_identifier`) is a critical security improvement to prevent injection via the `table_name` paramete...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: validacao de identificador segue ativa e testada.
 
 ## 48. [pending] main.py:480
 - Item: **P2** | Confidence: High Speculative: The validation logic for conflicting CLI flags `--skip-import` and `--force-rescan` is sound. However, the error message references `--res...
@@ -219,37 +225,43 @@ Legenda:
 - Item: _ Potential issue_ | _ Major_ **Don't silently skip files when `stat` fails.** If `_safe_file_stat` returns `None`, the file is ignored and may never be processed. Prefer re-que...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 54. [pending] core/app_logic.py:184
+## 54. [stale-doc] core/app_logic.py:184
 - Item: _ Potential issue_ | _ Minor_ **Preserve the explicit `ExtractionError` message.** The `df is None` error gets swallowed by the generic handler, so the specific message is lost....
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: caminho `df is None` nao existe mais; extractor retorna DataFrame/erro.
 
-## 55. [pending] interface/command_handlers.py:26
+## 55. [stale-doc] interface/command_handlers.py:26
 - Item: _ Potential issue_ | _ Minor_ **Hardcoded path in success message may be inconsistent with actual save location.** The success message references `'config/settings.json'`, but `...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: mensagem atual de sucesso nao usa caminho hardcoded.
 
 ## 56. [pending] tests/test_open_docs_folder_nonblocking.py:32
 - Item: _ Potential issue_ | _ Minor_ **Class attribute `called` may cause test isolation issues.** `DummyQDesktopServices.called` is a class-level list that persists across test runs i...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 
-## 57. [pending] core/app_logic.py:185
+## 57. [stale-doc] core/app_logic.py:185
 - Item: The check for `if df is None:` at line 181-184 is dead code. The extractor function `extract_data_from_excel` has been updated to never return None - it either returns a DataFra...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: trecho `if df is None` nao esta presente no estado atual.
 
 ## 58. [pending] extracao/extractor.py:224
 - Item: The return type annotation in the docstring (line 221-223) says `Optional[pd.DataFrame]` and mentions "ou None em caso de erro", but the function now never returns None - it eit...
 - Solucao proposta: Alinhar assinatura, docstring e comportamento real no mesmo commit com teste de contrato.
 
-## 59. [pending] core/app_logic.py:294
+## 59. [resolved] core/app_logic.py:294
 - Item: The ExtractionError exception is defined in both `extracao/extractor.py` and `core/app_logic.py`. In `_import_single_file`, when catching `extractor.ExtractionError` at line 290...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: cadeia de excecao preservada com `raise ... from e`; rastreabilidade reforcada no caminho inesperado.
 
-## 60. [pending] armazenamento/database_optimized.py:174
+## 60. [resolved] armazenamento/database_optimized.py:174
 - Item: The `target_table` variable is validated using `is_valid_identifier()` at line 141-142, but then it's used in an f-string to construct SQL at line 147 without parameterization. ...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: SQL dinamico agora usa helper de quote estrito para tabela validada.
 
-## 61. [pending] gui/widgets/rescan_progress_dialog.py:143
+## 61. [stale-doc] gui/widgets/rescan_progress_dialog.py:143
 - Item: In `reject()`, the code emits `self.cancel_requested`, but the signal defined on the class is `cancel_requested`. This will raise `AttributeError` when cancelling (and will brea...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: implementacao atual usa `self.cancel_requested.emit()` e teste focado esta verde.
 
 ## 62. [pending] scripts/run_pytest_stream_and_log_v2.py:176
 - Item: In scripts/run_pytest_stream_and_log_v2.py, _safe_queue_put mutates dropped_lines (e.g., `dropped_lines += 1`) but the nested function never declares `nonlocal dropped_lines` (u...
@@ -303,9 +315,10 @@ Legenda:
 - Item: Race condition: The `dropped_lines` variable is accessed without synchronization from the reader thread. Multiple concurrent accesses at lines 115, 132, 136-137, 145-147 create ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 75. [pending] armazenamento/database_optimized.py:75
+## 75. [resolved] armazenamento/database_optimized.py:75
 - Item: SQL injection risk: The PRAGMA statement uses f-string formatting with the table name without validation. While `_has_referencing_foreign_keys` is an internal function, the `tab...
 - Solucao proposta: Aplicar allowlist de identificadores + validacao estrita + SQL parametrizado onde possivel.
+- Evidencia: `_has_referencing_foreign_keys` valida identificadores e usa quote helper.
 
 ## 76. [pending] gui/gui_ssa.py:4386
 - Item: Race condition on global worker retention lists: `GLOBAL_RETIRED_DATA_LOADER_WORKERS` and `GLOBAL_RETIRED_DATA_LOADER_META` are accessed from multiple SSAMainWindow instances wi...
@@ -327,9 +340,10 @@ Legenda:
 - Item: The msvcrt.locking call at line 118 locks 4096 bytes, but the actual file size may be smaller or larger than 4096 bytes. The msvcrt.locking function locks a specific number of b...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 81. [pending] armazenamento/database_optimized.py:79
+## 81. [resolved] armazenamento/database_optimized.py:79
 - Item: The _has_referencing_foreign_keys function uses dynamic SQL with f-string at line 77: f"PRAGMA foreign_key_list({table})". The table name comes from sqlite_master, which should ...
 - Solucao proposta: Aplicar allowlist de identificadores + validacao estrita + SQL parametrizado onde possivel.
+- Evidencia: tabela de PRAGMA passa por validacao e quoting estrito.
 
 ## 82. [pending] (sem local exato)
 - Item: Melhorar GUI na aba filtros, mantendo layout base sem regressao visual.
