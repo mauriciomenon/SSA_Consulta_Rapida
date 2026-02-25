@@ -755,3 +755,9 @@ Relatorio final por slice:
 - `config_manager._atomic_copy_file` agora usa `NamedTemporaryFile(delete=False)`.
 - `main` segue com `ensure_default_settings(fail_fast=False)` e warning de erros nao bloqueantes.
 - suite focada de config permanece 7/7.
+
+## Latest update 2026-02-25 (batch04 lock retry hardening)
+
+- lock de settings da CLI enhancement recebeu retry limitado e nao bloqueante.
+- comportamento em contencao: tenta poucas vezes e aborta sem travar a CLI.
+- suite focada lock/atomic da CLI enhancement: 7/7.
