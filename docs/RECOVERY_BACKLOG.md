@@ -930,3 +930,8 @@ Regra de lint para este ciclo:
 
 1. [note] Width manager override semantics intentionally fixed to deterministic baseline in this cycle.
 2. [deferred][P4] If future sprint needs user-resizable persistent widths, implement as explicit feature with dedicated tests.
+
+## Update 2026-02-25 (post streamlit long cycle v6)
+
+1. [deferred][P4][streamlit/usability] Evaluate optional compact mode for very small screens (<1280 px) with hidden secondary controls.
+2. [deferred][P4][streamlit/perf] Add lightweight telemetry for dataframe render time per width profile.
