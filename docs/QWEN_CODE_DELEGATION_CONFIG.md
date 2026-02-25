@@ -30,6 +30,7 @@ Contrato operacional (obrigatorio)
 10. Entregar checklist por ID antes de sugerir codigo.
 11. Regra permanente: usar Qwen em todo slice para tarefas repetitivas aplicaveis (checks e triagem curta).
 12. A ausencia de uso do Qwen em tarefa repetitiva aplicavel deve ser tratada como desvio de processo.
+13. Regra de reasoning: seguir a fonte global em `AGENTS.md` (secao "Reasoning Profile Rule (Mandatory)").
 
 Template de prompt (delegacao por lote)
 ```
@@ -75,3 +76,8 @@ Observacao
 Arquivos de regra (fonte oficial)
 - Regra global de processo: `/Users/menon/git/SSA_Consulta_Rapida/AGENTS.md`
 - Regra detalhada de uso do Qwen: `/Users/menon/git/SSA_Consulta_Rapida/docs/QWEN_CODE_DELEGATION_CONFIG.md`
+
+Como utilizar (resumo rapido)
+1. Antes de analise/decisao complexa: aplicar a regra de reasoning definida em `AGENTS.md`.
+2. Para tarefas repetitivas: usar Qwen para checks e checklist.
+3. Antes do commit: validacao final independente do agente principal + kluster clean.
