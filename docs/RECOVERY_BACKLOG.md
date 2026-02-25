@@ -17,7 +17,7 @@ Scope is split by priority to keep delivery safe and incremental.
 
 Current next queue (post A/B/C):
 1. Batch 10 (medium impact, medium complexity): ids `87, 88` (residual).
-2. Main/config/gui residual pending group: ids `36, 37, 39, 40, 42, 43, 44, 46, 49, 50, 70, 76`.
+2. Main/config/gui residual pending group: ids `39, 42, 43, 44, 46, 49, 50, 70, 76`.
 3. Streamlit stabilization queue (separate track, approved by user).
 
 ## Update 2026-02-26 (deep analysis snapshot: kluster + lint/type gate)
@@ -95,6 +95,21 @@ Validation:
 1. `py_compile`, `ruff`, `ty` green for touched files.
 2. `pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py` green (`3 passed`).
 3. kluster auto for `main.py` + focused test returned clean.
+
+## Update 2026-02-26 (config mappings restore fallback lock)
+
+Files changed:
+1. `tests/test_config_manager_mappings_integrity.py`
+
+Delivered:
+1. added regression lock for `load_display_mappings_integrity` when restore write fails.
+2. added regression lock for `load_column_mappings_integrity` when restore write fails.
+3. both paths are asserted to return in-memory defaults without crash.
+
+Validation:
+1. `py_compile`, `ruff`, `ty` green for touched files.
+2. `uv run pytest -q tests/test_config_manager_mappings_integrity.py` green (`4 passed`).
+3. kluster auto clean.
 
 ## Current sprint status snapshot (PR 31)
 

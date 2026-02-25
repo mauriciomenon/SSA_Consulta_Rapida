@@ -175,13 +175,15 @@ Legenda:
 - Solucao proposta: Validar colunas obrigatorias apos parse e falhar cedo com mensagem clara.
 - Evidencia: uso atual de `with pd.ExcelFile(...)` garante fechamento de recurso.
 
-## 36. [pending] core/config_manager.py:443
+## 36. [resolved] core/config_manager.py:443
 - Item: load_display_mappings_integrity() passou a levantar RuntimeError se falhar ao restaurar o arquivo, alterando o comportamento anterior (que retornava DEFAULT_DISPLAY_MAPPINGS mes...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: funcao retorna `DEFAULT_DISPLAY_MAPPINGS.copy()` em falha de restore e teste cobre write-failure sem crash.
 
-## 37. [pending] core/config_manager.py:474
+## 37. [resolved] core/config_manager.py:474
 - Item: load_column_mappings_integrity() agora levanta RuntimeError ao falhar em restaurar o arquivo, o que pode interromper a aplicao em ambientes sem permisso de escrita. Para preserv...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: funcao retorna `DEFAULT_COLUMN_MAPPINGS.copy()` em falha de restore e teste cobre write-failure sem crash.
 
 ## 38. [resolved] gui/workers/rescan_worker.py:125
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 1\. <b><i>rescanworker</i></b> exposes raw exception <code> R...
@@ -192,9 +194,10 @@ Legenda:
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 2\. Rescan thread may outlive app <code> Bug</code> <code> Re...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 40. [pending] core/config_manager.py:454
+## 40. [resolved] core/config_manager.py:454
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 3\. Config restore can crash cli <code> Bug</code> <code> Rel...
 - Solucao proposta: Fallback controlado: tentar restaurar, se falhar retornar defaults com aviso claro sem crash.
+- Evidencia: fallback controlado preservado e travado por `tests/test_config_manager_mappings_integrity.py`.
 
 ## 41. [resolved] interface/cli_enhancement_manager.py:88
 - Item: ![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg) The file lock is being applied to the temporary file created by `mkstemp`. Since each process creates a un...
