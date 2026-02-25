@@ -21,6 +21,44 @@ Current next queue (post A/B/C):
 3. Batch 11 (high impact, medium complexity): ids `15, 16, 45, 48`.
 4. Streamlit stabilization queue (separate track, approved by user).
 
+## Update 2026-02-26 (deep analysis snapshot: kluster + lint/type gate)
+
+Validation snapshot (no runtime code changes in this slice):
+1. `py_compile`: pass.
+2. `ruff check .`: pass.
+3. `ty check .`: pass.
+4. `flake8`:
+   - full repo run produced heavy noise from `.venv` and generated trees;
+   - targeted run confirms large style baseline debt (mainly `E501` and spacing).
+5. `mypy`:
+   - baseline type debt remains (missing stubs and typed-union issues on GUI/data modules).
+6. `pylama`:
+   - failed in current environment due missing `pkg_resources` (no dependency change applied by request).
+
+Kluster manual review snapshot (chat `8fyr5a0z7ot`):
+1. `scripts/run_pytest_stream_and_log.py`: P3 perf, P4 semantic/quality/perf, and P4 security path handling.
+2. `scripts/run_pytest_stream_and_log_v2.py`: P3 security path handling plus P4 semantic/quality/perf.
+3. `main.py`: P4 semantic/quality/perf (god function and logging overhead observations).
+4. `core/config_manager.py`: P4 semantic/quality suggestions.
+5. `gui/gui_ssa.py`: P3 quality (god class) plus P4 semantic/perf observations.
+
+Pending horizon after deep analysis:
+1. Curto prazo (bloqueante/alto risco, patch minimo):
+   - add path traversal guard for `--log` in `scripts/run_pytest_stream_and_log.py` and `_v2.py`;
+   - adjust flush policy in stream scripts to reduce I/O overhead without changing timeout/cancel semantics.
+2. Medio prazo (alto impacto, media complexidade):
+   - close remaining Batch 09/10 behavior points with focused tests (queue-full, warning dedupe, sentinel delivery).
+   - harden `main.py` semantics only in minimal slices (no broad refactor).
+3. Longo prazo (sprint exclusivo):
+   - `SSAMainWindow` structural decomposition.
+   - broad mypy/flake8 baseline cleanup across GUI and data layers.
+
+Next execution steps (recommended order):
+1. Stream scripts security/perf mini-slice (2 files + focused tests).
+2. Stream scripts residual behavior lock (Batch 09/10 completion).
+3. Main flow resilience slice (Batch 11).
+4. Keep structural refactors in dedicated sprint only.
+
 ## Current sprint status snapshot (PR 31)
 
 - Operational:
