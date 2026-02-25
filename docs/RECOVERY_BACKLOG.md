@@ -1281,3 +1281,10 @@ Opcao:
 1. [resolved] ids 6/7/33/34/35/58 sincronizados como fechados com evidencia de contrato em `extract_data_from_excel`.
 2. [validation] testes focados de extractor verdes: `pytest -q tests/test_extracao.py` (8 passed).
 3. [scope] mudanca de codigo no sprint A restrita a testes de contrato; runtime ja estava alinhado e foi mantido sem refatoracao ampla.
+
+## Update 2026-02-26 (sprint B delivered)
+
+1. [resolved] ids 11/12/28/29/38/79 sincronizados com evidencia de comportamento atual e suite focada.
+2. [stale-doc] id 71 marcado como comportamento intencional e coberto por teste.
+3. [validation] `pytest -q` focado em rescan/cancel/cleanup: 10 passed.
+4. [scope] sprint B fechado sem refatoracao ampla e sem mudanca de layout.
