@@ -826,3 +826,15 @@ Relatorio final por slice:
   - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para `resolved`.
 - gate do ciclo:
   - `pytest -q tests/test_rescan_worker_cleanup.py`: 2 passed.
+
+## Latest update 2026-02-26 (batch09-10 ids 62/67/69/72/74/77/78)
+
+- scripts stream:
+  - confirmados `nonlocal` correto, lock para contador compartilhado e caminho de sentinel nao bloqueante em v1/v2.
+  - guard de warning duplicado (`warn_count != last_warned`) presente em v1/v2.
+- config mappings:
+  - `load_column_mappings_integrity()` confirmado com releitura de arquivo restaurado antes de fallback.
+- docs:
+  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para os ids acima.
+- gate do ciclo:
+  - `py_compile`, `ruff`, `ty` nos scripts de stream: pass.

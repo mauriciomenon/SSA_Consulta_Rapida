@@ -964,3 +964,16 @@ Entregavel de cada slice:
   - `pytest -q tests/test_rescan_worker_cleanup.py`: 2 passed.
 - escopo:
   - sem mudanca de runtime; apenas sincronizacao documental com evidencia de teste.
+
+## Update 2026-02-26 (batch09-10 scripts/config matrix sync)
+
+- docs alterados:
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 62/67/69/72/74/77/78` sincronizados para `resolved` com evidencia de estado atual.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update de batch09/10 adicionado.
+- validacao:
+  - `py_compile scripts/run_pytest_stream_and_log.py scripts/run_pytest_stream_and_log_v2.py`: pass.
+  - `ruff check` e `ty check` nos mesmos scripts: pass.
+- escopo:
+  - somente sincronizacao documental neste slice; runtime inalterado.
