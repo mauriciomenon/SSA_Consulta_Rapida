@@ -896,3 +896,27 @@ Entregavel de cada slice:
 - processo:
   - qwen executou checks repetitivos neste slice;
   - validacao final foi confirmada novamente com ruff/ty/pytest pelo agente principal.
+
+## Update 2026-02-26 (batch05+06 semantic and db safety)
+
+- arquivos alterados:
+  - `core/app_logic.py`
+    - erro inesperado em `_import_single_file` agora registra tipo original no log/mensagem (`<ErrorType> ao importar ...`) mantendo raise encadeado.
+  - `armazenamento/database_optimized.py`
+    - adicionado helper de quote estrito para identificador validado.
+    - SQL dinamico para tabela alvo e PRAGMA de FK passou a usar identificador quoted validado.
+  - `tests/test_database_optimized_identifier_guards.py`
+    - novo teste para tabela invalida no insert otimizado.
+  - `tests/test_command_handlers_save_settings.py`
+    - ajuste de expectativa stale: quando save falha, toggle de visibilidade e desfeito.
+- docs sincronizados:
+  - `docs/PENDING_ACTION_MATRIX.md` (ids batch05/06 marcados como resolved/stale-doc com evidencia curta).
+  - `docs/RECOVERY_BACKLOG.md` (update do ciclo adicionado).
+- gate local do slice:
+  - `py_compile` (arquivos tocados): pass.
+  - `ruff check` (arquivos tocados): pass.
+  - `ty check` (arquivos tocados): pass.
+  - `pytest -q` focado: 16 passed.
+- processo:
+  - qwen usado para triagem/checklist rapido;
+  - patch e validacao final executados pelo agente principal.

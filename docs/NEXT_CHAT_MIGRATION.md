@@ -773,3 +773,24 @@ Relatorio final por slice:
 - lock Windows da CLI enhancement agora usa regiao fixa de 1 byte com retry limitado.
 - erro nao relacionado a lock contention no backend Windows nao entra em retry.
 - suite lock/atomic da CLI enhancement permaneceu verde em 9/9.
+
+## Latest update 2026-02-26 (batch05+06 sync)
+
+- batch05 (ids 3,14,54,55,57,59,61):
+  - `id 3`/`id 59` tratados com patch minimo em `core/app_logic.py` para rastreabilidade de erro inesperado sem mudar fluxo.
+  - `id 14/54/55/57/61` classificados como stale-doc com evidencia no codigo/testes atuais.
+- batch06 (ids 1,2,32,47,60,75,81):
+  - `id 60` recebeu hardening adicional em `armazenamento/database_optimized.py` com quoting estrito de tabela validada.
+  - demais ids confirmados como cobertos no estado atual (rollback sem suppress, normalizacao, guardas de identificador).
+- teste novo:
+  - `tests/test_database_optimized_identifier_guards.py::test_insert_dataframe_optimized_rejects_invalid_table_identifier`
+- gate do ciclo:
+  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
+  - pytest focado:
+    - `tests/test_import_single_error_classification.py`
+    - `tests/test_database_optimized_identifier_guards.py`
+    - `tests/test_database_optimized_alias_views.py`
+    - `tests/test_command_handlers_save_settings.py`
+    - `tests/test_rescan_progress_dialog.py`
+    - `tests/test_main_skip_import.py`
+    - resultado: 16 passed.
