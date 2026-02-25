@@ -824,3 +824,16 @@ Entregavel de cada slice:
   - removidos testes associados ao guard descartado.
 - contrato final deste ciclo:
   - `read_report` usa apenas `import_excel_robust` para ingestao.
+
+## Update 2026-02-25 (config batch03 path alignment)
+
+- `core/config_manager.py`
+  - paths de settings/defaults em funcoes principais agora seguem `SSA_CONFIG_DIR` via `_resolve_config_path`.
+  - validacao de seguranca adicionada em `_get_config_dir` usando `utils.path_safety.ensure_path_is_allowed`.
+- `tests/test_config_manager_atomic_save.py`
+  - atualizado para validar fluxo via env `SSA_CONFIG_DIR`.
+- gate local:
+  - `python -m py_compile core/config_manager.py tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: pass.
+  - `ruff check` nos mesmos arquivos: pass.
+  - `ty check` nos mesmos arquivos: pass.
+  - `.venv/bin/python -m pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: pass (5 tests).

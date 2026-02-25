@@ -1136,3 +1136,10 @@ Opcao:
 
 1. [resolved][batch02] removido codigo morto de fallback-size guard em `read_report`; contrato final permanece robust-only.
 2. [resolved][batch02] removidos testes ligados ao fallback-size guard para manter suite focada no comportamento vigente.
+
+## Update 2026-02-25 (batch03 config path consistency)
+
+1. [resolved][batch03] `load_settings/save_settings/ensure_default_settings` agora respeitam `SSA_CONFIG_DIR` com resolucao baseada nas constantes padrao.
+2. [resolved][batch03] `_get_config_dir` agora valida `SSA_CONFIG_DIR` com `ensure_path_is_allowed`; em valor invalido faz fallback seguro para `config`.
+3. [resolved][batch03] testes de save atomico ajustados para usar `SSA_CONFIG_DIR` (sem dependencia de monkeypatch em constante global).
+4. [validation][batch03] gate focado verde: py_compile, ruff, ty, pytest (5 passed).
