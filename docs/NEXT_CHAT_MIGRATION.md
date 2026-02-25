@@ -652,3 +652,23 @@ Relatorio final por slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
 - kluster:
   - `kluster_code_review_auto`: clean.
+
+## Latest update 2026-02-25 (streamlit long cycle v7)
+
+- delivered:
+  - `Compacto` toggle in table controls;
+  - compact caption behavior in table mode;
+  - render telemetry by width profile in cache panel.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean.
+
+## Latest update 2026-02-25 (streamlit long cycle v7.1)
+
+- follow-up cleanup in `dev_env/streamlit_app.py`:
+  - extracted small helpers for table caption and render telemetry update.
+- behavior unchanged; maintenance improved.

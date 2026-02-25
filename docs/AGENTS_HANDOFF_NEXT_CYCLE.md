@@ -688,3 +688,29 @@ Entregavel de cada slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
 - kluster:
   - `kluster_code_review_auto`: clean (no issues).
+
+## Update 2026-02-25 (streamlit long cycle v7 compact mode + render telemetry)
+
+- `resolved` layout(table): added `Compacto` mode in table toolbar to reduce on-screen noise.
+- `resolved` usability(table): compact mode uses shorter runtime caption and hides verbose helper text.
+- `resolved` perf-observability(streamlit): lightweight render telemetry for dataframe (last and average ms per width profile) stored in `session_state`.
+- `scope` no filter business-rule change.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).
+
+## Update 2026-02-25 (streamlit long cycle v7.1 local decoupling)
+
+- `resolved` maintainability(streamlit): extracted `_update_render_telemetry(...)` and `_build_table_caption(...)` from table block.
+- `resolved` quality: reduced inline responsibility in `with tab_table` without changing behavior.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean.
