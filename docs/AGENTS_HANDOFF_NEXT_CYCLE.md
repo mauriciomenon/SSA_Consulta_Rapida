@@ -17,6 +17,20 @@ This handoff is ready to reuse in the next conversation.
 - Proximo foco recomendado:
   - Batch 09, Batch 10 e Batch 11 (alto impacto real ainda pendente) antes de itens cosmeticos.
 
+## Update 2026-02-26 (deep analysis consolidation)
+
+- Deep gate summary:
+  - pass: `py_compile`, `ruff`, `ty`.
+  - fail baseline: `flake8`, `mypy` (legacy debt; not release blocker for this cycle).
+  - `pylama` unavailable in current env (`pkg_resources` missing); no dependency change applied.
+- Kluster manual summary:
+  - high-priority actionable now: stream scripts (`scripts/run_pytest_stream_and_log.py` and `_v2.py`) for path handling and output perf behavior.
+  - medium structural items (main/config/gui) remain tracked; keep out of broad refactor in this sprint.
+- Execution order (next cycle):
+  1. Stream scripts security/perf mini-slice (patch minimo + focused tests).
+  2. Batch 09/10 residual lock.
+  3. Batch 11 resilience lock.
+
 ## Estado atual
 
 - OVERRIDE 2026-02-24 (estado valido para proxima conversa):

@@ -17,6 +17,21 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Guardrail:
   - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
 
+## Update 2026-02-26 (deep analysis refresh)
+
+- Gate snapshot:
+  - `py_compile`, `ruff`, `ty`: pass.
+  - `flake8`: baseline debt still high (`E501`/spacing), many legacy files.
+  - `mypy`: baseline debt still high (missing stubs and typing issues in GUI/data paths).
+  - `pylama`: unavailable in current env (`ModuleNotFoundError: pkg_resources`), no deps changed.
+- Kluster snapshot:
+  - stream scripts (`run_pytest_stream_and_log*.py`) now highest practical priority due security/path handling and perf pressure.
+  - `main.py`, `core/config_manager.py`, `gui/gui_ssa.py` findings are mostly medium and structural; keep for later slices/sprints.
+- Practical next queue:
+  1. Stream scripts mini-slice: path guard for `--log` + buffered flush strategy.
+  2. Stream scripts residual test lock (Batch 09/10).
+  3. Main resilience mini-slice (Batch 11) with zero layout impact.
+
 ## OVERRIDE 2026-02-24 (ativo)
 
 - Branch ativa para continuidade: `codex/dev-filtros-stability` (base `origin/dev`).
