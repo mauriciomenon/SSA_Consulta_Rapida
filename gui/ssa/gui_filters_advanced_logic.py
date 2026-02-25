@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import pandas as pd
 from pandas.api import types as pd_types
+from shared.date_utils import parse_datetime_series_mixed
 from utils.robust_logging import get_robust_logger
 from .gui_filters_advanced_state import AdvancedFilterState, prune_adv_cache
 
@@ -218,7 +219,10 @@ def _apply_reprogramacoes_filter(df: pd.DataFrame, filters: dict, mask: pd.Serie
 
 def _compute_years_from_data_cadastro(series: pd.Series) -> tuple[pd.Series, str | None]:
     notice = None
-    ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+    if pd_types.is_numeric_dtype(series):
+        ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+    else:
+        ts = parse_datetime_series_mixed(series)
     if pd_types.is_numeric_dtype(series):
         nums = pd.to_numeric(series, errors="coerce")
         num_mask = nums.notna() & nums.gt(0)

@@ -1,9 +1,10 @@
 import ast
 import pandas as pd
 import re
+import warnings
 from pathlib import Path
 
-from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters
+from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters, _compute_years_from_data_cadastro
 from gui.ssa import gui_filters_advanced_ui as adv_ui
 
 
@@ -182,6 +183,26 @@ def test_apply_advanced_filters_supports_legacy_ano_emissao_key():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+
+def test_compute_years_from_data_cadastro_handles_mixed_iso_and_dayfirst_without_warning():
+    series = pd.Series(
+        [
+            "2026-02-25 16:16:50",
+            "25/02/2026",
+            "invalid",
+        ]
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        years, notice = _compute_years_from_data_cadastro(series)
+
+    assert years.iloc[0] == 2026
+    assert years.iloc[1] == 2026
+    assert pd.isna(years.iloc[2])
+    assert notice == "ano_emissao_parse_skipped"
+    assert not any("dayfirst=True" in str(item.message) for item in caught)
 
 
 def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():

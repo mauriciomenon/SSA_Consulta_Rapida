@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import copy
 import json
-import logging
 import os
 from typing import Any, Dict, Iterable, List
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 # gui/gui_config.py -> gui -> project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -258,7 +258,13 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
 def load_gui_main_preferences(config_path: str = CONFIG_PATH) -> Dict[str, Any]:
     """Load GUI main preferences and defensively merge with full defaults."""
     if not os.path.exists(config_path):
-        logger.warning("GUI main preferences not found at %s, using defaults.", config_path)
+        logger.warning("GUI main preferences not found at %s, recreating defaults.", config_path)
+        try:
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as handle:
+                json.dump(DEFAULT_GUI_MAIN_PREFERENCES, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            logger.error("Unable to recreate GUI preferences at %s: %s", config_path, exc)
         return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
 
     try:
