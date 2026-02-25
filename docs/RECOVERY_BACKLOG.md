@@ -3,6 +3,23 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-26 (sprints A B C delivered on codex/dev-filtros-stability)
+
+- Sprint A delivered (extractor contract hardening):
+  - ids closed: `6, 7, 33, 34, 35, 58`
+  - evidence: focused extractor contract tests added and passing.
+- Sprint B delivered (rescan worker/dialog hardening):
+  - ids closed: `11, 12, 28, 29, 38, 79`
+  - id `71` moved to `stale-doc` by expected behavior with explicit tests.
+- Sprint C delivered (cli enhancement lock/write consistency):
+  - ids closed: `13, 26, 30, 31, 41, 80`
+  - evidence: lockfile-based serialization, bounded nonblocking retries, and atomic write path validated in focused tests.
+
+Current next queue (post A/B/C):
+1. Batch 05 (high impact, medium complexity): ids `3, 14, 54, 55, 57, 59, 61`.
+2. Batch 06 (high impact, medium-high complexity): ids `1, 2, 32, 47, 60, 75, 81`.
+3. Streamlit stabilization queue (separate track, approved by user).
+
 ## Current sprint status snapshot (PR 31)
 
 - Operational:

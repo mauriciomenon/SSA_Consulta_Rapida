@@ -2,6 +2,19 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## Update 2026-02-26 (sprint migration snapshot)
+
+- Active branch: `codex/dev-filtros-stability`.
+- Delivered in this cycle:
+  - Sprint A closed (extractor contract ids `6,7,33,34,35,58`).
+  - Sprint B closed (rescan ids `11,12,28,29,38,79`; `71` stale-doc).
+  - Sprint C closed (cli lock ids `13,26,30,31,41,80`).
+- Pending priority queue:
+  1. Batch 05: `3, 14, 54, 55, 57, 59, 61`.
+  2. Batch 06: `1, 2, 32, 47, 60, 75, 81`.
+- Guardrail:
+  - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
+
 ## OVERRIDE 2026-02-24 (ativo)
 
 - Branch ativa para continuidade: `codex/dev-filtros-stability` (base `origin/dev`).
