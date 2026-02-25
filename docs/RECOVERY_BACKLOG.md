@@ -935,3 +935,11 @@ Regra de lint para este ciclo:
 
 1. [deferred][P4][streamlit/usability] Evaluate optional compact mode for very small screens (<1280 px) with hidden secondary controls.
 2. [deferred][P4][streamlit/perf] Add lightweight telemetry for dataframe render time per width profile.
+
+## Update 2026-02-25 (post streamlit long cycle v7)
+
+1. [deferred][P4][streamlit/telemetry] If needed, persist render telemetry across reruns/sessions for historical comparison.
+
+## Update 2026-02-25 (streamlit long cycle v7.1 note)
+
+1. [note] Local helper extraction done; larger streamlit module split still deferred to dedicated refactor sprint.

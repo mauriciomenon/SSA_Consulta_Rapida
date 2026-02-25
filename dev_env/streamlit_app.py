@@ -358,6 +358,37 @@ def _build_streamlit_column_config(
     return config
 
 
+def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
+    if not hasattr(st, "session_state") or st.session_state is None:
+        return
+    render_stats = st.session_state.get("streamlit_render_stats", {})
+    profile_stats = render_stats.get(width_profile, {"count": 0, "total_ms": 0.0, "last_ms": 0.0})
+    profile_stats["count"] = int(profile_stats.get("count", 0)) + 1
+    profile_stats["total_ms"] = float(profile_stats.get("total_ms", 0.0)) + render_ms
+    profile_stats["last_ms"] = render_ms
+    render_stats[width_profile] = profile_stats
+    st.session_state["streamlit_render_stats"] = render_stats
+
+
+def _build_table_caption(
+    compact_mode: bool,
+    page_number: int,
+    total_pages: int,
+    page_len: int,
+    filtered_len: int,
+    render_ms: float,
+) -> str:
+    if compact_mode:
+        return (
+            f"Pag {page_number}/{total_pages} | linhas: {page_len}/{filtered_len} | "
+            f"render: {render_ms:.1f} ms"
+        )
+    return (
+        f"Exibindo pagina {page_number}/{total_pages} | "
+        f"linhas nesta pagina: {page_len} | linhas filtradas: {filtered_len}"
+    )
+
+
 def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
     """Aplica filtros CLI com fallback para caso sem cache."""
     if not search_text.strip():
@@ -724,6 +755,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "page_number": 1,
                 "width_profile": "Padrao (1600)",
                 "table_mode": "Tabela + grafico",
+                "compact_mode": False,
             }
         table_state = st.session_state[table_state_key]
         table_state["page_size"] = int(table_state.get("page_size", 250))
@@ -733,6 +765,7 @@ if REAL_RUNTIME and not raw_df.empty:
         table_state["page_number"] = int(table_state.get("page_number", 1))
         table_state["width_profile"] = str(table_state.get("width_profile", "Padrao (1600)"))
         table_state["table_mode"] = str(table_state.get("table_mode", "Tabela + grafico"))
+        table_state["compact_mode"] = bool(table_state.get("compact_mode", False))
 
         with st.form("filters_form", clear_on_submit=False):
             st.caption("Busca e origem")
@@ -812,6 +845,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "page_number": 1,
                 "width_profile": "Padrao (1600)",
                 "table_mode": "Tabela + grafico",
+                "compact_mode": False,
             }
             rerun_fn = getattr(st, "rerun", None)
             if callable(rerun_fn):
@@ -896,7 +930,7 @@ if REAL_RUNTIME and not raw_df.empty:
         else:
             st.caption("Execucao concluida: -")
 
-        primary_controls = st.columns([2.2, 1, 1.4])
+        primary_controls = st.columns([2.0, 0.9, 1.3, 1.0])
         sort_options = ["(Sem ordenacao)"] + list(view_df.columns)
         sort_column = str(
             primary_controls[0].selectbox(
@@ -917,6 +951,12 @@ if REAL_RUNTIME and not raw_df.empty:
                 if table_state.get("table_mode", "Tabela + grafico") in table_mode_options
                 else 1,
                 horizontal=True,
+            )
+        )
+        compact_mode = bool(
+            primary_controls[3].checkbox(
+                "Compacto",
+                value=table_state.get("compact_mode", False),
             )
         )
 
@@ -985,9 +1025,10 @@ if REAL_RUNTIME and not raw_df.empty:
                 step=1,
             )
         )
-        page_col_right.caption(
-            "Dica: use perfil de largura maior para reduzir truncamento de descricao."
-        )
+        if not compact_mode:
+            page_col_right.caption(
+                "Dica: use perfil de largura maior para reduzir truncamento de descricao."
+            )
         page_df, total_pages = _paginate_dataframe(table_view_df, page=page_number, page_size=page_size)
         table_state.update(
             {
@@ -999,6 +1040,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "page_number": page_number,
                 "width_profile": width_profile,
                 "table_mode": table_mode,
+                "compact_mode": compact_mode,
             }
         )
 
@@ -1009,6 +1051,7 @@ if REAL_RUNTIME and not raw_df.empty:
             available_width=width_profile_pixels.get(width_profile, 1600),
         )
 
+        render_t0 = time.perf_counter()
         st.dataframe(
             display_df,
             width="stretch" if auto_width else "content",
@@ -1016,11 +1059,21 @@ if REAL_RUNTIME and not raw_df.empty:
             column_config=column_config,
             hide_index=True,
         )
-        st.caption(
-            f"Exibindo pagina {page_number}/{total_pages} | "
-            f"linhas nesta pagina: {len(page_df)} | linhas filtradas: {len(table_view_df)}"
+        render_ms = (time.perf_counter() - render_t0) * 1000.0
+        _update_render_telemetry(width_profile, render_ms)
+        table_caption = _build_table_caption(
+            compact_mode=compact_mode,
+            page_number=page_number,
+            total_pages=total_pages,
+            page_len=len(page_df),
+            filtered_len=len(table_view_df),
+            render_ms=render_ms,
         )
-        if active_summary:
+        if not compact_mode:
+            st.caption(table_caption)
+        else:
+            st.caption(table_caption)
+        if active_summary and not compact_mode:
             st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
 
         if table_mode == "Tabela + grafico" and 'situacao' in filtered_df.columns and not filtered_df.empty:
@@ -1106,6 +1159,15 @@ if REAL_RUNTIME and not raw_df.empty:
             if st.button("Limpar cache", key="clear_cache_ops"):
                 filter_cache.clear()
                 st.info("Cache limpo.")
+            if hasattr(st, "session_state") and st.session_state is not None:
+                render_stats = st.session_state.get("streamlit_render_stats", {})
+                profile_stats = render_stats.get(table_state.get("width_profile", "Padrao (1600)"))
+                if profile_stats:
+                    avg_ms = float(profile_stats["total_ms"]) / max(1, int(profile_stats["count"]))
+                    st.caption(
+                        f"Render tabela ({table_state.get('width_profile', 'Padrao (1600)')}): "
+                        f"ultimo {float(profile_stats['last_ms']):.1f} ms | media {avg_ms:.1f} ms"
+                    )
 
         with ops_right:
             st.subheader("API Itaipu")
