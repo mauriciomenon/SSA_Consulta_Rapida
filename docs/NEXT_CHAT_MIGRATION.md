@@ -863,3 +863,20 @@ Relatorio final por slice:
   - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
 - gate do ciclo:
   - `pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: 8 passed.
+
+## Latest update 2026-02-26 (global summary + next steps)
+
+- current matrix snapshot:
+  - total=108
+  - pending=65
+  - resolved=27
+  - stale-doc=5
+  - deferred=11
+- security:
+  - `main` recebeu hotfix de dependencia (`pillow>=12.1.1` em manifests de build).
+  - dependabot open alerts para pillow retornou `[]`.
+- next execution queue:
+  - extractor validation/contract: ids 6/7/33/34/35/58
+  - rescan worker concurrency: ids 11/12/38/79
+  - cli enhancement lock residual: ids 13/26/30/31/41/80
+  - main fallback/debug resilience: ids 15/16/45/48

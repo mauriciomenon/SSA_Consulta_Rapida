@@ -1008,3 +1008,18 @@ Entregavel de cada slice:
   - `pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: 8 passed.
 - escopo:
   - ciclo documental com evidencia tecnica; sem mudanca de runtime.
+
+## Update 2026-02-26 (handoff status + next queue)
+
+- branch atual: `codex/dev-filtros-stability`
+- matriz atual: `pending=65`, `resolved=27`, `stale-doc=5`, `deferred=11` (total 108)
+- seguranca de dependencias:
+  - hotfix aplicado em `main` com `pillow>=12.1.1` nos manifests de build.
+  - dependabot open alerts para pillow: fechado (consulta API retornou lista vazia).
+- proxima fila recomendada (ordem):
+  - 1) extractor contract e required-columns (ids 6, 7, 33, 34, 35, 58)
+  - 2) rescan worker concurrency/lifetime (ids 11, 12, 38, 79)
+  - 3) cli enhancement lock residual (ids 13, 26, 30, 31, 41, 80)
+  - 4) main flow fallback/debug listing (ids 15, 16, 45, 48)
+- regra de execucao:
+  - patch minimo por slice, gate local por slice, commit atomico, push, sync de docs.
