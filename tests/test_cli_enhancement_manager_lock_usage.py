@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import types
+
+import interface.cli_enhancement_manager as cli_mgr_mod
 from interface.cli_enhancement_manager import CLIEnhancementManager
 
 
@@ -33,3 +36,25 @@ def test_save_settings_aborts_when_lock_acquisition_fails(tmp_path, monkeypatch)
     manager._save_settings()
 
     assert not (tmp_path / "cli_enhancements.json").exists()
+
+
+def test_lock_file_fails_fast_when_fcntl_has_no_lock_nb(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+
+    fake_fcntl = types.SimpleNamespace(LOCK_EX=1, flock=lambda _fd, _flags: None)
+    monkeypatch.setattr(cli_mgr_mod, "fcntl", fake_fcntl)
+    monkeypatch.setattr(cli_mgr_mod, "msvcrt", None)
+
+    class DummyFile:
+        def fileno(self):
+            return 1
+
+    try:
+        manager._lock_file_if_possible(DummyFile())
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "LOCK_NB" in str(exc)
+
+    assert raised

@@ -124,9 +124,9 @@ class CLIEnhancementManager:
     def _lock_file_if_possible(self, f: Any) -> None:
         """Acquire advisory lock for settings writes."""
         if fcntl is not None:
-            flags = fcntl.LOCK_EX
-            if hasattr(fcntl, "LOCK_NB"):
-                flags |= fcntl.LOCK_NB
+            if not hasattr(fcntl, "LOCK_NB"):
+                raise RuntimeError("Backend fcntl sem LOCK_NB; lock bloqueante nao permitido")
+            flags = fcntl.LOCK_EX | fcntl.LOCK_NB
             try:
                 fcntl.flock(f.fileno(), flags)
             except OSError as exc:
