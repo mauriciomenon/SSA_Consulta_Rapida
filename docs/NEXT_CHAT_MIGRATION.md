@@ -730,3 +730,9 @@ Relatorio final por slice:
 
 - ajuste final: removido trecho de guard de fallback-size que ficou incoerente apos robust-only.
 - estado final: `read_report` robust-only, sem fallback legado.
+
+## Latest update 2026-02-25 (batch03 config path alignment)
+
+- `config_manager` agora usa caminho resolvido por env (`SSA_CONFIG_DIR`) de forma consistente tambem em load/save/ensure.
+- env de config agora passa por validacao de path safety, com fallback para `config` quando invalido.
+- suite focada de config verde (5/5).
