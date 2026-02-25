@@ -461,3 +461,5 @@ profile.bkp
 source_ssaconsultarapida*.txt
 omp.cache
 .alma-snapshots
+
+.zed/

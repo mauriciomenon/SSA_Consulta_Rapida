@@ -693,3 +693,10 @@ Relatorio final por slice:
   - dedicated button to clear telemetry state;
   - telemetry caption formatting centralized in helper.
 - focused streamlit suite now 15 passing tests.
+
+## Latest update 2026-02-25 (qwen config and batch01 start)
+
+- created `docs/QWEN_CODE_DELEGATION_CONFIG.md` with setup, delegation rules, and validation contract.
+- batch01 progress:
+  - done ids 21, 22, 23.
+- focused tests: 5 passed.
