@@ -1168,3 +1168,8 @@ Opcao:
 1. [resolved][batch03] stale pendencias de `core/config_manager` ids 36/37/40/78/79: estado atual ja preserva fallback seguro em memoria e reler do arquivo restaurado quando possivel.
 2. [resolved][batch03] stale pendencia id 83: caminho de leak por fd em `_atomic_copy_file` removido com migracao para `NamedTemporaryFile(delete=False)`.
 3. [resolved][batch03] contrato de `ensure_default_settings` agora coberto em ambos modos (`fail_fast=False` e `fail_fast=True`) por testes focados.
+
+## Update 2026-02-25 (batch04 lock nonblocking guard)
+
+1. [resolved][batch04] `_lock_file_if_possible` agora falha explicitamente quando `fcntl` nao expor `LOCK_NB`, evitando lock potencialmente bloqueante.
+2. [resolved][batch04] cobertura focada adicionada para backend `fcntl` sem `LOCK_NB` em `tests/test_cli_enhancement_manager_lock_usage.py`.
