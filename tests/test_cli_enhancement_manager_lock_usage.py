@@ -113,3 +113,59 @@ def test_lock_file_fails_after_retry_exhaustion_for_busy_fcntl(tmp_path, monkeyp
 
     assert raised
     assert calls["count"] == cli_mgr_mod.LOCK_RETRY_ATTEMPTS
+
+
+def test_lock_file_retries_and_succeeds_for_busy_msvcrt(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+
+    calls = {"count": 0}
+
+    def _locking(_fd, _mode, _len):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise OSError(errno_mod.EACCES, "busy")
+
+    fake_msvcrt = types.SimpleNamespace(LK_NBLCK=7, locking=_locking)
+    monkeypatch.setattr(cli_mgr_mod, "fcntl", None)
+    monkeypatch.setattr(cli_mgr_mod, "msvcrt", fake_msvcrt)
+    monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
+
+    class DummyFile:
+        def fileno(self):
+            return 1
+
+        def tell(self):
+            return 0
+
+    manager._lock_file_if_possible(DummyFile())
+    assert calls["count"] == 3
+
+
+def test_lock_file_fails_fast_for_non_lock_msvcrt_error(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+
+    def _locking(_fd, _mode, _len):
+        raise OSError(errno_mod.EBADF, "bad fd")
+
+    fake_msvcrt = types.SimpleNamespace(LK_NBLCK=7, locking=_locking)
+    monkeypatch.setattr(cli_mgr_mod, "fcntl", None)
+    monkeypatch.setattr(cli_mgr_mod, "msvcrt", fake_msvcrt)
+    monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
+
+    class DummyFile:
+        def fileno(self):
+            return 1
+
+        def tell(self):
+            return 0
+
+    try:
+        manager._lock_file_if_possible(DummyFile())
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "Falha critica" in str(exc)
+
+    assert raised

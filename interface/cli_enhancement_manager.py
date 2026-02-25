@@ -145,7 +145,7 @@ class CLIEnhancementManager:
                         time.sleep(LOCK_RETRY_DELAY_SECONDS)
             raise RuntimeError(f"Falha ao aplicar flock no settings apos retries: {last_exc}") from last_exc
         if msvcrt is not None:  # pragma: no cover - Windows
-            mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
+            mode = msvcrt.LK_NBLCK  # Always use non-blocking lock
             last_exc = None
             for attempt in range(LOCK_RETRY_ATTEMPTS):
                 try:
@@ -163,6 +163,10 @@ class CLIEnhancementManager:
                     return
                 except OSError as exc:
                     last_exc = exc
+                    # On Windows, EACCES and EAGAIN typically indicate the file is locked by another process
+                    # Only retry on specific lock-related errors, fail fast on other OS errors
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN) and attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                        raise RuntimeError(f"Falha critica ao aplicar msvcrt.locking no settings: {exc}") from exc
                     if attempt + 1 < LOCK_RETRY_ATTEMPTS:
                         time.sleep(LOCK_RETRY_DELAY_SECONDS)
             raise RuntimeError(f"Falha ao aplicar msvcrt.locking no settings apos retries: {last_exc}") from last_exc
