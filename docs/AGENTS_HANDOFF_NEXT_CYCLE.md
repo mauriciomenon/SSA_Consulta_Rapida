@@ -736,3 +736,16 @@ Entregavel de cada slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (14 tests).
 - kluster:
   - `kluster_code_review_auto`: clean.
+
+## Update 2026-02-25 (streamlit telemetry panel refinement)
+
+- `resolved` ops(streamlit): cache panel now supports telemetry profile selection and explicit telemetry clear action.
+- `resolved` maintainability: extracted `_format_render_stats_line(...)` helper to keep ops block smaller.
+- `resolved` tests: added focused assertion for telemetry line formatting.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (15 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean.

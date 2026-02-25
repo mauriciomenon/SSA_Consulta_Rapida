@@ -685,3 +685,11 @@ Relatorio final por slice:
   - `_build_table_caption` in compact and non-compact modes;
   - `_update_render_telemetry` session-state accumulation.
 - focused streamlit test suite now at 14 passing tests.
+
+## Latest update 2026-02-25 (streamlit telemetry panel refinement)
+
+- cache tab improvements:
+  - profile picker for render telemetry;
+  - dedicated button to clear telemetry state;
+  - telemetry caption formatting centralized in helper.
+- focused streamlit suite now 15 passing tests.
