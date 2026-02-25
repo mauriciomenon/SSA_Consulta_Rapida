@@ -937,3 +937,18 @@ Entregavel de cada slice:
   - `pytest -q tests/test_caching.py tests/test_config_manager_mappings_integrity.py`: 8 passed.
 - processo:
   - kluster apontou 1 erro critico de escopo no teste novo (NameError), corrigido no mesmo slice e revalidado clean.
+
+## Update 2026-02-26 (batch07.2 rescan test determinism)
+
+- arquivos alterados:
+  - `tests/test_rescan_progress_dialog.py`
+    - adicionada espera curta por condicao (`_spin_until`) para reduzir flakiness de event loop em cenarios de cancel/finalizacao.
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 66` sincronizado para `resolved` com evidencia.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update batch07.2 adicionado.
+- validacao:
+  - `py_compile tests/test_rescan_progress_dialog.py`: pass.
+  - `ruff check tests/test_rescan_progress_dialog.py docs/PENDING_ACTION_MATRIX.md docs/RECOVERY_BACKLOG.md`: pass.
+  - `ty check tests/test_rescan_progress_dialog.py`: pass.
+  - `pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: 6 passed.
