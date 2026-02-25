@@ -700,3 +700,9 @@ Relatorio final por slice:
 - batch01 progress:
   - done ids 21, 22, 23.
 - focused tests: 5 passed.
+
+## Latest update 2026-02-25 (batch01 tests + qwen check delegation)
+
+- batch01 completed for ids 24/25/27/28/29 with focused test-only patches.
+- qwen delegation confirmed in practice for `ruff` + `ty` execution (with `-y`), followed by independent final validation by main agent.
+- observed tradeoff: qwen helps reduce reasoning-token load for repetitive checks, but has higher per-call latency.

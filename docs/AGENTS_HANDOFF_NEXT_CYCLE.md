@@ -763,3 +763,23 @@ Entregavel de cada slice:
   - `uv run pytest -q tests/test_caching_atomic_save.py tests/test_database_optimized_alias_views.py`: pass (5 tests).
 - kluster:
   - final `kluster_code_review_auto`: clean.
+
+## Update 2026-02-25 (batch01 ids 24/25/27/28/29 + qwen delegation)
+
+- `resolved` batch01 tests:
+  - id 24: stricter lock assertions in `tests/test_filter_cache_locking.py`.
+  - id 25: less brittle patch target via module object in `tests/test_filter_error_skips_modal_in_pytest.py`.
+  - id 27: finish payload assertions added in `tests/test_import_cancellation.py`.
+  - id 28: post-cancel UI state assertions expanded in `tests/test_rescan_progress_dialog.py`.
+  - id 29: success cleanup path added in `tests/test_rescan_worker_cleanup.py`.
+- `resolved` qwen delegation in this slice:
+  - qwen executed `ruff` and `ty` on the batch test set (`qwen -y ...`).
+  - agent still performed final independent validation before commit gate.
+- efficiency note (this slice):
+  - qwen run (ruff+ty summary): ~44.4s wall-time end-to-end, very short output.
+  - local direct gate remains lower latency; qwen is useful when bundling repeated triage/checklist tasks.
+- gate local deste slice:
+  - `python -m py_compile` on touched tests: pass.
+  - `ruff check` on touched tests: pass.
+  - `ty check` on touched tests: pass.
+  - `uv run pytest -q` (batch tests): pass (9 tests).
