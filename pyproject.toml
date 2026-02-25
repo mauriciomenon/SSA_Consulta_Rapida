@@ -5,6 +5,23 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 py-modules = []
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+markers = [
+  "performance: performance tests",
+  "integration: integration tests",
+  "smoke: smoke tests",
+  "stress: stress tests",
+]
+
+[tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
+module-root = "interface"
+tests-root = "tests"
+ignore-paths = []
+formatter-cmds = ["black $file"]
+
 [project]
 name = "ssa-consulta-rapida"
 version = "0.1.0"
@@ -30,13 +47,7 @@ build = [
     "nuitka",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-addopts = "--ignore=tests/test_db_load.py --ignore=tests/test_import_analysis.py"
-markers = [
-  "performance: performance tests",
-  "integration: integration tests",
-  "smoke: smoke tests",
-  "stress: stress tests",
+[dependency-groups]
+dev = [
+    "codeflash>=0.20.1",
 ]

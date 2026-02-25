@@ -16,9 +16,10 @@ Scope is split by priority to keep delivery safe and incremental.
   - evidence: lockfile-based serialization, bounded nonblocking retries, and atomic write path validated in focused tests.
 
 Current next queue (post A/B/C):
-1. Batch 05 (high impact, medium complexity): ids `3, 14, 54, 55, 57, 59, 61`.
-2. Batch 06 (high impact, medium-high complexity): ids `1, 2, 32, 47, 60, 75, 81`.
-3. Streamlit stabilization queue (separate track, approved by user).
+1. Batch 09 (high impact, medium-high complexity): ids `17, 18, 19, 20, 51, 52, 62, 67, 72, 74`.
+2. Batch 10 (medium impact, medium complexity): ids `77, 78, 87, 88`.
+3. Batch 11 (high impact, medium complexity): ids `15, 16, 45, 48`.
+4. Streamlit stabilization queue (separate track, approved by user).
 
 ## Current sprint status snapshot (PR 31)
 
@@ -34,7 +35,7 @@ Current next queue (post A/B/C):
   - `interface/table_printer.py`: removed silent suppress in label normalization fallback, added explicit debug log.
   - `shared/numero_ssa.py`: replaced silent year-parse suppress with explicit `try/except ValueError`.
 - Remaining sprint recommendation (kept as pending by decision):
-  - Keep E tracked: revisit `pyproject.toml` test ignores and repair affected tests in a dedicated slice.
+  - E delivered: removed pytest ignores from `pyproject.toml` and converted legacy script-like files into deterministic tests.
   - Ty warning cleanup (non-blocking): remove legacy unused `type: ignore` comments in `armazenamento/database.py` in a dedicated low-risk slice, after PR #31 stabilization.
 
 - Quality hardening adopted for advanced-filters facade:
