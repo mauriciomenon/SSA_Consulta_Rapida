@@ -4,6 +4,7 @@ import pandas as pd
 
 from dev_env.streamlit_app import (
     StreamlitFilterCache,
+    _build_table_caption,
     _build_streamlit_column_config,
     _build_column_presets,
     _build_filter_options,
@@ -11,6 +12,7 @@ from dev_env.streamlit_app import (
     _default_visible_columns,
     _normalize_filter_selection,
     _paginate_dataframe,
+    _update_render_telemetry,
     st,
 )
 from gui.simple_width_manager import SimpleWidthManager
@@ -152,3 +154,40 @@ def test_simple_width_manager_prioritizes_descricao_columns() -> None:
     )
     assert buckets["descricao_ssa"] == "large"
     assert buckets["descricao_execucao"] == "large"
+
+
+def test_build_table_caption_non_compact() -> None:
+    caption = _build_table_caption(
+        compact_mode=False,
+        page_number=2,
+        total_pages=5,
+        page_len=250,
+        filtered_len=1200,
+        render_ms=12.3,
+    )
+    assert "Exibindo pagina 2/5" in caption
+    assert "linhas nesta pagina: 250" in caption
+
+
+def test_build_table_caption_compact() -> None:
+    caption = _build_table_caption(
+        compact_mode=True,
+        page_number=2,
+        total_pages=5,
+        page_len=250,
+        filtered_len=1200,
+        render_ms=12.3,
+    )
+    assert "Pag 2/5" in caption
+    assert "render: 12.3 ms" in caption
+
+
+def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
+    session_state = {}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+    _update_render_telemetry("Padrao (1600)", 10.0)
+    _update_render_telemetry("Padrao (1600)", 20.0)
+    stats = session_state["streamlit_render_stats"]["Padrao (1600)"]
+    assert stats["count"] == 2
+    assert stats["last_ms"] == 20.0
+    assert stats["total_ms"] == 30.0

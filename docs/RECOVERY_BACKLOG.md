@@ -947,3 +947,7 @@ Regra de lint para este ciclo:
 ## Update 2026-02-25 (streamlit startup note)
 
 1. [note] Direct-python startup import issue fixed with local bootstrap and dynamic module loading.
+
+## Update 2026-02-25 (streamlit tests note)
+
+1. [note] New coverage added for compact caption and render telemetry helpers.

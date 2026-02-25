@@ -724,3 +724,15 @@ Entregavel de cada slice:
   - switched app module loading to `importlib.import_module(...)` for stable direct-run bootstrap.
 - validation:
   - direct run command now exits without import error.
+
+## Update 2026-02-25 (streamlit test coverage expansion)
+
+- `resolved` tests(streamlit): added focused coverage for table caption modes and render telemetry state updates.
+- updated file: `tests/test_streamlit_filter_cache.py`.
+- gate local deste slice:
+  - `python -m py_compile tests/test_streamlit_filter_cache.py`: pass.
+  - `ruff check tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (14 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean.
