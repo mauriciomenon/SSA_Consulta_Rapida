@@ -15,7 +15,7 @@ This handoff is ready to reuse in the next conversation.
   - sem mudanca estrutural de GUI fora do aprovado;
   - validacao focada por slice (`py_compile`, `ruff`, `ty`, `pytest` focado).
 - Proximo foco recomendado:
-  - Batch 10 residual e grupo main/config/gui residual antes de itens cosmeticos.
+  - Batch 10 residual e grupo main/config/gui residual (`39, 42, 43, 44, 46, 49, 50, 70, 76`) antes de itens cosmeticos.
 
 ## Update 2026-02-26 (deep analysis consolidation)
 
@@ -41,6 +41,15 @@ This handoff is ready to reuse in the next conversation.
 - Validation lock:
   - `py_compile`, `ruff`, `ty` on touched files: pass.
   - `uv run pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py`: pass.
+
+## Update 2026-02-26 (config restore fallback lock)
+
+- Added focused regression lock in `tests/test_config_manager_mappings_integrity.py`:
+  - display mapping restore-write failure path returns defaults without crash;
+  - column mapping restore-write failure path returns defaults without crash.
+- Validation lock:
+  - `py_compile`, `ruff`, `ty` on touched files: pass.
+  - `uv run pytest -q tests/test_config_manager_mappings_integrity.py`: pass (`4 passed`).
 
 ## Update 2026-02-26 (stream scripts security/perf delivered)
 

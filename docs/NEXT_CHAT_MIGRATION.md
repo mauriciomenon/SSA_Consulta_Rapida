@@ -12,7 +12,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   - E closed: pytest ignores removed from `pyproject.toml` and former script-like test files converted to deterministic pytest tests.
 - Pending priority queue:
   1. Batch 10 residual: `87, 88`.
-  2. Main/config/gui residual group: `36, 37, 39, 40, 42, 43, 44, 46, 49, 50, 70, 76`.
+  2. Main/config/gui residual group: `39, 42, 43, 44, 46, 49, 50, 70, 76`.
   3. Streamlit stabilization queue (separate track).
 - Guardrail:
   - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
@@ -42,6 +42,15 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Validation:
   - `py_compile`, `ruff`, `ty` pass on touched files.
   - `uv run pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py`: pass.
+
+## Update 2026-02-26 (config restore fallback lock)
+
+- Added focused regression tests in `tests/test_config_manager_mappings_integrity.py`:
+  - restore write failure in `load_display_mappings_integrity` returns defaults in memory;
+  - restore write failure in `load_column_mappings_integrity` returns defaults in memory.
+- Validation:
+  - `py_compile`, `ruff`, `ty` pass for touched files.
+  - `uv run pytest -q tests/test_config_manager_mappings_integrity.py`: pass (`4 passed`).
 
 ## Update 2026-02-26 (stream scripts mini-slice delivered)
 
