@@ -852,3 +852,14 @@ Relatorio final por slice:
 - gate do ciclo:
   - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
   - `pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`: 10 passed.
+
+## Latest update 2026-02-26 (batch12 ids 4/5/73)
+
+- ids 4/5:
+  - confirmados como resolvidos pelo contrato atual de `ensure_default_settings` e `_atomic_write_json_file` (erro explicito, sem suppress silencioso).
+- id 73:
+  - confirmado como resolvido pelo uso de `NamedTemporaryFile(delete=False)` em `_atomic_copy_file`.
+- docs:
+  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
+- gate do ciclo:
+  - `pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: 8 passed.
