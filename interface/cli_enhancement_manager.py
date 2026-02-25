@@ -6,11 +6,16 @@ Permite ativar/desativar enhanced table printer facilmente.
 import os
 import json
 import tempfile
+import time
+import errno
 from typing import Any
 
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "cli")
+
+LOCK_RETRY_ATTEMPTS = 3
+LOCK_RETRY_DELAY_SECONDS = 0.05
 
 
 def _get_project_root() -> str:
@@ -67,7 +72,7 @@ class CLIEnhancementManager:
                 lock_path = f"{self.settings_file}.lock"
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
                 try:
-                    lock_file = os.fdopen(lock_fd, "w")
+                    lock_file = os.fdopen(lock_fd, "a+")
                 except BaseException:
                     os.close(lock_fd)
                     raise
@@ -127,28 +132,40 @@ class CLIEnhancementManager:
             if not hasattr(fcntl, "LOCK_NB"):
                 raise RuntimeError("Backend fcntl sem LOCK_NB; lock bloqueante nao permitido")
             flags = fcntl.LOCK_EX | fcntl.LOCK_NB
-            try:
-                fcntl.flock(f.fileno(), flags)
-            except OSError as exc:
-                raise RuntimeError(f"Falha ao aplicar flock no settings: {exc}") from exc
-            return
+            last_exc = None
+            for attempt in range(LOCK_RETRY_ATTEMPTS):
+                try:
+                    fcntl.flock(f.fileno(), flags)
+                    return
+                except OSError as exc:
+                    last_exc = exc
+                    if exc.errno not in (errno.EAGAIN, errno.EACCES):
+                        raise RuntimeError(f"Falha ao aplicar flock no settings: {exc}") from exc
+                    if attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                        time.sleep(LOCK_RETRY_DELAY_SECONDS)
+            raise RuntimeError(f"Falha ao aplicar flock no settings apos retries: {last_exc}") from last_exc
         if msvcrt is not None:  # pragma: no cover - Windows
             mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
-            try:
-                current_pos = f.tell()
-            except Exception:
-                current_pos = 0
-            try:
-                file_size = os.fstat(f.fileno()).st_size
-            except Exception:
-                file_size = 0
-            remaining = file_size - current_pos
-            lock_len = max(remaining, 1)
-            try:
-                msvcrt.locking(f.fileno(), mode, lock_len)
-            except OSError as exc:
-                raise RuntimeError(f"Falha ao aplicar msvcrt.locking no settings: {exc}") from exc
-            return
+            last_exc = None
+            for attempt in range(LOCK_RETRY_ATTEMPTS):
+                try:
+                    current_pos = f.tell()
+                except Exception:
+                    current_pos = 0
+                try:
+                    file_size = os.fstat(f.fileno()).st_size
+                except Exception:
+                    file_size = 0
+                remaining = file_size - current_pos
+                lock_len = max(remaining, 1)
+                try:
+                    msvcrt.locking(f.fileno(), mode, lock_len)
+                    return
+                except OSError as exc:
+                    last_exc = exc
+                    if attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                        time.sleep(LOCK_RETRY_DELAY_SECONDS)
+            raise RuntimeError(f"Falha ao aplicar msvcrt.locking no settings apos retries: {last_exc}") from last_exc
         raise RuntimeError("Nenhum backend de lock disponivel para settings")
 
     def is_enhanced_printer_enabled(self) -> bool:

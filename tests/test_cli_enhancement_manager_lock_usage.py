@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import types
+import errno as errno_mod
 
 import interface.cli_enhancement_manager as cli_mgr_mod
 from interface.cli_enhancement_manager import CLIEnhancementManager
@@ -58,3 +59,57 @@ def test_lock_file_fails_fast_when_fcntl_has_no_lock_nb(tmp_path, monkeypatch):
         assert "LOCK_NB" in str(exc)
 
     assert raised
+
+
+def test_lock_file_retries_and_succeeds_for_busy_fcntl(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+
+    calls = {"count": 0}
+
+    def _fake_flock(_fd, _flags):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise OSError(errno_mod.EAGAIN, "busy")
+
+    fake_fcntl = types.SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=_fake_flock)
+    monkeypatch.setattr(cli_mgr_mod, "fcntl", fake_fcntl)
+    monkeypatch.setattr(cli_mgr_mod, "msvcrt", None)
+    monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
+
+    class DummyFile:
+        def fileno(self):
+            return 1
+
+    manager._lock_file_if_possible(DummyFile())
+    assert calls["count"] == 3
+
+
+def test_lock_file_fails_after_retry_exhaustion_for_busy_fcntl(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+
+    calls = {"count": 0}
+
+    def _always_busy(_fd, _flags):
+        calls["count"] += 1
+        raise OSError(errno_mod.EAGAIN, "busy")
+
+    fake_fcntl = types.SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=_always_busy)
+    monkeypatch.setattr(cli_mgr_mod, "fcntl", fake_fcntl)
+    monkeypatch.setattr(cli_mgr_mod, "msvcrt", None)
+    monkeypatch.setattr(cli_mgr_mod.time, "sleep", lambda _s: None)
+
+    class DummyFile:
+        def fileno(self):
+            return 1
+
+    try:
+        manager._lock_file_if_possible(DummyFile())
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "apos retries" in str(exc)
+
+    assert raised
+    assert calls["count"] == cli_mgr_mod.LOCK_RETRY_ATTEMPTS
