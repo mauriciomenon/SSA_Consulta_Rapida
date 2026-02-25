@@ -432,18 +432,16 @@ def extract_data_from_excel(
 
 def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
+    Le um relatorio Excel e retorna um DataFrame normalizado e metadados simples.
 
-    Esta função é um invólucro (wrapper) em torno de `extract_data_from_excel`,
-    mantendo compatibilidade com chamadas existentes que esperam uma tupla
-    (df, meta).
+    A leitura usa `import_excel_robust` como caminho unico de ingestao.
 
     Args:
         file_path: Caminho do arquivo .xlsx a ser lido.
 
     Returns:
-        Tuple[pd.DataFrame, Dict[str, Any]]: O DataFrame resultante
-        (vazio em caso de erro) e metadados minimos com source_path e stats_dict.
+        Tuple[pd.DataFrame, Dict[str, Any]]: DataFrame resultante
+        (vazio em caso de erro) e metadados com source_path e stats_dict.
     """
     if not os.path.exists(file_path):
         metadata: Dict[str, Any] = {
@@ -454,29 +452,7 @@ def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
         return pd.DataFrame(), metadata
 
     df, stats_dict = import_excel_robust(file_path)
-    if df.empty or len(df.columns) == 0:
-        logger.info(
-            "read_report fallback para extract_data_from_excel em '%s' (resultado robust vazio)",
-            file_path,
-        )
-        try:
-            fallback_df = extract_data_from_excel(file_path)
-            stats_dict = {
-                **stats_dict,
-                "fallback_used": True,
-                "fallback_rows": int(len(fallback_df)),
-            }
-            df = fallback_df
-        except ExtractionError as exc:
-            return pd.DataFrame(), {
-                "source_path": file_path,
-                "stats_dict": {
-                    **stats_dict,
-                    "status": "error",
-                    "error": str(exc),
-                    "fallback_used": True,
-                },
-            }
+
     metadata = {
         "source_path": file_path,
         "stats_dict": stats_dict,
