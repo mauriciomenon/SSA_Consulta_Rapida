@@ -84,21 +84,25 @@ Legenda:
 - Item: ### Performance Issue: Directory Listing in Debug Mode In the block that lists files in important directories (lines 569-605), if any of these directories contain a large number...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 17. [pending] scripts/run_pytest_stream_and_log.py:119
+## 17. [resolved] scripts/run_pytest_stream_and_log.py:119
 - Item: The warning about dropped lines is only emitted when `dropped_lines % 200 == 1`, which may result in infrequent warnings during periods of high output loss. This could obscure t...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: contagem de drop/warning foi movida para helper compartilhado com regra unica e warning via logger robusto.
 
-## 18. [pending] scripts/run_pytest_stream_and_log.py:84
+## 18. [resolved] scripts/run_pytest_stream_and_log.py:84
 - Item: The queue size for `line_queue` is hardcoded to 4096. This may not be optimal for all environments or workloads, potentially leading to unnecessary output loss or excessive memo...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: tamanho da queue segue configuravel por env (`PYTEST_STREAM_QUEUE_MAX`) no helper compartilhado.
 
-## 19. [pending] scripts/run_pytest_stream_and_log_v2.py:140
+## 19. [resolved] scripts/run_pytest_stream_and_log_v2.py:140
 - Item: **Potential Data Race on `dropped_lines`** The `dropped_lines` variable is incremented in both the main thread and the reader thread without synchronization. This can lead to a ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: atualizacao de `dropped_lines` e decisao de warning estao serializadas por lock unico no runner comum.
 
-## 20. [pending] scripts/run_pytest_stream_and_log_v2.py:163
+## 20. [resolved] scripts/run_pytest_stream_and_log_v2.py:163
 - Item: **Busy-Wait Loop for Sentinel Delivery** The loop that ensures the sentinel (`None`) is delivered to the queue (`while True: ... time.sleep(0.005)`) can result in unnecessary CP...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: envio de sentinel agora e best-effort nao bloqueante e fechamento usa `reader_done` + estado do processo.
 
 ## 21. [pending] tests/test_caching_atomic_save.py:30
 - Item: **Missing test for concurrent writes:** The test `test_save_cache_is_atomic_and_does_not_corrupt_existing_file` only simulates a single failure mode (exception during write) and...
@@ -232,13 +236,15 @@ Legenda:
 - Item: _ Potential issue_ | _ Critical_ <details> <summary> Analysis chain</summary> Script executed: ```shell #!/bin/bash # Get RescanWorker implementation to understand signal timin...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 51. [pending] scripts/run_pytest_stream_and_log_v2.py:195
+## 51. [resolved] scripts/run_pytest_stream_and_log_v2.py:195
 - Item: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 155-167, the warning is enqueued before the real output. When the queue is fu...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: aviso de queue cheia saiu da fila de output e passou a ser logado por logger robusto.
 
-## 52. [pending] scripts/run_pytest_stream_and_log.py:153
+## 52. [resolved] scripts/run_pytest_stream_and_log.py:153
 - Item: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 116-128, the warning is enqueued before the real output. With a full queue, e...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: mesmo ajuste aplicado no caminho v1 via `pytest_stream_common.py`.
 
 ## 53. [resolved] utils/caching.py:154
 - Item: _ Potential issue_ | _ Major_ **Don't silently skip files when `stat` fails.** If `_safe_file_stat` returns `None`, the file is ignored and may never be processed. Prefer re-que...
