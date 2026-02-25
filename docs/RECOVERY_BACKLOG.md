@@ -1275,3 +1275,9 @@ Opcao:
    - sprint A: extractor + tests (ids 6/7/33/34/35/58 + 21/22/23/27).
    - sprint B: rescan worker + dialog residual (ids 11/12/38/79/71 + 28/29).
    - sprint C: cli enhancement lock residual + main fallback (ids 13/26/30/31/41/80 + 15/16/45/48).
+
+## Update 2026-02-26 (sprint A delivered)
+
+1. [resolved] ids 6/7/33/34/35/58 sincronizados como fechados com evidencia de contrato em `extract_data_from_excel`.
+2. [validation] testes focados de extractor verdes: `pytest -q tests/test_extracao.py` (8 passed).
+3. [scope] mudanca de codigo no sprint A restrita a testes de contrato; runtime ja estava alinhado e foi mantido sem refatoracao ampla.
