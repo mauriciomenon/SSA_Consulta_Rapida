@@ -246,8 +246,7 @@ docs/~$*.xlsx
 data/ssas.db
 data/ssas.db-journal
 data/ssas.db.*
-# Preferencias locais da GUI (descomentar/remover quando houver mudanca estrutural real)
-config/gui_main_preferences.json
+# Preferencias locais da GUI
 data/historico_backups/
 data/historico_backups/**
 # Artefatos de recuperacao
@@ -463,3 +462,12 @@ omp.cache
 .alma-snapshots
 
 .zed/
+
+# Local agent/tool artifacts
+.gitignore.bak.*
+.serena/
+AGENTS.md
+config/cache/
+config/codex.sqlite3*
+config/hypercorn.toml
+config/secret_key
