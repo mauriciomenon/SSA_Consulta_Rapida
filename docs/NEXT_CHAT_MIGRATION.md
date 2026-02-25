@@ -767,3 +767,9 @@ Relatorio final por slice:
 - melhorias no lock Windows da CLI enhancement: `LK_NBLCK` com retry limitado e fail-fast para erro nao relacionado a lock.
 - suite focada lock/atomic da CLI enhancement agora em 9/9.
 - qwen foi usado para tarefas repetitivas de validacao; revisao final continuou sob controle do agente principal.
+
+## Latest update 2026-02-25 (batch04 windows lock region normalization)
+
+- lock Windows da CLI enhancement agora usa regiao fixa de 1 byte com retry limitado.
+- erro nao relacionado a lock contention no backend Windows nao entra em retry.
+- suite lock/atomic da CLI enhancement permaneceu verde em 9/9.

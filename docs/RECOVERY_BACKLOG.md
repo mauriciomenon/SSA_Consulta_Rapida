@@ -1186,3 +1186,10 @@ Opcao:
 2. [resolved][batch04] retries no Windows agora distinguem erro de lock busy (`EACCES`/`EAGAIN`) de erro critico (fail-fast).
 3. [resolved][batch04] cobertura adicionada para busy->success e erro critico no backend Windows.
 4. [process][batch04] qwen usado neste slice para execucao repetitiva de `ruff`, `ty` e `pytest`; validacao final independente mantida pelo agente principal.
+
+## Update 2026-02-25 (batch04 windows lock region normalization)
+
+1. [resolved][batch04] lock Windows padronizado para regiao fixa (byte 0, len=1), reduzindo ambiguidade por tamanho atual de arquivo.
+2. [resolved][batch04] erros nao relacionados a contencao no backend Windows agora falham imediatamente (sem retry desnecessario).
+3. [resolved][batch04] teste de lock Windows agora valida `lock_len == 1` em todas as tentativas.
+4. [process][batch04] qwen usado para checks repetitivos; quando houve desvio (mypy no lugar de ty), a validacao correta foi reexecutada pelo agente principal.
