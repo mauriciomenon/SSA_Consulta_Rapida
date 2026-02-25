@@ -977,3 +977,22 @@ Entregavel de cada slice:
   - `ruff check` e `ty check` nos mesmos scripts: pass.
 - escopo:
   - somente sincronizacao documental neste slice; runtime inalterado.
+
+## Update 2026-02-26 (batch11.1 id8 filter_cache)
+
+- arquivos alterados:
+  - `gui/cache/filter_cache.py`
+    - `put()` passou a validar tipo de entrada e ignorar nao-DataFrame com warning.
+    - logger do modulo alinhado para `get_robust_logger()`.
+    - docstring de `put()` alinhada ao contrato real.
+  - `tests/test_filter_cache_locking.py`
+    - teste novo para garantir que entrada invalida nao quebra o cache.
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 8` sincronizado para `resolved`.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update batch11.1 adicionado.
+- validacao:
+  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
+  - `pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`: 10 passed.
+- processo:
+  - kluster retornou 2 pontos P4 (docstring/logger), corrigidos no mesmo slice e revalidados clean.

@@ -838,3 +838,17 @@ Relatorio final por slice:
   - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para os ids acima.
 - gate do ciclo:
   - `py_compile`, `ruff`, `ty` nos scripts de stream: pass.
+
+## Latest update 2026-02-26 (batch11.1 id 8)
+
+- id 8:
+  - `FilterCache.put()` agora valida tipo e ignora valor nao-DataFrame sem levantar excecao.
+  - docstring de `put()` alinhada ao contrato real.
+  - logger do modulo migrado para `get_robust_logger()`.
+- testes:
+  - novo teste em `tests/test_filter_cache_locking.py` cobrindo entrada invalida.
+- docs:
+  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados.
+- gate do ciclo:
+  - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
+  - `pytest -q tests/test_filter_cache_locking.py tests/test_filter_worker.py`: 10 passed.
