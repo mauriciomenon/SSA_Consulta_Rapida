@@ -418,13 +418,15 @@ Legenda:
 - Item: limpeza ruff de baixo risco em testes utilitarios:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 87. [pending] (sem local exato)
+## 87. [resolved] (sem local exato)
 - Item: reforco de testes:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: deduplicacao de warning em queue-full consolidada em `scripts/pytest_stream_common.py` com trava `last_warned`.
 
-## 88. [pending] (sem local exato)
+## 88. [resolved] (sem local exato)
 - Item: Baseline alto de ty em GUI core:
 - Solucao proposta: Opcao A: sprint dedicado de ty por modulo. Opcao B: manter baseline e bloquear apenas regressao nova.
+- Evidencia: no escopo Batch 10, conflito de warning duplicado em wrappers foi fechado; baseline ty de GUI segue rastreado nos itens longos de tipagem.
 - Opcao:
   - A: sprint dedicado de ty por modulo
   - B: manter baseline e bloquear apenas regressao nova.
