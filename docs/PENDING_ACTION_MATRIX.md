@@ -283,9 +283,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: `set_finished(False, "")` define mensagem padrao de erro e adiciona `ERRO FINAL` no painel.
 
-## 66. [pending] tests/test_rescan_progress_dialog.py:48
+## 66. [resolved] tests/test_rescan_progress_dialog.py:48
 - Item: **Potential nondeterminism in event processing:** The tests rely on single calls to `QApplication.processEvents()` after dialog actions (e.g., `dlg.reject()`, `dlg.set_finished(...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: testes agora usam espera curta por condicao (`_spin_until`) em vez de um unico `processEvents()`.
 
 ## 67. [pending] scripts/run_pytest_stream_and_log.py:167
 - Item: The `dropped_lines` variable is accessed without synchronization from multiple threads, creating a race condition. The reader thread (calling `_safe_queue_put`) and the main thr...

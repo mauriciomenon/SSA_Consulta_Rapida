@@ -1215,3 +1215,9 @@ Opcao:
 1. [resolved] id 53: comportamento de reenfileirar arquivo quando `stat` falha confirmado no codigo e travado por teste novo em `tests/test_caching.py`.
 2. [resolved] id 68: `load_display_mappings_integrity()` segue contrato de reler arquivo restaurado antes de fallback em memoria; matriz atualizada.
 3. [validation] teste focado executado para caching/config mappings sem alterar runtime de producao.
+
+## Update 2026-02-26 (batch07.2 rescan test determinism)
+
+1. [resolved] id 66: `tests/test_rescan_progress_dialog.py` agora usa espera curta por condicao para reduzir flakiness de event loop.
+2. [scope] nenhuma mudanca de runtime em GUI; apenas robustez de teste.
+3. [validation] suite focada de rescan dialog/worker permaneceu verde apos ajuste.
