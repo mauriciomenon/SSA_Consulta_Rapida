@@ -59,6 +59,27 @@ Next execution steps (recommended order):
 3. Main flow resilience slice (Batch 11).
 4. Keep structural refactors in dedicated sprint only.
 
+## Update 2026-02-26 (stream scripts security/perf mini-slice delivered)
+
+Files changed:
+1. `scripts/pytest_stream_common.py` (new shared runtime helper).
+2. `scripts/run_pytest_stream_and_log.py` (now consumes shared runner).
+3. `scripts/run_pytest_stream_and_log_v2.py` (now consumes shared runner).
+4. `tests/test_stream_log_wrapper_guards.py` (new focused guards).
+
+Delivered in this slice:
+1. `--log` path guard hardened with shared validation and explicit deny outside `local_ai_private`.
+2. flush policy changed to batched strategy (`PYTEST_STREAM_FLUSH_EVERY`, bounded) to avoid flush-per-line overhead.
+3. stream runtime duplication reduced by centralizing queue/timeout/process-tree handling into shared helper.
+4. sentinel handling changed to non-blocking best-effort path; main loop now closes by process state + reader_done signal.
+
+Validation:
+1. `py_compile`, `ruff`, `ty` green for touched files.
+2. `pytest -q tests/test_stream_log_wrapper_guards.py` green (`4 passed`).
+3. kluster residual after fixes:
+   - `scripts/pytest_stream_common.py::run_streaming_pytest` flagged as structural complexity (`god function`).
+   - decision: defer to dedicated refactor sprint (non-blocking for current security/perf patch).
+
 ## Current sprint status snapshot (PR 31)
 
 - Operational:

@@ -28,9 +28,18 @@ Use this file to migrate context to a new chat without losing execution quality.
   - stream scripts (`run_pytest_stream_and_log*.py`) now highest practical priority due security/path handling and perf pressure.
   - `main.py`, `core/config_manager.py`, `gui/gui_ssa.py` findings are mostly medium and structural; keep for later slices/sprints.
 - Practical next queue:
-  1. Stream scripts mini-slice: path guard for `--log` + buffered flush strategy.
+  1. Stream scripts mini-slice: delivered (path guard + buffered flush + shared runner).
   2. Stream scripts residual test lock (Batch 09/10).
   3. Main resilience mini-slice (Batch 11) with zero layout impact.
+
+## Update 2026-02-26 (stream scripts mini-slice delivered)
+
+- Added shared helper `scripts/pytest_stream_common.py`.
+- Both wrappers now use shared runtime path:
+  - `scripts/run_pytest_stream_and_log.py`
+  - `scripts/run_pytest_stream_and_log_v2.py`
+- Added focused tests:
+  - `tests/test_stream_log_wrapper_guards.py` (`4 passed`).
 
 ## OVERRIDE 2026-02-24 (ativo)
 
