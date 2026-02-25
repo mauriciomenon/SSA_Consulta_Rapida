@@ -216,7 +216,10 @@ except ImportError as exc:
     class QPushButton(QWidget):
         def __init__(self, *a, **k):
             self.clicked = _Sig()
+            self.toggled = _Sig()
             self._text = a[0] if a else ""
+            self._checkable = False
+            self._checked = False
         def setToolTip(self, *a, **k):
             pass
         def setEnabled(self, *a, **k):
@@ -225,6 +228,12 @@ except ImportError as exc:
             self._text = text
         def text(self):
             return self._text
+        def setCheckable(self, enabled):
+            self._checkable = bool(enabled)
+        def setChecked(self, val):
+            self._checked = bool(val)
+        def isChecked(self):
+            return self._checked
         def setStyleSheet(self, *a, **k):
             pass
         def setMaximumWidth(self, *a, **k):
@@ -1651,6 +1660,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         return ssa_gui_filters._refresh_priority_menus(
             self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
         )
+
+    def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb)
 
     def _refresh_advanced_filter_options(self):
         return ssa_gui_filters._refresh_advanced_filter_options(self)

@@ -1303,7 +1303,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(90)
-        assert self.window._adv_filters_layout_mode == "narrow"
+        assert self.window._adv_filters_layout_mode == "cols_2"
 
         grid = self.window._adv_filters_main_grid
         widgets = self.window._adv_filters_grid_widgets
@@ -1320,13 +1320,31 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(1501)
-        assert self.window._adv_filters_layout_mode == "wide"
+        assert self.window._adv_filters_layout_mode == "cols_5"
+        previous_mode = self.window._adv_filters_layout_mode
 
         self.window._reorganize_advanced_filters_grid(0)
-        assert self.window._adv_filters_layout_mode is None
+        assert self.window._adv_filters_layout_mode == previous_mode
 
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_layout_mode == "mid"
+        assert self.window._adv_filters_layout_mode == "cols_3"
+
+    def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
+        self.window.df_completo = self.base_df.assign(num_reprogramacoes=[0, 1, 2, 2, 3]).copy()
+        self.window._adv_values_cache = {}
+        self.window._responsavel_materialized_prefixes = set()
+        self.window._advanced_filters = {
+            "num_reprogramacoes_mode": "eq",
+            "num_reprogramacoes_values": ["2"],
+        }
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        checks = getattr(self.window, "adv_reprog_checks", [])
+        assert checks, "reprogramacoes checks should be materialized even before responsavel filters"
+        selected = self.window._get_checked_values(checks)
+        assert "2" in selected
 
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
