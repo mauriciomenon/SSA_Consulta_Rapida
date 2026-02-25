@@ -41,8 +41,8 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 LAYOUT_MIN_VALID_WIDTH = 1
 LAYOUT_GRID_MIN_COLS = 2
 LAYOUT_GRID_MAX_COLS = 5
-LAYOUT_ADV_PANEL_MIN_HEIGHT = 176
-LAYOUT_ADV_PANEL_MAX_HEIGHT = 320
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 124
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 248
 
 
 def _is_widget_valid(widget) -> bool:
@@ -82,8 +82,8 @@ def _safe_len(value: Any) -> int:
 
 def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
     cell_min = 236
-    action_min = 136
-    action_max = 208
+    action_min = 98
+    action_max = 152
     width_manager = getattr(self, "width_manager", None)
     if width_manager is None or not hasattr(width_manager, "compute_optimal_widths"):
         return cell_min, action_min, action_max
@@ -121,8 +121,8 @@ def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
         cell_min = max(212, min(252, cell_candidate))
 
         action_candidate = numero_w + situacao_w
-        action_min = max(120, min(168, action_candidate))
-        action_max = max(action_min + 40, min(232, action_min + 72))
+        action_min = max(96, min(132, action_candidate))
+        action_max = max(action_min + 36, min(176, action_min + 56))
     except Exception as exc:
         logger.debug("Falha ao calcular baseline de layout avancado via width_manager: %s", exc)
     return cell_min, action_min, action_max
@@ -175,13 +175,13 @@ def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", wit
     button = QToolButton()
     button.setText(placeholder)
     try:
-        button.setMinimumWidth(132)
+        button.setMinimumWidth(96)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
     menu = QMenu(button)
     try:
-        menu.setMaximumHeight(360)
+        menu.setMaximumHeight(320)
     except Exception as exc:
         logger.debug("Falha ao definir altura maxima do menu multiselect '%s': %s", title, exc)
     self._attach_multiselect_menu(button, menu)
@@ -491,16 +491,28 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
 
+    valid_values = []
+    for raw_val in values or []:
+        label_text = str(raw_val[1]) if isinstance(raw_val, (list, tuple)) and len(raw_val) > 1 else str(raw_val)
+        if label_text and label_text.strip():
+            valid_values.append(raw_val)
     try:
-        try:
-            max_label_len = max((len(str(v)) for v in values), default=4)
-        except Exception:
-            max_label_len = 4
-        computed = max_label_len * 8 + 70
-        min_width = max(int(getattr(button, "width", lambda: 0)() or 0), min(360, max(160, computed)))
-        menu.setMinimumWidth(min_width)
+        max_label_len = max((len(str(v[1])) if isinstance(v, (list, tuple)) and len(v) > 1 else len(str(v)) for v in valid_values), default=8)
+    except Exception:
+        max_label_len = 8
+    has_exclude_column = exclude_selected_set is not None
+    try:
+        button_width = int(getattr(button, "width", lambda: 0)() or 0)
+    except Exception:
+        button_width = 0
+    content_width = (max_label_len * 8) + (150 if has_exclude_column else 90)
+    popup_min_width = max(180, min(360, max(button_width + 12, content_width)))
+    popup_max_width = max(popup_min_width, min(560, popup_min_width + 180))
+    try:
+        menu.setMinimumWidth(popup_min_width)
+        menu.setMaximumWidth(popup_max_width)
     except Exception as exc:
-        logger.debug("Falha ao ajustar largura minima do menu multiselect: %s", exc)
+        logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
 
     container = QWidget()
     grid = QGridLayout(container)
@@ -526,12 +538,15 @@ def _rebuild_multiselect_menu(
         grid.addWidget(label_filter, row_idx, 0)
 
         if exclude_selected_set is not None:
-            label_inc = QLabel("==")
-            label_exc = QLabel("!=")
+            label_inc = QLabel("Conter")
+            label_exc = QLabel("Nao conter")
             try:
-                # == com destaque (borda), != sem destaque (invertido conforme solicitado)
-                label_inc.setStyleSheet("font-size: 10px; color: #888; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;")
-                label_exc.setStyleSheet("font-size: 10px; color: #555;")
+                label_inc.setStyleSheet(
+                    "font-size: 10px; color: #555; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;"
+                )
+                label_exc.setStyleSheet(
+                    "font-size: 10px; color: #555; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;"
+                )
                 label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception as exc:
@@ -578,13 +593,11 @@ def _rebuild_multiselect_menu(
             image: none;
         }
     """
+    apply_checkbox_styles = len(valid_values) <= 300
 
-    for val in values:
+    for val in valid_values:
         label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
         cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
-        # Ignorar valores vazios ou apenas espacos
-        if not label_text or not label_text.strip():
-            continue
         label = QLabel(label_text)
         try:
             label.setStyleSheet("font-size: 11px;")
@@ -594,13 +607,15 @@ def _rebuild_multiselect_menu(
         exclude_cb = QCheckBox() if exclude_selected_set is not None else None
         try:
             include_cb.setProperty("value", str(cb_value))
-            include_cb.setStyleSheet(cb_style_include)
+            if apply_checkbox_styles:
+                include_cb.setStyleSheet(cb_style_include)
         except Exception as exc:
             logger.debug("Falha ao configurar checkbox include do menu multiselect: %s", exc)
         if exclude_cb is not None:
             try:
                 exclude_cb.setProperty("value", str(cb_value))
-                exclude_cb.setStyleSheet(cb_style_exclude)
+                if apply_checkbox_styles:
+                    exclude_cb.setStyleSheet(cb_style_exclude)
             except Exception as exc:
                 logger.debug("Falha ao configurar checkbox exclude do menu multiselect: %s", exc)
         try:
@@ -647,7 +662,6 @@ def _rebuild_multiselect_menu(
             except Exception as exc:
                 logger.warning("Falha ao conectar callback on_exclude_toggle do menu multiselect: %s", exc)
 
-    # Separador antes de Selecionar/Desmarcar
     if exclude_selected_set is not None:
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -655,39 +669,40 @@ def _rebuild_multiselect_menu(
         grid.addWidget(separator, row_idx, 0, 1, 3)
         row_idx += 1
 
-        # Selecionar/Desmarcar ao fim da lista
-        select_all_include = QCheckBox()
-        deselect_all_include = QCheckBox()
-        select_all_exclude = QCheckBox()
-        deselect_all_exclude = QCheckBox()
+        batch_mark_include = QCheckBox()
+        batch_clear_include = QCheckBox()
+        batch_mark_exclude = QCheckBox()
+        batch_clear_exclude = QCheckBox()
 
-        for cb in [select_all_include, deselect_all_include]:
-            cb.setStyleSheet(cb_style_include)
-        for cb in [select_all_exclude, deselect_all_exclude]:
-            cb.setStyleSheet(cb_style_exclude)
+        if apply_checkbox_styles:
+            for cb in [batch_mark_include, batch_clear_include]:
+                cb.setStyleSheet(cb_style_include)
+            for cb in [batch_mark_exclude, batch_clear_exclude]:
+                cb.setStyleSheet(cb_style_exclude)
 
-        label_select = QLabel("Selecionar tudo")
-        label_deselect = QLabel("Desmarcar tudo")
+        label_mark = QLabel("Selecionar em lote")
+        label_clear = QLabel("Limpar selecao em lote")
         try:
-            label_select.setStyleSheet("font-size: 11px;")
-            label_deselect.setStyleSheet("font-size: 11px;")
+            label_mark.setStyleSheet("font-size: 11px;")
+            label_clear.setStyleSheet("font-size: 11px;")
         except Exception as exc:
-            logger.debug("Falha ao estilizar labels de selecionar/desmarcar no menu multiselect: %s", exc)
+            logger.debug("Falha ao estilizar labels de marcacao em lote no menu multiselect: %s", exc)
 
-        grid.addWidget(label_select, row_idx, 0)
-        grid.addWidget(select_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-        grid.addWidget(select_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(label_mark, row_idx, 0)
+        grid.addWidget(batch_mark_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(batch_mark_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
         row_idx += 1
 
-        grid.addWidget(label_deselect, row_idx, 0)
-        grid.addWidget(deselect_all_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
-        grid.addWidget(deselect_all_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(label_clear, row_idx, 0)
+        grid.addWidget(batch_clear_include, row_idx, 1, alignment=Qt.AlignmentFlag.AlignHCenter)
+        grid.addWidget(batch_clear_exclude, row_idx, 2, alignment=Qt.AlignmentFlag.AlignHCenter)
         row_idx += 1
 
     scroll = QScrollArea()
     scroll.setWidget(container)
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     try:
         scroll.setAlignment(Qt.AlignmentFlag.AlignTop)
     except Exception as exc:
@@ -702,9 +717,11 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc)
     try:
-        scroll.setFixedHeight(320)
+        visible_rows = max(2, min(10, row_idx))
+        target_height = 18 + (visible_rows * 24)
+        scroll.setFixedHeight(max(92, min(278, target_height)))
     except Exception as exc:
-        logger.debug("Falha ao aplicar altura fixa do scroll no menu multiselect: %s", exc)
+        logger.debug("Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc)
     scroll_act = QWidgetAction(menu)
     scroll_act.setDefaultWidget(scroll)
     try:
@@ -712,72 +729,50 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao adicionar scroll action no menu multiselect: %s", exc)
 
-    # Conectar funcionalidade de Selecionar/Desmarcar Tudo com blockSignals
-    # CORRECAO 2026-01-08: Reset do checkbox apos acao para feedback visual correto
     if exclude_selected_set is not None:
-        def _select_all_include():
+        def _batch_set_include(target_state: bool):
             for cb in checks:
                 if not _is_widget_valid(cb):
                     continue
                 cb.blockSignals(True)
-                cb.setChecked(True)
+                cb.setChecked(target_state)
                 cb.blockSignals(False)
-            # Reset checkbox de acao apos executar
-            select_all_include.blockSignals(True)
-            select_all_include.setChecked(False)
-            select_all_include.blockSignals(False)
             if on_toggle:
                 on_toggle()
 
-        def _deselect_all_include():
-            for cb in checks:
-                if not _is_widget_valid(cb):
-                    continue
-                cb.blockSignals(True)
-                cb.setChecked(False)
-                cb.blockSignals(False)
-            # Reset checkbox de acao apos executar
-            deselect_all_include.blockSignals(True)
-            deselect_all_include.setChecked(False)
-            deselect_all_include.blockSignals(False)
-            if on_toggle:
-                on_toggle()
-
-        def _select_all_exclude():
+        def _batch_set_exclude(target_state: bool):
             for cb in exclude_checks:
                 if not _is_widget_valid(cb):
                     continue
                 cb.blockSignals(True)
-                cb.setChecked(True)
+                cb.setChecked(target_state)
                 cb.blockSignals(False)
-            # Reset checkbox de acao apos executar
-            select_all_exclude.blockSignals(True)
-            select_all_exclude.setChecked(False)
-            select_all_exclude.blockSignals(False)
             if on_exclude_toggle:
                 on_exclude_toggle()
 
-        def _deselect_all_exclude():
-            for cb in exclude_checks:
-                if not _is_widget_valid(cb):
-                    continue
-                cb.blockSignals(True)
-                cb.setChecked(False)
-                cb.blockSignals(False)
-            # Reset checkbox de acao apos executar
-            deselect_all_exclude.blockSignals(True)
-            deselect_all_exclude.setChecked(False)
-            deselect_all_exclude.blockSignals(False)
-            if on_exclude_toggle:
-                on_exclude_toggle()
+        def _reset_batch_toggle(toggle_cb):
+            try:
+                toggle_cb.blockSignals(True)
+                toggle_cb.setChecked(False)
+                toggle_cb.blockSignals(False)
+            except Exception as exc:
+                logger.debug("Falha ao resetar toggle de marcacao em lote: %s", exc)
 
         try:
-            select_all_include.toggled.connect(lambda checked: _select_all_include() if checked else None)
-            deselect_all_include.toggled.connect(lambda checked: _deselect_all_include() if checked else None)
-            select_all_exclude.toggled.connect(lambda checked: _select_all_exclude() if checked else None)
-            deselect_all_exclude.toggled.connect(lambda checked: _deselect_all_exclude() if checked else None)
+            batch_mark_include.toggled.connect(
+                lambda checked: (_batch_set_include(True), _reset_batch_toggle(batch_mark_include)) if checked else None
+            )
+            batch_clear_include.toggled.connect(
+                lambda checked: (_batch_set_include(False), _reset_batch_toggle(batch_clear_include)) if checked else None
+            )
+            batch_mark_exclude.toggled.connect(
+                lambda checked: (_batch_set_exclude(True), _reset_batch_toggle(batch_mark_exclude)) if checked else None
+            )
+            batch_clear_exclude.toggled.connect(
+                lambda checked: (_batch_set_exclude(False), _reset_batch_toggle(batch_clear_exclude)) if checked else None
+            )
         except Exception as exc:
-            logger.debug("Failed to connect select-all toggles in multiselect menu: %s", exc)
+            logger.debug("Falha ao conectar acoes de marcacao em lote no menu multiselect: %s", exc)
 
     # Botoes OK e Cancelar - OK sempre a direita
     # OTIMIZACAO 2026-01-08: OK apenas fecha o menu, NAO aplica filtro
@@ -878,14 +873,15 @@ def _build_advanced_filters_panel(self):
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor", "lte")
     reprog_mode.addItem(">= Maior", "gte")
+    _, reprog_base_min, _ = _resolve_adv_layout_baseline(self)
     try:
-        reprog_mode.setMinimumWidth(110)
+        reprog_mode.setMinimumWidth(max(78, reprog_base_min - 10))
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
     try:
-        reprog_button.setMinimumWidth(132)
+        reprog_button.setMinimumWidth(max(88, reprog_base_min))
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do botao de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_button, 1)
@@ -897,32 +893,30 @@ def _build_advanced_filters_panel(self):
     prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio. Emissao")
     prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio. Planejamento")
 
-    deriv_box = QGroupBox("Derivadas")
-    deriv_layout = QHBoxLayout(deriv_box)
-    deriv_layout.setContentsMargins(2, 1, 2, 1)
-    deriv_layout.setSpacing(4)
-    deriv_has = QCheckBox("Tem")
-    deriv_all_ste = QPushButton("STE")
-    deriv_all_ste.setCheckable(True)
-    try:
-        deriv_all_ste.setMinimumWidth(72)
-        deriv_all_ste.setToolTip("Mostrar apenas derivadas STE")
-        deriv_all_ste.setStyleSheet(
-            "QPushButton { padding: 2px 10px; } "
-            "QPushButton:checked { font-weight: 600; border: 1px solid palette(highlight); }"
-        )
-    except Exception as exc:
-        logger.debug("Falha ao configurar botao toggle STE: %s", exc)
-    deriv_is = QCheckBox("Sou Derivada")
-    try:
-        deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
-        deriv_all_ste.toggled.connect(lambda checked: self._on_derivada_all_ste_toggled(checked))
-    except Exception as exc:
-        logger.debug("Falha ao conectar handlers de filtros de derivadas: %s", exc)
-    deriv_layout.addWidget(deriv_has)
-    deriv_layout.addWidget(deriv_all_ste)
-    deriv_layout.addWidget(deriv_is)
-    deriv_layout.addStretch()
+    deriv_box, deriv_button, deriv_menu, _ = self._make_multiselect_box("Derivadas", with_exclude=False)
+    deriv_values = [("has", "Possui Derivadas"), ("is", "Sou Derivada")]
+    deriv_selected = set()
+    current_adv = getattr(self, "_advanced_filters", None) or {}
+    if bool(current_adv.get("derivada_has")):
+        deriv_selected.add("has")
+    if bool(current_adv.get("derivada_is")):
+        deriv_selected.add("is")
+    deriv_checks, _ = self._rebuild_multiselect_menu(
+        deriv_button,
+        deriv_menu,
+        deriv_values,
+        deriv_selected,
+        lambda *_: self._update_multiselect_button(
+            deriv_button,
+            getattr(self, "adv_derivada_checks", None),
+        ),
+        self._apply_advanced_filters_from_ui,
+        None,
+        None,
+    )
+    self.adv_derivada_button = deriv_button
+    self.adv_derivada_menu = deriv_menu
+    self.adv_derivada_checks = deriv_checks
 
     week_emis_box = QGroupBox("Emissao (AnoSemana)")
     week_emis_layout = QHBoxLayout(week_emis_box)
@@ -1126,9 +1120,11 @@ def _build_advanced_filters_panel(self):
         "adv_prioridade_planejamento_button": prio_plan_button,
         "adv_prioridade_planejamento_menu": prio_plan_menu,
         "adv_prioridade_planejamento_checks": [],
-        "adv_derivada_has": deriv_has,
-        "adv_derivada_all_ste": deriv_all_ste,
-        "adv_derivada_is": deriv_is,
+        "adv_derivada_button": deriv_button,
+        "adv_derivada_menu": deriv_menu,
+        "adv_derivada_checks": deriv_checks,
+        "adv_derivada_has": None,
+        "adv_derivada_is": None,
         "adv_responsavel_solicitante_button": sol_button,
         "adv_responsavel_solicitante_menu": sol_menu,
         "adv_responsavel_solicitante_checks": [],
@@ -1149,22 +1145,7 @@ def _build_advanced_filters_panel(self):
     return group, ctx
 
 def _on_derivada_has_toggled(self, checked: bool):
-    """Quando 'Tem' é desmarcado, 'STE' também deve ser desmarcado."""
-    if not checked:
-        try:
-            if hasattr(self, "adv_derivada_all_ste") and self.adv_derivada_all_ste.isChecked():
-                self.adv_derivada_all_ste.setChecked(False)
-        except Exception as exc:
-            logger.debug("Falha ao desmarcar filtro derivada STE ao desabilitar 'Tem': %s", exc)
-
-def _on_derivada_all_ste_toggled(self, checked: bool):
-    if not checked:
-        return
-    try:
-        if hasattr(self, "adv_derivada_has"):
-            self.adv_derivada_has.setChecked(True)
-    except Exception as exc:
-        logger.debug("Falha ao forcar 'Tem derivada' quando STE foi marcado: %s", exc)
+    _ = checked
 
 def _show_derivadas_popup(self):
     """Compatibilidade de facade. Popup de derivadas foi removido."""
@@ -1185,10 +1166,11 @@ def _on_macro_filter_changed(self):
         choice = None
     if choice == "ssas_para_baixar":
         try:
-            if hasattr(self, "adv_derivada_has"):
-                self.adv_derivada_has.setChecked(True)
-            if hasattr(self, "adv_derivada_all_ste"):
-                self.adv_derivada_all_ste.setChecked(True)
+            self._sync_multiselect_checks(
+                getattr(self, "adv_derivada_button", None),
+                getattr(self, "adv_derivada_checks", None),
+                ["has"],
+            )
         except Exception as exc:
             logger.warning("Falha ao aplicar preset de derivadas no macro filtro: %s", exc)
         try:
@@ -1651,7 +1633,7 @@ def _has_active_advanced_filters(self, data: dict) -> bool:
         return True
     if data.get("semana_execucao_inicio") is not None or data.get("semana_execucao_fim") is not None:
         return True
-    if data.get("derivada_has") or data.get("derivada_all_ste") or data.get("derivada_is"):
+    if data.get("derivada_has") or data.get("derivada_is"):
         return True
     if data.get("macro_filter"):
         return True
@@ -1732,11 +1714,9 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         data["semana_execucao_fim"] = None
     data["semana_emissao_exclude"] = False
     data["semana_execucao_exclude"] = False
-    data["derivada_has"] = _safe_is_checked(getattr(self, "adv_derivada_has", None))
-    data["derivada_all_ste"] = _safe_is_checked(getattr(self, "adv_derivada_all_ste", None))
-    if data.get("derivada_all_ste"):
-        data["derivada_has"] = True
-    data["derivada_is"] = _safe_is_checked(getattr(self, "adv_derivada_is", None))
+    derivada_selected = {str(v).casefold() for v in self._get_checked_values(getattr(self, "adv_derivada_checks", None))}
+    data["derivada_has"] = "has" in derivada_selected
+    data["derivada_is"] = "is" in derivada_selected
     # derivadas_especificas_values removido - botao Especificas agora e apenas visualizacao
     adv_current = getattr(self, "_advanced_filters", None) or {}
     built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
@@ -2024,15 +2004,16 @@ def _sync_advanced_filter_ui(self):
     except Exception as exc:
         logger.warning("Falha ao sincronizar intervalo de semanas dos filtros avancados: %s", exc)
     try:
-        if hasattr(self, "adv_derivada_has"):
-            if data.get("derivada_all_ste"):
-                self.adv_derivada_has.setChecked(True)
-            else:
-                self.adv_derivada_has.setChecked(bool(data.get("derivada_has")))
-        if hasattr(self, "adv_derivada_all_ste"):
-            self.adv_derivada_all_ste.setChecked(bool(data.get("derivada_all_ste")))
-        if hasattr(self, "adv_derivada_is"):
-            self.adv_derivada_is.setChecked(bool(data.get("derivada_is")))
+        derivada_selected = []
+        if bool(data.get("derivada_has")):
+            derivada_selected.append("has")
+        if bool(data.get("derivada_is")):
+            derivada_selected.append("is")
+        self._sync_multiselect_checks(
+            getattr(self, "adv_derivada_button", None),
+            getattr(self, "adv_derivada_checks", None),
+            derivada_selected,
+        )
     except Exception as exc:
         logger.warning("Falha ao sincronizar toggles de derivadas nos filtros avancados: %s", exc)
     try:
