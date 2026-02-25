@@ -28,6 +28,8 @@ Contrato operacional (obrigatorio)
 8. Nao tocar arquivos fora do lote.
 9. Em caso de ambiguidade: retornar opcao A/B com impacto.
 10. Entregar checklist por ID antes de sugerir codigo.
+11. Regra permanente: usar Qwen em todo slice para tarefas repetitivas aplicaveis (checks e triagem curta).
+12. A ausencia de uso do Qwen em tarefa repetitiva aplicavel deve ser tratada como desvio de processo.
 
 Template de prompt (delegacao por lote)
 ```
@@ -42,15 +44,17 @@ PT-BR tecnico ASCII.
 ```
 
 Fluxo padrao de execucao
-1. Qwen gera checklist por ID.
+1. Qwen gera checklist por ID (quando houver lote de pendencias).
 2. Agente principal implementa ou adapta patch.
-3. Validacao obrigatoria:
-   - `python -m py_compile` (arquivos tocados)
+3. Qwen executa checks repetitivos do slice (quando aplicavel):
    - `ruff check` (arquivos tocados)
    - `ty check` (arquivos tocados)
    - `pytest` focado no lote
-4. Verificacao kluster apos cada alteracao.
-5. Commit atomico por slice.
+4. Agente principal executa validacao independente final:
+   - `python -m py_compile` (arquivos tocados)
+   - confirmacao final de `ruff`/`ty`/`pytest`
+5. Verificacao kluster apos cada alteracao.
+6. Commit atomico por slice.
 
 Regras de validacao final (responsabilidade do agente principal)
 1. Confirmar que o patch respeita escopo do lote.
@@ -67,3 +71,7 @@ Metricas de eficiencia (guia)
 Observacao
 - Qwen e delegado de execucao assistida.
 - A decisao tecnica final, validacao, e responsabilidade de merge permanecem no agente principal.
+
+Arquivos de regra (fonte oficial)
+- Regra global de processo: `/Users/menon/git/SSA_Consulta_Rapida/AGENTS.md`
+- Regra detalhada de uso do Qwen: `/Users/menon/git/SSA_Consulta_Rapida/docs/QWEN_CODE_DELEGATION_CONFIG.md`
