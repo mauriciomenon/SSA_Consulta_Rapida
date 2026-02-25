@@ -22,13 +22,15 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: erro inesperado agora inclui tipo original (`RuntimeError`, etc) na mensagem e log com stack.
 
-## 4. [pending] core/config_manager.py:549
+## 4. [resolved] core/config_manager.py:549
 - Item: **Silent Failure on Default Settings Creation** If the creation of a default configuration file fails (e.g., due to permission issues or disk errors), the error is only logged a...
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
+- Evidencia: `ensure_default_settings()` acumula erros e pode levantar `RuntimeError` em modo `fail_fast=True`.
 
-## 5. [pending] core/config_manager.py:44
+## 5. [resolved] core/config_manager.py:44
 - Item: **Suppressed Exceptions in Atomic File Operations** In the `_atomic_write_json_file` function, exceptions during file descriptor closing and temporary file removal are suppresse...
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
+- Evidencia: cleanup de `_atomic_write_json_file` registra warning explicito em falha de close/remove (sem suppress silencioso).
 
 ## 6. [pending] extracao/extractor.py:259
 - Item: After detecting the header row and extracting data, the function does not validate that all required columns are present in the resulting DataFrame. This could lead to downstrea...
@@ -319,9 +321,10 @@ Legenda:
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 - Evidencia: caminho de sentinel usa `put_nowait/get_nowait` com loop de retry sem timeout bloqueante.
 
-## 73. [pending] core/config_manager.py:86
+## 73. [resolved] core/config_manager.py:86
 - Item: **Potential File Descriptor Leak in `_atomic_copy_file`** If `os.close(fd)` fails inside the inner `try`/`except`, the file descriptor is never closed and will leak, as the `fin...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `_atomic_copy_file` usa `NamedTemporaryFile(delete=False)` e nao mantem caminho de leak por fd manual.
 
 ## 74. [resolved] scripts/run_pytest_stream_and_log.py:167
 - Item: Race condition: The `dropped_lines` variable is accessed without synchronization from the reader thread. Multiple concurrent accesses at lines 115, 132, 136-137, 145-147 create ...
