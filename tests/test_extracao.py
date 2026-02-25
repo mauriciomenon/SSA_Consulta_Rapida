@@ -91,6 +91,14 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert df['localizacao'].iloc[1] == 'Sala B'
 
 
+def test_read_report_returns_error_metadata_on_missing_file():
+    df, metadata = read_report("/tmp/arquivo_inexistente_12345.xlsx")
+    assert isinstance(df, pd.DataFrame)
+    assert df.empty
+    assert metadata["stats_dict"]["status"] == "error"
+    assert "error" in metadata["stats_dict"]
+
+
 def test_normalize_tempo_excedido_minutes_with_m_suffix():
     assert _normalize_tempo_excedido_value("1h 30m") == "PT1H30M"
     assert _normalize_tempo_excedido_value("15mi") == "PT15M"

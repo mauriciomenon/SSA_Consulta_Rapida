@@ -1111,3 +1111,11 @@ Opcao:
 3. [resolved][batch01] id 27: finish event payload assertions added.
 4. [resolved][batch01] id 28: cancel-state UI assertions expanded.
 5. [resolved][batch01] id 29: success-path cleanup test added.
+
+## Update 2026-02-25 (batch02 extractor contract compatibility)
+
+1. [resolved][batch02] id 33/34: `read_report` contract/documentation aligned to always return `(DataFrame, metadata)`; on error returns empty DataFrame with `stats_dict` error details.
+2. [resolved][batch02] id 35 (rule compliance): `read_report` now uses `utils.robust_importer.import_excel_robust` as primary ingestion path.
+3. [resolved][batch02] compatibility guard: fallback to `extract_data_from_excel` only when robust path returns empty/zero columns.
+4. [validation][batch02] gates passed for touched files: `py_compile`, `ruff`, `ty`, `pytest -q tests/test_extracao.py` (5 passed).
+5. [note][batch02] unresolved broad refactor to make robust importer sole ingestion path in all extraction layers remains deferred by scope policy.

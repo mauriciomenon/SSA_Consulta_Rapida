@@ -783,3 +783,22 @@ Entregavel de cada slice:
   - `ruff check` on touched tests: pass.
   - `ty check` on touched tests: pass.
   - `uv run pytest -q` (batch tests): pass (9 tests).
+
+## Update 2026-02-25 (extractor batch02 contract + robust primary path)
+
+- `extracao/extractor.py`
+  - `read_report` stabilized to always return `DataFrame` + `metadata`.
+  - missing-file and fallback errors return empty DataFrame with explicit `stats_dict` error payload.
+  - primary ingestion switched to `import_excel_robust`; compatibility fallback to legacy extractor only when robust output is empty.
+- `tests/test_extracao.py`
+  - added/updated regression for missing-file behavior to assert empty DataFrame + error metadata.
+- gate local deste slice:
+  - `python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  - `ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  - `ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  - `.venv/bin/python -m pytest -q tests/test_extracao.py`: pass (5 tests).
+- kluster progression:
+  - first run: 2 findings (P4 rule_3/rule_18).
+  - second run: 1 finding (P4 rule_18).
+  - third run: 2 findings (P3 Optional-return risk + P4 fallback clarification).
+  - final run: clean.
