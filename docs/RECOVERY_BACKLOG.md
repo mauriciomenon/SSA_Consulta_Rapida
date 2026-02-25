@@ -1241,3 +1241,10 @@ Opcao:
 1. [resolved] id 8: `FilterCache.put()` agora valida tipo de `result` antes de copiar para evitar excecao em entrada invalida.
 2. [validation] teste focado novo em `tests/test_filter_cache_locking.py` para garantir que valor nao-DataFrame e ignorado sem quebrar cache.
 3. [scope] patch minimo local; sem refatoracao ampla.
+
+## Update 2026-02-26 (batch12 config matrix sync)
+
+1. [resolved] ids 4/5: comportamento atual de `ensure_default_settings` e `_atomic_write_json_file` ja evita falha silenciosa e registra erros explicitamente.
+2. [resolved] id 73: caminho antigo de leak de fd em `_atomic_copy_file` nao existe mais com uso de `NamedTemporaryFile`.
+3. [validation] testes focados de config executados com resultado verde (8 passed).
+4. [scope] sincronizacao documental apenas; runtime inalterado neste slice.
