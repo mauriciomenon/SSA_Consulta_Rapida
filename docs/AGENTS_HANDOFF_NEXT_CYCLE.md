@@ -920,3 +920,20 @@ Entregavel de cada slice:
 - processo:
   - qwen usado para triagem/checklist rapido;
   - patch e validacao final executados pelo agente principal.
+
+## Update 2026-02-26 (batch07.1 cache/config sync)
+
+- arquivos alterados:
+  - `tests/test_caching.py`
+    - novo teste `test_get_files_to_process_requeues_when_stat_unavailable` para travar comportamento de reenfileirar quando `stat` falha.
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 53` e `id 68` sincronizados para `resolved` com evidencia.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update do ciclo batch07.1 adicionado.
+- validacao:
+  - `py_compile tests/test_caching.py`: pass.
+  - `ruff check tests/test_caching.py docs/PENDING_ACTION_MATRIX.md docs/RECOVERY_BACKLOG.md`: pass.
+  - `ty check tests/test_caching.py`: pass.
+  - `pytest -q tests/test_caching.py tests/test_config_manager_mappings_integrity.py`: 8 passed.
+- processo:
+  - kluster apontou 1 erro critico de escopo no teste novo (NameError), corrigido no mesmo slice e revalidado clean.
