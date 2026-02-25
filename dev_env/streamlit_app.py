@@ -723,6 +723,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": True,
                 "page_number": 1,
                 "width_profile": "Padrao (1600)",
+                "table_mode": "Tabela + grafico",
             }
         table_state = st.session_state[table_state_key]
         table_state["page_size"] = int(table_state.get("page_size", 250))
@@ -731,18 +732,22 @@ if REAL_RUNTIME and not raw_df.empty:
         table_state["sort_desc"] = bool(table_state.get("sort_desc", False))
         table_state["page_number"] = int(table_state.get("page_number", 1))
         table_state["width_profile"] = str(table_state.get("width_profile", "Padrao (1600)"))
+        table_state["table_mode"] = str(table_state.get("table_mode", "Tabela + grafico"))
 
         with st.form("filters_form", clear_on_submit=False):
-            search_input = st.text_input(
+            st.caption("Busca e origem")
+            search_row = st.columns([3.2, 1.2])
+            search_input = search_row[0].text_input(
                 "Busca (mesma sintaxe da CLI)",
                 value=filter_state.get("search_terms", ""),
                 placeholder="ex.: svp, !ste, mel4",
             )
-            consult_api_input = st.checkbox(
-                "Ativar consulta manual da API Itaipu",
+            consult_api_input = search_row[1].checkbox(
+                "Consulta API manual",
                 value=bool(filter_state.get("consult_api", False)),
             )
-            row_filters = st.columns([2, 2, 2, 1])
+            st.caption("Selecao de filtros")
+            row_filters = st.columns([1.4, 1.4, 1.4, 0.8])
             situacao_input = row_filters[0].multiselect(
                 "Situacao",
                 situacoes,
@@ -767,15 +772,15 @@ if REAL_RUNTIME and not raw_df.empty:
                     step=50,
                 )
             )
+            st.caption("Colunas e presets")
             selected_display_input = st.multiselect(
                 "Colunas exibidas",
                 options=[column_display_names[col] for col in raw_df.columns],
                 default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
             )
-            preset_cols = st.columns(3)
+            preset_cols = st.columns(2)
             preset_core = preset_cols[0].form_submit_button("Preset core")
             preset_all = preset_cols[1].form_submit_button("Preset all")
-            preset_keep = preset_cols[2].form_submit_button("Manter custom")
             with st.expander("Ajuda rapida", expanded=False):
                 st.markdown(
                     "* Sintaxe basica: `svp, !ste, mel4`\n"
@@ -806,6 +811,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": True,
                 "page_number": 1,
                 "width_profile": "Padrao (1600)",
+                "table_mode": "Tabela + grafico",
             }
             rerun_fn = getattr(st, "rerun", None)
             if callable(rerun_fn):
@@ -819,8 +825,6 @@ if REAL_RUNTIME and not raw_df.empty:
             filter_state["selected_display"] = [column_display_names[col] for col in column_presets["core"]]
         elif preset_all:
             filter_state["selected_display"] = [column_display_names[col] for col in column_presets["all"]]
-        elif preset_keep:
-            filter_state["selected_display"] = selected_display_input
 
         if apply_filters:
             st.session_state[state_key] = {
@@ -877,30 +881,25 @@ if REAL_RUNTIME and not raw_df.empty:
         total_ssas = len(filtered_df)
         original_count = len(raw_df)
         reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
-        table_left, table_right = st.columns([4, 1.2])
-        with table_left:
-            status_cols = st.columns(4)
-            status_cols[0].metric("Total filtrado", total_ssas)
-            status_cols[1].metric("Total original", original_count)
-            status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
-            if 'situacao' in filtered_df.columns and total_ssas:
-                status_counts = filtered_df['situacao'].value_counts()
-                executadas = int(status_counts.get('EXECUTADA', 0))
-                exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
-                status_cols[3].metric("Execucao concluida", f"{exec_rate:.1f}%")
-            else:
-                status_cols[3].metric("Execucao concluida", "-")
+        status_cols = st.columns(5)
+        status_cols[0].metric("Total filtrado", total_ssas)
+        status_cols[1].metric("Total original", original_count)
+        status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
+        status_cols[3].metric("Colunas visiveis", len(view_df.columns))
+        status_cols[4].metric("Cache hit", f"{filter_cache.get_stats()['hit_rate']:.1f}%")
 
-        with table_right:
-            st.caption("Resumo")
-            st.write(f"Registros visiveis: {len(view_df)}")
-            st.write(f"Colunas visiveis: {len(view_df.columns)}")
-            st.write(f"Cache hit rate: {filter_cache.get_stats()['hit_rate']:.1f}%")
+        if 'situacao' in filtered_df.columns and total_ssas:
+            status_counts = filtered_df['situacao'].value_counts()
+            executadas = int(status_counts.get('EXECUTADA', 0))
+            exec_rate = (executadas / total_ssas * 100) if total_ssas else 0
+            st.caption(f"Execucao concluida: {exec_rate:.1f}%")
+        else:
+            st.caption("Execucao concluida: -")
 
-        control_cols = st.columns([2, 1, 1, 1, 1, 1.5])
+        primary_controls = st.columns([2.2, 1, 1.4])
         sort_options = ["(Sem ordenacao)"] + list(view_df.columns)
         sort_column = str(
-            control_cols[0].selectbox(
+            primary_controls[0].selectbox(
                 "Ordenar por",
                 sort_options,
                 index=sort_options.index(table_state.get("sort_column", "(Sem ordenacao)"))
@@ -908,9 +907,22 @@ if REAL_RUNTIME and not raw_df.empty:
                 else 0,
             )
         )
-        sort_desc = bool(control_cols[1].checkbox("Desc", value=table_state.get("sort_desc", False)))
+        sort_desc = bool(primary_controls[1].checkbox("Desc", value=table_state.get("sort_desc", False)))
+        table_mode_options = ["Tabela", "Tabela + grafico"]
+        table_mode = str(
+            primary_controls[2].radio(
+                "Visualizacao",
+                options=table_mode_options,
+                index=table_mode_options.index(table_state.get("table_mode", "Tabela + grafico"))
+                if table_state.get("table_mode", "Tabela + grafico") in table_mode_options
+                else 1,
+                horizontal=True,
+            )
+        )
+
+        secondary_controls = st.columns([1.3, 1.2, 1.1, 1.5])
         page_size = int(
-            control_cols[2].selectbox(
+            secondary_controls[0].selectbox(
                 "Linhas por pagina",
                 [100, 250, 500, 1000, 2000],
                 index=[100, 250, 500, 1000, 2000].index(table_state.get("page_size", 250))
@@ -919,7 +931,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
         )
         table_height = int(
-            control_cols[3].selectbox(
+            secondary_controls[1].selectbox(
                 "Altura tabela (px)",
                 [400, 600, 800, 1000],
                 index=[400, 600, 800, 1000].index(table_state.get("table_height", 600))
@@ -927,7 +939,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 else 1,
             )
         )
-        auto_width = bool(control_cols[4].checkbox("Auto largura", value=table_state.get("auto_width", True)))
+        auto_width = bool(secondary_controls[2].checkbox("Auto largura", value=table_state.get("auto_width", True)))
         width_profile_options = [
             "Compacto (1200)",
             "Padrao (1600)",
@@ -935,7 +947,7 @@ if REAL_RUNTIME and not raw_df.empty:
             "XL (2400)",
         ]
         width_profile = str(
-            control_cols[5].selectbox(
+            secondary_controls[3].selectbox(
                 "Perfil largura",
                 width_profile_options,
                 index=width_profile_options.index(table_state.get("width_profile", "Padrao (1600)"))
@@ -986,6 +998,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": auto_width,
                 "page_number": page_number,
                 "width_profile": width_profile,
+                "table_mode": table_mode,
             }
         )
 
@@ -1010,7 +1023,7 @@ if REAL_RUNTIME and not raw_df.empty:
         if active_summary:
             st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
 
-        if 'situacao' in filtered_df.columns and not filtered_df.empty:
+        if table_mode == "Tabela + grafico" and 'situacao' in filtered_df.columns and not filtered_df.empty:
             chart_df = (
                 filtered_df['situacao']
                 .value_counts()
@@ -1022,17 +1035,30 @@ if REAL_RUNTIME and not raw_df.empty:
 
     with tab_export:
         st.subheader("Exportacao")
-        export_cols = st.columns(4)
+        export_left, export_right = st.columns([2.2, 1.8])
         csv_data = view_df.to_csv(index=False).encode("utf-8")
-        export_cols[0].download_button(
-            "Baixar CSV",
-            csv_data,
-            file_name=f"ssas_filtradas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            help=f"Exporta {len(view_df)} registros em CSV",
-        )
+        with export_left:
+            st.caption("Arquivos")
+            st.download_button(
+                "Baixar CSV",
+                csv_data,
+                file_name=f"ssas_filtradas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                help=f"Exporta {len(view_df)} registros em CSV",
+            )
+            json_text = view_df.to_json(orient='records', date_format='iso', indent=2)
+            if json_text is None:
+                raise RuntimeError("to_json retornou None")
+            st.download_button(
+                "Baixar JSON",
+                json_text.encode('utf-8'),
+                file_name=f"ssas_api_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                help="Formato JSON para integracao com APIs",
+            )
 
-        with export_cols[1]:
+        with export_right:
+            st.caption("Geracao e resumo")
             if st.button("Gerar Excel", help="Prepara arquivo Excel com formatacao"):
                 try:
                     import io
@@ -1060,77 +1086,68 @@ if REAL_RUNTIME and not raw_df.empty:
                     )
                 except ImportError:
                     st.error("openpyxl nao instalado - usando CSV simples")
-
-        json_text = view_df.to_json(orient='records', date_format='iso', indent=2)
-        if json_text is None:
-            raise RuntimeError("to_json retornou None")
-        export_cols[2].download_button(
-            "Baixar JSON",
-            json_text.encode('utf-8'),
-            file_name=f"ssas_api_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json",
-            help="Formato JSON para integracao com APIs",
-        )
-
-        if export_cols[3].button("Resumo estatistico", help="Mostra resumo estatistico"):
-            stats_info = {
-                "total_registros": len(view_df),
-                "colunas_selecionadas": len(selected_columns),
-                "filtros_ativos": len([x for x in [search_terms, situacao_sel, executor_sel, emissor_sel] if x]),
-                "cache_hit_rate": f"{filter_cache.get_stats()['hit_rate']:.1f}%",
-            }
-            st.json(stats_info)
+            if st.button("Resumo estatistico", help="Mostra resumo estatistico"):
+                stats_info = {
+                    "total_registros": len(view_df),
+                    "colunas_selecionadas": len(selected_columns),
+                    "filtros_ativos": len([x for x in [search_terms, situacao_sel, executor_sel, emissor_sel] if x]),
+                    "cache_hit_rate": f"{filter_cache.get_stats()['hit_rate']:.1f}%",
+                }
+                st.json(stats_info)
 
     with tab_ops:
-        st.subheader("Cache")
-        cache_stats = filter_cache.get_stats()
-        ops_col1, ops_col2, ops_col3 = st.columns(3)
-        ops_col1.metric("Entradas cache", f"{cache_stats['size']} / {cache_stats['max_size']}")
-        ops_col2.metric("Hit rate", f"{cache_stats['hit_rate']:.1f}%")
-        ops_col3.metric("Evictions", cache_stats['evictions'])
-        if st.button("Limpar cache", key="clear_cache_ops"):
-            filter_cache.clear()
-            st.info("Cache limpo.")
+        ops_left, ops_right = st.columns([1.3, 2.7])
+        with ops_left:
+            st.subheader("Cache")
+            cache_stats = filter_cache.get_stats()
+            st.metric("Entradas", f"{cache_stats['size']} / {cache_stats['max_size']}")
+            st.metric("Hit rate", f"{cache_stats['hit_rate']:.1f}%")
+            st.metric("Evictions", cache_stats['evictions'])
+            if st.button("Limpar cache", key="clear_cache_ops"):
+                filter_cache.clear()
+                st.info("Cache limpo.")
 
-        st.subheader("API Itaipu")
-        if consult_api:
-            if hasattr(st, "session_state") and st.session_state is not None:
-                if "recent_api_df" not in st.session_state:
-                    st.session_state["recent_api_df"] = None
-            api_actions = st.columns(2)
-            if api_actions[0].button("Atualizar dados API", key="refresh_api_data"):
-                try:
-                    api_items = fetch_pending_ssas(years=1, opts=RequestOptions(timeout=5.0))
-                    mapped = map_to_dataframe(api_items)
-                    if mapped is not None and not mapped.empty:
-                        cols = [
-                            col
-                            for col in (
-                                "numero_ssa",
-                                "situacao",
-                                "setor_emissor",
-                                "setor_executor",
-                                "descricao_ssa",
-                                "data_cadastro",
-                            )
-                            if col in mapped.columns
-                        ]
-                        recent_df = mapped[cols].copy()
-                        if hasattr(st, "session_state") and st.session_state is not None:
-                            st.session_state["recent_api_df"] = recent_df
-                        st.success(f"API retornou {len(recent_df)} registros.")
-                    else:
-                        st.info("API sem novos registros.")
-                except Exception as exc:  # noqa: BLE001
-                    logger.error("Falha ao consultar API Itaipu: %s", exc)
-                    st.warning("Nao foi possivel consultar API. Dashboard segue com base local.")
-            if api_actions[1].button("Limpar snapshot API", key="clear_api_data"):
+        with ops_right:
+            st.subheader("API Itaipu")
+            if consult_api:
                 if hasattr(st, "session_state") and st.session_state is not None:
-                    st.session_state["recent_api_df"] = None
-                st.info("Snapshot de API removido.")
-            if hasattr(st, "session_state") and st.session_state is not None:
-                recent_df = st.session_state.get("recent_api_df")
-            if recent_df is not None and not recent_df.empty:
-                st.dataframe(ensure_arrow_compatible(recent_df), width='stretch', height=240)
-        else:
-            st.info("Ative a opcao de API na aba Filtros para consultar dados recentes.")
+                    if "recent_api_df" not in st.session_state:
+                        st.session_state["recent_api_df"] = None
+                api_actions = st.columns([1.2, 1.2, 2.6])
+                if api_actions[0].button("Atualizar dados API", key="refresh_api_data"):
+                    try:
+                        api_items = fetch_pending_ssas(years=1, opts=RequestOptions(timeout=5.0))
+                        mapped = map_to_dataframe(api_items)
+                        if mapped is not None and not mapped.empty:
+                            cols = [
+                                col
+                                for col in (
+                                    "numero_ssa",
+                                    "situacao",
+                                    "setor_emissor",
+                                    "setor_executor",
+                                    "descricao_ssa",
+                                    "data_cadastro",
+                                )
+                                if col in mapped.columns
+                            ]
+                            recent_df = mapped[cols].copy()
+                            if hasattr(st, "session_state") and st.session_state is not None:
+                                st.session_state["recent_api_df"] = recent_df
+                            st.success(f"API retornou {len(recent_df)} registros.")
+                        else:
+                            st.info("API sem novos registros.")
+                    except Exception as exc:  # noqa: BLE001
+                        logger.error("Falha ao consultar API Itaipu: %s", exc)
+                        st.warning("Nao foi possivel consultar API. Dashboard segue com base local.")
+                if api_actions[1].button("Limpar snapshot API", key="clear_api_data"):
+                    if hasattr(st, "session_state") and st.session_state is not None:
+                        st.session_state["recent_api_df"] = None
+                    st.info("Snapshot de API removido.")
+                api_actions[2].caption("Atualizacao manual para evitar bloqueio em reruns.")
+                if hasattr(st, "session_state") and st.session_state is not None:
+                    recent_df = st.session_state.get("recent_api_df")
+                if recent_df is not None and not recent_df.empty:
+                    st.dataframe(ensure_arrow_compatible(recent_df), width='stretch', height=240)
+            else:
+                st.info("Ative a opcao de API na aba Filtros para consultar dados recentes.")

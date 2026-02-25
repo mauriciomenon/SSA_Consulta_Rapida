@@ -672,3 +672,19 @@ Entregavel de cada slice:
 - `resolved` width-manager contract: `compute_optimal_widths` voltou a assinatura deterministica minima (sem parametros externos de override).
 - `resolved` compatibility call site: `gui/ssa/gui_table.py` alinhado ao contrato final.
 - `resolved` compliance: final `kluster_code_review_auto` clean.
+
+## Update 2026-02-25 (streamlit long cycle v6 layout expansion)
+
+- `resolved` layout(filters): form reorganized in visual blocks (`Busca e origem`, `Selecao de filtros`, `Colunas e presets`).
+- `resolved` layout(table): metrics compacted into top cards; controls split in primary/secondary toolbars.
+- `resolved` layout(table): added `Visualizacao` mode (`Tabela` or `Tabela + grafico`) persisted in session state.
+- `resolved` layout(export): reorganized into two panels (`Arquivos` and `Geracao e resumo`).
+- `resolved` layout(ops): cache/API sections split in two columns with cleaner action placement.
+- `scope` no business-rule changes in filtering logic.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean (no issues).

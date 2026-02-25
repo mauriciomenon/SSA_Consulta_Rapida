@@ -637,3 +637,18 @@ Relatorio final por slice:
 - final width-manager decision for this cycle: deterministic signature without external override params.
 - `gui/ssa/gui_table.py` updated to same deterministic call contract.
 - final kluster state: clean after iterative fixes.
+
+## Latest update 2026-02-25 (streamlit long cycle v6)
+
+- layout/positioning expansion delivered in `dev_env/streamlit_app.py`:
+  - filters form grouped by functional blocks;
+  - table controls split in two rows and view mode toggle added;
+  - export and cache/api tabs reorganized for faster scan and less crowding.
+- behavioral scope unchanged for filter semantics and data processing.
+- gate local deste slice:
+  - `python -m py_compile dev_env/streamlit_app.py`: pass.
+  - `ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass.
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
+- kluster:
+  - `kluster_code_review_auto`: clean.
