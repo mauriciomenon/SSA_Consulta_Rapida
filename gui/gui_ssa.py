@@ -1562,7 +1562,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         return ssa_gui_filters._on_derivada_has_toggled(self, checked)
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
-        return ssa_gui_filters._on_derivada_all_ste_toggled(self, checked)
+        _ = checked
+        return None
 
     def _show_derivadas_popup(self):
         return ssa_gui_filters._show_derivadas_popup(self)

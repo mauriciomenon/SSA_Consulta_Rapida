@@ -1,14 +1,14 @@
-# SSA Consulta Rapida v4.12.0
+# SSA Consulta Rapida v4.20.0
 
-Release 4.12.0 consolida a limpeza documental e garante que README, changelog completo e prioridade de colunas estejam sincronizados com os testes automatizados. Esta versao tambem atualiza os metadados de versao, reafirma o escopo de logging robusto e mantem o historico completo das correcões anteriores.
+Release 4.20.0 consolida ajustes de usabilidade e estabilidade nos filtros avancados, com melhor controle de espaco em telas menores e atualizacao do seletor de derivadas.
 
-## Release v4.12.0 (2025-12)
+## Release v4.20.0 (2026-02)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.12.0 com foco em limpeza documental e paridade de testes.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.20.0 com foco em usabilidade e estabilidade dos filtros avancados.
 
 ### Otimização de Requirements (2025-12-05)
 - **Objetivo:** Reduzir redundâncias e melhorar manutenção

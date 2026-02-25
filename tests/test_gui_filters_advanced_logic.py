@@ -293,6 +293,7 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
         "ano_emissao_exclude",
         "ano_execucao",
         "ano_execucao_exclude",
+        "derivada_all_ste",
         "responsavel_solicitante",
         "responsavel_solicitante_exclude_values",
         "divisao",
