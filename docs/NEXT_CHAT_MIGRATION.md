@@ -678,3 +678,10 @@ Relatorio final por slice:
 - fixed startup path issue for direct invocation:
   - `/Users/menon/git/SSA_Consulta_Rapida/.venv/bin/python /Users/menon/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py`
   - previous error `ModuleNotFoundError: No module named 'core'` is resolved.
+
+## Latest update 2026-02-25 (streamlit tests)
+
+- added regression tests for:
+  - `_build_table_caption` in compact and non-compact modes;
+  - `_update_render_telemetry` session-state accumulation.
+- focused streamlit test suite now at 14 passing tests.
