@@ -64,4 +64,5 @@ def test_column_visibility_loop_continues_when_save_fails(monkeypatch):
 
     command_handlers._handle_column_visibility(settings)
 
-    assert settings["display_settings"]["column_visibility"]["numero_ssa"] is False
+    # Save falhou, entao a alteracao deve ser desfeita para estado original.
+    assert settings["display_settings"]["column_visibility"]["numero_ssa"] is True

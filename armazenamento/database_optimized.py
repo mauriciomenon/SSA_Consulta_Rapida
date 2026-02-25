@@ -38,6 +38,13 @@ SQLITE_SAFETY_EXTRA_COLUMNS = 1
 SQLITE_DEFAULT_CHUNK_CAP = 500
 
 
+def _quote_identifier(identifier: str) -> str:
+    """Quote a validated SQL identifier."""
+    if not is_valid_identifier(identifier):
+        raise ValueError(f"Invalid SQL identifier: {identifier!r}")
+    return f'"{identifier}"'
+
+
 def _normalize_ssa_storage_value(value) -> str | None:
     normalized_int = _normalize_numero_ssa_value(value)
     if normalized_int is None:
@@ -101,7 +108,8 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
             if not is_valid_identifier(table):
                 continue
             try:
-                fk_rows = conn.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
+                quoted_table = _quote_identifier(table)
+                fk_rows = conn.execute(f"PRAGMA foreign_key_list({quoted_table})").fetchall()
             except Exception:
                 continue
             for fk in fk_rows:
@@ -192,11 +200,12 @@ def insert_dataframe_optimized(
             target_table = _resolve_physical_table(conn, table_name)
             if not is_valid_identifier(target_table):
                 raise ValueError(f"Invalid SQL identifier for table: {target_table!r}")
+            target_table_sql = _quote_identifier(target_table)
 
             # Criar índice temporário se não existir
             try:
                 idx_stmt = (
-                    f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {target_table}(numero_ssa)"
+                    f"CREATE INDEX IF NOT EXISTS idx_temp_numero_ssa ON {target_table_sql}(numero_ssa)"
                 )
                 conn.execute(idx_stmt)
             except Exception as e:  # pragma: no cover - não crítico
@@ -260,7 +269,7 @@ def insert_dataframe_optimized(
                             chunk_ssas = unique_ssas[i:i + lookup_chunk]
                             placeholders = ",".join(["?"] * len(chunk_ssas))
                             query = (
-                                f"SELECT numero_ssa, data_cadastro FROM {target_table} "
+                                f"SELECT numero_ssa, data_cadastro FROM {target_table_sql} "
                                 f"WHERE numero_ssa IN ({placeholders})"
                             )
                             chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
@@ -330,7 +339,7 @@ def insert_dataframe_optimized(
                         elif _has_referencing_foreign_keys(conn, target_table):
                             set_clause = ", ".join([f"{col}=?" for col in update_columns])
                             update_sql = (
-                                f"UPDATE {target_table} SET {set_clause} WHERE numero_ssa=?"
+                                f"UPDATE {target_table_sql} SET {set_clause} WHERE numero_ssa=?"
                             )
                             for i in range(0, len(update_df), CHUNK_SIZE):
                                 chunk = update_df.iloc[i:i + CHUNK_SIZE]
@@ -351,7 +360,7 @@ def insert_dataframe_optimized(
                                 chunk_ssas = ssa_list[i:i + CHUNK_SIZE]
                                 ssa_placeholders = ','.join(['?'] * len(chunk_ssas))
                                 delete_query = (
-                                    f"DELETE FROM {target_table} WHERE numero_ssa IN ({ssa_placeholders})"
+                                    f"DELETE FROM {target_table_sql} WHERE numero_ssa IN ({ssa_placeholders})"
                                 )
                                 conn.execute(delete_query, chunk_ssas)
 
@@ -362,7 +371,7 @@ def insert_dataframe_optimized(
                             quoted_columns = ", ".join([f'"{col}"' for col in insert_columns])
                             value_placeholders = ", ".join(["?"] * len(insert_columns))
                             insert_sql = (
-                                f"INSERT INTO {target_table} ({quoted_columns}) "
+                                f"INSERT INTO {target_table_sql} ({quoted_columns}) "
                                 f"VALUES ({value_placeholders})"
                             )
                             for i in range(0, len(update_df), CHUNK_SIZE):

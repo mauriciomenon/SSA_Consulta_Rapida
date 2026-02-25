@@ -293,8 +293,14 @@ def _import_single_file(
     except ImporterError:
         raise
     except Exception as e:
-        logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
-        raise ExtractionError(f"Erro ao importar {file_path}: {e}") from e
+        error_type = type(e).__name__
+        logger.exception(
+            "Erro inesperado (%s) ao importar '%s': %s",
+            error_type,
+            file_path,
+            e,
+        )
+        raise ExtractionError(f"{error_type} ao importar {file_path}: {e}") from e
 
 
 def _is_derivadas_sheet_file(file_path: str) -> bool:
