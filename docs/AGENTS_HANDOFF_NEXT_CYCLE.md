@@ -952,3 +952,15 @@ Entregavel de cada slice:
   - `ruff check tests/test_rescan_progress_dialog.py docs/PENDING_ACTION_MATRIX.md docs/RECOVERY_BACKLOG.md`: pass.
   - `ty check tests/test_rescan_progress_dialog.py`: pass.
   - `pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: 6 passed.
+
+## Update 2026-02-26 (batch08 id64 matrix sync)
+
+- docs alterados:
+  - `docs/PENDING_ACTION_MATRIX.md`
+    - `id 64` marcado como `resolved` com evidencia.
+  - `docs/RECOVERY_BACKLOG.md`
+    - update do ciclo batch08 adicionado.
+- validacao:
+  - `pytest -q tests/test_rescan_worker_cleanup.py`: 2 passed.
+- escopo:
+  - sem mudanca de runtime; apenas sincronizacao documental com evidencia de teste.

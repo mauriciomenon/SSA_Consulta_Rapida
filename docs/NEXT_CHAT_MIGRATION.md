@@ -817,3 +817,12 @@ Relatorio final por slice:
 - gate do ciclo:
   - `py_compile`, `ruff`, `ty` nos arquivos tocados: pass.
   - `pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: 6 passed.
+
+## Latest update 2026-02-26 (batch08 id 64)
+
+- id 64:
+  - confirmado que cleanup de `gui/workers/rescan_worker.py` nao usa `suppress` e registra warning em falha de detach.
+- docs:
+  - `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md` sincronizados para `resolved`.
+- gate do ciclo:
+  - `pytest -q tests/test_rescan_worker_cleanup.py`: 2 passed.
