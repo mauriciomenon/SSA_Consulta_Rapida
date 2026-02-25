@@ -12,6 +12,7 @@ import re
 from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
+from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
 
@@ -429,7 +430,7 @@ def extract_data_from_excel(
         logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
         raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
 
-def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
 
@@ -441,10 +442,43 @@ def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]
         file_path: Caminho do arquivo .xlsx a ser lido.
 
     Returns:
-        Tuple[Optional[pd.DataFrame], Dict[str, Any]]: O DataFrame resultante (ou None em caso de erro)
-        e um dicionário de metadados mínimos contendo ao menos o caminho de origem.
+        Tuple[pd.DataFrame, Dict[str, Any]]: O DataFrame resultante
+        (vazio em caso de erro) e metadados minimos com source_path e stats_dict.
     """
-    df = extract_data_from_excel(file_path)
-    metadata: Dict[str, Any] = {"source_path": file_path}
-    # Poderemos adicionar mais metadados no futuro (ex.: número de planilhas, tempo de execução, etc.)
+    if not os.path.exists(file_path):
+        metadata: Dict[str, Any] = {
+            "source_path": file_path,
+            "stats_dict": {"status": "error", "error": f"File not found: {os.path.basename(file_path)}"},
+        }
+        logger.warning("Falha em read_report para '%s': arquivo nao encontrado", file_path)
+        return pd.DataFrame(), metadata
+
+    df, stats_dict = import_excel_robust(file_path)
+    if df.empty or len(df.columns) == 0:
+        logger.info(
+            "read_report fallback para extract_data_from_excel em '%s' (resultado robust vazio)",
+            file_path,
+        )
+        try:
+            fallback_df = extract_data_from_excel(file_path)
+            stats_dict = {
+                **stats_dict,
+                "fallback_used": True,
+                "fallback_rows": int(len(fallback_df)),
+            }
+            df = fallback_df
+        except ExtractionError as exc:
+            return pd.DataFrame(), {
+                "source_path": file_path,
+                "stats_dict": {
+                    **stats_dict,
+                    "status": "error",
+                    "error": str(exc),
+                    "fallback_used": True,
+                },
+            }
+    metadata = {
+        "source_path": file_path,
+        "stats_dict": stats_dict,
+    }
     return df, metadata

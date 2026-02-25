@@ -706,3 +706,15 @@ Relatorio final por slice:
 - batch01 completed for ids 24/25/27/28/29 with focused test-only patches.
 - qwen delegation confirmed in practice for `ruff` + `ty` execution (with `-y`), followed by independent final validation by main agent.
 - observed tradeoff: qwen helps reduce reasoning-token load for repetitive checks, but has higher per-call latency.
+
+## Latest update 2026-02-25 (extractor batch02)
+
+- scope delivered:
+  - stabilized `read_report` return contract to avoid `NoneType` regressions in legacy callers.
+  - primary Excel read in `read_report` now goes through `import_excel_robust`.
+  - preserved compatibility with controlled fallback to `extract_data_from_excel` when robust output is empty.
+- tests and checks:
+  - `py_compile`, `ruff`, `ty` for touched files: pass.
+  - focused test `tests/test_extracao.py`: 5 passed.
+- risk note:
+  - strict "robust-only everywhere" migration in full extraction stack is intentionally deferred to exclusive sprint (cross-module impact).
