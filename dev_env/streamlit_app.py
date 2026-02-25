@@ -9,21 +9,39 @@ import logging
 import math
 import os
 import sqlite3
+import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional, Tuple, cast
 
 import pandas as pd
-from core.app_logic import (
-    filter_dataframe,
-    get_filtered_data,
-    import_files_to_database,
-    parse_search_terms,
-)
-from core.config_manager import load_display_mappings_integrity
-from gui.simple_width_manager import SimpleWidthManager
-from utils.path_safety import PathSafetyError, ensure_path_is_allowed
-from utils.remote_itaipu import RequestOptions, fetch_pending_ssas, map_to_dataframe
+
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+project_root = _get_project_root()
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+app_logic = importlib.import_module("core.app_logic")
+config_manager = importlib.import_module("core.config_manager")
+width_manager_module = importlib.import_module("gui.simple_width_manager")
+path_safety_module = importlib.import_module("utils.path_safety")
+remote_itaipu_module = importlib.import_module("utils.remote_itaipu")
+
+filter_dataframe = app_logic.filter_dataframe
+get_filtered_data = app_logic.get_filtered_data
+import_files_to_database = app_logic.import_files_to_database
+parse_search_terms = app_logic.parse_search_terms
+load_display_mappings_integrity = config_manager.load_display_mappings_integrity
+SimpleWidthManager = width_manager_module.SimpleWidthManager
+PathSafetyError = path_safety_module.PathSafetyError
+ensure_path_is_allowed = path_safety_module.ensure_path_is_allowed
+RequestOptions = remote_itaipu_module.RequestOptions
+fetch_pending_ssas = remote_itaipu_module.fetch_pending_ssas
+map_to_dataframe = remote_itaipu_module.map_to_dataframe
 
 try:
     st = cast(Any, importlib.import_module("streamlit"))

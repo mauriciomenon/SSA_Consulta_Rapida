@@ -943,3 +943,7 @@ Regra de lint para este ciclo:
 ## Update 2026-02-25 (streamlit long cycle v7.1 note)
 
 1. [note] Local helper extraction done; larger streamlit module split still deferred to dedicated refactor sprint.
+
+## Update 2026-02-25 (streamlit startup note)
+
+1. [note] Direct-python startup import issue fixed with local bootstrap and dynamic module loading.

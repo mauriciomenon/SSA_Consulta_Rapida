@@ -714,3 +714,13 @@ Entregavel de cada slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (11 tests).
 - kluster:
   - `kluster_code_review_auto`: clean.
+
+## Update 2026-02-25 (streamlit import bootstrap fix for direct python run)
+
+- `resolved` startup(streamlit): fixed `ModuleNotFoundError: core` when running `python dev_env/streamlit_app.py` directly.
+- implementation detail:
+  - added `_get_project_root()` helper;
+  - ensured project root is added to `sys.path` before loading app modules;
+  - switched app module loading to `importlib.import_module(...)` for stable direct-run bootstrap.
+- validation:
+  - direct run command now exits without import error.
