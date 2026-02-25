@@ -24,20 +24,23 @@ def test_filter_cache_uses_lock_for_all_mutations_and_reads():
     df = pd.DataFrame({"a": [1, 2]})
 
     assert spy.enter_count == 0
+    before_put = spy.enter_count
     cache.put("df1", [["x"]], "contains", df)
-    assert spy.enter_count >= 1
+    assert spy.enter_count == before_put + 1
     assert spy.enter_count == spy.exit_count
 
     before_get = spy.enter_count
     hit = cache.get("df1", [["x"]], "contains")
     assert isinstance(hit, pd.DataFrame)
-    assert spy.enter_count > before_get
+    assert spy.enter_count == before_get + 1
     assert spy.enter_count == spy.exit_count
 
     before_stats = spy.enter_count
     stats = cache.get_stats()
     assert stats["hits"] >= 1
-    assert spy.enter_count > before_stats
+    assert spy.enter_count == before_stats + 1
 
+    before_clear = spy.enter_count
     cache.clear()
+    assert spy.enter_count == before_clear + 1
     assert spy.enter_count == spy.exit_count

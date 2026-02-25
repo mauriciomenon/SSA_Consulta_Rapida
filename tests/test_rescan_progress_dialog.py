@@ -27,6 +27,9 @@ def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
 
     assert len(emitted) == 1
     assert dlg._cancel_requested is True
+    assert dlg.cancel_button.isEnabled() is False
+    assert dlg.close_button.isEnabled() is False
+    assert "Cancelamento solicitado" in dlg.status_label.text()
     assert dlg.isVisible() is True
 
     # Second reject should close without emitting cancel again.

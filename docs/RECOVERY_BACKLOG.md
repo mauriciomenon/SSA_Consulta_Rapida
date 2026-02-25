@@ -1103,3 +1103,11 @@ Opcao:
 1. [resolved][batch01] id 21: concurrent atomic-write coverage added in `tests/test_caching_atomic_save.py`.
 2. [resolved][batch01] id 22: explicit schema precondition check in `tests/test_database_optimized_alias_views.py`.
 3. [resolved][batch01] id 23: explicit temporary db cleanup in `tests/test_database_optimized_alias_views.py`.
+
+## Update 2026-02-25 (batch01 completion note)
+
+1. [resolved][batch01] id 24: lock-usage assertions strengthened.
+2. [resolved][batch01] id 25: QMessageBox patch target made less brittle.
+3. [resolved][batch01] id 27: finish event payload assertions added.
+4. [resolved][batch01] id 28: cancel-state UI assertions expanded.
+5. [resolved][batch01] id 29: success-path cleanup test added.

@@ -28,6 +28,7 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
     )
 
     insert_count = {"n": 0}
+    progress_events = []
 
     def fake_extract_data_from_excel(file_path: str, *, should_cancel=None):
         assert should_cancel is not None
@@ -54,6 +55,7 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
     cancel_flag = {"cancel": False}
 
     def progress_callback(event_type, data):
+        progress_events.append((event_type, dict(data)))
         if event_type == "file_success" and not cancel_flag["cancel"]:
             cancel_flag["cancel"] = True
 
@@ -77,3 +79,8 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
 
     assert insert_count["n"] == 1
     assert len(cache) == 1
+    assert progress_events
+    assert progress_events[-1][0] == "finish"
+    finish_payload = progress_events[-1][1]
+    assert finish_payload["total"] == 5
+    assert finish_payload["processed"] == 1
