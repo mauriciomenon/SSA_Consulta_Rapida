@@ -274,9 +274,10 @@ Legenda:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 - Evidencia: segunda chamada de `reject()` fecha o dialogo (`QDialog.Rejected`) sem reemitir cancel.
 
-## 64. [pending] gui/workers/rescan_worker.py:162
+## 64. [resolved] gui/workers/rescan_worker.py:162
 - Item: RescanWorker cleanup: the finally block wraps `_detach_logger()` in `suppress(Exception)`, but `_detach_logger()` performs multiple state updates (removeHandler, refcount decrem...
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
+- Evidencia: cleanup atual nao usa `suppress`; falha de detach gera warning explicito e suite focada de cleanup esta verde.
 
 ## 65. [resolved] gui/widgets/rescan_progress_dialog.py:131
 - Item: In `set_finished`, when the rescan fails (`success == False`) and the `message` argument is empty, the error display (`self.error_text`) is not updated with any indication of fa...

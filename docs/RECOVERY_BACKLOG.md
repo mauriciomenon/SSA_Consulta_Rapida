@@ -1221,3 +1221,9 @@ Opcao:
 1. [resolved] id 66: `tests/test_rescan_progress_dialog.py` agora usa espera curta por condicao para reduzir flakiness de event loop.
 2. [scope] nenhuma mudanca de runtime em GUI; apenas robustez de teste.
 3. [validation] suite focada de rescan dialog/worker permaneceu verde apos ajuste.
+
+## Update 2026-02-26 (batch08 matrix sync id64)
+
+1. [resolved] id 64: estado atual de `rescan_worker` nao usa `suppress` no cleanup de logger; falha de detach e registrada com warning.
+2. [validation] `tests/test_rescan_worker_cleanup.py` executado com resultado verde (2 passed).
+3. [scope] sincronizacao documental somente; sem mudanca de runtime neste slice.
