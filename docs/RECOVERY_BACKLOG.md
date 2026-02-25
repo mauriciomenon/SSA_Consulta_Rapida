@@ -110,6 +110,20 @@ Validation:
 2. `uv run pytest -q tests/test_config_manager_mappings_integrity.py` green (`4 passed`).
 3. kluster auto clean.
 
+## Update 2026-02-25 (approved execution marker: filtros avancados ui stabilization)
+
+Status:
+1. user approved execution plan before code edits.
+2. next implementation will run in 4 slices with minimal scope drift and focused validation.
+
+Approved scope for next slice:
+1. prevent advanced filters panel from stealing table reading area.
+2. replace fixed breakpoint layout policy (wide/mid/narrow) with continuous responsive distribution.
+3. restore reprogramacoes behavior in initial refresh and apply flow.
+4. more aggressive control redesign in advanced filters panel:
+   - ste control migration from checkbox to toggle-style button.
+   - stronger cleanup of button width policy to remove fragile fixed-width behavior.
+
 ## Current sprint status snapshot (PR 31)
 
 - Operational:
