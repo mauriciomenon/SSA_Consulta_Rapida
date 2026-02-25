@@ -1097,3 +1097,9 @@ Escopo:
 Opcao:
 1. A: manter como deferred e executar por fatias pequenas (recomendado).
 2. B: ciclo unico amplo (maior risco de regressao).
+
+## Update 2026-02-25 (batch01 progress)
+
+1. [resolved][batch01] id 21: concurrent atomic-write coverage added in `tests/test_caching_atomic_save.py`.
+2. [resolved][batch01] id 22: explicit schema precondition check in `tests/test_database_optimized_alias_views.py`.
+3. [resolved][batch01] id 23: explicit temporary db cleanup in `tests/test_database_optimized_alias_views.py`.

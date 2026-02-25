@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import utils.caching as caching
 
@@ -36,3 +37,21 @@ def test_save_cache_writes_valid_json(tmp_path):
 
     loaded = json.loads(cache_file.read_text(encoding="utf-8"))
     assert loaded == data
+
+
+def test_save_cache_concurrent_writes_remain_valid_json(tmp_path):
+    cache_file = tmp_path / "file_cache.json"
+    payloads = [
+        {"a.xlsx": "hash_a"},
+        {"b.xlsx": "hash_b"},
+        {"c.xlsx": "hash_c"},
+        {"d.xlsx": "hash_d"},
+    ]
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(caching.save_cache, payload, str(cache_file)) for payload in payloads]
+        for future in futures:
+            future.result()
+
+    loaded = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert loaded in payloads

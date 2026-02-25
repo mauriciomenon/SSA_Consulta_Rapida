@@ -749,3 +749,17 @@ Entregavel de cada slice:
   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (15 tests).
 - kluster:
   - `kluster_code_review_auto`: clean.
+
+## Update 2026-02-25 (qwen delegation config + batch01 ids 21-23)
+
+- `resolved` process: added dedicated qwen delegation config in `docs/QWEN_CODE_DELEGATION_CONFIG.md`.
+- `resolved` tests(batch01):
+  - id 21: added concurrent atomic-write test in `tests/test_caching_atomic_save.py`.
+  - ids 22-23: schema precondition clarity + explicit db cleanup in `tests/test_database_optimized_alias_views.py`.
+- gate local deste slice:
+  - `python -m py_compile tests/test_caching_atomic_save.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ruff check tests/test_caching_atomic_save.py tests/test_database_optimized_alias_views.py`: pass.
+  - `ty check tests/test_caching_atomic_save.py tests/test_database_optimized_alias_views.py`: pass.
+  - `uv run pytest -q tests/test_caching_atomic_save.py tests/test_database_optimized_alias_views.py`: pass (5 tests).
+- kluster:
+  - final `kluster_code_review_auto`: clean.
