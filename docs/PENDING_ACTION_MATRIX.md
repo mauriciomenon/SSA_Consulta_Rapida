@@ -76,13 +76,15 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: handler atual captura conjunto explicito, faz logger.exception e re-raise.
 
-## 15. [pending] main.py:759
+## 15. [resolved] main.py:759
 - Item: ### Critical Issue: Incomplete Failure Handling for Optimized and Legacy Import Modes If both the optimized import (`enable_optimized_import`) and the legacy import logic fail, ...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: fluxo registra falha otimizada com contexto completo e fail-fast deterministico, sem retry legado automatico, coberto por teste focado.
 
-## 16. [pending] main.py:591
+## 16. [resolved] main.py:591
 - Item: ### Performance Issue: Directory Listing in Debug Mode In the block that lists files in important directories (lines 569-605), if any of these directories contain a large number...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: listagem debug usa `_debug_listdir_preview` com `itertools.islice` e limite de preview.
 
 ## 17. [resolved] scripts/run_pytest_stream_and_log.py:119
 - Item: The warning about dropped lines is only emitted when `dropped_lines % 200 == 1`, which may result in infrequent warnings during periods of high output loss. This could obscure t...
@@ -211,9 +213,10 @@ Legenda:
 - Item: <!-- metadata:{"confidence":7,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes in this PR:\n\n1. Import of `atomic_write_j...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 45. [pending] main.py:487
+## 45. [resolved] main.py:487
 - Item: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully for issues:\n\n1. **Non-ASCII characters...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: mensagem de nivel de log invalido foi normalizada para ASCII e conflito de flags segue com erro explicito.
 
 ## 46. [pending] extracao/extractor.py:214
 - Item: **P1** | Confidence: High The function signature now includes a `should_cancel` callback. The related context shows the primary caller, `run_importer_logic` in `core/app_logic.p...
@@ -224,9 +227,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: validacao de identificador segue ativa e testada.
 
-## 48. [pending] main.py:480
+## 48. [resolved] main.py:480
 - Item: **P2** | Confidence: High Speculative: The validation logic for conflicting CLI flags `--skip-import` and `--force-rescan` is sound. However, the error message references `--res...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: caminho `--version` simplificado sem `except` amplo e alias `--rescan` permanece consistente no parser.
 
 ## 49. [pending] core/app_logic.py:330
 - Item: **[Contextual Comment]** _This comment refers to code near real line 325. Anchored to nearest_changed(328) line 328._ --- **P1** | Confidence: High `run_importer_logic` now has ...

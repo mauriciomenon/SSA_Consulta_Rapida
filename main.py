@@ -193,6 +193,9 @@ def get_app_version():
         return _get_version()
     except ImportError:
         return "3.11+"
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao obter versao via utils.version: %s", exc)
+        return "3.11+"
 
 
 def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
@@ -478,10 +481,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
     # --version: imprime e sai antes de qualquer outra acao
     if getattr(args, 'version', False):
-        try:
-            print(get_app_version())
-        except Exception:
-            print('0.0.0')
+        print(get_app_version())
         return
 
     if getattr(args, "skip_import", False) and getattr(args, "force_rescan", False):
@@ -492,7 +492,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     try:
         logger.setLevel(getattr(logging, args.log_level))
     except AttributeError:
-        print(f"Nível de log inválido: {args.log_level}. Usando INFO.")
+        print(f"Nivel de log invalido: {args.log_level}. Usando INFO.")
         logger.setLevel(logging.INFO)
 
     # Banner inicial
@@ -745,18 +745,20 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
             logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
 
-            try:
-                logger.debug("Executando run_importer_logic...")
-                db_updated = run_importer_logic(force_import=force_import)
-                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-            except Exception as e:
-                logger.error("Falha critica na importacao de dados: %s", e)
+            def _log_import_failure_context() -> None:
                 logger.error("Este e o ponto mais critico do processo. Verifique:")
                 logger.error("  1. Existencia e permissoes da pasta 'data'")
                 logger.error("  2. Conexao com o banco de dados")
                 logger.error("  3. Arquivos Excel na pasta de entrada")
                 logger.error("  4. Memoria disponivel do sistema")
-                raise
+
+            first_import_error: Exception | None = None
+            try:
+                logger.debug("Executando run_importer_logic...")
+                db_updated = run_importer_logic(force_import=force_import)
+                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
+            except Exception as e:
+                first_import_error = e
             finally:
                 # Desativar importacao otimizada apos uso
                 if optimized_enabled:
@@ -767,6 +769,19 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                         pass
                     except Exception as e:
                         logger.warning(f"Falha ao desativar modo otimizado: {e}")
+
+            if first_import_error is not None:
+                if use_optimized and force_import:
+                    logger.error(
+                        "Falha no modo otimizado durante --force-rescan; sem fallback legado automatico para evitar reprocessamento duplicado."
+                    )
+                elif use_optimized:
+                    logger.error(
+                        "Falha no modo otimizado; sem fallback legado automatico para preservar desempenho e previsibilidade."
+                    )
+                logger.error("Falha critica na importacao de dados: %s", first_import_error)
+                _log_import_failure_context()
+                raise first_import_error
 
             if db_updated:
                 logger.info("Banco de dados atualizado com sucesso.")
