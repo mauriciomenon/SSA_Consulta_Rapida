@@ -951,3 +951,7 @@ Regra de lint para este ciclo:
 ## Update 2026-02-25 (streamlit tests note)
 
 1. [note] New coverage added for compact caption and render telemetry helpers.
+
+## Update 2026-02-25 (streamlit telemetry follow-up)
+
+1. [deferred][P4][streamlit/ops] Consider optional cap/window for telemetry history to limit long-session growth.

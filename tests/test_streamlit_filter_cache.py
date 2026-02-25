@@ -5,6 +5,7 @@ import pandas as pd
 from dev_env.streamlit_app import (
     StreamlitFilterCache,
     _build_table_caption,
+    _format_render_stats_line,
     _build_streamlit_column_config,
     _build_column_presets,
     _build_filter_options,
@@ -191,3 +192,13 @@ def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
     assert stats["count"] == 2
     assert stats["last_ms"] == 20.0
     assert stats["total_ms"] == 30.0
+
+
+def test_format_render_stats_line_outputs_expected_values() -> None:
+    line = _format_render_stats_line(
+        "Padrao (1600)",
+        {"count": 2, "total_ms": 30.0, "last_ms": 20.0},
+    )
+    assert "Render tabela (Padrao (1600))" in line
+    assert "ultimo 20.0 ms" in line
+    assert "media 15.0 ms" in line

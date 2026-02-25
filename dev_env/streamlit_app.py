@@ -407,6 +407,14 @@ def _build_table_caption(
     )
 
 
+def _format_render_stats_line(profile: str, profile_stats: dict[str, Any]) -> str:
+    avg_ms = float(profile_stats["total_ms"]) / max(1, int(profile_stats["count"]))
+    return (
+        f"Render tabela ({profile}): "
+        f"ultimo {float(profile_stats['last_ms']):.1f} ms | media {avg_ms:.1f} ms"
+    )
+
+
 def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
     """Aplica filtros CLI com fallback para caso sem cache."""
     if not search_text.strip():
@@ -1179,13 +1187,25 @@ if REAL_RUNTIME and not raw_df.empty:
                 st.info("Cache limpo.")
             if hasattr(st, "session_state") and st.session_state is not None:
                 render_stats = st.session_state.get("streamlit_render_stats", {})
-                profile_stats = render_stats.get(table_state.get("width_profile", "Padrao (1600)"))
-                if profile_stats:
-                    avg_ms = float(profile_stats["total_ms"]) / max(1, int(profile_stats["count"]))
-                    st.caption(
-                        f"Render tabela ({table_state.get('width_profile', 'Padrao (1600)')}): "
-                        f"ultimo {float(profile_stats['last_ms']):.1f} ms | media {avg_ms:.1f} ms"
+                if render_stats:
+                    profile_options = sorted(str(key) for key in render_stats.keys())
+                    default_profile = table_state.get("width_profile", "Padrao (1600)")
+                    selected_profile = st.selectbox(
+                        "Perfil da telemetria",
+                        profile_options,
+                        index=profile_options.index(default_profile)
+                        if default_profile in profile_options
+                        else 0,
+                        key="render_telemetry_profile",
                     )
+                    if st.button("Limpar telemetria", key="clear_render_telemetry"):
+                        st.session_state["streamlit_render_stats"] = {}
+                        st.info("Telemetria limpa.")
+                    profile_stats = render_stats.get(selected_profile)
+                else:
+                    profile_stats = None
+                if profile_stats:
+                    st.caption(_format_render_stats_line(selected_profile, profile_stats))
 
         with ops_right:
             st.subheader("API Itaipu")
