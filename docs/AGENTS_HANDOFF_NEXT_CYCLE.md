@@ -885,3 +885,14 @@ Entregavel de cada slice:
   - novos testes do caminho Windows (busy e erro critico).
 - processo:
   - qwen executou checks repetitivos (ruff/ty/pytest); validacao final tambem executada diretamente pelo agente.
+
+## Update 2026-02-25 (batch04 windows lock region normalization)
+
+- `interface/cli_enhancement_manager.py`
+  - lock Windows em byte unico (`len=1`) e `seek(0)` antes de lock.
+  - fail-fast imediato para erro nao relacionado a lock contention.
+- `tests/test_cli_enhancement_manager_lock_usage.py`
+  - assert adicional para `lock_len == 1` no caminho Windows com retry.
+- processo:
+  - qwen executou checks repetitivos neste slice;
+  - validacao final foi confirmada novamente com ruff/ty/pytest pelo agente principal.
