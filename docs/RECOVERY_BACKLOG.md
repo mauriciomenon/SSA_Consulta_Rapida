@@ -1203,3 +1203,9 @@ Opcao:
 5. [resolved][batch06] ids 1/2/32/47/75/81: evidencias confirmadas no estado atual (savepoint+rollback sem suppress, normalizacao de lookup, validacao de identificador e guardas de PRAGMA).
 6. [validation][batch05+06] gate focado verde no slice: `py_compile`, `ruff`, `ty`, `pytest` (16 passed).
 7. [process] qwen usado para triagem/checklist rapido do lote; decisao tecnica, patch e validacao final mantidos no agente principal.
+
+## Update 2026-02-26 (batch07 rescan dialog matrix sync)
+
+1. [resolved][batch07] ids 10/63/65 sincronizados como resolvidos no `PENDING_ACTION_MATRIX` com evidencia de comportamento atual.
+2. [validation][batch07] testes focados verdes: `tests/test_rescan_progress_dialog.py` e `tests/test_gui_workers_rescan_data.py` (6 passed).
+3. [scope] sem mudanca de runtime neste ciclo; apenas sincronizacao documental para remover pendencia stale.
