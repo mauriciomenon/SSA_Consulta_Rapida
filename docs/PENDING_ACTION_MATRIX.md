@@ -265,9 +265,10 @@ Legenda:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 - Evidencia: implementacao atual usa `self.cancel_requested.emit()` e teste focado esta verde.
 
-## 62. [pending] scripts/run_pytest_stream_and_log_v2.py:176
+## 62. [resolved] scripts/run_pytest_stream_and_log_v2.py:176
 - Item: In scripts/run_pytest_stream_and_log_v2.py, _safe_queue_put mutates dropped_lines (e.g., `dropped_lines += 1`) but the nested function never declares `nonlocal dropped_lines` (u...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: funcao `_safe_queue_put` declara `nonlocal dropped_lines, last_warned` no estado atual.
 
 ## 63. [resolved] gui/widgets/rescan_progress_dialog.py:147
 - Item: RescanProgressDialog.reject() currently emits cancel_requested but never calls super().reject()/close()/hide() in the non-finished case. When this dialog is shown with exec(), t...
@@ -289,18 +290,20 @@ Legenda:
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 - Evidencia: testes agora usam espera curta por condicao (`_spin_until`) em vez de um unico `processEvents()`.
 
-## 67. [pending] scripts/run_pytest_stream_and_log.py:167
+## 67. [resolved] scripts/run_pytest_stream_and_log.py:167
 - Item: The `dropped_lines` variable is accessed without synchronization from multiple threads, creating a race condition. The reader thread (calling `_safe_queue_put`) and the main thr...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: acessos de mutacao e decisao de warning para `dropped_lines` estao protegidos por `dropped_lock`.
 
 ## 68. [resolved] core/config_manager.py:453
 - Item: After successfully writing the default mappings to the file, the function returns `DEFAULT_DISPLAY_MAPPINGS.copy()` instead of reading back the newly created file. This is incon...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: `load_display_mappings_integrity()` reler arquivo restaurado antes do fallback em memoria; teste focado cobre contrato.
 
-## 69. [pending] core/config_manager.py:485
+## 69. [resolved] core/config_manager.py:485
 - Item: After successfully writing the default mappings to the file, the function returns `DEFAULT_COLUMN_MAPPINGS.copy()` instead of reading back the newly created file. This is incons...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `load_column_mappings_integrity()` reler arquivo restaurado e so usa fallback em memoria se releitura falhar.
 
 ## 70. [pending] gui/gui_ssa.py:4275
 - Item: GLOBAL_RETIRED_DATA_LOADER_META[worker] is assigned twice consecutively. This looks like an accidental duplicate and makes it harder to reason about worker lifetime accounting; ...
@@ -310,17 +313,19 @@ Legenda:
 - Item: The dialog's Cancel action (reject override) only emits cancel_requested and keeps the modal dialog open until the user tries to close it a second time. This differs from the PR...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 
-## 72. [pending] scripts/run_pytest_stream_and_log_v2.py:158
+## 72. [resolved] scripts/run_pytest_stream_and_log_v2.py:158
 - Item: In _safe_queue_put(None), the sentinel delivery path uses line_queue.put(..., timeout=0.2) and line_queue.get(..., timeout=0.2). This can still block the reader thread (even if ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: caminho de sentinel usa `put_nowait/get_nowait` com loop de retry sem timeout bloqueante.
 
 ## 73. [pending] core/config_manager.py:86
 - Item: **Potential File Descriptor Leak in `_atomic_copy_file`** If `os.close(fd)` fails inside the inner `try`/`except`, the file descriptor is never closed and will leak, as the `fin...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 74. [pending] scripts/run_pytest_stream_and_log.py:167
+## 74. [resolved] scripts/run_pytest_stream_and_log.py:167
 - Item: Race condition: The `dropped_lines` variable is accessed without synchronization from the reader thread. Multiple concurrent accesses at lines 115, 132, 136-137, 145-147 create ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: secao critica de `dropped_lines` e `last_warned` centralizada com `dropped_lock`.
 
 ## 75. [resolved] armazenamento/database_optimized.py:75
 - Item: SQL injection risk: The PRAGMA statement uses f-string formatting with the table name without validation. While `_has_referencing_foreign_keys` is an internal function, the `tab...
@@ -331,13 +336,15 @@ Legenda:
 - Item: Race condition on global worker retention lists: `GLOBAL_RETIRED_DATA_LOADER_WORKERS` and `GLOBAL_RETIRED_DATA_LOADER_META` are accessed from multiple SSAMainWindow instances wi...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 
-## 77. [pending] scripts/run_pytest_stream_and_log.py:167
+## 77. [resolved] scripts/run_pytest_stream_and_log.py:167
 - Item: The warn_count modulo check at line 142 and 154 can fire on the same count (when warn_count % 200 == 1). At line 138-148, if the second put_nowait succeeds after eviction, it em...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: guard `warn_count != last_warned` evita duplicacao para o mesmo contador.
 
-## 78. [pending] scripts/run_pytest_stream_and_log_v2.py:209
+## 78. [resolved] scripts/run_pytest_stream_and_log_v2.py:209
 - Item: The same duplicate warning issue exists here as in run_pytest_stream_and_log.py. The warn_count modulo check at line 184 and 196 can both trigger on the same count value, potent...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: mesma protecao `warn_count != last_warned` no v2 previne warning duplicado no mesmo contador.
 
 ## 79. [pending] gui/workers/rescan_worker.py:81
 - Item: The _attach_logger and _detach_logger methods modify global state (_LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL) but there's a risk if _attach_logger succeeds and then _detach_logger is...

@@ -1227,3 +1227,11 @@ Opcao:
 1. [resolved] id 64: estado atual de `rescan_worker` nao usa `suppress` no cleanup de logger; falha de detach e registrada com warning.
 2. [validation] `tests/test_rescan_worker_cleanup.py` executado com resultado verde (2 passed).
 3. [scope] sincronizacao documental somente; sem mudanca de runtime neste slice.
+
+## Update 2026-02-26 (batch09/10 matrix sync scripts)
+
+1. [resolved] ids 62/67/72/74: estado atual dos scripts de stream usa `nonlocal` correto, lock para contador compartilhado e caminho de sentinel nao bloqueante.
+2. [resolved] ids 77/78: guard `warn_count != last_warned` presente em v1/v2 para evitar warning duplicado no mesmo contador.
+3. [resolved] id 69: `load_column_mappings_integrity()` reler arquivo restaurado antes de fallback em memoria.
+4. [validation] `py_compile`, `ruff` e `ty` verdes em `scripts/run_pytest_stream_and_log.py` e `scripts/run_pytest_stream_and_log_v2.py`.
+5. [scope] ciclo documental; sem alteracao de runtime.
