@@ -46,9 +46,10 @@ Legenda:
 - Item: **Performance Concern:** The cache always stores a copy of the DataFrame (`result.copy()`) on every put. For large DataFrames, this can be expensive in both time and memory, esp...
 - Solucao proposta: Trocar polling por bloqueio com timeout curto; parametrizar limites; medir antes/depois com metrica simples.
 
-## 10. [pending] gui/widgets/rescan_progress_dialog.py:143
+## 10. [resolved] gui/widgets/rescan_progress_dialog.py:143
 - Item: The `reject` method allows the dialog to close immediately after a cancel request, even if the underlying rescan process has not yet stopped. This could lead to user confusion o...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: `reject()` atual mantem dialogo aberto na primeira tentativa de cancelamento e emite sinal de cancelamento uma vez.
 
 ## 11. [pending] gui/workers/rescan_worker.py:132
 - Item: ### Potential Logger Handler Race Condition The logger handler is added and removed within the worker thread (lines 96, 130), but if multiple threads use the same logger ('ssa')...
@@ -267,17 +268,19 @@ Legenda:
 - Item: In scripts/run_pytest_stream_and_log_v2.py, _safe_queue_put mutates dropped_lines (e.g., `dropped_lines += 1`) but the nested function never declares `nonlocal dropped_lines` (u...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 
-## 63. [pending] gui/widgets/rescan_progress_dialog.py:147
+## 63. [resolved] gui/widgets/rescan_progress_dialog.py:147
 - Item: RescanProgressDialog.reject() currently emits cancel_requested but never calls super().reject()/close()/hide() in the non-finished case. When this dialog is shown with exec(), t...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: segunda chamada de `reject()` fecha o dialogo (`QDialog.Rejected`) sem reemitir cancel.
 
 ## 64. [pending] gui/workers/rescan_worker.py:162
 - Item: RescanWorker cleanup: the finally block wraps `_detach_logger()` in `suppress(Exception)`, but `_detach_logger()` performs multiple state updates (removeHandler, refcount decrem...
 - Solucao proposta: Remover suppress silencioso; manter log com contexto e erro explicito de retorno/rethrow.
 
-## 65. [pending] gui/widgets/rescan_progress_dialog.py:131
+## 65. [resolved] gui/widgets/rescan_progress_dialog.py:131
 - Item: In `set_finished`, when the rescan fails (`success == False`) and the `message` argument is empty, the error display (`self.error_text`) is not updated with any indication of fa...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `set_finished(False, "")` define mensagem padrao de erro e adiciona `ERRO FINAL` no painel.
 
 ## 66. [pending] tests/test_rescan_progress_dialog.py:48
 - Item: **Potential nondeterminism in event processing:** The tests rely on single calls to `QApplication.processEvents()` after dialog actions (e.g., `dlg.reject()`, `dlg.set_finished(...
