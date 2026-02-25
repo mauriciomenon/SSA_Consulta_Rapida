@@ -56,13 +56,15 @@ Legenda:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 - Evidencia: `reject()` atual mantem dialogo aberto na primeira tentativa de cancelamento e emite sinal de cancelamento uma vez.
 
-## 11. [pending] gui/workers/rescan_worker.py:132
+## 11. [resolved] gui/workers/rescan_worker.py:132
 - Item: ### Potential Logger Handler Race Condition The logger handler is added and removed within the worker thread (lines 96, 130), but if multiple threads use the same logger ('ssa')...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: attach/detach usa lock global e refcount; testes focados de cleanup/rescan estao verdes.
 
-## 12. [pending] gui/workers/rescan_worker.py:143
+## 12. [resolved] gui/workers/rescan_worker.py:143
 - Item: ### Cancellation Responsiveness Depends on `run_importer_logic` The cancellation logic relies on `run_importer_logic` invoking the `should_cancel` callback frequently (line 107)...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: worker passa callback `should_cancel`; cenarios de cancelamento e cleanup validados por testes focados.
 
 ## 13. [pending] interface/cli_enhancement_manager.py:134
 - Item: **Potential Data Race in _save_settings:** The `_save_settings` method uses best-effort file locking via `_lock_file_if_possible`, but this approach may not reliably prevent con...
@@ -125,13 +127,15 @@ Legenda:
 - Item: **suggestion (testing):** Fortalea o teste verificando tambm o payload final de progresso "finish" Como `run_importer_logic` agora normaliza e protege `progress_callback`, captu...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 
-## 28. [pending] tests/test_rescan_progress_dialog.py:28
+## 28. [resolved] tests/test_rescan_progress_dialog.py:28
 - Item: **suggestion (testing):** Estenda as asseres para cobrir o estado da UI aps o cancelamento (texto de status e estados habilitado/desabilitado dos botes) Como `reject()` e `set_f...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: testes atuais cobrem estado de UI apos cancelamento (status, botoes, visibilidade e fechamento).
 
-## 29. [pending] tests/test_rescan_worker_cleanup.py:27
+## 29. [resolved] tests/test_rescan_worker_cleanup.py:27
 - Item: **suggestion (testing):** Considere exercitar tambm o caminho de sucesso para comprovar que os handlers so liberados no caso sem erro Para validar completamente o novo cleanup n...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: suite inclui caminho de falha e caminho de sucesso para liberacao de logger/refcount.
 
 ## 30. [pending] interface/cli_enhancement_manager.py:100
 - Item: O lock aplicado em _save_settings() est sendo feito no arquivo temporrio recm-criado. Isso no serializa gravaes concorrentes para o mesmo settings_file (cada processo trava seu ...
@@ -169,9 +173,10 @@ Legenda:
 - Item: load_column_mappings_integrity() agora levanta RuntimeError ao falhar em restaurar o arquivo, o que pode interromper a aplicao em ambientes sem permisso de escrita. Para preserv...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 38. [pending] gui/workers/rescan_worker.py:125
+## 38. [resolved] gui/workers/rescan_worker.py:125
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 1\. <b><i>rescanworker</i></b> exposes raw exception <code> R...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: excecao e logada internamente com stack e emitida para UI com prefixo controlado (`Erro ao executar reescaneamento:`).
 
 ## 39. [pending] gui/gui_ssa.py:6674
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 2\. Rescan thread may outlive app <code> Bug</code> <code> Re...
@@ -318,9 +323,10 @@ Legenda:
 - Item: GLOBAL_RETIRED_DATA_LOADER_META[worker] is assigned twice consecutively. This looks like an accidental duplicate and makes it harder to reason about worker lifetime accounting; ...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 71. [pending] gui/widgets/rescan_progress_dialog.py:143
+## 71. [stale-doc] gui/widgets/rescan_progress_dialog.py:143
 - Item: The dialog's Cancel action (reject override) only emits cancel_requested and keeps the modal dialog open until the user tries to close it a second time. This differs from the PR...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: comportamento atual e intencional e coberto por teste (`primeira rejeicao solicita cancelamento; segunda fecha`).
 
 ## 72. [resolved] scripts/run_pytest_stream_and_log_v2.py:158
 - Item: In _safe_queue_put(None), the sentinel delivery path uses line_queue.put(..., timeout=0.2) and line_queue.get(..., timeout=0.2). This can still block the reader thread (even if ...
@@ -356,9 +362,10 @@ Legenda:
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 - Evidencia: mesma protecao `warn_count != last_warned` no v2 previne warning duplicado no mesmo contador.
 
-## 79. [pending] gui/workers/rescan_worker.py:81
+## 79. [resolved] gui/workers/rescan_worker.py:81
 - Item: The _attach_logger and _detach_logger methods modify global state (_LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL) but there's a risk if _attach_logger succeeds and then _detach_logger is...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: teste de cleanup valida que refcount retorna ao baseline em sucesso e falha.
 
 ## 80. [pending] interface/cli_enhancement_manager.py:118
 - Item: The msvcrt.locking call at line 118 locks 4096 bytes, but the actual file size may be smaller or larger than 4096 bytes. The msvcrt.locking function locks a specific number of b...
