@@ -44,3 +44,13 @@ def test_filter_cache_uses_lock_for_all_mutations_and_reads():
     cache.clear()
     assert spy.enter_count == before_clear + 1
     assert spy.enter_count == spy.exit_count
+
+
+def test_filter_cache_put_ignores_non_dataframe_result():
+    cache = FilterCache(max_size=2)
+
+    cache.put("df1", [["x"]], "contains", None)  # type: ignore[arg-type]
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert cache.get("df1", [["x"]], "contains") is None

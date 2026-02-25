@@ -1235,3 +1235,9 @@ Opcao:
 3. [resolved] id 69: `load_column_mappings_integrity()` reler arquivo restaurado antes de fallback em memoria.
 4. [validation] `py_compile`, `ruff` e `ty` verdes em `scripts/run_pytest_stream_and_log.py` e `scripts/run_pytest_stream_and_log_v2.py`.
 5. [scope] ciclo documental; sem alteracao de runtime.
+
+## Update 2026-02-26 (batch11.1 filter cache type guard)
+
+1. [resolved] id 8: `FilterCache.put()` agora valida tipo de `result` antes de copiar para evitar excecao em entrada invalida.
+2. [validation] teste focado novo em `tests/test_filter_cache_locking.py` para garantir que valor nao-DataFrame e ignorado sem quebrar cache.
+3. [scope] patch minimo local; sem refatoracao ampla.
