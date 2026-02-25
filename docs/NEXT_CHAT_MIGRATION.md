@@ -672,3 +672,9 @@ Relatorio final por slice:
 - follow-up cleanup in `dev_env/streamlit_app.py`:
   - extracted small helpers for table caption and render telemetry update.
 - behavior unchanged; maintenance improved.
+
+## Latest update 2026-02-25 (streamlit direct-run import fix)
+
+- fixed startup path issue for direct invocation:
+  - `/Users/menon/git/SSA_Consulta_Rapida/.venv/bin/python /Users/menon/git/SSA_Consulta_Rapida/dev_env/streamlit_app.py`
+  - previous error `ModuleNotFoundError: No module named 'core'` is resolved.
