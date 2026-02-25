@@ -15,7 +15,7 @@ This handoff is ready to reuse in the next conversation.
   - sem mudanca estrutural de GUI fora do aprovado;
   - validacao focada por slice (`py_compile`, `ruff`, `ty`, `pytest` focado).
 - Proximo foco recomendado:
-  - Batch 09, Batch 10 e Batch 11 (alto impacto real ainda pendente) antes de itens cosmeticos.
+  - Batch 10 residual e grupo main/config/gui residual antes de itens cosmeticos.
 
 ## Update 2026-02-26 (deep analysis consolidation)
 
@@ -28,8 +28,19 @@ This handoff is ready to reuse in the next conversation.
   - medium structural items (main/config/gui) remain tracked; keep out of broad refactor in this sprint.
 - Execution order (next cycle):
   1. Stream scripts security/perf mini-slice (delivered in this cycle).
-  2. Batch 09/10 residual lock.
-  3. Batch 11 resilience lock.
+  2. Batch 11 resilience lock (delivered in this cycle).
+  3. Batch 10 residual lock + main/config/gui residual group.
+
+## Update 2026-02-26 (batch11 resilience lock delivered)
+
+- `main.py` updated to keep deterministic performance default:
+  - optimized import failure logs full context and fails fast by default;
+  - no automatic legacy retry path (including `--force-rescan`).
+- `tests/test_main_import_fallback.py` now covers:
+  - fail-fast without retry on optimized import runtime failure.
+- Validation lock:
+  - `py_compile`, `ruff`, `ty` on touched files: pass.
+  - `uv run pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py`: pass.
 
 ## Update 2026-02-26 (stream scripts security/perf delivered)
 

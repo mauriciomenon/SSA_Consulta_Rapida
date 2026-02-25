@@ -11,9 +11,9 @@ Use this file to migrate context to a new chat without losing execution quality.
   - Sprint C closed (cli lock ids `13,26,30,31,41,80`).
   - E closed: pytest ignores removed from `pyproject.toml` and former script-like test files converted to deterministic pytest tests.
 - Pending priority queue:
-  1. Batch 09: `17, 18, 19, 20, 51, 52, 62, 67, 72, 74`.
-  2. Batch 10: `77, 78, 87, 88`.
-  3. Batch 11: `15, 16, 45, 48`.
+  1. Batch 10 residual: `87, 88`.
+  2. Main/config/gui residual group: `36, 37, 39, 40, 42, 43, 44, 46, 49, 50, 70, 76`.
+  3. Streamlit stabilization queue (separate track).
 - Guardrail:
   - keep minimal patches and avoid broad refactor while closing high-impact semantic/security items first.
 
@@ -29,8 +29,19 @@ Use this file to migrate context to a new chat without losing execution quality.
   - `main.py`, `core/config_manager.py`, `gui/gui_ssa.py` findings are mostly medium and structural; keep for later slices/sprints.
 - Practical next queue:
   1. Stream scripts mini-slice: delivered (path guard + buffered flush + shared runner).
-  2. Stream scripts residual test lock (Batch 09/10).
-  3. Main resilience mini-slice (Batch 11) with zero layout impact.
+  2. Main resilience mini-slice (Batch 11): delivered with deterministic fail-fast behavior.
+  3. Batch 10 residual and main/config/gui residual group.
+
+## Update 2026-02-26 (batch11 resilience lock delivered)
+
+- `main.py`:
+  - optimized import failure now fails fast by default with full context logs;
+  - no automatic legacy retry path (including `--force-rescan`) to keep predictable runtime.
+- `tests/test_main_import_fallback.py`:
+  - added fail-fast lock test without retry.
+- Validation:
+  - `py_compile`, `ruff`, `ty` pass on touched files.
+  - `uv run pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py`: pass.
 
 ## Update 2026-02-26 (stream scripts mini-slice delivered)
 

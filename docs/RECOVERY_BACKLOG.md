@@ -16,10 +16,9 @@ Scope is split by priority to keep delivery safe and incremental.
   - evidence: lockfile-based serialization, bounded nonblocking retries, and atomic write path validated in focused tests.
 
 Current next queue (post A/B/C):
-1. Batch 09 (high impact, medium-high complexity): ids `17, 18, 19, 20, 51, 52, 62, 67, 72, 74`.
-2. Batch 10 (medium impact, medium complexity): ids `77, 78, 87, 88`.
-3. Batch 11 (high impact, medium complexity): ids `15, 16, 45, 48`.
-4. Streamlit stabilization queue (separate track, approved by user).
+1. Batch 10 (medium impact, medium complexity): ids `87, 88` (residual).
+2. Main/config/gui residual pending group: ids `36, 37, 39, 40, 42, 43, 44, 46, 49, 50, 70, 76`.
+3. Streamlit stabilization queue (separate track, approved by user).
 
 ## Update 2026-02-26 (deep analysis snapshot: kluster + lint/type gate)
 
@@ -79,6 +78,23 @@ Validation:
 3. kluster residual after fixes:
    - `scripts/pytest_stream_common.py::run_streaming_pytest` flagged as structural complexity (`god function`).
    - decision: defer to dedicated refactor sprint (non-blocking for current security/perf patch).
+
+## Update 2026-02-26 (batch11 main resilience delivered)
+
+Files changed:
+1. `main.py`
+2. `tests/test_main_import_fallback.py`
+
+Delivered:
+1. optimized import failure now has explicit context logging and deterministic fail-fast by default.
+2. no automatic legacy retry is attempted, including `--force-rescan`, avoiding duplicated heavy reprocess.
+3. `--version` path simplified (no broad `except`).
+4. log-level invalid message normalized to ASCII.
+
+Validation:
+1. `py_compile`, `ruff`, `ty` green for touched files.
+2. `pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py` green (`3 passed`).
+3. kluster auto for `main.py` + focused test returned clean.
 
 ## Current sprint status snapshot (PR 31)
 
