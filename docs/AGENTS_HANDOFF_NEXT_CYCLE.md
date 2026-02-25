@@ -2,6 +2,20 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## Update 2026-02-26 (status real apos sprints A B C)
+
+- Branch ativa: `codex/dev-filtros-stability`.
+- Sprints fechados nesta rodada:
+  - Sprint A: extractor contract/test closure (`ids 6,7,33,34,35,58`).
+  - Sprint B: rescan worker/dialog closure (`ids 11,12,28,29,38,79`; id 71 stale-doc).
+  - Sprint C: cli enhancement lock closure (`ids 13,26,30,31,41,80`).
+- Regras mantidas:
+  - patch minimo, sem refactor amplo fora do escopo;
+  - sem mudanca estrutural de GUI fora do aprovado;
+  - validacao focada por slice (`py_compile`, `ruff`, `ty`, `pytest` focado).
+- Proximo foco recomendado:
+  - Batch 05 e Batch 06 (alto impacto) antes de novos itens cosmeticos.
+
 ## Estado atual
 
 - OVERRIDE 2026-02-24 (estado valido para proxima conversa):

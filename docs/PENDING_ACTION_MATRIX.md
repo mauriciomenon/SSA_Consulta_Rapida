@@ -66,9 +66,10 @@ Legenda:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 - Evidencia: worker passa callback `should_cancel`; cenarios de cancelamento e cleanup validados por testes focados.
 
-## 13. [pending] interface/cli_enhancement_manager.py:134
+## 13. [resolved] interface/cli_enhancement_manager.py:134
 - Item: **Potential Data Race in _save_settings:** The `_save_settings` method uses best-effort file locking via `_lock_file_if_possible`, but this approach may not reliably prevent con...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: lock agora usa lockfile dedicado (`settings_file.lock`) e fluxo de lock nao bloqueante com retry limitado.
 
 ## 14. [stale-doc] interface/command_handlers.py:28
 - Item: **Overly broad exception handling in `_save_settings_handler`:** Catching all exceptions and only printing the error message does not allow for proper error tracking or programm...
@@ -119,9 +120,10 @@ Legenda:
 - Item: The patch target `"gui.mixins.filter_gui_ssa_mixin.QMessageBox.critical"` is tightly coupled to the import path and structure of the module under test. If the import path or the...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 
-## 26. [pending] interface/cli_enhancement_manager.py:24
+## 26. [resolved] interface/cli_enhancement_manager.py:24
 - Item: **suggestion (bug_risk):** File locking is applied to the temp file, so it doesnt actually coordinate concurrent writers on the real settings file. In `_save_settings`, locking ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: lock e aplicado ao lockfile estavel do recurso real, nao ao tempfile de escrita atomica.
 
 ## 27. [pending] tests/test_import_cancellation.py:65
 - Item: **suggestion (testing):** Fortalea o teste verificando tambm o payload final de progresso "finish" Como `run_importer_logic` agora normaliza e protege `progress_callback`, captu...
@@ -137,13 +139,15 @@ Legenda:
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 - Evidencia: suite inclui caminho de falha e caminho de sucesso para liberacao de logger/refcount.
 
-## 30. [pending] interface/cli_enhancement_manager.py:100
+## 30. [resolved] interface/cli_enhancement_manager.py:100
 - Item: O lock aplicado em _save_settings() est sendo feito no arquivo temporrio recm-criado. Isso no serializa gravaes concorrentes para o mesmo settings_file (cada processo trava seu ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: escrita atomica permanece em tempfile, mas serializacao ocorre via lockfile compartilhado.
 
-## 31. [pending] interface/cli_enhancement_manager.py:93
+## 31. [resolved] interface/cli_enhancement_manager.py:93
 - Item: _lock_file_if_possible() usa flock LOCK_EX (bloqueante) em POSIX. Se outro processo ficar segurando o lock, essa chamada pode travar a CLI indefinidamente. Para manter 'best-eff...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: backend POSIX usa `LOCK_EX | LOCK_NB` com retries limitados e aborta sem bloqueio indefinido.
 
 ## 32. [resolved] armazenamento/database_optimized.py:237
 - Item: existing_dict montado a partir de chunk_df['numero_ssa'] sem normalizao de tipo, mas has_ssa['numero_ssa'] foi normalizado para str. Como SQLite pode conter valores antigos com...
@@ -186,9 +190,10 @@ Legenda:
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 3\. Config restore can crash cli <code> Bug</code> <code> Rel...
 - Solucao proposta: Fallback controlado: tentar restaurar, se falhar retornar defaults com aviso claro sem crash.
 
-## 41. [pending] interface/cli_enhancement_manager.py:88
+## 41. [resolved] interface/cli_enhancement_manager.py:88
 - Item: ![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg) The file lock is being applied to the temporary file created by `mkstemp`. Since each process creates a un...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: lockfile do alvo e aberto antes da gravacao atomica e fechamento e tratado em `finally`.
 
 ## 42. [pending] core/app_logic.py:450
 - Item: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes:\n\n1. `_import_single_file` now accepts `s...
@@ -367,9 +372,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: teste de cleanup valida que refcount retorna ao baseline em sucesso e falha.
 
-## 80. [pending] interface/cli_enhancement_manager.py:118
+## 80. [resolved] interface/cli_enhancement_manager.py:118
 - Item: The msvcrt.locking call at line 118 locks 4096 bytes, but the actual file size may be smaller or larger than 4096 bytes. The msvcrt.locking function locks a specific number of b...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: backend Windows usa `LK_NBLCK` em regiao fixa (`len=1`) com retries e fail-fast para erro nao de contencao.
 
 ## 81. [resolved] armazenamento/database_optimized.py:79
 - Item: The _has_referencing_foreign_keys function uses dynamic SQL with f-string at line 77: f"PRAGMA foreign_key_list({table})". The table name comes from sqlite_master, which should ...
