@@ -69,6 +69,20 @@ def test_ensure_default_settings_reports_copy_failure(tmp_path, monkeypatch):
     assert any(item.startswith("copy_failed:") for item in errors)
 
 
+def test_ensure_default_settings_raises_in_fail_fast_mode(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    example = cfg_dir / "default_settings.json.example"
+    example.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(config_manager, "_atomic_copy_file", lambda _src, _dst: (_ for _ in ()).throw(IOError("copy boom")))
+
+    with pytest.raises(RuntimeError, match="ensure_default_settings failed"):
+        config_manager.ensure_default_settings(fail_fast=True)
+
+
 def test_ensure_default_settings_reports_generate_failure(tmp_path, monkeypatch):
     cfg_dir = tmp_path / "cfg"
     cfg_dir.mkdir(parents=True, exist_ok=True)
