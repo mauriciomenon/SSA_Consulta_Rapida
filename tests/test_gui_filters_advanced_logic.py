@@ -224,6 +224,45 @@ def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():
     assert filtered["numero_ssa"].tolist() == ["202400001"]
 
 
+def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003", "202500004"],
+            "num_reprogramacoes": [0, 1, 2, 3],
+        }
+    )
+
+    window_eq = _DummyWindow({"num_reprogramacoes_mode": "eq", "num_reprogramacoes_values": ["2"]})
+    filtered_eq = _apply_advanced_filters(
+        window_eq,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_eq["numero_ssa"].tolist() == ["202500003"]
+
+    window_lte = _DummyWindow({"num_reprogramacoes_mode": "lte", "num_reprogramacoes_values": ["1"]})
+    filtered_lte = _apply_advanced_filters(
+        window_lte,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_lte["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+    window_gte = _DummyWindow({"num_reprogramacoes_mode": "gte", "num_reprogramacoes_values": ["2"]})
+    filtered_gte = _apply_advanced_filters(
+        window_gte,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_gte["numero_ssa"].tolist() == ["202500003", "202500004"]
+
+
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
     ui_source = Path(adv_ui.__file__).read_text(encoding="utf-8")
     logic_source = Path(adv_ui.__file__.replace("_ui.py", "_logic.py")).read_text(encoding="utf-8")

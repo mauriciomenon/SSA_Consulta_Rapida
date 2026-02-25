@@ -39,10 +39,10 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
-LAYOUT_WIDE_MIN_WIDTH = 1050
-LAYOUT_MID_MIN_WIDTH = 650
-LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT = 116
-LAYOUT_ACTION_BTN_MIN_WIDTH_NARROW = 96
+LAYOUT_GRID_MIN_COLS = 2
+LAYOUT_GRID_MAX_COLS = 5
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 176
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 320
 
 
 def _is_widget_valid(widget) -> bool:
@@ -80,27 +80,91 @@ def _safe_len(value: Any) -> int:
         return 0
 
 
+def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
+    cell_min = 236
+    action_min = 136
+    action_max = 208
+    width_manager = getattr(self, "width_manager", None)
+    if width_manager is None or not hasattr(width_manager, "compute_optimal_widths"):
+        return cell_min, action_min, action_max
+    try:
+        sample_df = pd.DataFrame(
+            [
+                {
+                    "numero_ssa": "",
+                    "situacao": "",
+                    "setor_executor": "",
+                    "setor_emissor": "",
+                    "localizacao_codigo": "",
+                }
+            ]
+        )
+        width_map = width_manager.compute_optimal_widths(
+            sample_df,
+            available_width=1200,
+            column_order=[
+                "#",
+                "numero_ssa",
+                "situacao",
+                "setor_executor",
+                "setor_emissor",
+                "localizacao_codigo",
+            ],
+        )
+        numero_w = int(width_map.get("numero_ssa", 85))
+        situacao_w = int(width_map.get("situacao", 40))
+        local_w = int(width_map.get("localizacao_codigo", 65))
+        setor_exec_w = int(width_map.get("setor_executor", 45))
+        setor_emis_w = int(width_map.get("setor_emissor", 45))
+
+        cell_candidate = numero_w + local_w + (situacao_w // 2) + (setor_exec_w // 2) + (setor_emis_w // 2)
+        cell_min = max(212, min(252, cell_candidate))
+
+        action_candidate = numero_w + situacao_w
+        action_min = max(120, min(168, action_candidate))
+        action_max = max(action_min + 40, min(232, action_min + 72))
+    except Exception as exc:
+        logger.debug("Falha ao calcular baseline de layout avancado via width_manager: %s", exc)
+    return cell_min, action_min, action_max
+
+
 def _update_advanced_filters_action_buttons(self, width: int) -> None:
-    """Ajusta tamanho minimo dos botoes de acao conforme largura util."""
+    """Aplica dimensao estavel para botoes de acao do painel avancado."""
     apply_btn = getattr(self, "_adv_filters_apply_btn", None)
     clear_btn = getattr(self, "_adv_filters_clear_btn", None)
     if apply_btn is None or clear_btn is None:
         return
-    if width <= 0:
-        return
-    min_width = (
-        LAYOUT_ACTION_BTN_MIN_WIDTH_NARROW
-        if width <= LAYOUT_MID_MIN_WIDTH
-        else LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT
-    )
+    _ = width
+    _, min_width, max_width = _resolve_adv_layout_baseline(self)
     if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
         return
     self._adv_filters_action_btn_min_width = min_width
     for btn in (apply_btn, clear_btn):
         try:
             btn.setMinimumWidth(min_width)
+            btn.setMaximumWidth(max_width)
         except Exception as exc:
             logger.debug("Falha ao ajustar largura minima de botao de acao: %s", exc)
+
+
+def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
+    base_cell_min, _, _ = _resolve_adv_layout_baseline(self)
+    widths = []
+    for _, widget in visible_widgets:
+        if widget is None:
+            continue
+        try:
+            widths.append(int(widget.minimumSizeHint().width()))
+        except Exception:
+            continue
+    if not widths:
+        return base_cell_min
+    widths.sort()
+    p75_idx = max(0, min(len(widths) - 1, int((len(widths) - 1) * 0.75)))
+    p75 = widths[p75_idx]
+    avg = sum(widths) // len(widths)
+    dynamic_baseline = max(p75, avg) + 22
+    return max(212, min(252, max(base_cell_min, dynamic_baseline)))
 
 
 def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
@@ -111,10 +175,7 @@ def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", wit
     button = QToolButton()
     button.setText(placeholder)
     try:
-        button.setMaximumWidth(100)
-    except Exception as exc:
-        logger.debug("Falha ao definir largura maxima do botao multiselect '%s': %s", title, exc)
-    try:
+        button.setMinimumWidth(132)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
@@ -818,15 +879,15 @@ def _build_advanced_filters_panel(self):
     reprog_mode.addItem("<= Menor", "lte")
     reprog_mode.addItem(">= Maior", "gte")
     try:
-        reprog_mode.setFixedWidth(90)
+        reprog_mode.setMinimumWidth(110)
     except Exception as exc:
-        logger.debug("Falha ao definir largura fixa do seletor de reprogramacoes: %s", exc)
+        logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
     try:
-        reprog_button.setFixedWidth(90)
+        reprog_button.setMinimumWidth(132)
     except Exception as exc:
-        logger.debug("Falha ao definir largura fixa do botao de reprogramacoes: %s", exc)
+        logger.debug("Falha ao definir largura minima do botao de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_button, 1)
     self.adv_reprog_mode = reprog_mode
     self.adv_reprog_button = reprog_button
@@ -841,7 +902,17 @@ def _build_advanced_filters_panel(self):
     deriv_layout.setContentsMargins(2, 1, 2, 1)
     deriv_layout.setSpacing(4)
     deriv_has = QCheckBox("Tem")
-    deriv_all_ste = QCheckBox("STE")
+    deriv_all_ste = QPushButton("STE")
+    deriv_all_ste.setCheckable(True)
+    try:
+        deriv_all_ste.setMinimumWidth(72)
+        deriv_all_ste.setToolTip("Mostrar apenas derivadas STE")
+        deriv_all_ste.setStyleSheet(
+            "QPushButton { padding: 2px 10px; } "
+            "QPushButton:checked { font-weight: 600; border: 1px solid palette(highlight); }"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao configurar botao toggle STE: %s", exc)
     deriv_is = QCheckBox("Sou Derivada")
     try:
         deriv_has.toggled.connect(lambda checked: self._on_derivada_has_toggled(checked))
@@ -955,7 +1026,21 @@ def _build_advanced_filters_panel(self):
         main_grid.setColumnStretch(col, 1)
 
     grid_container_layout.addLayout(main_grid)
-    outer.addWidget(grid_container, 1)
+    controls_scroll = QScrollArea()
+    controls_scroll.setWidgetResizable(True)
+    controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    controls_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    try:
+        controls_scroll.setFrameShape(QFrame.Shape.NoFrame)
+    except Exception as exc:
+        logger.debug("Falha ao remover borda do scroll de filtros avancados: %s", exc)
+    controls_scroll.setWidget(grid_container)
+    try:
+        controls_scroll.setMinimumHeight(LAYOUT_ADV_PANEL_MIN_HEIGHT)
+        controls_scroll.setMaximumHeight(LAYOUT_ADV_PANEL_MAX_HEIGHT)
+    except Exception as exc:
+        logger.debug("Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc)
+    outer.addWidget(controls_scroll, 1)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -981,8 +1066,8 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT)
-        clear_btn.setMinimumWidth(LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT)
+        apply_btn.setMinimumWidth(116)
+        clear_btn.setMinimumWidth(116)
         apply_btn.setStyleSheet("font-weight: 600; padding: 4px 12px;")
         clear_btn.setStyleSheet("padding: 4px 12px;")
     except Exception as exc:
@@ -998,7 +1083,11 @@ def _build_advanced_filters_panel(self):
     outer.addLayout(buttons_row)
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
-    self._adv_filters_action_btn_min_width = LAYOUT_ACTION_BTN_MIN_WIDTH_DEFAULT
+    self._adv_filters_action_btn_min_width = None
+    self._adv_filters_controls_scroll = controls_scroll
+    self._adv_filters_grid_cols = None
+    self._adv_filters_last_widget_count = None
+    _update_advanced_filters_action_buttons(self, group.width())
 
     ctx = {
         "adv_filters_group": group,
@@ -1120,24 +1209,52 @@ def _on_macro_filter_changed(self):
     self._apply_advanced_filters_from_ui()
 
 def _reorganize_advanced_filters_grid(self, width: int):
-    """Reorganiza grid de filtros avancados baseado na largura disponivel."""
+    """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
     if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
         return
 
     _update_advanced_filters_action_buttons(self, width)
 
-    # Ignora apenas largura invalida (ex.: hidden), sem bloquear largura estreita valida.
     if width < LAYOUT_MIN_VALID_WIDTH:
-        self._adv_filters_layout_mode = None
         return
-
-    mode = "wide" if width > LAYOUT_WIDE_MIN_WIDTH else "mid" if width > LAYOUT_MID_MIN_WIDTH else "narrow"
-    if getattr(self, "_adv_filters_layout_mode", None) == mode:
-        return
-    self._adv_filters_layout_mode = mode
 
     grid = self._adv_filters_main_grid
     w = self._adv_filters_grid_widgets
+    order = [
+        "emis_box",
+        "exec_box",
+        "status_box",
+        "year_emissao_box",
+        "year_execucao_box",
+        "reprog_box",
+        "prio_emis_box",
+        "prio_plan_box",
+        "macro_box",
+        "deriv_box",
+        "week_emis_box",
+        "week_exec_box",
+        "sol_box",
+        "prog_box",
+        "exec_resp_box",
+    ]
+    visible = [(name, w.get(name)) for name in order if w.get(name) is not None]
+    if not visible:
+        return
+
+    cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
+    raw_cols = int(width // cell_min_width)
+    cols = max(LAYOUT_GRID_MIN_COLS, min(LAYOUT_GRID_MAX_COLS, raw_cols))
+    cols = min(cols, len(visible))
+    if cols <= 0:
+        cols = 1
+    if (
+        getattr(self, "_adv_filters_grid_cols", None) == cols
+        and getattr(self, "_adv_filters_last_widget_count", None) == len(visible)
+    ):
+        return
+    self._adv_filters_grid_cols = cols
+    self._adv_filters_last_widget_count = len(visible)
+    self._adv_filters_layout_mode = f"cols_{cols}"
 
     # Remove todos os widgets do grid
     while grid.count():
@@ -1148,107 +1265,13 @@ def _reorganize_advanced_filters_grid(self, width: int):
             widget.hide()
         del item
 
-    if mode == "wide":
-        grid.addWidget(w["emis_box"], 0, 0)
-        w["emis_box"].show()
-        grid.addWidget(w["exec_box"], 0, 1)
-        w["exec_box"].show()
-        grid.addWidget(w["status_box"], 0, 2)
-        w["status_box"].show()
-        grid.addWidget(w["year_emissao_box"], 0, 3)
-        w["year_emissao_box"].show()
-        grid.addWidget(w["year_execucao_box"], 0, 4)
-        w["year_execucao_box"].show()
-        grid.addWidget(w["reprog_box"], 1, 0)
-        w["reprog_box"].show()
-        grid.addWidget(w["prio_emis_box"], 1, 1)
-        w["prio_emis_box"].show()
-        grid.addWidget(w["prio_plan_box"], 1, 2)
-        w["prio_plan_box"].show()
-        grid.addWidget(w["macro_box"], 1, 3)
-        w["macro_box"].show()
-        grid.addWidget(w["deriv_box"], 1, 4)
-        w["deriv_box"].show()
-        grid.addWidget(w["week_emis_box"], 2, 0)
-        w["week_emis_box"].show()
-        grid.addWidget(w["week_exec_box"], 2, 1)
-        w["week_exec_box"].show()
-        grid.addWidget(w["sol_box"], 2, 2)
-        w["sol_box"].show()
-        grid.addWidget(w["prog_box"], 2, 3)
-        w["prog_box"].show()
-        grid.addWidget(w["exec_resp_box"], 2, 4)
-        w["exec_resp_box"].show()
-        for col in range(5):
-            grid.setColumnStretch(col, 1)
-
-    elif mode == "mid":
-        grid.addWidget(w["emis_box"], 0, 0)
-        w["emis_box"].show()
-        grid.addWidget(w["exec_box"], 0, 1)
-        w["exec_box"].show()
-        grid.addWidget(w["status_box"], 0, 2)
-        w["status_box"].show()
-        grid.addWidget(w["year_emissao_box"], 1, 0)
-        w["year_emissao_box"].show()
-        grid.addWidget(w["year_execucao_box"], 1, 1)
-        w["year_execucao_box"].show()
-        grid.addWidget(w["reprog_box"], 1, 2)
-        w["reprog_box"].show()
-        grid.addWidget(w["prio_emis_box"], 2, 0)
-        w["prio_emis_box"].show()
-        grid.addWidget(w["prio_plan_box"], 2, 1)
-        w["prio_plan_box"].show()
-        grid.addWidget(w["macro_box"], 2, 2)
-        w["macro_box"].show()
-        grid.addWidget(w["deriv_box"], 3, 0, 1, 2)
-        w["deriv_box"].show()
-        grid.addWidget(w["sol_box"], 3, 2)
-        w["sol_box"].show()
-        grid.addWidget(w["week_emis_box"], 4, 0)
-        w["week_emis_box"].show()
-        grid.addWidget(w["week_exec_box"], 4, 1)
-        w["week_exec_box"].show()
-        grid.addWidget(w["prog_box"], 4, 2)
-        w["prog_box"].show()
-        grid.addWidget(w["exec_resp_box"], 5, 0, 1, 3)
-        w["exec_resp_box"].show()
-        for col in range(3):
-            grid.setColumnStretch(col, 1)
-
-    else:  # narrow
-        grid.addWidget(w["emis_box"], 0, 0)
-        w["emis_box"].show()
-        grid.addWidget(w["exec_box"], 0, 1)
-        w["exec_box"].show()
-        grid.addWidget(w["status_box"], 1, 0)
-        w["status_box"].show()
-        grid.addWidget(w["year_emissao_box"], 1, 1)
-        w["year_emissao_box"].show()
-        grid.addWidget(w["year_execucao_box"], 2, 0)
-        w["year_execucao_box"].show()
-        grid.addWidget(w["reprog_box"], 2, 1)
-        w["reprog_box"].show()
-        grid.addWidget(w["prio_emis_box"], 3, 0)
-        w["prio_emis_box"].show()
-        grid.addWidget(w["prio_plan_box"], 3, 1)
-        w["prio_plan_box"].show()
-        grid.addWidget(w["macro_box"], 4, 0)
-        w["macro_box"].show()
-        grid.addWidget(w["deriv_box"], 4, 1)
-        w["deriv_box"].show()
-        grid.addWidget(w["week_emis_box"], 5, 0)
-        w["week_emis_box"].show()
-        grid.addWidget(w["week_exec_box"], 5, 1)
-        w["week_exec_box"].show()
-        grid.addWidget(w["sol_box"], 6, 0)
-        w["sol_box"].show()
-        grid.addWidget(w["prog_box"], 6, 1)
-        w["prog_box"].show()
-        grid.addWidget(w["exec_resp_box"], 7, 0, 1, 2)
-        w["exec_resp_box"].show()
-        for col in range(2):
-            grid.setColumnStretch(col, 1)
+    for idx, (_, widget) in enumerate(visible):
+        row = idx // cols
+        col = idx % cols
+        grid.addWidget(widget, row, col)
+        widget.show()
+    for col in range(cols):
+        grid.setColumnStretch(col, 1)
 
 def _on_adv_sector_selection_changed(self, *_):
     if getattr(self, "_adv_sector_syncing", False):
@@ -1530,35 +1553,6 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         setattr(self, checks_attr, include_checks)
         setattr(self, exclude_checks_attr, exclude_checks)
         processed_prefixes.add(prefix)
-
-    # Reprogramacoes (código duplicado removido)
-    reprog_values = getattr(self, "_adv_values_cache", {}).get("reprog_vals", [])
-    try:
-        include_checks, _ = self._rebuild_multiselect_menu(
-            getattr(self, "adv_reprog_button", None),
-            getattr(self, "adv_reprog_menu", None),
-            reprog_values,
-            set((self._advanced_filters or {}).get("num_reprogramacoes_values") or []),
-            lambda *_: self._update_multiselect_button(
-                getattr(self, "adv_reprog_button", None),
-                getattr(self, "adv_reprog_checks", None),
-            ),
-            lambda *_: self._apply_advanced_filters_from_ui(),
-            None,
-            None,
-        )
-        self.adv_reprog_checks = include_checks
-        try:
-            mode = (self._advanced_filters or {}).get("num_reprogramacoes_mode")
-            if mode is not None and getattr(self, "adv_reprog_mode", None):
-                idx = getattr(self, "adv_reprog_mode").findData(mode)
-                if idx >= 0:
-                    getattr(self, "adv_reprog_mode").setCurrentIndex(idx)
-        except Exception as exc:
-            logger.debug("Failed to restore reprogramacoes mode in advanced filter UI: %s", exc)
-    except Exception as exc:
-        logger.debug("Failed to rebuild reprogramacoes menu in advanced filter UI: %s", exc)
-        self.adv_reprog_checks = []
 
     # SSAs Derivadas Específicas (novo filtro granular)
     adv_cache = getattr(self, "_adv_values_cache", {}) or {}
@@ -1966,6 +1960,22 @@ def _sync_advanced_filter_ui(self):
         getattr(self, "adv_prioridade_planejamento_exclude_checks", None),
         data.get("prioridade_planejamento_exclude_values"),
     )
+    self._sync_multiselect_checks(
+        getattr(self, "adv_reprog_button", None),
+        getattr(self, "adv_reprog_checks", None),
+        data.get("num_reprogramacoes_values"),
+    )
+    try:
+        reprog_mode = getattr(self, "adv_reprog_mode", None)
+        if reprog_mode is not None:
+            mode_value = data.get("num_reprogramacoes_mode") or "eq"
+            idx = reprog_mode.findData(mode_value)
+            if idx < 0:
+                idx = reprog_mode.findData("eq")
+            if idx >= 0:
+                reprog_mode.setCurrentIndex(idx)
+    except Exception as exc:
+        logger.warning("Falha ao sincronizar modo de reprogramacoes nos filtros avancados: %s", exc)
     try:
         emissao_values = data.get("ano_emissao_values")
         emissao_exclude = data.get("ano_emissao_exclude_values")
@@ -2153,6 +2163,42 @@ def _refresh_year_menus(self, emissao_years, execucao_years, filters, apply_cb):
         self.adv_year_execucao_exclude_checks = year_exclude
 
 
+def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
+    if not hasattr(self, "adv_reprog_menu"):
+        return
+    values = [str(v) for v in (reprog_vals or []) if str(v).strip()]
+    selected = {str(v) for v in (filters.get("num_reprogramacoes_values") or [])}
+    try:
+        include_checks, _ = self._rebuild_multiselect_menu(
+            getattr(self, "adv_reprog_button", None),
+            getattr(self, "adv_reprog_menu", None),
+            values,
+            selected,
+            lambda *_: self._update_multiselect_button(
+                getattr(self, "adv_reprog_button", None),
+                getattr(self, "adv_reprog_checks", None),
+            ),
+            apply_cb,
+            None,
+            None,
+        )
+        self.adv_reprog_checks = include_checks
+    except Exception as exc:
+        logger.debug("Failed to rebuild reprogramacoes menu in advanced filter UI: %s", exc)
+        self.adv_reprog_checks = []
+    try:
+        mode_combo = getattr(self, "adv_reprog_mode", None)
+        if mode_combo is not None:
+            mode = filters.get("num_reprogramacoes_mode") or "eq"
+            idx = mode_combo.findData(mode)
+            if idx < 0:
+                idx = mode_combo.findData("eq")
+            if idx >= 0:
+                mode_combo.setCurrentIndex(idx)
+    except Exception as exc:
+        logger.debug("Failed to restore reprogramacoes mode in advanced filter UI: %s", exc)
+
+
 def _refresh_priority_menus(self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb):
     if hasattr(self, "adv_prioridade_emissao_menu"):
         prio_include, prio_exclude = self._rebuild_multiselect_menu(
@@ -2321,6 +2367,7 @@ def _refresh_advanced_filter_options(self):
     self._refresh_sector_menus(exec_vals, emis_vals, status_vals, filters, apply_cb)
     self._refresh_year_menus(emissao_years, execucao_years, filters, apply_cb)
     self._refresh_priority_menus(prio_emissao_vals, prio_planejamento_vals, filters, apply_cb)
+    self._refresh_reprogramacoes_menu(cache.get("reprog_vals", []), filters, apply_cb)
 
     self._mark_responsavel_dirty()
     built_prefixes = set(getattr(self, "_responsavel_materialized_prefixes", set()))
