@@ -718,3 +718,15 @@ Relatorio final por slice:
   - focused test `tests/test_extracao.py`: 5 passed.
 - risk note:
   - strict "robust-only everywhere" migration in full extraction stack is intentionally deferred to exclusive sprint (cross-module impact).
+
+## Latest update 2026-02-25 (extractor batch02 follow-up)
+
+- `read_report` ficou com caminho unico de ingestao via `import_excel_robust`.
+- para evitar custo excessivo em arquivos grandes no caminho de resultado vazio, foi aplicado gate por tamanho com `SSA_READ_REPORT_FALLBACK_MAX_MB` (default 8).
+- parse de env invalido agora cai para default com warning.
+- suite focada `tests/test_extracao.py` em 7/7.
+
+## Latest update 2026-02-25 (extractor batch02 cleanup)
+
+- ajuste final: removido trecho de guard de fallback-size que ficou incoerente apos robust-only.
+- estado final: `read_report` robust-only, sem fallback legado.

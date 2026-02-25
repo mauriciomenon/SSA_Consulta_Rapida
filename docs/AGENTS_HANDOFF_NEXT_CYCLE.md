@@ -802,3 +802,25 @@ Entregavel de cada slice:
   - second run: 1 finding (P4 rule_18).
   - third run: 2 findings (P3 Optional-return risk + P4 fallback clarification).
   - final run: clean.
+
+## Update 2026-02-25 (extractor batch02 follow-up: robust-only + perf guard)
+
+- `extracao/extractor.py`
+  - `read_report` consolidado em ingestao robust-only (rule_18).
+  - adicionado limite de custo para caminho de resultado vazio via `SSA_READ_REPORT_FALLBACK_MAX_MB` (default 8MB) com parse seguro de env invalido.
+- `tests/test_extracao.py`
+  - fixture e asserts alinhados ao contrato robust-only.
+  - novos testes para limite de tamanho e env invalido.
+- gate local:
+  - `python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  - `ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  - `ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  - `.venv/bin/python -m pytest -q tests/test_extracao.py`: pass (7 tests).
+
+## Update 2026-02-25 (extractor batch02 cleanup)
+
+- cleanup aplicado apos revisao kluster:
+  - removido guard de fallback por tamanho que ficou sem efeito apos consolidacao robust-only.
+  - removidos testes associados ao guard descartado.
+- contrato final deste ciclo:
+  - `read_report` usa apenas `import_excel_robust` para ingestao.

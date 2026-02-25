@@ -1119,3 +1119,20 @@ Opcao:
 3. [resolved][batch02] compatibility guard: fallback to `extract_data_from_excel` only when robust path returns empty/zero columns.
 4. [validation][batch02] gates passed for touched files: `py_compile`, `ruff`, `ty`, `pytest -q tests/test_extracao.py` (5 passed).
 5. [note][batch02] unresolved broad refactor to make robust importer sole ingestion path in all extraction layers remains deferred by scope policy.
+
+## Update 2026-02-25 (batch02 extractor required-column and mapping guards)
+
+1. [resolved][batch02] id 6: `extract_data_from_excel` mantem validacao explicita de colunas obrigatorias apos normalizacao e falha clara quando ausentes.
+2. [resolved][batch02] id 7: fluxo com mapeamento vazio esta coberto com warning explicito e validacao de colunas obrigatorias, evitando sucesso silencioso inconsistente.
+3. [validation][batch02] fallback behavior de `read_report` coberto por teste focado para robust-empty path.
+
+## Update 2026-02-25 (batch02 extractor rule18 alignment)
+
+1. [resolved][batch02] `read_report` agora usa somente `import_excel_robust` para ingestao (sem fallback legado), alinhado ao rule_18.
+2. [resolved][batch02] mitigacao de custo: em resultado vazio, evita caminhos de dupla leitura; apenas registra `fallback_skipped` quando tamanho excede limite configurado.
+3. [resolved][batch02] parse de `SSA_READ_REPORT_FALLBACK_MAX_MB` protegido contra valor invalido com fallback para default.
+
+## Update 2026-02-25 (batch02 extractor cleanup)
+
+1. [resolved][batch02] removido codigo morto de fallback-size guard em `read_report`; contrato final permanece robust-only.
+2. [resolved][batch02] removidos testes ligados ao fallback-size guard para manter suite focada no comportamento vigente.

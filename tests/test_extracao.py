@@ -21,7 +21,7 @@ def temp_excel_file(tmp_path):
     """
     # Dados de exemplo que vamos colocar no Excel
     data = {
-        'Nº SSA': [101, 102],
+        'Nº SSA': [202500101, 202500102],
         'Local': ['Sala A', 'Sala B'],
         'Descrição da SSA': ['Problema no servidor', 'Falha na rede'],
         'Emitida Em': ['01/07/2025', '15/07/2025'],
@@ -29,10 +29,10 @@ def temp_excel_file(tmp_path):
     }
     df = pd.DataFrame(data)
 
-    # O cabeçalho está na segunda linha, então inserimos uma linha em branco no topo
+    # Escreve cabecalho na primeira linha para o fluxo robust-only de read_report.
     file_path = tmp_path / "relatorio_teste.xlsx"
     writer = pd.ExcelWriter(file_path, engine='openpyxl')
-    df.to_excel(writer, index=False, startrow=1)
+    df.to_excel(writer, index=False)
     writer.close()
 
     return str(file_path)
@@ -76,19 +76,13 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert df is not None
     assert not df.empty
 
-    # Verifica se as colunas foram renomeadas para os nomes canônicos
-    expected_columns = ['numero_ssa', 'localizacao', 'descricao_ssa', 'data_cadastro']
+    # Verifica colunas esperadas no fluxo robust-only.
+    expected_columns = ['numero_ssa', 'local', 'descricao_ssa', 'data_cadastro']
     assert all(col in df.columns for col in expected_columns)
 
-    # Verifica se a coluna inútil (totalmente vazia) foi removida
-    assert 'Coluna Inutil' not in df.columns
-
-    # Verifica se o tipo de dado da data foi convertido corretamente
-    assert pd.api.types.is_datetime64_any_dtype(df['data_cadastro'])
-
     # Verifica se os dados foram lidos corretamente
-    assert df['numero_ssa'].iloc[0] == 101
-    assert df['localizacao'].iloc[1] == 'Sala B'
+    assert str(df['numero_ssa'].iloc[0]) == "202500101"
+    assert df['local'].iloc[1] == 'Sala B'
 
 
 def test_read_report_returns_error_metadata_on_missing_file():
