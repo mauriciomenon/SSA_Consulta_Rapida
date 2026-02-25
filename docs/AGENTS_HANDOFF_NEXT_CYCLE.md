@@ -837,3 +837,30 @@ Entregavel de cada slice:
   - `ruff check` nos mesmos arquivos: pass.
   - `ty check` nos mesmos arquivos: pass.
   - `.venv/bin/python -m pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: pass (5 tests).
+
+## Update 2026-02-25 (config batch03 fail-fast)
+
+- `core/config_manager.py`
+  - `ensure_default_settings` passou para fail-fast agregado (erro consolidado no fim do ciclo de arquivos).
+  - `_atomic_copy_file` nao segue com copia quando o `os.close` inicial falha.
+  - logger do modulo migrado para `get_robust_logger().get_logger(__name__, "core")`.
+- `tests/test_config_manager_atomic_save.py`
+  - adicionados testes para garantir erro explicito em falha de copy e de generation no ensure.
+- gate local:
+  - `python -m py_compile core/config_manager.py tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: pass.
+  - `ruff check` e `ty check` nos mesmos arquivos: pass.
+  - `.venv/bin/python -m pytest -q tests/test_config_manager_atomic_save.py tests/test_config_manager_mappings_integrity.py tests/test_column_mappings_integrity.py`: pass (7 tests).
+
+## Update 2026-02-25 (config batch03 startup contract final)
+
+- decisao final deste slice:
+  - startup principal segue resiliente (`fail_fast=False` no `main`) com warning explicito e sem falha silenciosa.
+  - helper de provisionamento preserva modo estrito (`fail_fast=True`) para uso dirigido.
+- testes focados de config seguem verdes (7/7).
+
+## Update 2026-02-25 (config batch03 final stabilization)
+
+- fechamento do slice:
+  - atomic copy simplificado com `NamedTemporaryFile` para manter operacao atomica sem caminho ambiguo de fd.
+  - startup continua resiliente e observavel (warnings explicitos no `main` quando ensure retorna erros).
+- gate final do slice: ruff/ty/py_compile ok + pytest config 7/7.

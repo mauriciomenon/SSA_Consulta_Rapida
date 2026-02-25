@@ -8,12 +8,12 @@ Responsável por carregar, salvar e garantir a existência do arquivo settings.j
 import json
 import os
 import shutil
-import logging
 import tempfile
 from typing import Dict, Any
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "core")
 
 def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: bool) -> None:
     """Write JSON atomically to prevent truncated/corrupted config files on crash."""
@@ -73,19 +73,10 @@ def _atomic_copy_file(src: str, dst: str) -> None:
     base_name = os.path.basename(dst) or "file"
     os.makedirs(target_dir, exist_ok=True)
 
-    fd = None
     tmp_path = None
     try:
-        fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
-        try:
-            os.close(fd)
-            fd = None
-        except Exception as exc:
-            logger.warning(
-                "Falha ao fechar file descriptor temporario para copia atomica '%s': %s",
-                dst,
-                exc,
-            )
+        with tempfile.NamedTemporaryFile(prefix=f".{base_name}.tmp.", dir=target_dir, delete=False) as tmp_file:
+            tmp_path = tmp_file.name
         shutil.copyfile(src, tmp_path)
         try:
             with open(tmp_path, "rb") as f:
@@ -95,15 +86,6 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         os.replace(tmp_path, dst)
         tmp_path = None
     finally:
-        if fd is not None:
-            try:
-                os.close(fd)
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao fechar file descriptor temporario para copia '%s': %s",
-                    dst,
-                    exc,
-                )
         if tmp_path:
             try:
                 os.remove(tmp_path)
@@ -597,11 +579,21 @@ def save_settings(settings: Dict[str, Any]):
         logger.error(f"Erro ao salvar configurações em '{user_settings_file}': {e}")
         raise
 
-def ensure_default_settings():
+def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
     """
     Garante que os arquivos de configuração padrão existam.
     Se não existirem, os copia dos arquivos de exemplo ou os cria.
+
+    Args:
+        fail_fast (bool): Se True, levanta RuntimeError quando houver falhas.
+
+    Returns:
+        list[str]: Lista de erros de provisionamento. Lista vazia indica sucesso.
+
+    Raises:
+        RuntimeError: Quando `fail_fast=True` e existir falha de provisionamento.
     """
+    errors: list[str] = []
     required_files = {
         _resolve_config_path(DEFAULT_SETTINGS_FILE): 'default_settings.json.example',
         _resolve_config_path(DISPLAY_MAPPINGS_FILE): 'display_mappings.json.example',
@@ -621,6 +613,7 @@ def ensure_default_settings():
                     logger.info(f"Arquivo de configuração padrão criado: {target_file}")
                 except IOError as e:
                     logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
+                    errors.append(f"copy_failed:{target_file}")
             else:
                 # Cria um arquivo padrão mínimo quando o exemplo não existir
                 try:
@@ -656,6 +649,12 @@ def ensure_default_settings():
                         logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
                 except Exception as e:
                     logger.error(f"Falha ao gerar arquivo padrão '{target_file}': {e}")
+                    errors.append(f"generate_failed:{target_file}")
+    if errors:
+        logger.critical("ensure_default_settings completed with errors: %s", "; ".join(errors))
+        if fail_fast:
+            raise RuntimeError("ensure_default_settings failed: " + "; ".join(errors))
+    return errors
 
 # --- Placeholder para handler de configuração via CLI ---
 # Este handler pode ser expandido para um menu interativo ou edição direta.

@@ -1143,3 +1143,22 @@ Opcao:
 2. [resolved][batch03] `_get_config_dir` agora valida `SSA_CONFIG_DIR` com `ensure_path_is_allowed`; em valor invalido faz fallback seguro para `config`.
 3. [resolved][batch03] testes de save atomico ajustados para usar `SSA_CONFIG_DIR` (sem dependencia de monkeypatch em constante global).
 4. [validation][batch03] gate focado verde: py_compile, ruff, ty, pytest (5 passed).
+
+## Update 2026-02-25 (batch03 config fail-fast)
+
+1. [resolved][batch03] `ensure_default_settings` nao mascara mais falhas de copia/geracao: agora acumula erros e levanta `RuntimeError` ao final.
+2. [resolved][batch03] `_atomic_copy_file` agora falha explicitamente se o fechamento inicial de descriptor falhar, evitando seguir em estado inconsistente.
+3. [resolved][batch03] logger de `config_manager` alinhado ao robust logger (`get_robust_logger`).
+4. [validation][batch03] suite focada de config: 7 passed.
+
+## Update 2026-02-25 (batch03 startup contract final)
+
+1. [resolved][batch03] contrato final de startup: `main` chama `ensure_default_settings(fail_fast=False)` e registra warning explicito dos erros retornados.
+2. [resolved][batch03] `ensure_default_settings` manteve opcao `fail_fast=True` para uso estrito em contextos que exigem bloqueio imediato.
+3. [resolved][batch03] docstring de `ensure_default_settings` alinhada para retorno de erros + `RuntimeError` condicional.
+
+## Update 2026-02-25 (batch03 final stabilization)
+
+1. [resolved][batch03] `_atomic_copy_file` migrado para `NamedTemporaryFile(delete=False)` para eliminar ambiguidade de fechamento de descriptor.
+2. [resolved][batch03] `main` mantem startup resiliente com `ensure_default_settings(fail_fast=False)` e warning explicito de erros retornados.
+3. [resolved][batch03] contrato de `ensure_default_settings` documentado: retorno de lista de erros + `RuntimeError` condicional quando `fail_fast=True`.
