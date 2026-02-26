@@ -40,14 +40,14 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
-LAYOUT_GRID_MIN_COLS = 2
+LAYOUT_GRID_MIN_COLS = 4
 LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
-LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 230
 LAYOUT_ADV_CONTROL_HEIGHT = 28
-LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 42
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 52
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 40
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 50
 
 
 def _flatten_field_box(box: QGroupBox) -> None:
@@ -55,10 +55,6 @@ def _flatten_field_box(box: QGroupBox) -> None:
         return
     try:
         box.setFlat(True)
-        box.setStyleSheet(
-            "QGroupBox { border: 0; margin-top: 7px; padding-top: 0px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 0px; padding: 0px; font-weight: 600; }"
-        )
     except Exception as exc:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
@@ -67,16 +63,16 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
     group = getattr(self, "adv_filters_group", None) or getattr(self, "_adv_filters_group_obj", None)
     if group is None:
         return
-    base_pt = 11
+    base_pt = 10
     try:
         current = int(group.font().pointSize())
         if current > 0:
             base_pt = current
     except Exception:
         pass
-    compact = int(width) < 1150
-    control_pt = 10 if compact else max(11, base_pt)
-    title_pt = max(11, min(control_pt + 1, 12))
+    compact = int(width) < 1250
+    control_pt = 11 if compact else max(12, base_pt)
+    title_pt = max(12, min(control_pt + 1, 13))
     try:
         boxes = (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
     except Exception:
@@ -90,7 +86,7 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             box.setFont(bf)
         except Exception:
             pass
-    control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
+    control_types = (QToolButton, QComboBox, QLineEdit)
     try:
         controls = group.findChildren(control_types)
     except Exception:
@@ -1047,14 +1043,18 @@ def _build_advanced_filters_panel(self):
     week_emissao_start.setPlaceholderText("Ini")
     try:
         week_emissao_start.setMaxLength(6)
-        week_emissao_start.setFixedWidth(64)
+        week_emissao_start.setMinimumWidth(64)
+        week_emissao_start.setMaximumWidth(108)
+        week_emissao_start.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana inicial de emissao: %s", exc)
     week_emissao_end = QLineEdit()
     week_emissao_end.setPlaceholderText("Fim")
     try:
         week_emissao_end.setMaxLength(6)
-        week_emissao_end.setFixedWidth(64)
+        week_emissao_end.setMinimumWidth(64)
+        week_emissao_end.setMaximumWidth(108)
+        week_emissao_end.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana final de emissao: %s", exc)
     week_emissao_exclude = None
@@ -1070,14 +1070,18 @@ def _build_advanced_filters_panel(self):
     week_exec_start.setPlaceholderText("Ini")
     try:
         week_exec_start.setMaxLength(6)
-        week_exec_start.setFixedWidth(64)
+        week_exec_start.setMinimumWidth(64)
+        week_exec_start.setMaximumWidth(108)
+        week_exec_start.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana inicial de execucao: %s", exc)
     week_exec_end = QLineEdit()
     week_exec_end.setPlaceholderText("Fim")
     try:
         week_exec_end.setMaxLength(6)
-        week_exec_end.setFixedWidth(64)
+        week_exec_end.setMinimumWidth(64)
+        week_exec_end.setMaximumWidth(108)
+        week_exec_end.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao configurar campo de semana final de execucao: %s", exc)
     week_exec_exclude = None
@@ -1160,16 +1164,22 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(72)
-        clear_btn.setMinimumWidth(72)
-        apply_btn.setMaximumWidth(96)
-        clear_btn.setMaximumWidth(96)
-        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
-        clear_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
+        apply_btn.setMinimumWidth(108)
+        clear_btn.setMinimumWidth(108)
+        apply_btn.setMaximumWidth(108)
+        clear_btn.setMaximumWidth(108)
+        apply_btn.setMinimumHeight(32)
+        apply_btn.setMaximumHeight(32)
+        clear_btn.setMinimumHeight(32)
+        clear_btn.setMaximumHeight(32)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        apply_btn.setStyleSheet("font-size: 14px; padding: 0 8px;")
+        clear_btn.setStyleSheet("font-size: 14px; padding: 0 8px;")
+        bf = apply_btn.font()
+        bf.setPointSize(13)
+        apply_btn.setFont(bf)
+        clear_btn.setFont(bf)
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
@@ -1198,7 +1208,6 @@ def _build_advanced_filters_panel(self):
         logger.debug("Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc)
     outer.addWidget(controls_scroll, 0)
     outer.addWidget(action_widget, 0, Qt.AlignmentFlag.AlignRight)
-    outer.addStretch(1)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -1366,7 +1375,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         if controls_scroll is not None and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
             group_h = int(self.adv_filters_group.height())
             if group_h > 0:
-                max_scroll_h = max(60, min(LAYOUT_ADV_PANEL_MAX_HEIGHT, group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 12)))
+                max_scroll_h = max(80, min(LAYOUT_ADV_PANEL_MAX_HEIGHT, group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 8)))
     except Exception as exc:
         logger.debug("Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc)
 
@@ -1766,7 +1775,6 @@ def _refresh_responsavel_options(self, target_prefixes=None):
         setattr(self, exclude_checks_attr, exclude_checks)
         processed_prefixes.add(prefix)
 
-    # SSAs Derivadas Específicas (novo filtro granular)
     adv_cache = getattr(self, "_adv_values_cache", {}) or {}
     derivadas_numbers = adv_cache.get("derivadas_vals", [])
     if not derivadas_numbers:

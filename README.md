@@ -1,14 +1,52 @@
-# SSA Consulta Rapida v4.20.0
+# SSA Consulta Rapida v4.21.0
 
-Release 4.20.0 consolida ajustes de usabilidade e estabilidade nos filtros avancados, com melhor controle de espaco em telas menores e atualizacao do seletor de derivadas.
+Release 4.21.0 consolida o ajuste fino do layout dinamico dos filtros avancados com 4 colunas, melhor distribuicao vertical e barra de acoes dedicada.
 
-## Release v4.20.0 (2026-02)
+## Release v4.21.0 (2026-02)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.20.0 com foco em usabilidade e estabilidade dos filtros avancados.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.21.0 com foco em usabilidade e estabilidade dos filtros avancados.
+
+### Execucao rapida com uv (recomendado)
+```bash
+# criar/sincronizar ambiente
+uv venv
+uv sync
+
+# executar GUI
+uv run python main.py --gui
+
+# executar CLI
+uv run python main.py
+
+# executar Streamlit
+uv run python main.py --streamlit
+```
+
+### Ambiente com pyenv/direnv (compatibilidade)
+```bash
+# selecionar versao python do projeto
+pyenv local 3.13.12
+
+# carregar variaveis do direnv (quando configurado)
+direnv allow
+
+# executar no venv local existente
+.venv/bin/python main.py --gui
+```
+
+### Documentacao tecnica atual (v4.21)
+- Algoritmo do layout dinamico (4 colunas):
+  - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.21 no topo)
+- Regras gerais de GUI em PyQt6:
+  - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+
+---
+## Historico (versoes anteriores)
+As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 
 ### Otimização de Requirements (2025-12-05)
 - **Objetivo:** Reduzir redundâncias e melhorar manutenção
