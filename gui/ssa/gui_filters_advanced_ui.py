@@ -45,9 +45,22 @@ LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
-LAYOUT_ADV_CONTROL_HEIGHT = 30
-LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 42
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 50
+LAYOUT_ADV_CONTROL_HEIGHT = 28
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 34
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 42
+
+
+def _flatten_field_box(box: QGroupBox) -> None:
+    if box is None:
+        return
+    try:
+        box.setFlat(True)
+        box.setStyleSheet(
+            "QGroupBox { border: 0; margin-top: 0px; padding-top: 0px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 0px; padding: 0px 0px 1px 0px; font-weight: 600; }"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
 
 def _is_widget_valid(widget) -> bool:
@@ -209,8 +222,9 @@ def _make_multiselect_box(
     layout_baseline: tuple[int, int, int] | None = None,
 ):
     box = QGroupBox(title)
+    _flatten_field_box(box)
     layout = QHBoxLayout(box)
-    layout.setContentsMargins(2, 1, 2, 1)
+    layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(2)
     button = QToolButton()
     button.setText(placeholder)
@@ -898,8 +912,9 @@ def _build_advanced_filters_panel(self):
     )
 
     reprog_box = QGroupBox("Reprogramacoes")
+    _flatten_field_box(reprog_box)
     reprog_layout = QGridLayout(reprog_box)
-    reprog_layout.setContentsMargins(1, 1, 1, 1)
+    reprog_layout.setContentsMargins(0, 0, 0, 0)
     reprog_layout.setHorizontalSpacing(4)
     reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
@@ -981,8 +996,9 @@ def _build_advanced_filters_panel(self):
     self.adv_derivada_checks = deriv_checks
 
     week_emis_box = QGroupBox("Emissao (AnoSemana)")
+    _flatten_field_box(week_emis_box)
     week_emis_layout = QHBoxLayout(week_emis_box)
-    week_emis_layout.setContentsMargins(1, 1, 1, 1)
+    week_emis_layout.setContentsMargins(0, 0, 0, 0)
     week_emis_layout.setSpacing(2)
     week_emissao_start = QLineEdit()
     week_emissao_start.setPlaceholderText("Ini")
@@ -1003,8 +1019,9 @@ def _build_advanced_filters_panel(self):
     week_emis_layout.addWidget(week_emissao_end)
 
     week_exec_box = QGroupBox("Execucao (AnoSemana)")
+    _flatten_field_box(week_exec_box)
     week_exec_layout = QHBoxLayout(week_exec_box)
-    week_exec_layout.setContentsMargins(1, 1, 1, 1)
+    week_exec_layout.setContentsMargins(0, 0, 0, 0)
     week_exec_layout.setSpacing(2)
     week_exec_start = QLineEdit()
     week_exec_start.setPlaceholderText("Ini")
@@ -1025,8 +1042,9 @@ def _build_advanced_filters_panel(self):
     week_exec_layout.addWidget(week_exec_end)
 
     macro_box = QGroupBox("Macro")
+    _flatten_field_box(macro_box)
     macro_layout = QHBoxLayout(macro_box)
-    macro_layout.setContentsMargins(1, 1, 1, 1)
+    macro_layout.setContentsMargins(0, 0, 0, 0)
     macro_combo = QComboBox()
     try:
         macro_combo.setMinimumWidth(100)
@@ -1071,7 +1089,7 @@ def _build_advanced_filters_panel(self):
     main_grid = QGridLayout()
     main_grid.setContentsMargins(0, 0, 0, 0)
     main_grid.setHorizontalSpacing(4)
-    main_grid.setVerticalSpacing(3)
+    main_grid.setVerticalSpacing(2)
     initial_widgets = [
         emis_box,
         exec_box,
@@ -1095,6 +1113,32 @@ def _build_advanced_filters_panel(self):
         main_grid.addWidget(widget, row, col)
     for col in range(LAYOUT_GRID_MAX_COLS):
         main_grid.setColumnStretch(col, 1)
+
+    apply_btn = QPushButton("Aplicar")
+    clear_btn = QPushButton("Limpar")
+    try:
+        apply_btn.setMinimumWidth(88)
+        clear_btn.setMinimumWidth(88)
+        apply_btn.setMaximumWidth(124)
+        clear_btn.setMaximumWidth(124)
+        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
+        clear_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
+    except Exception as exc:
+        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
+    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
+    clear_btn.clicked.connect(self._clear_advanced_filters)
+    action_widget = QWidget()
+    action_layout = QHBoxLayout(action_widget)
+    action_layout.setContentsMargins(0, 0, 0, 0)
+    action_layout.setSpacing(6)
+    action_layout.addStretch(1)
+    action_layout.addWidget(apply_btn)
+    action_layout.addWidget(clear_btn)
+    main_grid.addWidget(action_widget, 4, 2, 1, 2)
 
     grid_container_layout.addLayout(main_grid)
     controls_scroll = QScrollArea()
@@ -1132,33 +1176,9 @@ def _build_advanced_filters_panel(self):
         "exec_resp_box": exec_resp_box,
     }
 
-    buttons_row = QHBoxLayout()
-    buttons_row.setContentsMargins(0, 0, 0, 0)
-    apply_btn = QPushButton("Aplicar")
-    clear_btn = QPushButton("Limpar")
-    try:
-        apply_btn.setMinimumWidth(88)
-        clear_btn.setMinimumWidth(88)
-        apply_btn.setMaximumWidth(124)
-        clear_btn.setMaximumWidth(124)
-        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
-        clear_btn.setStyleSheet("padding: 0 10px;")
-    except Exception as exc:
-        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
-    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-    clear_btn.clicked.connect(self._clear_advanced_filters)
-    buttons_row.addStretch(1)
-    buttons_row.addWidget(apply_btn)
-    buttons_row.addSpacing(6)
-    buttons_row.addWidget(clear_btn)
-
-    outer.addLayout(buttons_row)
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
+    self._adv_filters_action_widget = action_widget
     self._adv_filters_action_btn_min_width = None
     self._adv_filters_controls_scroll = controls_scroll
     self._adv_filters_grid_cols = None
@@ -1359,7 +1379,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             break
     cols = max(LAYOUT_GRID_MIN_COLS, cols)
     cols = min(cols, len(visible))
-    rows_for_height = max(1, (len(visible) + cols - 1) // cols)
+    rows_for_height = max(1, (len(visible) + cols - 1) // cols) + 1
     try:
         vertical_spacing = int(grid.verticalSpacing())
         margins = grid.contentsMargins()
@@ -1399,6 +1419,13 @@ def _reorganize_advanced_filters_grid(self, width: int):
         col = idx % cols
         grid.addWidget(widget, row, col)
         widget.show()
+    action_widget = getattr(self, "_adv_filters_action_widget", None)
+    if action_widget is not None:
+        action_row = max(1, (len(visible) + cols - 1) // cols)
+        action_col = max(0, cols - 2)
+        action_span = min(2, cols)
+        grid.addWidget(action_widget, action_row, action_col, 1, action_span)
+        action_widget.show()
     for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
         try:
             grid.setColumnStretch(col, 0)
