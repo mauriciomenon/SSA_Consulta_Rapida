@@ -55,8 +55,55 @@ def _flatten_field_box(box: QGroupBox) -> None:
         return
     try:
         box.setFlat(True)
+        box.setStyleSheet(
+            "QGroupBox { border: 0; margin-top: 7px; padding-top: 0px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 0px; padding: 0px; font-weight: 600; }"
+        )
     except Exception as exc:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
+
+
+def _apply_advanced_filters_font_policy(self, width: int) -> None:
+    group = getattr(self, "adv_filters_group", None) or getattr(self, "_adv_filters_group_obj", None)
+    if group is None:
+        return
+    base_pt = 11
+    try:
+        current = int(group.font().pointSize())
+        if current > 0:
+            base_pt = current
+    except Exception:
+        pass
+    compact = int(width) < 1150
+    control_pt = 10 if compact else max(11, base_pt)
+    title_pt = max(11, min(control_pt + 1, 12))
+    try:
+        boxes = (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
+    except Exception:
+        boxes = []
+    for box in boxes:
+        if box is None:
+            continue
+        try:
+            bf = box.font()
+            bf.setPointSize(title_pt)
+            box.setFont(bf)
+        except Exception:
+            pass
+    control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
+    try:
+        controls = group.findChildren(control_types)
+    except Exception:
+        controls = []
+    for control in controls:
+        if control is None:
+            continue
+        try:
+            cf = control.font()
+            cf.setPointSize(control_pt)
+            control.setFont(cf)
+        except Exception:
+            pass
 
 
 def _is_widget_valid(widget) -> bool:
@@ -1149,8 +1196,9 @@ def _build_advanced_filters_panel(self):
         controls_scroll.setMaximumHeight(LAYOUT_ADV_PANEL_MAX_HEIGHT)
     except Exception as exc:
         logger.debug("Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc)
-    outer.addWidget(controls_scroll, 1)
+    outer.addWidget(controls_scroll, 0)
     outer.addWidget(action_widget, 0, Qt.AlignmentFlag.AlignRight)
+    outer.addStretch(1)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -1323,6 +1371,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         logger.debug("Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc)
 
     _update_advanced_filters_action_buttons(self, effective_width)
+    _apply_advanced_filters_font_policy(self, effective_width)
 
     if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
@@ -1415,8 +1464,14 @@ def _reorganize_advanced_filters_grid(self, width: int):
         try:
             gaps = max(0, cols - 1) * max(0, spacing)
             raw_cell_w = max(120, (available_for_cells - gaps) // max(1, cols))
-            capped_cell_w = max(128, min(208, raw_cell_w))
+            capped_cell_w = max(152, min(244, raw_cell_w))
             widget.setMaximumWidth(capped_cell_w)
+            inner_w = max(96, capped_cell_w - 12)
+            for ctrl in widget.findChildren((QToolButton, QComboBox)):
+                try:
+                    ctrl.setMaximumWidth(inner_w)
+                except Exception:
+                    pass
         except Exception:
             pass
         grid.addWidget(widget, row, col)
