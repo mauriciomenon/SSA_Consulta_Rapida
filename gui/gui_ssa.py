@@ -1505,8 +1505,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             except Exception as exc:
                 logger.debug("Falha ao agendar reorganizacao deferida apos troca de aba: %s", exc)
 
-    def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
-        return ssa_gui_filters._make_multiselect_box(self, title, placeholder, with_exclude)
+    def _make_multiselect_box(
+        self,
+        title: str,
+        placeholder: str = "Selecionar",
+        with_exclude: bool = True,
+        layout_baseline=None,
+    ):
+        return ssa_gui_filters._make_multiselect_box(
+            self,
+            title,
+            placeholder,
+            with_exclude,
+            layout_baseline=layout_baseline,
+        )
 
     def _set_menu_pre_show_hook(self, button, callback):
         return ssa_gui_filters._set_menu_pre_show_hook(self, button, callback)
