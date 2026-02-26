@@ -41,8 +41,8 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 LAYOUT_MIN_VALID_WIDTH = 1
 LAYOUT_GRID_MIN_COLS = 2
 LAYOUT_GRID_MAX_COLS = 5
-LAYOUT_ADV_PANEL_MIN_HEIGHT = 124
-LAYOUT_ADV_PANEL_MAX_HEIGHT = 248
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 86
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 188
 
 
 def _is_widget_valid(widget) -> bool:
@@ -82,8 +82,8 @@ def _safe_len(value: Any) -> int:
 
 def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
     cell_min = 236
-    action_min = 98
-    action_max = 152
+    action_min = 88
+    action_max = 134
     width_manager = getattr(self, "width_manager", None)
     if width_manager is None or not hasattr(width_manager, "compute_optimal_widths"):
         return cell_min, action_min, action_max
@@ -121,8 +121,8 @@ def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
         cell_min = max(212, min(252, cell_candidate))
 
         action_candidate = numero_w + situacao_w
-        action_min = max(96, min(132, action_candidate))
-        action_max = max(action_min + 36, min(176, action_min + 56))
+        action_min = max(84, min(118, action_candidate))
+        action_max = max(action_min + 28, min(148, action_min + 40))
     except Exception as exc:
         logger.debug("Falha ao calcular baseline de layout avancado via width_manager: %s", exc)
     return cell_min, action_min, action_max
@@ -175,7 +175,8 @@ def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", wit
     button = QToolButton()
     button.setText(placeholder)
     try:
-        button.setMinimumWidth(96)
+        button.setMinimumWidth(82)
+        button.setMaximumWidth(196)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
@@ -1060,8 +1061,8 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(116)
-        clear_btn.setMinimumWidth(116)
+        apply_btn.setMinimumWidth(92)
+        clear_btn.setMinimumWidth(92)
         apply_btn.setStyleSheet("font-weight: 600; padding: 4px 12px;")
         clear_btn.setStyleSheet("padding: 4px 12px;")
     except Exception as exc:
@@ -1195,9 +1196,19 @@ def _reorganize_advanced_filters_grid(self, width: int):
     if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
         return
 
-    _update_advanced_filters_action_buttons(self, width)
+    effective_width = width
+    try:
+        controls_scroll = getattr(self, "_adv_filters_controls_scroll", None)
+        if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
+            viewport_w = int(controls_scroll.viewport().width())
+            if viewport_w > 0:
+                effective_width = min(effective_width, viewport_w)
+    except Exception as exc:
+        logger.debug("Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc)
 
-    if width < LAYOUT_MIN_VALID_WIDTH:
+    _update_advanced_filters_action_buttons(self, effective_width)
+
+    if effective_width < LAYOUT_MIN_VALID_WIDTH:
         return
 
     grid = self._adv_filters_main_grid
@@ -1224,7 +1235,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         return
 
     cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
-    raw_cols = int(width // cell_min_width)
+    raw_cols = int(effective_width // cell_min_width)
     cols = max(LAYOUT_GRID_MIN_COLS, min(LAYOUT_GRID_MAX_COLS, raw_cols))
     cols = min(cols, len(visible))
     if cols <= 0:

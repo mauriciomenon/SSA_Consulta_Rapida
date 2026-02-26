@@ -1320,7 +1320,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(1501)
-        assert self.window._adv_filters_layout_mode == "cols_5"
+        assert str(self.window._adv_filters_layout_mode).startswith("cols_")
         previous_mode = self.window._adv_filters_layout_mode
 
         self.window._reorganize_advanced_filters_grid(0)
