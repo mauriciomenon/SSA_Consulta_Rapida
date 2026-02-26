@@ -2,10 +2,37 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.21.0 - CURRENT RELEASE**
+## **RELEASE v4.24.0 - CURRENT RELEASE**
 
 **Data de Lancamento**: Fevereiro 2026  
-**Tipo**: GUI Layout Stability Update  
+**Tipo**: Lower Panel Height Sync Lock  
+**Status**: Estavel
+
+### **Principais entregas**
+- Trava unica de altura sincronizada para os 3 blocos inferiores:
+  - detalhes da SSA
+  - filtros avancados
+  - filtros por coluna
+- Gatilhos de sincronizacao aplicados em:
+  - init da janela
+  - troca de aba
+  - resize
+  - rebuild de filtros por coluna
+- Ajuste de estabilidade: sync de altura em troca/bind com chamada deferida (`singleShot`) para evitar thrash visual.
+- Regressao nova:
+  - `tests/test_gui_filter_logic.py::test_bottom_panels_keep_single_synced_height_after_resize`
+
+### **Documentacao da versao**
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `README.md` (v4.24 no topo, historico abaixo)
+
+---
+
+## **RELEASE v4.22.0**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: GUI Stability and Column Filter Regression Lock  
 **Status**: Estavel
 
 ### **Principais entregas**
@@ -14,13 +41,23 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Barra de acoes ancorada fora do scroll de campos.
 - Ajuste de fonte dinamica por largura.
 - Ajuste de largura de `Reprogramacoes` e campos de `AnoSemana`.
+- Novos testes de regressao para filtros por coluna:
+  - menu de adicionar com lista completa e sem aliases invalidos;
+  - clear-all restaurando defaults e reset de linhas ocultas;
+  - linhas default mantendo botoes `Aplicar` e `Ocultar`.
 
 ### **Documentacao da versao**
-- `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.21 no topo)
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.22 no topo)
 - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
-- `README.md` (v4.21 no topo, historico abaixo)
+- `README.md` (v4.22 no topo, historico abaixo)
 
 ---
+
+## **RELEASE v4.21.0**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: GUI Layout Stability Update  
+**Status**: Estavel
 
 ## **RELEASE v3.11**
 

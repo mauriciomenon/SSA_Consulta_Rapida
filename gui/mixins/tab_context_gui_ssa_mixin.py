@@ -195,6 +195,13 @@ class TabContextGUISSAMixin:
         self._sync_bind_profile_selector()
         self._sync_bind_table_state(ctx, tab_kind)
         self._sync_bind_theme_and_render(ctx)
+        try:
+            if hasattr(self, "_queue_bottom_panel_height_sync"):
+                self._queue_bottom_panel_height_sync()
+            elif hasattr(self, "_sync_bottom_panel_heights"):
+                self._sync_bottom_panel_heights()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar altura dos paineis inferiores no bind de aba: %s", exc)
 
     def _sync_checks_to_tab_context(self: _TabContextHostProtocol):
         """Mantem o contexto da aba Filtros com as listas de checkboxes reconstruidas."""

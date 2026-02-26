@@ -215,6 +215,16 @@ def display_current_page(window, page_number):
             try:
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
+                # Keep table cells single-line to avoid visual clipping on fixed row height.
+                if item_text:
+                    item_text = (
+                        item_text
+                        .replace("\\r\\n", " ")
+                        .replace("\\n", " ")
+                        .replace("\\r", " ")
+                    )
+                    if "\n" in item_text or "\r" in item_text:
+                        item_text = " ".join(item_text.split())
 
                 # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
                 if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:

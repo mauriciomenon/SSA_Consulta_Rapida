@@ -10,6 +10,7 @@ from typing import Any, cast
 import pandas as pd
 import pytest
 from unittest.mock import patch
+import PyQt6.QtWidgets as QtWidgets
 
 pytest.importorskip('PyQt6', reason='Dependência PyQt6 indisponível no ambiente de teste')
 
@@ -186,9 +187,168 @@ class TestGUIFilterLogic:
 
         # Limpa todos e garante reset completo
         self.window._clear_all_column_filters()
-        assert not self.window._active_column_filters
+        assert self.window._active_column_filters
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
         self.window._refresh_after_filter_change()
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+
+    def test_add_column_menu_includes_full_candidates_and_excludes_legacy_aliases(self, monkeypatch):
+        class _FakeAction:
+            def __init__(self, text: str):
+                self.text = text
+                self.data_value = None
+                self.checked = False
+
+            def setCheckable(self, _state: bool):
+                return None
+
+            def setChecked(self, state: bool):
+                self.checked = bool(state)
+
+            def setData(self, value: str):
+                self.data_value = value
+
+            def data(self):
+                return self.data_value
+
+        class _FakeMenu:
+            created_actions: list[_FakeAction] = []
+
+            def __init__(self, _parent=None):
+                self.actions: list[_FakeAction] = []
+
+            def addAction(self, text: str):
+                action = _FakeAction(text)
+                self.actions.append(action)
+                _FakeMenu.created_actions.append(action)
+                return action
+
+            def exec(self, _pos):
+                return None
+
+            def deleteLater(self):
+                return None
+
+        self.window.internal_to_display['No SSA'] = 'No SSA'
+        self.window.internal_to_display['Data Cadastro'] = 'Data Cadastro'
+        self.window.internal_to_display['numero_ssa'] = 'Numero SSA'
+        self.window.internal_to_display['registros_espera'] = 'Registros Espera'
+        self.window.internal_to_display['num_reprobaciones'] = 'Num Reprobaciones'
+        self.window.internal_to_display['situacao_espera'] = 'Situacao Espera'
+        self.window.internal_to_display['numero_desvios'] = 'Numero Desvios'
+        self.window.internal_to_display['ate'] = 'Ate'
+        self.window.internal_to_display['justificativa'] = 'Justificativa'
+        self.window.internal_to_display['parciais'] = 'Parciais'
+        self.window.internal_to_display['situacao_da_parcial'] = 'Situacao Parcial'
+
+        monkeypatch.setattr(QtWidgets, "QMenu", _FakeMenu)
+
+        self.window._open_add_column_filter_menu()
+        menu_columns = {action.data() for action in _FakeMenu.created_actions}
+
+        assert 'situacao' in menu_columns
+        assert 'numero_ssa' in menu_columns
+        assert 'descricao_execucao' in menu_columns
+        assert 'No SSA' not in menu_columns
+        assert 'Data Cadastro' not in menu_columns
+        assert 'registros_espera' not in menu_columns
+        assert 'num_reprobaciones' not in menu_columns
+        assert 'situacao_espera' not in menu_columns
+        assert 'numero_desvios' not in menu_columns
+        assert 'ate' not in menu_columns
+        assert 'justificativa' not in menu_columns
+        assert 'parciais' not in menu_columns
+        assert 'situacao_da_parcial' not in menu_columns
+
+    def test_clear_all_column_filters_restores_defaults_and_hidden_lines(self):
+        self.window._active_column_filters = {
+            'numero_ssa': '2026',
+            'situacao': 'STE',
+        }
+        self.window._hidden_column_filter_lines = {'descricao_ssa', 'setor_executor'}
+        self.window._build_column_filters_panel()
+
+        self.window._clear_all_column_filters()
+
+        default_cols = self.window._column_filter_default_columns()
+        assert tuple(self.window._active_column_filters.keys()) == default_cols
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
+        assert self.window._hidden_column_filter_lines == set()
+
+    def test_default_column_filter_rows_show_apply_and_hide_buttons(self):
+        self.window._active_column_filters = {
+            col: '' for col in self.window._column_filter_default_columns()
+        }
+        self.window._build_column_filters_panel()
+
+        controls = self._get_column_filter_controls()
+        for col in self.window._column_filter_default_columns():
+            label = self.window._resolve_column_display_name(col)
+            assert label in controls
+            _, apply_btn, hide_btn = controls[label]
+            assert apply_btn.text() == "Aplicar"
+            assert hide_btn.text() == "Ocultar"
+            assert not apply_btn.isHidden()
+            assert not hide_btn.isHidden()
+
+    def test_table_render_collapses_multiline_text_to_single_line(self):
+        df = self.base_df.copy()
+        df.loc[0, "descricao_ssa"] = "Linha A\nLinha B"
+        df.loc[1, "descricao_ssa"] = "Linha C\\nLinha D"
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col_idx = self.window._current_display_columns.index("descricao_ssa")
+        item = self.window.table_widget.item(0, col_idx)
+        assert item is not None
+        assert "\n" not in item.text()
+        assert "\r" not in item.text()
+        assert "Linha A Linha B" in item.text()
+
+        item_literal = self.window.table_widget.item(1, col_idx)
+        assert item_literal is not None
+        assert "\\n" not in item_literal.text()
+        assert "Linha C Linha D" in item_literal.text()
+
+    def test_refresh_after_filter_change_updates_filtered_status_counter(self):
+        self.window._active_column_filters = {"situacao": "STE"}
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        status = self.window.status_label.text()
+        assert "SSAs filtradas" in status
+        assert "1 de 5" in status
+
+    def test_set_filtered_count_status_accepts_suffix(self):
+        self.window._set_filtered_count_status("", filtered_total=2, original_total=5, suffix="Aviso: teste.")
+        status = self.window.status_label.text()
+        assert status == "Status: SSAs filtradas: 2 de 5. Aviso: teste."
+
+    def test_apply_advanced_filters_notice_uses_count_status_helper(self, monkeypatch):
+        self.window._pending_search_display = "Busca X"
+
+        def _fake_refresh():
+            callback = getattr(self.window, "_adv_notice_callback", None)
+            if callable(callback):
+                callback("derivada_empty")
+
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
+        self.window._apply_advanced_filters_from_ui(store_only=False)
+        status = self.window.status_label.text()
+        assert "Status: SSAs filtradas:" in status
+        assert "para 'Busca X'" in status
+        assert "Aviso: nenhuma derivada encontrada para o filtro." in status
+
+    def test_find_unmapped_alias_columns_reports_only_unmapped(self):
+        self.window.internal_to_display["numero_ssa"] = "Numero SSA"
+        missing = self.window._find_unmapped_alias_columns(
+            ["numero_ssa", "descricao_ssa", "coluna_sem_alias", "#", "coluna_sem_alias"]
+        )
+        assert missing == ["coluna_sem_alias"]
 
     def test_general_search_and_or_display(self):
         self.window.df_completo = self.base_df.copy()
@@ -290,6 +450,33 @@ class TestGUIFilterLogic:
 
         assert table.minimumHeight() >= 220
         assert bottom_top > table_bottom
+
+    def test_bottom_panels_keep_single_synced_height_after_resize(self):
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+        self.window.resize(1520, 980)
+        QApplication.processEvents()
+        self.window._sync_bottom_panel_heights()
+        QApplication.processEvents()
+
+        groups = []
+        for ctx in self.window._tab_contexts:
+            for key in ("details_group", "adv_filters_group", "col_filters_group"):
+                widget = ctx.get(key)
+                if widget is None:
+                    continue
+                if widget in groups:
+                    continue
+                groups.append(widget)
+
+        assert len(groups) >= 3
+        min_heights = {int(g.minimumHeight()) for g in groups}
+        max_heights = {int(g.maximumHeight()) for g in groups}
+        assert len(min_heights) == 1
+        assert len(max_heights) == 1
+        synced_height = next(iter(min_heights))
+        assert synced_height == next(iter(max_heights))
+        assert 180 <= synced_height <= 360
 
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText('')
@@ -402,9 +589,12 @@ class TestGUIFilterLogic:
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
         controls = self._get_column_filter_controls()
-        assert 'Emissor' in controls
-        emissor_edit, emissor_apply, emissor_clear = controls['Emissor']
-        executor_edit, executor_apply, _ = controls['Executor']
+        emissor_label = self.window._resolve_column_display_name('setor_emissor')
+        executor_label = self.window._resolve_column_display_name('setor_executor')
+        assert emissor_label in controls
+        assert executor_label in controls
+        emissor_edit, emissor_apply, emissor_clear = controls[emissor_label]
+        executor_edit, executor_apply, _ = controls[executor_label]
         assert emissor_clear.text() == "Ocultar"
         assert "continua ativo" in (emissor_clear.toolTip() or "").casefold()
 
@@ -422,7 +612,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
-        assert 'Emissor' not in controls_after
+        assert emissor_label not in controls_after
         # Valores permanecem iguais (grupo ainda ativo)
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
@@ -1303,11 +1493,11 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
 
         self.window._reorganize_advanced_filters_grid(90)
-        assert self.window._adv_filters_layout_mode == "cols_2"
+        assert self.window._adv_filters_layout_mode == "cols_4"
 
         grid = self.window._adv_filters_main_grid
         widgets = self.window._adv_filters_grid_widgets
-        exec_resp_item = grid.itemAtPosition(7, 0)
+        exec_resp_item = grid.itemAtPosition(3, 2)
         assert exec_resp_item is not None
         assert exec_resp_item.widget() is widgets["exec_resp_box"]
 
@@ -1327,7 +1517,7 @@ class TestGUIFilterLogic:
         assert self.window._adv_filters_layout_mode == previous_mode
 
         self.window._reorganize_advanced_filters_grid(800)
-        assert self.window._adv_filters_layout_mode == "cols_3"
+        assert self.window._adv_filters_layout_mode == "cols_4"
 
     def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
         self.window.df_completo = self.base_df.assign(num_reprogramacoes=[0, 1, 2, 2, 3]).copy()
@@ -2021,6 +2211,20 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
+
+    def test_on_filter_finished_skips_width_adjustments_when_table_widget_invalid(self, monkeypatch):
+        self.window._active_filter_request_id = 77
+        self.window._active_filter_search_request_id = 77
+        self.window._active_filter_search_display = "Teste"
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", lambda: None)
+        monkeypatch.setattr(self.window, "_apply_search_display", lambda: None)
+        self.window.table_widget = None
+
+        self.window.on_filter_finished(self.base_df.copy(), request_id=77)
+
+        status = self.window.status_label.text()
+        assert "Status: SSAs filtradas:" in status
+        assert "para 'Teste'" in status
 
     def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
         class _FakeSignal:
