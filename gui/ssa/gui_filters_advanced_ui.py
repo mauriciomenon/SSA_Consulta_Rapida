@@ -65,14 +65,16 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
         return
     base_pt = 10
     try:
-        current = int(group.font().pointSize())
+        ref_button = getattr(self, "search_button", None)
+        ref_font = ref_button.font() if ref_button is not None else group.font()
+        current = int(ref_font.pointSize())
         if current > 0:
             base_pt = current
     except Exception as exc:
         logger.debug("Falha ao ler fonte base do grupo de filtros avancados: %s", exc)
-    compact = int(width) < 1250
-    control_pt = 11 if compact else max(12, base_pt)
-    title_pt = max(12, min(control_pt + 1, 13))
+    _ = width
+    control_pt = max(9, min(12, base_pt))
+    title_pt = max(control_pt, min(12, control_pt + 1))
     try:
         boxes = (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values()
     except Exception:
@@ -193,11 +195,18 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
+    min_width = max(74, min(112, min_width))
+    max_width = max(min_width + 18, min(138, max_width))
     if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
         return
     self._adv_filters_action_btn_min_width = min_width
     for btn in (apply_btn, clear_btn):
         try:
+            ref_btn = getattr(self, "search_button", None)
+            if ref_btn is not None:
+                ref_font = ref_btn.font()
+                ref_font.setBold(False)
+                btn.setFont(ref_font)
             btn.setMinimumWidth(min_width)
             btn.setMaximumWidth(max_width)
         except Exception as exc:
@@ -1154,7 +1163,7 @@ def _build_advanced_filters_panel(self):
     _flatten_field_box(action_box)
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
+    action_layout.setSpacing(8)
     action_layout.addWidget(apply_btn)
     action_layout.addWidget(clear_btn)
     initial_widgets = [

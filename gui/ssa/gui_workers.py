@@ -689,6 +689,16 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
+        if hasattr(window, "column_selector") and window.column_selector is not None:
+            canonical_provider = getattr(window, "_get_canonical_available_columns", None)
+            if callable(canonical_provider):
+                available_columns = canonical_provider()
+                if available_columns:
+                    window.column_selector.available_columns = list(available_columns)
+            window.column_selector.set_selected_columns(getattr(window, "visible_columns", []) or [])
+    except Exception as exc:
+        logger.debug("Falha ao sincronizar colunas disponiveis apos carga de dados: %s", exc)
+    try:
         window.clear_filter_button.setEnabled(window._has_any_active_filters())
     except Exception as exc:
         logger.debug("Falha ao avaliar filtros ativos; habilitando botao de limpeza por fallback: %s", exc)
@@ -703,9 +713,19 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     except Exception as exc:
         logger.warning("Falha ao atualizar estado do botao de derivadas: %s", exc)
     profile_hint = f" (perfil: {window.current_filter_profile})" if window.current_filter_profile else ""
-    window.status_label.setText(
-        f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
-    )
+    if hasattr(window, "_set_filtered_count_status"):
+        try:
+            suffix = f"{profile_hint}." if profile_hint else ""
+            window._set_filtered_count_status("", suffix=suffix)
+        except Exception as exc:
+            logger.debug("Falha ao atualizar status padrao de contagem no load_data_worker: %s", exc)
+            window.status_label.setText(
+                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+            )
+    else:
+        window.status_label.setText(
+            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+        )
 
 
 def _mask_db_path(error_msg: str, db_path: str | None) -> str:
