@@ -46,8 +46,8 @@ LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
 LAYOUT_ADV_CONTROL_HEIGHT = 28
-LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 34
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 42
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 42
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 52
 
 
 def _flatten_field_box(box: QGroupBox) -> None:
@@ -55,10 +55,6 @@ def _flatten_field_box(box: QGroupBox) -> None:
         return
     try:
         box.setFlat(True)
-        box.setStyleSheet(
-            "QGroupBox { border: 0; margin-top: 0px; padding-top: 0px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 0px; padding: 0px 0px 1px 0px; font-weight: 600; }"
-        )
     except Exception as exc:
         logger.debug("Falha ao achatar box de filtro avancado: %s", exc)
 
@@ -229,8 +225,8 @@ def _make_multiselect_box(
     button = QToolButton()
     button.setText(placeholder)
     _, action_min, action_max = layout_baseline or _resolve_adv_layout_baseline(self)
-    btn_min = max(70, min(96, action_min - 8))
-    btn_max = max(btn_min + 44, min(196, action_max + 46))
+    btn_min = max(70, min(88, action_min - 8))
+    btn_max = max(btn_min + 24, min(150, action_max + 20))
     try:
         button.setMinimumWidth(btn_min)
         button.setMaximumWidth(btn_max)
@@ -925,8 +921,8 @@ def _build_advanced_filters_panel(self):
     reprog_min = max(70, min(108, reprog_base_min - 8))
     reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
     try:
-        reprog_mode.setMinimumWidth(reprog_min)
-        reprog_mode.setMaximumWidth(reprog_max)
+        reprog_mode.setMinimumWidth(min(reprog_min, 88))
+        reprog_mode.setMaximumWidth(min(reprog_max, 150))
         reprog_mode.setMinimumHeight(32)
         reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -939,8 +935,8 @@ def _build_advanced_filters_panel(self):
         layout_baseline=layout_baseline,
     )
     try:
-        reprog_button.setMinimumWidth(reprog_min)
-        reprog_button.setMaximumWidth(reprog_max)
+        reprog_button.setMinimumWidth(min(reprog_min, 88))
+        reprog_button.setMaximumWidth(min(reprog_max, 150))
         reprog_button.setMinimumHeight(32)
         reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -1117,10 +1113,10 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(88)
-        clear_btn.setMinimumWidth(88)
-        apply_btn.setMaximumWidth(124)
-        clear_btn.setMaximumWidth(124)
+        apply_btn.setMinimumWidth(72)
+        clear_btn.setMinimumWidth(72)
+        apply_btn.setMaximumWidth(96)
+        clear_btn.setMaximumWidth(96)
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
@@ -1417,6 +1413,13 @@ def _reorganize_advanced_filters_grid(self, width: int):
     for idx, (_, widget) in enumerate(visible):
         row = idx // cols
         col = idx % cols
+        try:
+            gaps = max(0, cols - 1) * max(0, spacing)
+            raw_cell_w = max(120, (available_for_cells - gaps) // max(1, cols))
+            capped_cell_w = max(138, min(248, raw_cell_w))
+            widget.setMaximumWidth(capped_cell_w)
+        except Exception:
+            pass
         grid.addWidget(widget, row, col)
         widget.show()
     action_widget = getattr(self, "_adv_filters_action_widget", None)
