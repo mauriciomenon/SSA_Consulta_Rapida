@@ -1132,7 +1132,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self.display_map,
             self.visible_columns,
             default_columns=self.default_columns,
-            available_columns=[c for c in self.display_map.keys() if c not in COMPATIBILITY_NULL_UI_COLUMNS],
+            available_columns=self._get_canonical_available_columns(),
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
@@ -1462,6 +1462,52 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self._adv_ctx = adv_ctx
             ctx.update(adv_ctx)
         return ctx
+
+    def _get_canonical_available_columns(self) -> list[str]:
+        """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
+        legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
+        candidates = []
+
+        for attr_name in (
+            "visible_columns",
+            "default_columns",
+            "_profile_columns",
+            "_current_display_columns",
+        ):
+            values = getattr(self, attr_name, None)
+            if isinstance(values, (list, tuple)):
+                candidates.extend(values)
+
+        for df_attr in ("df_completo", "df_exibido"):
+            df_obj = getattr(self, df_attr, None)
+            if isinstance(df_obj, pd.DataFrame):
+                candidates.extend(list(df_obj.columns))
+
+        internal_map = getattr(self, "internal_to_display", None)
+        if isinstance(internal_map, dict):
+            candidates.extend(list(internal_map.keys()))
+
+        display_map = getattr(self, "display_map", None)
+        if isinstance(display_map, dict):
+            candidates.extend(list(display_map.keys()))
+
+        result = []
+        seen = set()
+        for col in candidates:
+            if not isinstance(col, str):
+                continue
+            col_name = col.strip()
+            if not col_name or col_name == "#" or col_name in seen:
+                continue
+            if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
+                continue
+            if col_name in legacy_invalid_columns:
+                continue
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                continue
+            seen.add(col_name)
+            result.append(col_name)
+        return result
 
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):

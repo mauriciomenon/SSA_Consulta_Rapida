@@ -756,17 +756,13 @@ class FilterGUISSAMixin:
         menu = QMenu(_qt_parent(self))
         columns = []
         candidates = []
-        internal_map = getattr(self, "internal_to_display", None)
-        if not isinstance(internal_map, dict):
-            internal_map = {}
-        if internal_map:
-            candidates.extend(internal_map.keys())
-        candidates.extend(getattr(self, "_profile_columns", []) or [])
+        canonical_provider = getattr(self, "_get_canonical_available_columns", None)
+        if callable(canonical_provider):
+            try:
+                candidates.extend(canonical_provider())
+            except Exception as exc:
+                logger.debug("Falha ao obter lista canonica de colunas para menu de filtros: %s", exc)
         candidates.extend((self._active_column_filters or {}).keys())
-        candidates.extend(getattr(self, "_current_display_columns", []) or [])
-        df_full = getattr(self, "df_completo", None)
-        if isinstance(df_full, pd.DataFrame):
-            candidates.extend(df_full.columns)
 
         seen = set()
         try:
