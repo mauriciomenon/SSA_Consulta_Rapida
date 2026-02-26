@@ -41,12 +41,13 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
 LAYOUT_GRID_MIN_COLS = 2
-LAYOUT_GRID_MAX_COLS = 5
+LAYOUT_GRID_MAX_COLS = 4
+LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
 LAYOUT_ADV_CONTROL_HEIGHT = 30
-LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 46
-LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 54
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 42
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 50
 
 
 def _is_widget_valid(widget) -> bool:
@@ -200,16 +201,25 @@ def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
     return max(186, min(340, max(base_cell_min, dynamic_baseline)))
 
 
-def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
+def _make_multiselect_box(
+    self,
+    title: str,
+    placeholder: str = "Selecionar",
+    with_exclude: bool = True,
+    layout_baseline: tuple[int, int, int] | None = None,
+):
     box = QGroupBox(title)
     layout = QHBoxLayout(box)
-    layout.setContentsMargins(4, 2, 4, 2)
+    layout.setContentsMargins(2, 1, 2, 1)
     layout.setSpacing(2)
     button = QToolButton()
     button.setText(placeholder)
+    _, action_min, action_max = layout_baseline or _resolve_adv_layout_baseline(self)
+    btn_min = max(70, min(96, action_min - 8))
+    btn_max = max(btn_min + 44, min(196, action_max + 46))
     try:
-        button.setMinimumWidth(82)
-        button.setMaximumWidth(196)
+        button.setMinimumWidth(btn_min)
+        button.setMaximumWidth(btn_max)
         button.setMinimumHeight(32)
         button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -855,49 +865,67 @@ def _build_advanced_filters_panel(self):
     except Exception as exc:
         logger.debug("Falha ao configurar objectName do painel de filtros avancados: %s", exc)
     outer = QVBoxLayout(group)
-    outer.setContentsMargins(2, 2, 2, 2)
-    outer.setSpacing(2)
+    outer.setContentsMargins(1, 1, 1, 1)
+    outer.setSpacing(1)
 
     grid_container = QWidget()
     grid_container_layout = QVBoxLayout(grid_container)
     grid_container_layout.setContentsMargins(0, 0, 0, 0)
     grid_container_layout.setSpacing(0)
 
-    emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box("Emissor")
-    exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box("Executor")
-    status_box, status_button, status_menu, status_exclude = self._make_multiselect_box("Situacao")
+    layout_baseline = _resolve_adv_layout_baseline(self)
+    emis_box, emis_button, emis_menu, emis_exclude = self._make_multiselect_box(
+        "Emissor",
+        layout_baseline=layout_baseline,
+    )
+    exec_box, exec_button, exec_menu, exec_exclude = self._make_multiselect_box(
+        "Executor",
+        layout_baseline=layout_baseline,
+    )
+    status_box, status_button, status_menu, status_exclude = self._make_multiselect_box(
+        "Situacao",
+        layout_baseline=layout_baseline,
+    )
     year_emissao_box, year_emissao_button, year_emissao_menu, _ = self._make_multiselect_box(
         "Ano Emissao",
         with_exclude=False,
+        layout_baseline=layout_baseline,
     )
     year_execucao_box, year_execucao_button, year_execucao_menu, _ = self._make_multiselect_box(
         "Ano Execucao",
         with_exclude=False,
+        layout_baseline=layout_baseline,
     )
 
     reprog_box = QGroupBox("Reprogramacoes")
     reprog_layout = QGridLayout(reprog_box)
-    reprog_layout.setContentsMargins(2, 1, 2, 1)
+    reprog_layout.setContentsMargins(1, 1, 1, 1)
     reprog_layout.setHorizontalSpacing(4)
     reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor", "lte")
     reprog_mode.addItem(">= Maior", "gte")
-    _, reprog_base_min, _ = _resolve_adv_layout_baseline(self)
+    _, reprog_base_min, reprog_base_max = layout_baseline
+    reprog_min = max(70, min(108, reprog_base_min - 8))
+    reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
     try:
-        reprog_mode.setMinimumWidth(max(78, reprog_base_min - 10))
-        reprog_mode.setMaximumWidth(240)
+        reprog_mode.setMinimumWidth(reprog_min)
+        reprog_mode.setMaximumWidth(reprog_max)
         reprog_mode.setMinimumHeight(32)
         reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode, 0, 0)
-    reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
+    reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box(
+        "Valores",
+        with_exclude=False,
+        layout_baseline=layout_baseline,
+    )
     try:
-        reprog_button.setMinimumWidth(max(88, reprog_base_min))
-        reprog_button.setMaximumWidth(240)
+        reprog_button.setMinimumWidth(reprog_min)
+        reprog_button.setMaximumWidth(reprog_max)
         reprog_button.setMinimumHeight(32)
         reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -914,10 +942,20 @@ def _build_advanced_filters_panel(self):
     self.adv_reprog_menu = reprog_menu
     self.adv_reprog_checks = []
 
-    prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box("Prio. Emissao")
-    prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box("Prio. Planejamento")
+    prio_emis_box, prio_emis_button, prio_emis_menu, _ = self._make_multiselect_box(
+        "Prio. Emissao",
+        layout_baseline=layout_baseline,
+    )
+    prio_plan_box, prio_plan_button, prio_plan_menu, _ = self._make_multiselect_box(
+        "Prio. Planejamento",
+        layout_baseline=layout_baseline,
+    )
 
-    deriv_box, deriv_button, deriv_menu, _ = self._make_multiselect_box("Derivadas", with_exclude=False)
+    deriv_box, deriv_button, deriv_menu, _ = self._make_multiselect_box(
+        "Derivadas",
+        with_exclude=False,
+        layout_baseline=layout_baseline,
+    )
     deriv_values = [("has", "Possui Derivadas"), ("is", "Sou Derivada")]
     deriv_selected = set()
     current_adv = getattr(self, "_advanced_filters", None) or {}
@@ -944,7 +982,7 @@ def _build_advanced_filters_panel(self):
 
     week_emis_box = QGroupBox("Emissao (AnoSemana)")
     week_emis_layout = QHBoxLayout(week_emis_box)
-    week_emis_layout.setContentsMargins(2, 1, 2, 1)
+    week_emis_layout.setContentsMargins(1, 1, 1, 1)
     week_emis_layout.setSpacing(2)
     week_emissao_start = QLineEdit()
     week_emissao_start.setPlaceholderText("Ini")
@@ -966,7 +1004,7 @@ def _build_advanced_filters_panel(self):
 
     week_exec_box = QGroupBox("Execucao (AnoSemana)")
     week_exec_layout = QHBoxLayout(week_exec_box)
-    week_exec_layout.setContentsMargins(2, 1, 2, 1)
+    week_exec_layout.setContentsMargins(1, 1, 1, 1)
     week_exec_layout.setSpacing(2)
     week_exec_start = QLineEdit()
     week_exec_start.setPlaceholderText("Ini")
@@ -988,7 +1026,7 @@ def _build_advanced_filters_panel(self):
 
     macro_box = QGroupBox("Macro")
     macro_layout = QHBoxLayout(macro_box)
-    macro_layout.setContentsMargins(2, 1, 2, 1)
+    macro_layout.setContentsMargins(1, 1, 1, 1)
     macro_combo = QComboBox()
     try:
         macro_combo.setMinimumWidth(100)
@@ -999,9 +1037,18 @@ def _build_advanced_filters_panel(self):
     macro_combo.currentIndexChanged.connect(self._on_macro_filter_changed)
     macro_layout.addWidget(macro_combo)
 
-    sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box("Solicitante")
-    prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box("Resp Prog")
-    exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box("Resp Exec")
+    sol_box, sol_button, sol_menu, sol_exclude = self._make_multiselect_box(
+        "Solicitante",
+        layout_baseline=layout_baseline,
+    )
+    prog_box, prog_button, prog_menu, prog_exclude = self._make_multiselect_box(
+        "Resp Prog",
+        layout_baseline=layout_baseline,
+    )
+    exec_resp_box, exec_resp_button, exec_resp_menu, exec_resp_exclude = self._make_multiselect_box(
+        "Resp Exec",
+        layout_baseline=layout_baseline,
+    )
     self._set_menu_pre_show_hook(
         sol_button,
         lambda prefix="adv_responsavel_solicitante": self._ensure_responsavel_options_materialized(
@@ -1023,24 +1070,30 @@ def _build_advanced_filters_panel(self):
 
     main_grid = QGridLayout()
     main_grid.setContentsMargins(0, 0, 0, 0)
-    main_grid.setHorizontalSpacing(6)
-    main_grid.setVerticalSpacing(6)
-    main_grid.addWidget(emis_box, 0, 0)
-    main_grid.addWidget(exec_box, 0, 1)
-    main_grid.addWidget(status_box, 0, 2)
-    main_grid.addWidget(year_emissao_box, 0, 3)
-    main_grid.addWidget(year_execucao_box, 0, 4)
-    main_grid.addWidget(reprog_box, 1, 0)
-    main_grid.addWidget(prio_emis_box, 1, 1)
-    main_grid.addWidget(prio_plan_box, 1, 2)
-    main_grid.addWidget(macro_box, 1, 3)
-    main_grid.addWidget(deriv_box, 1, 4)
-    main_grid.addWidget(week_emis_box, 2, 0)
-    main_grid.addWidget(week_exec_box, 2, 1)
-    main_grid.addWidget(sol_box, 2, 2)
-    main_grid.addWidget(prog_box, 2, 3)
-    main_grid.addWidget(exec_resp_box, 2, 4)
-    for col in range(5):
+    main_grid.setHorizontalSpacing(4)
+    main_grid.setVerticalSpacing(3)
+    initial_widgets = [
+        emis_box,
+        exec_box,
+        status_box,
+        year_emissao_box,
+        year_execucao_box,
+        reprog_box,
+        prio_emis_box,
+        prio_plan_box,
+        macro_box,
+        deriv_box,
+        week_emis_box,
+        week_exec_box,
+        sol_box,
+        prog_box,
+        exec_resp_box,
+    ]
+    for idx, widget in enumerate(initial_widgets):
+        row = idx // LAYOUT_GRID_MAX_COLS
+        col = idx % LAYOUT_GRID_MAX_COLS
+        main_grid.addWidget(widget, row, col)
+    for col in range(LAYOUT_GRID_MAX_COLS):
         main_grid.setColumnStretch(col, 1)
 
     grid_container_layout.addLayout(main_grid)
@@ -1080,19 +1133,19 @@ def _build_advanced_filters_panel(self):
     }
 
     buttons_row = QHBoxLayout()
-    buttons_row.setContentsMargins(0, 2, 0, 0)
+    buttons_row.setContentsMargins(0, 0, 0, 0)
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        apply_btn.setMinimumWidth(92)
-        clear_btn.setMinimumWidth(92)
-        apply_btn.setMaximumWidth(132)
-        clear_btn.setMaximumWidth(132)
+        apply_btn.setMinimumWidth(88)
+        clear_btn.setMinimumWidth(88)
+        apply_btn.setMaximumWidth(124)
+        clear_btn.setMaximumWidth(124)
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setStyleSheet("font-weight: 600; padding: 0 10px;")
+        apply_btn.setStyleSheet("font-weight: 700; padding: 0 8px;")
         clear_btn.setStyleSheet("padding: 0 10px;")
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
@@ -1100,9 +1153,8 @@ def _build_advanced_filters_panel(self):
     clear_btn.clicked.connect(self._clear_advanced_filters)
     buttons_row.addStretch(1)
     buttons_row.addWidget(apply_btn)
-    buttons_row.addSpacing(10)
+    buttons_row.addSpacing(6)
     buttons_row.addWidget(clear_btn)
-    buttons_row.addStretch(1)
 
     outer.addLayout(buttons_row)
     self._adv_filters_apply_btn = apply_btn
@@ -1241,8 +1293,9 @@ def _reorganize_advanced_filters_grid(self, width: int):
     _enforce_advanced_filters_compact_metrics(self)
 
     effective_width = width
+    controls_scroll = getattr(self, "_adv_filters_controls_scroll", None)
+    max_scroll_h = LAYOUT_ADV_PANEL_MAX_HEIGHT
     try:
-        controls_scroll = getattr(self, "_adv_filters_controls_scroll", None)
         if controls_scroll is not None and hasattr(controls_scroll, "viewport"):
             viewport_w = int(controls_scroll.viewport().width())
             if viewport_w > 0:
@@ -1250,10 +1303,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         if controls_scroll is not None and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
             group_h = int(self.adv_filters_group.height())
             if group_h > 0:
-                max_scroll_h = max(66, group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 18))
-                min_scroll_h = min(LAYOUT_ADV_PANEL_MIN_HEIGHT, max_scroll_h)
-                controls_scroll.setMinimumHeight(min_scroll_h)
-                controls_scroll.setMaximumHeight(min(max_scroll_h, LAYOUT_ADV_PANEL_MAX_HEIGHT))
+                max_scroll_h = max(60, min(LAYOUT_ADV_PANEL_MAX_HEIGHT, group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 12)))
     except Exception as exc:
         logger.debug("Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc)
 
@@ -1298,13 +1348,34 @@ def _reorganize_advanced_filters_grid(self, width: int):
     available_for_cells = max(0, int(effective_width) - horizontal_padding)
     cols = 1
     max_try_cols = min(LAYOUT_GRID_MAX_COLS, len(visible))
-    for candidate_cols in range(max_try_cols, 0, -1):
+    preferred_cols = min(LAYOUT_GRID_PREF_COLS, max_try_cols)
+    candidate_order = list(range(preferred_cols, 0, -1))
+    if max_try_cols > preferred_cols:
+        candidate_order = list(range(max_try_cols, preferred_cols - 1, -1)) + candidate_order
+    for candidate_cols in candidate_order:
         required_width = (candidate_cols * cell_min_width) + max(0, candidate_cols - 1) * spacing
         if required_width <= available_for_cells:
             cols = candidate_cols
             break
     cols = max(LAYOUT_GRID_MIN_COLS, cols)
     cols = min(cols, len(visible))
+    rows_for_height = max(1, (len(visible) + cols - 1) // cols)
+    try:
+        vertical_spacing = int(grid.verticalSpacing())
+        margins = grid.contentsMargins()
+        content_h = (
+            rows_for_height * LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT
+            + max(0, rows_for_height - 1) * max(0, vertical_spacing)
+            + int(margins.top() + margins.bottom())
+            + 2
+        )
+        target_scroll_h = max(60, min(max_scroll_h, content_h))
+        if controls_scroll is not None:
+            controls_scroll.setMinimumHeight(target_scroll_h)
+            controls_scroll.setMaximumHeight(target_scroll_h)
+    except Exception as exc:
+        logger.debug("Falha ao ajustar altura real do scroll de filtros avancados: %s", exc)
+
     if (
         getattr(self, "_adv_filters_grid_cols", None) == cols
         and getattr(self, "_adv_filters_last_widget_count", None) == len(visible)
@@ -1335,6 +1406,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             pass
     for col in range(cols):
         grid.setColumnStretch(col, 1)
+
 
 def _on_adv_sector_selection_changed(self, *_):
     if getattr(self, "_adv_sector_syncing", False):
