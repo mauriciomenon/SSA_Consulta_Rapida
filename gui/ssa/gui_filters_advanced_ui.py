@@ -1137,6 +1137,26 @@ def _build_advanced_filters_panel(self):
     main_grid.setContentsMargins(0, 0, 0, 0)
     main_grid.setHorizontalSpacing(4)
     main_grid.setVerticalSpacing(2)
+    apply_btn = QPushButton("Aplicar")
+    clear_btn = QPushButton("Limpar")
+    try:
+        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    except Exception as exc:
+        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
+    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
+    clear_btn.clicked.connect(self._clear_advanced_filters)
+    action_box = QGroupBox("")
+    _flatten_field_box(action_box)
+    action_layout = QHBoxLayout(action_box)
+    action_layout.setContentsMargins(0, 0, 0, 0)
+    action_layout.setSpacing(4)
+    action_layout.addWidget(apply_btn)
+    action_layout.addWidget(clear_btn)
     initial_widgets = [
         emis_box,
         exec_box,
@@ -1153,6 +1173,7 @@ def _build_advanced_filters_panel(self):
         sol_box,
         prog_box,
         exec_resp_box,
+        action_box,
     ]
     for idx, widget in enumerate(initial_widgets):
         row = idx // LAYOUT_GRID_MAX_COLS
@@ -1160,37 +1181,6 @@ def _build_advanced_filters_panel(self):
         main_grid.addWidget(widget, row, col)
     for col in range(LAYOUT_GRID_MAX_COLS):
         main_grid.setColumnStretch(col, 1)
-
-    apply_btn = QPushButton("Aplicar")
-    clear_btn = QPushButton("Limpar")
-    try:
-        apply_btn.setMinimumWidth(108)
-        clear_btn.setMinimumWidth(108)
-        apply_btn.setMaximumWidth(108)
-        clear_btn.setMaximumWidth(108)
-        apply_btn.setMinimumHeight(32)
-        apply_btn.setMaximumHeight(32)
-        clear_btn.setMinimumHeight(32)
-        clear_btn.setMaximumHeight(32)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        apply_btn.setStyleSheet("font-size: 14px; padding: 0 8px;")
-        clear_btn.setStyleSheet("font-size: 14px; padding: 0 8px;")
-        bf = apply_btn.font()
-        bf.setPointSize(13)
-        apply_btn.setFont(bf)
-        clear_btn.setFont(bf)
-    except Exception as exc:
-        logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
-    apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
-    clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_widget = QWidget()
-    action_layout = QHBoxLayout(action_widget)
-    action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(6)
-    action_layout.addStretch(1)
-    action_layout.addWidget(apply_btn)
-    action_layout.addWidget(clear_btn)
     grid_container_layout.addLayout(main_grid)
     controls_scroll = QScrollArea()
     controls_scroll.setWidgetResizable(True)
@@ -1207,7 +1197,6 @@ def _build_advanced_filters_panel(self):
     except Exception as exc:
         logger.debug("Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc)
     outer.addWidget(controls_scroll, 0)
-    outer.addWidget(action_widget, 0, Qt.AlignmentFlag.AlignRight)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -1226,11 +1215,12 @@ def _build_advanced_filters_panel(self):
         "sol_box": sol_box,
         "prog_box": prog_box,
         "exec_resp_box": exec_resp_box,
+        "action_box": action_box,
     }
 
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
-    self._adv_filters_action_widget = action_widget
+    self._adv_filters_action_widget = action_box
     self._adv_filters_action_btn_min_width = None
     self._adv_filters_controls_scroll = controls_scroll
     self._adv_filters_grid_cols = None
@@ -1403,6 +1393,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         "sol_box",
         "prog_box",
         "exec_resp_box",
+        "action_box",
     ]
     visible = [(name, w.get(name)) for name in order if w.get(name) is not None]
     if not visible:
