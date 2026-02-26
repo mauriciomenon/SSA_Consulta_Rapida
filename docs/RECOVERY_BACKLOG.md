@@ -3,6 +3,138 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-26 (lower panel single height lock)
+
+Delivered in this slice:
+1. Implemented single synchronized height lock for all 3 lower panels:
+   - details panel
+   - advanced filters panel
+   - column filters panel
+2. Added centralized methods in main window:
+   - `_compute_bottom_panel_target_height()`
+   - `_queue_bottom_panel_height_sync()`
+   - `_sync_bottom_panel_heights()`
+3. Hooked sync in:
+   - initial UI build (`singleShot`)
+   - tab change
+   - resize event
+   - column-filter panel rebuild
+4. Added regression lock test:
+   - `tests/test_gui_filter_logic.py::test_bottom_panels_keep_single_synced_height_after_resize`
+
+Validation:
+1. `python -m py_compile` pass.
+2. `ruff check` pass.
+3. `ty check` pass.
+4. focused pytest pass.
+5. full `uv run pytest -q` pass (`582 passed, 6 skipped, 11 subtests passed`).
+6. Code evidence:
+   - `gui/gui_ssa.py`: centralized sync methods and resize/tab/init hooks.
+   - `gui/mixins/tab_context_gui_ssa_mixin.py`: deferred queue sync on bind.
+   - `gui/mixins/filter_gui_ssa_mixin.py`: sync call after column-filter panel rebuild.
+   - `tests/test_gui_filter_logic.py`: equal-height regression test.
+
+Notes:
+1. This slice does not change horizontal distribution policy.
+2. Remaining visual tuning is limited to future micro-adjustments if required by user screenshots.
+
+## Update 2026-02-26 (md audit + ssa tab consistency)
+
+Delivered in this slice:
+1. General MD audit re-run:
+   - active operational docs refreshed;
+   - version-specific/historical docs preserved by design.
+2. GUI status consistency in filter flows:
+   - clear search and clear-all paths now use `Status: SSAs filtradas: N de M`.
+3. Column-filter footer button styling consistency:
+   - `Adicionar filtro de coluna` and `Limpar todos filtros de colunas` now share the same theme style.
+4. Validation gate executed for touched scope:
+   - `python -m py_compile` pass
+   - `ruff check` pass
+   - `ty check` pass
+   - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`
+     => `117 passed, 1 skipped`.
+5. Structural note from kluster kept deferred:
+   - `FilterGUISSAMixin` monolith split remains out of scope for this stabilization slice and stays in dedicated refactor sprint queue.
+6. Compatibility-null fields policy applied in GUI selectors:
+   - hidden from add-column-filter and column manager offerings:
+     `registros_espera`, `num_reprobaciones`, `situacao_espera`, `numero_desvios`,
+     `ate`, `justificativa`, `parciais`, `situacao_da_parcial`.
+   - kept in DB for compatibility only.
+7. Long-term pending:
+   - investigate ingestion/data lineage for compatibility-null fields to determine if they are expected-null
+     or import defects before any schema cleanup decision.
+
+## Update 2026-02-26 (md audit + gui table/status hardening)
+
+Delivered in this slice:
+1. Global MD audit executed with separation:
+   - updated active docs;
+   - preserved version-specific/historical docs for consultation.
+2. GUI table rendering now normalizes multiline cell text to single line before paint, avoiding clipping in fixed row height.
+3. Filter status now reports consistent counter format:
+   - `Status: SSAs filtradas: N de M ...`
+4. Added/updated focused tests in `tests/test_gui_filter_logic.py` for:
+   - multiline text rendering without newline clipping;
+   - filtered status counter consistency.
+
+MD scope decision:
+1. Maintained as historical by design:
+   - release-specific notes (`docs/RELEASE_NOTES_*`, historical release files);
+   - handoff archives with explicit top status pointers.
+2. Updated as active:
+   - `README.md`, `docs/HISTORICO_RELEASES.md`, `docs/FILTER_TAB_OPTIMIZATIONS.md`,
+     `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`, `docs/NEXT_CHAT_MIGRATION.md`,
+     `docs/PENDING_ACTION_MATRIX.md`, `docs/GUI_PYQT6_REGRAS_GERAIS.md`,
+     `docs/QWEN_CODE_DELEGATION_CONFIG.md`.
+
+Deferred (non-blocking, dedicated sprint only):
+1. `gui/mixins/filter_gui_ssa_mixin.py` remains structurally large.
+2. Scope split into managers/resolvers is intentionally deferred to dedicated refactor sprint to avoid transversal risk in this stabilization cycle.
+
+## Update 2026-02-26 (column filter regression tests lock)
+
+Delivered in this slice:
+1. Added focused regression tests in `tests/test_gui_filter_logic.py`:
+   - `test_add_column_menu_includes_full_candidates_and_excludes_legacy_aliases`
+   - `test_clear_all_column_filters_restores_defaults_and_hidden_lines`
+   - `test_default_column_filter_rows_show_apply_and_hide_buttons`
+2. Locked previously uncovered behavior for:
+   - full add-column candidate menu;
+   - legacy ghost alias exclusion (`No SSA`, `Data Cadastro`);
+   - clear-all restoring default visible rows with empty values;
+   - hidden line reset on clear-all.
+
+Validation:
+1. `python -m py_compile tests/test_gui_filter_logic.py` pass.
+2. `ruff check tests/test_gui_filter_logic.py` pass.
+3. `ty check tests/test_gui_filter_logic.py` pass.
+4. `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py` pass (`97 passed, 1 skipped`).
+5. Related suites:
+   - `.venv/bin/python -m pytest -q tests/test_gui_main_configuration.py` pass.
+   - `.venv/bin/python -m pytest -q tests/test_display.py tests/test_streamlit_filter_cache.py` pass.
+
+## Update 2026-02-26 (GUI column filter alias hardening)
+
+Delivered in this slice:
+1. Removed legacy invalid alias keys from GUI main preferences:
+   - dropped `Numero da SSA`/`No SSA` legacy key path.
+   - dropped `Data Cadastro` legacy key path.
+2. Hardened GUI preferences merge to ignore only known legacy invalid keys, without blocking custom valid keys.
+3. Hardened add-column-filter menu to avoid showing legacy ghost aliases while preserving valid internal `numero_ssa`.
+4. Kept DB schema unchanged; verified `ssa_table`/`ssas` contain `numero_ssa` and do not contain `No SSA`.
+
+Validation:
+1. `py_compile`, `ruff`, `ty` green for touched Python files.
+2. focused pytest:
+   - `tests/test_gui_filter_logic.py -k "clear_all_column_filters or column_filter or add_column_filter"` => pass
+   - `tests/test_gui_config.py` => pass
+3. kluster auto: clean after final patch set.
+
+Non-blocking deferred item:
+1. `config/gui_poc_preferences.json` still contains legacy non-internal display-mapping keys (`Numero da SSA`, `Semana de Cadastro`, `Data Cadastro`, `Descricao Execucao`).
+2. This file is not part of the active main GUI runtime path; schedule cleanup in dedicated low-risk config slice to keep parity.
+
 ## Update 2026-02-26 (sprints A B C delivered on codex/dev-filtros-stability)
 
 - Sprint A delivered (extractor contract hardening):

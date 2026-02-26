@@ -68,8 +68,8 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
         current = int(group.font().pointSize())
         if current > 0:
             base_pt = current
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao ler fonte base do grupo de filtros avancados: %s", exc)
     compact = int(width) < 1250
     control_pt = 11 if compact else max(12, base_pt)
     title_pt = max(12, min(control_pt + 1, 13))
@@ -84,8 +84,8 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             bf = box.font()
             bf.setPointSize(title_pt)
             box.setFont(bf)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ajustar fonte do box de filtro avancado: %s", exc)
     control_types = (QToolButton, QComboBox, QLineEdit)
     try:
         controls = group.findChildren(control_types)
@@ -98,8 +98,8 @@ def _apply_advanced_filters_font_policy(self, width: int) -> None:
             cf = control.font()
             cf.setPointSize(control_pt)
             control.setFont(cf)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao ajustar fonte de controle no painel avancado: %s", exc)
 
 
 def _is_widget_valid(widget) -> bool:
@@ -1479,17 +1479,17 @@ def _reorganize_advanced_filters_grid(self, width: int):
             for ctrl in widget.findChildren((QToolButton, QComboBox)):
                 try:
                     ctrl.setMaximumWidth(inner_w)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    logger.debug("Falha ao ajustar largura maxima de controle interno no painel avancado: %s", exc)
+        except Exception as exc:
+            logger.debug("Falha ao ajustar largura maxima de celula no painel avancado: %s", exc)
         grid.addWidget(widget, row, col)
         widget.show()
     for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
         try:
             grid.setColumnStretch(col, 0)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Falha ao resetar stretch de coluna no grid avancado: %s", exc)
     for col in range(cols):
         grid.setColumnStretch(col, 1)
 
@@ -1884,72 +1884,41 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         except Exception as exc:
             logger.warning("Falha ao salvar estado antes de aplicar filtros avancados: %s", exc)
     data = {}
-    try:
-        data["setor_executor"] = self._get_checked_values(getattr(self, "adv_executor_checks", None))
-    except Exception:
-        data["setor_executor"] = []
-    try:
-        data["setor_executor_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_executor_exclude_checks", None)
-        )
-    except Exception:
-        data["setor_executor_exclude_values"] = []
-    try:
-        data["setor_emissor"] = self._get_checked_values(getattr(self, "adv_emissor_checks", None))
-    except Exception:
-        data["setor_emissor"] = []
-    try:
-        data["setor_emissor_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_emissor_exclude_checks", None)
-        )
-    except Exception:
-        data["setor_emissor_exclude_values"] = []
-    try:
-        data["situacao"] = self._get_checked_values(getattr(self, "adv_status_checks", None))
-    except Exception:
-        data["situacao"] = []
-    try:
-        data["situacao_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_status_exclude_checks", None)
-        )
-    except Exception:
-        data["situacao_exclude_values"] = []
-    try:
-        data["ano_emissao_values"] = self._get_checked_values(
-            getattr(self, "adv_year_emissao_checks", None)
-        )
-    except Exception:
-        data["ano_emissao_values"] = []
-    try:
-        data["ano_emissao_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_year_emissao_exclude_checks", None)
-        )
-    except Exception:
-        data["ano_emissao_exclude_values"] = []
-    try:
-        data["ano_execucao_values"] = self._get_checked_values(
-            getattr(self, "adv_year_execucao_checks", None)
-        )
-    except Exception:
-        data["ano_execucao_values"] = []
-    try:
-        data["ano_execucao_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_year_execucao_exclude_checks", None)
-        )
-    except Exception:
-        data["ano_execucao_exclude_values"] = []
-    try:
-        data["semana_emissao_inicio"] = self._parse_week(self.adv_week_emissao_start.text())
-        data["semana_emissao_fim"] = self._parse_week(self.adv_week_emissao_end.text())
-    except Exception:
-        data["semana_emissao_inicio"] = None
-        data["semana_emissao_fim"] = None
-    try:
-        data["semana_execucao_inicio"] = self._parse_week(self.adv_week_execucao_start.text())
-        data["semana_execucao_fim"] = self._parse_week(self.adv_week_execucao_end.text())
-    except Exception:
-        data["semana_execucao_inicio"] = None
-        data["semana_execucao_fim"] = None
+
+    def _safe_checked(checks_attr: str) -> list[str]:
+        try:
+            return self._get_checked_values(getattr(self, checks_attr, None))
+        except Exception as exc:
+            logger.debug("Falha ao coletar valores (%s): %s", checks_attr, exc)
+            return []
+
+    def _safe_week_range(start_attr: str, end_attr: str) -> tuple[int | None, int | None]:
+        try:
+            start_widget = getattr(self, start_attr, None)
+            end_widget = getattr(self, end_attr, None)
+            start_text = start_widget.text() if start_widget is not None else ""
+            end_text = end_widget.text() if end_widget is not None else ""
+            return self._parse_week(start_text), self._parse_week(end_text)
+        except Exception as exc:
+            logger.debug("Falha ao coletar faixa de semana (%s/%s): %s", start_attr, end_attr, exc)
+            return None, None
+
+    data["setor_executor"] = _safe_checked("adv_executor_checks")
+    data["setor_executor_exclude_values"] = _safe_checked("adv_executor_exclude_checks")
+    data["setor_emissor"] = _safe_checked("adv_emissor_checks")
+    data["setor_emissor_exclude_values"] = _safe_checked("adv_emissor_exclude_checks")
+    data["situacao"] = _safe_checked("adv_status_checks")
+    data["situacao_exclude_values"] = _safe_checked("adv_status_exclude_checks")
+    data["ano_emissao_values"] = _safe_checked("adv_year_emissao_checks")
+    data["ano_emissao_exclude_values"] = _safe_checked("adv_year_emissao_exclude_checks")
+    data["ano_execucao_values"] = _safe_checked("adv_year_execucao_checks")
+    data["ano_execucao_exclude_values"] = _safe_checked("adv_year_execucao_exclude_checks")
+    semana_emissao_inicio, semana_emissao_fim = _safe_week_range("adv_week_emissao_start", "adv_week_emissao_end")
+    data["semana_emissao_inicio"] = semana_emissao_inicio
+    data["semana_emissao_fim"] = semana_emissao_fim
+    semana_execucao_inicio, semana_execucao_fim = _safe_week_range("adv_week_execucao_start", "adv_week_execucao_end")
+    data["semana_execucao_inicio"] = semana_execucao_inicio
+    data["semana_execucao_fim"] = semana_execucao_fim
     data["semana_emissao_exclude"] = False
     data["semana_execucao_exclude"] = False
     derivada_selected = {str(v).casefold() for v in self._get_checked_values(getattr(self, "adv_derivada_checks", None))}
@@ -1964,7 +1933,8 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
             return list(adv_current.get(key_name) or [])
         try:
             return self._get_checked_values(getattr(self, checks_attr, None))
-        except Exception:
+        except Exception as exc:
+            logger.debug("Falha ao coletar responsavel (%s/%s): %s", key_name, checks_attr, exc)
             return []
 
     data["solicitante"] = _collect_responsavel_values(
@@ -1997,38 +1967,16 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
         "responsavel_execucao_exclude_values",
         "adv_responsavel_execucao",
     )
-    try:
-        data["num_reprogramacoes_values"] = self._get_checked_values(getattr(self, "adv_reprog_checks", None))
-    except Exception:
-        data["num_reprogramacoes_values"] = []
+    data["num_reprogramacoes_values"] = _safe_checked("adv_reprog_checks")
     data["num_reprogramacoes_mode"] = _safe_combo_item_data(getattr(self, "adv_reprog_mode", None))
-    try:
-        data["prioridade_emissao_values"] = self._get_checked_values(
-            getattr(self, "adv_prioridade_emissao_checks", None)
-        )
-    except Exception:
-        data["prioridade_emissao_values"] = []
-    try:
-        data["prioridade_emissao_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_prioridade_emissao_exclude_checks", None)
-        )
-    except Exception:
-        data["prioridade_emissao_exclude_values"] = []
-    try:
-        data["prioridade_planejamento_values"] = self._get_checked_values(
-            getattr(self, "adv_prioridade_planejamento_checks", None)
-        )
-    except Exception:
-        data["prioridade_planejamento_values"] = []
-    try:
-        data["prioridade_planejamento_exclude_values"] = self._get_checked_values(
-            getattr(self, "adv_prioridade_planejamento_exclude_checks", None)
-        )
-    except Exception:
-        data["prioridade_planejamento_exclude_values"] = []
+    data["prioridade_emissao_values"] = _safe_checked("adv_prioridade_emissao_checks")
+    data["prioridade_emissao_exclude_values"] = _safe_checked("adv_prioridade_emissao_exclude_checks")
+    data["prioridade_planejamento_values"] = _safe_checked("adv_prioridade_planejamento_checks")
+    data["prioridade_planejamento_exclude_values"] = _safe_checked("adv_prioridade_planejamento_exclude_checks")
     try:
         data["macro_filter"] = self.adv_macro_combo.currentData()
-    except Exception:
+    except Exception as exc:
+        logger.debug("Falha ao coletar macro_filter: %s", exc)
         data["macro_filter"] = None
 
     self._advanced_filters = data
@@ -2050,12 +1998,18 @@ def _apply_advanced_filters_from_ui(self, store_only: bool = False):
     notice = notice_box["value"]
     if notice:
         try:
-            if notice == "derivada_all_ste_empty":
-                self.status_label.setText("Status: Nenhuma derivada STE encontrada para o filtro.")
-            elif notice == "derivada_empty":
-                self.status_label.setText("Status: Nenhuma derivada encontrada para o filtro.")
-        except Exception:
-            pass
+            if hasattr(self, "_set_filtered_count_status"):
+                notice_suffix = ""
+                if notice == "derivada_all_ste_empty":
+                    notice_suffix = "Aviso: nenhuma derivada STE encontrada para o filtro."
+                elif notice == "derivada_empty":
+                    notice_suffix = "Aviso: nenhuma derivada encontrada para o filtro."
+                self._set_filtered_count_status(
+                    str(getattr(self, "_pending_search_display", "") or ""),
+                    suffix=notice_suffix,
+                )
+        except Exception as exc:
+            logger.warning("Falha ao atualizar status com aviso de derivadas apos filtro avancado: %s", exc)
 
 def _parse_week(self, raw: str):
     s = str(raw or "").strip()

@@ -1,14 +1,20 @@
-# SSA Consulta Rapida v4.21.0
+# SSA Consulta Rapida v4.24.0
 
-Release 4.21.0 consolida o ajuste fino do layout dinamico dos filtros avancados com 4 colunas, melhor distribuicao vertical e barra de acoes dedicada.
+Release 4.24.0 consolida sincronizacao unica de altura dos paineis inferiores e hardening de estabilidade em troca de aba/resize.
 
-## Release v4.21.0 (2026-02)
+## Release v4.24.0 (2026-02)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.21.0 com foco em usabilidade e estabilidade dos filtros avancados.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.24.0.
+- Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
+- Regressao nova: teste para garantir altura sincronizada unica apos resize.
+- Regressao de filtros por coluna coberta por novos testes focados em:
+  - menu de adicionar filtro de coluna (lista completa + exclusao de aliases legados invalidos);
+  - clear-all restaurando defaults e linhas ocultas;
+  - presenca de botoes Aplicar/Ocultar nas linhas default.
 
 ### Execucao rapida com uv (recomendado)
 ```bash
@@ -38,9 +44,9 @@ direnv allow
 .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.21)
+### Documentacao tecnica atual (v4.24)
 - Algoritmo do layout dinamico (4 colunas):
-  - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.21 no topo)
+  - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:
   - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
 

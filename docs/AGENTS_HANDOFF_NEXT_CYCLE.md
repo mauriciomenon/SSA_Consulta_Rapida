@@ -2,6 +2,67 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-02-26 21:40 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Most recent delivered slice:
+  1. Added synchronized lower-panel height lock across:
+     - details
+     - advanced filters
+     - column filters
+  2. Bound sync to init/tab-change/resize/rebuild events.
+  3. Applied deferred queue call on bind/tab paths to avoid layout thrash.
+  4. Added regression test for equal min/max lower-panel heights after resize.
+  5. Code evidence:
+     - `gui/gui_ssa.py`: synchronized lower-panel height methods + init/tab/resize hooks
+     - `gui/mixins/tab_context_gui_ssa_mixin.py`: deferred queue sync in bind
+     - `gui/mixins/filter_gui_ssa_mixin.py`: rebuild hook for sync
+     - `tests/test_gui_filter_logic.py`: regression lock for equal heights
+- Validation evidence:
+  - `python -m py_compile` pass
+  - `ruff check` pass
+  - `ty check` pass
+  - `uv run pytest -q` => `582 passed, 6 skipped, 11 subtests passed`
+- Operational note:
+  - blocks below are historical record and must not override this top block.
+
+## CURRENT TRUTH 2026-02-26 17:05 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.22.0`.
+- Most recent delivered slice:
+  1. MD audit rerun for active docs, preserving historical docs by design.
+  2. Filter clear flows now keep unified status format:
+     - `Status: SSAs filtradas: N de M`.
+  3. SSA tab column-filter footer buttons now share same theme style.
+- Validation evidence:
+  - `python -m py_compile` pass (touched scope)
+  - `ruff check` pass (touched scope)
+  - `ty check` pass (touched scope)
+  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`
+    => `117 passed, 1 skipped`
+- Operational note:
+  - older sections below are historical record only.
+
+## CURRENT TRUTH 2026-02-26 14:07 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.22.0`.
+- Most recent delivered slice:
+  - new regression tests for column filters in `tests/test_gui_filter_logic.py`;
+  - focus points: add-column menu candidates, clear-all defaults reset, Apply/Hide controls presence.
+- Current validation evidence (latest run):
+  - `python -m py_compile tests/test_gui_filter_logic.py` pass
+  - `ruff check tests/test_gui_filter_logic.py` pass
+  - `ty check tests/test_gui_filter_logic.py` pass
+  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py` pass (`97 passed, 1 skipped`)
+  - `.venv/bin/python -m pytest -q tests/test_gui_main_configuration.py` pass
+  - `.venv/bin/python -m pytest -q tests/test_display.py tests/test_streamlit_filter_cache.py` pass
+- Operational rule:
+  - references to `codex/import-review` and `PR #31` below are historical audit only.
+  - do not use those sections as active execution source.
+
 ## Update 2026-02-26 (status real apos sprints A B C)
 
 - Branch ativa: `codex/dev-filtros-stability`.

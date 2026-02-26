@@ -2,6 +2,70 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-02-26 21:40 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest delivered slice:
+  1. Added single synchronized height lock for the 3 lower panels:
+     - `Detalhes da SSA Selecionada`
+     - `Filtros Avancados`
+     - `Filtros por Coluna`
+  2. Height sync is now triggered on init, tab change, resize, and column-filter panel rebuild.
+  3. Tab/bind sync was switched to deferred queue (`QTimer.singleShot(0, ...)`) to avoid layout thrashing.
+  4. Added regression test to lock equal min/max heights after resize.
+  5. Code evidence:
+     - `gui/gui_ssa.py`: `_compute_bottom_panel_target_height`, `_queue_bottom_panel_height_sync`, `_sync_bottom_panel_heights`
+     - `gui/mixins/tab_context_gui_ssa_mixin.py`: bind path now queues height sync
+     - `gui/mixins/filter_gui_ssa_mixin.py`: column-filter rebuild re-applies height sync
+     - `tests/test_gui_filter_logic.py`: `test_bottom_panels_keep_single_synced_height_after_resize`
+- Validation snapshot:
+  - `python -m py_compile` (touched files): pass
+  - `ruff check` (touched files): pass
+  - `ty check` (touched files): pass
+  - `uv run pytest -q` full suite: `582 passed, 6 skipped, 11 subtests passed`
+  - focused GUI tests:
+    - `test_bottom_panels_keep_single_synced_height_after_resize`: pass
+    - `test_filters_tab_layout_keeps_bottom_panel_below_table_with_few_rows`: pass
+- Important:
+  - sections below remain historical context and must not override this block.
+
+## CURRENT TRUTH 2026-02-26 17:05 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.22.0`.
+- Latest delivered slice:
+  1. Re-ran MD audit and refreshed active control docs only.
+  2. Enforced consistent status counter in filter clear flows:
+     - `Status: SSAs filtradas: N de M`.
+  3. Unified footer button style in SSA column-filter panel:
+     - `Adicionar filtro de coluna` == `Limpar todos filtros de colunas`.
+- Latest validation snapshot:
+  - `python -m py_compile` on touched files: pass
+  - `ruff check` on touched files: pass
+  - `ty check` on touched files: pass
+  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`
+    => `117 passed, 1 skipped`
+- Important:
+  - sections below remain historical context and must not override this block.
+
+## CURRENT TRUTH 2026-02-26 14:07 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.22.0`.
+- Latest delivered slice:
+  1. Added regression tests for column-filter stability in `tests/test_gui_filter_logic.py`.
+  2. Locked behavior for:
+     - add-column menu candidate coverage + exclusion of legacy ghost aliases;
+     - clear-all restore of default visible columns and hidden-line reset;
+     - Apply/Hide controls present in default rows.
+- Latest validation snapshot:
+  - `.venv/bin/python -m pytest -q tests/test_gui_filter_logic.py` => `97 passed, 1 skipped`.
+  - `.venv/bin/python -m pytest -q tests/test_gui_main_configuration.py` => `12 passed`.
+  - `.venv/bin/python -m pytest -q tests/test_display.py tests/test_streamlit_filter_cache.py` => `20 passed`.
+- Important:
+  - any references below to `codex/import-review` or `PR #31` are historical and non-operational.
+
 ## Update 2026-02-26 (sprint migration snapshot)
 
 - Active branch: `codex/dev-filtros-stability`.

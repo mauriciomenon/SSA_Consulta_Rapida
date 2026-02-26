@@ -53,6 +53,7 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
+    COMPATIBILITY_NULL_UI_COLUMNS,
     load_gui_main_preferences,  # noqa: F401 - re-export for compatibility
 )
 
@@ -772,7 +773,6 @@ except Exception as exc:
     logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
 
 TABLE_NAME = 'ssas'
-
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
@@ -1052,6 +1052,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
+        try:
+            QTimer.singleShot(0, self._sync_bottom_panel_heights)
+        except Exception as exc:
+            logger.debug("Falha ao agendar sincronizacao inicial de altura dos paineis inferiores: %s", exc)
 
         # --- Conecta Workers / Flags ---
         # Threads iniciadas sob demanda
@@ -1128,7 +1132,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self.display_map,
             self.visible_columns,
             default_columns=self.default_columns,
-            available_columns=list(self.display_map.keys()),
+            available_columns=[c for c in self.display_map.keys() if c not in COMPATIBILITY_NULL_UI_COLUMNS],
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
@@ -1392,7 +1396,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         footer.addStretch()
         add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
         add_column_filter_btn.setMaximumWidth(260)
-        add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
+        add_column_filter_btn.setToolTip("Selecionar qualquer coluna para ativar filtro dedicado")
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
         footer.addWidget(cast(Any, add_column_filter_btn))
         footer.addSpacing(8)
@@ -1504,6 +1508,66 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
             except Exception as exc:
                 logger.debug("Falha ao agendar reorganizacao deferida apos troca de aba: %s", exc)
+        try:
+            self._queue_bottom_panel_height_sync()
+        except Exception as exc:
+            logger.debug("Falha ao enfileirar sincronizacao de altura apos troca de aba: %s", exc)
+
+    def _compute_bottom_panel_target_height(self) -> int:
+        try:
+            window_height = int(self.height())
+        except Exception:
+            window_height = 900
+        if window_height <= 0:
+            window_height = 900
+        try:
+            base_font_pt = int(self.font().pointSize())
+        except Exception:
+            base_font_pt = 10
+        if base_font_pt <= 0:
+            base_font_pt = 10
+        base_height = int(window_height * 0.28)
+        font_adjust = max(0, base_font_pt - 10) * 8
+        target = base_height + font_adjust
+        return max(180, min(360, target))
+
+    def _queue_bottom_panel_height_sync(self) -> None:
+        try:
+            QTimer.singleShot(0, self._sync_bottom_panel_heights)
+        except Exception as exc:
+            logger.debug("Falha ao enfileirar sincronizacao de altura dos paineis inferiores: %s", exc)
+            self._sync_bottom_panel_heights()
+
+    def _sync_bottom_panel_heights(self) -> None:
+        if not hasattr(self, "_tab_contexts"):
+            return
+        target = self._compute_bottom_panel_target_height()
+        seen = set()
+        groups = []
+        for ctx in self._tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            for key in ("details_group", "col_filters_group", "adv_filters_group"):
+                widget = ctx.get(key)
+                if widget is None:
+                    continue
+                wid = id(widget)
+                if wid in seen:
+                    continue
+                seen.add(wid)
+                groups.append(widget)
+        for widget in groups:
+            try:
+                widget.setMinimumHeight(target)
+                widget.setMaximumHeight(target)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar altura do painel inferior %s: %s", widget, exc)
+        try:
+            current_kind = getattr(self, "_current_tab_kind", None)
+            if current_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+                self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
+        except Exception as exc:
+            logger.debug("Falha ao reorganizar painel avancado apos sync de altura: %s", exc)
 
     def _make_multiselect_box(
         self,
@@ -1876,7 +1940,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 return
 
             menu = QMenu(self)
-            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col_name, self.internal_to_display.get(col_name, col_name))
+            full_name = self._resolve_column_display_name(col_name)
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
@@ -2516,6 +2580,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     self._reorganize_advanced_filters_grid(width)
         except Exception as exc:
             logger.debug("Falha ao reorganizar grid de filtros durante resize: %s", exc)
+        try:
+            self._sync_bottom_panel_heights()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar altura dos paineis inferiores durante resize: %s", exc)
 
         # So recalcula se ha dados carregados e uma mudanca significativa na largura
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and
