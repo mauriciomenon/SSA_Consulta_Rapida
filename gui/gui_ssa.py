@@ -1492,6 +1492,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
+        if ctx.get("tab_kind") == "filters":
+            try:
+                self._reorganize_advanced_filters_grid(getattr(self, "adv_filters_group").width())
+            except Exception as exc:
+                logger.debug("Falha ao reorganizar filtros avancados apos troca de aba: %s", exc)
+            try:
+                QTimer.singleShot(
+                    0,
+                    lambda: self._reorganize_advanced_filters_grid(getattr(self, "adv_filters_group").width()),
+                )
+            except Exception as exc:
+                logger.debug("Falha ao agendar reorganizacao deferida apos troca de aba: %s", exc)
 
     def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
         return ssa_gui_filters._make_multiselect_box(self, title, placeholder, with_exclude)
