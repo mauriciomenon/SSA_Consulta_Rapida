@@ -44,6 +44,9 @@ LAYOUT_GRID_MIN_COLS = 2
 LAYOUT_GRID_MAX_COLS = 5
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
+LAYOUT_ADV_CONTROL_HEIGHT = 30
+LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 46
+LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 54
 
 
 def _is_widget_valid(widget) -> bool:
@@ -148,6 +151,35 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
             logger.debug("Falha ao ajustar largura minima de botao de acao: %s", exc)
 
 
+def _enforce_advanced_filters_compact_metrics(self) -> None:
+    group = getattr(self, "adv_filters_group", None)
+    if group is None:
+        group = getattr(self, "_adv_filters_group_obj", None)
+    if group is None:
+        return
+    for field_box in (getattr(self, "_adv_filters_grid_widgets", {}) or {}).values():
+        if field_box is None:
+            continue
+        try:
+            field_box.setMinimumHeight(LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT)
+            field_box.setMaximumHeight(LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar metrica compacta em box de filtro avancado: %s", exc)
+    control_types = (QToolButton, QComboBox, QLineEdit, QPushButton)
+    try:
+        controls = group.findChildren(control_types)
+    except Exception:
+        controls = []
+    for control in controls:
+        if control is None:
+            continue
+        try:
+            control.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+            control.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        except Exception as exc:
+            logger.debug("Falha ao aplicar metrica compacta em controle de filtro avancado: %s", exc)
+
+
 def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
     base_cell_min, _, _ = _resolve_adv_layout_baseline(self)
     widths = []
@@ -179,6 +211,7 @@ def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", wit
         button.setMinimumWidth(82)
         button.setMaximumWidth(196)
         button.setMinimumHeight(32)
+        button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
@@ -847,6 +880,22 @@ def _sync_multiselect_checks(self, button, checks, selected, exclude_checks=None
 
 def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
+    try:
+        group.setObjectName("adv_filters_group")
+        group.setStyleSheet(
+            "#adv_filters_group QLabel { font-size: 12px; } "
+            "#adv_filters_group QGroupBox { font-size: 12px; font-weight: 600; } "
+            "#adv_filters_group QToolButton, "
+            "#adv_filters_group QPushButton, "
+            "#adv_filters_group QComboBox, "
+            "#adv_filters_group QLineEdit { "
+            f"min-height: {LAYOUT_ADV_CONTROL_HEIGHT}px; "
+            f"max-height: {LAYOUT_ADV_CONTROL_HEIGHT}px; "
+            "font-size: 11px; "
+            "padding: 0 8px; }"
+        )
+    except Exception as exc:
+        logger.debug("Falha ao aplicar padrao visual do painel de filtros avancados: %s", exc)
     outer = QVBoxLayout(group)
     outer.setContentsMargins(2, 2, 2, 2)
     outer.setSpacing(2)
@@ -880,6 +929,7 @@ def _build_advanced_filters_panel(self):
     try:
         reprog_mode.setMinimumWidth(max(78, reprog_base_min - 10))
         reprog_mode.setMinimumHeight(32)
+        reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode)
@@ -887,6 +937,7 @@ def _build_advanced_filters_panel(self):
     try:
         reprog_button.setMinimumWidth(max(88, reprog_base_min))
         reprog_button.setMinimumHeight(32)
+        reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do botao de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_button, 1)
@@ -1067,8 +1118,14 @@ def _build_advanced_filters_panel(self):
     try:
         apply_btn.setMinimumWidth(92)
         clear_btn.setMinimumWidth(92)
-        apply_btn.setStyleSheet("font-weight: 600; padding: 4px 12px;")
-        clear_btn.setStyleSheet("padding: 4px 12px;")
+        apply_btn.setMaximumWidth(132)
+        clear_btn.setMaximumWidth(132)
+        apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setStyleSheet("font-weight: 600; padding: 0 10px;")
+        clear_btn.setStyleSheet("padding: 0 10px;")
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
@@ -1086,7 +1143,9 @@ def _build_advanced_filters_panel(self):
     self._adv_filters_controls_scroll = controls_scroll
     self._adv_filters_grid_cols = None
     self._adv_filters_last_widget_count = None
+    self._adv_filters_group_obj = group
     _update_advanced_filters_action_buttons(self, group.width())
+    _enforce_advanced_filters_compact_metrics(self)
 
     def _deferred_initial_relayout():
         try:
@@ -1211,6 +1270,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
     """Reorganiza grid de filtros avancados em distribuicao continua por colunas."""
     if not hasattr(self, "_adv_filters_main_grid") or not hasattr(self, "_adv_filters_grid_widgets"):
         return
+    _enforce_advanced_filters_compact_metrics(self)
 
     effective_width = width
     try:
@@ -1219,6 +1279,13 @@ def _reorganize_advanced_filters_grid(self, width: int):
             viewport_w = int(controls_scroll.viewport().width())
             if viewport_w > 0:
                 effective_width = min(effective_width, viewport_w)
+        if controls_scroll is not None and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+            group_h = int(self.adv_filters_group.height())
+            if group_h > 0:
+                max_scroll_h = max(66, group_h - (LAYOUT_ADV_CONTROL_HEIGHT + 18))
+                min_scroll_h = min(LAYOUT_ADV_PANEL_MIN_HEIGHT, max_scroll_h)
+                controls_scroll.setMinimumHeight(min_scroll_h)
+                controls_scroll.setMaximumHeight(min(max_scroll_h, LAYOUT_ADV_PANEL_MAX_HEIGHT))
     except Exception as exc:
         logger.debug("Falha ao obter largura efetiva do viewport dos filtros avancados: %s", exc)
 
