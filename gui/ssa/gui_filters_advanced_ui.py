@@ -471,10 +471,8 @@ def _update_multiselect_button(self, button, checks, placeholder: str = "Selecio
         # Esmaecimento visual para botoes sem dados
         if total == 0:
             button.setEnabled(False)
-            button.setStyleSheet("color: #888; background-color: #f0f0f0;")
         else:
             button.setEnabled(True)
-            button.setStyleSheet("")  # Remove estilo customizado
         if selected or excluded:
             button.setToolTip(
                 "Incluir: " + ", ".join(selected) + ("\nDiferente: " + ", ".join(excluded) if excluded else "")
@@ -599,36 +597,8 @@ def _rebuild_multiselect_menu(
         grid.addWidget(header_sep, row_idx, 0, 1, col_span)
         row_idx += 1
 
-    # Estilo para checkboxes com indicacao visual clara quando marcados
-    # CORRECAO 2026-01-08: Adicionado estilo :checked para feedback visual
-    cb_style_include = """
-        QCheckBox::indicator {
-            background-color: #f0f0f0;
-            border: 1px solid #888;
-            border-radius: 2px;
-            width: 13px;
-            height: 13px;
-        }
-        QCheckBox::indicator:checked {
-            background-color: #4a90d9;
-            border: 1px solid #2a70b9;
-            image: none;
-        }
-    """
-    cb_style_exclude = """
-        QCheckBox::indicator {
-            background-color: #f5f5f5;
-            border: 1px solid #bbb;
-            border-radius: 2px;
-            width: 13px;
-            height: 13px;
-        }
-        QCheckBox::indicator:checked {
-            background-color: #d94a4a;
-            border: 1px solid #b92a2a;
-            image: none;
-        }
-    """
+    cb_style_include = ""
+    cb_style_exclude = ""
     apply_checkbox_styles = len(valid_values) <= 300
 
     for val in valid_values:
@@ -882,20 +852,8 @@ def _build_advanced_filters_panel(self):
     group = QGroupBox("Filtros Avancados")
     try:
         group.setObjectName("adv_filters_group")
-        group.setStyleSheet(
-            "#adv_filters_group QLabel { font-size: 12px; } "
-            "#adv_filters_group QGroupBox { font-size: 12px; font-weight: 600; } "
-            "#adv_filters_group QToolButton, "
-            "#adv_filters_group QPushButton, "
-            "#adv_filters_group QComboBox, "
-            "#adv_filters_group QLineEdit { "
-            f"min-height: {LAYOUT_ADV_CONTROL_HEIGHT}px; "
-            f"max-height: {LAYOUT_ADV_CONTROL_HEIGHT}px; "
-            "font-size: 11px; "
-            "padding: 0 8px; }"
-        )
     except Exception as exc:
-        logger.debug("Falha ao aplicar padrao visual do painel de filtros avancados: %s", exc)
+        logger.debug("Falha ao configurar objectName do painel de filtros avancados: %s", exc)
     outer = QVBoxLayout(group)
     outer.setContentsMargins(2, 2, 2, 2)
     outer.setSpacing(2)
@@ -918,9 +876,10 @@ def _build_advanced_filters_panel(self):
     )
 
     reprog_box = QGroupBox("Reprogramacoes")
-    reprog_layout = QHBoxLayout(reprog_box)
+    reprog_layout = QGridLayout(reprog_box)
     reprog_layout.setContentsMargins(2, 1, 2, 1)
-    reprog_layout.setSpacing(2)
+    reprog_layout.setHorizontalSpacing(4)
+    reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
     reprog_mode.addItem("= Igual", "eq")
     reprog_mode.addItem("<= Menor", "lte")
@@ -928,19 +887,28 @@ def _build_advanced_filters_panel(self):
     _, reprog_base_min, _ = _resolve_adv_layout_baseline(self)
     try:
         reprog_mode.setMinimumWidth(max(78, reprog_base_min - 10))
+        reprog_mode.setMaximumWidth(240)
         reprog_mode.setMinimumHeight(32)
         reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        reprog_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
-    reprog_layout.addWidget(reprog_mode)
+    reprog_layout.addWidget(reprog_mode, 0, 0)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
     try:
         reprog_button.setMinimumWidth(max(88, reprog_base_min))
+        reprog_button.setMaximumWidth(240)
         reprog_button.setMinimumHeight(32)
         reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        reprog_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do botao de reprogramacoes: %s", exc)
-    reprog_layout.addWidget(reprog_button, 1)
+    reprog_layout.addWidget(reprog_button, 0, 1)
+    try:
+        reprog_layout.setColumnStretch(0, 1)
+        reprog_layout.setColumnStretch(1, 1)
+    except Exception as exc:
+        logger.debug("Falha ao ajustar colunas 50/50 de Reprogramacoes: %s", exc)
     self.adv_reprog_mode = reprog_mode
     self.adv_reprog_button = reprog_button
     self.adv_reprog_menu = reprog_menu
@@ -1360,6 +1328,11 @@ def _reorganize_advanced_filters_grid(self, width: int):
         col = idx % cols
         grid.addWidget(widget, row, col)
         widget.show()
+    for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
+        try:
+            grid.setColumnStretch(col, 0)
+        except Exception:
+            pass
     for col in range(cols):
         grid.setColumnStretch(col, 1)
 
