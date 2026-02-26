@@ -15,6 +15,7 @@ from gui.qt_stubs import (
     Qt,
     QSignalBlocker,
     QApplication,
+    QTimer,
     QComboBox,
     QCheckBox,
     QFrame,
@@ -41,8 +42,8 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 LAYOUT_MIN_VALID_WIDTH = 1
 LAYOUT_GRID_MIN_COLS = 2
 LAYOUT_GRID_MAX_COLS = 5
-LAYOUT_ADV_PANEL_MIN_HEIGHT = 86
-LAYOUT_ADV_PANEL_MAX_HEIGHT = 188
+LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
+LAYOUT_ADV_PANEL_MAX_HEIGHT = 172
 
 
 def _is_widget_valid(widget) -> bool:
@@ -81,7 +82,7 @@ def _safe_len(value: Any) -> int:
 
 
 def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
-    cell_min = 236
+    cell_min = 228
     action_min = 88
     action_max = 134
     width_manager = getattr(self, "width_manager", None)
@@ -118,7 +119,7 @@ def _resolve_adv_layout_baseline(self) -> tuple[int, int, int]:
         setor_emis_w = int(width_map.get("setor_emissor", 45))
 
         cell_candidate = numero_w + local_w + (situacao_w // 2) + (setor_exec_w // 2) + (setor_emis_w // 2)
-        cell_min = max(212, min(252, cell_candidate))
+        cell_min = max(186, min(320, cell_candidate))
 
         action_candidate = numero_w + situacao_w
         action_min = max(84, min(118, action_candidate))
@@ -164,7 +165,7 @@ def _compute_adv_grid_cell_min_width(self, visible_widgets) -> int:
     p75 = widths[p75_idx]
     avg = sum(widths) // len(widths)
     dynamic_baseline = max(p75, avg) + 22
-    return max(212, min(252, max(base_cell_min, dynamic_baseline)))
+    return max(186, min(340, max(base_cell_min, dynamic_baseline)))
 
 
 def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
@@ -177,6 +178,7 @@ def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", wit
     try:
         button.setMinimumWidth(82)
         button.setMaximumWidth(196)
+        button.setMinimumHeight(32)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao definir size policy do botao multiselect '%s': %s", title, exc)
@@ -877,12 +879,14 @@ def _build_advanced_filters_panel(self):
     _, reprog_base_min, _ = _resolve_adv_layout_baseline(self)
     try:
         reprog_mode.setMinimumWidth(max(78, reprog_base_min - 10))
+        reprog_mode.setMinimumHeight(32)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do seletor de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_mode)
     reprog_menu_box, reprog_button, reprog_menu, _ = self._make_multiselect_box("Valores", with_exclude=False)
     try:
         reprog_button.setMinimumWidth(max(88, reprog_base_min))
+        reprog_button.setMinimumHeight(32)
     except Exception as exc:
         logger.debug("Falha ao definir largura minima do botao de reprogramacoes: %s", exc)
     reprog_layout.addWidget(reprog_button, 1)
@@ -1084,6 +1088,18 @@ def _build_advanced_filters_panel(self):
     self._adv_filters_last_widget_count = None
     _update_advanced_filters_action_buttons(self, group.width())
 
+    def _deferred_initial_relayout():
+        try:
+            if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+                self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
+        except Exception as exc:
+            logger.debug("Falha no relayout inicial deferido dos filtros avancados: %s", exc)
+
+    try:
+        QTimer.singleShot(0, _deferred_initial_relayout)
+    except Exception as exc:
+        logger.debug("Falha ao agendar relayout inicial deferido dos filtros avancados: %s", exc)
+
     ctx = {
         "adv_filters_group": group,
         "adv_executor_button": exec_button,
@@ -1235,11 +1251,25 @@ def _reorganize_advanced_filters_grid(self, width: int):
         return
 
     cell_min_width = _compute_adv_grid_cell_min_width(self, visible)
-    raw_cols = int(effective_width // cell_min_width)
-    cols = max(LAYOUT_GRID_MIN_COLS, min(LAYOUT_GRID_MAX_COLS, raw_cols))
+    try:
+        spacing = int(grid.horizontalSpacing())
+    except Exception:
+        spacing = 0
+    try:
+        margins = grid.contentsMargins()
+        horizontal_padding = int(margins.left() + margins.right())
+    except Exception:
+        horizontal_padding = 0
+    available_for_cells = max(0, int(effective_width) - horizontal_padding)
+    cols = 1
+    max_try_cols = min(LAYOUT_GRID_MAX_COLS, len(visible))
+    for candidate_cols in range(max_try_cols, 0, -1):
+        required_width = (candidate_cols * cell_min_width) + max(0, candidate_cols - 1) * spacing
+        if required_width <= available_for_cells:
+            cols = candidate_cols
+            break
+    cols = max(LAYOUT_GRID_MIN_COLS, cols)
     cols = min(cols, len(visible))
-    if cols <= 0:
-        cols = 1
     if (
         getattr(self, "_adv_filters_grid_cols", None) == cols
         and getattr(self, "_adv_filters_last_widget_count", None) == len(visible)
