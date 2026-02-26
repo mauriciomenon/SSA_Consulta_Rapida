@@ -914,15 +914,15 @@ def _build_advanced_filters_panel(self):
     reprog_layout.setHorizontalSpacing(4)
     reprog_layout.setVerticalSpacing(0)
     reprog_mode = QComboBox()
-    reprog_mode.addItem("= Igual", "eq")
-    reprog_mode.addItem("<= Menor", "lte")
-    reprog_mode.addItem(">= Maior", "gte")
+    reprog_mode.addItem("= Eq", "eq")
+    reprog_mode.addItem("<= Men", "lte")
+    reprog_mode.addItem(">= Mai", "gte")
     _, reprog_base_min, reprog_base_max = layout_baseline
     reprog_min = max(70, min(108, reprog_base_min - 8))
     reprog_max = max(reprog_min + 40, min(196, reprog_base_max + 46))
     try:
-        reprog_mode.setMinimumWidth(min(reprog_min, 88))
-        reprog_mode.setMaximumWidth(min(reprog_max, 150))
+        reprog_mode.setMinimumWidth(min(reprog_min, 78))
+        reprog_mode.setMaximumWidth(min(reprog_max, 128))
         reprog_mode.setMinimumHeight(32)
         reprog_mode.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -935,8 +935,8 @@ def _build_advanced_filters_panel(self):
         layout_baseline=layout_baseline,
     )
     try:
-        reprog_button.setMinimumWidth(min(reprog_min, 88))
-        reprog_button.setMaximumWidth(min(reprog_max, 150))
+        reprog_button.setMinimumWidth(min(reprog_min, 78))
+        reprog_button.setMaximumWidth(min(reprog_max, 128))
         reprog_button.setMinimumHeight(32)
         reprog_button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         reprog_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -1134,8 +1134,6 @@ def _build_advanced_filters_panel(self):
     action_layout.addStretch(1)
     action_layout.addWidget(apply_btn)
     action_layout.addWidget(clear_btn)
-    main_grid.addWidget(action_widget, 4, 2, 1, 2)
-
     grid_container_layout.addLayout(main_grid)
     controls_scroll = QScrollArea()
     controls_scroll.setWidgetResizable(True)
@@ -1152,6 +1150,7 @@ def _build_advanced_filters_panel(self):
     except Exception as exc:
         logger.debug("Falha ao aplicar limites de altura no painel de filtros avancados: %s", exc)
     outer.addWidget(controls_scroll, 1)
+    outer.addWidget(action_widget, 0, Qt.AlignmentFlag.AlignRight)
 
     self._adv_filters_main_grid = main_grid
     self._adv_filters_grid_widgets = {
@@ -1375,7 +1374,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             break
     cols = max(LAYOUT_GRID_MIN_COLS, cols)
     cols = min(cols, len(visible))
-    rows_for_height = max(1, (len(visible) + cols - 1) // cols) + 1
+    rows_for_height = max(1, (len(visible) + cols - 1) // cols)
     try:
         vertical_spacing = int(grid.verticalSpacing())
         margins = grid.contentsMargins()
@@ -1416,19 +1415,12 @@ def _reorganize_advanced_filters_grid(self, width: int):
         try:
             gaps = max(0, cols - 1) * max(0, spacing)
             raw_cell_w = max(120, (available_for_cells - gaps) // max(1, cols))
-            capped_cell_w = max(138, min(248, raw_cell_w))
+            capped_cell_w = max(128, min(208, raw_cell_w))
             widget.setMaximumWidth(capped_cell_w)
         except Exception:
             pass
         grid.addWidget(widget, row, col)
         widget.show()
-    action_widget = getattr(self, "_adv_filters_action_widget", None)
-    if action_widget is not None:
-        action_row = max(1, (len(visible) + cols - 1) // cols)
-        action_col = max(0, cols - 2)
-        action_span = min(2, cols)
-        grid.addWidget(action_widget, action_row, action_col, 1, action_span)
-        action_widget.show()
     for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
         try:
             grid.setColumnStretch(col, 0)
