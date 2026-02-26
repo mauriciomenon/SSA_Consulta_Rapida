@@ -1,5 +1,112 @@
 # Filter Tab Optimizations - January 2026
 
+## v4.21 - Dynamic 4-Column Layout Algorithm (Current)
+
+This section documents the current algorithm used by Advanced Filters in PyQt6.
+It is the active baseline. Older notes remain below for historical reference.
+
+### Goals
+- Keep 4 columns visible in Advanced Filters.
+- Prevent oversized controls from dominating rows.
+- Keep bottom action bar visible and readable.
+- Avoid clipping of last row and avoid dead space.
+- Keep behavior deterministic on resize.
+
+### Inputs
+- `group_width`: outer width of Advanced Filters group.
+- `viewport_width`: effective width from scroll viewport.
+- `group_height`: current group height.
+- Layout constants:
+  - `LAYOUT_GRID_MIN_COLS = 4`
+  - `LAYOUT_GRID_MAX_COLS = 4`
+  - `LAYOUT_ADV_CONTROL_HEIGHT`
+  - `LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT / MAX_HEIGHT`
+  - `LAYOUT_ADV_PANEL_MIN_HEIGHT / MAX_HEIGHT`
+
+### Core Flow
+1. Resolve effective width:
+   - `effective_width = min(group_width, viewport_width_if_available)`.
+2. Resolve columns:
+   - fixed policy, always `cols = 4`.
+3. Compute cell capacity:
+   - subtract horizontal margins and spacing.
+   - derive `raw_cell_width`.
+   - clamp to bounded width range to avoid giant controls.
+4. Place widgets:
+   - fill grid in deterministic order, row-major.
+   - each field box gets `max_width = capped_cell_width`.
+   - internal controls (`QToolButton`, `QComboBox`) inherit capped limits.
+5. Compute vertical size:
+   - `rows = ceil(visible_widgets / cols)`.
+   - `content_h = rows * field_box_max_h + spacing + margins`.
+   - clamp scroll area height to `[panel_min_h, panel_max_h]` and available group height.
+6. Action bar handling:
+   - action bar (`Aplicar`, `Limpar`) stays outside field scroll.
+   - anchored right, always visible.
+7. Dynamic font policy:
+   - apply compact or normal font tier based on `effective_width`.
+   - apply to titles and controls with lower/upper bounds.
+
+### Deterministic Ordering
+The render order is fixed:
+1. `Emissor`
+2. `Executor`
+3. `Situacao`
+4. `Ano Emissao`
+5. `Ano Execucao`
+6. `Reprogramacoes`
+7. `Prio. Emissao`
+8. `Prio. Planejamento`
+9. `Macro`
+10. `Derivadas`
+11. `Emissao (AnoSemana)`
+12. `Execucao (AnoSemana)`
+13. `Solicitante`
+14. `Resp Prog`
+15. `Resp Exec`
+
+### ASCII Diagram
+
+```text
++---------------------------------------------------------------+
+| Advanced Filters Group                                        |
+|  +---------------------------------------------------------+  |
+|  | Scroll Viewport (fields only)                           |  |
+|  |  [c1] [c2] [c3] [c4]                                    |  |
+|  |  [c1] [c2] [c3] [c4]                                    |  |
+|  |  [c1] [c2] [c3] [c4]                                    |  |
+|  |  [c1] [c2] [c3] [ ]                                     |  |
+|  +---------------------------------------------------------+  |
+|                                   [Aplicar] [Limpar]          |
++---------------------------------------------------------------+
+```
+
+### Mermaid Diagram
+
+```mermaid
+flowchart TD
+    A["Resize/Tab Change"] --> B["Read group + viewport size"]
+    B --> C["Set cols=4"]
+    C --> D["Compute raw cell width"]
+    D --> E["Clamp cell width bounds"]
+    E --> F["Place widgets row-major"]
+    F --> G["Propagate width to inner controls"]
+    G --> H["Compute rows + content height"]
+    H --> I["Clamp scroll height by bounds"]
+    I --> J["Render action bar outside scroll"]
+    J --> K["Apply dynamic font policy"]
+```
+
+### Guardrails
+- Never put action bar inside the field scroll.
+- Never let one control define full-row width.
+- Never hide last row due to aggressive max-height.
+- Keep column count deterministic when policy is fixed.
+
+### Known tradeoff
+- Fixed 4-column policy improves predictability but increases compactness pressure on small heights.
+- Mitigation: bounded font tiers and bounded control widths.
+
 ## Executive Summary
 
 Significant optimizations implemented in Filter tab for improved performance and usability, reducing load time by ~40-60% and eliminating UI blocking during interactions.

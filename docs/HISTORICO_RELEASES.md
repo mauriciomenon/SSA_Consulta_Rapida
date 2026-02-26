@@ -2,7 +2,27 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v3.11 - CURRENT RELEASE**
+## **RELEASE v4.21.0 - CURRENT RELEASE**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: GUI Layout Stability Update  
+**Status**: Estavel
+
+### **Principais entregas**
+- Politica de 4 colunas para Filtros Avancados.
+- Algoritmo dinamico de largura/altura por viewport.
+- Barra de acoes ancorada fora do scroll de campos.
+- Ajuste de fonte dinamica por largura.
+- Ajuste de largura de `Reprogramacoes` e campos de `AnoSemana`.
+
+### **Documentacao da versao**
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.21 no topo)
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `README.md` (v4.21 no topo, historico abaixo)
+
+---
+
+## **RELEASE v3.11**
 
 **Data de Lancamento**: Outubro 2025  
 **Tipo**: Major Update focado em usabilidade  
