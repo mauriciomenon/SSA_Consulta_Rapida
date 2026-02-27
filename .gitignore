@@ -466,7 +466,6 @@ omp.cache
 # Local agent/tool artifacts
 .gitignore.bak.*
 .serena/
-AGENTS.md
 config/cache/
 config/codex.sqlite3*
 config/hypercorn.toml
