@@ -2,7 +2,6 @@
 # Use juntamente com requirements.txt quando for empacotar
 
 pyinstaller>=6.15.0
-nuitka>=2.0.0
 pillow>=12.1.1
 cairosvg>=2.8.0
 
