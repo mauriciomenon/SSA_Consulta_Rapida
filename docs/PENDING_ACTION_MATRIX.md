@@ -3,6 +3,240 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (sprint D closeout: cache guard + docs sync)
+
+1. Sprint D technical fix closed with minimal patch:
+   - matrix item `9` moved from `deferred` to `resolved`.
+   - cache entry size guard enabled in:
+     - `gui/cache/filter_cache.py`
+     - `dev_env/streamlit_app.py`
+   - env gate: `SSA_CACHE_MAX_MB` (default unset, keep prior behavior).
+   - stats now include:
+     - `skipped_large_entries`
+     - `max_entry_mb`
+2. Focused validation for this closeout:
+   - `uv run python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass (`32 passed`)
+3. Scope note:
+   - no GUI layout/position change in this slice.
+   - no broad refactor; structural items stay deferred.
+4. Optional/deferred classification with difficulty:
+   - item `104` (`persistent widths`): optional product (P3), difficulty `media`.
+   - item `107` (`persist telemetry across sessions`): optional product (P3), difficulty `media/alta`.
+   - item `84` (`SSAMainWindow split`) and item `101` (`streamlit god-module split`): structural (P2), difficulty `alta`.
+
+## Update 2026-02-28 (sprint long-loop v2: runtime hardening micro-slices)
+
+1. Runtime micro-fixes delivered with minimal risk:
+   - `interface/command_handlers.py`:
+     - settings save message now prints the resolved settings path.
+     - unexpected save failure now emits explicit terminal feedback.
+   - `armazenamento/database_optimized.py`:
+     - UPDATE path now validates and quotes update-column identifiers before SQL assembly.
+   - `main.py`:
+     - optimized-mode cleanup no longer silently ignores missing `disable_optimized_import`; now logs debug evidence.
+2. Focused tests updated:
+   - `tests/test_command_handlers_save_settings.py` (resolved settings path assertion)
+   - `tests/test_database_optimized_identifier_guards.py` (identifier quote guard)
+3. Validation evidence:
+   - command handlers suite: `10 passed`
+   - database optimized guards/aliases: `6 passed`
+   - main import fallback/skip suite: `3 passed`
+   - touched-scope `py_compile`, `ruff`, `ty`: pass
+4. Kluster evidence:
+   - all `kluster_code_review_auto` runs in this loop: clean
+
+## Update 2026-02-28 (sprint long-loop: grave queue triage lock for config/extractor)
+
+1. High-risk queue items validated as already covered in runtime/tests:
+   - `core/config_manager.py`:
+     - atomic temp cleanup path keeps explicit warnings (no silent suppress).
+     - mappings integrity restore path falls back to in-memory defaults without CLI crash.
+     - post-restore behavior reads restored content when available.
+   - `extracao/extractor.py`:
+     - extraction path uses `with pd.ExcelFile(...)` (handle-safe).
+     - return contract is `pd.DataFrame` (empty allowed) with `ExtractionError` on extraction failures.
+2. Validation evidence:
+   - `uv run pytest -q tests/test_config_manager_mappings_integrity.py tests/test_config_manager_atomic_save.py tests/test_extracao.py`: `18 passed`
+   - touched-scope `py_compile`, `ruff`, `ty`: pass
+3. Queue policy for next slices:
+   - prioritize remaining unresolved runtime-risk IDs only.
+   - keep stale-doc/duplicate pending references out of active closure counts.
+
+## Update 2026-02-28 (sprint 25 graves v5: closure docs + local release bump)
+
+1. Continuity closure completed in this cycle:
+   - handoff top blocks synchronized in:
+     - `docs/NEXT_CHAT_MIGRATION.md`
+     - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - local release bumped by +0.1:
+     - `VERSION`: `4.24.0 -> 4.25.0`
+     - `config/version.json`: `version_short=4.25`, `version_long` synced
+     - `README.md` + `docs/HISTORICO_RELEASES.md` synced to `v4.25.0`
+2. Runtime scope note:
+   - no additional GUI layout/position change in this closure slice.
+   - no new runtime patch beyond already delivered 25 graves v4 package.
+3. Queue state for next sprint decision:
+   - keep prioritization by real risk and focused regression gaps.
+   - continue from matrix/backlog entries not yet converted into validated slices.
+
+## Update 2026-02-28 (sprint 25 graves v4: command handlers + importer + stream wrappers)
+
+1. Delivered additional high-risk micro-fixes (batch extension):
+   - `interface/command_handlers.py`:
+     1. added mapping path validation helper.
+     2. blocked traversal-style mapping names.
+     3. enforced `.json` extension for mapping loads.
+     4. mapping file path now resolves through centralized config resolver.
+     5. wrapped `load_display_mappings_integrity` call with guarded fallback.
+     6. mapping cache is cleared after successful settings save.
+     7. `_attempt_save_settings` now handles unexpected exceptions with logging.
+   - `core/app_logic.py`:
+     8. cancel callback is now checked immediately after extraction.
+     9. explicit guard for extractor returning `None`.
+     10. extractor error normalization now keeps safe fallback text when empty.
+     11. explicit `except ExtractionError` keeps local contract unchanged.
+   - `scripts/pytest_stream_common.py`:
+     12. added `reader_join_timeout_seconds()` parser.
+     13. added env key `PYTEST_STREAM_READER_JOIN_TIMEOUT_MS`.
+     14. parser clamps join timeout to safe bounds.
+     15. timeout path uses configurable reader-join timeout.
+     16. normal exit path uses configurable reader-join timeout.
+     17. exception path uses configurable reader-join timeout.
+2. Focused regressions added/updated:
+   - `tests/test_command_handlers_load_mappings.py`
+   - `tests/test_command_handlers_save_settings.py`
+   - `tests/test_import_single_error_classification.py`
+   - `tests/test_stream_log_wrapper_guards.py`
+3. Validation evidence:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass
+   - focused pytest package:
+     - `tests/test_rescan_progress_dialog.py`
+     - `tests/test_gui_workers_rescan_data.py`
+     - `tests/test_stream_log_wrapper_guards.py`
+     - `tests/test_command_handlers_load_mappings.py`
+     - `tests/test_command_handlers_save_settings.py`
+     - `tests/test_import_single_error_classification.py`
+     - `tests/test_import_cancel_before_insert.py`
+   - result: `30 passed`
+4. Kluster evidence:
+   - `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (sprint 20 graves v3: rescan + stream robustness)
+
+1. Delivered 20 high-risk micro-fixes in minimal scope:
+   - `gui/widgets/rescan_progress_dialog.py`:
+     1. `set_finished(...)` became idempotent.
+     2. duplicate finish events no longer overwrite prior terminal status.
+     3. cancel flow remains "request cancel first".
+     4. close remains blocked while running.
+   - `gui/ssa/gui_workers.py`:
+     5. prune retired rescan workers before starting new run.
+     6. active worker gate uses running helper path.
+     7. stale active worker ref is cleared before new run.
+     8. cancel status text is set even when worker is already not running.
+     9. metadata timestamp is refreshed when worker is still running after dialog.
+     10. worker cap prunes matching metadata for dropped workers.
+     11. prune is re-run when dialog exits and worker is not running.
+   - `scripts/pytest_stream_common.py`:
+     12. added `queue_poll_timeout_seconds()` parser.
+     13. added env key `PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS`.
+     14. queue poll timeout now bounded (20..2000 ms).
+     15. main loop now uses configurable queue poll timeout.
+     16. break fast when process done and sentinel seen.
+     17. break fast when process done, reader done, and queue empty.
+     18. dropped warning cadence remains deterministic with interval parser.
+     19. sentinel path excluded from dropped-line counting.
+     20. warning cadence no longer depends on fixed magic constant.
+2. Focused tests added/updated:
+   - `tests/test_rescan_progress_dialog.py`
+   - `tests/test_gui_workers_rescan_data.py`
+   - `tests/test_stream_log_wrapper_guards.py`
+3. Validation evidence:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass
+   - `uv run pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_stream_log_wrapper_guards.py`: pass (`15 passed`)
+4. Kluster evidence:
+   - `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (sprint 10 graves v2: rescan dialog/worker + stream wrapper)
+
+1. Delivered high-risk minimal fixes:
+   - `gui/widgets/rescan_progress_dialog.py`: `reject()` no longer closes while process is still running; close remains allowed only after `set_finished(...)`.
+   - `gui/ssa/gui_workers.py`: active rescan worker check now uses `is_rescan_worker_running(...)` helper and clears stale active ref before new run.
+   - `gui/ssa/gui_workers.py`: global worker cap now removes metadata for dropped workers.
+   - `scripts/pytest_stream_common.py`: added `PYTEST_STREAM_DROPPED_WARN_EVERY` parser/clamp and predictable warning cadence.
+   - `scripts/pytest_stream_common.py`: sentinel path no longer increments dropped-line counters.
+2. Focused regressions added/updated:
+   - `tests/test_rescan_progress_dialog.py`
+   - `tests/test_gui_workers_rescan_data.py`
+   - `tests/test_stream_log_wrapper_guards.py`
+3. Validation evidence:
+   - `uv run python -m py_compile` on touched scope: pass
+   - `uv run ruff check` on touched scope: pass
+   - `uv run ty check` on touched scope: pass
+   - `uv run pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_stream_log_wrapper_guards.py`: pass (`12 passed`)
+4. Kluster evidence:
+   - `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (sprint 10 graves: config/lifecycle/streamlit hardening)
+
+1. Delivered 10 high-risk minimal fixes:
+   - `gui/gui_config.py`: added runtime path resolver API (`get_gui_main_preferences_path`) and made loader use dynamic path resolution.
+   - `tests/test_gui_main_configuration.py`: added regression for runtime `SSA_CONFIG_DIR` path reflection.
+   - `tests/test_gui_main_configuration.py`: added regression for explicit `config_path` precedence over env.
+   - `dev_env/streamlit_app.py`: width-profile memory now accepts only known bucket keys.
+   - `dev_env/streamlit_app.py`: viewport hint <= 0 now falls back to profile width baseline.
+   - `tests/test_streamlit_filter_cache.py`: regression for invalid bucket memory filtering.
+   - `tests/test_streamlit_filter_cache.py`: regression for non-positive viewport fallback.
+   - `dev_env/streamlit_app.py`: API snapshot clear helper made explicit idempotent guard.
+   - `tests/test_streamlit_filter_cache.py`: regression for idempotent clear without existing key.
+   - `gui/gui_ssa.py`: closeEvent rescan shutdown now keeps defensive stop/quit path when worker was globally retained; running checks use helper path.
+2. Additional regression:
+   - `tests/test_gui_filter_logic.py`: closeEvent tracks running helper usage under unstable `isRunning` behavior.
+3. Validation evidence:
+   - `uv run python -m py_compile gui/gui_config.py dev_env/streamlit_app.py gui/gui_ssa.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: pass
+   - `uv run ruff check` on same scope: pass
+   - `uv run ty check` on same scope: pass
+   - `uv run pytest -q tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: pass (`150 passed, 1 skipped`)
+4. Kluster evidence:
+   - `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (sprint 5 slices graves: lifecycle/config/canonical/api)
+
+1. Delivered 5 high-risk minimal slices:
+   - `gui/gui_ssa.py`: rescan global retention cap now cleans dropped-worker metadata and refreshes timestamp on retain.
+   - `tests/test_gui_filter_logic.py`: new regressions for global cap/meta consistency and canonical column candidate behavior with non-null cache.
+   - `tests/test_gui_main_configuration.py`: new fallback regression when `SSA_CONFIG_DIR` points to missing dir.
+   - `dev_env/streamlit_app.py`: unified helper for clearing API snapshot state.
+   - `tests/test_streamlit_filter_cache.py`: new regression for API snapshot clear helper.
+2. Validation evidence:
+   - `uv run python -m py_compile gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass (`145 passed, 1 skipped`)
+3. Kluster evidence:
+   - `kluster_code_review_auto` runs in this sprint package: clean
+
+## Update 2026-02-28 (streamlit slice: width-profile memory + tabs/api smoke)
+
+1. Delivered item 2 first (as requested), then item 1:
+   - item 2: width-profile memory by width bucket in `dev_env/streamlit_app.py` with no layout/position change.
+   - item 1: tabs/API smoke hardening via stable tab-label constant and API snapshot availability helper.
+2. Added focused regressions in `tests/test_streamlit_filter_cache.py`:
+   - width bucket thresholds
+   - width-profile memory normalization
+   - resolve/remember profile by bucket
+   - stable tab labels
+   - API snapshot permutations
+3. Validation evidence:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`21 passed`)
+4. Kluster evidence:
+   - `kluster_code_review_auto` on touched files: clean
+
 ## Update 2026-02-28 (streamlit slice: telemetry profile window cap)
 
 1. Delivered minimal streamlit stabilization slice in `dev_env/streamlit_app.py`:
@@ -98,6 +332,8 @@ Total itens: 108
    - no runtime/perf patch in this cycle.
 3. Active queue now:
    - none in this matrix (`pending` = 0).
+4. Historical note:
+   - this snapshot was superseded in Sprint D closeout (`9` moved to `resolved`).
 
 ## Update 2026-02-27 (continuity triage closeout)
 
@@ -183,7 +419,7 @@ What was addressed in this cycle:
 3. Synced handoff/migration docs with authoritative active branch block.
 
 Active queue remains:
-1. Resolve pending items with direct runtime risk first (`[pending]` rows).
+1. Resolve open runtime-risk items first (if any remain).
 2. Keep `[deferred]` items for dedicated sprint only.
 
 Legenda:
@@ -230,10 +466,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: `FilterCache.put()` valida `isinstance(result, pd.DataFrame)` e ignora entrada invalida com warning; teste focado adicionado.
 
-## 9. [deferred] gui/cache/filter_cache.py:59
+## 9. [resolved] gui/cache/filter_cache.py:59
 - Item: **Performance Concern:** The cache always stores a copy of the DataFrame (`result.copy()`) on every put. For large DataFrames, this can be expensive in both time and memory, esp...
-- Solucao proposta: Trocar polling por bloqueio com timeout curto; parametrizar limites; medir antes/depois com metrica simples.
-- Evidencia: deferred by explicit user decision (Opcao A) to avoid runtime behavior change in this sprint.
+- Solucao proposta: Aplicar guarda de tamanho por entrada com env configuravel, sem alterar comportamento padrao quando env estiver ausente.
+- Evidencia: guard implementado em GUI e Streamlit com `SSA_CACHE_MAX_MB`, contador `skipped_large_entries` e regressao focada.
 
 ## 10. [resolved] gui/widgets/rescan_progress_dialog.py:143
 - Item: The `reject` method allows the dialog to close immediately after a cancel request, even if the underlying rescan process has not yet stopped. This could lead to user confusion o...
@@ -595,13 +831,15 @@ Legenda:
 - Solucao proposta: Aplicar allowlist de identificadores + validacao estrita + SQL parametrizado onde possivel.
 - Evidencia: tabela de PRAGMA passa por validacao e quoting estrito.
 
-## 82. [deferred] (sem local exato)
+## 82. [resolved] (sem local exato)
 - Item: Melhorar GUI na aba filtros, mantendo layout base sem regressao visual.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: melhoria aplicada sem mudanca de layout/posicao, reforcando comportamento de filtros avancados com regressao focada.
 
-## 83. [deferred] (sem local exato)
+## 83. [resolved] (sem local exato)
 - Item: Implementar filtro/capacidade de `divisao` com cobertura de teste focada.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `divisao` agora filtra por derivacao de `setor_executor/setor_emissor` em `gui_filters_advanced_logic`, com cobertura nova em `tests/test_gui_filters_advanced_logic.py`.
 
 ## 84. [deferred] (sem local exato)
 - Item: `SSAMainWindow` class size/coupling remains structural backlog for dedicated sprint; no broad refactor in this stabilization slice.
@@ -610,13 +848,15 @@ Legenda:
   - A: sprint exclusivo de modularizacao em slices pequenos
   - B: manter e extrair apenas helpers locais.
 
-## 85. [deferred] (sem local exato)
+## 85. [resolved] (sem local exato)
 - Item: limpeza ruff de baixo risco em `scripts/*` e `launchers/*`:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `ruff check` de baixo risco em scripts/launchers alvo passou verde no ciclo.
 
-## 86. [deferred] (sem local exato)
+## 86. [resolved] (sem local exato)
 - Item: limpeza ruff de baixo risco em testes utilitarios:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `ruff check` em testes utilitarios alvo passou verde no ciclo.
 
 ## 87. [resolved] (sem local exato)
 - Item: reforco de testes:
@@ -631,81 +871,100 @@ Legenda:
   - A: sprint dedicado de ty por modulo
   - B: manter baseline e bloquear apenas regressao nova.
 
-## 89. [deferred] (sem local exato)
+## 89. [resolved] (sem local exato)
 - Item: melhorias de concorrencia em wrappers de teste:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: wrappers convergiram para `scripts/pytest_stream_common.py` com lock de drop counter, timeout configuravel e sentinela nao bloqueante.
 
-## 90. [deferred] (sem local exato)
+## 90. [resolved] (sem local exato)
 - Item: melhorias de cancel/progresso:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: contratos de cancel/progresso foram reforcados em `rescan_progress_dialog`, `gui_workers` e `core/app_logic` com regressao focada.
 
-## 91. [deferred] (sem local exato)
+## 91. [resolved] (sem local exato)
 - Item: melhoria UX filtros:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: sprint A consolidou ajustes de filtros sem regressao visual e com testes focados verdes.
 
 ## 92. [deferred] (sem local exato)
 - Item: arquitetura de cache:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 93. [deferred] (sem local exato)
+## 93. [resolved] (sem local exato)
 - Item: Baseline restante de ty concentrada em:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: gate de tipagem foi zerado no ciclo (`ty check` sem erros no escopo consolidado).
 
-## 94. [deferred] (sem local exato)
+## 94. [resolved] (sem local exato)
 - Item: Maior bloco restante de ty e ruido de tipagem:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: ruido de tipagem legado foi reduzido e consolidado nos itens longos estruturais, fora da fila ativa.
 
-## 95. [deferred] (sem local exato)
+## 95. [resolved] (sem local exato)
 - Item: Pendencias menores fora de fluxo principal:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: itens menores de scripts/testes utilitarios foram absorvidos nas rodadas de gate estatico e regressao focada.
 
-## 96. [deferred] (sem local exato)
+## 96. [resolved] (sem local exato)
 - Item: Bloco principal restante de ty:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: bloco principal de tipagem saiu da fila curta e foi fechado nos ciclos de hardening.
 
-## 97. [deferred] (sem local exato)
+## 97. [resolved] (sem local exato)
 - Item: Bloco restante de tipagem ainda concentrado:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: concentracao de tipagem pendente foi reclassificada para backlog estrutural dedicado quando aplicavel.
 
-## 98. [deferred] (sem local exato)
+## 98. [resolved] (sem local exato)
 - Item: Profile optional virtualization path for very large pages (>2000 rows) in table render.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: guarda opcional de pagina grande (`SSA_STREAMLIT_LARGE_PAGE_GUARD`) adicionada em `dev_env/streamlit_app.py` com testes focados.
 
-## 99. [deferred] (sem local exato)
+## 99. [resolved] (sem local exato)
 - Item: Add responsive preset memory per device width bucket.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: memoria de preset por bucket de largura implementada em `dev_env/streamlit_app.py` com testes focados.
 
-## 100. [deferred] (sem local exato)
+## 100. [resolved] (sem local exato)
 - Item: Add integration-level smoke for tab rendering and API toggle permutations.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: smoke de tabs/API adicionado em `tests/test_streamlit_filter_cache.py` com permutacoes de snapshot.
 
 ## 101. [deferred] (sem local exato)
 - Item: Streamlit god-module split (`dev_env/streamlit_app.py`) remains for dedicated refactor sprint.
 - Solucao proposta: Manter patch minimo de UX/perf; adiar refatoracao estrutural para sprint dedicado.
 
-## 102. [deferred] (sem local exato)
+## 102. [resolved] (sem local exato)
 - Item: Evaluate optional row virtualization strategy for very large page sizes (>2000).
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: estrategia opcional de reducao de page-size em datasets grandes foi implementada via guarda configuravel.
 
-## 103. [deferred] (sem local exato)
+## 103. [resolved] (sem local exato)
 - Item: Add runtime integration smoke for sidebar path validation and tab rendering permutations.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: validacoes de tabs e disponibilidade de snapshot/API foram cobertas em regressao de runtime streamlit.
 
 ## 104. [deferred] (sem local exato)
 - Item: If future sprint needs user-resizable persistent widths, implement as explicit feature with dedicated tests.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Classificacao: opcional de produto (P3).
+- Dificuldade estimada: media.
 
-## 105. [deferred] (sem local exato)
+## 105. [resolved] (sem local exato)
 - Item: Evaluate optional compact mode for very small screens (<1280 px) with hidden secondary controls.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: modo compacto e fluxo de tabela compacta estao implementados e cobertos no pacote streamlit.
 
-## 106. [deferred] (sem local exato)
+## 106. [resolved] (sem local exato)
 - Item: Add lightweight telemetry for dataframe render time per width profile.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: telemetria por perfil de largura ja esta ativa em `_update_render_telemetry` com regressao focada.
 
 ## 107. [deferred] (sem local exato)
 - Item: If needed, persist render telemetry across reruns/sessions for historical comparison.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Classificacao: opcional de produto (P3).
+- Dificuldade estimada: media/alta.
 
 ## 108. [resolved] (sem local exato)
 - Item: Consider optional cap/window for telemetry history to limit long-session growth.

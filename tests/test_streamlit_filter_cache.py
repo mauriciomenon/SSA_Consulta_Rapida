@@ -3,8 +3,11 @@ from __future__ import annotations
 import pandas as pd
 
 from dev_env.streamlit_app import (
+    MAIN_TAB_LABELS,
     MAX_RENDER_TELEMETRY_PROFILES,
     StreamlitFilterCache,
+    _api_snapshot_available,
+    _clear_recent_api_snapshot,
     _build_table_caption,
     _format_render_stats_line,
     _build_streamlit_column_config,
@@ -13,7 +16,12 @@ from dev_env.streamlit_app import (
     _compute_df_cache_token,
     _default_visible_columns,
     _normalize_filter_selection,
+    _apply_large_page_guard,
+    _normalize_width_profile_memory,
     _paginate_dataframe,
+    _remember_width_profile_for_bucket,
+    _resolve_width_bucket,
+    _resolve_width_profile_for_bucket,
     _update_render_telemetry,
     st,
 )
@@ -24,7 +32,7 @@ def test_streamlit_filter_cache_compat_methods_work_in_local_fallback() -> None:
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0}
+    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
 
     data = pd.DataFrame({"numero_ssa": ["202500001"], "situacao": ["ABERTO"]})
     cache.cache_filter_result("k1", data, {"source": "test"})
@@ -41,7 +49,7 @@ def test_streamlit_filter_cache_key_token_distinguishes_same_shape_data() -> Non
     cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
     cache._use_session_state = False
     cache._local_cache = {}
-    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0}
+    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
 
     df1 = pd.DataFrame(
         {
@@ -63,6 +71,39 @@ def test_streamlit_filter_cache_key_token_distinguishes_same_shape_data() -> Non
     cache.put(df1.shape, "", [], [], [], df1, df_token=token1)
     assert cache.get(df1.shape, "", [], [], [], df_token=token1) is not None
     assert cache.get(df2.shape, "", [], [], [], df_token=token2) is None
+
+
+def test_streamlit_filter_cache_skips_large_entry_when_limit_is_set(monkeypatch) -> None:
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0.0001")
+    cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
+    cache._use_session_state = False
+    cache._local_cache = {}
+    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+
+    large_df = pd.DataFrame({"descricao_ssa": ["x" * 4096, "y" * 4096]})
+    cache.cache_filter_result("k_large", large_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 1
+    assert stats["max_entry_mb"] is not None
+
+
+def test_streamlit_filter_cache_keeps_small_entry_when_limit_allows(monkeypatch) -> None:
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "64")
+    cache = StreamlitFilterCache(max_size=2, ttl_seconds=30)
+    cache._use_session_state = False
+    cache._local_cache = {}
+    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+
+    small_df = pd.DataFrame({"numero_ssa": ["202500001"], "situacao": ["ABERTO"]})
+    cache.cache_filter_result("k_small", small_df, {"source": "test"})
+    cached = cache.get_cached_filter("k_small")
+
+    stats = cache.get_stats()
+    assert cached is not None
+    assert stats["skipped_large_entries"] == 0
+    assert stats["hits"] >= 1
 
 
 def test_build_filter_options_handles_missing_columns() -> None:
@@ -93,6 +134,20 @@ def test_paginate_dataframe_clamps_page_and_returns_total_pages() -> None:
     assert total_pages == 2
     assert len(page_df) == 5
     assert page_df.iloc[0]["numero_ssa"] == "202500011"
+
+
+def test_apply_large_page_guard_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("SSA_STREAMLIT_LARGE_PAGE_GUARD", raising=False)
+    page_size, changed = _apply_large_page_guard(page_size=2000, filtered_len=5000)
+    assert page_size == 2000
+    assert changed is False
+
+
+def test_apply_large_page_guard_limits_page_size_when_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("SSA_STREAMLIT_LARGE_PAGE_GUARD", "1")
+    page_size, changed = _apply_large_page_guard(page_size=2000, filtered_len=5000)
+    assert page_size == 500
+    assert changed is True
 
 
 def test_normalize_filter_selection_collapses_full_selection() -> None:
@@ -206,6 +261,87 @@ def test_update_render_telemetry_keeps_profile_window(monkeypatch) -> None:
     assert len(stats) == MAX_RENDER_TELEMETRY_PROFILES
     assert "profile-0" not in stats
     assert f"profile-{MAX_RENDER_TELEMETRY_PROFILES + 2}" in stats
+
+
+def test_width_bucket_resolution_thresholds() -> None:
+    assert _resolve_width_bucket(1000) == "xs"
+    assert _resolve_width_bucket(1400) == "sm"
+    assert _resolve_width_bucket(1700) == "md"
+    assert _resolve_width_bucket(2100) == "lg"
+    assert _resolve_width_bucket(2600) == "xl"
+
+
+def test_width_profile_memory_normalization_filters_invalid_values() -> None:
+    memory = _normalize_width_profile_memory(
+        {
+            "xs": "Compacto (1200)",
+            "md": "Padrao (1600)",
+            "bad": "Nao existe",
+            "bucket_invalido": "XL (2400)",
+        }
+    )
+    assert memory == {
+        "xs": "Compacto (1200)",
+        "md": "Padrao (1600)",
+    }
+
+
+def test_width_profile_resolve_and_remember_by_bucket(monkeypatch) -> None:
+    session_state = {"streamlit_viewport_width_px": 2100}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+    table_state = {
+        "width_profile": "Padrao (1600)",
+        "width_profile_by_bucket": {"lg": "XL (2400)"},
+    }
+
+    selected_profile, bucket = _resolve_width_profile_for_bucket(table_state)
+    assert bucket == "lg"
+    assert selected_profile == "XL (2400)"
+
+    _remember_width_profile_for_bucket(table_state, bucket, "Largo (2000)")
+    assert table_state["width_profile_by_bucket"]["lg"] == "Largo (2000)"
+
+
+def test_width_profile_resolve_ignores_non_positive_viewport_hint(monkeypatch) -> None:
+    session_state = {"streamlit_viewport_width_px": 0}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+    table_state = {"width_profile": "Padrao (1600)", "width_profile_by_bucket": {}}
+
+    selected_profile, bucket = _resolve_width_profile_for_bucket(table_state)
+
+    assert selected_profile == "Padrao (1600)"
+    assert bucket == "md"
+
+
+def test_main_tab_labels_kept_stable() -> None:
+    assert MAIN_TAB_LABELS == ["Filtros", "Tabela", "Exportacao", "Cache e API"]
+
+
+def test_api_snapshot_available_permutations() -> None:
+    df = pd.DataFrame({"numero_ssa": ["1"]})
+    assert _api_snapshot_available(True, df) is True
+    assert _api_snapshot_available(False, df) is False
+    assert _api_snapshot_available(True, pd.DataFrame()) is False
+    assert _api_snapshot_available(True, None) is False
+
+
+def test_clear_recent_api_snapshot_updates_session_state(monkeypatch) -> None:
+    session_state = {"recent_api_df": pd.DataFrame({"numero_ssa": ["1"]})}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+
+    _clear_recent_api_snapshot()
+
+    assert session_state["recent_api_df"] is None
+
+
+def test_clear_recent_api_snapshot_is_idempotent_without_existing_key(monkeypatch) -> None:
+    session_state = {}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+
+    _clear_recent_api_snapshot()
+
+    assert "recent_api_df" in session_state
+    assert session_state["recent_api_df"] is None
 
 
 def test_format_render_stats_line_outputs_expected_values() -> None:

@@ -2,6 +2,172 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-02-28 13:40 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.25.0`.
+- Sprint D closeout status:
+  1. cache size guard delivered in GUI cache and Streamlit cache.
+  2. matrix item `9` moved to `resolved` (older deferred snapshots are historical only).
+  3. cache stats now include `skipped_large_entries` and `max_entry_mb`.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`: pass
+  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `32 passed`
+- Deferred classification with difficulty:
+  - optional product (P3):
+    1. persistent widths (`item 104`) - media
+    2. telemetry persistence across sessions (`item 107`) - media/alta
+  - structural (P2):
+    1. `SSAMainWindow` split (`item 84`) - alta
+    2. streamlit god-module split (`item 101`) - alta
+- Retomada checklist:
+  1. `git status --short`
+  2. patch minimo no item aprovado
+  3. kluster auto + fix de `agent_todo_list`
+  4. `py_compile`, `ruff`, `ty`, `pytest` focado
+  5. sync docs de continuidade no mesmo slice
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 12:25 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.25.0`.
+- Sprint closure state:
+  1. "25 graves v4" concluido com patch minimo em command handlers/importer/stream wrappers.
+  2. regressions focadas adicionadas e pacote tecnico validado.
+  3. docs de continuidade e backlog sincronizados para proxima sessao.
+  4. release local atualizado para `4.25.0`.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest package: `30 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in the package: clean
+- Retomada checklist (ordem de execucao):
+  1. `git status --short`
+  2. selecionar proximo slice de risco real
+  3. patch minimo
+  4. kluster auto + fix de `agent_todo_list`
+  5. `py_compile`, `ruff`, `ty`, `pytest` focado
+  6. sync docs da trilha
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 04:40 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (25 graves v4):
+  1. command-handlers mapping path safety + centralized config resolution + save-cache coherence.
+  2. importer guardrails for early cancel and unexpected `None` extractor result.
+  3. stream wrapper reader-join timeout configurability across timeout/normal/error paths.
+  4. focused regressions added for command-handlers/importer/stream wrappers.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest package: `30 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 04:10 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (20 graves v3):
+  1. rescan dialog finish/cancel contract hardened for duplicate finish and running-cancel phase.
+  2. rescan worker lifecycle hardened (pre-prune, stale active ref cleanup, deterministic cancel status, post-dialog prune).
+  3. stream wrapper queue poll timeout configurable and faster deterministic loop exit conditions.
+  4. sentinel path excluded from dropped-line accounting.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest: `15 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 03:35 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (10 graves v2):
+  1. rescan dialog cancel-close contract hardened.
+  2. rescan worker active/stale/cap metadata handling hardened.
+  3. stream wrapper dropped-line warning cadence and sentinel accounting hardened.
+  4. focused regressions updated for dialog/worker/wrapper guards.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest: `12 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 02:55 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (10 high-risk minimal fixes):
+  1. dynamic GUI config path resolver + loader usage in `gui/gui_config.py`.
+  2. runtime/env and explicit-path regressions in `tests/test_gui_main_configuration.py`.
+  3. streamlit memory/view width fallback hardening in `dev_env/streamlit_app.py`.
+  4. streamlit snapshot clear idempotent guard + regressions in `tests/test_streamlit_filter_cache.py`.
+  5. closeEvent rescan defensive shutdown hardening in `gui/gui_ssa.py` with regression in `tests/test_gui_filter_logic.py`.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - focused `pytest`: `150 passed, 1 skipped`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 02:05 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (5 high-risk minimal slices):
+  1. `gui/gui_ssa.py`: closeEvent rescan retention cap/meta hardening.
+  2. `tests/test_gui_filter_logic.py`: regressions for rescan cap/meta + canonical candidates with non-null cache.
+  3. `tests/test_gui_main_configuration.py`: regression for missing `SSA_CONFIG_DIR` fallback.
+  4. `dev_env/streamlit_app.py`: unified API snapshot clear helper.
+  5. `tests/test_streamlit_filter_cache.py`: regression for API snapshot clear helper.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - focused `pytest`: `145 passed, 1 skipped`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-28 01:10 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest streamlit slice delivered in requested order:
+  1. item 2 first: width-profile memory by width bucket in `dev_env/streamlit_app.py`.
+  2. item 1 after: tabs/API smoke hardening (`MAIN_TAB_LABELS` + `_api_snapshot_available`).
+- Focused tests added:
+  - width bucket thresholds
+  - width-profile memory normalize/resolve/remember
+  - tab labels stability
+  - API snapshot permutations
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: `21 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` on touched files: clean
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
 ## CURRENT TRUTH 2026-02-28 00:18 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.

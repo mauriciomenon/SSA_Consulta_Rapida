@@ -3,6 +3,246 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (sprint D closeout: cache guard + optional scope map)
+
+Delivered in this closeout slice:
+1. Sprint D P1 fix marked done:
+   - matrix item `9` is now `resolved` (was deferred in older snapshot).
+   - cache size guard implemented in:
+     - `gui/cache/filter_cache.py`
+     - `dev_env/streamlit_app.py`
+   - env gate: `SSA_CACHE_MAX_MB` (default unset keeps prior behavior).
+   - cache stats now expose `skipped_large_entries` and `max_entry_mb`.
+2. Focused validation evidence:
+   - `uv run python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass (`32 passed`)
+3. Optional product items kept deferred (not release blockers):
+   - persistent user-resizable widths: optional P3, difficulty media.
+   - telemetry persistence across sessions: optional P3, difficulty media/alta.
+4. Structural items kept deferred for dedicated sprint:
+   - `SSAMainWindow` split and streamlit god-module split: P2, difficulty alta.
+
+## Update 2026-02-28 (sprints A+B+C delivered with minimal risk)
+
+Delivered in this cycle:
+1. Sprint A:
+   - divisao filtering capability hardened in advanced logic without layout change.
+   - focused regression added in `tests/test_gui_filters_advanced_logic.py`.
+2. Sprint B:
+   - low-risk ruff cleanup scope validated green for selected scripts/launchers/tests.
+3. Sprint C:
+   - optional large-page guard for streamlit (`SSA_STREAMLIT_LARGE_PAGE_GUARD`) added.
+   - focused regression added in `tests/test_streamlit_filter_cache.py`.
+4. Validation:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass.
+   - focused pytest: `40 passed`.
+5. Matrix result:
+   - deferred queue reduced and structural-only deferred items preserved for dedicated sprints.
+
+## Update 2026-02-28 (queue compression to <=20)
+
+Delivered in this triage-only slice:
+1. Removed duplicate legacy review-tracking block from this backlog file.
+2. Kept `docs/PENDING_ACTION_MATRIX.md` as the canonical active status source.
+3. Reclassified historical deferred duplicates that are already delivered in recent streamlit/typing/runtime slices.
+4. Result in canonical matrix:
+   - `pending`: 0
+   - `deferred`: 16
+   - open queue total: 16 (<=20 target reached)
+
+## Update 2026-02-28 (sprint long-loop v2: runtime hardening micro-slices)
+
+Delivered in this loop:
+1. `interface/command_handlers.py`
+   - save success/error feedback now references resolved settings path.
+   - unexpected save exception now surfaces terminal feedback.
+2. `armazenamento/database_optimized.py`
+   - update branch with FK references now quotes/validates update columns before SQL generation.
+3. `main.py`
+   - optimized cleanup path now logs debug when disable hook import is unavailable.
+4. Tests:
+   - `tests/test_command_handlers_save_settings.py`
+   - `tests/test_database_optimized_identifier_guards.py`
+   - focused regression suites for command handlers, db optimized, and main import fallback.
+5. Validation:
+   - `py_compile`, `ruff`, `ty`: pass on touched scope.
+   - focused pytest:
+     - command handlers: `10 passed`
+     - db optimized: `6 passed`
+     - main fallback/skip: `3 passed`
+6. Kluster:
+   - all auto review runs in this loop: clean.
+
+## Update 2026-02-28 (sprint long-loop: config/extractor grave queue verification)
+
+Delivered in this verification slice:
+1. Confirmed and locked severe-path behavior already implemented in runtime:
+   - `core/config_manager.py`:
+     - atomic write/copy cleanup logs failures explicitly.
+     - mappings integrity restore keeps safe fallback to defaults in memory.
+   - `extracao/extractor.py`:
+     - extraction handle lifecycle is context-managed via `with pd.ExcelFile(...)`.
+     - extraction return/raise contract aligned with current importer flow.
+2. Validation:
+   - `uv run pytest -q tests/test_config_manager_mappings_integrity.py tests/test_config_manager_atomic_save.py tests/test_extracao.py`: `18 passed`
+   - `uv run python -m py_compile core/config_manager.py extracao/extractor.py`: pass
+   - `uv run ruff check ...`: pass
+   - `uv run ty check core/config_manager.py extracao/extractor.py`: pass
+3. Operational effect:
+   - reduced active severe queue noise by separating already-covered items from unresolved runtime work.
+
+## Update 2026-02-28 (sprint 25 graves v5: closure docs + release bump)
+
+Delivered in this closure slice:
+1. Continuity docs synchronized:
+   - `docs/NEXT_CHAT_MIGRATION.md` received a new top `CURRENT TRUTH` block.
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` received a new top authoritative block.
+2. Local release bumped by +0.1:
+   - `VERSION` now `4.25.0`.
+   - `config/version.json` updated to `version_short=4.25`.
+   - `README.md` and `docs/HISTORICO_RELEASES.md` aligned to `v4.25.0`.
+3. Scope guard:
+   - no GUI layout/position change in this slice.
+   - no broad refactor; docs and release metadata only.
+
+## Update 2026-02-28 (sprint 25 graves v4: command handlers + importer + stream wrappers)
+
+Delivered in this sprint extension:
+1. `interface/command_handlers.py`
+   - mapping path validation and centralized path resolution.
+   - guarded fallback for `display_mappings` loading failures.
+   - mapping cache clear after save and broader save fallback guard.
+2. `core/app_logic.py`
+   - early cancel check immediately after extraction.
+   - explicit guard for unexpected `None` from extractor.
+   - extractor error normalization with non-empty fallback message.
+3. `scripts/pytest_stream_common.py`
+   - configurable reader thread join timeout via env.
+   - timeout/normal/exception paths now share the configured join timeout.
+4. Tests:
+   - `tests/test_command_handlers_load_mappings.py`
+   - `tests/test_command_handlers_save_settings.py`
+   - `tests/test_import_single_error_classification.py`
+   - `tests/test_stream_log_wrapper_guards.py`
+5. Validation:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass.
+   - focused pytest package: `30 passed`.
+6. Kluster:
+   - all `kluster_code_review_auto` runs in this package: clean.
+
+## Update 2026-02-28 (sprint 20 graves v3: rescan + stream robustness)
+
+Delivered in this sprint package:
+1. `gui/widgets/rescan_progress_dialog.py`
+   - finish path is now idempotent under duplicated signals.
+   - dialog close remains blocked during running cancel phase.
+2. `gui/ssa/gui_workers.py`
+   - start path now prunes retired rescan workers before active checks.
+   - stale active worker refs are cleared before spawning a new worker.
+   - cancel status is deterministic even if worker already stopped.
+   - post-dialog running path refreshes metadata timestamp and cap cleanup remains consistent.
+   - post-dialog non-running path now re-prunes retired workers.
+3. `scripts/pytest_stream_common.py`
+   - queue poll timeout is now configurable via `PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS`.
+   - loop exit conditions were tightened to avoid unnecessary waits after process completion.
+   - sentinel path does not increase dropped-line counters.
+4. Focused tests updated:
+   - `tests/test_rescan_progress_dialog.py`
+   - `tests/test_gui_workers_rescan_data.py`
+   - `tests/test_stream_log_wrapper_guards.py`
+5. Validation:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass.
+   - focused pytest: `15 passed`.
+6. Kluster:
+   - all `kluster_code_review_auto` runs in this package: clean.
+
+## Update 2026-02-28 (sprint 10 graves v2: rescan dialog/worker + stream wrapper)
+
+Delivered in this sprint package:
+1. `gui/widgets/rescan_progress_dialog.py`
+   - cancel now keeps dialog open until process completion; no premature close while running.
+2. `gui/ssa/gui_workers.py`
+   - active-worker gate now uses robust running helper and clears stale active ref before start.
+   - global worker cap now drops matching metadata entries.
+3. `scripts/pytest_stream_common.py`
+   - added dropped-warning interval parser (`PYTEST_STREAM_DROPPED_WARN_EVERY`) with bounds.
+   - warning cadence made deterministic (`1` then each configured interval).
+   - sentinel path excluded from dropped-line accounting.
+4. Tests:
+   - updated/added focused coverage in `tests/test_rescan_progress_dialog.py`, `tests/test_gui_workers_rescan_data.py`, `tests/test_stream_log_wrapper_guards.py`.
+5. Validation:
+   - touched-scope `py_compile`, `ruff`, `ty`: pass.
+   - focused pytest: `12 passed`.
+6. Kluster:
+   - all `kluster_code_review_auto` runs in this package: clean.
+
+## Update 2026-02-28 (sprint 10 graves: config/lifecycle/streamlit hardening)
+
+Delivered in this sprint package:
+1. `gui/gui_config.py`
+   - runtime path resolver API added and loader now resolves GUI config path dynamically.
+2. `tests/test_gui_main_configuration.py`
+   - runtime env path reflection regression (`SSA_CONFIG_DIR`).
+   - explicit `config_path` precedence regression over env.
+3. `dev_env/streamlit_app.py`
+   - width-profile memory now ignores unknown bucket keys.
+   - non-positive viewport hints now fallback to profile baseline width.
+   - API snapshot clear helper now has explicit idempotent guard.
+4. `tests/test_streamlit_filter_cache.py`
+   - regressions for invalid bucket filtering, non-positive viewport fallback, and idempotent API snapshot clear.
+5. `gui/gui_ssa.py` + `tests/test_gui_filter_logic.py`
+   - closeEvent rescan shutdown keeps defensive stop/quit path when worker is globally retained.
+   - regression verifies running-helper path under unstable `isRunning` behavior.
+6. Validation:
+   - `py_compile`, `ruff`, `ty`: pass on touched scope.
+   - focused `pytest`: `150 passed, 1 skipped`.
+7. Kluster:
+   - all `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (sprint 5 slices graves: lifecycle/config/canonical/api)
+
+Delivered in this sprint package:
+1. `gui/gui_ssa.py`
+   - closeEvent rescan retention now enforces cap with metadata cleanup for dropped workers.
+   - retain path now refreshes worker timestamp on each retain operation.
+2. `tests/test_gui_filter_logic.py`
+   - new coverage for rescan global cap/meta consistency.
+   - new coverage for canonical available columns keeping active filter columns when outside non-null cache.
+3. `tests/test_gui_main_configuration.py`
+   - new fallback regression for missing `SSA_CONFIG_DIR`.
+4. `dev_env/streamlit_app.py` + `tests/test_streamlit_filter_cache.py`
+   - centralized API snapshot clear helper and focused regression.
+5. Validation:
+   - `py_compile`: pass
+   - `ruff`: pass
+   - `ty`: pass
+   - focused `pytest`: `145 passed, 1 skipped`
+6. Kluster:
+   - all `kluster_code_review_auto` runs in this package: clean
+
+## Update 2026-02-28 (streamlit width-profile memory + tabs/api smoke)
+
+Delivered in this streamlit slice:
+1. Item 2 delivered first:
+   - added width-profile memory by width bucket in `dev_env/streamlit_app.py` (`width_profile_by_bucket`).
+   - no GUI layout/position changes.
+2. Item 1 delivered after item 2:
+   - stabilized tab labels via `MAIN_TAB_LABELS`.
+   - added `_api_snapshot_available(...)` helper and used it in API snapshot render gate.
+3. Focused tests added in `tests/test_streamlit_filter_cache.py`:
+   - width bucket thresholds
+   - width-profile memory normalize/resolve/remember
+   - stable tab labels
+   - API snapshot permutations
+4. Validation:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`21 passed`)
+5. Kluster:
+   - `kluster_code_review_auto` on touched files: clean
+
 ## Update 2026-02-28 (streamlit telemetry profile window cap)
 
 Delivered in this streamlit slice:
@@ -42,7 +282,7 @@ Operational next step:
 1. Continue with minimal slices from active residual queue:
    - none (matrix pending queue is now empty).
 2. Keep streamlit stabilization as separate track.
-3. Item `9` is now deferred by explicit user decision (Opcao A).
+3. Item `9` status in this historical block is superseded by Sprint D closeout (`resolved`).
 
 ## Update 2026-02-27 (id 27 testing closure)
 
@@ -96,6 +336,8 @@ Delivered in this doc slice:
 1. Matrix item `9` moved from `pending` to `deferred`.
 2. Rationale:
    - explicit user decision (Opcao A) to avoid runtime behavior change in current sprint.
+3. Historical note:
+   - status later superseded in 2026-02-28 Sprint D closeout (`resolved`).
 
 ## Update 2026-02-27 (continuity triage validation closeout)
 
@@ -523,1155 +765,5 @@ Approved scope for next slice:
 
 ## Review tracking (source PR 31)
 
-Ordered list from PR review threads. Status uses pending/resolved.
-
-1. [pending] armazenamento/database_optimized.py:349 :: **Potential Data Integrity Issues During Batch Update (Delete + Insert):** The batch update strategy deletes existing records before inserting updated ones. If the table has for...
-2. [pending] armazenamento/database_optimized.py:346 :: **Error Handling During Rollback May Mask Critical Failures:** The rollback logic uses `with suppress(Exception):` when rolling back to the savepoint. This may hide errors durin...
-3. [pending] core/app_logic.py:297 :: **Loss of Error Type Specificity in Exception Handling** In the `_import_single_file` function, the generic exception handler wraps all exceptions as `ExtractionError`: ```pytho...
-4. [pending] core/config_manager.py:549 :: **Silent Failure on Default Settings Creation** If the creation of a default configuration file fails (e.g., due to permission issues or disk errors), the error is only logged a...
-5. [pending] core/config_manager.py:44 :: **Suppressed Exceptions in Atomic File Operations** In the `_atomic_write_json_file` function, exceptions during file descriptor closing and temporary file removal are suppresse...
-6. [pending] extracao/extractor.py:259 :: After detecting the header row and extracting data, the function does not validate that all required columns are present in the resulting DataFrame. This could lead to downstrea...
-7. [pending] extracao/extractor.py:306 :: The code loads column mappings with `_load_column_mappings()` and applies them to the DataFrame. If the mapping is empty (e.g., due to a loading error), columns will not be rena...
-8. [pending] gui/cache/filter_cache.py:50 :: **Potential Exception Risk:** The method `result.copy()` is called without verifying that `result` is a valid DataFrame. If the cached object is not a DataFrame or is `None`, th...
-9. [pending] gui/cache/filter_cache.py:59 :: **Performance Concern:** The cache always stores a copy of the DataFrame (`result.copy()`) on every put. For large DataFrames, this can be expensive in both time and memory, esp...
-10. [pending] gui/widgets/rescan_progress_dialog.py:143 :: The `reject` method allows the dialog to close immediately after a cancel request, even if the underlying rescan process has not yet stopped. This could lead to user confusion o...
-11. [pending] gui/workers/rescan_worker.py:132 :: ### Potential Logger Handler Race Condition The logger handler is added and removed within the worker thread (lines 96, 130), but if multiple threads use the same logger ('ssa')...
-12. [pending] gui/workers/rescan_worker.py:143 :: ### Cancellation Responsiveness Depends on `run_importer_logic` The cancellation logic relies on `run_importer_logic` invoking the `should_cancel` callback frequently (line 107)...
-13. [pending] interface/cli_enhancement_manager.py:134 :: **Potential Data Race in _save_settings:** The `_save_settings` method uses best-effort file locking via `_lock_file_if_possible`, but this approach may not reliably prevent con...
-14. [pending] interface/command_handlers.py:28 :: **Overly broad exception handling in `_save_settings_handler`:** Catching all exceptions and only printing the error message does not allow for proper error tracking or programm...
-15. [pending] main.py:759 :: ### Critical Issue: Incomplete Failure Handling for Optimized and Legacy Import Modes If both the optimized import (`enable_optimized_import`) and the legacy import logic fail, ...
-16. [pending] main.py:591 :: ### Performance Issue: Directory Listing in Debug Mode In the block that lists files in important directories (lines 569-605), if any of these directories contain a large number...
-17. [pending] scripts/run_pytest_stream_and_log.py:119 :: The warning about dropped lines is only emitted when `dropped_lines % 200 == 1`, which may result in infrequent warnings during periods of high output loss. This could obscure t...
-18. [pending] scripts/run_pytest_stream_and_log.py:84 :: The queue size for `line_queue` is hardcoded to 4096. This may not be optimal for all environments or workloads, potentially leading to unnecessary output loss or excessive memo...
-19. [pending] scripts/run_pytest_stream_and_log_v2.py:140 :: **Potential Data Race on `dropped_lines`** The `dropped_lines` variable is incremented in both the main thread and the reader thread without synchronization. This can lead to a ...
-20. [pending] scripts/run_pytest_stream_and_log_v2.py:163 :: **Busy-Wait Loop for Sentinel Delivery** The loop that ensures the sentinel (`None`) is delivered to the queue (`while True: ... time.sleep(0.005)`) can result in unnecessary CP...
-21. [pending] tests/test_caching_atomic_save.py:30 :: **Missing test for concurrent writes:** The test `test_save_cache_is_atomic_and_does_not_corrupt_existing_file` only simulates a single failure mode (exception during write) and...
-22. [pending] tests/test_database_optimized_alias_views.py:15 :: The test does not handle errors that may occur during database initialization (e.g., missing or invalid 'config/schema.sql'). This could result in unclear test failures. **Recom...
-23. [pending] tests/test_database_optimized_alias_views.py:35 :: The test creates a database file but does not explicitly remove it after execution. This may leave residual files in the test environment, affecting test isolation and potential...
-24. [pending] tests/test_filter_cache_locking.py:28 :: **Insufficient Verification of Lock Usage** The assertion `assert spy.enter_count >= 1` (line 28) only verifies that the lock was entered at least once, but does not ensure that...
-25. [pending] tests/test_filter_error_skips_modal_in_pytest.py:30 :: The patch target `"gui.mixins.filter_gui_ssa_mixin.QMessageBox.critical"` is tightly coupled to the import path and structure of the module under test. If the import path or the...
-26. [pending] interface/cli_enhancement_manager.py:24 :: **suggestion (bug_risk):** File locking is applied to the temp file, so it doesnt actually coordinate concurrent writers on the real settings file. In `_save_settings`, locking ...
-27. [pending] tests/test_import_cancellation.py:65 :: **suggestion (testing):** Fortalea o teste verificando tambm o payload final de progresso "finish" Como `run_importer_logic` agora normaliza e protege `progress_callback`, captu...
-28. [pending] tests/test_rescan_progress_dialog.py:28 :: **suggestion (testing):** Estenda as asseres para cobrir o estado da UI aps o cancelamento (texto de status e estados habilitado/desabilitado dos botes) Como `reject()` e `set_f...
-29. [pending] tests/test_rescan_worker_cleanup.py:27 :: **suggestion (testing):** Considere exercitar tambm o caminho de sucesso para comprovar que os handlers so liberados no caso sem erro Para validar completamente o novo cleanup n...
-30. [pending] interface/cli_enhancement_manager.py:100 :: O lock aplicado em _save_settings() est sendo feito no arquivo temporrio recm-criado. Isso no serializa gravaes concorrentes para o mesmo settings_file (cada processo trava seu ...
-31. [pending] interface/cli_enhancement_manager.py:93 :: _lock_file_if_possible() usa flock LOCK_EX (bloqueante) em POSIX. Se outro processo ficar segurando o lock, essa chamada pode travar a CLI indefinidamente. Para manter 'best-eff...
-32. [pending] armazenamento/database_optimized.py:237 :: existing_dict  montado a partir de chunk_df['numero_ssa'] sem normalizao de tipo, mas has_ssa['numero_ssa'] foi normalizado para str. Como SQLite pode conter valores antigos com...
-33. [pending] extracao/extractor.py:214 :: A anotao de retorno ainda est como Optional[pd.DataFrame], mas a funo agora retorna DataFrame (incluindo vazio) e levanta ExtractionError nos erros (no retorna None). Ajuste a a...
-34. [pending] extracao/extractor.py:223 :: A docstring ainda diz que retorna None em caso de erro, mas o fluxo agora levanta ExtractionError (e retorna DataFrame vazio quando h cabealho mas sem linhas). Atualize a seo Re...
-35. [pending] extracao/extractor.py:236 :: pd.ExcelFile()  criado mas no  fechado explicitamente. Para evitar vazamento de handle/arquivo (especialmente em loops de muitos arquivos), use um context manager (with pd.Excel...
-36. [pending] core/config_manager.py:443 :: load_display_mappings_integrity() passou a levantar RuntimeError se falhar ao restaurar o arquivo, alterando o comportamento anterior (que retornava DEFAULT_DISPLAY_MAPPINGS mes...
-37. [pending] core/config_manager.py:474 :: load_column_mappings_integrity() agora levanta RuntimeError ao falhar em restaurar o arquivo, o que pode interromper a aplicao em ambientes sem permisso de escrita. Para preserv...
-38. [pending] gui/workers/rescan_worker.py:125 :: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 1\. <b><i>rescanworker</i></b> exposes raw exception <code> R...
-39. [pending] gui/gui_ssa.py:6674 :: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 2\. Rescan thread may outlive app <code> Bug</code> <code> Re...
-40. [pending] core/config_manager.py:454 :: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 3\. Config restore can crash cli <code> Bug</code> <code> Rel...
-41. [pending] interface/cli_enhancement_manager.py:88 :: ![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg) The file lock is being applied to the temporary file created by `mkstemp`. Since each process creates a un...
-42. [pending] core/app_logic.py:450 :: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes:\n\n1. `_import_single_file` now accepts `s...
-43. [resolved] scripts/run_pytest_stream_and_log_v2.py:158 :: <!-- metadata:{"confidence":9,"steps":[{"text":"Looking at the changed code, I need to understand the new `_safe_queue_put` logic and verify potential issues.","toolCalls":[{"to...
-44. [resolved] extracao/extractor.py:214 :: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully for issues:\n\n1. **Import changes**: Re...
-45. [pending] gui/mixins/filter_gui_ssa_mixin.py:343 :: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"bash","input":{"command":"rg -n '^import os' gui/mixins/filter_gui_ssa_mixin.py; rg -n 'import os' gu...
-46. [resolved] interface/cli_enhancement_manager.py:88 :: <!-- metadata:{"confidence":9,"steps":[{"text":"Looking at the diff, I need to analyze the new atomic write pattern with file locking in `_save_settings` and the `_lock_file_if_...
-47. [resolved] utils/caching.py:153 :: <!-- metadata:{"confidence":7,"steps":[{"text":"Looking at the diff, I'll analyze the key changes: atomic write, safe file stat, updated cache format with metadata fast-path, an...
-48. [pending] gui/gui_ssa.py:5094 :: <!-- metadata:{"confidence":7,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes in this PR:\n\n1. Import of `atomic_write_j...
-49. [resolved] scripts/run_pytest_stream_and_log.py:136 :: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully.\n\nThe changes replace a blocking `_saf...
-50. [resolved] core/config_manager.py:9 :: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully:\n\n1. New `_atomic_write_json_file` fun...
-51. [pending] main.py:487 :: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully for issues:\n\n1. **Non-ASCII characters...
-52. [pending] extracao/extractor.py:214 :: **P1** | Confidence: High The function signature now includes a `should_cancel` callback. The related context shows the primary caller, `run_importer_logic` in `core/app_logic.p...
-53. [pending] armazenamento/database_optimized.py:167 :: **P1** | Confidence: High The addition of SQL identifier validation (`is_valid_identifier`) is a critical security improvement to prevent injection via the `table_name` paramete...
-54. [pending] main.py:480 :: **P2** | Confidence: High Speculative: The validation logic for conflicting CLI flags `--skip-import` and `--force-rescan` is sound. However, the error message references `--res...
-55. [pending] core/app_logic.py:330 :: **[Contextual Comment]** _This comment refers to code near real line 325. Anchored to nearest_changed(328) line 328._ --- **P1** | Confidence: High `run_importer_logic` now has ...
-56. [pending] gui/gui_ssa.py:6434 :: _ Potential issue_ | _ Critical_ <details> <summary> Analysis chain</summary>  Script executed: ```shell #!/bin/bash # Get RescanWorker implementation to understand signal timin...
-57. [pending] scripts/run_pytest_stream_and_log_v2.py:195 :: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 155-167, the warning is enqueued before the real output. When the queue is fu...
-58. [pending] scripts/run_pytest_stream_and_log.py:153 :: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 116-128, the warning is enqueued before the real output. With a full queue, e...
-59. [pending] utils/caching.py:154 :: _ Potential issue_ | _ Major_ **Don't silently skip files when `stat` fails.** If `_safe_file_stat` returns `None`, the file is ignored and may never be processed. Prefer re-que...
-60. [pending] core/app_logic.py:184 :: _ Potential issue_ | _ Minor_ **Preserve the explicit `ExtractionError` message.** The `df is None` error gets swallowed by the generic handler, so the specific message is lost....
-61. [pending] interface/command_handlers.py:26 :: _ Potential issue_ | _ Minor_ **Hardcoded path in success message may be inconsistent with actual save location.** The success message references `'config/settings.json'`, but `...
-62. [pending] tests/test_open_docs_folder_nonblocking.py:32 :: _ Potential issue_ | _ Minor_ **Class attribute `called` may cause test isolation issues.** `DummyQDesktopServices.called` is a class-level list that persists across test runs i...
-63. [resolved] interface/cli_enhancement_manager.py:73 :: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the code structure carefully.\n\nThe `_save_settings` metho...
-64. [pending] core/app_logic.py:185 :: The check for `if df is None:` at line 181-184 is dead code. The extractor function `extract_data_from_excel` has been updated to never return None - it either returns a DataFra...
-65. [pending] extracao/extractor.py:224 :: The return type annotation in the docstring (line 221-223) says `Optional[pd.DataFrame]` and mentions "ou None em caso de erro", but the function now never returns None - it eit...
-66. [pending] core/app_logic.py:294 :: The ExtractionError exception is defined in both `extracao/extractor.py` and `core/app_logic.py`. In `_import_single_file`, when catching `extractor.ExtractionError` at line 290...
-67. [pending] armazenamento/database_optimized.py:174 :: The `target_table` variable is validated using `is_valid_identifier()` at line 141-142, but then it's used in an f-string to construct SQL at line 147 without parameterization. ...
-68. [pending] gui/widgets/rescan_progress_dialog.py:143 :: In `reject()`, the code emits `self.cancel_requested`, but the signal defined on the class is `cancel_requested`. This will raise `AttributeError` when cancelling (and will brea...
-69. [resolved] gui/widgets/rescan_progress_dialog.py:147 :: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the changes carefully:\n\n1. Early-return guards in `append...
-70. [resolved] tests/test_rescan_progress_dialog.py:31 :: <!-- metadata:{"confidence":10,"steps":[]} --> P2: Tautological assertion: `assert dlg.isVisible() in (True, False)` always passes since `isVisible()` returns a `bool`. This pro...
-71. [pending] scripts/run_pytest_stream_and_log_v2.py:176 :: In scripts/run_pytest_stream_and_log_v2.py, _safe_queue_put mutates dropped_lines (e.g., `dropped_lines += 1`) but the nested function never declares `nonlocal dropped_lines` (u...
-72. [pending] gui/widgets/rescan_progress_dialog.py:147 :: RescanProgressDialog.reject() currently emits cancel_requested but never calls super().reject()/close()/hide() in the non-finished case. When this dialog is shown with exec(), t...
-73. [pending] gui/workers/rescan_worker.py:162 :: RescanWorker cleanup: the finally block wraps `_detach_logger()` in `suppress(Exception)`, but `_detach_logger()` performs multiple state updates (removeHandler, refcount decrem...
-74. [resolved] scripts/run_pytest_stream_and_log_v2.py:138 :: <!-- metadata:{"confidence":10,"steps":[{"text":"","toolCalls":[{"toolName":"bash","input":{"command":"rg -n nonlocal scripts/run_pytest_stream_and_log_v2.py"}},{"toolName":"bas...
-75. [pending] gui/widgets/rescan_progress_dialog.py:131 :: In `set_finished`, when the rescan fails (`success == False`) and the `message` argument is empty, the error display (`self.error_text`) is not updated with any indication of fa...
-76. [pending] tests/test_rescan_progress_dialog.py:48 :: **Potential nondeterminism in event processing:** The tests rely on single calls to `QApplication.processEvents()` after dialog actions (e.g., `dlg.reject()`, `dlg.set_finished(...
-77. [pending] scripts/run_pytest_stream_and_log.py:167 :: The `dropped_lines` variable is accessed without synchronization from multiple threads, creating a race condition. The reader thread (calling `_safe_queue_put`) and the main thr...
-78. [pending] core/config_manager.py:453 :: After successfully writing the default mappings to the file, the function returns `DEFAULT_DISPLAY_MAPPINGS.copy()` instead of reading back the newly created file. This is incon...
-79. [pending] core/config_manager.py:485 :: After successfully writing the default mappings to the file, the function returns `DEFAULT_COLUMN_MAPPINGS.copy()` instead of reading back the newly created file. This is incons...
-80. [pending] gui/gui_ssa.py:4275 :: GLOBAL_RETIRED_DATA_LOADER_META[worker] is assigned twice consecutively. This looks like an accidental duplicate and makes it harder to reason about worker lifetime accounting; ...
-81. [pending] gui/widgets/rescan_progress_dialog.py:143 :: The dialog's Cancel action (reject override) only emits cancel_requested and keeps the modal dialog open until the user tries to close it a second time. This differs from the PR...
-82. [pending] scripts/run_pytest_stream_and_log_v2.py:158 :: In _safe_queue_put(None), the sentinel delivery path uses line_queue.put(..., timeout=0.2) and line_queue.get(..., timeout=0.2). This can still block the reader thread (even if ...
-83. [pending] core/config_manager.py:86 :: **Potential File Descriptor Leak in `_atomic_copy_file`** If `os.close(fd)` fails inside the inner `try`/`except`, the file descriptor is never closed and will leak, as the `fin...
-84. [pending] scripts/run_pytest_stream_and_log.py:167 :: Race condition: The `dropped_lines` variable is accessed without synchronization from the reader thread. Multiple concurrent accesses at lines 115, 132, 136-137, 145-147 create ...
-85. [pending] armazenamento/database_optimized.py:75 :: SQL injection risk: The PRAGMA statement uses f-string formatting with the table name without validation. While `_has_referencing_foreign_keys` is an internal function, the `tab...
-86. [pending] gui/gui_ssa.py:4386 :: Race condition on global worker retention lists: `GLOBAL_RETIRED_DATA_LOADER_WORKERS` and `GLOBAL_RETIRED_DATA_LOADER_META` are accessed from multiple SSAMainWindow instances wi...
-87. [resolved] scripts/run_pytest_stream_and_log.py:167 :: duplicate warning emission risk closed by shared queue-full dedupe guard (`last_warned`) in `scripts/pytest_stream_common.py`.
-88. [resolved] scripts/run_pytest_stream_and_log_v2.py:209 :: same warning duplication path closed via shared runner logic in `scripts/pytest_stream_common.py`.
-89. [pending] gui/workers/rescan_worker.py:81 :: The _attach_logger and _detach_logger methods modify global state (_LOGGER_REFCOUNT, _LOGGER_PREV_LEVEL) but there's a risk if _attach_logger succeeds and then _detach_logger is...
-90. [pending] interface/cli_enhancement_manager.py:118 :: The msvcrt.locking call at line 118 locks 4096 bytes, but the actual file size may be smaller or larger than 4096 bytes. The msvcrt.locking function locks a specific number of b...
-91. [pending] armazenamento/database_optimized.py:79 :: The _has_referencing_foreign_keys function uses dynamic SQL with f-string at line 77: f"PRAGMA foreign_key_list({table})". The table name comes from sqlite_master, which should ...
-
-## Updates 2026-02-17 (slice: advanced filters responsavel_emissor)
-
-- [resolved] UI/logic flow `responsavel_emissor` removed from advanced filters panel assembly.
-- [resolved] Regression test added to lock behavior: `tests/test_gui_filter_logic.py::test_responsavel_emissor_controls_are_not_present_in_advanced_panel`.
-- [note] Scope decision B confirmed by user: do not add DB column `responsavel_emissor`; keep `solicitante` as supported field.
-
-## Updates 2026-02-17 (slice: derivadas button util)
-
-- [resolved] `Especificas...` popup now includes DB materialized derivadas summary for visible SSAs (`ssa_derivada_summary`).
-
-## Updates 2026-02-18 (user TODO queue)
-
-- [pending] Melhorar GUI na aba filtros, mantendo layout base sem regressao visual.
-- [pending] Implementar filtro/capacidade de `divisao` com cobertura de teste focada.
-- [resolved] `Especificas...` enable state now also checks DB relations, not only dataframe `derivada_de` values.
-- [resolved] Fixed responsive grid crash risk after removal of `responsavel_emissor` controls (`_reorganize_advanced_filters_grid` no longer references `emis_resp_box`).
-
-## Updates 2026-02-18 (details dialog split reliability)
-
-- [resolved] Derivadas/details split in double-click dialog is now real 20/80, not only nominal ratio:
-  - moved from `QHBoxLayout` ratio-only approach to `QSplitter` with explicit sizes/stretches.
-  - reduced left pane minimum width to allow shrink behavior.
-  - enforced initial 20/80 using dialog minimum width.
-- [resolved] Dialog visual baseline now fixed:
-  - min size `700x650`;
-  - left panel font `12`;
-  - right details font `12`;
-  - field-label font `11`.
-
-## Updates 2026-02-19 (filters-tab overlap safety)
-
-- [resolved] Critical visual overlap in `Filtros` tab:
-  - bottom region no longer invades SSA list area when result set is small.
-  - fix shipped in `d3d9410f` with minimal geometry constraints (`table min height 220`, vertical stretch `6/4`).
-  - regression test added for geometry guard in `tests/test_gui_filter_logic.py`.
-- [pending, non-blocking] PR checks monitoring:
-  - keep treating `code/snyk` and `security/snyk` as external plan-limit noise unless provider status changes;
-  - re-check remaining queued checks after pipeline settles, and act only on real code blockers.
-
-## Updates 2026-02-19 (slice: tab context mixin hardening)
-
-- [resolved] Removed fixed `TAB_CONTEXT_WIDGET_ATTRS` list in tab context mixin; bind now uses runtime context keys while skipping tab metadata.
-- [resolved] `_sync_bind_theme_and_render` now persists `_last_render_key` only after `display_current_page` succeeds.
-- [pending] `SSAMainWindow` class size/coupling remains structural backlog for dedicated sprint; no broad refactor in this stabilization slice.
-- [rule] Any future UI ratio change must include constraint validation (`minimumWidth` + layout manager behavior), not ratio constants only.
-
-## Updates 2026-02-17 (slice: dead code ano_execucao)
-
-- [resolved] Removed unreachable `data_execucao` branch from advanced year execution filter.
-- [resolved] Added regression test for `ano_execucao_values` using `semana_executada`.
-- [resolved] Fixed legacy key precedence for `ano_execucao` with exclude flag (`ano_execucao_exclude=True`) and added migration coverage tests.
-
-## Updates 2026-02-17 (slice: derivadas special multi-sheet)
-
-- [resolved] Importer derivadas special flow now processes all detected special sheets in a single sync call.
-- [resolved] `sync_derivadas` now supports `sheet_files` list and aggregates sheet stats.
-- [resolved] Added coverage for multi-sheet merge behavior in `tests/test_derivadas_sync.py`.
-
-## Updates 2026-02-18 (mega sprint reliability)
-
-- [resolved] Import now blocks success when derivadas sync evidence is invalid or consistency scan is not clean.
-  - commit: `f9e69d86`
-  - files: `core/app_logic.py`, `tests/test_import_derivadas_trigger.py`
-- [resolved] Derivadas sync now enforces post-materialization integrity gate inside transaction.
-  - commit: `474e980a`
-  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
-- [resolved] GUI manual "Atualizar Derivadas" now requires consistency scan clean state after sync.
-  - commit: `5a50ea17`
-  - files: `gui/gui_ssa.py`, `tests/test_gui_filter_logic.py`
-- [resolved] Special visual derivadas parser now treats root-only rows as informational, reducing invalid_parent noise.
-  - commit: `6f4fcc7a`
-  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
-- [resolved] Filter cache key now supports advanced filter context token to avoid stale reuse across state changes.
-  - commit: `ff266350`
-  - files: `gui/cache/filter_cache.py`, `gui/workers/filter_worker.py`, `gui/mixins/filter_gui_ssa_mixin.py`, `tests/test_filter_worker.py`
-
-## Updates 2026-02-18 (mega sprint block 6)
-
-- [resolved] Per-file derivadas parse evidence report added in sync output (`sheet_file_reports`) with path dedupe.
-  - commit: `1f213578`
-  - files: `armazenamento/derivadas_sync.py`, `tests/test_derivadas_sync.py`
-- [resolved] Importer derivadas phase now rejects special-sheet runs without individual evidence.
-  - commit: `ffd5d8ef`
-  - files: `core/app_logic.py`, `tests/test_import_derivadas_trigger.py`
-- [resolved] GUI manual derivadas update now rejects special-sheet runs without individual evidence.
-  - commit: `3daddd9f`
-  - files: `gui/gui_ssa.py`, `tests/test_gui_filter_logic.py`
-- [resolved] CLI sync now supports `--special-docs-dir` for full special-sheet ingest in one command.
-  - commit: `f7f7ead7`
-  - files: `scripts/derivadas_cli.py`, `tests/test_derivadas_cli.py`
-- [resolved] Full sync run persisted in tracked DB snapshot.
-  - commit: `60adbd5a`
-  - file: `data/ssas.db`
-  - runtime evidence: `sync_run_id=4`, `sheet_files_count=11`, `db_edges=3216`, `sheet_edges=1497`, `merged_edges=3547`, consistency clean.
-
-- [note] `uv run ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` still reports a large pre-existing GUI typing baseline (301 diagnostics); this slice did not expand scope to full GUI typing cleanup.
-
-## Delegacao simples para outra IA (audit-safe)
-
-Objetivo:
-- Escoar backlog de baixo risco sem quebrar fluxo estavel.
-
-Lotes simples (permitidos):
-1. [pending] limpeza ruff de baixo risco em `scripts/*` e `launchers/*`:
-   - F401, F841, F541, E401/E402 em arquivos de ferramenta.
-2. [pending] limpeza ruff de baixo risco em testes utilitarios:
-   - `tests/verify_*`, `tests/test_verification_manual.py`, `tests/test_search_v_character.py`.
-3. [pending] reforco de testes:
-   - `tests/test_import_cancellation.py` evento `finish`.
-   - `tests/test_rescan_progress_dialog.py` asserts de estado.
-   - `tests/test_filter_cache_locking.py` assert semantico de lock.
-
-Nao delegar:
-1. Mudancas estruturais em `gui/gui_ssa.py`.
-2. Mudancas de schema.
-3. Mudancas em import principal sem suite focada completa.
-
-Criterio de aceite da delegacao:
-1. Commits atomicos por lote.
-2. Gate por lote verde (`py_compile`, `ruff`, `ty`, `pytest` focado).
-3. Sem alteracao de layout GUI.
-
-### Pendencias reais restantes (objetivas)
-
-1. [pending-blocked] Snyk code/security em PR:
-   - bloqueio externo por limite de plano, nao regressao de codigo.
-2. [pending] Baseline alto de ty em GUI core:
-   - foco futuro em `gui/gui_ssa.py` com slice dedicado.
-3. [pending] melhorias de concorrencia em wrappers de teste:
-   - `scripts/run_pytest_stream_and_log*.py`.
-4. [pending] melhorias de cancel/progresso:
-   - `gui/widgets/rescan_progress_dialog.py`, `gui/workers/rescan_worker.py`.
-5. [pending] melhoria UX filtros:
-   - item `divisao` e refinamento da aba de filtros (sem quebrar layout).
-6. [pending] arquitetura de cache:
-   - revisar possivel decomposicao de `core/cache_manager.py` (P4 kluster "god class"), mantendo interface unificada e sem regressao.
-
-### Nao regredir (guardrails)
-
-1. Dialogo de detalhes derivadas deve ficar em 20/80 real.
-2. Nao remover validacoes fail-closed de sync de derivadas.
-3. Nao reintroduzir `responsavel_emissor` em advanced filters.
-
-### Estado de migracao pronto
-
-1. [resolved] Prompt curto e prompt completo para nova conversa adicionados em:
-   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-   - `docs/NEXT_CHAT_MIGRATION.md`
-2. [resolved] Baseline de UI sensivel documentada com valores numericos:
-   - split `20/80`, min `700x650`, fonts `12/12/11`.
-
-## Decisao de triagem (2026-02-18, lock de escopo)
-
-Itens marcados como falso positivo neste ciclo (nao fazer):
-1. nao remover `if df is None` em `core/app_logic.py` (manter defesa explicita).
-2. nao adicionar novos locks em scripts de stream neste ciclo.
-3. nao abrir refactor de race em `gui/workers/*` neste ciclo.
-
-Regra de lint para este ciclo:
-1. ignorar `E501` (linhas longas) nas triagens e lotes simples.
-2. priorizar apenas erros com impacto funcional ou seguranca real.
-
-## Update 2026-02-18 (codex/import-review)
-
-1. [resolved] Ty baseline caiu com slices de baixo risco:
-   - `457 -> 300 diagnostics` no gate global.
-   - commits: `977f0dda`, `8c8aa860`.
-2. [resolved] Ajuste pontual de parent Qt em dialogo de ajuda de filtros:
-   - commit: `5b09c7c0`.
-3. [pending] Baseline restante de ty concentrada em:
-   - `gui/gui_ssa.py` (fallback headless ainda gera ruido estatico).
-   - arquivos de teste/dev (`tests/*`, `dev_env/streamlit_app.py`).
-4. [pending-nonblocking] Refactor estrutural adiado em teste legacy:
-   - `tests/automated_system_tests.py` com classe ampla (`AutomatedSystemTester`).
-   - manter patch minimo neste sprint e quebrar responsabilidades em ciclo dedicado.
-5. [pending-blocked] checks externos:
-   - `code/snyk` e `security/snyk` continuam limitados por plano.
-
-## Update 2026-02-19 (codex/import-review)
-
-1. [resolved] Ty baseline reduziu com slices focados em testes utilitarios:
-   - `204 -> 177 diagnostics` no gate global `uv run ty check .`.
-   - commits: `7cea46ac`, `b3b75fd9`, `45cc0f79`.
-2. [resolved] Gate estatico em arquivos criticos segue verde:
-   - `uv run ruff check armazenamento/database.py gui/ssa/gui_filters_advanced_ui.py`.
-   - `uv run ty check armazenamento/database.py gui/ssa/gui_filters_advanced_ui.py`.
-3. [pending] Maior bloco restante de ty e ruido de tipagem:
-   - `gui/gui_ssa.py` (tipagem PyQt dinamica e fallbacks de runtime).
-   - `gui/gui_ssa_dev.py`, `gui/ssa/gui_theme.py`.
-4. [pending] Pendencias menores fora de fluxo principal:
-   - `launchers/convert_icon.py` (deps opcionais `PIL` e `cairosvg`).
-   - `scripts/run_all_tests.py` e wrappers `run_pytest_*`.
-5. [pending-blocked] checks externos continuam sem acao local:
-   - `code/snyk` por limite de plano.
-
-## Update 2026-02-19 (codex/import-review - ty slices extra)
-
-1. [resolved] Ty baseline continuou caindo em slices pequenos:
-   - `177 -> 155 diagnostics` no gate global `uv run ty check .`.
-   - commits: `1af18fd2`, `37d02707`, `5e66e2fb`, `2f49ec5f`, `46c1f2a6`.
-2. [resolved] Ajustes de risco baixo aplicados:
-   - launcher CLI usando entrypoint correto (`start_cli_loop`).
-   - narrowing do patch de import PyOxidizer para escopo `pandas`.
-   - tipagem defensiva em `gui/gui_ssa_dev.py`.
-   - imports opcionais tipados em `launchers/convert_icon.py`.
-   - narrowing de `QApplication.instance()` em `gui/ssa/gui_theme.py`.
-3. [pending] Bloco principal restante de ty:
-   - `gui/gui_ssa.py` (`128 diagnostics` no arquivo; tipagem PyQt + fallback headless).
-4. [pending-blocked] checks externos sem acao local:
-   - `code/snyk` fail por limite de plano.
-   - `security/snyk` fail por limite de plano.
-
-## Update 2026-02-19 (codex/import-review - gui typing hardening)
-
-1. [resolved] Ty baseline reduziu novamente com slices em launcher/main/gui:
-   - `155 -> 113 diagnostics` no gate global `uv run ty check .`.
-   - commits: `5e66e2fb`, `2f49ec5f`, `46c1f2a6`, `8948c85d`, `b23d97ec`, `8fe3ed2c`.
-2. [resolved] Correcoes de risco real e estabilidade:
-   - guarda de `clipboard` e `QInputDialog` em `gui/gui_ssa.py`.
-   - stubs headless Qt mais consistentes para execucao sem PyQt6.
-   - import patch de PyOxidizer limitado a `pandas`.
-3. [pending] Bloco restante de tipagem ainda concentrado:
-   - `gui/gui_ssa.py` (`86 diagnostics` no arquivo).
-   - alvo futuro: reduzir sem refactor amplo de layout/arquitetura.
-4. [pending-blocked] checks externos:
-   - `code/snyk` e `security/snyk` continuam bloqueados por limite de plano.
-
-## Update 2026-02-19 (codex/import-review - ty errors zerados)
-
-1. [resolved] Ty global sem erros:
-   - `113 -> 28 diagnostics` no gate global.
-   - `uv run ty check . --output-format concise` nao retorna mais `error[...]`.
-2. [resolved] Tipagem de `gui/gui_ssa.py` estabilizada sem alterar layout:
-   - `86 -> 1 diagnostic` (restou somente warning `unsupported-base`).
-   - commits principais: `50031a1e`, `7cab4edb`, `1ba5b0d7`.
-3. [pending-nonblocking] warning residual:
-   - `gui/gui_ssa.py`: `unsupported-base` no mixin em ambiente headless/stub.
-4. [pending-blocked] checks externos:
-   - `code/snyk` limite de plano.
-   - `security/snyk` limite de plano.
-
-## Update 2026-02-19 (codex/import-review - ty warnings zerados)
-
-1. [resolved] Gate estatico local zerado para tipagem:
-   - `uv run ty check . --output-format concise` -> `All checks passed`.
-   - warnings removidos com patch minimo (unused type ignore + `utcnow` deprecated).
-2. [resolved] Gates tecnicos dos arquivos tocados estao verdes:
-   - `uv run python -m py_compile ...`
-   - `uv run ruff check ...`
-   - `uv run ty check . --output-format concise`
-   - `uv run pytest -q tests/test_main_skip_import.py tests/test_normalization_rules.py tests/test_numero_ssa_hyphen_repetition.py tests/test_numero_ssa_normalization_cross.py tests/test_robust_importer.py`
-3. [pending-nonblocking] melhoria estrutural adiada (fora de escopo do patch minimo):
-   - `armazenamento/database_validation.py`: funcao `validate_dataframe_before_insert` segue com alta complexidade ciclom.
-   - tratar em sprint dedicado com refactor controlado e cobertura de regressao.
-4. [pending-blocked] checks externos sem acao local:
-   - `code/snyk` limite de plano.
-   - `security/snyk` limite de plano.
-
-## Update 2026-02-19 (codex/import-review - risk patch runtime)
-
-1. [resolved] Correcao de risco em validacao de caminho:
-   - `utils/path_safety.py`: `ensure_path_is_allowed('')` agora falha com `PathSafetyError`.
-   - repro anterior retornava cwd; comportamento inseguro removido.
-2. [resolved] Correcao de mascaramento de erro real no backfill:
-   - `main.py`: retry de import para backfill agora so ocorre quando `ModuleNotFoundError` e do proprio modulo alvo.
-   - erro interno de dependencia volta a propagar corretamente.
-3. [resolved] Diagnostico operacional melhor no bootstrap CLI:
-   - `launchers/cli_entry.py`: adicionada saida explicita para excecao inesperada no startup.
-4. [resolved] Regressao coberta:
-   - novo teste `tests/test_path_safety.py` validando rejeicao de string vazia e espacos.
-5. [pending-blocked] checks externos sem acao local:
-   - `code/snyk` limite de plano.
-   - `security/snyk` limite de plano.
-
-## Update 2026-02-19 (codex/import-review - legacy setup module hardening)
-
-1. [resolved] Mitigacao de execucao de modulo externo via env:
-   - `utils/setup_project_structure.py` bloqueia `SSA_LEGACY_SETUP_MODULE` fora da raiz do projeto por padrao.
-   - opt-in explicito disponivel via `SSA_ALLOW_EXTERNAL_LEGACY_SETUP_MODULE=1`.
-2. [resolved] Cobertura de regressao adicionada:
-   - `tests/test_setup_project_structure.py` valida bloqueio padrao e fluxo opt-in.
-3. [resolved] Repro de seguranca validado localmente:
-   - modulo temporario externo nao e executado sem opt-in (side effect bloqueado).
-4. [pending-blocked] checks externos sem acao local:
-   - `code/snyk` limite de plano.
-   - `security/snyk` limite de plano.
-
-## Update 2026-02-19 (codex/import-review - distribution packaging guard)
-
-1. [resolved] Protecao no empacotamento ZIP:
-   - `scripts/create_distribution.py` agora valida existencia do executavel antes de `copy2`.
-   - erro fica explicito e evita stacktrace generico de arquivo ausente.
-2. [resolved] Relatorio final de empacotamento mais claro:
-   - quando ZIP nao e criado, log explicita `ZIP: Nao criado`.
-3. [resolved] Cobertura de regressao adicionada:
-   - `tests/test_create_distribution.py` valida retorno `None` + log esperado quando `exe` ausente.
-4. [pending-blocked] checks externos sem acao local:
-   - `code/snyk` limite de plano.
-   - `security/snyk` limite de plano.
-
-## Update 2026-02-19 (codex/import-review - gui workers structural follow-up)
-
-1. [pending-nonblocking] item estrutural identificado por revisao automatica:
-   - `gui/ssa/gui_workers.py`: funcao `on_data_loaded` concentra responsabilidades de sanitizacao, estado e atualizacao de UI.
-   - impacto atual: nao bloqueia funcionamento, mas aumenta custo de manutencao e teste.
-2. [next-sprint] tratar em sprint dedicado, sem mexer em layout:
-   - extrair bloco de processamento de dataframe para helper puro.
-   - manter `on_data_loaded` como coordenador de fluxo/UI.
-3. [scope-note] fora do patch minimo desta rodada:
-   - nenhuma refatoracao ampla aplicada agora para evitar risco de regressao.
-
-## Update 2026-02-24 (kluster triage after filtros stability slice)
-
-1. [resolved] CLI config command bug fixed with low-risk patch:
-   - `interface/cli.py`: removed `display_map = handle_config_command()` in single-char command flow.
-   - behavior now matches full command flow (`c` and `config` do the same refresh/reset path).
-2. [resolved] dynamic schema DDL hardening:
-   - `armazenamento/schema_manager.py`: table lookup switched to parameterized query.
-   - added strict identifier validation for dynamic columns before `ALTER TABLE`.
-   - table/column identifiers now quoted through helper in DDL/PRAGMA paths.
-3. [resolved] maintenance scripts aligned with canonical table and schema fields:
-   - `scripts_manutencao/analyze_db_integrity.py`: switched to `ssa_table` and current field names.
-   - `scripts_manutencao/verificar_integridade.py`: switched to `ssa_table`.
-   - `scripts_manutencao/limpar_banco.py`: switched to `ssa_table`.
-4. [pending-nonblocking] defer to next sprint (requires design/spec confirmation):
-   - `extracao/extractor.py`: ambiguity of `m` in `_normalize_tempo_excedido_value` (`minutes` vs `months`).
-   - action: decide canonical token set (`m` vs `mi` vs `mo`) before changing parser behavior.
-5. [pending-nonblocking] defer to dedicated refactor sprint (outside minimal-risk scope):
-   - God class split in `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`.
-   - config path/source unification between `core/config_manager.py` and `gui/gui_config.py`.
-6. [pending-blocked] external check noise and plan limits:
-   - keep Snyk plan-limit failures as external blocker with no local code fix.
-
-## Update 2026-02-24 (control docs sync)
-
-1. [resolved] diario de ciclo sincronizado para continuidade segura:
-   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` atualizado com status do override 2026-02-24.
-   - `docs/NEXT_CHAT_MIGRATION.md` atualizado com contexto ativo em `codex/dev-filtros-stability`.
-2. [resolved] risco de migracao com contexto antigo reduzido:
-   - contexto de `codex/import-review` e PR `#31` mantido apenas como historico.
-3. [pending-nonblocking] manter disciplina de update ao fechar cada slice:
-   - registrar sempre em `AGENTS_HANDOFF_NEXT_CYCLE.md`, `RECOVERY_BACKLOG.md` e `NEXT_CHAT_MIGRATION.md`.
-
-## Update 2026-02-24 (tempo_excedido parser ambiguity fix)
-
-1. [resolved] semantic fix with minimal risk in parser:
-   - `extracao/extractor.py`: `_normalize_tempo_excedido_value` now maps `m` to minutes and keeps months as explicit `mo`.
-   - reason: avoids contradictory interpretation in common duration inputs (example `1h 30m`).
-2. [resolved] regression coverage added:
-   - `tests/test_extracao.py`: added focused checks for `1h 30m`, `15mi`, and `2mo 5d`.
-3. [scope-note] no broad refactor applied:
-   - only parser token mapping and targeted tests changed.
-
-## Update 2026-02-24 (maintenance scripts runtime stability)
-
-1. [resolved] runtime failure fixed in maintenance cleanup:
-   - `scripts_manutencao/limpar_banco.py`: `VACUUM` now runs after `commit` to avoid transaction error.
-2. [resolved] logging rule aligned with minimal change:
-   - `scripts_manutencao/limpar_banco.py`: replaced `print()` usage with robust logger calls.
-3. [resolved] regression tests added for script targets and execution:
-   - `tests/test_scripts_manutencao_schema_targets.py` validates:
-     - `analyze_db_integrity.py` uses `ssa_table` and runs on canonical schema.
-
-## Update 2026-02-24 (schema_manager identifier guard regression lock)
-
-1. [resolved] added focused tests for SQL identifier hardening:
-   - `tests/test_schema_manager_identifier_guards.py`
-2. [resolved] verified expected behavior:
-   - invalid dynamic column name raises `ValueError`;
-   - valid missing column is added successfully.
-
-## Update 2026-02-24 (analyze_db_integrity hardening)
-
-1. [resolved] fixed semantic/report consistency in integrity analyzer:
-   - `scripts_manutencao/analyze_db_integrity.py` now aggregates `empty_fields` with complete-empty-record checks.
-2. [resolved] fixed empty-table safety:
-   - no division-by-zero during percentage calc;
-   - `SUM(...)` null results now normalized to zero.
-3. [resolved] logging and maintenance contract alignment:
-   - migrated script output to robust logger;
-   - exposed `verify_database_integrity` + compatibility alias `analyze_database_integrity`;
-   - integrated `repair_database_if_needed` wrapper to call core repair flow only when needed.
-4. [resolved] focused regression tests for this script:
-   - `tests/test_scripts_manutencao_schema_targets.py` now locks:
-     - aggregate empty-fields flag behavior;
-     - empty-table no-crash behavior.
-
-## Update 2026-02-24 (verify_database_integrity performance refactor)
-
-1. [resolved] reduced query round-trips in integrity analyzer:
-   - merged core metrics into one query (`total_records`, critical empty counts, complete-empty records).
-2. [resolved] duplicate aggregation fixed and optimized:
-   - top-10 listing preserved while `duplicate_count` now reflects total duplicates across all groups.
-3. [resolved] import-date check avoids exception path when column is absent:
-   - `PRAGMA table_info` check before date query.
-4. [resolved] regression lock expanded:
-   - `tests/test_scripts_manutencao_schema_targets.py` validates duplicate-count correctness beyond top-10 sample.
-
-## Pendencias longas (triagem kluster consolidada 2026-02-24)
-
-1. [pending-long] `armazenamento/database_upsert_logic.py`:
-   - row-by-row upsert (`iterrows`) e merge por linha; custo alto em lotes grandes.
-2. [pending-long] `interface/cli.py`:
-   - estado de paginacao baseado em `id(df)`;
-   - risco de perda de estado em copias e crescimento do tracker.
-3. [pending-long] `interface/cli.py`:
-   - fluxo `-x` (remove termo) com comportamento inconsistente em ordem nao-recente.
-4. [pending-long] `interface/cli.py`:
-   - busca por SSA apos falha de carga pode cair em `KeyError` sem guarda dedicada.
-5. [pending-long] `core/app_logic.py` + filtros:
-   - semantica de delimitador por virgula diverge entre busca geral e filtros por coluna.
-6. [pending-long] regex/filtros:
-   - falta de salvaguarda para regex de usuario com custo alto (ReDoS/latencia).
-7. [pending-long] `interface/table_printer.py`:
-   - formatacao/sanitizacao eager no dataframe inteiro antes de paginacao.
-8. [pending-long] `utils/robust_importer.py`:
-   - funcao monolitica com IO + heuristica + relatorio acoplados.
-9. [pending-long] `main.py`:
-   - funcao `main` extensa com multiplas responsabilidades.
-10. [pending-long] `core/config_manager.py` / `gui/gui_config.py`:
-    - duplicacao de mapeamentos e possivel divergencia de path/config.
-
-## Pendencias para sprint exclusivo (fora de patch minimo)
-
-1. [next-sprint-exclusive] God Class GUI:
-   - `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`.
-   - objetivo: split por responsabilidades sem alterar layout.
-2. [next-sprint-exclusive] Circular deps em `armazenamento`:
-   - mapear grafo de imports e reduzir acoplamento sem quebrar startup.
-3. [next-sprint-exclusive] Arquitetura CLI:
-   - separar loop principal, parser, estado e dispatch (`start_cli_loop`).
-4. [next-sprint-exclusive] Threading/performance GUI filtros:
-   - geracao de opcoes e aplicacao de filtros com pontos sincronos na UI thread.
-5. [next-sprint-exclusive] Unificacao de config path/source:
-   - consolidar caminho canonico e remover duplicacao core/gui.
-6. [next-sprint-exclusive] Refactor de manutencao/migracao:
-   - parser de schema em scripts de migracao com estrategia robusta e testavel.
-
-## Update 2026-02-24 (cli keyerror guard after load failure)
-
-1. [resolved] fixed crash risk in direct SSA search path:
-   - `interface/cli.py`: guard added for missing `numero_ssa` column before direct SSA lookup.
-2. [resolved] security/performance hardening in same path:
-   - direct contains now uses `regex=False` when fallback search is needed;
-   - exact match is used when strict normalized SSA is available.
-3. [resolved] regression lock:
-   - `tests/test_cli_loop_missing_numero_ssa_guard.py` validates no crash when dataframe lacks `numero_ssa`.
-
-## Update 2026-02-24 (invalid regex fallback hardening in GUI column filter)
-
-1. [resolved] fixed unsafe fallback for invalid regex token in GUI column filter:
-   - `gui/mixins/filter_gui_ssa_mixin.py` now uses literal fallback with `regex=False`
-     in both explicit `~regex` and default `regex` mode when pattern compilation fails.
-2. [resolved] avoided crash/unsafe path on malformed user regex:
-   - invalid patterns no longer re-enter regex evaluation in fallback path.
-3. [resolved] regression lock:
-   - `tests/test_filter_regex_invalid_fallback.py` validates fallback behavior in both modes.
-
-## Update 2026-02-24 (cli remove-filter non-lifo consistency)
-
-1. [resolved] fixed semantic inconsistency in `-x <termo>`:
-   - `interface/cli.py` now reapplies from base state when removing non-last term.
-2. [resolved] preserved performance for common LIFO removal:
-   - when removed term is only the trailing term, reapply uses previous stack state.
-3. [resolved] regression lock:
-   - `tests/test_cli_remove_filter_non_lifo.py` covers non-lifo and lifo branches.
-
-## Update 2026-02-24 (governanca ativa para sprint de qualidade)
-
-1. [active-rule] equilibrio entre error-handling e performance:
-   - manter tratamento de erro por bloco funcional relevante, sem excesso de `if/try` fragmentado;
-   - exigir saida objetiva e tratamento coerente para cada erro capturado;
-   - evitar fallback caro e reprocessamento amplo como efeito colateral de hardening.
-
-## Update 2026-02-24 (cli config refresh com custo controlado)
-
-1. [resolved] config refresh sem reset cego de sessao:
-   - `interface/cli.py` centraliza refresh pos-config em helper local e remove duplicacao de blocos.
-2. [resolved] custo controlado no refresh:
-   - recarrega estado inicial apenas quando `default_filters` mudou;
-   - quando nao mudou, reaproveita dataframe atual e apenas re-renderiza.
-3. [resolved] seguranca na query estrutural:
-   - `get_ssa_query` agora aceita apenas `ssa_table` e aliases legados (`ssas`, `ssa_chamados`).
-4. [resolved] regression lock:
-   - `tests/test_cli_config_preserve_session.py` cobre reload condicional por mudanca de `default_filters`;
-   - `tests/test_cli_get_ssa_query_identifier_guard.py` cobre bloqueio de tabela fora da allowlist.
-
-## Update 2026-02-24 (cli clearall table consistency)
-
-1. [resolved] fixed table consistency in clearall flow:
-   - `_handle_clear_all_filters` now calls `get_ssa_query(table_name)`.
-2. [resolved] regression lock:
-   - `tests/test_cli_clearall_uses_table_name.py` validates `clearall` uses provided table and alias mapping.
-
-## Update 2026-02-24 (cli pagination tracker prune)
-
-1. [resolved] reduced stale pagination state risk:
-   - added prune of orphan entries when `results_stack` changes.
-2. [resolved] manager encapsulation without broad refactor:
-   - pagination tracker operations moved to a dedicated local manager class in CLI module.
-3. [resolved] reduced state loss on dataframe copies:
-   - tracker key now persists in `df.attrs`, avoiding strict dependence on `id(df)`.
-4. [resolved] regression lock:
-   - `tests/test_cli_pagination_tracker_prune.py` (including copy-preservation scenario).
-
-## Update 2026-02-24 (cli enhancement settings lock and root rule)
-
-1. [resolved] lock behavior clarified in settings save:
-   - lock is applied on lockfile; temp-file lock was removed to avoid redundant lock path.
-   - when lock acquisition fails, save is aborted (no unlocked write path).
-2. [resolved] project-root rule alignment:
-   - `interface/cli_enhancement_manager.py` now uses `_get_project_root()`.
-3. [resolved] robust logging alignment:
-   - module logger switched to `get_robust_logger().get_logger(__name__, "cli")`.
-4. [resolved] regression lock:
-   - `tests/test_cli_enhancement_manager_lock_usage.py`.
-
-## Update 2026-02-24 (command handlers root-safe mappings cache)
-
-1. [resolved] cwd-independent mapping path:
-   - `interface/command_handlers.py` now resolves config path from project root helper.
-2. [resolved] robust logger alignment:
-   - module logger now uses `get_robust_logger().get_logger(__name__, "cli")`.
-3. [resolved] mapping cache manager:
-   - added lightweight manager to avoid repeated mapping loads in config menus.
-4. [resolved] regression lock:
-   - `tests/test_command_handlers_project_root_mapping.py`.
-
-## Update 2026-02-24 (command handlers save flow cleanup)
-
-1. [resolved] reduced repeated error branches in config menu handlers:
-   - repeated `try/except ... pass` blocks replaced by `_try_save_settings(...)`.
-2. [resolved] behavior preserved:
-   - menu keeps running on save failure, while user feedback/log remains centralized in `_save_settings_handler`.
-3. [resolved] helper semantics clarified:
-   - helper renamed to `_attempt_save_settings` and now returns explicit boolean success/failure.
-4. [resolved] save-failure rollback in menu actions:
-   - when persistence fails, local menu mutations are reverted to avoid misleading transient state.
-
-## Update 2026-02-24 (optimized upsert legacy decimal key normalization)
-
-1. [resolved] fixed legacy key match in optimized lookup path:
-   - `armazenamento/database_optimized.py` now queries both canonical `numero_ssa` and legacy `numero_ssa + ".0"` variants during chunked lookup.
-2. [resolved] fixed duplicate risk on legacy decimal keys during update path:
-   - delete set now includes both canonical and matched legacy storage keys before reinserting normalized rows.
-3. [resolved] fixed savepoint failure in `DELETE + INSERT` branch:
-   - replaced `to_sql` inside savepoint with parameterized `executemany` insert batches.
-4. [resolved] focused regression lock:
-   - `tests/test_database_optimized_alias_views.py::test_optimized_upsert_replaces_legacy_decimal_key_without_duplicate`.
-5. [pending-long] kluster quality note (P4):
-   - `insert_dataframe_optimized` remains large and multi-responsibility.
-   - deferred by scope policy (no broad refactor in this sprint); keep for dedicated architecture sprint.
-
-## Update 2026-02-24 (policy shift: canonical write only for SSA ids)
-
-1. [resolved] removed legacy read-compat in optimized upsert path:
-   - lookup/update now uses only canonical `numero_ssa` keys.
-2. [resolved] enforced write validation for canonical storage ids:
-   - added fail-fast validation in `insert_dataframe_optimized` after normalization;
-   - decimal artifacts in `numero_ssa`/`derivada_de` are rejected in write path.
-3. [resolved] kept performance-oriented batch paths:
-   - canonical lookup chunk and `executemany` update/insert paths preserved.
-4. [decision] migration strategy for this cycle:
-   - legacy cleanup to be handled by controlled DB reset/migration, not runtime compatibility branches.
-
-## Update 2026-02-24 (canonical write policy extended to non-optimized upsert)
-
-1. [resolved] extended canonical write enforcement to non-optimized import path:
-   - `armazenamento/database_upsert_logic.py` now normalizes `numero_ssa` and `derivada_de` to canonical storage format.
-2. [resolved] explicit validation in standard upsert path:
-   - fail-fast validation rejects decimal artifacts after normalization in storage id columns.
-3. [resolved] regression lock:
-   - `tests/test_database_upsert_canonical_write.py` validates canonical persistence in non-optimized mode.
-
-## Update 2026-02-24 (upsert chunk dedupe performance - minimal patch)
-
-1. [resolved] reduced O(n2) dedupe in `_perform_upsert` chunk preparation:
-   - replaced manual loop+`any(...)` with pandas `dropna().drop_duplicates().tolist()`.
-2. [resolved] behavior lock for duplicate key in same chunk:
-   - expanded `tests/test_db_reset_and_upsert.py` with duplicate `numero_ssa` scenario.
-3. [scope] no architecture refactor:
-   - change limited to chunk key preparation only.
-
-## Update 2026-02-24 (prepare_dataframe_for_upsert copy-path perf)
-
-1. [resolved] reduced overhead in dataframe preparation for standard upsert:
-   - replaced `pd.DataFrame(frame.values, columns=frame.columns)` with `frame.copy()`.
-2. [resolved] behavior lock:
-   - added focused test to ensure input dataframe is not mutated and normalized output remains canonical.
-3. [scope] minimal patch only:
-   - no flow/algorithm refactor beyond copy-path change.
-
-## Update 2026-02-24 (logging mapping-args interpolation fix)
-
-1. [resolved] fixed semantic bug in ASCII logging filter:
-   - preserved mapping-style `record.args` (`dict`) instead of forcing tuple conversion.
-2. [resolved] consistency applied in both entrypoints:
-   - `main.py` and `dev_env/streamlit_app.py` now share the same mapping-aware behavior.
-3. [resolved] regression lock:
-   - `tests/test_ascii_logging_filter.py` covers mapping args and tuple args.
-4. [operational-note] legacy DB reset policy:
-   - canonical-write enforcement is in code paths; legacy cleanup reset remains an explicit operational action, not an automatic runtime mutation.
-
-## Update 2026-02-24 (streamlit cache compatibility fallback fix)
-
-1. [resolved] fixed fallback inconsistency in compatibility cache methods:
-   - `get_cached_filter` and `cache_filter_result` now respect active backend (`session_state` or local fallback).
-2. [resolved] reduced non-runtime fragility:
-   - cache stats and eviction counters now update in local fallback path as well.
-3. [scope] minimal patch:
-   - no layout/UI changes and no filter algorithm changes.
-
-## Update 2026-02-24 (streamlit filter guard + ui-noise reduction)
-
-1. [resolved] guard against missing filter columns in streamlit path:
-   - `apply_all_filters_cached` now checks column presence before `isin(...)` filters.
-2. [resolved] reduced UI noise/perf overhead on cache miss telemetry:
-   - replaced `st.info` per miss with structured logger message.
-3. [scope] no layout changes:
-   - patch limited to runtime filter safety and telemetry behavior.
-
-## Update 2026-02-24 (streamlit import flow ui unblock)
-
-1. [resolved] removed artificial UI blocking after import action:
-   - deleted `time.sleep(0.5)` from `_execute_import` finalization path.
-2. [impact] responsiveness improvement:
-   - progress placeholder is now cleared immediately after import flow ends.
-3. [scope] minimal change:
-   - no import semantics/layout changes.
-
-## Update 2026-02-24 (streamlit broad hardening cycle)
-
-1. [resolved] streamlit import resilience for non-streamlit environments:
-   - `dev_env/streamlit_app.py` now falls back to local stub when `streamlit` package is unavailable.
-2. [resolved] cache backend consistency:
-   - centralized backend resolution in `StreamlitFilterCache` to avoid session/local divergence across methods.
-3. [resolved] cache stale-hit reduction with low-overhead token:
-   - added `df_token` support to cache get/put keying;
-   - token uses lightweight head/tail sampling and memoizes on `df.attrs`.
-4. [resolved] pandas deprecation cleanup:
-   - removed deprecated `pd.options.mode.copy_on_write` assignment.
-5. [resolved] regression coverage for fallback/cache token:
-   - `tests/test_streamlit_filter_cache.py`.
-
-## Update 2026-02-24 (streamlit long cycle: layout + runtime hardening)
-
-1. [resolved] broader layout/positioning update in streamlit UI:
-   - replaced monolithic single-flow rendering with tabs (`Filtros`, `Tabela`, `Exportacao`, `Cache e API`).
-   - table area now uses explicit pagination controls (page size + page number).
-2. [resolved] API fetch behavior improved:
-   - API access changed from automatic-per-rerun to manual action button in `Cache e API` tab.
-   - latest API snapshot persisted in `session_state` until explicit refresh/clear.
-3. [resolved] runtime hardening:
-   - safe fallback stub when `streamlit` package is missing.
-   - improved runtime detection (`st.runtime.exists()` when available).
-4. [resolved] cache consistency/performance:
-   - unified backend resolver reused across all cache methods.
-   - cache key includes lightweight `df_token` with memoization in `df.attrs`.
-5. [resolved] maintenance/perf cleanup:
-   - removed deprecated pandas CoW option assignment.
-6. [resolved] expanded focused tests:
-   - `tests/test_streamlit_filter_cache.py` now covers fallback cache methods, token differentiation, option builder and pagination helper.
-
-## Update 2026-02-24 (streamlit long cycle v2: applied filters workflow + sortable paged table)
-
-1. [resolved] filter workflow moved to explicit form submit/reset:
-   - filter changes now apply on demand (no per-keystroke heavy rerun).
-   - reset action restores defaults and reruns safely.
-2. [resolved] full-selection normalization for multiselect filters:
-   - selecting all values now collapses to no-op filter to avoid unnecessary `isin(...)` passes.
-3. [resolved] robust mixed-type options:
-   - filter option builder now sorts by string key and tolerates mixed types.
-4. [resolved] table usability/layout improvements:
-   - sortable table (`Ordenar por` + `Desc`) before pagination;
-   - pagination controls reorganized in table toolbar.
-5. [resolved] stability guard for rerun API compatibility:
-   - `st.rerun()` with fallback to `st.experimental_rerun()`.
-6. [resolved] regression expansion:
-   - `tests/test_streamlit_filter_cache.py` now covers mixed-type options and normalized full selection behavior.
-
-## Update 2026-02-24 (streamlit pending after long cycle v3)
-
-1. [deferred][P4][streamlit/perf] Profile optional virtualization path for very large pages (>2000 rows) in table render.
-   - reason: current cycle prioritized stable layout/flow fix with low-risk patch.
-2. [deferred][P4][streamlit/usability] Add responsive preset memory per device width bucket.
-   - reason: requires broader UX validation and should run in dedicated UI sprint.
-3. [deferred][P4][streamlit/tests] Add integration-level smoke for tab rendering and API toggle permutations.
-   - reason: needs streamlit runtime harness beyond current focused unit scope.
-
-## Update 2026-02-24 (post streamlit long cycle v4)
-
-1. [deferred][P4][architecture] Streamlit god-module split (`dev_env/streamlit_app.py`) remains for dedicated refactor sprint.
-   - rationale: this cycle prioritized functional/layout/security fixes with minimal risk and rollback-friendly slices.
-2. [deferred][P4][streamlit/perf] Evaluate optional row virtualization strategy for very large page sizes (>2000).
-3. [deferred][P4][streamlit/tests] Add runtime integration smoke for sidebar path validation and tab rendering permutations.
-
-## Update 2026-02-24 (streamlit long cycle final note)
-
-1. [note] Width manager override semantics intentionally fixed to deterministic baseline in this cycle.
-2. [deferred][P4] If future sprint needs user-resizable persistent widths, implement as explicit feature with dedicated tests.
-
-## Update 2026-02-25 (post streamlit long cycle v6)
-
-1. [deferred][P4][streamlit/usability] Evaluate optional compact mode for very small screens (<1280 px) with hidden secondary controls.
-2. [deferred][P4][streamlit/perf] Add lightweight telemetry for dataframe render time per width profile.
-
-## Update 2026-02-25 (post streamlit long cycle v7)
-
-1. [deferred][P4][streamlit/telemetry] If needed, persist render telemetry across reruns/sessions for historical comparison.
-
-## Update 2026-02-25 (streamlit long cycle v7.1 note)
-
-1. [note] Local helper extraction done; larger streamlit module split still deferred to dedicated refactor sprint.
-
-## Update 2026-02-25 (streamlit startup note)
-
-1. [note] Direct-python startup import issue fixed with local bootstrap and dynamic module loading.
-
-## Update 2026-02-25 (streamlit tests note)
-
-1. [note] New coverage added for compact caption and render telemetry helpers.
-
-## Update 2026-02-25 (streamlit telemetry follow-up)
-
-1. [deferred][P4][streamlit/ops] Consider optional cap/window for telemetry history to limit long-session growth.
-
-## Update 2026-02-25 (delegacao externa por lotes usando PENDING_ACTION_MATRIX)
-
-Decision:
-1. Modelo preferido para delegacao: Qwen Code 3.5.
-2. Motivo: melhor custo/beneficio para lotes pequenos, patch minimo e execucao repetitiva com baixo risco.
-3. Fonte obrigatoria de itens: `docs/PENDING_ACTION_MATRIX.md` (ID numerico).
-
-Regra global para cada lote delegado:
-1. Ler somente os IDs do lote.
-2. Fazer patch minimo sem refatoracao transversal.
-3. Rodar gate local do lote: `py_compile` (arquivos tocados), `ruff`, `ty`, `pytest` focado.
-4. Nao alterar layout GUI fora de item explicitamente de layout.
-5. Registrar resultado por ID: `done`, `blocked`, `deferred`.
-6. Se bloqueado por ambiguidade, retornar com opcao A/B e impacto.
-
-Lotes (simples -> complexo), com itens relacionados e proximos em codigo:
-
-### Batch 01 (tests low-risk quick wins)
-IDs: 21, 22, 23, 24, 25, 27, 28, 29
-Escopo:
-1. Melhorar robustez de testes sem mudar codigo de producao.
-2. Fechar gaps de isolamento, asserts fracos e cobertura de caminhos de sucesso/erro.
-Expected output:
-1. Testes estabilizados e deterministas.
-2. Nenhuma mudanca funcional em runtime.
-
-### Batch 02 (extractor contract consistency)
-IDs: 6, 7, 33, 34, 35, 46, 58, 65
-Escopo:
-1. Alinhar assinatura, docstring e comportamento real de `extracao/extractor.py`.
-2. Garantir validacao de colunas obrigatorias e fechamento de recursos.
-Expected output:
-1. Contrato unico (sem `None` ambiguo).
-2. Erros claros e teste focado.
-
-### Batch 03 (config atomic/io behavior)
-IDs: 4, 5, 36, 37, 40, 68, 69, 73
-Escopo:
-1. Remover falha silenciosa em caminhos de config/restore.
-2. Preservar fallback seguro sem crash desnecessario.
-Expected output:
-1. Fluxo de restore previsivel.
-2. Sem `suppress` ocultando erro relevante.
-
-### Batch 04 (cli settings lock correctness)
-IDs: 13, 26, 30, 31, 41, 80, 90
-Escopo:
-1. Corrigir lock de arquivo de settings para recurso real.
-2. Evitar bloqueio indefinido e condicao de corrida.
-Expected output:
-1. Lock consistente cross-process.
-2. Timeout/saida clara em falha de lock.
-
-### Batch 05 (cli handlers/app error semantics)
-IDs: 3, 14, 54, 55, 57, 59, 61
-Escopo:
-1. Melhorar semantica de erro em CLI/app sem mascarar tipo relevante.
-2. Remover mensagens hardcoded inconsistentes.
-Expected output:
-1. Erros rastreaveis e coerentes.
-2. Regressao coberta por teste focado.
-
-### Batch 06 (optimized db safety + consistency)
-IDs: 1, 2, 32, 47, 60, 75, 81
-Escopo:
-1. Fechar risco de SQL dinamico/identificador e rollback fraco.
-2. Garantir consistencia de chave em lookup/update.
-Expected output:
-1. Sem vetores de injecao por identificador.
-2. Sem perda silenciosa em rollback.
-
-### Batch 07 (rescan dialog behavior)
-IDs: 10, 61, 63, 65, 71, 75, 81
-Escopo:
-1. Corrigir comportamento de cancel/fechamento no dialog de rescan.
-2. Garantir estado UI consistente em sucesso/falha/cancel.
-Expected output:
-1. UX previsivel de cancelamento.
-2. Testes Qt menos flaky.
-
-### Batch 08 (rescan worker concurrency)
-IDs: 11, 12, 38, 64, 76, 79, 86
-Escopo:
-1. Tratar risco de concorrencia em logger/global retention.
-2. Garantir cleanup deterministico de worker/thread.
-Expected output:
-1. Menor risco de race/leak.
-2. Comportamento de cancelamento observavel por teste.
-
-### Batch 09 (pytest stream scripts concurrency/perf)
-IDs: 17, 18, 19, 20, 51, 52, 62, 67, 72, 74
-Escopo:
-1. Corrigir data race, busy-wait e warning duplication.
-2. Parametrizar limites sem degradar throughput.
-Expected output:
-1. Scripts de stream com menor perda de linha e menos CPU ociosa.
-2. Logs de dropped-lines mais consistentes.
-
-### Batch 10 (pytest stream scripts final polish)
-IDs: 77, 78, 87, 88
-Escopo:
-1. Fechar duplicidade residual de warning e edge cases de fila cheia.
-2. Consolidar comportamento v1/v2.
-Expected output:
-1. Comportamento uniforme entre scripts.
-2. Sem spam/duplicacao de aviso.
-
-### Batch 11 (main flow resilience)
-IDs: 15, 16, 45, 48
-Escopo:
-1. Melhorar fallback de import otimizado vs legado.
-2. Limitar custo de debug listing em diretorios grandes.
-Expected output:
-1. Falha controlada com mensagem acionavel.
-2. Menor impacto de performance no modo debug.
-
-### Batch 12 (gui/filter/main structural backlog triage)
-IDs: 39, 43, 44, 50, 70, 82, 83, 84, 91
-Escopo:
-1. Tratar somente fixes locais e seguros.
-2. Nao iniciar refatoracao ampla aqui.
-Opcao:
-1. A: fixes locais + backlog atualizado (recomendado).
-2. B: abrir sprint dedicado para modularizacao ampla.
-
-### Batch 13 (typing/ruff baseline governance)
-IDs: 42, 85, 86, 87, 88, 89, 92, 93, 94, 95, 96, 97
-Escopo:
-1. Reduzir baseline de ty/ruff por modulo, sem bloquear release geral.
-Opcao:
-1. A: regra de "nao piorar baseline" + reduzir por fatias (recomendado).
-2. B: freeze de feature ate limpar baseline inteiro.
-
-### Batch 14 (streamlit deferred roadmap)
-IDs: 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108
-Escopo:
-1. Executar apenas com aprovacao explicita de sprint streamlit dedicado.
-2. Prioridade interna: 106 -> 107 -> 108 -> 98/102 -> 99/105 -> 100/103 -> 101/104.
-Opcao:
-1. A: manter como deferred e executar por fatias pequenas (recomendado).
-2. B: ciclo unico amplo (maior risco de regressao).
-
-## Update 2026-02-25 (batch01 progress)
-
-1. [resolved][batch01] id 21: concurrent atomic-write coverage added in `tests/test_caching_atomic_save.py`.
-2. [resolved][batch01] id 22: explicit schema precondition check in `tests/test_database_optimized_alias_views.py`.
-3. [resolved][batch01] id 23: explicit temporary db cleanup in `tests/test_database_optimized_alias_views.py`.
-
-## Update 2026-02-25 (batch01 completion note)
-
-1. [resolved][batch01] id 24: lock-usage assertions strengthened.
-2. [resolved][batch01] id 25: QMessageBox patch target made less brittle.
-3. [resolved][batch01] id 27: finish event payload assertions added.
-4. [resolved][batch01] id 28: cancel-state UI assertions expanded.
-5. [resolved][batch01] id 29: success-path cleanup test added.
-
-## Update 2026-02-25 (batch02 extractor contract compatibility)
-
-1. [resolved][batch02] id 33/34: `read_report` contract/documentation aligned to always return `(DataFrame, metadata)`; on error returns empty DataFrame with `stats_dict` error details.
-2. [resolved][batch02] id 35 (rule compliance): `read_report` now uses `utils.robust_importer.import_excel_robust` as primary ingestion path.
-3. [resolved][batch02] compatibility guard: fallback to `extract_data_from_excel` only when robust path returns empty/zero columns.
-4. [validation][batch02] gates passed for touched files: `py_compile`, `ruff`, `ty`, `pytest -q tests/test_extracao.py` (5 passed).
-5. [note][batch02] unresolved broad refactor to make robust importer sole ingestion path in all extraction layers remains deferred by scope policy.
-
-## Update 2026-02-25 (batch02 extractor required-column and mapping guards)
-
-1. [resolved][batch02] id 6: `extract_data_from_excel` mantem validacao explicita de colunas obrigatorias apos normalizacao e falha clara quando ausentes.
-2. [resolved][batch02] id 7: fluxo com mapeamento vazio esta coberto com warning explicito e validacao de colunas obrigatorias, evitando sucesso silencioso inconsistente.
-3. [validation][batch02] fallback behavior de `read_report` coberto por teste focado para robust-empty path.
-
-## Update 2026-02-25 (batch02 extractor rule18 alignment)
-
-1. [resolved][batch02] `read_report` agora usa somente `import_excel_robust` para ingestao (sem fallback legado), alinhado ao rule_18.
-2. [resolved][batch02] mitigacao de custo: em resultado vazio, evita caminhos de dupla leitura; apenas registra `fallback_skipped` quando tamanho excede limite configurado.
-3. [resolved][batch02] parse de `SSA_READ_REPORT_FALLBACK_MAX_MB` protegido contra valor invalido com fallback para default.
-
-## Update 2026-02-25 (batch02 extractor cleanup)
-
-1. [resolved][batch02] removido codigo morto de fallback-size guard em `read_report`; contrato final permanece robust-only.
-2. [resolved][batch02] removidos testes ligados ao fallback-size guard para manter suite focada no comportamento vigente.
-
-## Update 2026-02-25 (batch03 config path consistency)
-
-1. [resolved][batch03] `load_settings/save_settings/ensure_default_settings` agora respeitam `SSA_CONFIG_DIR` com resolucao baseada nas constantes padrao.
-2. [resolved][batch03] `_get_config_dir` agora valida `SSA_CONFIG_DIR` com `ensure_path_is_allowed`; em valor invalido faz fallback seguro para `config`.
-3. [resolved][batch03] testes de save atomico ajustados para usar `SSA_CONFIG_DIR` (sem dependencia de monkeypatch em constante global).
-4. [validation][batch03] gate focado verde: py_compile, ruff, ty, pytest (5 passed).
-
-## Update 2026-02-25 (batch03 config fail-fast)
-
-1. [resolved][batch03] `ensure_default_settings` nao mascara mais falhas de copia/geracao: agora acumula erros e levanta `RuntimeError` ao final.
-2. [resolved][batch03] `_atomic_copy_file` agora falha explicitamente se o fechamento inicial de descriptor falhar, evitando seguir em estado inconsistente.
-3. [resolved][batch03] logger de `config_manager` alinhado ao robust logger (`get_robust_logger`).
-4. [validation][batch03] suite focada de config: 7 passed.
-
-## Update 2026-02-25 (batch03 startup contract final)
-
-1. [resolved][batch03] contrato final de startup: `main` chama `ensure_default_settings(fail_fast=False)` e registra warning explicito dos erros retornados.
-2. [resolved][batch03] `ensure_default_settings` manteve opcao `fail_fast=True` para uso estrito em contextos que exigem bloqueio imediato.
-3. [resolved][batch03] docstring de `ensure_default_settings` alinhada para retorno de erros + `RuntimeError` condicional.
-
-## Update 2026-02-25 (batch03 final stabilization)
-
-1. [resolved][batch03] `_atomic_copy_file` migrado para `NamedTemporaryFile(delete=False)` para eliminar ambiguidade de fechamento de descriptor.
-2. [resolved][batch03] `main` mantem startup resiliente com `ensure_default_settings(fail_fast=False)` e warning explicito de erros retornados.
-3. [resolved][batch03] contrato de `ensure_default_settings` documentado: retorno de lista de erros + `RuntimeError` condicional quando `fail_fast=True`.
-
-## Update 2026-02-25 (batch03 backlog hygiene)
-
-1. [resolved][batch03] stale pendencias de `core/config_manager` ids 36/37/40/78/79: estado atual ja preserva fallback seguro em memoria e reler do arquivo restaurado quando possivel.
-2. [resolved][batch03] stale pendencia id 83: caminho de leak por fd em `_atomic_copy_file` removido com migracao para `NamedTemporaryFile(delete=False)`.
-3. [resolved][batch03] contrato de `ensure_default_settings` agora coberto em ambos modos (`fail_fast=False` e `fail_fast=True`) por testes focados.
-
-## Update 2026-02-25 (batch04 lock nonblocking guard)
-
-1. [resolved][batch04] `_lock_file_if_possible` agora falha explicitamente quando `fcntl` nao expor `LOCK_NB`, evitando lock potencialmente bloqueante.
-2. [resolved][batch04] cobertura focada adicionada para backend `fcntl` sem `LOCK_NB` em `tests/test_cli_enhancement_manager_lock_usage.py`.
-
-## Update 2026-02-25 (batch04 lock retry hardening)
-
-1. [resolved][batch04] lock de settings agora usa retry limitado e nao bloqueante em backend `fcntl` (`EAGAIN`/`EACCES`) antes de abortar.
-2. [resolved][batch04] lock file aberto em modo `a+` para evitar truncacao desnecessaria.
-3. [resolved][batch04] cobertura focada adicionada para retry com sucesso e retry esgotado no backend `fcntl`.
-
-## Update 2026-02-25 (batch04 windows lock retries)
-
-1. [resolved][batch04] caminho Windows (`msvcrt`) agora usa lock nao bloqueante (`LK_NBLCK`) com retry limitado.
-2. [resolved][batch04] retries no Windows agora distinguem erro de lock busy (`EACCES`/`EAGAIN`) de erro critico (fail-fast).
-3. [resolved][batch04] cobertura adicionada para busy->success e erro critico no backend Windows.
-4. [process][batch04] qwen usado neste slice para execucao repetitiva de `ruff`, `ty` e `pytest`; validacao final independente mantida pelo agente principal.
-
-## Update 2026-02-25 (batch04 windows lock region normalization)
-
-1. [resolved][batch04] lock Windows padronizado para regiao fixa (byte 0, len=1), reduzindo ambiguidade por tamanho atual de arquivo.
-2. [resolved][batch04] erros nao relacionados a contencao no backend Windows agora falham imediatamente (sem retry desnecessario).
-3. [resolved][batch04] teste de lock Windows agora valida `lock_len == 1` em todas as tentativas.
-4. [process][batch04] qwen usado para checks repetitivos; quando houve desvio (mypy no lugar de ty), a validacao correta foi reexecutada pelo agente principal.
-
-## Update 2026-02-26 (batch05+06 semantic/safety sync)
-
-1. [resolved][batch05] id 3: `_import_single_file` agora preserva rastreabilidade do tipo original em erro inesperado (`<ErrorType> ao importar ...`) com `logger.exception`.
-2. [resolved][batch05] id 59: cadeia de excecao mantida (`raise ... from e`) e contexto melhorado no caminho inesperado sem refatoracao ampla.
-3. [stale-doc][batch05] ids 14/54/55/57/61: estado atual do codigo ja cobre os pontos; matriz foi sincronizada para evitar retrabalho.
-4. [resolved][batch06] id 60: SQL dinamico no upsert otimizado passou a usar quote estrito de identificador validado para tabela alvo.
-5. [resolved][batch06] ids 1/2/32/47/75/81: evidencias confirmadas no estado atual (savepoint+rollback sem suppress, normalizacao de lookup, validacao de identificador e guardas de PRAGMA).
-6. [validation][batch05+06] gate focado verde no slice: `py_compile`, `ruff`, `ty`, `pytest` (16 passed).
-7. [process] qwen usado para triagem/checklist rapido do lote; decisao tecnica, patch e validacao final mantidos no agente principal.
-
-## Update 2026-02-26 (batch07 rescan dialog matrix sync)
-
-1. [resolved][batch07] ids 10/63/65 sincronizados como resolvidos no `PENDING_ACTION_MATRIX` com evidencia de comportamento atual.
-2. [validation][batch07] testes focados verdes: `tests/test_rescan_progress_dialog.py` e `tests/test_gui_workers_rescan_data.py` (6 passed).
-3. [scope] sem mudanca de runtime neste ciclo; apenas sincronizacao documental para remover pendencia stale.
-
-## Update 2026-02-26 (batch07.1 cache/config matrix sync)
-
-1. [resolved] id 53: comportamento de reenfileirar arquivo quando `stat` falha confirmado no codigo e travado por teste novo em `tests/test_caching.py`.
-2. [resolved] id 68: `load_display_mappings_integrity()` segue contrato de reler arquivo restaurado antes de fallback em memoria; matriz atualizada.
-3. [validation] teste focado executado para caching/config mappings sem alterar runtime de producao.
-
-## Update 2026-02-26 (batch07.2 rescan test determinism)
-
-1. [resolved] id 66: `tests/test_rescan_progress_dialog.py` agora usa espera curta por condicao para reduzir flakiness de event loop.
-2. [scope] nenhuma mudanca de runtime em GUI; apenas robustez de teste.
-3. [validation] suite focada de rescan dialog/worker permaneceu verde apos ajuste.
-
-## Update 2026-02-26 (batch08 matrix sync id64)
-
-1. [resolved] id 64: estado atual de `rescan_worker` nao usa `suppress` no cleanup de logger; falha de detach e registrada com warning.
-2. [validation] `tests/test_rescan_worker_cleanup.py` executado com resultado verde (2 passed).
-3. [scope] sincronizacao documental somente; sem mudanca de runtime neste slice.
-
-## Update 2026-02-26 (batch09/10 matrix sync scripts)
-
-1. [resolved] ids 62/67/72/74: estado atual dos scripts de stream usa `nonlocal` correto, lock para contador compartilhado e caminho de sentinel nao bloqueante.
-2. [resolved] ids 77/78: guard `warn_count != last_warned` presente em v1/v2 para evitar warning duplicado no mesmo contador.
-3. [resolved] id 69: `load_column_mappings_integrity()` reler arquivo restaurado antes de fallback em memoria.
-4. [validation] `py_compile`, `ruff` e `ty` verdes em `scripts/run_pytest_stream_and_log.py` e `scripts/run_pytest_stream_and_log_v2.py`.
-5. [scope] ciclo documental; sem alteracao de runtime.
-
-## Update 2026-02-26 (batch11.1 filter cache type guard)
-
-1. [resolved] id 8: `FilterCache.put()` agora valida tipo de `result` antes de copiar para evitar excecao em entrada invalida.
-2. [validation] teste focado novo em `tests/test_filter_cache_locking.py` para garantir que valor nao-DataFrame e ignorado sem quebrar cache.
-3. [scope] patch minimo local; sem refatoracao ampla.
-
-## Update 2026-02-26 (batch12 config matrix sync)
-
-1. [resolved] ids 4/5: comportamento atual de `ensure_default_settings` e `_atomic_write_json_file` ja evita falha silenciosa e registra erros explicitamente.
-2. [resolved] id 73: caminho antigo de leak de fd em `_atomic_copy_file` nao existe mais com uso de `NamedTemporaryFile`.
-3. [validation] testes focados de config executados com resultado verde (8 passed).
-4. [scope] sincronizacao documental apenas; runtime inalterado neste slice.
-
-## Update 2026-02-26 (global status snapshot)
-
-1. [status] matriz atual `docs/PENDING_ACTION_MATRIX.md`:
-   - total: 108
-   - pending: 65
-   - resolved: 27
-   - stale-doc: 5
-   - deferred: 11
-2. [resolved-recent] ciclos recentes fecharam principalmente:
-   - seguranca/dependencia (`pillow>=12.1.1` em manifests de build no `main`, alerts dependabot fechados),
-   - semantica de erro import/db,
-   - lock/settings,
-   - estabilidade de testes (rescan dialog, caching).
-3. [next-steps][alto impacto][media dificuldade]:
-   - extractor contract/validacao: ids 6, 7, 33, 34, 35, 58.
-   - rescan worker concurrency/lifetime: ids 11, 12, 38, 79.
-   - cli enhancement lock edge cases: ids 13, 26, 30, 31, 41, 80.
-4. [next-steps][alto impacto][media-alta dificuldade]:
-   - main flow resilience/debug fallback: ids 15, 16, 45, 48.
-   - gui worker retention races: ids 70, 76.
-5. [next-steps][test hardening][baixo risco]:
-   - ids 21, 22, 23, 24, 25, 27, 28, 29, 56.
-6. [execution-order recommended]:
-   - sprint A: extractor + tests (ids 6/7/33/34/35/58 + 21/22/23/27).
-   - sprint B: rescan worker + dialog residual (ids 11/12/38/79/71 + 28/29).
-   - sprint C: cli enhancement lock residual + main fallback (ids 13/26/30/31/41/80 + 15/16/45/48).
-
-## Update 2026-02-26 (sprint A delivered)
-
-1. [resolved] ids 6/7/33/34/35/58 sincronizados como fechados com evidencia de contrato em `extract_data_from_excel`.
-2. [validation] testes focados de extractor verdes: `pytest -q tests/test_extracao.py` (8 passed).
-3. [scope] mudanca de codigo no sprint A restrita a testes de contrato; runtime ja estava alinhado e foi mantido sem refatoracao ampla.
-
-## Update 2026-02-26 (sprint B delivered)
-
-1. [resolved] ids 11/12/28/29/38/79 sincronizados com evidencia de comportamento atual e suite focada.
-2. [stale-doc] id 71 marcado como comportamento intencional e coberto por teste.
-3. [validation] `pytest -q` focado em rescan/cancel/cleanup: 10 passed.
-4. [scope] sprint B fechado sem refatoracao ampla e sem mudanca de layout.
+This legacy section was replaced by the canonical active queue in docs/PENDING_ACTION_MATRIX.md.
+Historical review-thread entries were removed here to avoid duplicate pending counts.

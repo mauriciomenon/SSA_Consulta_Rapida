@@ -2,6 +2,153 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-02-28 13:40 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.25.0`.
+- Sprint D status:
+  1. P1 cache guard delivered in GUI + Streamlit cache paths.
+  2. matrix item `9` moved to `resolved` (older deferred snapshots are historical only).
+  3. stats now include `skipped_large_entries` and `max_entry_mb`.
+- Validation snapshot for Sprint D closeout:
+  - `py_compile`, `ruff` on touched cache/tests: pass
+  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `32 passed`
+- Deferred map (explicit, by difficulty):
+  - optional product (P3):
+    1. persistent user-resizable widths (`item 104`) - difficulty media
+    2. telemetry persistence across sessions (`item 107`) - difficulty media/alta
+  - structural (P2):
+    1. `SSAMainWindow` split (`item 84`) - difficulty alta
+    2. streamlit god-module split (`item 101`) - difficulty alta
+- Retomada checklist (ordem de execucao):
+  1. rodar `git status --short` e manter escopo minimo.
+  2. selecionar somente item aprovado de risco real.
+  3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
+  4. atualizar matrix/backlog/handoff no mesmo slice.
+
+## CURRENT TRUTH 2026-02-28 12:25 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.25.0`.
+- Sprint status:
+  1. pacote "25 graves v4" aplicado e validado.
+  2. docs de handoff/matriz/backlog sincronizados para continuidade.
+  3. release local incrementado em +0.1 (`4.24.0 -> 4.25.0`).
+- Validation snapshot (ultimo pacote tecnico):
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest package: `30 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` no pacote tecnico: clean
+- Retomada checklist (ordem de execucao):
+  1. rodar `git status --short` e confirmar escopo local.
+  2. escolher slice da fila ativa em `docs/PENDING_ACTION_MATRIX.md` por risco real.
+  3. aplicar patch minimo no slice escolhido.
+  4. apos editar: rodar kluster auto e corrigir `agent_todo_list`.
+  5. executar gates: `py_compile`, `ruff`, `ty`, `pytest` focado.
+  6. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
+
+## CURRENT TRUTH 2026-02-28 04:40 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (25 graves v4):
+  1. command-handlers mapping path safety + centralized config resolution + save-cache coherence.
+  2. importer guardrails for early cancel and unexpected `None` extractor result.
+  3. stream wrapper reader-join timeout configurability across timeout/normal/error paths.
+  4. focused regressions added for command-handlers/importer/stream wrappers.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest package: `30 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+
+## CURRENT TRUTH 2026-02-28 04:10 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (20 graves v3):
+  1. rescan dialog finish/cancel contract hardened for duplicate finish and running-cancel phase.
+  2. rescan worker lifecycle hardened (pre-prune, stale active ref cleanup, deterministic cancel status, post-dialog prune).
+  3. stream wrapper queue poll timeout configurable and faster deterministic loop exit conditions.
+  4. sentinel path excluded from dropped-line accounting.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest (`rescan dialog + gui workers + stream guards`): `15 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+
+## CURRENT TRUTH 2026-02-28 03:35 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (10 graves v2):
+  1. rescan dialog cancel-close contract hardened.
+  2. rescan worker active/stale/cap metadata handling hardened.
+  3. stream wrapper dropped-line warning cadence and sentinel accounting hardened.
+  4. focused regressions updated for dialog/worker/wrapper guards.
+- Validation snapshot:
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused pytest (`rescan dialog + gui workers + stream guards`): `12 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+
+## CURRENT TRUTH 2026-02-28 02:55 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package delivered (10 high-risk minimal fixes):
+  1. dynamic GUI config path resolution API + loader usage in `gui/gui_config.py`.
+  2. runtime/env path regressions in `tests/test_gui_main_configuration.py`.
+  3. streamlit width-profile memory hardening and viewport fallback in `dev_env/streamlit_app.py`.
+  4. streamlit snapshot clear idempotent guard + regressions in `tests/test_streamlit_filter_cache.py`.
+  5. closeEvent rescan defensive shutdown hardening in `gui/gui_ssa.py` with focused regression in `tests/test_gui_filter_logic.py`.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - `uv run pytest -q tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: `150 passed, 1 skipped`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+
+## CURRENT TRUTH 2026-02-28 02:05 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest sprint package (5 high-risk minimal slices) delivered:
+  1. closeEvent rescan retention cap/meta hardening in `gui/gui_ssa.py`.
+  2. canonical candidate regression + rescan cap regression in `tests/test_gui_filter_logic.py`.
+  3. config fallback regression for missing `SSA_CONFIG_DIR` in `tests/test_gui_main_configuration.py`.
+  4. unified API snapshot clear helper in `dev_env/streamlit_app.py`.
+  5. streamlit API snapshot clear regression in `tests/test_streamlit_filter_cache.py`.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: `145 passed, 1 skipped`
+- Kluster snapshot:
+  - `kluster_code_review_auto` runs in this package: clean
+- Retomada checklist (ordem de execucao):
+  1. validar `git status --short` e manter escopo minimo.
+  2. escolher proximo slice aprovado na fila de risco real.
+  3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
+  4. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
+
+## CURRENT TRUTH 2026-02-28 01:10 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest streamlit slice delivered (requested order: item 2 then item 1):
+  1. item 2: width-profile memory by width bucket in `dev_env/streamlit_app.py`.
+  2. item 1: tabs/API smoke hardening with stable tab labels and API snapshot availability guard.
+- Focused test scope:
+  - `tests/test_streamlit_filter_cache.py` now includes bucket-memory and tabs/API smoke coverage.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: `21 passed`
+- Kluster snapshot:
+  - `kluster_code_review_auto` on touched files: clean
+- Retomada checklist (ordem de execucao):
+  1. `git status --short` e confirmar escopo local antes de novo patch.
+  2. Escolher o proximo item aprovado da fila streamlit (patch minimo).
+  3. Apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
+  4. Atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
+
 ## CURRENT TRUTH 2026-02-28 00:18 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.

@@ -53,4 +53,32 @@ def test_filter_cache_put_ignores_non_dataframe_result():
 
     stats = cache.get_stats()
     assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 0
     assert cache.get("df1", [["x"]], "contains") is None
+
+
+def test_filter_cache_skips_large_entries_when_limit_is_set(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "0.0001")
+    cache = FilterCache(max_size=2)
+    large_df = pd.DataFrame({"descricao_ssa": ["x" * 4096, "y" * 4096]})
+
+    cache.put("df_large", [["x"]], "contains", large_df)
+
+    stats = cache.get_stats()
+    assert stats["size"] == 0
+    assert stats["skipped_large_entries"] == 1
+    assert stats["max_entry_mb"] is not None
+
+
+def test_filter_cache_keeps_small_entries_when_limit_allows(monkeypatch):
+    monkeypatch.setenv("SSA_CACHE_MAX_MB", "64")
+    cache = FilterCache(max_size=2)
+    small_df = pd.DataFrame({"a": [1, 2]})
+
+    cache.put("df_small", [["x"]], "contains", small_df)
+    cached = cache.get("df_small", [["x"]], "contains")
+
+    stats = cache.get_stats()
+    assert cached is not None
+    assert stats["skipped_large_entries"] == 0
+    assert stats["hits"] >= 1
