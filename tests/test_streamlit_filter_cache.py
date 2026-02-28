@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from dev_env.streamlit_app import (
+    MAX_RENDER_TELEMETRY_PROFILES,
     StreamlitFilterCache,
     _build_table_caption,
     _format_render_stats_line,
@@ -192,6 +193,19 @@ def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
     assert stats["count"] == 2
     assert stats["last_ms"] == 20.0
     assert stats["total_ms"] == 30.0
+
+
+def test_update_render_telemetry_keeps_profile_window(monkeypatch) -> None:
+    session_state = {}
+    monkeypatch.setattr(st, "session_state", session_state, raising=False)
+
+    for idx in range(MAX_RENDER_TELEMETRY_PROFILES + 3):
+        _update_render_telemetry(f"profile-{idx}", float(idx))
+
+    stats = session_state["streamlit_render_stats"]
+    assert len(stats) == MAX_RENDER_TELEMETRY_PROFILES
+    assert "profile-0" not in stats
+    assert f"profile-{MAX_RENDER_TELEMETRY_PROFILES + 2}" in stats
 
 
 def test_format_render_stats_line_outputs_expected_values() -> None:
