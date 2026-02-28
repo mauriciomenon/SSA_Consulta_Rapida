@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 21:55 - authoritative block
+## CURRENT TRUTH 2026-02-28 22:10 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -24,6 +24,8 @@ This handoff is ready to reuse in the next conversation.
   4. source controls moved to hidden advanced section in `Cache e API`.
   5. table render height now scales with page rows.
   6. table visuals now include `Top executor` and `Top emissor` charts.
+  7. presets and actions renamed to business wording.
+  8. table info row now shows distinct counts for situacao/executor/emissor.
 - Item `92` closure:
   1. cache architecture refactor completed with shared get/store helpers.
   2. stats/ttl/lru contract preserved and revalidated in focused tests.
