@@ -284,6 +284,7 @@ class StreamlitFilterCache:
 # Instancia cache global
 filter_cache = StreamlitFilterCache()
 width_manager = SimpleWidthManager()
+MAX_RENDER_TELEMETRY_PROFILES = 12
 
 
 def load_dataframe(db_path: str) -> pd.DataFrame:
@@ -384,7 +385,16 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
     profile_stats["count"] = int(profile_stats.get("count", 0)) + 1
     profile_stats["total_ms"] = float(profile_stats.get("total_ms", 0.0)) + render_ms
     profile_stats["last_ms"] = render_ms
+    profile_stats["updated_at"] = time.time()
     render_stats[width_profile] = profile_stats
+    if len(render_stats) > MAX_RENDER_TELEMETRY_PROFILES:
+        stale_profiles = sorted(
+            render_stats.items(),
+            key=lambda item: float(item[1].get("updated_at", 0.0)),
+        )
+        overflow = len(render_stats) - MAX_RENDER_TELEMETRY_PROFILES
+        for profile_name, _stats in stale_profiles[:overflow]:
+            render_stats.pop(profile_name, None)
     st.session_state["streamlit_render_stats"] = render_stats
 
 

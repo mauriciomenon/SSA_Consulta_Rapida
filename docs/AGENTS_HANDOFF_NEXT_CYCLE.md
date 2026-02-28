@@ -2,6 +2,23 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-02-28 00:18 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest streamlit slice delivered:
+  1. telemetry profile window cap in `dev_env/streamlit_app.py` to bound `streamlit_render_stats` growth.
+  2. focused regression added in `tests/test_streamlit_filter_cache.py`.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched streamlit files: pass
+  - focused streamlit pytest: `16 passed`
+- Queue status:
+  1. no immediate `pending` rows in matrix.
+  2. streamlit deferred queue remains the next track.
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
 ## CURRENT TRUTH 2026-02-28 00:00 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.

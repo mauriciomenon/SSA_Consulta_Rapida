@@ -3,6 +3,17 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (streamlit telemetry profile window cap)
+
+Delivered in this streamlit slice:
+1. Added bounded profile window for render telemetry stats in `dev_env/streamlit_app.py`.
+2. Added focused regression in `tests/test_streamlit_filter_cache.py`.
+3. Validation:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`16 passed`)
+
 ## Update 2026-02-28 (kluster package closeout: config hierarchy + closeevent lifecycle)
 
 Delivered in this package:

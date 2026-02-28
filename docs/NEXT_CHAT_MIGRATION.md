@@ -2,6 +2,22 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-02-28 00:18 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest streamlit slice delivered:
+  1. telemetry profile window cap in `dev_env/streamlit_app.py` to bound session-state growth.
+  2. focused regression added in `tests/test_streamlit_filter_cache.py`.
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched streamlit files: pass
+  - `uv run pytest -q tests/test_streamlit_filter_cache.py`: `16 passed`
+- Queue status:
+  1. matrix has no immediate `pending` rows.
+  2. streamlit queue remains active for next approved deferred item.
+- Important:
+  - blocks below are historical context and must not override this top block.
+
 ## CURRENT TRUTH 2026-02-28 00:00 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.

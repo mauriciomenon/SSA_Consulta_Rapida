@@ -3,6 +3,18 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (streamlit slice: telemetry profile window cap)
+
+1. Delivered minimal streamlit stabilization slice in `dev_env/streamlit_app.py`:
+   - render telemetry now enforces a profile window cap to avoid unbounded growth in session state.
+2. Added focused regression:
+   - `tests/test_streamlit_filter_cache.py::test_update_render_telemetry_keeps_profile_window`.
+3. Validation evidence:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`16 passed`)
+
 ## Update 2026-02-28 (kluster package: config hierarchy + closeevent lifecycle)
 
 1. Delivered runtime hardening for 2 kluster findings:
@@ -695,6 +707,7 @@ Legenda:
 - Item: If needed, persist render telemetry across reruns/sessions for historical comparison.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 108. [deferred] (sem local exato)
+## 108. [resolved] (sem local exato)
 - Item: Consider optional cap/window for telemetry history to limit long-session growth.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `_update_render_telemetry` aplica janela maxima de perfis e remove perfis mais antigos; regressao focada adicionada em `tests/test_streamlit_filter_cache.py`.
