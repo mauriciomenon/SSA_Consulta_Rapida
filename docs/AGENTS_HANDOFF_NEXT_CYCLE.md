@@ -2,6 +2,80 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-02-28 00:00 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest package delivered:
+  1. config hierarchy alignment in `gui/gui_config.py`:
+     - `gui_main_preferences.json` now resolves with `SSA_CONFIG_DIR` (safe fallback kept).
+  2. rescan lifecycle hardening in `gui/gui_ssa.py::closeEvent`:
+     - defensive global retention fallback added for active rescan worker in shutdown edge cases.
+  3. focused regressions added:
+     - `tests/test_gui_main_configuration.py` (`SSA_CONFIG_DIR` coverage)
+     - `tests/test_gui_filter_logic.py` (intermittent `isRunning()` failure during close)
+- Validation snapshot:
+  - `py_compile`, `ruff`, `ty` on touched files: pass
+  - focused `pytest` on touched flows: pass
+- Current pending queue:
+  1. no immediate `pending` in matrix.
+  2. streamlit stabilization queue remains separate.
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-27 16:32 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Residual main/config/gui queue closeout:
+  1. `39, 46, 49, 50, 70, 76` moved to `resolved` in `docs/PENDING_ACTION_MATRIX.md`.
+  2. Closure evidence comes from validated runtime/test slices already applied:
+     - rescan closeEvent shutdown and deterministic active-ref cleanup;
+     - global worker retention/prune consistency using lock snapshot;
+     - cancel contract coverage in importer and extractor paths.
+- Current pending queue:
+  1. no immediate `pending` in this matrix.
+  2. streamlit stabilization queue remains separate.
+  3. `9` moved to `deferred` by explicit user decision (Opcao A).
+- Additional closure in this cycle:
+  1. `27` resolved by locking `finish` payload contract in `tests/test_import_cancellation.py`.
+  2. `22/23` resolved in `tests/test_database_optimized_alias_views.py`.
+  3. `21` resolved via existing concurrent-write test coverage in `tests/test_caching_atomic_save.py`.
+  4. `24/25` resolved via current lock/modal regression tests.
+  5. `9` deferred by explicit user decision (Opcao A), no runtime patch.
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
+## CURRENT TRUTH 2026-02-27 15:53 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Most recent state from interrupted chat:
+  1. Local patch exists and is not committed yet.
+  2. Touched runtime files:
+     - `gui/ssa/gui_filters_advanced_ui.py`
+     - `gui/mixins/filter_gui_ssa_mixin.py`
+     - `gui/widgets/column_manager_dialog.py`
+     - `gui/gui_ssa.py`
+     - `gui/ssa/gui_workers.py`
+  3. Functional deltas captured:
+     - advanced action buttons sizing/container adjustments;
+     - deterministic/deduplicated add-column menu composition;
+     - explicit `available_columns` respected in column manager dialog;
+     - non-null column cache computed on load and consumed by canonical candidate provider.
+- Validation status:
+  - interrupted patch validation rerun completed:
+    - `uv run python -m py_compile` on touched runtime files: pass
+    - `uv run ruff check` on touched runtime files: pass
+    - `uv run ty check` on touched runtime files: pass
+    - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`:
+      - `121 passed, 1 skipped`
+    - kluster auto on touched runtime files: clean
+- Operational note:
+  - blocks below are historical record and must not override this top block.
+
 ## CURRENT TRUTH 2026-02-26 21:40 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.

@@ -1467,6 +1467,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
         legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
         candidates = []
+        always_allow = set()
 
         for attr_name in (
             "visible_columns",
@@ -1477,6 +1478,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             values = getattr(self, attr_name, None)
             if isinstance(values, (list, tuple)):
                 candidates.extend(values)
+                always_allow.update([v for v in values if isinstance(v, str)])
+
+        active_filters = getattr(self, "_active_column_filters", None)
+        if isinstance(active_filters, dict):
+            always_allow.update([k for k in active_filters.keys() if isinstance(k, str)])
+
+        non_null_cols = None
+        try:
+            cached_cols = getattr(self, "_non_null_cols_cache", None)
+            if isinstance(cached_cols, set) and cached_cols:
+                non_null_cols = set(cached_cols)
+        except Exception as exc:
+            logger.debug("Falha ao ler cache de colunas nao nulas para menu canonico: %s", exc)
+            non_null_cols = None
 
         for df_attr in ("df_completo", "df_exibido"):
             df_obj = getattr(self, df_attr, None)
@@ -1504,6 +1519,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if col_name in legacy_invalid_columns:
                 continue
             if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                continue
+            if non_null_cols is not None and col_name not in non_null_cols and col_name not in always_allow:
                 continue
             seen.add(col_name)
             result.append(col_name)
@@ -2738,45 +2755,101 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Best-effort: parar reescaneamento/importacao em andamento ao encerrar a janela.
         rescan_worker = getattr(self, "_active_rescan_worker", None)
         if rescan_worker is not None:
+            retained_globally = False
+
+            def _retain_rescan_worker_global(target_worker, *, reason: str) -> bool:
+                workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
+                timestamp = perf_counter()
+                try:
+                    if not ssa_gui_workers.is_data_loader_worker_alive(target_worker, sip):
+                        logger.debug(
+                            "RescanWorker invalido no closeEvent (%s); retencao global ignorada.",
+                            reason,
+                        )
+                        return False
+                    if workers_lock is None:
+                        if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                            GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
+                        GLOBAL_RETIRED_RESCAN_META.setdefault(target_worker, timestamp)
+                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                    else:
+                        with workers_lock:
+                            if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
+                            GLOBAL_RETIRED_RESCAN_META.setdefault(target_worker, timestamp)
+                            if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                                GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                    try:
+                        self._prune_retired_rescan_workers()
+                    except Exception as exc:
+                        logger.debug("Falha ao podar rescan workers apos retencao global: %s", exc)
+                    logger.debug("RescanWorker retido globalmente durante closeEvent (%s).", reason)
+                    return True
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao reter RescanWorker globalmente no closeEvent (%s): %s",
+                        reason,
+                        exc,
+                    )
+                    return False
+
+            retained_globally = _retain_rescan_worker_global(
+                rescan_worker,
+                reason="pre-shutdown-transfer",
+            )
+
             try:
-                if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                try:
+                    running_now = bool(
+                        hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()
+                    )
+                except Exception as exc:
+                    running_now = True
+                    logger.debug(
+                        "Falha ao consultar estado inicial do RescanWorker no closeEvent (%s). Assumindo ativo para shutdown defensivo.",
+                        exc,
+                    )
+                if running_now:
                     try:
                         if hasattr(rescan_worker, "stop"):
                             rescan_worker.stop()
                     except Exception as exc:
                         logger.debug("Falha ao solicitar stop do RescanWorker no closeEvent: %s", exc)
                     try:
+                        if hasattr(rescan_worker, "quit"):
+                            rescan_worker.quit()
+                    except Exception as exc:
+                        logger.debug("Falha ao solicitar quit do RescanWorker no closeEvent: %s", exc)
+                    try:
                         rescan_worker.wait(1500)
                     except Exception as exc:
                         logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
                     try:
                         if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
-                            workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
-                            if workers_lock is None:
-                                if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                    GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                    GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                        GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-                            else:
-                                with workers_lock:
-                                    if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                        GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                        GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-                            self._prune_retired_rescan_workers()
-                            logger.debug(
-                                "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
+                            try:
+                                if hasattr(rescan_worker, "terminate"):
+                                    rescan_worker.terminate()
+                                    rescan_worker.wait(1500)
+                            except Exception as exc:
+                                logger.debug("Falha no fallback terminate do RescanWorker no closeEvent: %s", exc)
+                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                            retained_globally = _retain_rescan_worker_global(
+                                rescan_worker,
+                                reason="still-running-after-shutdown",
                             )
                     except Exception as exc:
                         logger.debug("Falha ao checar/reter RescanWorker no closeEvent: %s", exc)
             except Exception as exc:
                 logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
             finally:
+                if not retained_globally:
+                    _retain_rescan_worker_global(
+                        rescan_worker,
+                        reason="fallback-finally",
+                    )
                 try:
-                    if not (hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()):
-                        self._active_rescan_worker = None
+                    self._active_rescan_worker = None
                 except Exception:
                     self._active_rescan_worker = None
 

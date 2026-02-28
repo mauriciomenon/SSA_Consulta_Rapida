@@ -2166,6 +2166,102 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
 
+    def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(self):
+        class _SlowRescanWorker:
+            def __init__(self):
+                self._running = True
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+                self.terminate_called = False
+
+            def isRunning(self):
+                return self._running
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                self.terminate_called = True
+
+        worker = _SlowRescanWorker()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker.terminate_called is True
+            assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
+    def test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown(self):
+        class _FlakyRescanWorker:
+            def __init__(self):
+                self._running = True
+                self._is_running_calls = 0
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+
+            def isRunning(self):
+                self._is_running_calls += 1
+                if self._is_running_calls == 2:
+                    raise RuntimeError("intermittent isRunning failure")
+                return self._running
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                return None
+
+        worker = _FlakyRescanWorker()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
     def test_on_load_finished_current_request_cleans_worker_and_restores_ui(self):
         class _FakeSignal:
             def disconnect(self, _callback=None):
@@ -2753,3 +2849,53 @@ class TestGUIFilterLogic:
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
                 gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+
+    def test_retain_loader_worker_rehydrates_global_tracking_when_local_ref_exists(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _RunningWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self._running = True
+
+            def wait(self, _ms):
+                return False
+
+            def deleteLater(self):
+                return None
+
+        worker = _RunningWorker()
+        self.window._retired_data_loader_workers = [worker]
+        if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)
+
+        try:
+            self.window._retain_data_loader_worker_until_finished(worker)
+
+            assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+            assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)
