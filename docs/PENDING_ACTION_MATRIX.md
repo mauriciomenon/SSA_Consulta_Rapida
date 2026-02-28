@@ -3,6 +3,27 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
+
+1. Streamlit usability improvements delivered:
+   - theme selector moved to header top-right (always visible).
+   - filters form compacted:
+     - situacao moved to optional expander to avoid multi-line overload.
+     - executor/emissor keep primary row.
+     - row limit moved to dedicated line.
+   - columns discoverability improved:
+     - quick "Colunas exibidas" shortcut added in table tab.
+   - sidebar utilization improved:
+     - source status and quick summary metrics added.
+2. Validation snapshot:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`36 passed`)
+3. Scope note:
+   - streamlit layout/ux only.
+   - no broad refactor.
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 1. Historical limbo request addressed in focused slice:
@@ -919,7 +940,21 @@ Legenda:
 
 ## 92. [deferred] (sem local exato)
 - Item: arquitetura de cache:
-- Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Escopo executavel:
+  1. centralizar leitura/escrita de cache state e stats em helper unico.
+  2. remover duplicacao entre `put/cache_filter_result` e `get/get_cached_filter`.
+  3. manter contrato atual de env gates (`SSA_CACHE_MAX_MB`, TTL, max_size).
+- Risco real:
+  1. regressao de contadores (`hits/misses/evictions/skipped_large_entries`).
+  2. regressao em backend fallback quando `session_state` nao existe.
+  3. risco de regressao em copy semantics (`result.copy()`).
+- Teste alvo:
+  1. `tests/test_streamlit_filter_cache.py`:
+     - paridade de stats entre metodos principais e metodos de compatibilidade.
+     - lock de comportamento em fallback local e em session backend.
+     - lock de skip de entradas grandes + hit_rate.
+  2. `tests/test_filter_cache_locking.py`:
+     - garantir ausencia de regressao no contrato de lock e stats.
 
 ## 93. [resolved] (sem local exato)
 - Item: Baseline restante de ty concentrada em:

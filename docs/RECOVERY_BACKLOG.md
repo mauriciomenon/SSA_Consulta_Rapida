@@ -3,6 +3,23 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
+
+Delivered in this streamlit-focused slice:
+1. Theme visibility:
+   - theme selector moved to header (top-right), no longer hidden in ops tab.
+2. Filters usability:
+   - situacao moved to optional expander to avoid tall multi-line chips by default.
+   - setor executor/emissor kept in main filter row.
+   - limit rows moved to dedicated line.
+3. Table discoverability:
+   - quick shortcut for "colunas exibidas" added directly in table tab.
+4. Sidebar utilization:
+   - source snapshot and quick metrics added.
+5. Validation:
+   - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
+   - focused `pytest` (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `36 passed`
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 Delivered in this focused streamlit slice:

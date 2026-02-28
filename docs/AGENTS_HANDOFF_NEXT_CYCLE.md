@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 19:25 - authoritative block
+## CURRENT TRUTH 2026-02-28 20:05 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -15,8 +15,13 @@ This handoff is ready to reuse in the next conversation.
   2. item `107` resolved with persisted render telemetry across sessions.
 - Streamlit colors/behavior follow-up:
   1. explicit theme palettes with CSS variables implemented.
-  2. runtime theme selector added in ops tab.
+  2. runtime theme selector moved to header (always visible).
   3. selected theme now persists across sessions.
+- Streamlit usability follow-up:
+  1. situacao moved to optional expander (reduces visual overload).
+  2. limit rows moved to dedicated line.
+  3. quick "colunas exibidas" shortcut now exists in table tab.
+  4. sidebar now exposes source snapshot and quick metrics.
 - Validation snapshot:
   - touched-scope `py_compile`, `ruff`, `ty`: pass
   - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `36 passed`
