@@ -54,6 +54,18 @@ Total itens: 108
 5. Validation:
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`40 passed`).
 
+## Update 2026-02-28 (streamlit usability polish v3)
+
+1. Space utilization and alignment improved:
+   - executor/emissor keep compact single-select footprint.
+   - situacao quick mode moved inline with key filters (no extra full-width row for short text).
+   - explicit `Filtrar agora` action stays in search row.
+2. Data-source controls moved out of quick sidebar and into hidden advanced section inside `Cache e API`.
+3. Table context improved:
+   - added top executor and top emissor charts under situacao chart.
+4. Validation:
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`40 passed`).
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 1. Historical limbo request addressed in focused slice:

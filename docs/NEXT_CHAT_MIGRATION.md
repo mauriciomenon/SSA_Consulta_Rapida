@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-02-28 21:20 - start from here
+## CURRENT TRUTH 2026-02-28 21:55 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -21,8 +21,9 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. situacao is always visible again and now includes quick mode + count labels.
   2. executor/emissor compacted to single-select (`(Todos)` fallback).
   3. quick "colunas exibidas" shortcut added in table tab.
-  4. sidebar source controls moved to collapsed advanced section.
+  4. source controls moved to hidden advanced section in `Cache e API`.
   5. table render height is now dynamic per page row count.
+  6. extra charts added (`Top executor`, `Top emissor`) under situacao distribution.
 - Item `92` status:
   1. resolved with cache architecture micro-refactor (shared helpers for get/store paths).
 - Validation snapshot for Sprint D closeout:
