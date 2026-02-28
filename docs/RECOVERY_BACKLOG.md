@@ -17,6 +17,18 @@ Delivered in this streamlit micro-slice:
    - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
    - focused `pytest` (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `38 passed`
 
+## Update 2026-02-28 (streamlit usability polish v2)
+
+Delivered in this follow-up slice:
+1. executor/emissor compacted to single-select controls with `(Todos)` option.
+2. search row now includes explicit `Filtrar agora` submit button.
+3. source path controls moved to collapsed advanced section in sidebar.
+4. table render height now adapts to current page row count.
+5. column picker now omits fully empty columns by default.
+6. validation:
+   - `py_compile`, `ruff`, `ty`: pass
+   - focused pytest (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `40 passed`
+
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
 
 Delivered in this streamlit-focused slice:

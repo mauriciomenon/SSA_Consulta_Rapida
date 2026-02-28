@@ -954,6 +954,23 @@ def _build_column_presets(columns: list[str]) -> dict[str, list[str]]:
     }
 
 
+def _columns_with_data(df: pd.DataFrame, columns: list[str]) -> list[str]:
+    valid: list[str] = []
+    for col in columns:
+        if col not in df.columns:
+            continue
+        series = df[col]
+        if series.notna().any():
+            valid.append(col)
+    return valid
+
+
+def _compute_table_render_height(page_len: int, configured_height: int) -> int:
+    dynamic_height = 56 + (max(1, page_len) * 36)
+    bounded = min(max(dynamic_height, 220), max(260, configured_height))
+    return int(bounded)
+
+
 def _resolve_situacao_quick_mode(
     situacoes: list[Any],
     manual_values: list[Any],
@@ -1058,9 +1075,12 @@ if REAL_RUNTIME:
         st.caption(f"Atualizado as {datetime.now().strftime('%H:%M:%S')}")
 
     with st.sidebar:
-        st.subheader("Fonte de dados")
-        db_path = st.text_input("Arquivo do banco", value=DB_PATH_DEFAULT)
-        docs_dir = st.text_input("Pasta com planilhas", value=DOCS_DIR_DEFAULT)
+        st.subheader("Painel rapido")
+        db_path = DB_PATH_DEFAULT
+        docs_dir = DOCS_DIR_DEFAULT
+        with st.expander("Fonte de dados avancada", expanded=False):
+            db_path = st.text_input("Arquivo do banco", value=DB_PATH_DEFAULT)
+            docs_dir = st.text_input("Pasta com planilhas", value=DOCS_DIR_DEFAULT)
         try:
             db_path = str(
                 ensure_path_is_allowed(
@@ -1084,10 +1104,8 @@ if REAL_RUNTIME:
         db_exists = db_file.exists()
         db_size_mb = (db_file.stat().st_size / (1024 * 1024)) if db_exists else 0.0
         sheet_files_count = _list_spreadsheet_files_count(docs_dir)
-        st.caption(
-            f"DB: {'ok' if db_exists else 'ausente'} | tamanho: {db_size_mb:.1f} MB | "
-            f"arquivos de entrada: {sheet_files_count}"
-        )
+        st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
+        st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
         btn_col_load, btn_col_reimport = st.columns(2)
         status_holder = st.empty()
@@ -1128,10 +1146,7 @@ if REAL_RUNTIME:
         if btn_col_reimport.button("Reimportar planilhas"):
             _execute_import(force=True)
 
-        st.caption(
-            "Use 'Carregar dados' para atualizar o banco existente. "
-            "'Reimportar planilhas' refaz o processamento completo."
-        )
+        st.caption("Carregar: incremental. Reimportar: processamento completo.")
 
 raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
 if REAL_RUNTIME and raw_df.empty:
@@ -1141,11 +1156,14 @@ if REAL_RUNTIME and raw_df.empty:
     st.stop()
 
 if REAL_RUNTIME and not raw_df.empty:
+    available_columns_runtime = _columns_with_data(raw_df, list(raw_df.columns))
+    if not available_columns_runtime:
+        available_columns_runtime = list(raw_df.columns)
     with st.sidebar:
         st.divider()
         st.subheader("Resumo rapido")
         st.metric("Registros no banco", len(raw_df))
-        st.metric("Colunas disponiveis", len(raw_df.columns))
+        st.metric("Colunas uteis", len(available_columns_runtime))
         st.caption(
             "Tema ativo: "
             + _normalize_streamlit_theme_name(
@@ -1177,9 +1195,12 @@ if REAL_RUNTIME and not raw_df.empty:
         situacoes, executores, emissores = _build_filter_options(raw_df)
         default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
         default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
-        column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in raw_df.columns}
-        default_columns = _default_visible_columns(list(raw_df.columns))
-        column_presets = _build_column_presets(list(raw_df.columns))
+        available_columns = _columns_with_data(raw_df, list(raw_df.columns))
+        if not available_columns:
+            available_columns = list(raw_df.columns)
+        column_display_names = {col: DISPLAY_MAPPINGS.get(col, col) for col in available_columns}
+        default_columns = _default_visible_columns(list(available_columns))
+        column_presets = _build_column_presets(list(available_columns))
 
         state_key = "streamlit_filters_state"
         if state_key not in st.session_state:
@@ -1214,7 +1235,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[table_state_key] = {
                 "sort_column": "(Sem ordenacao)",
                 "sort_desc": False,
-                "page_size": 250,
+                "page_size": 100,
                 "table_height": 600,
                 "auto_width": True,
                 "page_number": 1,
@@ -1230,7 +1251,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 persisted_streamlit_state.get("streamlit_render_stats", {})
             )
         table_state = st.session_state[table_state_key]
-        table_state["page_size"] = int(table_state.get("page_size", 250))
+        table_state["page_size"] = int(table_state.get("page_size", 100))
         table_state["table_height"] = int(table_state.get("table_height", 600))
         table_state["auto_width"] = bool(table_state.get("auto_width", True))
         table_state["sort_desc"] = bool(table_state.get("sort_desc", False))
@@ -1244,7 +1265,7 @@ if REAL_RUNTIME and not raw_df.empty:
 
         with st.form("filters_form", clear_on_submit=False):
             st.caption("Busca e origem")
-            search_row = st.columns([3.2, 1.2])
+            search_row = st.columns([3.0, 1.1, 0.9])
             search_input = search_row[0].text_input(
                 "Busca (mesma sintaxe da CLI)",
                 value=filter_state.get("search_terms", ""),
@@ -1254,19 +1275,44 @@ if REAL_RUNTIME and not raw_df.empty:
                 "Consulta API manual",
                 value=bool(filter_state.get("consult_api", False)),
             )
+            apply_search_now = search_row[2].form_submit_button("Filtrar agora")
             st.caption("Selecao de filtros")
-            row_filters = st.columns([1.6, 1.6])
-            executor_input = row_filters[0].multiselect(
+            row_filters = st.columns([1.0, 1.0, 1.2])
+            executor_options = ["(Todos)"] + executores
+            emissor_options = ["(Todos)"] + emissores
+            default_executor_single = (
+                filter_state.get("executor_sel", default_executor)[0]
+                if filter_state.get("executor_sel", default_executor)
+                else "(Todos)"
+            )
+            default_emissor_single = (
+                filter_state.get("emissor_sel", default_emissor)[0]
+                if filter_state.get("emissor_sel", default_emissor)
+                else "(Todos)"
+            )
+            if default_executor_single not in executor_options:
+                default_executor_single = "(Todos)"
+            if default_emissor_single not in emissor_options:
+                default_emissor_single = "(Todos)"
+            executor_input_single = row_filters[0].selectbox(
                 "Setor executor",
-                executores,
-                default=filter_state.get("executor_sel", default_executor),
+                executor_options,
+                index=executor_options.index(default_executor_single),
             )
-            emissor_input = row_filters[1].multiselect(
+            emissor_input_single = row_filters[1].selectbox(
                 "Setor emissor",
-                emissores,
-                default=filter_state.get("emissor_sel", default_emissor),
+                emissor_options,
+                index=emissor_options.index(default_emissor_single),
             )
-            st.caption("Situacao (sempre visivel)")
+            situacao_quick_mode_input = row_filters[2].radio(
+                "Atalho situacao",
+                ["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"],
+                index=["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"].index(
+                    str(filter_state.get("situacao_quick_mode", "Manual"))
+                ),
+                horizontal=True,
+            )
+            st.caption("Situacao (vazio = todas)")
             situacao_counts = (
                 raw_df.get("situacao", pd.Series(dtype=str))
                 .dropna()
@@ -1284,17 +1330,12 @@ if REAL_RUNTIME and not raw_df.empty:
                 for display, raw_value in situacao_display_map.items()
                 if raw_value in selected_situacao_values
             ]
+            if len(selected_situacao_values) == len(situacoes):
+                default_situacao_display = []
             situacao_input_display = st.multiselect(
                 "Situacao",
                 options=list(situacao_display_map.keys()),
                 default=default_situacao_display,
-            )
-            situacao_quick_mode_input = st.selectbox(
-                "Atalho de situacao",
-                ["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"],
-                index=["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"].index(
-                    str(filter_state.get("situacao_quick_mode", "Manual"))
-                ),
             )
             situacao_input = [
                 situacao_display_map[label]
@@ -1315,12 +1356,12 @@ if REAL_RUNTIME and not raw_df.empty:
             st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
             selected_display_input = st.multiselect(
                 "Colunas exibidas",
-                options=[column_display_names[col] for col in raw_df.columns],
+                options=[column_display_names[col] for col in available_columns],
                 default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
             )
             preset_cols = st.columns(2)
-            preset_core = preset_cols[0].form_submit_button("Preset core")
-            preset_all = preset_cols[1].form_submit_button("Preset all")
+            preset_core = preset_cols[0].form_submit_button("Essenciais")
+            preset_all = preset_cols[1].form_submit_button("Completas")
             with st.expander("Ajuda rapida", expanded=False):
                 st.markdown(
                     "* Sintaxe basica: `svp, !ste, mel4`\n"
@@ -1347,7 +1388,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[table_state_key] = {
                 "sort_column": "(Sem ordenacao)",
                 "sort_desc": False,
-                "page_size": 250,
+                "page_size": 100,
                 "table_height": 600,
                 "auto_width": True,
                 "page_number": 1,
@@ -1382,16 +1423,20 @@ if REAL_RUNTIME and not raw_df.empty:
                 manual_values=situacao_input,
                 mode=situacao_quick_mode_input,
             )
+            resolved_executor = [] if executor_input_single == "(Todos)" else [executor_input_single]
+            resolved_emissor = [] if emissor_input_single == "(Todos)" else [emissor_input_single]
             st.session_state[state_key] = {
                 "search_terms": search_input,
                 "consult_api": consult_api_input,
                 "situacao_quick_mode": str(situacao_quick_mode_input),
                 "situacao_sel": resolved_situacao,
-                "executor_sel": executor_input,
-                "emissor_sel": emissor_input,
+                "executor_sel": resolved_executor,
+                "emissor_sel": resolved_emissor,
                 "limit_rows": limit_input,
                 "selected_display": selected_display_input,
             }
+        if apply_search_now and not apply_filters:
+            st.session_state[state_key]["search_terms"] = search_input
 
         filter_state = st.session_state[state_key]
         search_terms = str(filter_state.get("search_terms", ""))
@@ -1437,7 +1482,7 @@ if REAL_RUNTIME and not raw_df.empty:
         with st.expander("Colunas exibidas (atalho rapido)", expanded=False):
             quick_selected_display = st.multiselect(
                 "Colunas da tabela",
-                options=[column_display_names[col] for col in raw_df.columns],
+                options=[column_display_names[col] for col in available_columns],
                 default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
                 key="table_quick_selected_display",
             )
@@ -1518,10 +1563,10 @@ if REAL_RUNTIME and not raw_df.empty:
         page_size = int(
             secondary_controls[0].selectbox(
                 "Linhas por pagina",
-                [100, 250, 500, 1000, 2000],
-                index=[100, 250, 500, 1000, 2000].index(table_state.get("page_size", 250))
-                if table_state.get("page_size", 250) in [100, 250, 500, 1000, 2000]
-                else 1,
+                [25, 50, 100, 250, 500],
+                index=[25, 50, 100, 250, 500].index(table_state.get("page_size", 100))
+                if table_state.get("page_size", 100) in [25, 50, 100, 250, 500]
+                else 2,
             )
         )
         table_height = int(
@@ -1604,6 +1649,10 @@ if REAL_RUNTIME and not raw_df.empty:
         )
 
         display_df = ensure_arrow_compatible(page_df.rename(columns=rename_map))
+        render_height = _compute_table_render_height(
+            page_len=len(page_df),
+            configured_height=table_height,
+        )
         column_config = _build_streamlit_column_config(
             page_df,
             rename_map,
@@ -1614,7 +1663,7 @@ if REAL_RUNTIME and not raw_df.empty:
         st.dataframe(
             display_df,
             width="stretch" if auto_width else "content",
-            height=table_height,
+            height=render_height,
             column_config=column_config,
             hide_index=True,
         )

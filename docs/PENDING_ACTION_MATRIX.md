@@ -40,6 +40,20 @@ Total itens: 108
    - focused tests expanded in `tests/test_streamlit_filter_cache.py`.
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`38 passed`).
 
+## Update 2026-02-28 (streamlit usability polish v2)
+
+1. Filters now prioritize practical usage:
+   - executor/emissor moved to compact single-select with `(Todos)` option.
+   - situacao remains visible and supports quick mode + count labels.
+   - added explicit `Filtrar agora` button in search row (same submit flow as Enter).
+2. Column selection now excludes fully empty columns by default.
+3. Sidebar source controls moved into collapsed advanced section (still available).
+4. Table rendering improved:
+   - dynamic dataframe height based on current page rows to avoid oversized white block.
+   - default page size reduced for better first-view density.
+5. Validation:
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`40 passed`).
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 1. Historical limbo request addressed in focused slice:
