@@ -29,6 +29,16 @@ Delivered in this follow-up slice:
    - `py_compile`, `ruff`, `ty`: pass
    - focused pytest (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `40 passed`
 
+## Update 2026-02-28 (streamlit usability polish v3)
+
+Delivered in this follow-up:
+1. source controls removed from quick sidebar and moved to hidden advanced section in `Cache e API`.
+2. situacao quick mode moved inline with core filters for denser layout.
+3. additional chart context added in table view (`Top executor`, `Top emissor`).
+4. validation:
+   - `py_compile`, `ruff`, `ty`: pass
+   - focused pytest (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `40 passed`
+
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
 
 Delivered in this streamlit-focused slice:

@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 21:20 - authoritative block
+## CURRENT TRUTH 2026-02-28 21:55 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -21,8 +21,9 @@ This handoff is ready to reuse in the next conversation.
   1. situacao is always visible and now has quick mode + count labels.
   2. executor/emissor compacted to single-select with `(Todos)`.
   3. quick "colunas exibidas" shortcut now exists in table tab.
-  4. sidebar source controls moved to collapsed advanced section.
+  4. source controls moved to hidden advanced section in `Cache e API`.
   5. table render height now scales with page rows.
+  6. table visuals now include `Top executor` and `Top emissor` charts.
 - Item `92` closure:
   1. cache architecture refactor completed with shared get/store helpers.
   2. stats/ttl/lru contract preserved and revalidated in focused tests.

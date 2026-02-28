@@ -1044,6 +1044,37 @@ docs_dir = DOCS_DIR_DEFAULT
 consult_api = False
 
 if REAL_RUNTIME:
+    if "streamlit_source_state" not in st.session_state:
+        st.session_state["streamlit_source_state"] = {
+            "db_path": DB_PATH_DEFAULT,
+            "docs_dir": DOCS_DIR_DEFAULT,
+        }
+    source_state = st.session_state["streamlit_source_state"]
+    db_path_candidate = str(source_state.get("db_path", DB_PATH_DEFAULT))
+    docs_dir_candidate = str(source_state.get("docs_dir", DOCS_DIR_DEFAULT))
+    try:
+        db_path = str(
+            ensure_path_is_allowed(
+                db_path_candidate,
+                purpose="Arquivo do banco",
+                expect_directory=False,
+            )
+        )
+        docs_dir = str(
+            ensure_path_is_allowed(
+                docs_dir_candidate,
+                purpose="Pasta com planilhas",
+                expect_directory=True,
+            )
+        )
+    except PathSafetyError:
+        db_path = DB_PATH_DEFAULT
+        docs_dir = DOCS_DIR_DEFAULT
+        st.session_state["streamlit_source_state"] = {
+            "db_path": db_path,
+            "docs_dir": docs_dir,
+        }
+
     header_left, header_right = st.columns([5, 1])
     with header_left:
         st.markdown("<h1>SSA Consulta Rapida</h1>", unsafe_allow_html=True)
@@ -1076,30 +1107,6 @@ if REAL_RUNTIME:
 
     with st.sidebar:
         st.subheader("Painel rapido")
-        db_path = DB_PATH_DEFAULT
-        docs_dir = DOCS_DIR_DEFAULT
-        with st.expander("Fonte de dados avancada", expanded=False):
-            db_path = st.text_input("Arquivo do banco", value=DB_PATH_DEFAULT)
-            docs_dir = st.text_input("Pasta com planilhas", value=DOCS_DIR_DEFAULT)
-        try:
-            db_path = str(
-                ensure_path_is_allowed(
-                    db_path,
-                    purpose="Arquivo do banco",
-                    expect_directory=False,
-                )
-            )
-            docs_dir = str(
-                ensure_path_is_allowed(
-                    docs_dir,
-                    purpose="Pasta com planilhas",
-                    expect_directory=True,
-                )
-            )
-        except PathSafetyError as exc:
-            st.error(str(exc))
-            st.stop()
-
         db_file = Path(db_path)
         db_exists = db_file.exists()
         db_size_mb = (db_file.stat().st_size / (1024 * 1024)) if db_exists else 0.0
@@ -1107,51 +1114,10 @@ if REAL_RUNTIME:
         st.caption(f"DB: {'ok' if db_exists else 'ausente'} | {db_size_mb:.1f} MB")
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
-        btn_col_load, btn_col_reimport = st.columns(2)
-        status_holder = st.empty()
-        progress_holder = st.empty()
-
-        def _execute_import(force: bool) -> None:
-            try:
-                progress_holder.progress(15)
-                status_holder.info("Verificando arquivos ...")
-                ok = import_files_to_database(
-                    docs_dir=docs_dir,
-                    db_path=db_path,
-                    force_import=force,
-                    raise_on_error=True,
-                )
-                progress_holder.progress(60)
-                status_holder.info("Atualizando cache ...")
-                try:
-                    if hasattr(load_dataframe, "clear"):
-                        load_dataframe.clear()
-                except Exception as exc:
-                    logger.warning("Falha ao limpar cache de load_dataframe: %s", exc)
-                filter_cache.clear()
-                _clear_recent_api_snapshot()
-                progress_holder.progress(100)
-                if ok:
-                    status_holder.info("Importacao concluida com sucesso.")
-                else:
-                    status_holder.warning("Nenhum arquivo novo processado.")
-            except Exception as exc:  # noqa: BLE001
-                progress_holder.progress(0)
-                status_holder.error(f"Importacao falhou: {exc}")
-            finally:
-                progress_holder.empty()
-
-        if btn_col_load.button("Carregar dados"):
-            _execute_import(force=False)
-        if btn_col_reimport.button("Reimportar planilhas"):
-            _execute_import(force=True)
-
-        st.caption("Carregar: incremental. Reimportar: processamento completo.")
-
 raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
 if REAL_RUNTIME and raw_df.empty:
     st.info(
-        "Banco nao encontrado ou sem dados. Use os botoes da barra lateral para importar planilhas."
+        "Banco nao encontrado ou sem dados. Use a aba 'Cache e API' em 'Fonte de dados avancada'."
     )
     st.stop()
 
@@ -1207,15 +1173,17 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "situacao_quick_mode": "Manual",
-                "situacao_sel": situacoes,
+                "situacao_quick_mode": "Todas",
+                "situacao_sel": [],
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
                 "limit_rows": limit_rows,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
         filter_state = st.session_state[state_key]
-        filter_state["situacao_sel"] = [value for value in filter_state.get("situacao_sel", []) if value in situacoes] or situacoes
+        filter_state["situacao_sel"] = [
+            value for value in filter_state.get("situacao_sel", []) if value in situacoes
+        ]
         if str(filter_state.get("situacao_quick_mode", "Manual")) not in {
             "Manual",
             "Todas",
@@ -1276,8 +1244,8 @@ if REAL_RUNTIME and not raw_df.empty:
                 value=bool(filter_state.get("consult_api", False)),
             )
             apply_search_now = search_row[2].form_submit_button("Filtrar agora")
-            st.caption("Selecao de filtros")
-            row_filters = st.columns([1.0, 1.0, 1.2])
+            st.caption("Filtros principais")
+            row_filters = st.columns([1.0, 1.0, 1.0, 0.8])
             executor_options = ["(Todos)"] + executores
             emissor_options = ["(Todos)"] + emissores
             default_executor_single = (
@@ -1312,7 +1280,16 @@ if REAL_RUNTIME and not raw_df.empty:
                 ),
                 horizontal=True,
             )
-            st.caption("Situacao (vazio = todas)")
+            limit_input = int(
+                row_filters[3].number_input(
+                    "Limite",
+                    min_value=50,
+                    max_value=20000,
+                    value=int(filter_state.get("limit_rows", limit_rows)),
+                    step=50,
+                )
+            )
+            st.caption("Situacao (manual vazio = todas)")
             situacao_counts = (
                 raw_df.get("situacao", pd.Series(dtype=str))
                 .dropna()
@@ -1330,28 +1307,23 @@ if REAL_RUNTIME and not raw_df.empty:
                 for display, raw_value in situacao_display_map.items()
                 if raw_value in selected_situacao_values
             ]
-            if len(selected_situacao_values) == len(situacoes):
+            manual_mode_active = str(situacao_quick_mode_input) == "Manual"
+            if len(selected_situacao_values) == len(situacoes) or not manual_mode_active:
                 default_situacao_display = []
-            situacao_input_display = st.multiselect(
-                "Situacao",
-                options=list(situacao_display_map.keys()),
-                default=default_situacao_display,
-            )
-            situacao_input = [
-                situacao_display_map[label]
-                for label in situacao_input_display
-                if label in situacao_display_map
-            ]
-            st.caption("Limite de linhas")
-            limit_input = int(
-                st.number_input(
-                    "Limite de linhas",
-                    min_value=50,
-                    max_value=20000,
-                    value=int(filter_state.get("limit_rows", limit_rows)),
-                    step=50,
+            if manual_mode_active:
+                situacao_input_display = st.multiselect(
+                    "Situacao",
+                    options=list(situacao_display_map.keys()),
+                    default=default_situacao_display,
                 )
-            )
+                situacao_input = [
+                    situacao_display_map[label]
+                    for label in situacao_input_display
+                    if label in situacao_display_map
+                ]
+            else:
+                situacao_input = []
+                st.caption("Use Manual para escolher situacoes especificas.")
             st.caption("Colunas e presets")
             st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
             selected_display_input = st.multiselect(
@@ -1378,8 +1350,8 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "situacao_quick_mode": "Manual",
-                "situacao_sel": situacoes,
+                "situacao_quick_mode": "Todas",
+                "situacao_sel": [],
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
                 "limit_rows": 500,
@@ -1693,6 +1665,31 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             st.subheader("Distribuicao por Situacao")
             st.bar_chart(chart_df.set_index('Situacao'))
+            extra_charts = st.columns(2)
+            if 'setor_executor' in filtered_df.columns:
+                top_exec = (
+                    filtered_df['setor_executor']
+                    .fillna('(vazio)')
+                    .astype(str)
+                    .value_counts()
+                    .head(8)
+                    .rename_axis('Setor executor')
+                    .reset_index(name='Quantidade')
+                )
+                extra_charts[0].caption("Top executor")
+                extra_charts[0].bar_chart(top_exec.set_index('Setor executor'))
+            if 'setor_emissor' in filtered_df.columns:
+                top_emis = (
+                    filtered_df['setor_emissor']
+                    .fillna('(vazio)')
+                    .astype(str)
+                    .value_counts()
+                    .head(8)
+                    .rename_axis('Setor emissor')
+                    .reset_index(name='Quantidade')
+                )
+                extra_charts[1].caption("Top emissor")
+                extra_charts[1].bar_chart(top_emis.set_index('Setor emissor'))
 
     with tab_export:
         st.subheader("Exportacao")
@@ -1797,6 +1794,68 @@ if REAL_RUNTIME and not raw_df.empty:
                     st.caption(_format_render_stats_line(selected_profile, profile_stats))
 
         with ops_right:
+            with st.expander("Fonte de dados avancada", expanded=False):
+                source_db_input = st.text_input(
+                    "Arquivo do banco",
+                    value=db_path,
+                    key="ops_source_db_path",
+                )
+                source_docs_input = st.text_input(
+                    "Pasta com planilhas",
+                    value=docs_dir,
+                    key="ops_source_docs_dir",
+                )
+                source_actions = st.columns([1.1, 1.1, 1.8])
+                apply_source = source_actions[0].button("Aplicar fonte", key="apply_source_paths")
+                run_load = source_actions[1].button("Carregar dados", key="load_data_ops")
+                run_reimport = source_actions[2].button("Reimportar planilhas", key="reimport_data_ops")
+                if apply_source:
+                    try:
+                        resolved_db = str(
+                            ensure_path_is_allowed(
+                                source_db_input,
+                                purpose="Arquivo do banco",
+                                expect_directory=False,
+                            )
+                        )
+                        resolved_docs = str(
+                            ensure_path_is_allowed(
+                                source_docs_input,
+                                purpose="Pasta com planilhas",
+                                expect_directory=True,
+                            )
+                        )
+                        st.session_state["streamlit_source_state"] = {
+                            "db_path": resolved_db,
+                            "docs_dir": resolved_docs,
+                        }
+                        st.success("Fonte aplicada. Recarregue dados para refletir mudancas.")
+                    except PathSafetyError as exc:
+                        st.error(str(exc))
+                if run_load or run_reimport:
+                    source_state = st.session_state.get("streamlit_source_state", {})
+                    op_db = str(source_state.get("db_path", db_path))
+                    op_docs = str(source_state.get("docs_dir", docs_dir))
+                    try:
+                        ok = import_files_to_database(
+                            docs_dir=op_docs,
+                            db_path=op_db,
+                            force_import=bool(run_reimport),
+                            raise_on_error=True,
+                        )
+                        if hasattr(load_dataframe, "clear"):
+                            load_dataframe.clear()
+                        filter_cache.clear()
+                        _clear_recent_api_snapshot()
+                        if ok:
+                            st.success("Importacao concluida.")
+                        else:
+                            st.info("Nenhum arquivo novo processado.")
+                        rerun_fn = getattr(st, "rerun", None)
+                        if callable(rerun_fn):
+                            rerun_fn()
+                    except Exception as exc:
+                        st.error(f"Importacao falhou: {exc}")
             st.subheader("API Itaipu")
             if consult_api:
                 if hasattr(st, "session_state") and st.session_state is not None:
