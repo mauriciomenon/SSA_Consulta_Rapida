@@ -18,10 +18,13 @@ from dev_env.streamlit_app import (
     _normalize_filter_selection,
     _apply_large_page_guard,
     _normalize_width_profile_memory,
+    _load_persisted_streamlit_state,
     _paginate_dataframe,
+    _persist_streamlit_state,
     _remember_width_profile_for_bucket,
     _resolve_width_bucket,
     _resolve_width_profile_for_bucket,
+    _resolve_streamlit_ui_state_path,
     _update_render_telemetry,
     st,
 )
@@ -242,6 +245,7 @@ def test_build_table_caption_compact() -> None:
 def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
     session_state = {}
     monkeypatch.setattr(st, "session_state", session_state, raising=False)
+    monkeypatch.setattr("dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None)
     _update_render_telemetry("Padrao (1600)", 10.0)
     _update_render_telemetry("Padrao (1600)", 20.0)
     stats = session_state["streamlit_render_stats"]["Padrao (1600)"]
@@ -253,6 +257,7 @@ def test_update_render_telemetry_updates_session_state(monkeypatch) -> None:
 def test_update_render_telemetry_keeps_profile_window(monkeypatch) -> None:
     session_state = {}
     monkeypatch.setattr(st, "session_state", session_state, raising=False)
+    monkeypatch.setattr("dev_env.streamlit_app._persist_streamlit_state", lambda **_kwargs: None)
 
     for idx in range(MAX_RENDER_TELEMETRY_PROFILES + 3):
         _update_render_telemetry(f"profile-{idx}", float(idx))
@@ -261,6 +266,41 @@ def test_update_render_telemetry_keeps_profile_window(monkeypatch) -> None:
     assert len(stats) == MAX_RENDER_TELEMETRY_PROFILES
     assert "profile-0" not in stats
     assert f"profile-{MAX_RENDER_TELEMETRY_PROFILES + 2}" in stats
+
+
+def test_streamlit_state_persistence_roundtrip(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("SSA_STREAMLIT_UI_STATE_FILE", "streamlit_ui_state_test.json")
+
+    _persist_streamlit_state(
+        width_profile="Largo (2000)",
+        width_profile_by_bucket={"lg": "XL (2400)", "bad": "valor-invalido"},
+        streamlit_render_stats={
+            "Largo (2000)": {
+                "count": 2,
+                "total_ms": 32.5,
+                "last_ms": 15.0,
+                "updated_at": 123.0,
+            }
+        },
+    )
+    loaded = _load_persisted_streamlit_state()
+
+    assert loaded["width_profile"] == "Largo (2000)"
+    assert loaded["width_profile_by_bucket"] == {"lg": "XL (2400)"}
+    assert loaded["streamlit_render_stats"]["Largo (2000)"]["count"] == 2
+
+
+def test_streamlit_state_persistence_invalid_json_returns_empty(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("SSA_STREAMLIT_UI_STATE_FILE", "streamlit_ui_state_test.json")
+    state_path = _resolve_streamlit_ui_state_path()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text("{invalid", encoding="utf-8")
+
+    loaded = _load_persisted_streamlit_state()
+
+    assert loaded == {}
 
 
 def test_width_bucket_resolution_thresholds() -> None:
