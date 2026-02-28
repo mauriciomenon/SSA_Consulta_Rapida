@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-02-28 20:40 - start from here
+## CURRENT TRUTH 2026-02-28 21:20 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -19,14 +19,15 @@ Use this file to migrate context to a new chat without losing execution quality.
   3. selected theme now persists across sessions.
 - Streamlit usability follow-up:
   1. situacao is always visible again and now includes quick mode + count labels.
-  2. row limit moved to dedicated line.
+  2. executor/emissor compacted to single-select (`(Todos)` fallback).
   3. quick "colunas exibidas" shortcut added in table tab.
-  4. sidebar now shows source snapshot and quick metrics.
+  4. sidebar source controls moved to collapsed advanced section.
+  5. table render height is now dynamic per page row count.
 - Item `92` status:
   1. resolved with cache architecture micro-refactor (shared helpers for get/store paths).
 - Validation snapshot for Sprint D closeout:
   - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
-  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `38 passed`
+  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `40 passed`
 - Deferred map (explicit, by difficulty):
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - difficulty alta

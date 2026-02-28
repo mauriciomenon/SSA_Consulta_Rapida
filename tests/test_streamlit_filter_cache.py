@@ -16,6 +16,8 @@ from dev_env.streamlit_app import (
     _build_streamlit_column_config,
     _build_column_presets,
     _build_filter_options,
+    _columns_with_data,
+    _compute_table_render_height,
     _compute_df_cache_token,
     _default_visible_columns,
     _normalize_filter_selection,
@@ -188,6 +190,23 @@ def test_resolve_situacao_quick_mode_options() -> None:
     assert _resolve_situacao_quick_mode(situacoes, [], "Abertas") == ["ABERTO", "AAT"]
     assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Manual") == ["AAT"]
     assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Nenhuma") == []
+
+
+def test_columns_with_data_filters_empty_columns() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2"],
+            "vazia": [None, None],
+            "status": ["ABERTO", None],
+        }
+    )
+    out = _columns_with_data(df, ["numero_ssa", "vazia", "status"])
+    assert out == ["numero_ssa", "status"]
+
+
+def test_compute_table_render_height_is_bounded() -> None:
+    assert _compute_table_render_height(page_len=1, configured_height=600) == 220
+    assert _compute_table_render_height(page_len=100, configured_height=300) == 300
 
 
 def test_default_visible_columns_prefers_core_columns() -> None:
