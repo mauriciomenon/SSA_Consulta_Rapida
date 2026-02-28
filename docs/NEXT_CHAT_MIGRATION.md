@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-02-28 18:30 - start from here
+## CURRENT TRUTH 2026-02-28 19:25 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -13,9 +13,13 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Optional P3 status:
   1. item `104` resolved: persistent width profile memory across sessions.
   2. item `107` resolved: render telemetry persistence across sessions.
+- Streamlit colors/behavior follow-up:
+  1. theme palettes + CSS variables implemented.
+  2. runtime theme selector added in ops tab.
+  3. selected theme now persists across sessions.
 - Validation snapshot for Sprint D closeout:
   - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
-  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `34 passed`
+  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `36 passed`
 - Deferred map (explicit, by difficulty):
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - difficulty alta

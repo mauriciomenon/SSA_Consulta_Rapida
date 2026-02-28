@@ -3,6 +3,18 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (streamlit theme slice: colors + behavior)
+
+Delivered in this focused streamlit slice:
+1. Added visual theme system with explicit palettes and CSS variable mapping.
+2. Added runtime theme selector in Streamlit ops tab.
+3. Added persistence for selected theme in Streamlit UI state file.
+4. Validation:
+   - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
+   - focused `pytest` (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `36 passed`
+5. Scope:
+   - no broad refactor and no PyQt GUI layout change.
+
 ## Update 2026-02-28 (sprint D optional P3 delivered + doc hygiene)
 
 Delivered in this optional slice:

@@ -3,10 +3,13 @@ from __future__ import annotations
 import pandas as pd
 
 from dev_env.streamlit_app import (
+    DEFAULT_STREAMLIT_THEME,
     MAIN_TAB_LABELS,
     MAX_RENDER_TELEMETRY_PROFILES,
+    STREAMLIT_THEME_PALETTES,
     StreamlitFilterCache,
     _api_snapshot_available,
+    _build_streamlit_theme_css,
     _clear_recent_api_snapshot,
     _build_table_caption,
     _format_render_stats_line,
@@ -16,6 +19,7 @@ from dev_env.streamlit_app import (
     _compute_df_cache_token,
     _default_visible_columns,
     _normalize_filter_selection,
+    _normalize_streamlit_theme_name,
     _apply_large_page_guard,
     _normalize_width_profile_memory,
     _load_persisted_streamlit_state,
@@ -273,6 +277,7 @@ def test_streamlit_state_persistence_roundtrip(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("SSA_STREAMLIT_UI_STATE_FILE", "streamlit_ui_state_test.json")
 
     _persist_streamlit_state(
+        theme_name="Solar",
         width_profile="Largo (2000)",
         width_profile_by_bucket={"lg": "XL (2400)", "bad": "valor-invalido"},
         streamlit_render_stats={
@@ -286,6 +291,7 @@ def test_streamlit_state_persistence_roundtrip(tmp_path, monkeypatch) -> None:
     )
     loaded = _load_persisted_streamlit_state()
 
+    assert loaded["theme_name"] == "Solar"
     assert loaded["width_profile"] == "Largo (2000)"
     assert loaded["width_profile_by_bucket"] == {"lg": "XL (2400)"}
     assert loaded["streamlit_render_stats"]["Largo (2000)"]["count"] == 2
@@ -301,6 +307,18 @@ def test_streamlit_state_persistence_invalid_json_returns_empty(tmp_path, monkey
     loaded = _load_persisted_streamlit_state()
 
     assert loaded == {}
+
+
+def test_normalize_streamlit_theme_name_falls_back_to_default() -> None:
+    assert _normalize_streamlit_theme_name("Solar") == "Solar"
+    assert _normalize_streamlit_theme_name("invalido") == DEFAULT_STREAMLIT_THEME
+
+
+def test_build_streamlit_theme_css_contains_palette_tokens() -> None:
+    css = _build_streamlit_theme_css("Grafite")
+    assert "<style>" in css
+    assert "--ssa-bg" in css
+    assert STREAMLIT_THEME_PALETTES["Grafite"]["bg"] in css
 
 
 def test_width_bucket_resolution_thresholds() -> None:

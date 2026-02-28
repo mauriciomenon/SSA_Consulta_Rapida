@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 18:30 - authoritative block
+## CURRENT TRUTH 2026-02-28 19:25 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -13,9 +13,13 @@ This handoff is ready to reuse in the next conversation.
 - Optional P3 delivery status:
   1. item `104` resolved with persisted width profile memory across sessions.
   2. item `107` resolved with persisted render telemetry across sessions.
+- Streamlit colors/behavior follow-up:
+  1. explicit theme palettes with CSS variables implemented.
+  2. runtime theme selector added in ops tab.
+  3. selected theme now persists across sessions.
 - Validation snapshot:
   - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `34 passed`
+  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `36 passed`
 - Deferred classification with difficulty:
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - alta

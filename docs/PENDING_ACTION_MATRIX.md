@@ -3,6 +3,21 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (streamlit theme slice: colors + behavior)
+
+1. Historical limbo request addressed in focused slice:
+   - added explicit Streamlit theme palettes with CSS variables.
+   - added runtime theme selector in ops tab.
+   - theme choice now persists across sessions in Streamlit UI state file.
+2. Validation snapshot:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`36 passed`)
+3. Scope note:
+   - no broad refactor.
+   - no PyQt GUI layout change.
+
 ## Update 2026-02-28 (sprint D optional P3 delivered + doc hygiene)
 
 1. Optional product items delivered with minimal patch (no layout shift):
