@@ -546,6 +546,10 @@ def _build_streamlit_theme_css(theme_name: str) -> str:
         ".stButton button{width:100%;border:1px solid var(--ssa-border);}"
         "div[data-testid='stMetric']{background:var(--ssa-metric-bg);border:1px solid var(--ssa-border);"
         "padding:0.5rem 0.65rem;border-radius:0.5rem;}"
+        "div[data-testid='stDataFrame']{border:1px solid var(--ssa-border);border-radius:0.55rem;"
+        "background:var(--ssa-panel);}"
+        "div[data-testid='stDataFrame'] div[role='grid']{background:var(--ssa-panel)!important;"
+        "color:var(--ssa-ink)!important;}"
         "div[data-testid='stForm']{background:var(--ssa-panel);border:1px solid var(--ssa-border);"
         "padding:0.6rem 0.75rem;border-radius:0.55rem;}"
         "div[data-testid='stHorizontalBlock'] > div{gap:0.45rem;}"
@@ -1129,7 +1133,7 @@ if REAL_RUNTIME and not raw_df.empty:
         st.divider()
         st.subheader("Resumo rapido")
         st.metric("Registros no banco", len(raw_df))
-        st.metric("Colunas uteis", len(available_columns_runtime))
+        st.metric("Colunas com dados", len(available_columns_runtime))
         st.caption(
             "Tema ativo: "
             + _normalize_streamlit_theme_name(
@@ -1245,7 +1249,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             apply_search_now = search_row[2].form_submit_button("Filtrar agora")
             st.caption("Filtros principais")
-            row_filters = st.columns([1.0, 1.0, 1.0, 0.8])
+            row_filters = st.columns([0.72, 0.72, 1.35, 0.62])
             executor_options = ["(Todos)"] + executores
             emissor_options = ["(Todos)"] + emissores
             default_executor_single = (
@@ -1289,7 +1293,7 @@ if REAL_RUNTIME and not raw_df.empty:
                     step=50,
                 )
             )
-            st.caption("Situacao (manual vazio = todas)")
+            st.caption("Situacao")
             situacao_counts = (
                 raw_df.get("situacao", pd.Series(dtype=str))
                 .dropna()
@@ -1324,16 +1328,17 @@ if REAL_RUNTIME and not raw_df.empty:
             else:
                 situacao_input = []
                 st.caption("Use Manual para escolher situacoes especificas.")
-            st.caption("Colunas e presets")
+            st.caption("Colunas visiveis")
             st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
             selected_display_input = st.multiselect(
                 "Colunas exibidas",
                 options=[column_display_names[col] for col in available_columns],
                 default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
             )
-            preset_cols = st.columns(2)
-            preset_core = preset_cols[0].form_submit_button("Essenciais")
-            preset_all = preset_cols[1].form_submit_button("Completas")
+            preset_cols = st.columns(3)
+            preset_core = preset_cols[0].form_submit_button("Operacao diaria")
+            preset_all = preset_cols[1].form_submit_button("Analise completa")
+            preset_min = preset_cols[2].form_submit_button("Minimo")
             with st.expander("Ajuda rapida", expanded=False):
                 st.markdown(
                     "* Sintaxe basica: `svp, !ste, mel4`\n"
@@ -1388,6 +1393,9 @@ if REAL_RUNTIME and not raw_df.empty:
             filter_state["selected_display"] = [column_display_names[col] for col in column_presets["core"]]
         elif preset_all:
             filter_state["selected_display"] = [column_display_names[col] for col in column_presets["all"]]
+        elif preset_min:
+            min_cols = [col for col in ("numero_ssa", "situacao", "descricao_ssa") if col in available_columns]
+            filter_state["selected_display"] = [column_display_names[col] for col in min_cols]
 
         if apply_filters:
             resolved_situacao = _resolve_situacao_quick_mode(
@@ -1459,9 +1467,9 @@ if REAL_RUNTIME and not raw_df.empty:
                 key="table_quick_selected_display",
             )
             quick_cols = st.columns(3)
-            quick_core = quick_cols[0].button("Core", key="table_quick_core")
-            quick_all = quick_cols[1].button("Todas", key="table_quick_all")
-            quick_apply = quick_cols[2].button("Aplicar colunas", key="table_quick_apply")
+            quick_core = quick_cols[0].button("Operacao diaria", key="table_quick_core")
+            quick_all = quick_cols[1].button("Analise completa", key="table_quick_all")
+            quick_apply = quick_cols[2].button("Aplicar", key="table_quick_apply")
 
             if quick_core:
                 st.session_state[state_key]["selected_display"] = [
@@ -1500,6 +1508,20 @@ if REAL_RUNTIME and not raw_df.empty:
             st.caption(f"Execucao concluida: {exec_rate:.1f}%")
         else:
             st.caption("Execucao concluida: -")
+
+        info_cols = st.columns(3)
+        info_cols[0].metric(
+            "Situacoes distintas",
+            int(filtered_df["situacao"].nunique()) if "situacao" in filtered_df.columns else 0,
+        )
+        info_cols[1].metric(
+            "Executores distintos",
+            int(filtered_df["setor_executor"].nunique()) if "setor_executor" in filtered_df.columns else 0,
+        )
+        info_cols[2].metric(
+            "Emissores distintos",
+            int(filtered_df["setor_emissor"].nunique()) if "setor_emissor" in filtered_df.columns else 0,
+        )
 
         primary_controls = st.columns([2.0, 0.9, 1.3, 1.0])
         sort_options = ["(Sem ordenacao)"] + list(view_df.columns)

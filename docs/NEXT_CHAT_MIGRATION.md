@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-02-28 21:55 - start from here
+## CURRENT TRUTH 2026-02-28 22:10 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -24,6 +24,8 @@ Use this file to migrate context to a new chat without losing execution quality.
   4. source controls moved to hidden advanced section in `Cache e API`.
   5. table render height is now dynamic per page row count.
   6. extra charts added (`Top executor`, `Top emissor`) under situacao distribution.
+  7. presets renamed to business labels (`Operacao diaria`, `Analise completa`, `Minimo`).
+  8. table metrics row expanded (`situacoes/executores/emissores distintos`).
 - Item `92` status:
   1. resolved with cache architecture micro-refactor (shared helpers for get/store paths).
 - Validation snapshot for Sprint D closeout:

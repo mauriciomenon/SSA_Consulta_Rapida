@@ -39,6 +39,16 @@ Delivered in this follow-up:
    - `py_compile`, `ruff`, `ty`: pass
    - focused pytest (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `40 passed`
 
+## Update 2026-02-28 (streamlit usability polish v4)
+
+Delivered in this pass:
+1. improved compactness in key filter row and moved quick mode inline.
+2. renamed presets/actions to business labels.
+3. expanded table context metrics and adjusted dataframe surface styling.
+4. validation:
+   - `py_compile`, `ruff`, `ty`: pass
+   - focused pytest (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `40 passed`
+
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
 
 Delivered in this streamlit-focused slice:

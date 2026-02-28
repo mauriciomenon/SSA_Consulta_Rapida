@@ -66,6 +66,15 @@ Total itens: 108
 4. Validation:
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`40 passed`).
 
+## Update 2026-02-28 (streamlit usability polish v4)
+
+1. Key UX refinements:
+   - compacted filter row further and kept quick-mode inline.
+   - replaced technical preset labels with business-oriented naming.
+   - expanded table context metrics and adjusted dataframe visual container style.
+2. Validation:
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`40 passed`).
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 1. Historical limbo request addressed in focused slice:
