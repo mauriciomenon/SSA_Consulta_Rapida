@@ -3,6 +3,24 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (sprint D optional P3 delivered + doc hygiene)
+
+Delivered in this optional slice:
+1. Matrix optional items delivered with minimal risk:
+   - item `104` resolved: width profile persistence across sessions (`width_profile` + `width_profile_by_bucket`).
+   - item `107` resolved: render telemetry persistence across sessions (`streamlit_render_stats`).
+2. Validation evidence:
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`34 passed`)
+3. Scope note:
+   - no GUI layout/position change.
+   - no broad refactor.
+4. Doc hygiene note:
+   - top blocks in matrix/backlog/handoff/migration are canonical.
+   - older blocks remain as historical trace.
+
 ## Update 2026-02-28 (sprint D closeout: cache guard + optional scope map)
 
 Delivered in this closeout slice:
@@ -17,9 +35,9 @@ Delivered in this closeout slice:
    - `uv run python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass (`32 passed`)
-3. Optional product items kept deferred (not release blockers):
-   - persistent user-resizable widths: optional P3, difficulty media.
-   - telemetry persistence across sessions: optional P3, difficulty media/alta.
+3. Optional product items in this block are now superseded by a later delivery update:
+   - persistent user-resizable widths (item `104`) now resolved.
+   - telemetry persistence across sessions (item `107`) now resolved.
 4. Structural items kept deferred for dedicated sprint:
    - `SSAMainWindow` split and streamlit god-module split: P2, difficulty alta.
 

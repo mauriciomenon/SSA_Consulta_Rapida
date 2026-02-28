@@ -3,6 +3,24 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (sprint D optional P3 delivered + doc hygiene)
+
+1. Optional product items delivered with minimal patch (no layout shift):
+   - item `104` moved from `deferred` to `resolved`:
+     - width profile memory now persists across sessions via local state file.
+   - item `107` moved from `deferred` to `resolved`:
+     - render telemetry now persists across sessions via local state file.
+2. Validation snapshot (focused):
+   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`34 passed`)
+3. Scope note:
+   - no broad refactor and no GUI layout/position change.
+4. Doc hygiene note:
+   - top update blocks are canonical source of truth.
+   - historical blocks below remain for traceability.
+
 ## Update 2026-02-28 (sprint D closeout: cache guard + docs sync)
 
 1. Sprint D technical fix closed with minimal patch:
@@ -21,9 +39,7 @@ Total itens: 108
 3. Scope note:
    - no GUI layout/position change in this slice.
    - no broad refactor; structural items stay deferred.
-4. Optional/deferred classification with difficulty:
-   - item `104` (`persistent widths`): optional product (P3), difficulty `media`.
-   - item `107` (`persist telemetry across sessions`): optional product (P3), difficulty `media/alta`.
+4. Deferred classification with difficulty (after optional delivery):
    - item `84` (`SSAMainWindow split`) and item `101` (`streamlit god-module split`): structural (P2), difficulty `alta`.
 
 ## Update 2026-02-28 (sprint long-loop v2: runtime hardening micro-slices)
@@ -944,11 +960,12 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: validacoes de tabs e disponibilidade de snapshot/API foram cobertas em regressao de runtime streamlit.
 
-## 104. [deferred] (sem local exato)
+## 104. [resolved] (sem local exato)
 - Item: If future sprint needs user-resizable persistent widths, implement as explicit feature with dedicated tests.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
-- Classificacao: opcional de produto (P3).
+- Classificacao: opcional de produto (P3), entregue.
 - Dificuldade estimada: media.
+- Evidencia: persistencia local do `width_profile` e `width_profile_by_bucket` em estado de UI do Streamlit com regressao focada.
 
 ## 105. [resolved] (sem local exato)
 - Item: Evaluate optional compact mode for very small screens (<1280 px) with hidden secondary controls.
@@ -960,11 +977,12 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: telemetria por perfil de largura ja esta ativa em `_update_render_telemetry` com regressao focada.
 
-## 107. [deferred] (sem local exato)
+## 107. [resolved] (sem local exato)
 - Item: If needed, persist render telemetry across reruns/sessions for historical comparison.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
-- Classificacao: opcional de produto (P3).
+- Classificacao: opcional de produto (P3), entregue.
 - Dificuldade estimada: media/alta.
+- Evidencia: persistencia local de `streamlit_render_stats` com leitura/escrita segura e regressao focada.
 
 ## 108. [resolved] (sem local exato)
 - Item: Consider optional cap/window for telemetry history to limit long-session growth.

@@ -112,15 +112,37 @@ view_df: pd.DataFrame = pd.DataFrame()
 rename_map: dict[str, str] = {}
 display_df: pd.DataFrame = pd.DataFrame()
 column_config: dict[str, object] = {}
+
+
+def _resolve_cache_max_entry_bytes() -> Optional[int]:
+    raw = os.environ.get("SSA_CACHE_MAX_MB", "").strip()
+    if not raw:
+        return None
+    try:
+        max_mb = float(raw)
+    except ValueError:
+        logger.warning("Invalid SSA_CACHE_MAX_MB value: %r", raw)
+        return None
+    if max_mb <= 0:
+        return None
+    return int(max_mb * 1024 * 1024)
+
+
 class StreamlitFilterCache:
     """Cache inteligente para filtros do Streamlit com TTL e estatisticas."""
     
     def __init__(self, max_size: int = 30, ttl_seconds: int = 300):
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
+        self._max_entry_bytes = _resolve_cache_max_entry_bytes()
         self._use_session_state = False
         self._local_cache: dict[str, dict[str, Any]] = {}
-        self._local_stats: dict[str, int] = {'hits': 0, 'misses': 0, 'evictions': 0}
+        self._local_stats: dict[str, int] = {
+            'hits': 0,
+            'misses': 0,
+            'evictions': 0,
+            'skipped_large_entries': 0,
+        }
         self._initialize_backend()
 
     def _initialize_backend(self) -> None:
@@ -133,15 +155,30 @@ class StreamlitFilterCache:
             if 'filter_cache' not in session_state:
                 session_state.filter_cache = {}
             if 'cache_stats' not in session_state:
-                session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+                session_state.cache_stats = {
+                    'hits': 0,
+                    'misses': 0,
+                    'evictions': 0,
+                    'skipped_large_entries': 0,
+                }
+            session_state.cache_stats.setdefault('skipped_large_entries', 0)
             self._use_session_state = True
         except Exception as exc:
             logger.debug("Streamlit session_state unavailable in current runtime: %s", exc)
 
     def _resolve_backend(self) -> tuple[dict[str, Any], dict[str, int]]:
         if self._use_session_state:
-            return st.session_state.filter_cache, st.session_state.cache_stats
+            stats = st.session_state.cache_stats
+            stats.setdefault('skipped_large_entries', 0)
+            return st.session_state.filter_cache, stats
+        self._local_stats.setdefault('skipped_large_entries', 0)
         return self._local_cache, self._local_stats
+
+    def _entry_too_large(self, result: pd.DataFrame) -> bool:
+        if self._max_entry_bytes is None:
+            return False
+        entry_bytes = int(result.memory_usage(index=True, deep=True).sum())
+        return entry_bytes > self._max_entry_bytes
     
     def _generate_key(
         self,
@@ -206,6 +243,13 @@ class StreamlitFilterCache:
         """Armazena resultado no cache."""
         key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
         cache, stats = self._resolve_backend()
+        if self._entry_too_large(result):
+            stats['skipped_large_entries'] += 1
+            logger.info(
+                "StreamlitFilterCache.put skipped large DataFrame entry (max_bytes=%s)",
+                self._max_entry_bytes,
+            )
+            return
 
         # Remove entrada existente se houver
         if key in cache:
@@ -237,6 +281,12 @@ class StreamlitFilterCache:
             'hits': stats['hits'],
             'misses': stats['misses'],
             'evictions': stats['evictions'],
+            'skipped_large_entries': stats['skipped_large_entries'],
+            'max_entry_mb': (
+                round(self._max_entry_bytes / (1024 * 1024), 3)
+                if self._max_entry_bytes is not None
+                else None
+            ),
             'hit_rate': hit_rate,
             'ttl_seconds': self.ttl_seconds
         }
@@ -245,10 +295,20 @@ class StreamlitFilterCache:
         """Limpa todo o cache."""
         if self._use_session_state:
             st.session_state.filter_cache = {}
-            st.session_state.cache_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+            st.session_state.cache_stats = {
+                'hits': 0,
+                'misses': 0,
+                'evictions': 0,
+                'skipped_large_entries': 0,
+            }
         else:
             self._local_cache = {}
-            self._local_stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+            self._local_stats = {
+                'hits': 0,
+                'misses': 0,
+                'evictions': 0,
+                'skipped_large_entries': 0,
+            }
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
@@ -267,6 +327,13 @@ class StreamlitFilterCache:
 
     def cache_filter_result(self, key: str, result: pd.DataFrame, meta: Optional[dict] = None):
         cache, stats = self._resolve_backend()
+        if self._entry_too_large(result):
+            stats['skipped_large_entries'] += 1
+            logger.info(
+                "StreamlitFilterCache.cache_filter_result skipped large DataFrame entry (max_bytes=%s)",
+                self._max_entry_bytes,
+            )
+            return
         # politica LRU simples
         if key in cache:
             del cache[key]
@@ -285,6 +352,20 @@ class StreamlitFilterCache:
 filter_cache = StreamlitFilterCache()
 width_manager = SimpleWidthManager()
 MAX_RENDER_TELEMETRY_PROFILES = 12
+WIDTH_PROFILE_OPTIONS = [
+    "Compacto (1200)",
+    "Padrao (1600)",
+    "Largo (2000)",
+    "XL (2400)",
+]
+WIDTH_PROFILE_PIXELS = {
+    "Compacto (1200)": 1200,
+    "Padrao (1600)": 1600,
+    "Largo (2000)": 2000,
+    "XL (2400)": 2400,
+}
+MAIN_TAB_LABELS = ["Filtros", "Tabela", "Exportacao", "Cache e API"]
+STREAMLIT_UI_STATE_FILE_DEFAULT = "streamlit_ui_state.json"
 
 
 def load_dataframe(db_path: str) -> pd.DataFrame:
@@ -396,6 +477,202 @@ def _update_render_telemetry(width_profile: str, render_ms: float) -> None:
         for profile_name, _stats in stale_profiles[:overflow]:
             render_stats.pop(profile_name, None)
     st.session_state["streamlit_render_stats"] = render_stats
+    table_state = st.session_state.get("streamlit_table_state", {})
+    _persist_streamlit_state(
+        width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+        width_profile_by_bucket=_normalize_width_profile_memory(
+            table_state.get("width_profile_by_bucket", {})
+        ),
+        streamlit_render_stats=render_stats,
+    )
+
+
+def _resolve_width_bucket(width_px: int) -> str:
+    if width_px < 1280:
+        return "xs"
+    if width_px < 1600:
+        return "sm"
+    if width_px < 2000:
+        return "md"
+    if width_px < 2400:
+        return "lg"
+    return "xl"
+
+
+def _normalize_width_profile_memory(memory_raw: Any) -> dict[str, str]:
+    if not isinstance(memory_raw, dict):
+        return {}
+    valid_buckets = {"xs", "sm", "md", "lg", "xl"}
+    normalized: dict[str, str] = {}
+    for key, value in memory_raw.items():
+        key_text = str(key)
+        value_text = str(value)
+        if key_text in valid_buckets and value_text in WIDTH_PROFILE_OPTIONS:
+            normalized[key_text] = value_text
+    return normalized
+
+
+def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw_stats, dict):
+        return {}
+    normalized: dict[str, dict[str, Any]] = {}
+    for raw_profile, raw_values in raw_stats.items():
+        profile = str(raw_profile)
+        if profile not in WIDTH_PROFILE_OPTIONS:
+            continue
+        if not isinstance(raw_values, dict):
+            continue
+        try:
+            count = int(raw_values.get("count", 0))
+            total_ms = float(raw_values.get("total_ms", 0.0))
+            last_ms = float(raw_values.get("last_ms", 0.0))
+            updated_at = float(raw_values.get("updated_at", 0.0))
+        except (TypeError, ValueError):
+            continue
+        if count <= 0 or total_ms < 0.0 or last_ms < 0.0:
+            continue
+        normalized[profile] = {
+            "count": count,
+            "total_ms": total_ms,
+            "last_ms": last_ms,
+            "updated_at": updated_at,
+        }
+    if len(normalized) <= MAX_RENDER_TELEMETRY_PROFILES:
+        return normalized
+    stale_profiles = sorted(
+        normalized.items(),
+        key=lambda item: float(item[1].get("updated_at", 0.0)),
+    )
+    overflow = len(normalized) - MAX_RENDER_TELEMETRY_PROFILES
+    for profile_name, _stats in stale_profiles[:overflow]:
+        normalized.pop(profile_name, None)
+    return normalized
+
+
+def _resolve_streamlit_ui_state_path() -> Path:
+    cfg_dir_raw = os.environ.get("SSA_CONFIG_DIR", "config")
+    try:
+        cfg_dir = ensure_path_is_allowed(
+            cfg_dir_raw,
+            purpose="SSA_CONFIG_DIR",
+            base=project_root,
+            expect_directory=None,
+        )
+    except PathSafetyError as exc:
+        logger.warning("SSA_CONFIG_DIR invalido para streamlit state (%s). Usando config padrao.", exc)
+        cfg_dir = project_root / "config"
+
+    file_name = os.environ.get("SSA_STREAMLIT_UI_STATE_FILE", STREAMLIT_UI_STATE_FILE_DEFAULT).strip()
+    if not file_name:
+        file_name = STREAMLIT_UI_STATE_FILE_DEFAULT
+    candidate = Path(file_name)
+    if not candidate.is_absolute():
+        candidate = cfg_dir / candidate
+    return ensure_path_is_allowed(
+        candidate,
+        purpose="streamlit_ui_state_file",
+        base=project_root,
+        expect_directory=False,
+    )
+
+
+def _load_persisted_streamlit_state() -> dict[str, Any]:
+    try:
+        state_path = _resolve_streamlit_ui_state_path()
+    except PathSafetyError as exc:
+        logger.warning("Nao foi possivel resolver streamlit_ui_state_file: %s", exc)
+        return {}
+    if not state_path.exists():
+        return {}
+    try:
+        with open(state_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.warning("Falha ao ler estado persistido do Streamlit (%s): %s", state_path, exc)
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    width_profile = str(payload.get("width_profile", "Padrao (1600)"))
+    if width_profile not in WIDTH_PROFILE_OPTIONS:
+        width_profile = "Padrao (1600)"
+    return {
+        "width_profile": width_profile,
+        "width_profile_by_bucket": _normalize_width_profile_memory(payload.get("width_profile_by_bucket", {})),
+        "streamlit_render_stats": _normalize_render_stats(payload.get("streamlit_render_stats", {})),
+    }
+
+
+def _persist_streamlit_state(
+    *,
+    width_profile: str,
+    width_profile_by_bucket: dict[str, str],
+    streamlit_render_stats: dict[str, Any],
+) -> None:
+    if width_profile not in WIDTH_PROFILE_OPTIONS:
+        width_profile = "Padrao (1600)"
+    payload = {
+        "width_profile": width_profile,
+        "width_profile_by_bucket": _normalize_width_profile_memory(width_profile_by_bucket),
+        "streamlit_render_stats": _normalize_render_stats(streamlit_render_stats),
+        "updated_at": time.time(),
+    }
+    try:
+        state_path = _resolve_streamlit_ui_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        config_manager.atomic_write_json_file(
+            str(state_path),
+            payload,
+            indent=2,
+            ensure_ascii=False,
+        )
+    except Exception as exc:
+        logger.warning("Falha ao persistir estado opcional do Streamlit: %s", exc)
+
+
+def _resolve_width_profile_for_bucket(table_state: dict[str, Any]) -> tuple[str, str]:
+    fallback_profile = str(table_state.get("width_profile", "Padrao (1600)"))
+    if fallback_profile not in WIDTH_PROFILE_OPTIONS:
+        fallback_profile = "Padrao (1600)"
+
+    width_px = WIDTH_PROFILE_PIXELS.get(fallback_profile, 1600)
+    if hasattr(st, "session_state") and st.session_state is not None:
+        viewport_hint_raw = st.session_state.get("streamlit_viewport_width_px")
+        if viewport_hint_raw is not None:
+            try:
+                width_px = int(viewport_hint_raw)
+                if width_px <= 0:
+                    width_px = WIDTH_PROFILE_PIXELS.get(fallback_profile, 1600)
+            except (TypeError, ValueError):
+                width_px = WIDTH_PROFILE_PIXELS.get(fallback_profile, 1600)
+
+    width_bucket = _resolve_width_bucket(width_px)
+    memory = _normalize_width_profile_memory(table_state.get("width_profile_by_bucket", {}))
+    selected_profile = str(memory.get(width_bucket, fallback_profile))
+    if selected_profile not in WIDTH_PROFILE_OPTIONS:
+        selected_profile = fallback_profile
+    return selected_profile, width_bucket
+
+
+def _remember_width_profile_for_bucket(
+    table_state: dict[str, Any],
+    width_bucket: str,
+    width_profile: str,
+) -> None:
+    memory = _normalize_width_profile_memory(table_state.get("width_profile_by_bucket", {}))
+    if width_profile in WIDTH_PROFILE_OPTIONS:
+        memory[str(width_bucket)] = width_profile
+    table_state["width_profile_by_bucket"] = memory
+
+
+def _api_snapshot_available(consult_api: bool, recent_df: pd.DataFrame | None) -> bool:
+    return bool(consult_api and recent_df is not None and not recent_df.empty)
+
+
+def _clear_recent_api_snapshot() -> None:
+    if not hasattr(st, "session_state") or st.session_state is None:
+        return
+    st.session_state["recent_api_df"] = None
 
 
 def _build_table_caption(
@@ -579,6 +856,18 @@ def _paginate_dataframe(df: pd.DataFrame, page: int, page_size: int) -> tuple[pd
     return df.iloc[start:end].reset_index(drop=True), total_pages
 
 
+def _apply_large_page_guard(page_size: int, filtered_len: int) -> tuple[int, bool]:
+    """Optional guard for very large pages. Disabled by default."""
+    if page_size <= 0:
+        return page_size, False
+    if filtered_len <= 2000:
+        return page_size, False
+    if os.environ.get("SSA_STREAMLIT_LARGE_PAGE_GUARD", "0").strip() != "1":
+        return page_size, False
+    guarded = min(page_size, 500)
+    return guarded, guarded != page_size
+
+
 def _normalize_filter_selection(selected: list[Any], options: list[Any]) -> list[Any]:
     if not options:
         return []
@@ -702,8 +991,7 @@ if REAL_RUNTIME:
                 except Exception as exc:
                     logger.warning("Falha ao limpar cache de load_dataframe: %s", exc)
                 filter_cache.clear()
-                if hasattr(st, "session_state") and st.session_state is not None:
-                    st.session_state["recent_api_df"] = None
+                _clear_recent_api_snapshot()
                 progress_holder.progress(100)
                 if ok:
                     status_holder.info("Importacao concluida com sucesso.")
@@ -748,9 +1036,8 @@ executores: list[Any] = []
 emissores: list[Any] = []
 
 if REAL_RUNTIME and not raw_df.empty:
-    tab_filters, tab_table, tab_export, tab_ops = st.tabs(
-        ["Filtros", "Tabela", "Exportacao", "Cache e API"]
-    )
+    persisted_streamlit_state = _load_persisted_streamlit_state()
+    tab_filters, tab_table, tab_export, tab_ops = st.tabs(MAIN_TAB_LABELS)
 
     with tab_filters:
         st.subheader("Filtros")
@@ -789,10 +1076,17 @@ if REAL_RUNTIME and not raw_df.empty:
                 "table_height": 600,
                 "auto_width": True,
                 "page_number": 1,
-                "width_profile": "Padrao (1600)",
+                "width_profile": str(persisted_streamlit_state.get("width_profile", "Padrao (1600)")),
+                "width_profile_by_bucket": _normalize_width_profile_memory(
+                    persisted_streamlit_state.get("width_profile_by_bucket", {})
+                ),
                 "table_mode": "Tabela + grafico",
                 "compact_mode": False,
             }
+        if "streamlit_render_stats" not in st.session_state:
+            st.session_state["streamlit_render_stats"] = _normalize_render_stats(
+                persisted_streamlit_state.get("streamlit_render_stats", {})
+            )
         table_state = st.session_state[table_state_key]
         table_state["page_size"] = int(table_state.get("page_size", 250))
         table_state["table_height"] = int(table_state.get("table_height", 600))
@@ -800,6 +1094,9 @@ if REAL_RUNTIME and not raw_df.empty:
         table_state["sort_desc"] = bool(table_state.get("sort_desc", False))
         table_state["page_number"] = int(table_state.get("page_number", 1))
         table_state["width_profile"] = str(table_state.get("width_profile", "Padrao (1600)"))
+        table_state["width_profile_by_bucket"] = _normalize_width_profile_memory(
+            table_state.get("width_profile_by_bucket", {})
+        )
         table_state["table_mode"] = str(table_state.get("table_mode", "Tabela + grafico"))
         table_state["compact_mode"] = bool(table_state.get("compact_mode", False))
 
@@ -880,9 +1177,17 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": True,
                 "page_number": 1,
                 "width_profile": "Padrao (1600)",
+                "width_profile_by_bucket": {},
                 "table_mode": "Tabela + grafico",
                 "compact_mode": False,
             }
+            _persist_streamlit_state(
+                width_profile="Padrao (1600)",
+                width_profile_by_bucket={},
+                streamlit_render_stats=_normalize_render_stats(
+                    st.session_state.get("streamlit_render_stats", {})
+                ),
+            )
             rerun_fn = getattr(st, "rerun", None)
             if callable(rerun_fn):
                 rerun_fn()
@@ -1016,27 +1321,15 @@ if REAL_RUNTIME and not raw_df.empty:
             )
         )
         auto_width = bool(secondary_controls[2].checkbox("Auto largura", value=table_state.get("auto_width", True)))
-        width_profile_options = [
-            "Compacto (1200)",
-            "Padrao (1600)",
-            "Largo (2000)",
-            "XL (2400)",
-        ]
+        default_width_profile, width_bucket = _resolve_width_profile_for_bucket(table_state)
         width_profile = str(
             secondary_controls[3].selectbox(
                 "Perfil largura",
-                width_profile_options,
-                index=width_profile_options.index(table_state.get("width_profile", "Padrao (1600)"))
-                if table_state.get("width_profile", "Padrao (1600)") in width_profile_options
-                else 1,
+                WIDTH_PROFILE_OPTIONS,
+                index=WIDTH_PROFILE_OPTIONS.index(default_width_profile),
             )
         )
-        width_profile_pixels = {
-            "Compacto (1200)": 1200,
-            "Padrao (1600)": 1600,
-            "Largo (2000)": 2000,
-            "XL (2400)": 2400,
-        }
+        _remember_width_profile_for_bucket(table_state, width_bucket, width_profile)
 
         table_view_df = view_df
         if sort_column != "(Sem ordenacao)" and sort_column in table_view_df.columns:
@@ -1048,6 +1341,13 @@ if REAL_RUNTIME and not raw_df.empty:
                 )
             except Exception as exc:
                 logger.warning("Falha ao ordenar por %s: %s", sort_column, exc)
+
+        page_size, guarded_page_size = _apply_large_page_guard(
+            page_size,
+            len(table_view_df),
+        )
+        if guarded_page_size:
+            st.caption("Guard ativo para pagina grande: limite de 500 linhas por pagina.")
 
         _, total_pages = _paginate_dataframe(table_view_df, page=1, page_size=page_size)
         default_page = min(max(int(table_state.get("page_number", 1)), 1), total_pages)
@@ -1075,16 +1375,26 @@ if REAL_RUNTIME and not raw_df.empty:
                 "auto_width": auto_width,
                 "page_number": page_number,
                 "width_profile": width_profile,
+                "width_profile_by_bucket": table_state.get("width_profile_by_bucket", {}),
                 "table_mode": table_mode,
                 "compact_mode": compact_mode,
             }
+        )
+        _persist_streamlit_state(
+            width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+            width_profile_by_bucket=_normalize_width_profile_memory(
+                table_state.get("width_profile_by_bucket", {})
+            ),
+            streamlit_render_stats=_normalize_render_stats(
+                st.session_state.get("streamlit_render_stats", {})
+            ),
         )
 
         display_df = ensure_arrow_compatible(page_df.rename(columns=rename_map))
         column_config = _build_streamlit_column_config(
             page_df,
             rename_map,
-            available_width=width_profile_pixels.get(width_profile, 1600),
+            available_width=WIDTH_PROFILE_PIXELS.get(width_profile, 1600),
         )
 
         render_t0 = time.perf_counter()
@@ -1210,6 +1520,13 @@ if REAL_RUNTIME and not raw_df.empty:
                     )
                     if st.button("Limpar telemetria", key="clear_render_telemetry"):
                         st.session_state["streamlit_render_stats"] = {}
+                        _persist_streamlit_state(
+                            width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+                            width_profile_by_bucket=_normalize_width_profile_memory(
+                                table_state.get("width_profile_by_bucket", {})
+                            ),
+                            streamlit_render_stats={},
+                        )
                         st.info("Telemetria limpa.")
                     profile_stats = render_stats.get(selected_profile)
                 else:
@@ -1251,13 +1568,13 @@ if REAL_RUNTIME and not raw_df.empty:
                         logger.error("Falha ao consultar API Itaipu: %s", exc)
                         st.warning("Nao foi possivel consultar API. Dashboard segue com base local.")
                 if api_actions[1].button("Limpar snapshot API", key="clear_api_data"):
-                    if hasattr(st, "session_state") and st.session_state is not None:
-                        st.session_state["recent_api_df"] = None
+                    _clear_recent_api_snapshot()
                     st.info("Snapshot de API removido.")
                 api_actions[2].caption("Atualizacao manual para evitar bloqueio em reruns.")
                 if hasattr(st, "session_state") and st.session_state is not None:
                     recent_df = st.session_state.get("recent_api_df")
-                if recent_df is not None and not recent_df.empty:
-                    st.dataframe(ensure_arrow_compatible(recent_df), width='stretch', height=240)
+                if _api_snapshot_available(consult_api, recent_df):
+                    snapshot_df = cast(pd.DataFrame, recent_df)
+                    st.dataframe(ensure_arrow_compatible(snapshot_df), width='stretch', height=240)
             else:
                 st.info("Ative a opcao de API na aba Filtros para consultar dados recentes.")

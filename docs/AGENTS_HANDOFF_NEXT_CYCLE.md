@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 13:40 - authoritative block
+## CURRENT TRUTH 2026-02-28 18:30 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -10,13 +10,13 @@ This handoff is ready to reuse in the next conversation.
   1. cache size guard delivered in GUI cache and Streamlit cache.
   2. matrix item `9` moved to `resolved` (older deferred snapshots are historical only).
   3. cache stats now include `skipped_large_entries` and `max_entry_mb`.
+- Optional P3 delivery status:
+  1. item `104` resolved with persisted width profile memory across sessions.
+  2. item `107` resolved with persisted render telemetry across sessions.
 - Validation snapshot:
-  - touched-scope `py_compile`, `ruff`: pass
-  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `32 passed`
+  - touched-scope `py_compile`, `ruff`, `ty`: pass
+  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `34 passed`
 - Deferred classification with difficulty:
-  - optional product (P3):
-    1. persistent widths (`item 104`) - media
-    2. telemetry persistence across sessions (`item 107`) - media/alta
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - alta
     2. streamlit god-module split (`item 101`) - alta
@@ -29,6 +29,7 @@ This handoff is ready to reuse in the next conversation.
 - Operational note:
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
+  - doc hygiene rule: do not promote older blocks above this one.
 
 ## CURRENT TRUTH 2026-02-28 12:25 - authoritative block
 

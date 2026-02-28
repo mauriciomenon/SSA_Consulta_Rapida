@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-02-28 13:40 - start from here
+## CURRENT TRUTH 2026-02-28 18:30 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -10,13 +10,13 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. P1 cache guard delivered in GUI + Streamlit cache paths.
   2. matrix item `9` moved to `resolved` (older deferred snapshots are historical only).
   3. stats now include `skipped_large_entries` and `max_entry_mb`.
+- Optional P3 status:
+  1. item `104` resolved: persistent width profile memory across sessions.
+  2. item `107` resolved: render telemetry persistence across sessions.
 - Validation snapshot for Sprint D closeout:
-  - `py_compile`, `ruff` on touched cache/tests: pass
-  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `32 passed`
+  - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
+  - focused `pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: `34 passed`
 - Deferred map (explicit, by difficulty):
-  - optional product (P3):
-    1. persistent user-resizable widths (`item 104`) - difficulty media
-    2. telemetry persistence across sessions (`item 107`) - difficulty media/alta
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - difficulty alta
     2. streamlit god-module split (`item 101`) - difficulty alta
@@ -25,6 +25,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   2. selecionar somente item aprovado de risco real.
   3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
   4. atualizar matrix/backlog/handoff no mesmo slice.
+  5. manter blocos antigos somente como historico, sem usar como fonte de verdade.
 
 ## CURRENT TRUTH 2026-02-28 12:25 - start from here
 
