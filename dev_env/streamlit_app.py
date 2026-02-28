@@ -981,6 +981,20 @@ def _build_column_presets(columns: list[str]) -> dict[str, list[str]]:
     }
 
 
+def _list_spreadsheet_files_count(docs_dir: str) -> int:
+    try:
+        docs_path = Path(docs_dir)
+        if not docs_path.exists() or not docs_path.is_dir():
+            return 0
+        count = 0
+        for file_path in docs_path.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in {".xlsx", ".xls", ".csv"}:
+                count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def _is_real_streamlit_runtime() -> bool:
     # Evita executar UI completa fora do runtime do streamlit.
     try:
@@ -1023,6 +1037,26 @@ if REAL_RUNTIME:
             unsafe_allow_html=True,
         )
     with header_right:
+        theme_options = list(STREAMLIT_THEME_PALETTES.keys())
+        selected_theme_header = st.selectbox(
+            "Tema",
+            theme_options,
+            index=theme_options.index(active_theme_name),
+            key="streamlit_theme_header_selector",
+        )
+        if selected_theme_header != active_theme_name:
+            st.session_state["streamlit_theme_name"] = selected_theme_header
+            _persist_streamlit_state(
+                theme_name=selected_theme_header,
+                width_profile="Padrao (1600)",
+                width_profile_by_bucket={},
+                streamlit_render_stats=_normalize_render_stats(
+                    st.session_state.get("streamlit_render_stats", {})
+                ),
+            )
+            rerun_fn = getattr(st, "rerun", None)
+            if callable(rerun_fn):
+                rerun_fn()
         st.caption(f"Atualizado as {datetime.now().strftime('%H:%M:%S')}")
 
     with st.sidebar:
@@ -1047,6 +1081,15 @@ if REAL_RUNTIME:
         except PathSafetyError as exc:
             st.error(str(exc))
             st.stop()
+
+        db_file = Path(db_path)
+        db_exists = db_file.exists()
+        db_size_mb = (db_file.stat().st_size / (1024 * 1024)) if db_exists else 0.0
+        sheet_files_count = _list_spreadsheet_files_count(docs_dir)
+        st.caption(
+            f"DB: {'ok' if db_exists else 'ausente'} | tamanho: {db_size_mb:.1f} MB | "
+            f"arquivos de entrada: {sheet_files_count}"
+        )
 
         btn_col_load, btn_col_reimport = st.columns(2)
         status_holder = st.empty()
@@ -1099,6 +1142,19 @@ if REAL_RUNTIME and raw_df.empty:
     )
     st.stop()
 
+if REAL_RUNTIME and not raw_df.empty:
+    with st.sidebar:
+        st.divider()
+        st.subheader("Resumo rapido")
+        st.metric("Registros no banco", len(raw_df))
+        st.metric("Colunas disponiveis", len(raw_df.columns))
+        st.caption(
+            "Tema ativo: "
+            + _normalize_streamlit_theme_name(
+                st.session_state.get("streamlit_theme_name", DEFAULT_STREAMLIT_THEME)
+            )
+        )
+
 search_terms = ""
 situacao_sel: list[Any] = []
 executor_sel: list[Any] = []
@@ -1132,6 +1188,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
+                "enable_situacao_filter": False,
                 "situacao_sel": situacoes,
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
@@ -1140,6 +1197,9 @@ if REAL_RUNTIME and not raw_df.empty:
             }
         filter_state = st.session_state[state_key]
         filter_state["situacao_sel"] = [value for value in filter_state.get("situacao_sel", []) if value in situacoes] or situacoes
+        filter_state["enable_situacao_filter"] = bool(
+            filter_state.get("enable_situacao_filter", False)
+        )
         filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores] or default_executor
         filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores] or default_emissor
         valid_display_values = set(column_display_names.values())
@@ -1192,24 +1252,38 @@ if REAL_RUNTIME and not raw_df.empty:
                 value=bool(filter_state.get("consult_api", False)),
             )
             st.caption("Selecao de filtros")
-            row_filters = st.columns([1.4, 1.4, 1.4, 0.8])
-            situacao_input = row_filters[0].multiselect(
-                "Situacao",
-                situacoes,
-                default=filter_state.get("situacao_sel", situacoes),
-            )
-            executor_input = row_filters[1].multiselect(
+            row_filters = st.columns([1.6, 1.6])
+            executor_input = row_filters[0].multiselect(
                 "Setor executor",
                 executores,
                 default=filter_state.get("executor_sel", default_executor),
             )
-            emissor_input = row_filters[2].multiselect(
+            emissor_input = row_filters[1].multiselect(
                 "Setor emissor",
                 emissores,
                 default=filter_state.get("emissor_sel", default_emissor),
             )
+            situacao_default_selected = filter_state.get("situacao_sel", situacoes)
+            enable_situacao_default = bool(filter_state.get("enable_situacao_filter", False))
+            if len(situacao_default_selected) != len(situacoes):
+                enable_situacao_default = True
+            with st.expander("Filtro de situacao (lista longa)", expanded=enable_situacao_default):
+                enable_situacao_input = st.checkbox(
+                    "Ativar filtro de situacao",
+                    value=enable_situacao_default,
+                )
+                if enable_situacao_input:
+                    situacao_input = st.multiselect(
+                        "Situacao",
+                        situacoes,
+                        default=situacao_default_selected,
+                    )
+                else:
+                    st.caption("Situacao em modo geral: todas as situacoes.")
+                    situacao_input = situacoes
+            st.caption("Limite de linhas")
             limit_input = int(
-                row_filters[3].number_input(
+                st.number_input(
                     "Limite de linhas",
                     min_value=50,
                     max_value=20000,
@@ -1218,6 +1292,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 )
             )
             st.caption("Colunas e presets")
+            st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
             selected_display_input = st.multiselect(
                 "Colunas exibidas",
                 options=[column_display_names[col] for col in raw_df.columns],
@@ -1242,6 +1317,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
+                "enable_situacao_filter": False,
                 "situacao_sel": situacoes,
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
@@ -1284,7 +1360,8 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": search_input,
                 "consult_api": consult_api_input,
-                "situacao_sel": situacao_input,
+                "enable_situacao_filter": bool(enable_situacao_input),
+                "situacao_sel": situacao_input if enable_situacao_input else situacoes,
                 "executor_sel": executor_input,
                 "emissor_sel": emissor_input,
                 "limit_rows": limit_input,
@@ -1332,6 +1409,38 @@ if REAL_RUNTIME and not raw_df.empty:
         active_summary.append("API: manual")
 
     with tab_table:
+        with st.expander("Colunas exibidas (atalho rapido)", expanded=False):
+            quick_selected_display = st.multiselect(
+                "Colunas da tabela",
+                options=[column_display_names[col] for col in raw_df.columns],
+                default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
+                key="table_quick_selected_display",
+            )
+            quick_cols = st.columns(3)
+            quick_core = quick_cols[0].button("Core", key="table_quick_core")
+            quick_all = quick_cols[1].button("Todas", key="table_quick_all")
+            quick_apply = quick_cols[2].button("Aplicar colunas", key="table_quick_apply")
+
+            if quick_core:
+                st.session_state[state_key]["selected_display"] = [
+                    column_display_names[col] for col in column_presets["core"]
+                ]
+                rerun_fn = getattr(st, "rerun", None)
+                if callable(rerun_fn):
+                    rerun_fn()
+            elif quick_all:
+                st.session_state[state_key]["selected_display"] = [
+                    column_display_names[col] for col in column_presets["all"]
+                ]
+                rerun_fn = getattr(st, "rerun", None)
+                if callable(rerun_fn):
+                    rerun_fn()
+            elif quick_apply:
+                st.session_state[state_key]["selected_display"] = quick_selected_display
+                rerun_fn = getattr(st, "rerun", None)
+                if callable(rerun_fn):
+                    rerun_fn()
+
         total_ssas = len(filtered_df)
         original_count = len(raw_df)
         reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
@@ -1576,31 +1685,6 @@ if REAL_RUNTIME and not raw_df.empty:
     with tab_ops:
         ops_left, ops_right = st.columns([1.3, 2.7])
         with ops_left:
-            theme_options = list(STREAMLIT_THEME_PALETTES.keys())
-            current_theme = _normalize_streamlit_theme_name(
-                st.session_state.get("streamlit_theme_name", DEFAULT_STREAMLIT_THEME)
-            )
-            selected_theme = st.selectbox(
-                "Tema visual",
-                theme_options,
-                index=theme_options.index(current_theme),
-                key="streamlit_theme_selector",
-            )
-            if selected_theme != current_theme:
-                st.session_state["streamlit_theme_name"] = selected_theme
-                _persist_streamlit_state(
-                    theme_name=selected_theme,
-                    width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
-                    width_profile_by_bucket=_normalize_width_profile_memory(
-                        table_state.get("width_profile_by_bucket", {})
-                    ),
-                    streamlit_render_stats=_normalize_render_stats(
-                        st.session_state.get("streamlit_render_stats", {})
-                    ),
-                )
-                rerun_fn = getattr(st, "rerun", None)
-                if callable(rerun_fn):
-                    rerun_fn()
             st.subheader("Cache")
             cache_stats = filter_cache.get_stats()
             st.metric("Entradas", f"{cache_stats['size']} / {cache_stats['max_size']}")
