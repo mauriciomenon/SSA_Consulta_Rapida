@@ -366,6 +366,39 @@ WIDTH_PROFILE_PIXELS = {
 }
 MAIN_TAB_LABELS = ["Filtros", "Tabela", "Exportacao", "Cache e API"]
 STREAMLIT_UI_STATE_FILE_DEFAULT = "streamlit_ui_state.json"
+DEFAULT_STREAMLIT_THEME = "Atlantico"
+STREAMLIT_THEME_PALETTES: dict[str, dict[str, str]] = {
+    "Atlantico": {
+        "bg": "#f2f6fb",
+        "panel": "#ffffff",
+        "ink": "#10243f",
+        "muted": "#52657e",
+        "accent": "#1f7a8c",
+        "accent_soft": "#dff3f7",
+        "border": "#d3dfec",
+        "metric_bg": "#f8fbff",
+    },
+    "Grafite": {
+        "bg": "#eef0f3",
+        "panel": "#fcfcfd",
+        "ink": "#1b1d21",
+        "muted": "#4a5059",
+        "accent": "#4a5d73",
+        "accent_soft": "#e3e9f0",
+        "border": "#d1d7df",
+        "metric_bg": "#f4f6f8",
+    },
+    "Solar": {
+        "bg": "#fff8ef",
+        "panel": "#fffdf8",
+        "ink": "#3b2a1f",
+        "muted": "#6d5542",
+        "accent": "#b95d2a",
+        "accent_soft": "#ffe7d6",
+        "border": "#ecd6c4",
+        "metric_bg": "#fff3e7",
+    },
+}
 
 
 def load_dataframe(db_path: str) -> pd.DataFrame:
@@ -512,6 +545,44 @@ def _normalize_width_profile_memory(memory_raw: Any) -> dict[str, str]:
     return normalized
 
 
+def _normalize_streamlit_theme_name(raw_theme: Any) -> str:
+    theme_name = str(raw_theme or DEFAULT_STREAMLIT_THEME)
+    if theme_name not in STREAMLIT_THEME_PALETTES:
+        return DEFAULT_STREAMLIT_THEME
+    return theme_name
+
+
+def _build_streamlit_theme_css(theme_name: str) -> str:
+    theme = STREAMLIT_THEME_PALETTES[_normalize_streamlit_theme_name(theme_name)]
+    return (
+        "<style>"
+        ":root {"
+        f"--ssa-bg:{theme['bg']};"
+        f"--ssa-panel:{theme['panel']};"
+        f"--ssa-ink:{theme['ink']};"
+        f"--ssa-muted:{theme['muted']};"
+        f"--ssa-accent:{theme['accent']};"
+        f"--ssa-accent-soft:{theme['accent_soft']};"
+        f"--ssa-border:{theme['border']};"
+        f"--ssa-metric-bg:{theme['metric_bg']};"
+        "}"
+        ".stApp{background:var(--ssa-bg);color:var(--ssa-ink);}"
+        ".block-container{padding-top:0.8rem;padding-bottom:0.5rem;}"
+        "h1,h2,h3{color:var(--ssa-ink);}"
+        ".section-label{font-size:0.84rem;color:var(--ssa-accent);margin-bottom:0.35rem;}"
+        ".stButton button{width:100%;border:1px solid var(--ssa-border);}"
+        "div[data-testid='stMetric']{background:var(--ssa-metric-bg);border:1px solid var(--ssa-border);"
+        "padding:0.5rem 0.65rem;border-radius:0.5rem;}"
+        "div[data-testid='stForm']{background:var(--ssa-panel);border:1px solid var(--ssa-border);"
+        "padding:0.6rem 0.75rem;border-radius:0.55rem;}"
+        "div[data-testid='stHorizontalBlock'] > div{gap:0.45rem;}"
+        "div[data-testid='stSelectbox'] > div,div[data-testid='stNumberInput'] > div,"
+        "div[data-testid='stTextInput'] > div{border-color:var(--ssa-border);}"
+        ".stCaption{color:var(--ssa-muted)!important;}"
+        "</style>"
+    )
+
+
 def _normalize_render_stats(raw_stats: Any) -> dict[str, dict[str, Any]]:
     if not isinstance(raw_stats, dict):
         return {}
@@ -597,6 +668,7 @@ def _load_persisted_streamlit_state() -> dict[str, Any]:
     if width_profile not in WIDTH_PROFILE_OPTIONS:
         width_profile = "Padrao (1600)"
     return {
+        "theme_name": _normalize_streamlit_theme_name(payload.get("theme_name", DEFAULT_STREAMLIT_THEME)),
         "width_profile": width_profile,
         "width_profile_by_bucket": _normalize_width_profile_memory(payload.get("width_profile_by_bucket", {})),
         "streamlit_render_stats": _normalize_render_stats(payload.get("streamlit_render_stats", {})),
@@ -605,6 +677,7 @@ def _load_persisted_streamlit_state() -> dict[str, Any]:
 
 def _persist_streamlit_state(
     *,
+    theme_name: str | None = None,
     width_profile: str,
     width_profile_by_bucket: dict[str, str],
     streamlit_render_stats: dict[str, Any],
@@ -612,6 +685,15 @@ def _persist_streamlit_state(
     if width_profile not in WIDTH_PROFILE_OPTIONS:
         width_profile = "Padrao (1600)"
     payload = {
+        "theme_name": _normalize_streamlit_theme_name(
+            theme_name
+            if theme_name is not None
+            else (
+                st.session_state.get("streamlit_theme_name", DEFAULT_STREAMLIT_THEME)
+                if hasattr(st, "session_state") and st.session_state is not None
+                else DEFAULT_STREAMLIT_THEME
+            )
+        ),
         "width_profile": width_profile,
         "width_profile_by_bucket": _normalize_width_profile_memory(width_profile_by_bucket),
         "streamlit_render_stats": _normalize_render_stats(streamlit_render_stats),
@@ -914,22 +996,19 @@ def _is_real_streamlit_runtime() -> bool:
 REAL_RUNTIME = _is_real_streamlit_runtime()
 
 if REAL_RUNTIME:
+    persisted_boot_state = _load_persisted_streamlit_state()
     st.set_page_config(
         page_title="SSA Consulta Rapida",
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    st.markdown(
-        """
-        <style>
-        .block-container { padding-top: 0.8rem; padding-bottom: 0.5rem; }
-        h1 { font-size: 1.35rem !important; margin-bottom: 0.15rem; }
-        .section-label { font-size: 0.84rem; color: #1f3b6d; margin-bottom: 0.35rem; }
-        .stButton button { width: 100%; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    if "streamlit_theme_name" not in st.session_state:
+        st.session_state["streamlit_theme_name"] = _normalize_streamlit_theme_name(
+            persisted_boot_state.get("theme_name", DEFAULT_STREAMLIT_THEME)
+        )
+    active_theme_name = _normalize_streamlit_theme_name(st.session_state.get("streamlit_theme_name"))
+    st.session_state["streamlit_theme_name"] = active_theme_name
+    st.markdown(_build_streamlit_theme_css(active_theme_name), unsafe_allow_html=True)
 
 db_path = DB_PATH_DEFAULT
 docs_dir = DOCS_DIR_DEFAULT
@@ -1497,6 +1576,31 @@ if REAL_RUNTIME and not raw_df.empty:
     with tab_ops:
         ops_left, ops_right = st.columns([1.3, 2.7])
         with ops_left:
+            theme_options = list(STREAMLIT_THEME_PALETTES.keys())
+            current_theme = _normalize_streamlit_theme_name(
+                st.session_state.get("streamlit_theme_name", DEFAULT_STREAMLIT_THEME)
+            )
+            selected_theme = st.selectbox(
+                "Tema visual",
+                theme_options,
+                index=theme_options.index(current_theme),
+                key="streamlit_theme_selector",
+            )
+            if selected_theme != current_theme:
+                st.session_state["streamlit_theme_name"] = selected_theme
+                _persist_streamlit_state(
+                    theme_name=selected_theme,
+                    width_profile=str(table_state.get("width_profile", "Padrao (1600)")),
+                    width_profile_by_bucket=_normalize_width_profile_memory(
+                        table_state.get("width_profile_by_bucket", {})
+                    ),
+                    streamlit_render_stats=_normalize_render_stats(
+                        st.session_state.get("streamlit_render_stats", {})
+                    ),
+                )
+                rerun_fn = getattr(st, "rerun", None)
+                if callable(rerun_fn):
+                    rerun_fn()
             st.subheader("Cache")
             cache_stats = filter_cache.get_stats()
             st.metric("Entradas", f"{cache_stats['size']} / {cache_stats['max_size']}")
