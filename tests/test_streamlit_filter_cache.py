@@ -29,6 +29,7 @@ from dev_env.streamlit_app import (
     _resolve_width_bucket,
     _resolve_width_profile_for_bucket,
     _resolve_streamlit_ui_state_path,
+    _resolve_situacao_quick_mode,
     _update_render_telemetry,
     st,
 )
@@ -78,6 +79,23 @@ def test_streamlit_filter_cache_key_token_distinguishes_same_shape_data() -> Non
     cache.put(df1.shape, "", [], [], [], df1, df_token=token1)
     assert cache.get(df1.shape, "", [], [], [], df_token=token1) is not None
     assert cache.get(df2.shape, "", [], [], [], df_token=token2) is None
+
+
+def test_streamlit_filter_cache_stats_parity_between_main_and_compat_methods() -> None:
+    cache = StreamlitFilterCache(max_size=1, ttl_seconds=30)
+    cache._use_session_state = False
+    cache._local_cache = {}
+    cache._local_stats = {"hits": 0, "misses": 0, "evictions": 0, "skipped_large_entries": 0}
+
+    df1 = pd.DataFrame({"numero_ssa": ["202500001"]})
+    df2 = pd.DataFrame({"numero_ssa": ["202500002"]})
+
+    cache.put(df1.shape, "a", [], [], [], df1, df_token=("k1",))
+    cache.cache_filter_result("compat_key", df2)
+
+    stats = cache.get_stats()
+    assert stats["evictions"] == 1
+    assert stats["size"] == 1
 
 
 def test_streamlit_filter_cache_skips_large_entry_when_limit_is_set(monkeypatch) -> None:
@@ -161,6 +179,15 @@ def test_normalize_filter_selection_collapses_full_selection() -> None:
     options = ["A", "B", "C"]
     assert _normalize_filter_selection(["A", "B", "C"], options) == []
     assert _normalize_filter_selection(["A"], options) == ["A"]
+
+
+def test_resolve_situacao_quick_mode_options() -> None:
+    situacoes = ["EXECUTADA", "ABERTO", "AAT"]
+    assert _resolve_situacao_quick_mode(situacoes, [], "Todas") == situacoes
+    assert _resolve_situacao_quick_mode(situacoes, [], "Executadas") == ["EXECUTADA"]
+    assert _resolve_situacao_quick_mode(situacoes, [], "Abertas") == ["ABERTO", "AAT"]
+    assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Manual") == ["AAT"]
+    assert _resolve_situacao_quick_mode(situacoes, ["AAT"], "Nenhuma") == []
 
 
 def test_default_visible_columns_prefers_core_columns() -> None:

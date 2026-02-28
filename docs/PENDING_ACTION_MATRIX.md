@@ -24,6 +24,22 @@ Total itens: 108
    - streamlit layout/ux only.
    - no broad refactor.
 
+## Update 2026-02-28 (id 92 closure: cache architecture micro-refactor)
+
+1. Item `92` moved from `deferred` to `resolved` with minimal-risk refactor:
+   - cache internals now use shared helpers for read/store paths.
+   - duplicated logic removed between:
+     - `get` and `get_cached_filter`
+     - `put` and `cache_filter_result`
+2. Guardrails preserved:
+   - same TTL semantics.
+   - same LRU eviction semantics.
+   - same stats contract (`hits/misses/evictions/skipped_large_entries`).
+   - same max-entry gate (`SSA_CACHE_MAX_MB`).
+3. Validation:
+   - focused tests expanded in `tests/test_streamlit_filter_cache.py`.
+   - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`38 passed`).
+
 ## Update 2026-02-28 (streamlit theme slice: colors + behavior)
 
 1. Historical limbo request addressed in focused slice:
@@ -938,23 +954,12 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: sprint A consolidou ajustes de filtros sem regressao visual e com testes focados verdes.
 
-## 92. [deferred] (sem local exato)
+## 92. [resolved] (sem local exato)
 - Item: arquitetura de cache:
-- Escopo executavel:
-  1. centralizar leitura/escrita de cache state e stats em helper unico.
-  2. remover duplicacao entre `put/cache_filter_result` e `get/get_cached_filter`.
-  3. manter contrato atual de env gates (`SSA_CACHE_MAX_MB`, TTL, max_size).
-- Risco real:
-  1. regressao de contadores (`hits/misses/evictions/skipped_large_entries`).
-  2. regressao em backend fallback quando `session_state` nao existe.
-  3. risco de regressao em copy semantics (`result.copy()`).
-- Teste alvo:
-  1. `tests/test_streamlit_filter_cache.py`:
-     - paridade de stats entre metodos principais e metodos de compatibilidade.
-     - lock de comportamento em fallback local e em session backend.
-     - lock de skip de entradas grandes + hit_rate.
-  2. `tests/test_filter_cache_locking.py`:
-     - garantir ausencia de regressao no contrato de lock e stats.
+- Evidencia:
+  1. helpers compartilhados introduzidos em `StreamlitFilterCache` para get/store.
+  2. paridade entre metodos principais e compatibilidade coberta em regressao focada.
+  3. suite focada de cache/lock verde (`38 passed`).
 
 ## 93. [resolved] (sem local exato)
 - Item: Baseline restante de ty concentrada em:

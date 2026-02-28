@@ -179,6 +179,38 @@ class StreamlitFilterCache:
             return False
         entry_bytes = int(result.memory_usage(index=True, deep=True).sum())
         return entry_bytes > self._max_entry_bytes
+
+    def _get_by_key(self, key: str) -> Optional[pd.DataFrame]:
+        cache, stats = self._resolve_backend()
+        entry = cache.get(key)
+        if not entry:
+            stats['misses'] += 1
+            return None
+        if time.time() - entry['timestamp'] >= self.ttl_seconds:
+            del cache[key]
+            stats['misses'] += 1
+            return None
+        cache[key] = cache.pop(key)
+        stats['hits'] += 1
+        return entry['data'].copy()
+
+    def _store_by_key(self, key: str, result: pd.DataFrame, meta: Optional[dict[str, Any]] = None) -> bool:
+        cache, stats = self._resolve_backend()
+        if self._entry_too_large(result):
+            stats['skipped_large_entries'] += 1
+            return False
+        if key in cache:
+            del cache[key]
+        while len(cache) >= self.max_size:
+            oldest_key = next(iter(cache))
+            del cache[oldest_key]
+            stats['evictions'] += 1
+        cache[key] = {
+            'data': result.copy(),
+            'timestamp': time.time(),
+            'meta': meta or {},
+        }
+        return True
     
     def _generate_key(
         self,
@@ -213,22 +245,7 @@ class StreamlitFilterCache:
     ) -> Optional[pd.DataFrame]:
         """Recupera resultado do cache se valido."""
         key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
-        cache, stats = self._resolve_backend()
-
-        if key in cache:
-            entry = cache[key]
-            # Verifica TTL
-            if time.time() - entry['timestamp'] < self.ttl_seconds:
-                # Move para o final (LRU)
-                cache[key] = cache.pop(key)
-                stats['hits'] += 1
-                return entry['data'].copy()
-            else:
-                # Cache expirado
-                del cache[key]
-
-        stats['misses'] += 1
-        return None
+        return self._get_by_key(key)
     
     def put(
         self,
@@ -242,31 +259,12 @@ class StreamlitFilterCache:
     ):
         """Armazena resultado no cache."""
         key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
-        cache, stats = self._resolve_backend()
-        if self._entry_too_large(result):
-            stats['skipped_large_entries'] += 1
+        stored = self._store_by_key(key, result=result)
+        if not stored:
             logger.info(
                 "StreamlitFilterCache.put skipped large DataFrame entry (max_bytes=%s)",
                 self._max_entry_bytes,
             )
-            return
-
-        # Remove entrada existente se houver
-        if key in cache:
-            del cache[key]
-
-        # Implementa politica LRU
-        while len(cache) >= self.max_size:
-            # Remove item mais antigo
-            oldest_key = next(iter(cache))
-            del cache[oldest_key]
-            stats['evictions'] += 1
-
-        # Adiciona nova entrada
-        cache[key] = {
-            'data': result.copy(),
-            'timestamp': time.time()
-        }
     
     def get_stats(self) -> dict:
         """Retorna estatisticas do cache."""
@@ -312,40 +310,15 @@ class StreamlitFilterCache:
 
     # --- Metodos de compatibilidade com scripts de teste ---
     def get_cached_filter(self, key: str) -> Optional[pd.DataFrame]:
-        cache, stats = self._resolve_backend()
-        entry = cache.get(key)
-        if not entry:
-            stats['misses'] += 1
-            return None
-        if time.time() - entry['timestamp'] >= self.ttl_seconds:
-            # expirada
-            del cache[key]
-            stats['misses'] += 1
-            return None
-        stats['hits'] += 1
-        return entry['data'].copy()
+        return self._get_by_key(key)
 
     def cache_filter_result(self, key: str, result: pd.DataFrame, meta: Optional[dict] = None):
-        cache, stats = self._resolve_backend()
-        if self._entry_too_large(result):
-            stats['skipped_large_entries'] += 1
+        stored = self._store_by_key(key, result=result, meta=meta)
+        if not stored:
             logger.info(
                 "StreamlitFilterCache.cache_filter_result skipped large DataFrame entry (max_bytes=%s)",
                 self._max_entry_bytes,
             )
-            return
-        # politica LRU simples
-        if key in cache:
-            del cache[key]
-        while len(cache) >= self.max_size:
-            oldest_key = next(iter(cache))
-            del cache[oldest_key]
-            stats['evictions'] += 1
-        cache[key] = {
-            'data': result.copy(),
-            'timestamp': time.time(),
-            'meta': meta or {}
-        }
 
 
 # Instancia cache global
@@ -981,6 +954,31 @@ def _build_column_presets(columns: list[str]) -> dict[str, list[str]]:
     }
 
 
+def _resolve_situacao_quick_mode(
+    situacoes: list[Any],
+    manual_values: list[Any],
+    mode: str,
+) -> list[Any]:
+    mode_key = str(mode).strip().lower()
+    if mode_key == "todas":
+        return list(situacoes)
+    if mode_key == "executadas":
+        picked = [value for value in situacoes if "EXECUT" in str(value).upper()]
+        return picked if picked else list(situacoes)
+    if mode_key == "abertas":
+        picked = []
+        for value in situacoes:
+            text = str(value).upper()
+            if "EXECUT" in text or "CONCL" in text or "FINAL" in text:
+                continue
+            picked.append(value)
+        return picked if picked else list(situacoes)
+    if mode_key == "nenhuma":
+        return []
+    normalized_manual = [value for value in manual_values if value in situacoes]
+    return normalized_manual if normalized_manual else list(situacoes)
+
+
 def _list_spreadsheet_files_count(docs_dir: str) -> int:
     try:
         docs_path = Path(docs_dir)
@@ -1188,7 +1186,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "enable_situacao_filter": False,
+                "situacao_quick_mode": "Manual",
                 "situacao_sel": situacoes,
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
@@ -1197,9 +1195,14 @@ if REAL_RUNTIME and not raw_df.empty:
             }
         filter_state = st.session_state[state_key]
         filter_state["situacao_sel"] = [value for value in filter_state.get("situacao_sel", []) if value in situacoes] or situacoes
-        filter_state["enable_situacao_filter"] = bool(
-            filter_state.get("enable_situacao_filter", False)
-        )
+        if str(filter_state.get("situacao_quick_mode", "Manual")) not in {
+            "Manual",
+            "Todas",
+            "Abertas",
+            "Executadas",
+            "Nenhuma",
+        }:
+            filter_state["situacao_quick_mode"] = "Manual"
         filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores] or default_executor
         filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores] or default_emissor
         valid_display_values = set(column_display_names.values())
@@ -1263,24 +1266,41 @@ if REAL_RUNTIME and not raw_df.empty:
                 emissores,
                 default=filter_state.get("emissor_sel", default_emissor),
             )
-            situacao_default_selected = filter_state.get("situacao_sel", situacoes)
-            enable_situacao_default = bool(filter_state.get("enable_situacao_filter", False))
-            if len(situacao_default_selected) != len(situacoes):
-                enable_situacao_default = True
-            with st.expander("Filtro de situacao (lista longa)", expanded=enable_situacao_default):
-                enable_situacao_input = st.checkbox(
-                    "Ativar filtro de situacao",
-                    value=enable_situacao_default,
-                )
-                if enable_situacao_input:
-                    situacao_input = st.multiselect(
-                        "Situacao",
-                        situacoes,
-                        default=situacao_default_selected,
-                    )
-                else:
-                    st.caption("Situacao em modo geral: todas as situacoes.")
-                    situacao_input = situacoes
+            st.caption("Situacao (sempre visivel)")
+            situacao_counts = (
+                raw_df.get("situacao", pd.Series(dtype=str))
+                .dropna()
+                .astype(str)
+                .value_counts()
+            )
+            situacao_display_map: dict[str, Any] = {}
+            for value in situacoes:
+                value_text = str(value)
+                display = f"{value_text} ({int(situacao_counts.get(value_text, 0))})"
+                situacao_display_map[display] = value
+            selected_situacao_values = list(filter_state.get("situacao_sel", situacoes))
+            default_situacao_display = [
+                display
+                for display, raw_value in situacao_display_map.items()
+                if raw_value in selected_situacao_values
+            ]
+            situacao_input_display = st.multiselect(
+                "Situacao",
+                options=list(situacao_display_map.keys()),
+                default=default_situacao_display,
+            )
+            situacao_quick_mode_input = st.selectbox(
+                "Atalho de situacao",
+                ["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"],
+                index=["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"].index(
+                    str(filter_state.get("situacao_quick_mode", "Manual"))
+                ),
+            )
+            situacao_input = [
+                situacao_display_map[label]
+                for label in situacao_input_display
+                if label in situacao_display_map
+            ]
             st.caption("Limite de linhas")
             limit_input = int(
                 st.number_input(
@@ -1317,7 +1337,7 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "enable_situacao_filter": False,
+                "situacao_quick_mode": "Manual",
                 "situacao_sel": situacoes,
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
@@ -1357,11 +1377,16 @@ if REAL_RUNTIME and not raw_df.empty:
             filter_state["selected_display"] = [column_display_names[col] for col in column_presets["all"]]
 
         if apply_filters:
+            resolved_situacao = _resolve_situacao_quick_mode(
+                situacoes=situacoes,
+                manual_values=situacao_input,
+                mode=situacao_quick_mode_input,
+            )
             st.session_state[state_key] = {
                 "search_terms": search_input,
                 "consult_api": consult_api_input,
-                "enable_situacao_filter": bool(enable_situacao_input),
-                "situacao_sel": situacao_input if enable_situacao_input else situacoes,
+                "situacao_quick_mode": str(situacao_quick_mode_input),
+                "situacao_sel": resolved_situacao,
                 "executor_sel": executor_input,
                 "emissor_sel": emissor_input,
                 "limit_rows": limit_input,
