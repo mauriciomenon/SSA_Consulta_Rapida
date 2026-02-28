@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-02-28 20:05 - authoritative block
+## CURRENT TRUTH 2026-02-28 20:40 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -18,13 +18,16 @@ This handoff is ready to reuse in the next conversation.
   2. runtime theme selector moved to header (always visible).
   3. selected theme now persists across sessions.
 - Streamlit usability follow-up:
-  1. situacao moved to optional expander (reduces visual overload).
+  1. situacao is always visible and now has quick mode + count labels.
   2. limit rows moved to dedicated line.
   3. quick "colunas exibidas" shortcut now exists in table tab.
   4. sidebar now exposes source snapshot and quick metrics.
+- Item `92` closure:
+  1. cache architecture refactor completed with shared get/store helpers.
+  2. stats/ttl/lru contract preserved and revalidated in focused tests.
 - Validation snapshot:
   - touched-scope `py_compile`, `ruff`, `ty`: pass
-  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `36 passed`
+  - focused `pytest` (`tests/test_filter_cache_locking.py` + `tests/test_streamlit_filter_cache.py`): `38 passed`
 - Deferred classification with difficulty:
   - structural (P2):
     1. `SSAMainWindow` split (`item 84`) - alta

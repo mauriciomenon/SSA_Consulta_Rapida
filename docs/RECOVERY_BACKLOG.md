@@ -3,6 +3,20 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (id 92 closed + situacao quick usability)
+
+Delivered in this streamlit micro-slice:
+1. Cache architecture item (`92`) closed:
+   - shared internal helpers now centralize get/store behavior in `StreamlitFilterCache`.
+   - duplicated logic removed with contract preserved.
+2. Filters usability adjusted per feedback:
+   - situacao no longer hidden; now always visible.
+   - added quick mode selector (`Manual`, `Todas`, `Abertas`, `Executadas`, `Nenhuma`).
+   - situacao entries now show count labels.
+3. Validation:
+   - `py_compile`, `ruff`, `ty` on touched streamlit/tests: pass
+   - focused `pytest` (`tests/test_streamlit_filter_cache.py` + `tests/test_filter_cache_locking.py`): `38 passed`
+
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
 
 Delivered in this streamlit-focused slice:
