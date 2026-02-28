@@ -3,6 +3,128 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (kluster package closeout: config hierarchy + closeevent lifecycle)
+
+Delivered in this package:
+1. `gui/gui_config.py` now resolves GUI preferences path with `SSA_CONFIG_DIR` (safe fallback kept).
+2. `gui/gui_ssa.py::closeEvent` now has defensive global-retention fallback for active rescan worker.
+3. Focused regressions added:
+   - `tests/test_gui_main_configuration.py::test_load_gui_main_preferences_honors_ssa_config_dir`
+   - `tests/test_gui_filter_logic.py::test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown`
+4. Focused validation:
+   - `uv run python -m py_compile` (touched files): pass
+   - `uv run ruff check` (touched files): pass
+   - `uv run ty check` (touched files): pass
+   - focused `pytest`: pass
+
+## Update 2026-02-27 (residual main-config-gui closeout)
+
+Delivered in this doc slice:
+1. Closed residual runtime group in control docs:
+   - `39, 46, 49, 50, 70, 76` now marked `resolved` in `docs/PENDING_ACTION_MATRIX.md`.
+2. Synced top authoritative blocks for continuation:
+   - `docs/NEXT_CHAT_MIGRATION.md`
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+3. Kept scope strictly documentation-only (no runtime code edits).
+
+Operational next step:
+1. Continue with minimal slices from active residual queue:
+   - none (matrix pending queue is now empty).
+2. Keep streamlit stabilization as separate track.
+3. Item `9` is now deferred by explicit user decision (Opcao A).
+
+## Update 2026-02-27 (id 27 testing closure)
+
+Delivered in this minimal slice:
+1. Closed matrix item `27` by reinforcing the cancellation progress contract test.
+2. Test update:
+   - `tests/test_import_cancellation.py` now asserts `finish_payload["errors"] == []`.
+3. Validation:
+   - `uv run python -m py_compile tests/test_import_cancellation.py`: pass
+   - `uv run ruff check tests/test_import_cancellation.py`: pass
+   - `uv run ty check tests/test_import_cancellation.py`: pass
+   - `uv run pytest -q tests/test_import_cancellation.py`: pass
+   - `uv run pytest -q tests/test_import_cancel_before_insert.py`: pass
+
+## Update 2026-02-27 (ids 22-23 testing closure)
+
+Delivered in this minimal slice:
+1. Closed matrix items `22` and `23` in `tests/test_database_optimized_alias_views.py`.
+2. Test update:
+   - explicit `initialize_database(...)` success assertion in both tests.
+   - explicit db-file cleanup in `finally` remains in place.
+3. Validation:
+   - `uv run python -m py_compile tests/test_database_optimized_alias_views.py`: pass
+   - `uv run ruff check tests/test_database_optimized_alias_views.py`: pass
+   - `uv run ty check tests/test_database_optimized_alias_views.py`: pass
+   - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass
+
+## Update 2026-02-27 (id 21 testing closure)
+
+Delivered in this minimal slice:
+1. Closed matrix item `21` based on existing concurrent-write test coverage.
+2. Evidence:
+   - `tests/test_caching_atomic_save.py::test_save_cache_concurrent_writes_remain_valid_json`.
+3. Validation:
+   - `uv run pytest -q tests/test_caching_atomic_save.py`: pass
+
+## Update 2026-02-27 (ids 24-25 testing closure)
+
+Delivered in this minimal slice:
+1. Closed matrix items `24` and `25` using existing hardened regression tests.
+2. Evidence:
+   - lock coverage: `tests/test_filter_cache_locking.py`
+   - modal skip coverage: `tests/test_filter_error_skips_modal_in_pytest.py`
+3. Validation:
+   - `uv run pytest -q tests/test_filter_cache_locking.py`: pass
+   - `uv run pytest -q tests/test_filter_error_skips_modal_in_pytest.py`: pass
+
+## Update 2026-02-27 (id 9 deferred by decision)
+
+Delivered in this doc slice:
+1. Matrix item `9` moved from `pending` to `deferred`.
+2. Rationale:
+   - explicit user decision (Opcao A) to avoid runtime behavior change in current sprint.
+
+## Update 2026-02-27 (continuity triage validation closeout)
+
+Delivered in this doc-only slice:
+1. Ran continuity triage for interrupted runtime patch scope.
+2. Local validation rerun completed and green:
+   - `uv run python -m py_compile` (touched runtime files)
+   - `uv run ruff check` (touched runtime files)
+   - `uv run ty check` (touched runtime files)
+   - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`
+     - `121 passed, 1 skipped`
+3. kluster auto rerun on touched runtime files returned clean (no issues).
+
+Operational next step:
+1. Continue with next minimal runtime slice only.
+2. Keep same gate sequence after any new edit.
+
+## Update 2026-02-27 (interrupted handoff sync for continuation)
+
+Delivered in this doc-only slice:
+1. Added top authoritative continuity blocks in:
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - `docs/NEXT_CHAT_MIGRATION.md`
+2. Captured interrupted runtime patch evidence for active filter stability work:
+   - `gui/ssa/gui_filters_advanced_ui.py`
+   - `gui/mixins/filter_gui_ssa_mixin.py`
+   - `gui/widgets/column_manager_dialog.py`
+   - `gui/gui_ssa.py`
+   - `gui/ssa/gui_workers.py`
+3. Added explicit restart order for the next chat before any new slice.
+
+Pending before closing runtime slice:
+1. Run kluster auto on touched files and resolve findings with minimal patch.
+2. Run local gates on touched scope:
+   - `python -m py_compile`
+   - `ruff check`
+   - `ty check`
+   - focused `pytest`
+3. Update pending matrix status after verification outcome.
+
 ## Update 2026-02-26 (lower panel single height lock)
 
 Delivered in this slice:
@@ -148,8 +270,9 @@ Non-blocking deferred item:
   - evidence: lockfile-based serialization, bounded nonblocking retries, and atomic write path validated in focused tests.
 
 Current next queue (post A/B/C):
-1. Main/config/gui residual pending group: ids `39, 42, 43, 44, 46, 49, 50, 70, 76`.
-2. Streamlit stabilization queue (separate track, approved by user).
+1. Main/config/gui residual pending group: closed (`39, 46, 49, 50, 70, 76` resolved; `42` resolved; `43/44` stale-doc).
+2. Active residual queue now: `9, 21, 22, 23, 24, 25, 27`.
+3. Streamlit stabilization queue (separate track, approved by user).
 
 ## Update 2026-02-26 (deep analysis snapshot: kluster + lint/type gate)
 

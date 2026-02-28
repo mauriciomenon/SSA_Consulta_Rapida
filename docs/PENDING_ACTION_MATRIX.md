@@ -3,6 +3,177 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-02-28 (kluster package: config hierarchy + closeevent lifecycle)
+
+1. Delivered runtime hardening for 2 kluster findings:
+   - `gui/gui_config.py`: GUI preferences path now honors `SSA_CONFIG_DIR` with safe fallback.
+   - `gui/gui_ssa.py`: `closeEvent` now has defensive global retention fallback for active rescan worker.
+2. Added focused regressions:
+   - `tests/test_gui_main_configuration.py::test_load_gui_main_preferences_honors_ssa_config_dir`
+   - `tests/test_gui_filter_logic.py::test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown`
+3. Validation evidence:
+   - `uv run python -m py_compile` (touched files): pass
+   - `uv run ruff check` (touched files): pass
+   - `uv run ty check` (touched files): pass
+   - focused `pytest`: pass
+4. Matrix status:
+   - no immediate `pending` rows; active pending queue remains empty.
+
+## Update 2026-02-27 (residual main-config-gui closeout)
+
+1. Closed residual runtime group in this continuity slice:
+   - `39, 46, 49, 50, 70, 76` moved to `resolved`.
+2. Evidence baseline used for closeout:
+   - local validation for touched runtime/tests had already been rerun and green;
+   - kluster auto on touched runtime files was clean;
+   - targeted tests for closeEvent/worker retention/cancel contract are present and passing.
+3. Active queue after this closeout:
+   - `9, 21, 22, 23, 24, 25, 27` (test/perf residuals).
+
+## Update 2026-02-27 (id 27 closure)
+
+1. `27` moved to `resolved`:
+   - `tests/test_import_cancellation.py` now asserts full `finish` payload contract, including `errors`.
+2. Validation evidence:
+   - `uv run python -m py_compile tests/test_import_cancellation.py`: pass
+   - `uv run ruff check tests/test_import_cancellation.py`: pass
+   - `uv run ty check tests/test_import_cancellation.py`: pass
+   - `uv run pytest -q tests/test_import_cancellation.py`: pass
+   - `uv run pytest -q tests/test_import_cancel_before_insert.py`: pass
+3. Active queue now:
+   - `9, 21, 22, 23, 24, 25`.
+
+## Update 2026-02-27 (ids 22-23 closure)
+
+1. `22` moved to `resolved`:
+   - tests now assert explicit success contract of `initialize_database(...)`.
+2. `23` moved to `resolved`:
+   - db temp files are explicitly removed in `finally` and test scope remains under `tmp_path`.
+3. Validation evidence:
+   - `uv run python -m py_compile tests/test_database_optimized_alias_views.py`: pass
+   - `uv run ruff check tests/test_database_optimized_alias_views.py`: pass
+   - `uv run ty check tests/test_database_optimized_alias_views.py`: pass
+   - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass
+4. Active queue now:
+   - `9, 21, 24, 25`.
+
+## Update 2026-02-27 (id 21 closure)
+
+1. `21` moved to `resolved`:
+   - concurrent write scenario is already covered by `test_save_cache_concurrent_writes_remain_valid_json`.
+2. Validation evidence:
+   - `uv run pytest -q tests/test_caching_atomic_save.py`: pass
+3. Active queue now:
+   - `9, 24, 25`.
+
+## Update 2026-02-27 (ids 24-25 closure)
+
+1. `24` moved to `resolved`:
+   - lock test asserts per-operation enter/exit increments and balanced lock exit.
+2. `25` moved to `resolved`:
+   - test patching was hardened to `patch.object(mixin_module.QMessageBox, "critical")`.
+3. Validation evidence:
+   - `uv run pytest -q tests/test_filter_cache_locking.py`: pass
+   - `uv run pytest -q tests/test_filter_error_skips_modal_in_pytest.py`: pass
+4. Active queue now:
+   - `9`.
+
+## Update 2026-02-27 (id 9 deferred by explicit decision)
+
+1. `9` moved to `deferred` by explicit user decision (Opcao A).
+2. Decision rationale:
+   - keep current cache copy semantics to avoid behavioral risk in shared mutable data paths.
+   - no runtime/perf patch in this cycle.
+3. Active queue now:
+   - none in this matrix (`pending` = 0).
+
+## Update 2026-02-27 (continuity triage closeout)
+
+1. Validation status for interrupted runtime patch:
+   - local gates rerun and green (`py_compile`, `ruff`, `ty`, focused `pytest`).
+   - focused pytest result:
+     - `121 passed, 1 skipped`.
+   - kluster auto on touched runtime files: clean.
+2. Continuation rule:
+   - runtime files from interrupted patch remain in active scope, but now validated.
+   - next status change to `resolved` must happen only after next code slice completion and rerun evidence.
+
+## Update 2026-02-27 (pending triage closure for ids 42/43/44)
+
+1. `42` moved to `resolved`:
+   - cancel contract path was reinforced and locked in tests:
+     - `tests/test_import_cancel_before_insert.py`
+     - `tests/test_import_cancellation.py`
+     - `tests/test_import_derivadas_trigger.py::test_run_importer_skips_db_only_preflight_when_cancel_requested`
+2. `43` moved to `stale-doc`:
+   - metadata-only comment without reproducible bug in current `gui/mixins/filter_gui_ssa_mixin.py` line context.
+3. `44` moved to `stale-doc`:
+   - referenced line `gui/gui_ssa.py:5094` is outside current file size; current source moved/reshaped.
+
+## Update 2026-02-27 (pending triage closure for 56 and 82-97)
+
+1. `56` moved to `resolved`:
+   - test isolation was hardened by replacing class-level mutable collector with per-test local collector in `tests/test_open_docs_folder_nonblocking.py`.
+2. `82-97` moved to `deferred`:
+   - all are backlog-level generic items without file/line anchors in current cycle;
+   - kept for dedicated sprint planning, out of minimal-risk stabilization slices.
+
+## Update 2026-02-27 (continuation sync after interrupted chat)
+
+1. Operational state:
+   - chat was interrupted after local runtime patch and before final validation closeout.
+   - continuity docs were synchronized to preserve exact restart context.
+2. Runtime files currently in pending validation state:
+   - `gui/ssa/gui_filters_advanced_ui.py`
+   - `gui/mixins/filter_gui_ssa_mixin.py`
+   - `gui/widgets/column_manager_dialog.py`
+   - `gui/gui_ssa.py`
+   - `gui/ssa/gui_workers.py`
+3. Required next actions before marking related items as resolved:
+   - run kluster auto on touched files;
+   - run `python -m py_compile`, `ruff check`, `ty check`, and focused `pytest`;
+   - update row statuses based on validation evidence.
+
+## Update 2026-02-26 (status + alias audit sync)
+
+1. Completed:
+   - filter status format consistency in clear flows (`SSAs filtradas: N de M`);
+   - column-filter footer button style parity in SSA tab;
+   - active docs sync rerun.
+2. DB alias audit snapshot (`ssa_table` vs display mapping):
+   - total columns: 82
+   - mapped: 71
+   - unmapped: 11
+3. Unmapped DB fields (fallback to DB name in UI when exposed):
+   - `id`
+   - `total_tempo_tpe_executada`
+   - `registros_espera`
+   - `num_reprobaciones`
+   - `situacao_espera`
+   - `numero_desvios`
+   - `ate`
+   - `justificativa`
+   - `total_tempo_tex_executada`
+   - `parciais`
+   - `situacao_da_parcial`
+
+## Update 2026-02-26 (operational sync)
+
+Status snapshot after latest test/doc cycle:
+- pending: 31
+- resolved: 60
+- stale-doc: 6
+- deferred: 11
+
+What was addressed in this cycle:
+1. Added missing regression tests for column-filter behavior in `tests/test_gui_filter_logic.py`.
+2. Synced active release/docs baseline to `4.22.0` (`README.md`, `docs/HISTORICO_RELEASES.md`, `docs/FILTER_TAB_OPTIMIZATIONS.md`).
+3. Synced handoff/migration docs with authoritative active branch block.
+
+Active queue remains:
+1. Resolve pending items with direct runtime risk first (`[pending]` rows).
+2. Keep `[deferred]` items for dedicated sprint only.
+
 Legenda:
 - Solucao proposta: caminho recomendado de menor risco
 - Opcao: usado quando ha duvida de escopo/arquitetura
@@ -47,9 +218,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: `FilterCache.put()` valida `isinstance(result, pd.DataFrame)` e ignora entrada invalida com warning; teste focado adicionado.
 
-## 9. [pending] gui/cache/filter_cache.py:59
+## 9. [deferred] gui/cache/filter_cache.py:59
 - Item: **Performance Concern:** The cache always stores a copy of the DataFrame (`result.copy()`) on every put. For large DataFrames, this can be expensive in both time and memory, esp...
 - Solucao proposta: Trocar polling por bloqueio com timeout curto; parametrizar limites; medir antes/depois com metrica simples.
+- Evidencia: deferred by explicit user decision (Opcao A) to avoid runtime behavior change in this sprint.
 
 ## 10. [resolved] gui/widgets/rescan_progress_dialog.py:143
 - Item: The `reject` method allows the dialog to close immediately after a cancel request, even if the underlying rescan process has not yet stopped. This could lead to user confusion o...
@@ -106,34 +278,40 @@ Legenda:
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
 - Evidencia: envio de sentinel agora e best-effort nao bloqueante e fechamento usa `reader_done` + estado do processo.
 
-## 21. [pending] tests/test_caching_atomic_save.py:30
+## 21. [resolved] tests/test_caching_atomic_save.py:30
 - Item: **Missing test for concurrent writes:** The test `test_save_cache_is_atomic_and_does_not_corrupt_existing_file` only simulates a single failure mode (exception during write) and...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: cobertura concorrente existe em `test_save_cache_concurrent_writes_remain_valid_json` e valida JSON final consistente apos multiplas gravacoes simultaneas.
 
-## 22. [pending] tests/test_database_optimized_alias_views.py:15
+## 22. [resolved] tests/test_database_optimized_alias_views.py:15
 - Item: The test does not handle errors that may occur during database initialization (e.g., missing or invalid 'config/schema.sql'). This could result in unclear test failures. **Recom...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: ambos os testes validam retorno de `database.initialize_database(...)` com `assert init_ok is True`.
 
-## 23. [pending] tests/test_database_optimized_alias_views.py:35
+## 23. [resolved] tests/test_database_optimized_alias_views.py:35
 - Item: The test creates a database file but does not explicitly remove it after execution. This may leave residual files in the test environment, affecting test isolation and potential...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: ambos os cenarios removem o arquivo de banco no `finally` com `Path(db_path).unlink(missing_ok=True)`.
 
-## 24. [pending] tests/test_filter_cache_locking.py:28
+## 24. [resolved] tests/test_filter_cache_locking.py:28
 - Item: **Insufficient Verification of Lock Usage** The assertion `assert spy.enter_count >= 1` (line 28) only verifies that the lock was entered at least once, but does not ensure that...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: teste valida incrementos por operacao (`put/get/get_stats/clear`) e garante `enter_count == exit_count`.
 
-## 25. [pending] tests/test_filter_error_skips_modal_in_pytest.py:30
+## 25. [resolved] tests/test_filter_error_skips_modal_in_pytest.py:30
 - Item: The patch target `"gui.mixins.filter_gui_ssa_mixin.QMessageBox.critical"` is tightly coupled to the import path and structure of the module under test. If the import path or the...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: teste usa `patch.object(mixin_module.QMessageBox, "critical")` e valida comportamento sem modal em pytest.
 
 ## 26. [resolved] interface/cli_enhancement_manager.py:24
 - Item: **suggestion (bug_risk):** File locking is applied to the temp file, so it doesnt actually coordinate concurrent writers on the real settings file. In `_save_settings`, locking ...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 - Evidencia: lock e aplicado ao lockfile estavel do recurso real, nao ao tempfile de escrita atomica.
 
-## 27. [pending] tests/test_import_cancellation.py:65
+## 27. [resolved] tests/test_import_cancellation.py:65
 - Item: **suggestion (testing):** Fortalea o teste verificando tambm o payload final de progresso "finish" Como `run_importer_logic` agora normaliza e protege `progress_callback`, captu...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: teste agora valida `finish_payload["errors"] == []` junto de `total` e `processed`.
 
 ## 28. [resolved] tests/test_rescan_progress_dialog.py:28
 - Item: **suggestion (testing):** Estenda as asseres para cobrir o estado da UI aps o cancelamento (texto de status e estados habilitado/desabilitado dos botes) Como `reject()` e `set_f...
@@ -190,9 +368,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: excecao e logada internamente com stack e emitida para UI com prefixo controlado (`Erro ao executar reescaneamento:`).
 
-## 39. [pending] gui/gui_ssa.py:6674
+## 39. [resolved] gui/gui_ssa.py:6674
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 2\. Rescan thread may outlive app <code> Bug</code> <code> Re...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `closeEvent` encerra worker com `stop -> quit -> wait` e fallback `terminate -> wait`, limpa `_active_rescan_worker` em `finally`, com teste focado em `tests/test_gui_filter_logic.py`.
 
 ## 40. [resolved] core/config_manager.py:454
 - Item: <img src="https://www.qodo.ai/wp-content/uploads/2025/12/v2-action-required.svg" height="20" alt="Action required"> 3\. Config restore can crash cli <code> Bug</code> <code> Rel...
@@ -204,26 +383,30 @@ Legenda:
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
 - Evidencia: lockfile do alvo e aberto antes da gravacao atomica e fechamento e tratado em `finally`.
 
-## 42. [pending] core/app_logic.py:450
+## 42. [resolved] core/app_logic.py:450
 - Item: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes:\n\n1. `_import_single_file` now accepts `s...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: cancelamento coberto em `_import_single_file`/`run_importer_logic` e travado por testes focados (`test_import_cancel_before_insert`, `test_import_cancellation`, `test_run_importer_skips_db_only_preflight_when_cancel_requested`).
 
-## 43. [pending] gui/mixins/filter_gui_ssa_mixin.py:343
+## 43. [stale-doc] gui/mixins/filter_gui_ssa_mixin.py:343
 - Item: <!-- metadata:{"confidence":9,"steps":[{"text":"","toolCalls":[{"toolName":"bash","input":{"command":"rg -n '^import os' gui/mixins/filter_gui_ssa_mixin.py; rg -n 'import os' gu...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: comentario truncado de metadata sem issue reproduzivel no contexto atual da linha; modulo permanece funcional e coberto por gates do slice.
 
-## 44. [pending] gui/gui_ssa.py:5094
+## 44. [stale-doc] gui/gui_ssa.py:5094
 - Item: <!-- metadata:{"confidence":7,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the key changes in this PR:\n\n1. Import of `atomic_write_j...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: referencia de linha fora do arquivo atual (`gui/gui_ssa.py` tem 2819 linhas no estado atual); item nao e mais ancoravel no codigo vigente.
 
 ## 45. [resolved] main.py:487
 - Item: <!-- metadata:{"confidence":8,"steps":[{"text":"","toolCalls":[{"toolName":"think","input":{"thought":"Let me analyze the diff carefully for issues:\n\n1. **Non-ASCII characters...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: mensagem de nivel de log invalido foi normalizada para ASCII e conflito de flags segue com erro explicito.
 
-## 46. [pending] extracao/extractor.py:214
+## 46. [resolved] extracao/extractor.py:214
 - Item: **P1** | Confidence: High The function signature now includes a `should_cancel` callback. The related context shows the primary caller, `run_importer_logic` in `core/app_logic.p...
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
+- Evidencia: `extract_data_from_excel` consulta `should_cancel` antes de IO e contrato foi travado por `tests/test_extracao.py::test_extract_data_from_excel_respects_cancel_callback_before_io`.
 
 ## 47. [resolved] armazenamento/database_optimized.py:167
 - Item: **P1** | Confidence: High The addition of SQL identifier validation (`is_valid_identifier`) is a critical security improvement to prevent injection via the `table_name` paramete...
@@ -235,13 +418,15 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: caminho `--version` simplificado sem `except` amplo e alias `--rescan` permanece consistente no parser.
 
-## 49. [pending] core/app_logic.py:330
+## 49. [resolved] core/app_logic.py:330
 - Item: **[Contextual Comment]** _This comment refers to code near real line 325. Anchored to nearest_changed(328) line 328._ --- **P1** | Confidence: High `run_importer_logic` now has ...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: `run_importer_logic` aplica cancel antes do preflight db-only e emite `finish` no retorno por cancel; cobertura em `tests/test_import_derivadas_trigger.py` e `tests/test_import_cancellation.py`.
 
-## 50. [pending] gui/gui_ssa.py:6434
+## 50. [resolved] gui/gui_ssa.py:6434
 - Item: _ Potential issue_ | _ Critical_ <details> <summary> Analysis chain</summary> Script executed: ```shell #!/bin/bash # Get RescanWorker implementation to understand signal timin...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: retencao global de worker no fechamento foi reforcada no fluxo atual com fallback e limpeza deterministica, com regressao em `tests/test_gui_filter_logic.py`.
 
 ## 51. [resolved] scripts/run_pytest_stream_and_log_v2.py:195
 - Item: _ Potential issue_ | _ Minor_ **Avoid warning line displacing real output after eviction.** On Line 155-167, the warning is enqueued before the real output. When the queue is fu...
@@ -268,9 +453,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: mensagem atual de sucesso nao usa caminho hardcoded.
 
-## 56. [pending] tests/test_open_docs_folder_nonblocking.py:32
+## 56. [resolved] tests/test_open_docs_folder_nonblocking.py:32
 - Item: _ Potential issue_ | _ Minor_ **Class attribute `called` may cause test isolation issues.** `DummyQDesktopServices.called` is a class-level list that persists across test runs i...
 - Solucao proposta: Adicionar teste deterministico focado no risco real (concorrencia/cancel/io), evitando mock fragil excessivo.
+- Evidencia: coletor mutavel passou a ser lista local por teste (`opened_urls`), sem estado compartilhado entre execucoes.
 
 ## 57. [stale-doc] core/app_logic.py:185
 - Item: The check for `if df is None:` at line 181-184 is dead code. The extractor function `extract_data_from_excel` has been updated to never return None - it either returns a DataFra...
@@ -337,9 +523,10 @@ Legenda:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 - Evidencia: `load_column_mappings_integrity()` reler arquivo restaurado e so usa fallback em memoria se releitura falhar.
 
-## 70. [pending] gui/gui_ssa.py:4275
+## 70. [resolved] gui/gui_ssa.py:4275
 - Item: GLOBAL_RETIRED_DATA_LOADER_META[worker] is assigned twice consecutively. This looks like an accidental duplicate and makes it harder to reason about worker lifetime accounting; ...
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
+- Evidencia: logica consolidada em `gui/ssa/gui_workers.py` usa `global_meta.setdefault(...)` sem sobrescrita redundante, coberta por `test_retain_loader_worker_rehydrates_global_tracking_when_local_ref_exists`.
 
 ## 71. [stale-doc] gui/widgets/rescan_progress_dialog.py:143
 - Item: The dialog's Cancel action (reject override) only emits cancel_requested and keeps the modal dialog open until the user tries to close it a second time. This differs from the PR...
@@ -366,9 +553,10 @@ Legenda:
 - Solucao proposta: Aplicar allowlist de identificadores + validacao estrita + SQL parametrizado onde possivel.
 - Evidencia: `_has_referencing_foreign_keys` valida identificadores e usa quote helper.
 
-## 76. [pending] gui/gui_ssa.py:4386
+## 76. [resolved] gui/gui_ssa.py:4386
 - Item: Race condition on global worker retention lists: `GLOBAL_RETIRED_DATA_LOADER_WORKERS` and `GLOBAL_RETIRED_DATA_LOADER_META` are accessed from multiple SSAMainWindow instances wi...
 - Solucao proposta: Padronizar lock por recurso real (lockfile), timeout nao bloqueante e secao critica minima.
+- Evidencia: operacoes de retencao/prune usam lock global e snapshot consistente no helper de workers; regressao coberta em `tests/test_gui_filter_logic.py`.
 
 ## 77. [resolved] scripts/run_pytest_stream_and_log.py:167
 - Item: The warn_count modulo check at line 142 and 154 can fire on the same count (when warn_count % 200 == 1). At line 138-148, if the second put_nowait succeeds after eviction, it em...
@@ -395,26 +583,26 @@ Legenda:
 - Solucao proposta: Aplicar allowlist de identificadores + validacao estrita + SQL parametrizado onde possivel.
 - Evidencia: tabela de PRAGMA passa por validacao e quoting estrito.
 
-## 82. [pending] (sem local exato)
+## 82. [deferred] (sem local exato)
 - Item: Melhorar GUI na aba filtros, mantendo layout base sem regressao visual.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 83. [pending] (sem local exato)
+## 83. [deferred] (sem local exato)
 - Item: Implementar filtro/capacidade de `divisao` com cobertura de teste focada.
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 84. [pending] (sem local exato)
+## 84. [deferred] (sem local exato)
 - Item: `SSAMainWindow` class size/coupling remains structural backlog for dedicated sprint; no broad refactor in this stabilization slice.
 - Solucao proposta: Opcao A: sprint exclusivo de modularizacao em slices pequenos. Opcao B: manter e extrair apenas helpers locais.
 - Opcao:
   - A: sprint exclusivo de modularizacao em slices pequenos
   - B: manter e extrair apenas helpers locais.
 
-## 85. [pending] (sem local exato)
+## 85. [deferred] (sem local exato)
 - Item: limpeza ruff de baixo risco em `scripts/*` e `launchers/*`:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 86. [pending] (sem local exato)
+## 86. [deferred] (sem local exato)
 - Item: limpeza ruff de baixo risco em testes utilitarios:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
@@ -431,39 +619,39 @@ Legenda:
   - A: sprint dedicado de ty por modulo
   - B: manter baseline e bloquear apenas regressao nova.
 
-## 89. [pending] (sem local exato)
+## 89. [deferred] (sem local exato)
 - Item: melhorias de concorrencia em wrappers de teste:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 90. [pending] (sem local exato)
+## 90. [deferred] (sem local exato)
 - Item: melhorias de cancel/progresso:
 - Solucao proposta: Garantir callback de cancel frequente + estado de UI consistente + teste de regressao de cancelamento.
 
-## 91. [pending] (sem local exato)
+## 91. [deferred] (sem local exato)
 - Item: melhoria UX filtros:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 92. [pending] (sem local exato)
+## 92. [deferred] (sem local exato)
 - Item: arquitetura de cache:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 93. [pending] (sem local exato)
+## 93. [deferred] (sem local exato)
 - Item: Baseline restante de ty concentrada em:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 94. [pending] (sem local exato)
+## 94. [deferred] (sem local exato)
 - Item: Maior bloco restante de ty e ruido de tipagem:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 95. [pending] (sem local exato)
+## 95. [deferred] (sem local exato)
 - Item: Pendencias menores fora de fluxo principal:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 96. [pending] (sem local exato)
+## 96. [deferred] (sem local exato)
 - Item: Bloco principal restante de ty:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 
-## 97. [pending] (sem local exato)
+## 97. [deferred] (sem local exato)
 - Item: Bloco restante de tipagem ainda concentrado:
 - Solucao proposta: Aplicar patch minimo com teste focado e registrar trade-off no backlog se nao bloquear release.
 

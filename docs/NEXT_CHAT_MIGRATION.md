@@ -2,6 +2,85 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-02-28 00:00 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Latest package delivered:
+  1. kluster custom-rule alignment in `gui/gui_config.py`:
+     - GUI config path now honors `SSA_CONFIG_DIR` with safe fallback.
+  2. closeEvent lifecycle hardening in `gui/gui_ssa.py`:
+     - active rescan worker now has defensive global-retention fallback in shutdown edge cases.
+  3. focused regressions added:
+     - `tests/test_gui_main_configuration.py` (`SSA_CONFIG_DIR` path resolution)
+     - `tests/test_gui_filter_logic.py` (mid-shutdown `isRunning()` failure path)
+- Validation snapshot (focused package scope):
+  - `py_compile`, `ruff`, `ty`: pass
+  - focused `pytest`: pass
+- Current pending queue:
+  1. no immediate `pending` in `docs/PENDING_ACTION_MATRIX.md`.
+  2. streamlit stabilization queue remains separate.
+- Important:
+  - blocks below are historical context and must not override this top block.
+
+## CURRENT TRUTH 2026-02-27 16:32 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Residual runtime group status:
+  1. `39, 46, 49, 50, 70, 76` is now documented as `resolved` in `docs/PENDING_ACTION_MATRIX.md`.
+  2. Functional closure is based on already-merged runtime/test slices:
+     - rescan worker closeEvent shutdown hardening;
+     - global data-loader retention/prune consistency with lock snapshot;
+     - cancel contract reinforcement across importer and extractor.
+- Current pending queue after closeout:
+  1. no immediate `pending` in this matrix.
+  2. streamlit stabilization queue (separate track).
+  3. `9` moved to `deferred` by explicit user decision (Opcao A).
+- Additional closure in this cycle:
+  1. `27` resolved with full `finish` payload assertion in `tests/test_import_cancellation.py`.
+  2. `22/23` resolved in `tests/test_database_optimized_alias_views.py` (explicit init success contract + explicit cleanup).
+  3. `21` resolved by existing concurrent-write coverage in `tests/test_caching_atomic_save.py`.
+  4. `24/25` resolved by current lock/modal test hardening.
+  5. `9` deferred by explicit user decision (Opcao A), no runtime patch.
+- Retomada checklist (ordem de execucao):
+  1. Confirm scope with `git status --short`.
+  2. Pick next approved slice from streamlit queue or another explicitly selected deferred item.
+  3. After edits: run kluster auto first, then `py_compile`, `ruff`, `ty`, and focused `pytest`.
+  4. Update `docs/PENDING_ACTION_MATRIX.md` and `docs/RECOVERY_BACKLOG.md` with slice evidence.
+- Important:
+  - blocks below are historical context and must not override this top block.
+
+## CURRENT TRUTH 2026-02-27 15:53 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.24.0`.
+- Current state from interrupted chat (local patch present, not committed):
+  1. `gui/ssa/gui_filters_advanced_ui.py`:
+     - action buttons container and sizing adjusted;
+     - `_set_checkbox_checked_quietly` now keeps `QSignalBlocker` context and guarded manual unblock.
+  2. `gui/mixins/filter_gui_ssa_mixin.py`:
+     - add-column menu now builds deterministic ordered set with dedupe and duplicate-label disambiguation.
+  3. `gui/widgets/column_manager_dialog.py`:
+     - explicit `available_columns` no longer gets auto-polluted by full `display_map` reinjection.
+  4. `gui/gui_ssa.py` + `gui/ssa/gui_workers.py`:
+     - canonical menu candidate filter now uses cached non-null columns;
+     - non-null cache is computed on data load and reused in UI candidate paths.
+- Validation closeout for interrupted patch (done):
+  - `uv run python -m py_compile` on touched runtime files: pass
+  - `uv run ruff check` on touched runtime files: pass
+  - `uv run ty check` on touched runtime files: pass
+  - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`:
+    - `121 passed, 1 skipped`
+  - kluster auto on touched runtime files: clean (no issues)
+- Retomada checklist (ordem de execucao):
+  1. Confirm local scope with `git status --short` and keep edits limited to expected files.
+  2. Start next slice only with minimal patch over active filter/runtime scope.
+  3. After any new edit, rerun kluster auto and local gates on touched scope.
+  4. Keep non-blocking follow-ups in `docs/RECOVERY_BACKLOG.md`.
+- Important:
+  - sections below remain historical context and must not override this block.
+
 ## CURRENT TRUTH 2026-02-26 21:40 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.

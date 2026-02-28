@@ -59,6 +59,32 @@ class TestGUIMainConfiguration:
             assert "derivada_de" in config["display_columns"]
             assert config["version"] == "1.0.0"
 
+    def test_load_gui_main_preferences_honors_ssa_config_dir(self, tmp_path, monkeypatch):
+        """GUI config deve respeitar SSA_CONFIG_DIR ao resolver gui_main_preferences.json."""
+        from gui.gui_config import load_gui_main_preferences
+
+        cfg_dir = tmp_path / "cfg_gui"
+        cfg_dir.mkdir()
+        cfg_file = cfg_dir / "gui_main_preferences.json"
+        cfg_file.write_text(
+            json.dumps(
+                {
+                    "display_columns": ["numero_ssa", "situacao"],
+                    "column_display_names": {"numero_ssa": "No SSA"},
+                    "column_widths": {"numero_ssa": 99},
+                    "gui_settings": {"page_size": 77},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+        config = load_gui_main_preferences()
+
+        assert config["gui_settings"]["page_size"] == 77
+        assert config["column_widths"]["numero_ssa"] == 99
+        assert config["column_display_names"]["numero_ssa"] == "No SSA"
+
     def test_load_gui_main_preferences_invalid_json(self):
         """Testa comportamento com JSON invalido."""
         from gui.gui_config import load_gui_main_preferences
