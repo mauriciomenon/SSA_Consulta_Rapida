@@ -1,0 +1,77 @@
+@startuml Fluxo_Importacao_Sequencia
+
+actor Usuario
+participant "main.py" as MAIN
+participant "app_logic.py\nrun_importer_logic" as APP
+participant "caching.py" as CACHE
+participant "extractor.py" as EXTRACT
+participant "robust_importer.py" as ROBUST
+participant "database_optimized.py" as DB_OPT
+participant "SQLite" as DB
+
+== Inicialização ==
+Usuario -> MAIN : python main.py --force-rescan
+MAIN -> MAIN : parse_args()
+MAIN -> MAIN : configure_logging()
+MAIN -> APP : run_importer_logic(
+    force_import=True
+)
+
+== Descoberta de Arquivos ==
+APP -> APP : _resolve_import_targets()
+APP -> CACHE : get_files_to_process()
+CACHE -> CACHE : get_all_xlsx_files()
+CACHE --> APP : lista_arquivos[]
+
+== Loop de Processamento ==
+loop Para cada arquivo
+    APP -> APP : _import_single_file()
+    
+    == Extração ==
+    APP -> EXTRACT : extract_data_from_excel()
+    EXTRACT -> ROBUST : import_excel_robust()
+    
+    == Processamento Robusto ==
+    ROBUST -> ROBUST : pd.read_excel()
+    ROBUST -> ROBUST : Detectar header mesclado
+    ROBUST -> ROBUST : Mapear colunas (aliases)
+    ROBUST -> ROBUST : _canonicalize_header()
+    ROBUST -> ROBUST : Normalizar numero_ssa
+    ROBUST -> ROBUST : _parse_single_date()
+    ROBUST -> ROBUST : Coalescer colunas
+    ROBUST -> ROBUST : Deduplicar
+    ROBUST --> EXTRACT : DataFrame, stats
+    EXTRACT --> APP : DataFrame
+    
+    == Validação ==
+    APP -> APP : validate_dataframe_before_insert()
+    alt Dados inválidos
+        APP -> APP : Log warnings/errors
+        APP -> APP : Remover linhas inválidas
+    end
+    
+    == Persistência Otimizada ==
+    APP -> DB_OPT : insert_dataframe_optimized()
+    DB_OPT -> DB_OPT : _normalize_ssa_storage_value()
+    DB_OPT -> DB_OPT : Configurar pragmas SQLite
+    note right
+      PRAGMA journal_mode=WAL
+      PRAGMA synchronous=NORMAL
+      PRAGMA cache_size=10000
+    end note
+    DB_OPT -> DB : INSERT OR REPLACE batch
+    DB --> DB_OPT : success
+    DB_OPT --> APP : True/False
+end
+
+== Sincronização de Derivadas ==
+APP -> APP : scan_derivadas_consistency()
+APP -> APP : sync_derivadas()
+
+== Finalização ==
+APP -> CACHE : update_import_cache()
+APP --> MAIN : db_updated=True
+MAIN -> MAIN : Iniciar GUI/CLI
+MAIN --> Usuario : Aplicação pronta
+
+@enduml
