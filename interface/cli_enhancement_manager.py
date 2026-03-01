@@ -71,10 +71,11 @@ class CLIEnhancementManager:
             try:
                 lock_path = f"{self.settings_file}.lock"
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-                try:
-                    os.chmod(lock_path, 0o600)
-                except OSError as chmod_exc:
-                    logger.debug("Falha ao ajustar permissao do lock file (%s): %s", lock_path, chmod_exc)
+                if os.name == "posix":
+                    try:
+                        os.chmod(lock_path, 0o600)
+                    except OSError as chmod_exc:
+                        logger.debug("Falha ao ajustar permissao do lock file (%s): %s", lock_path, chmod_exc)
                 try:
                     lock_file = os.fdopen(lock_fd, "a+")
                 except BaseException:
@@ -108,14 +109,15 @@ class CLIEnhancementManager:
                     except OSError as exc:
                         logger.debug("fsync failed for temp settings file (%s): %s", tmp_path, exc)
                 os.replace(tmp_path, self.settings_file)
-                try:
-                    dir_fd = os.open(target_dir, os.O_RDONLY)
+                if os.name == "posix":
                     try:
-                        os.fsync(dir_fd)
-                    finally:
-                        os.close(dir_fd)
-                except OSError as exc:
-                    logger.debug("fsync failed for settings directory (%s): %s", target_dir, exc)
+                        dir_fd = os.open(target_dir, os.O_RDONLY)
+                        try:
+                            os.fsync(dir_fd)
+                        finally:
+                            os.close(dir_fd)
+                    except OSError as exc:
+                        logger.debug("fsync failed for settings directory (%s): %s", target_dir, exc)
                 tmp_path = None
             finally:
                 if tmp_path:
