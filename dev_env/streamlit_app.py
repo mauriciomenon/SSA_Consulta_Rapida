@@ -11,7 +11,7 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Tuple, cast
 
@@ -30,6 +30,7 @@ config_manager = importlib.import_module("core.config_manager")
 width_manager_module = importlib.import_module("gui.simple_width_manager")
 path_safety_module = importlib.import_module("utils.path_safety")
 remote_itaipu_module = importlib.import_module("utils.remote_itaipu")
+date_utils_module = importlib.import_module("shared.date_utils")
 
 filter_dataframe = app_logic.filter_dataframe
 get_filtered_data = app_logic.get_filtered_data
@@ -42,6 +43,7 @@ ensure_path_is_allowed = path_safety_module.ensure_path_is_allowed
 RequestOptions = remote_itaipu_module.RequestOptions
 fetch_pending_ssas = remote_itaipu_module.fetch_pending_ssas
 map_to_dataframe = remote_itaipu_module.map_to_dataframe
+parse_any_date = date_utils_module.parse_any_date
 
 try:
     st = cast(Any, importlib.import_module("streamlit"))
@@ -357,7 +359,13 @@ WIDTH_PROFILE_PIXELS = {
     "Largo (2000)": 2000,
     "XL (2400)": 2400,
 }
-MAIN_TAB_LABELS = ["Filtros", "Tabela", "Exportacao", "Cache e API"]
+MAIN_SECTION_OPTIONS: list[tuple[str, str]] = [
+    ("filtros", "Filtros"),
+    ("tabela", "Tabela"),
+    ("exportacao", "Exportacao"),
+    ("cache_api", "Cache e API"),
+]
+MAIN_TAB_LABELS = [label for _key, label in MAIN_SECTION_OPTIONS]
 STREAMLIT_UI_STATE_FILE_DEFAULT = "streamlit_ui_state.json"
 DEFAULT_STREAMLIT_THEME = "GitHub Claro"
 STREAMLIT_THEME_PALETTES: dict[str, dict[str, str]] = {
@@ -676,25 +684,36 @@ def _build_streamlit_theme_css(theme_name: str) -> str:
         "}"
         ".stApp{background:var(--ssa-bg);color:var(--ssa-ink);}"
         "section[data-testid='stSidebar']{background:var(--ssa-panel)!important;color:var(--ssa-ink)!important;}"
-        ".block-container{padding-top:0.8rem;padding-bottom:0.5rem;}"
+        ".block-container{padding-top:0.6rem;padding-bottom:0.5rem;}"
         "h1,h2,h3{color:var(--ssa-ink);}"
         ".section-label{font-size:0.84rem;color:var(--ssa-accent);margin-bottom:0.35rem;}"
         ".stButton button{width:100%;border:1px solid var(--ssa-border);}"
+        "div[data-baseweb='tab-list']{position:sticky;top:0;z-index:995;background:var(--ssa-bg);"
+        "border:1px solid var(--ssa-border);border-radius:0.55rem;padding:0.12rem;}"
+        "div[data-baseweb='tab']{color:var(--ssa-ink)!important;}"
+        "button[role='tab'][aria-selected='true']{background:var(--ssa-accent-soft)!important;"
+        "border-color:var(--ssa-accent)!important;}"
         "div[data-testid='stMetric']{background:var(--ssa-metric-bg);border:1px solid var(--ssa-border);"
         "padding:0.5rem 0.65rem;border-radius:0.5rem;}"
         "div[data-testid='stMetricLabel'] *{color:var(--ssa-muted)!important;}"
         "div[data-testid='stMetricValue'] *{color:var(--ssa-ink)!important;}"
+        "section[data-testid='stSidebar'] div[data-testid='stMetricLabel']{font-size:0.74rem;}"
+        "section[data-testid='stSidebar'] div[data-testid='stMetricValue']{font-size:1.35rem;}"
         "div[data-testid='stDataFrame']{border:1px solid var(--ssa-border);border-radius:0.55rem;"
         "background:var(--ssa-panel);}"
         "div[data-testid='stDataFrame'] div[role='grid']{background:var(--ssa-panel)!important;"
         "color:var(--ssa-ink)!important;}"
+        "div[data-testid='stDataFrame'] div[role='columnheader']{background:var(--ssa-accent-soft)!important;"
+        "color:var(--ssa-ink)!important;}"
+        "div[data-testid='stDataFrame'] div[role='gridcell']{color:var(--ssa-ink)!important;}"
         "div[data-testid='stForm']{background:var(--ssa-panel);border:1px solid var(--ssa-border);"
         "padding:0.6rem 0.75rem;border-radius:0.55rem;}"
         "div[data-testid='stHorizontalBlock'] > div{gap:0.45rem;}"
         "div[data-testid='stSelectbox'] > div,div[data-testid='stNumberInput'] > div,"
-        "div[data-testid='stTextInput'] > div,div[data-testid='stMultiSelect'] > div{"
+        "div[data-testid='stTextInput'] > div,div[data-testid='stDateInput'] > div,"
+        "div[data-testid='stMultiSelect'] > div{"
         "border-color:var(--ssa-border);background:var(--ssa-input-bg)!important;color:var(--ssa-input-ink)!important;}"
-        "div[data-testid='stTextInput'] input,div[data-testid='stNumberInput'] input{"
+        "div[data-testid='stTextInput'] input,div[data-testid='stDateInput'] input,div[data-testid='stNumberInput'] input{"
         "color:var(--ssa-input-ink)!important;}"
         "div[data-baseweb='select'] *{color:var(--ssa-input-ink)!important;}"
         "label,p,span,small{color:var(--ssa-ink);}"
@@ -917,13 +936,32 @@ def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
 
 
 def _normalize_date_boundary(raw_value: Any) -> pd.Timestamp | None:
-    text = str(raw_value or "").strip()
-    if not text:
+    parsed_text = parse_any_date(raw_value)
+    if not parsed_text:
         return None
-    parsed = pd.to_datetime(text, errors="coerce")
+    parsed = pd.to_datetime(parsed_text, errors="coerce")
     if pd.isna(parsed):
         return None
     return parsed
+
+
+def _parse_date_input(raw_value: Any) -> date | None:
+    parsed_text = parse_any_date(raw_value)
+    if not parsed_text:
+        return None
+    parsed = pd.to_datetime(parsed_text, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed.date()
+
+
+def _format_date_input(raw_value: Any) -> str:
+    if raw_value in (None, ""):
+        return ""
+    parsed = pd.to_datetime(raw_value, errors="coerce")
+    if pd.isna(parsed):
+        return ""
+    return str(parsed.date())
 
 
 def _date_to_yearweek(value: pd.Timestamp) -> int | None:
@@ -983,6 +1021,20 @@ def _compute_sidebar_weekly_kpis(
         "emitidas_semana_atual": int(emit_week.eq(current_week).fillna(False).sum()),
         "emitidas_semana_anterior": int(emit_week.eq(previous_week).fillna(False).sum()),
     }
+
+
+def _compute_sidebar_weekly_kpis_cached(df: pd.DataFrame, reference_day: str) -> dict[str, int]:
+    try:
+        reference_dt = datetime.strptime(reference_day, "%Y-%m-%d")
+    except ValueError:
+        reference_dt = datetime.now()
+    return _compute_sidebar_weekly_kpis(df, reference_dt=reference_dt)
+
+
+if hasattr(st, "cache_data") and callable(getattr(st, "cache_data")):
+    _compute_sidebar_weekly_kpis_cached = st.cache_data(show_spinner=False)(
+        _compute_sidebar_weekly_kpis_cached
+    )
 
 
 def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
@@ -1651,6 +1703,7 @@ if REAL_RUNTIME:
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
 raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
+sidebar_filtered_metric_slot: Any = None
 base_derivada_context_map: Optional[pd.DataFrame] = None
 if REAL_RUNTIME and raw_df.empty:
     st.info(
@@ -1671,19 +1724,17 @@ if REAL_RUNTIME and not raw_df.empty:
     with st.sidebar:
         st.divider()
         st.subheader("Resumo rapido")
-        weekly_kpis = _compute_sidebar_weekly_kpis(raw_df)
+        weekly_kpis = _compute_sidebar_weekly_kpis_cached(
+            raw_df,
+            datetime.now().strftime("%Y-%m-%d"),
+        )
         st.metric("Registros no banco", len(raw_df))
+        sidebar_filtered_metric_slot = st.empty()
         exec_col, emit_col = st.columns(2)
         exec_col.metric("Exec semana atual", weekly_kpis["executadas_semana_atual"])
         exec_col.metric("Exec semana anterior", weekly_kpis["executadas_semana_anterior"])
         emit_col.metric("Emit semana atual", weekly_kpis["emitidas_semana_atual"])
         emit_col.metric("Emit semana anterior", weekly_kpis["emitidas_semana_anterior"])
-        st.caption(
-            "Tema ativo: "
-            + _normalize_streamlit_theme_name(
-                st.session_state.get("streamlit_theme_name", DEFAULT_STREAMLIT_THEME)
-            )
-        )
 
 search_terms = ""
 situacao_sel: list[Any] = []
@@ -1751,6 +1802,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "data_execucao_fim": "",
                 "tem_derivada_mode": "todos",
                 "tem_derivadas_mode": "todos",
+                "use_calendar_mode": False,
                 "limit_rows": limit_rows,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
@@ -1803,6 +1855,7 @@ if REAL_RUNTIME and not raw_df.empty:
             filter_state["tem_derivada_mode"] = "todos"
         if str(filter_state.get("tem_derivadas_mode", "todos")).lower() not in {"todos", "sim", "nao"}:
             filter_state["tem_derivadas_mode"] = "todos"
+        filter_state["use_calendar_mode"] = bool(filter_state.get("use_calendar_mode", False))
         valid_display_values = set(column_display_names.values())
         selected_display_state = [value for value in filter_state.get("selected_display", []) if value in valid_display_values]
         filter_state["selected_display"] = selected_display_state or [column_display_names[col] for col in default_columns]
@@ -1842,18 +1895,18 @@ if REAL_RUNTIME and not raw_df.empty:
 
         with st.form("filters_form", clear_on_submit=False):
             st.caption("Busca e origem")
-            search_row = st.columns([3.0, 1.1, 0.9])
+            search_row = st.columns([4.5, 1.2])
             search_input = search_row[0].text_input(
                 "Busca (mesma sintaxe da CLI)",
                 value=filter_state.get("search_terms", ""),
                 placeholder="ex.: svp, !ste, mel4",
                 help="Use virgula para multiplos valores e ! para diferente de.",
             )
-            consult_api_input = search_row[1].checkbox(
+            apply_search_now = search_row[1].form_submit_button("Filtrar agora")
+            consult_api_input = st.checkbox(
                 "Consulta API manual",
                 value=bool(filter_state.get("consult_api", False)),
             )
-            apply_search_now = search_row[2].form_submit_button("Filtrar agora")
             st.caption("Filtros principais")
             row_filters = st.columns([0.9, 0.9, 1.2, 0.7])
             executor_input_multi = row_filters[0].multiselect(
@@ -1924,26 +1977,67 @@ if REAL_RUNTIME and not raw_df.empty:
                 options=deriv_mode_options,
                 index=deriv_mode_options.index(str(filter_state.get("tem_derivada_mode", "todos"))),
             )
+            use_calendar_mode = st.checkbox(
+                "Usar calendario nas datas",
+                value=bool(filter_state.get("use_calendar_mode", False)),
+                help="Desative para usar sintaxe manual com ! e virgula.",
+            )
             advanced_row_3 = st.columns(4)
-            data_emissao_inicio_input = advanced_row_3[0].text_input(
+            data_emissao_inicio_manual = advanced_row_3[0].text_input(
                 "Data emissao inicio",
                 value=str(filter_state.get("data_emissao_inicio", "")),
-                placeholder="YYYY-MM-DD",
+                placeholder="YYYY-MM-DD ou !YYYY-MM-DD",
+                help="Campo manual aceita sintaxe com ! e virgula.",
+                disabled=use_calendar_mode,
             )
-            data_emissao_fim_input = advanced_row_3[1].text_input(
+            data_emissao_inicio_picker = advanced_row_3[0].date_input(
+                "Calendario emissao inicio",
+                value=_parse_date_input(filter_state.get("data_emissao_inicio", "")),
+                format="YYYY-MM-DD",
+                key="cal_data_emissao_inicio",
+                disabled=not use_calendar_mode,
+            )
+            data_emissao_fim_manual = advanced_row_3[1].text_input(
                 "Data emissao fim",
                 value=str(filter_state.get("data_emissao_fim", "")),
-                placeholder="YYYY-MM-DD",
+                placeholder="YYYY-MM-DD ou !YYYY-MM-DD",
+                help="Campo manual aceita sintaxe com ! e virgula.",
+                disabled=use_calendar_mode,
             )
-            data_execucao_inicio_input = advanced_row_3[2].text_input(
+            data_emissao_fim_picker = advanced_row_3[1].date_input(
+                "Calendario emissao fim",
+                value=_parse_date_input(filter_state.get("data_emissao_fim", "")),
+                format="YYYY-MM-DD",
+                key="cal_data_emissao_fim",
+                disabled=not use_calendar_mode,
+            )
+            data_execucao_inicio_manual = advanced_row_3[2].text_input(
                 "Data execucao inicio",
                 value=str(filter_state.get("data_execucao_inicio", "")),
-                placeholder="YYYY-MM-DD",
+                placeholder="YYYY-MM-DD ou !YYYY-MM-DD",
+                help="Campo manual aceita sintaxe com ! e virgula.",
+                disabled=use_calendar_mode,
             )
-            data_execucao_fim_input = advanced_row_3[3].text_input(
+            data_execucao_inicio_picker = advanced_row_3[2].date_input(
+                "Calendario execucao inicio",
+                value=_parse_date_input(filter_state.get("data_execucao_inicio", "")),
+                format="YYYY-MM-DD",
+                key="cal_data_execucao_inicio",
+                disabled=not use_calendar_mode,
+            )
+            data_execucao_fim_manual = advanced_row_3[3].text_input(
                 "Data execucao fim",
                 value=str(filter_state.get("data_execucao_fim", "")),
-                placeholder="YYYY-MM-DD",
+                placeholder="YYYY-MM-DD ou !YYYY-MM-DD",
+                help="Campo manual aceita sintaxe com ! e virgula.",
+                disabled=use_calendar_mode,
+            )
+            data_execucao_fim_picker = advanced_row_3[3].date_input(
+                "Calendario execucao fim",
+                value=_parse_date_input(filter_state.get("data_execucao_fim", "")),
+                format="YYYY-MM-DD",
+                key="cal_data_execucao_fim",
+                disabled=not use_calendar_mode,
             )
             tem_derivadas_input = st.selectbox(
                 "Tem derivadas (estrutura)",
@@ -1952,11 +2046,21 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             st.caption("Colunas visiveis")
             st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
+            display_options = [column_display_names[col] for col in available_columns]
+            selected_display_base = filter_state.get(
+                "selected_display", [column_display_names[col] for col in default_columns]
+            )
+            mark_all_columns = st.checkbox(
+                "Marcar tudo",
+                value=len(selected_display_base) >= len(display_options),
+            )
             selected_display_input = st.multiselect(
                 "Colunas exibidas",
-                options=[column_display_names[col] for col in available_columns],
-                default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
+                options=display_options,
+                default=display_options if mark_all_columns else selected_display_base,
             )
+            if mark_all_columns:
+                selected_display_input = display_options
             preset_cols = st.columns(3)
             preset_core = preset_cols[0].form_submit_button("Operacao diaria")
             preset_all = preset_cols[1].form_submit_button("Analise completa")
@@ -1993,6 +2097,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "data_execucao_fim": "",
                 "tem_derivada_mode": "todos",
                 "tem_derivadas_mode": "todos",
+                "use_calendar_mode": False,
                 "limit_rows": 500,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
@@ -2031,7 +2136,7 @@ if REAL_RUNTIME and not raw_df.empty:
             min_cols = [col for col in ("numero_ssa", "situacao", "descricao_ssa") if col in available_columns]
             filter_state["selected_display"] = [column_display_names[col] for col in min_cols]
 
-        if apply_filters:
+        if apply_filters or apply_search_now:
             st.session_state[state_key] = {
                 "search_terms": search_input,
                 "consult_api": consult_api_input,
@@ -2045,17 +2150,32 @@ if REAL_RUNTIME and not raw_df.empty:
                 "ano_semana_emissao_sel": list(ano_semana_emissao_input),
                 "ano_semana_execucao_sel": list(ano_semana_execucao_input),
                 "num_reprogramacoes_sel": list(num_reprogramacoes_input),
-                "data_emissao_inicio": data_emissao_inicio_input,
-                "data_emissao_fim": data_emissao_fim_input,
-                "data_execucao_inicio": data_execucao_inicio_input,
-                "data_execucao_fim": data_execucao_fim_input,
+                "data_emissao_inicio": (
+                    _format_date_input(data_emissao_inicio_picker)
+                    if use_calendar_mode
+                    else str(data_emissao_inicio_manual or "").strip()
+                ),
+                "data_emissao_fim": (
+                    _format_date_input(data_emissao_fim_picker)
+                    if use_calendar_mode
+                    else str(data_emissao_fim_manual or "").strip()
+                ),
+                "data_execucao_inicio": (
+                    _format_date_input(data_execucao_inicio_picker)
+                    if use_calendar_mode
+                    else str(data_execucao_inicio_manual or "").strip()
+                ),
+                "data_execucao_fim": (
+                    _format_date_input(data_execucao_fim_picker)
+                    if use_calendar_mode
+                    else str(data_execucao_fim_manual or "").strip()
+                ),
                 "tem_derivada_mode": str(tem_derivada_input),
                 "tem_derivadas_mode": str(tem_derivadas_input),
+                "use_calendar_mode": bool(use_calendar_mode),
                 "limit_rows": limit_input,
                 "selected_display": selected_display_input,
             }
-        if apply_search_now and not apply_filters:
-            st.session_state[state_key]["search_terms"] = search_input
 
         filter_state = st.session_state[state_key]
         search_terms = str(filter_state.get("search_terms", ""))
@@ -2132,6 +2252,8 @@ if REAL_RUNTIME and not raw_df.empty:
     )
     if limit_rows and len(filtered_df) > limit_rows:
         filtered_df = filtered_df.head(limit_rows).reset_index(drop=True)
+    if sidebar_filtered_metric_slot is not None:
+        sidebar_filtered_metric_slot.metric("SSAs no filtro atual", len(filtered_df))
 
     view_df = filtered_df[selected_columns] if selected_columns else filtered_df
     rename_map = {col: DISPLAY_MAPPINGS.get(col, col) for col in view_df.columns}
@@ -2154,12 +2276,24 @@ if REAL_RUNTIME and not raw_df.empty:
 
     with tab_table:
         with st.expander("Colunas exibidas (atalho rapido)", expanded=False):
+            quick_display_options = [column_display_names[col] for col in available_columns]
+            quick_selected_default = filter_state.get(
+                "selected_display",
+                [column_display_names[col] for col in default_columns],
+            )
+            quick_mark_all = st.checkbox(
+                "Marcar tudo (tabela)",
+                value=len(quick_selected_default) >= len(quick_display_options),
+                key="table_quick_mark_all",
+            )
             quick_selected_display = st.multiselect(
                 "Colunas da tabela",
-                options=[column_display_names[col] for col in available_columns],
-                default=filter_state.get("selected_display", [column_display_names[col] for col in default_columns]),
+                options=quick_display_options,
+                default=quick_display_options if quick_mark_all else quick_selected_default,
                 key="table_quick_selected_display",
             )
+            if quick_mark_all:
+                quick_selected_display = quick_display_options
             quick_cols = st.columns(3)
             quick_core = quick_cols[0].button("Operacao diaria", key="table_quick_core")
             quick_all = quick_cols[1].button("Analise completa", key="table_quick_all")
@@ -2187,13 +2321,10 @@ if REAL_RUNTIME and not raw_df.empty:
 
         total_ssas = len(filtered_df)
         original_count = len(raw_df)
-        reduction_pct = ((original_count - total_ssas) / original_count * 100) if original_count else 0
-        status_cols = st.columns(5)
+        status_cols = st.columns(3)
         status_cols[0].metric("Total filtrado", total_ssas)
-        status_cols[1].metric("Total original", original_count)
-        status_cols[2].metric("Reducao", f"{reduction_pct:.1f}%")
-        status_cols[3].metric("Colunas visiveis", len(view_df.columns))
-        status_cols[4].metric("Cache hit", f"{filter_cache.get_stats()['hit_rate']:.1f}%")
+        status_cols[1].metric("Total banco", original_count)
+        status_cols[2].metric("Colunas exibidas", len(view_df.columns))
 
         if 'situacao' in filtered_df.columns and total_ssas:
             status_counts = filtered_df['situacao'].value_counts()
@@ -2399,7 +2530,7 @@ if REAL_RUNTIME and not raw_df.empty:
                     .rename_axis('Setor executor')
                     .reset_index(name='Quantidade')
                 )
-                extra_charts[0].caption("Top executor")
+                extra_charts[0].caption("Principais executores")
                 extra_charts[0].bar_chart(top_exec.set_index('Setor executor'))
             if 'setor_emissor' in filtered_df.columns:
                 top_emis = (
@@ -2411,8 +2542,36 @@ if REAL_RUNTIME and not raw_df.empty:
                     .rename_axis('Setor emissor')
                     .reset_index(name='Quantidade')
                 )
-                extra_charts[1].caption("Top emissor")
+                extra_charts[1].caption("Principais emissores")
                 extra_charts[1].bar_chart(top_emis.set_index('Setor emissor'))
+
+            timeline_charts = st.columns(2)
+            if "data_execucao" in filtered_df.columns:
+                exec_timeline = pd.to_datetime(filtered_df["data_execucao"], errors="coerce").dropna()
+                if not exec_timeline.empty:
+                    exec_weekly = (
+                        exec_timeline.dt.to_period("W")
+                        .astype(str)
+                        .value_counts()
+                        .sort_index()
+                        .rename_axis("Semana")
+                        .reset_index(name="Quantidade")
+                    )
+                    timeline_charts[0].caption("Execucao por semana")
+                    timeline_charts[0].line_chart(exec_weekly.set_index("Semana"))
+            if "data_emissao" in filtered_df.columns:
+                emit_timeline = pd.to_datetime(filtered_df["data_emissao"], errors="coerce").dropna()
+                if not emit_timeline.empty:
+                    emit_weekly = (
+                        emit_timeline.dt.to_period("W")
+                        .astype(str)
+                        .value_counts()
+                        .sort_index()
+                        .rename_axis("Semana")
+                        .reset_index(name="Quantidade")
+                    )
+                    timeline_charts[1].caption("Emissao por semana")
+                    timeline_charts[1].line_chart(emit_weekly.set_index("Semana"))
 
     with tab_export:
         st.subheader("Exportacao")
