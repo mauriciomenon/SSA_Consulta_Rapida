@@ -6,38 +6,45 @@
 git clone https://github.com/mauriciomenon/SSA_Consulta_Rapida.git
 cd SSA_Consulta_Rapida
 
-# Configurar ambiente
-python -m venv venv
-.\activate_env.ps1
-pip install -r requirements.txt
+# Configurar ambiente (uv-first)
+uv venv
+uv sync
 
 # Verificar instalacao
 .\verificar_instalacao.ps1
 
 # Primeira execucao
-python main.py --reset-db
-python main.py
+uv run --python 3.13 python main.py --reset-db
+uv run --python 3.13 python main.py
+```
+
+Compatibilidade sem uv:
+```powershell
+python -m venv venv
+.\activate_env.ps1
+pip install -r requirements.txt
+uv run --python 3.13 python main.py
 ```
 
 ## COMANDOS PRINCIPAIS
 ```powershell
 # Help completo
-python main.py --help
+uv run --python 3.13 python main.py --help
 
 # CLI Interativo
-python main.py
+uv run --python 3.13 python main.py
 
 # Interface Grafica
-python main.py --gui
+uv run --python 3.13 python main.py --gui
 
 # Modo Otimizado
-python main.py --optimized
+uv run --python 3.13 python main.py --optimized
 
 # Reimportar tudo
-python main.py --force-rescan
+uv run --python 3.13 python main.py --force-rescan
 
 # Reset completo
-python main.py --reset-db
+uv run --python 3.13 python main.py --reset-db
 ```
 
 ## GUI – Filtros (TL;DR)
@@ -72,7 +79,7 @@ git status
 git pull
 
 # Limpar dados antigos
-python main.py --clean-data
+uv run --python 3.13 python main.py --clean-data
 
 # Verificar banco
 ls data\ssas.db
@@ -96,7 +103,7 @@ python tests\test_imports.py
 ## SOLUCAO DE PROBLEMAS
 ```powershell
 # Reinstalar dependencias
-pip install -r requirements.txt --force-reinstall
+uv sync --refresh
 
 # Reset de ambiente
 deactivate

@@ -301,7 +301,7 @@ This handoff is ready to reuse in the next conversation.
      - non-null column cache computed on load and consumed by canonical candidate provider.
 - Validation status:
   - interrupted patch validation rerun completed:
-    - `uv run python -m py_compile` on touched runtime files: pass
+    - `uv run --python 3.13 python -m py_compile` on touched runtime files: pass
     - `uv run ruff check` on touched runtime files: pass
     - `uv run ty check` on touched runtime files: pass
     - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`:
@@ -595,7 +595,7 @@ This handoff is ready to reuse in the next conversation.
    - `backlog` (nao bloqueante).
 4. Implementar apenas patches minimos por slice.
 5. Rodar gate tecnico por slice:
-   - `uv run python -m py_compile ...`
+   - `uv run --python 3.13 python -m py_compile ...`
    - `uv run ruff check ...`
    - `uv run ty check ...` (escopo tocado; aceitar baseline conhecido em `gui/gui_ssa.py`)
    - `uv run pytest -q` focado.
@@ -749,7 +749,7 @@ Pacote de tarefas delegaveis (ordem recomendada):
 Checklist de auditoria (eu audito depois):
 1. Cada tarefa em commit atomico separado.
 2. Gate por slice:
-   - `uv run python -m py_compile <files>`
+   - `uv run --python 3.13 python -m py_compile <files>`
    - `uv run ruff check <files>`
    - `uv run ty check <files>`
    - `uv run pytest -q <tests focados>`
@@ -857,7 +857,7 @@ Cuidados de seguranca e higiene:
 5) Em duvida de escopo: perguntar antes de mexer.
 
 Gate tecnico por slice:
-- uv run python -m py_compile <files>
+- uv run --python 3.13 python -m py_compile <files>
 - uv run ruff check <files>
 - uv run ty check <files>
 - uv run pytest -q <focados>
