@@ -65,7 +65,7 @@ class SimpleWidthManager:
         for i, col in enumerate(columns):
 
             if col == '#':
-                fixed_widths[col] = 18
+                fixed_widths[col] = 24
 
             elif col == 'numero_ssa':
                 fixed_widths[col] = 85  # leve incremento adicional
