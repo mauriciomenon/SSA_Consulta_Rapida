@@ -8,7 +8,9 @@ from dev_env.streamlit_app import (
     MAX_RENDER_TELEMETRY_PROFILES,
     STREAMLIT_THEME_PALETTES,
     StreamlitFilterCache,
+    apply_all_filters_cached,
     _api_snapshot_available,
+    _build_advanced_filter_options,
     _build_streamlit_theme_css,
     _clear_recent_api_snapshot,
     _build_table_caption,
@@ -153,6 +155,80 @@ def test_build_filter_options_allows_mixed_types() -> None:
     assert len(situacoes) == 3
     assert len(executores) == 3
     assert len(emissores) == 3
+
+
+def test_build_advanced_filter_options_collects_new_filters() -> None:
+    df = pd.DataFrame(
+        {
+            "responsavel_execucao": ["A", "B", "A"],
+            "situacao": ["ABERTO", "EXECUTADA", "ABERTO"],
+            "data_cadastro": ["2025-01-02", "2024-12-31", "2025-01-09"],
+            "semana_executada": [202503, 202452, 202504],
+            "num_reprogramacoes": [0, 2, 2],
+        }
+    )
+    options = _build_advanced_filter_options(df)
+    assert options["executor_resp"] == ["A", "B"]
+    assert options["estado"] == ["ABERTO", "EXECUTADA"]
+    assert 2025 in options["ano_emissao"]
+    assert 2024 in options["ano_execucao"]
+    assert 0 in options["num_reprogramacoes"]
+    assert 2 in options["num_reprogramacoes"]
+
+
+def test_apply_all_filters_cached_applies_advanced_executor_and_reprog() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3"],
+            "situacao": ["ABERTO", "ABERTO", "EXECUTADA"],
+            "setor_executor": ["IEE3", "IEE4", "IEE3"],
+            "setor_emissor": ["IEE3", "MEL1", "IEE3"],
+            "responsavel_execucao": ["JOAO", "MARIA", "JOAO"],
+            "num_reprogramacoes": [0, 2, 3],
+        }
+    )
+    out = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={
+            "executor_resp": ["JOAO"],
+            "num_reprogramacoes": [3],
+        },
+    )
+    assert out["numero_ssa"].tolist() == ["3"]
+
+
+def test_apply_all_filters_cached_applies_derivada_structure_filters() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["10", "11", "12"],
+            "situacao": ["ABERTO", "ABERTO", "ABERTO"],
+            "setor_executor": ["IEE3", "IEE3", "IEE3"],
+            "setor_emissor": ["IEE3", "IEE3", "IEE3"],
+            "derivada_de": ["", "10", ""],
+        }
+    )
+    out_has = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={"tem_derivada": "sim", "tem_derivadas": "todos"},
+    )
+    out_children = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={"tem_derivada": "todos", "tem_derivadas": "sim"},
+    )
+    assert out_has["numero_ssa"].tolist() == ["11"]
+    assert out_children["numero_ssa"].tolist() == ["10"]
 
 
 def test_paginate_dataframe_clamps_page_and_returns_total_pages() -> None:
