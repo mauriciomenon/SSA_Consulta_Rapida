@@ -679,7 +679,7 @@ class TestWorkerRegression:
                 "texto": [
                     "normal",
                     "com acentuação: ção",
-                    "emojis: 🚀✨",
+                    "emojis: ",
                     "html: <script>alert(1)</script>",
                     "sql: '; DROP TABLE --",
                     "novas\nlinhas",

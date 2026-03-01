@@ -110,7 +110,12 @@ def _has_referencing_foreign_keys(conn, target_table: str) -> bool:
             try:
                 quoted_table = _quote_identifier(table)
                 fk_rows = conn.execute(f"PRAGMA foreign_key_list({quoted_table})").fetchall()
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao inspecionar foreign keys da tabela %s: %s",
+                    table,
+                    exc,
+                )
                 continue
             for fk in fk_rows:
                 if len(fk) > 2 and fk[2] == target_table:
@@ -263,22 +268,44 @@ def insert_dataframe_optimized(
                         .tolist()
                     )
                     if unique_ssas:
-                        # Respeita limite de variaveis do SQLite (999). Usamos margem.
-                        lookup_chunk = max(1, SQLITE_MAX_VARIABLES - 50)
-                        for i in range(0, len(unique_ssas), lookup_chunk):
+                        # Respeita limite de variaveis do SQLite com margem e ajuste dinamico.
+                        max_lookup_params = max(1, SQLITE_MAX_VARIABLES - 100)
+                        lookup_chunk = min(500, max_lookup_params)
+                        i = 0
+                        while i < len(unique_ssas):
                             chunk_ssas = unique_ssas[i:i + lookup_chunk]
+                            if len(chunk_ssas) > max_lookup_params:
+                                chunk_ssas = chunk_ssas[:max_lookup_params]
                             placeholders = ",".join(["?"] * len(chunk_ssas))
                             query = (
                                 f"SELECT numero_ssa, data_cadastro FROM {target_table_sql} "
                                 f"WHERE numero_ssa IN ({placeholders})"
                             )
-                            chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
+                            try:
+                                chunk_df = pd.read_sql_query(query, conn, params=chunk_ssas)
+                            except (sqlite3.OperationalError, pd.errors.DatabaseError) as exc:
+                                if "too many sql variables" in str(exc).lower() and lookup_chunk > 1:
+                                    lookup_chunk = max(1, lookup_chunk // 2)
+                                    logger.warning(
+                                        "Ajustando chunk de lookup SSA para %s apos limite SQLite: %s",
+                                        lookup_chunk,
+                                        exc,
+                                    )
+                                    continue
+                                logger.warning(
+                                    "Falha no lookup de SSAs (chunk=%s): %s",
+                                    len(chunk_ssas),
+                                    exc,
+                                )
+                                i += len(chunk_ssas)
+                                continue
                             if not chunk_df.empty:
                                 chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(_normalize_ssa_storage_value)
                                 chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
                                 existing_dict.update(
                                     dict(zip(chunk_df['numero_ssa'], chunk_df['data_cadastro']))
                                 )
+                            i += len(chunk_ssas)
                 lookup_time = time.time() - lookup_start
 
                 logger.info(

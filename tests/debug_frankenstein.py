@@ -250,7 +250,7 @@ def analisar_arquitetura_mista():
 
         active_paradigms = [k for k, v in paradigms.items() if v > 5]
         if len(active_paradigms) > 2:
-            architectural_issues.append(f"️ Mistura de paradigmas: {', '.join(active_paradigms)}")
+            architectural_issues.append(f" Mistura de paradigmas: {', '.join(active_paradigms)}")
 
         # Detectar dependências circulares potenciais
         imports = re.findall(r'from (\w+(?:\.\w+)*) import', gui_content)
@@ -277,28 +277,28 @@ def sugerir_refatoracoes():
         {
             'categoria': 'RUN Eliminação de Redundância',
             'sugestões': [
-                '️ Criar classe base HandlerBase para handlers CLI',
-                '️ Extrair funções comuns para módulo utils.common',
-                '️ Unificar nomenclatura de variáveis entre GUI e CLI',
-                '️ Consolidar imports duplicados em __init__.py'
+                ' Criar classe base HandlerBase para handlers CLI',
+                ' Extrair funções comuns para módulo utils.common',
+                ' Unificar nomenclatura de variáveis entre GUI e CLI',
+                ' Consolidar imports duplicados em __init__.py'
             ]
         },
         {
-            'categoria': '️ Melhoria Arquitetural',
+            'categoria': ' Melhoria Arquitetural',
             'sugestões': [
-                '️ Implementar padrão Strategy para algoritmos de largura',
-                '️ Aplicar padrão Observer para eventos de resize',
-                '️ Usar padrão Factory para criação de handlers',
-                '️ Implementar padrão Command para operações de filtro'
+                ' Implementar padrão Strategy para algoritmos de largura',
+                ' Aplicar padrão Observer para eventos de resize',
+                ' Usar padrão Factory para criação de handlers',
+                ' Implementar padrão Command para operações de filtro'
             ]
         },
         {
             'categoria': 'CLEAN Limpeza de Código',
             'sugestões': [
-                '️ Remover código morto e funções não utilizadas',
-                '️ Eliminar imports desnecessários com autoflake',
-                '️ Padronizar docstrings com formato consistente',
-                '️ Aplicar formatação consistente com black/isort'
+                ' Remover código morto e funções não utilizadas',
+                ' Eliminar imports desnecessários com autoflake',
+                ' Padronizar docstrings com formato consistente',
+                ' Aplicar formatação consistente com black/isort'
             ]
         }
     ]
@@ -351,7 +351,7 @@ def main():
         print("  OK Padrões relativamente consistentes")
     print()
 
-    print("️ PROBLEMAS ARQUITETURAIS:")
+    print(" PROBLEMAS ARQUITETURAIS:")
     if architectural_issues:
         for item in architectural_issues:
             print(f"  {item}")

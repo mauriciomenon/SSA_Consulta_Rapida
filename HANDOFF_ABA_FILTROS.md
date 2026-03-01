@@ -57,7 +57,7 @@
 
 ### Últimas Modificações (Sessão Atual)
 
-#### ✅ RESOLVIDO
+####  RESOLVIDO
 1. **QLayout Parent Error** 
    - Removido container intermediário `grid_container`
    - Grid adicionado diretamente: `outer.addLayout(main_grid)`
@@ -92,7 +92,7 @@
    - Margins: 2px, Spacing: 2px
    - Labels curtos (antes: "Setor Emissor" → agora: "Emissor")
 
-#### ⚠️ PENDENTE (CRÍTICO)
+####  PENDENTE (CRÍTICO)
 1. **Dados NÃO carregam nos botões multiselect**
    - Sintoma: Todos botões mostram "Sem dados"
    - Root cause: Ainda investigando
@@ -168,9 +168,9 @@ self.main_tabs.currentChanged.connect(self._on_tab_changed)
 ## INVESTIGAÇÃO: Por que Dados Não Carregam?
 
 ### Hipóteses Testadas
-1. ❌ Try/except silenciando erros → REMOVIDO, ainda sem dados
-2. ❌ Cache não definido → CORRIGIDO, ainda sem dados
-3. ❌ QLayout parent error → CORRIGIDO, ainda sem dados
+1.  Try/except silenciando erros → REMOVIDO, ainda sem dados
+2.  Cache não definido → CORRIGIDO, ainda sem dados
+3.  QLayout parent error → CORRIGIDO, ainda sem dados
 4. ⏳ Timing: `_refresh_advanced_filter_options()` chamado antes de widgets existirem?
 
 ### Próximos Passos de Debug
@@ -450,7 +450,7 @@ Estamos a **um passo** de resolver o problema dos dados. A estrutura está corre
 
 **Lembre-se:** NUNCA modificar aba SSAs, sempre usar logging em vez de try/except pass, e fazer análise profunda com ferramentas antes de mudanças.
 
-Boa sorte! 🚀
+Boa sorte! 
 # STATUS 2026-02-26
 
 Este arquivo e historico de iteracoes.

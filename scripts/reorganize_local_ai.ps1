@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 $baseDir = Join-Path $PSScriptRoot ".." "local_ai_private"
 
-Write-Host "️  REORGANIZANDO ESTRUTURA LOCAL (NÃO VERSIONADA)" -ForegroundColor Cyan
+Write-Host "  REORGANIZANDO ESTRUTURA LOCAL (NÃO VERSIONADA)" -ForegroundColor Cyan
 Write-Host "=" * 70
 
 # 1. Criar estrutura de diretórios
@@ -240,7 +240,7 @@ Write-Host "`n Consulte README_ESTRUTURA.md para detalhes da estrutura" -Foregro
 Write-Host ""
 
 # 8. Listar estrutura final
-Write-Host "️  Estrutura Final:" -ForegroundColor Cyan
+Write-Host "  Estrutura Final:" -ForegroundColor Cyan
 Get-ChildItem $baseDir -Directory | Where-Object { $_.Name -match "^\d{2}_" } | ForEach-Object {
     $count = (Get-ChildItem $_.FullName -Recurse -File).Count
     Write-Host "  $($_.Name): $count arquivo(s)" -ForegroundColor White

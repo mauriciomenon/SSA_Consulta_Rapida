@@ -155,9 +155,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Arquitetura',
         'sugestões': [
-            '️  Unificar sistemas de cache em módulo dedicado',
-            '️  Centralizar configurações em manager único',
-            '️  Padronizar interface de handlers entre GUI e CLI'
+            '  Unificar sistemas de cache em módulo dedicado',
+            '  Centralizar configurações em manager único',
+            '  Padronizar interface de handlers entre GUI e CLI'
         ]
     })
 
@@ -185,9 +185,9 @@ def sugerir_refinamentos():
     refinements.append({
         'categoria': 'Configuração',
         'sugestões': [
-            '️  Eliminar duplicações entre arquivos de config',
-            '️  Validar consistência de larguras de colunas',
-            '️  Implementar fallbacks robustos para configs'
+            '  Eliminar duplicações entre arquivos de config',
+            '  Validar consistência de larguras de colunas',
+            '  Implementar fallbacks robustos para configs'
         ]
     })
 

@@ -196,7 +196,7 @@ def test_upsert_logic():
                 if count_after == count_before:
                     print("OK Upsert funcionando corretamente - nenhum registro duplicado")
                 elif count_after > count_before:
-                    print(f"ℹ️  {count_after - count_before} novos registros adicionados")
+                    print(f"ℹ  {count_after - count_before} novos registros adicionados")
                 else:
                     raise AssertionError(
                         "Falha no upsert: registros removidos apos reprocessamento. "

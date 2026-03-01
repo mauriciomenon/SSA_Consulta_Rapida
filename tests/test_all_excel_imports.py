@@ -430,7 +430,7 @@ class ExcelImportTester:
             rate = result.get('import_rate_records_per_sec', 0)
 
             if result.get('skipped', False):
-                status = "⏭️"
+                status = "⏭"
                 records = "-"
                 duration = "-"
                 rate = "-"
