@@ -5,7 +5,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 ## CURRENT TRUTH 2026-03-01 02:20 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.26.1`.
+- Local release baseline: `4.27`.
 - Runtime standard:
   1. use `uv run --python 3.13 ...` as first choice.
   2. fallback order: `3.12 -> 3.11 -> 3.10`.
@@ -22,11 +22,11 @@ Use this file to migrate context to a new chat without losing execution quality.
 ## CURRENT TRUTH 2026-02-28 23:46 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.26.1`.
+- Local release baseline: `4.27`.
 - Release alignment status:
   1. streamlit deliveries from `v4.24.1` preserved.
   2. hardening package from `v4.25.0` preserved.
-  3. metadata and docs aligned for pre-PR baseline `v4.26.1`.
+  3. metadata and docs aligned for pre-PR baseline `v4.27`.
 - Working tree status:
   1. clean and synced with origin before pre-PR gates.
 - Next execution order:

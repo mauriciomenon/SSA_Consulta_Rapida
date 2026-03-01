@@ -1,9 +1,9 @@
 # CHANGELOG DE IMPLEMENTACOES
 
-## 2026-03-01 - Release v4.26.1 (uv-first + python compatibility)
+## 2026-03-01 - Release v4.27 (uv-first + python compatibility)
 - Baseline de release atualizado:
-  - `VERSION` para `4.26.1`
-  - `config/version.json` para baseline `v4.26.1`
+  - `VERSION` para `4.27`
+  - `config/version.json` para baseline `v4.27`
 - Runtime/docs alinhados para padrao uv-first:
   - comando principal em docs: `uv run --python 3.13 ...`
   - fallback documentado: `3.12 -> 3.11 -> 3.10`
@@ -14,10 +14,10 @@
   - 3.12.11: pass
   - 3.13.12: pass
 
-## 2026-02-28 - Release v4.26.1 (Pre-PR release alignment)
+## 2026-02-28 - Release v4.27 (Pre-PR release alignment)
 - Alinhamento de metadados de release para remover drift entre docs e arquivos de versao:
-  - `VERSION` para `4.26.1`
-  - `config/version.json` para baseline `v4.26.1`
+  - `VERSION` para `4.27`
+  - `config/version.json` para baseline `v4.27`
 - Sincronizacao de docs de release e continuidade:
   - `README.md`
   - `docs/HISTORICO_RELEASES.md`

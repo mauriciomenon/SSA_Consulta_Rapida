@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [v4.26.1] - 2026-03-01
+## [v4.27] - 2026-03-01
 
 ### Changed
 - Runtime/documentation moved to uv-first usage with explicit command priority:
