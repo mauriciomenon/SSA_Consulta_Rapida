@@ -84,3 +84,5 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
     finish_payload = progress_events[-1][1]
     assert finish_payload["total"] == 5
     assert finish_payload["processed"] == 1
+    assert "errors" in finish_payload
+    assert finish_payload["errors"] == []

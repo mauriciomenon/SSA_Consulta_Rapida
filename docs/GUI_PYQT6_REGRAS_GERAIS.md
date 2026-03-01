@@ -11,6 +11,10 @@
 - Rodar validacoes tecnicas (compile, lint, type-check) antes de commit.
 - Rodar smoke de GUI com timeout para evitar sessao travada.
 - Nao declarar resolvido sem execucao real do fluxo alterado.
+- Antes de declarar pronto, validar visualmente em 3 tamanhos reais:
+  - minimo util;
+  - tamanho padrao de abertura;
+  - tela ampla.
 
 ## 3) Layout responsivo
 - Usar layout managers; evitar geometria fixa manual.

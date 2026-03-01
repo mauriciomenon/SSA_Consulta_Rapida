@@ -2760,6 +2760,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             def _retain_rescan_worker_global(target_worker, *, reason: str) -> bool:
                 workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
                 timestamp = perf_counter()
+
+                def _enforce_rescan_cap() -> None:
+                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) <= MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                        return
+                    overflow = len(GLOBAL_RETIRED_RESCAN_WORKERS) - MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+                    dropped_workers = GLOBAL_RETIRED_RESCAN_WORKERS[:overflow]
+                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[overflow:]
+                    for dropped_worker in dropped_workers:
+                        GLOBAL_RETIRED_RESCAN_META.pop(dropped_worker, None)
+
                 try:
                     if not ssa_gui_workers.is_data_loader_worker_alive(target_worker, sip):
                         logger.debug(
@@ -2770,16 +2780,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     if workers_lock is None:
                         if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
                             GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
-                        GLOBAL_RETIRED_RESCAN_META.setdefault(target_worker, timestamp)
-                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                        GLOBAL_RETIRED_RESCAN_META[target_worker] = timestamp
+                        _enforce_rescan_cap()
                     else:
                         with workers_lock:
                             if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
                                 GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
-                            GLOBAL_RETIRED_RESCAN_META.setdefault(target_worker, timestamp)
-                            if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
+                            GLOBAL_RETIRED_RESCAN_META[target_worker] = timestamp
+                            _enforce_rescan_cap()
                     try:
                         self._prune_retired_rescan_workers()
                     except Exception as exc:
@@ -2801,16 +2809,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             try:
                 try:
-                    running_now = bool(
-                        hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()
-                    )
+                    running_now = self._is_rescan_worker_running(rescan_worker)
                 except Exception as exc:
                     running_now = True
                     logger.debug(
                         "Falha ao consultar estado inicial do RescanWorker no closeEvent (%s). Assumindo ativo para shutdown defensivo.",
                         exc,
                     )
-                if running_now:
+                if running_now or retained_globally:
                     try:
                         if hasattr(rescan_worker, "stop"):
                             rescan_worker.stop()
@@ -2826,14 +2832,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     except Exception as exc:
                         logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
                     try:
-                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                        if self._is_rescan_worker_running(rescan_worker):
                             try:
                                 if hasattr(rescan_worker, "terminate"):
                                     rescan_worker.terminate()
                                     rescan_worker.wait(1500)
                             except Exception as exc:
                                 logger.debug("Falha no fallback terminate do RescanWorker no closeEvent: %s", exc)
-                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                        if self._is_rescan_worker_running(rescan_worker):
                             retained_globally = _retain_rescan_worker_global(
                                 rescan_worker,
                                 reason="still-running-after-shutdown",

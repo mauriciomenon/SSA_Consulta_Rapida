@@ -163,3 +163,11 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     extracted = extract_data_from_excel(str(file_path))
     assert isinstance(extracted, pd.DataFrame)
     assert extracted.empty
+
+
+def test_extract_data_from_excel_respects_cancel_callback_before_io():
+    with pytest.raises(ExtractionError, match="operation cancelled"):
+        extract_data_from_excel(
+            "/tmp/arquivo_que_nao_precisa_existir.xlsx",
+            should_cancel=lambda: True,
+        )

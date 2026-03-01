@@ -60,3 +60,39 @@ def test_flush_every_lines_clamp_and_default(monkeypatch: pytest.MonkeyPatch, mo
     assert common.flush_every_lines() == 4096
     monkeypatch.setenv("PYTEST_STREAM_FLUSH_EVERY", "bad")
     assert common.flush_every_lines() == 64
+
+
+def test_dropped_warn_every_lines_clamp_and_default(monkeypatch: pytest.MonkeyPatch, modules) -> None:
+    _, _, common = modules
+    monkeypatch.delenv("PYTEST_STREAM_DROPPED_WARN_EVERY", raising=False)
+    assert common.dropped_warn_every_lines() == 200
+    monkeypatch.setenv("PYTEST_STREAM_DROPPED_WARN_EVERY", "1")
+    assert common.dropped_warn_every_lines() == 10
+    monkeypatch.setenv("PYTEST_STREAM_DROPPED_WARN_EVERY", "50000")
+    assert common.dropped_warn_every_lines() == 10000
+    monkeypatch.setenv("PYTEST_STREAM_DROPPED_WARN_EVERY", "bad")
+    assert common.dropped_warn_every_lines() == 200
+
+
+def test_queue_poll_timeout_seconds_clamp_and_default(monkeypatch: pytest.MonkeyPatch, modules) -> None:
+    _, _, common = modules
+    monkeypatch.delenv("PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS", raising=False)
+    assert common.queue_poll_timeout_seconds() == 0.2
+    monkeypatch.setenv("PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS", "1")
+    assert common.queue_poll_timeout_seconds() == 0.02
+    monkeypatch.setenv("PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS", "5000")
+    assert common.queue_poll_timeout_seconds() == 2.0
+    monkeypatch.setenv("PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS", "bad")
+    assert common.queue_poll_timeout_seconds() == 0.2
+
+
+def test_reader_join_timeout_seconds_clamp_and_default(monkeypatch: pytest.MonkeyPatch, modules) -> None:
+    _, _, common = modules
+    monkeypatch.delenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", raising=False)
+    assert common.reader_join_timeout_seconds() == 1.0
+    monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "1")
+    assert common.reader_join_timeout_seconds() == 0.1
+    monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "50000")
+    assert common.reader_join_timeout_seconds() == 5.0
+    monkeypatch.setenv("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS", "bad")
+    assert common.reader_join_timeout_seconds() == 1.0

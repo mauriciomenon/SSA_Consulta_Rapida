@@ -119,6 +119,7 @@ def retain_data_loader_worker_until_finished(
 ) -> None:
     if worker is None:
         return
+    now = perf_counter()
     prune_retired_data_loader_workers(
         window,
         global_workers=global_workers,
@@ -134,11 +135,14 @@ def retain_data_loader_worker_until_finished(
             retired = []
             window._retired_data_loader_workers = retired
         if worker in retired:
+            if worker not in global_workers:
+                global_workers.append(worker)
+            global_meta.setdefault(worker, now)
             return
         retired.append(worker)
-        global_meta[worker] = perf_counter()
         if worker not in global_workers:
             global_workers.append(worker)
+        global_meta.setdefault(worker, now)
 
     def _release_worker_ref(w=worker):
         try:
@@ -290,11 +294,13 @@ def prune_retired_data_loader_workers(
             with _GLOBAL_WORKERS_LOCK:
                 global_meta[w] = now
     with _GLOBAL_WORKERS_LOCK:
+        retired_snapshot = set(getattr(window, "_retired_data_loader_workers", []) or [])
         if removed_local:
             retired_current = list(getattr(window, "_retired_data_loader_workers", []) or [])
             window._retired_data_loader_workers = [w for w in retired_current if w not in removed_local]
+            retired_snapshot = set(window._retired_data_loader_workers)
         for w in list(global_meta.keys()):
-            if w not in global_workers and w not in window._retired_data_loader_workers:
+            if w not in global_workers and w not in retired_snapshot:
                 global_meta.pop(w, None)
 
 
@@ -689,6 +695,18 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
+        non_null_cols = set()
+        for col_name in df_copy.columns:
+            try:
+                if df_copy[col_name].notna().any():
+                    non_null_cols.add(col_name)
+            except Exception:
+                continue
+        window._non_null_cols_cache = non_null_cols
+        window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
+    except Exception as exc:
+        logger.debug("Falha ao calcular cache de colunas nao nulas apos carga: %s", exc)
+    try:
         if hasattr(window, "column_selector") and window.column_selector is not None:
             canonical_provider = getattr(window, "_get_canonical_available_columns", None)
             if callable(canonical_provider):
@@ -887,14 +905,32 @@ def rescan_data(
     retired_force_wait_ms: int,
     sip_module,
 ) -> None:
+    try:
+        prune_retired_rescan_workers(
+            window,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+    except Exception as exc:
+        logger.debug("Falha ao podar rescan workers antes de iniciar novo rescan: %s", exc)
+
     active_worker = getattr(window, "_active_rescan_worker", None)
     if active_worker is not None:
         try:
-            if hasattr(active_worker, "isRunning") and active_worker.isRunning():
+            if is_rescan_worker_running(active_worker, sip_module):
                 window.status_label.setText("Status: Reescaneamento ja em andamento.")
                 return
         except Exception as exc:
             logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
+        try:
+            if getattr(window, "_active_rescan_worker", None) is active_worker:
+                window._active_rescan_worker = None
+        except Exception as exc:
+            logger.debug("Falha ao limpar referencia stale de worker ativo de reescaneamento: %s", exc)
 
     main_py_path = os.path.join(project_root, "main.py")
     if not os.path.exists(main_py_path):
@@ -961,13 +997,13 @@ def rescan_data(
         nonlocal cancelled
         cancelled = True
         running = is_rescan_worker_running(worker, sip_module)
+        window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
         if running:
             try:
                 if hasattr(worker, "stop"):
                     worker.stop()
             except Exception as exc:
                 logger.debug("Falha ao solicitar stop do RescanWorker no cancelamento: %s", exc)
-            window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
 
     progress_dialog.cancel_requested.connect(on_cancel_requested)
 
@@ -977,13 +1013,29 @@ def rescan_data(
     still_running = is_rescan_worker_running(worker, sip_module)
     if not still_running:
         _release_worker_ref()
+        try:
+            prune_retired_rescan_workers(
+                window,
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=max_global_workers,
+                retired_ttl_sec=retired_ttl_sec,
+                retired_force_wait_ms=retired_force_wait_ms,
+                sip_module=sip_module,
+            )
+        except Exception as exc:
+            logger.debug("Falha ao podar rescan workers apos dialogo finalizado: %s", exc)
     if still_running:
         with _GLOBAL_WORKERS_LOCK:
             if worker not in global_workers:
                 global_workers.append(worker)
-                global_meta[worker] = perf_counter()
-                if len(global_workers) > max_global_workers:
-                    global_workers[:] = global_workers[-max_global_workers:]
+            global_meta[worker] = perf_counter()
+            if len(global_workers) > max_global_workers:
+                overflow = len(global_workers) - max_global_workers
+                dropped = global_workers[:overflow]
+                global_workers[:] = global_workers[overflow:]
+                for dropped_worker in dropped:
+                    global_meta.pop(dropped_worker, None)
         prune_retired_rescan_workers(
             window,
             global_workers=global_workers,

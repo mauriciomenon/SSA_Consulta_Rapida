@@ -55,6 +55,51 @@ def flush_every_lines() -> int:
     return value
 
 
+def dropped_warn_every_lines() -> int:
+    raw = os.environ.get("PYTEST_STREAM_DROPPED_WARN_EVERY")
+    if not raw:
+        return 200
+    try:
+        value = int(raw)
+    except ValueError:
+        return 200
+    if value < 10:
+        return 10
+    if value > 10000:
+        return 10000
+    return value
+
+
+def queue_poll_timeout_seconds() -> float:
+    raw = os.environ.get("PYTEST_STREAM_QUEUE_POLL_TIMEOUT_MS")
+    if not raw:
+        return 0.2
+    try:
+        value_ms = int(raw)
+    except ValueError:
+        return 0.2
+    if value_ms < 20:
+        value_ms = 20
+    if value_ms > 2000:
+        value_ms = 2000
+    return float(value_ms) / 1000.0
+
+
+def reader_join_timeout_seconds() -> float:
+    raw = os.environ.get("PYTEST_STREAM_READER_JOIN_TIMEOUT_MS")
+    if not raw:
+        return 1.0
+    try:
+        value_ms = int(raw)
+    except ValueError:
+        return 1.0
+    if value_ms < 100:
+        value_ms = 100
+    if value_ms > 5000:
+        value_ms = 5000
+    return float(value_ms) / 1000.0
+
+
 def resolve_safe_logpath(logdir: str, user_log: str | None) -> str:
     from pathlib import Path
     from utils.path_safety import PathSafetyError, ensure_path_is_allowed
@@ -182,6 +227,9 @@ def run_streaming_pytest(
     dropped_lock = threading.Lock()
     last_warned = 0
     reader_done = threading.Event()
+    dropped_warn_every = dropped_warn_every_lines()
+    queue_poll_timeout = queue_poll_timeout_seconds()
+    reader_join_timeout = reader_join_timeout_seconds()
 
     def _best_effort_queue_put(value: str | None) -> None:
         nonlocal dropped_lines, last_warned
@@ -198,15 +246,21 @@ def run_streaming_pytest(
             pass
         if evicted:
             with dropped_lock:
-                dropped_lines += 1
+                if value is not None:
+                    dropped_lines += 1
         try:
             line_queue.put_nowait(value)
             return
         except queue.Full:
             with dropped_lock:
+                if value is None:
+                    return
                 dropped_lines += 1
                 warn_count = dropped_lines
-                should_warn = warn_count % 200 == 1 and warn_count != last_warned
+                should_warn = (
+                    warn_count == 1
+                    or (warn_count % dropped_warn_every == 0 and warn_count != last_warned)
+                )
                 if should_warn:
                     last_warned = warn_count
             if should_warn:
@@ -274,11 +328,11 @@ def run_streaming_pytest(
                             f'python -m pytest "{test_arg}" 2>&1 | Tee-Object -FilePath '
                             f'"{logpath_ps}"'
                         )
-                    reader_thread.join(timeout=1.0)
+                    reader_thread.join(timeout=reader_join_timeout)
                     return 124
 
                 try:
-                    queued_line = line_queue.get(timeout=0.2)
+                    queued_line = line_queue.get(timeout=queue_poll_timeout)
                 except queue.Empty:
                     queued_line = ""
 
@@ -290,9 +344,10 @@ def run_streaming_pytest(
                     pending_flush_lines += 1
                     _flush_if_needed()
 
-                if process.poll() is not None and line_queue.empty() and (
-                    sentinel_seen or reader_done.is_set()
-                ):
+                process_done = process.poll() is not None
+                if process_done and sentinel_seen:
+                    break
+                if process_done and reader_done.is_set() and line_queue.empty():
                     break
 
             ret = process.wait()
@@ -301,7 +356,7 @@ def run_streaming_pytest(
             pending_flush_lines += 1
             _flush_if_needed(force=True)
             print(footer)
-            reader_thread.join(timeout=1.0)
+            reader_thread.join(timeout=reader_join_timeout)
             return ret
 
         except BaseException as exc:
@@ -317,7 +372,7 @@ def run_streaming_pytest(
             )
             _wait_for_termination(process, logger=robust_logger)
             try:
-                reader_thread.join(timeout=1.0)
+                reader_thread.join(timeout=reader_join_timeout)
             except Exception:
                 pass
             raise

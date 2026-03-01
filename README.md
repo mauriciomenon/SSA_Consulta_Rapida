@@ -1,14 +1,14 @@
-# SSA Consulta Rapida v4.24.0
+# SSA Consulta Rapida v4.25.0
 
-Release 4.24.0 consolida sincronizacao unica de altura dos paineis inferiores e hardening de estabilidade em troca de aba/resize.
+Release 4.25.0 fecha o pacote de 25 graves com hardening de command handlers, importer e stream wrappers, mantendo estabilidade de GUI.
 
-## Release v4.24.0 (2026-02)
+## Release v4.25.0 (2026-02)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.24.0.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.25.0.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
 - Regressao de filtros por coluna coberta por novos testes focados em:
@@ -44,7 +44,7 @@ direnv allow
 .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.24)
+### Documentacao tecnica atual (v4.25)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

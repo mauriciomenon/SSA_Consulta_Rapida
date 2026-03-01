@@ -45,7 +45,7 @@ LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
 LAYOUT_ADV_PANEL_MAX_HEIGHT = 230
-LAYOUT_ADV_CONTROL_HEIGHT = 28
+LAYOUT_ADV_CONTROL_HEIGHT = 26
 LAYOUT_ADV_FIELD_BOX_MIN_HEIGHT = 40
 LAYOUT_ADV_FIELD_BOX_MAX_HEIGHT = 50
 
@@ -195,8 +195,19 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(74, min(112, min_width))
-    max_width = max(min_width + 18, min(138, max_width))
+    min_width = max(68, min(112, min_width))
+    max_width = max(min_width + 12, min(138, max_width))
+    try:
+        grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
+    except Exception:
+        grid_cols = LAYOUT_GRID_PREF_COLS
+    grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
+    if width > 0:
+        cell_width = max(120, int(width // grid_cols))
+        pair_budget = max(116, cell_width - 12)
+        per_button_budget = max(56, int((pair_budget - 10) // 2))
+        max_width = min(max_width, per_button_budget)
+        min_width = min(min_width, max_width)
     if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
         return
     self._adv_filters_action_btn_min_width = min_width
@@ -207,6 +218,10 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
                 ref_font = ref_btn.font()
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
+                ref_h = int(ref_btn.height() or ref_btn.sizeHint().height() or LAYOUT_ADV_CONTROL_HEIGHT)
+                ref_h = max(24, min(30, ref_h))
+                btn.setMinimumHeight(ref_h)
+                btn.setMaximumHeight(ref_h)
             btn.setMinimumWidth(min_width)
             btn.setMaximumWidth(max_width)
         except Exception as exc:
@@ -340,29 +355,31 @@ def _set_checkbox_checked_quietly(self, checkbox, checked: bool) -> bool:
     except Exception as exc:
         logger.debug("Falha ao ler estado atual de checkbox em _set_checkbox_checked_quietly: %s", exc)
         desired = bool(checked)
-    used_signal_blocker = False
+    manual_blocked = False
     try:
-        QSignalBlocker(checkbox)
-        used_signal_blocker = True
+        with QSignalBlocker(checkbox):
+            checkbox.setChecked(desired)
+            return True
     except Exception:
         try:
             checkbox.blockSignals(True)
+            manual_blocked = True
         except Exception as exc:
             logger.debug("Falha ao bloquear sinais de checkbox sem QSignalBlocker: %s", exc)
-    changed = False
-    try:
-        checkbox.setChecked(desired)
-        changed = True
-    except Exception as exc:
-        logger.debug("Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc)
         changed = False
-    finally:
-        if not used_signal_blocker:
-            try:
-                checkbox.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s", exc)
-    return changed
+        try:
+            checkbox.setChecked(desired)
+            changed = True
+        except Exception as exc:
+            logger.debug("Falha ao atualizar checkbox em _set_checkbox_checked_quietly: %s", exc)
+            changed = False
+        finally:
+            if manual_blocked and _is_widget_valid(checkbox):
+                try:
+                    checkbox.blockSignals(False)
+                except Exception as exc:
+                    logger.debug("Falha ao restaurar sinais de checkbox sem QSignalBlocker: %s", exc)
+        return changed
 
 def _sync_responsavel_flags(self) -> None:
     all_prefixes = set(getattr(self, "_responsavel_all_prefixes", ()))
@@ -1159,13 +1176,22 @@ def _build_advanced_filters_panel(self):
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox("")
+    action_box = QGroupBox(" ")
     _flatten_field_box(action_box)
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(8)
-    action_layout.addWidget(apply_btn)
-    action_layout.addWidget(clear_btn)
+    action_layout.setSpacing(4)
+    action_sep = QFrame()
+    action_sep.setFrameShape(QFrame.Shape.VLine)
+    action_sep.setFrameShadow(QFrame.Shadow.Sunken)
+    try:
+        action_sep.setLineWidth(1)
+        action_sep.setMidLineWidth(0)
+    except Exception as exc:
+        logger.debug("Falha ao configurar separador dos botoes de acao dos filtros avancados: %s", exc)
+    action_layout.addWidget(apply_btn, 1)
+    action_layout.addWidget(action_sep)
+    action_layout.addWidget(clear_btn, 1)
     initial_widgets = [
         emis_box,
         exec_box,

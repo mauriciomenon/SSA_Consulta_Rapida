@@ -771,6 +771,7 @@ class FilterGUISSAMixin:
             logger.debug("Falha ao mapear colunas sem alias: %s", exc)
             self._last_unmapped_alias_columns = []
         legacy_invalid_columns = {"Número da SSA", "Numero da SSA", "No SSA", "Data Cadastro"}
+        valid_cols = []
         for col in candidates:
             if not isinstance(col, str) or not col or col == "#" or col in seen:
                 continue
@@ -782,12 +783,40 @@ class FilterGUISSAMixin:
             if str(display).strip() == "No SSA" and col != "numero_ssa":
                 continue
             seen.add(col)
+            valid_cols.append(col)
+
+        pinned = []
+        pinned_seen = set()
+        for col in (getattr(self, "_current_display_columns", []) or []):
+            if col in valid_cols and col not in pinned_seen:
+                pinned.append(col)
+                pinned_seen.add(col)
+        for col in self._active_column_filters.keys():
+            if col in valid_cols and col not in pinned_seen:
+                pinned.append(col)
+                pinned_seen.add(col)
+        remaining = [c for c in valid_cols if c not in pinned_seen]
+        remaining.sort(key=lambda c: self._resolve_column_display_name(c).casefold())
+        ordered_cols = pinned + remaining
+
+        label_counts = {}
+        for col in ordered_cols:
+            display = self._resolve_column_display_name(col)
+            key = str(display).strip().casefold()
+            label_counts[key] = label_counts.get(key, 0) + 1
+        for col in ordered_cols:
+            display = self._resolve_column_display_name(col)
+            display_text = str(display)
+            if label_counts.get(display_text.strip().casefold(), 0) > 1:
+                display_text = f"{display_text} [{col}]"
             action = menu.addAction(display)
             if action is None:
                 continue
             action.setCheckable(True)
             action.setChecked(col in self._active_column_filters)
             action.setData(col)
+            if hasattr(action, "setText"):
+                action.setText(display_text)
             columns.append(action)
         if not columns:
             menu.deleteLater()

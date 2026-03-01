@@ -118,6 +118,8 @@ class RescanProgressDialog(QDialog):
 
     def set_finished(self, success: bool, message: str = ""):
         """Mark process as finished."""
+        if self._finished:
+            return
         self._finished = True
         self.cancel_button.setEnabled(False)
         self.close_button.setEnabled(True)
@@ -135,7 +137,7 @@ class RescanProgressDialog(QDialog):
             self.append_error(f"\nERRO FINAL: {final_message}")
 
     def reject(self) -> None:
-        """Request cancel while running, allow close on a second attempt."""
+        """Request cancel while running; only close after process finishes."""
         if self._finished:
             super().reject()
             return
@@ -144,5 +146,4 @@ class RescanProgressDialog(QDialog):
             self.cancel_button.setEnabled(False)
             self.status_label.setText("Cancelamento solicitado. Aguarde...")
             self.cancel_requested.emit()
-            return
-        super().reject()
+        return

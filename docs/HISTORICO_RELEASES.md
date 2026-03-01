@@ -2,7 +2,33 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.24.0 - CURRENT RELEASE**
+## **RELEASE v4.25.0 - CURRENT RELEASE**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Sprint 25 Graves Closure and Handoff Sync
+**Status**: Estavel
+
+### **Principais entregas**
+- Fechamento do pacote de 25 graves com foco em risco real:
+  - path safety e config resolution em `interface/command_handlers.py`
+  - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
+  - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
+- Regressao focada adicionada para command handlers, importer e stream wrappers.
+- Handoff sincronizado com bloco `CURRENT TRUTH` no topo de:
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Metadados de versao locais atualizados para `4.25.0`.
+
+### **Documentacao da versao**
+- `README.md` (v4.25 no topo)
+- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
+- `docs/PENDING_ACTION_MATRIX.md`
+- `docs/RECOVERY_BACKLOG.md`
+
+---
+
+## **RELEASE v4.24.0**
 
 **Data de Lancamento**: Fevereiro 2026  
 **Tipo**: Lower Panel Height Sync Lock  

@@ -1,6 +1,6 @@
 # Filter Tab Optimizations - January 2026
 
-## v4.21 - Dynamic 4-Column Layout Algorithm (Current)
+## v4.22 - Dynamic 4-Column Layout Algorithm (Current)
 
 This section documents the current algorithm used by Advanced Filters in PyQt6.
 It is the active baseline. Older notes remain below for historical reference.
@@ -106,6 +106,11 @@ flowchart TD
 ### Known tradeoff
 - Fixed 4-column policy improves predictability but increases compactness pressure on small heights.
 - Mitigation: bounded font tiers and bounded control widths.
+
+### v4.22 lock points (new)
+- Column-filter panel defaults are always restored after clear-all.
+- Add-column menu uses full candidate set and excludes legacy ghost aliases.
+- Apply/Hide controls remain present in default visible rows.
 
 ## Executive Summary
 

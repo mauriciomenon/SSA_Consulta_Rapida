@@ -77,6 +77,27 @@ class _DialogNoop:
         return 0
 
 
+class _DialogCancelNoFinish:
+    def __init__(self, _window):
+        self.cancel_requested = _Signal()
+
+    def append_output(self, *_args, **_kwargs):
+        return None
+
+    def append_error(self, *_args, **_kwargs):
+        return None
+
+    def update_progress(self, *_args, **_kwargs):
+        return None
+
+    def set_finished(self, *_args, **_kwargs):
+        return None
+
+    def exec(self):
+        self.cancel_requested.emit()
+        return 0
+
+
 class _BaseWorker:
     def __init__(self, _main_py_path: str, _project_root: str):
         self._running = False
@@ -181,3 +202,66 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
     assert window._active_rescan_worker is None
     assert global_workers == []
     assert global_meta == {}
+
+
+def test_rescan_data_clears_inactive_active_worker_before_start(tmp_path):
+    class _InactiveWorker:
+        def isRunning(self):
+            return False
+
+    class _WorkerTracked(_BaseWorker):
+        created = []
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            _WorkerTracked.created.append(self)
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    window._active_rescan_worker = _InactiveWorker()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerTracked,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert _WorkerTracked.created
+    assert window._active_rescan_worker is _WorkerTracked.created[0]
+
+
+def test_rescan_data_sets_cancel_status_even_when_worker_not_running(tmp_path):
+    class _WorkerNotRunning(_BaseWorker):
+        def isRunning(self):
+            return False
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerNotRunning,
+        rescan_dialog_cls=_DialogCancelNoFinish,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."

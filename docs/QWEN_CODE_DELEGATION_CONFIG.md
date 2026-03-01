@@ -16,6 +16,9 @@ Setup minimo
    - `qwen -m qwen3-coder-plus "Responda apenas: OK QWEN"`
 3. Rodar no root do repo:
    - `cd /Users/menon/git/SSA_Consulta_Rapida`
+4. Rodar testes no ambiente correto:
+   - preferencial: `uv run pytest -q <alvo>`
+   - fallback: `.venv/bin/python -m pytest -q <alvo>`
 
 Contrato operacional (obrigatorio)
 1. Patch minimo por item.
