@@ -430,9 +430,17 @@ class FilterGUISSAMixin:
             search_text = str(getattr(self, "_active_filter_search_display", "") or "").strip()
         if not search_text:
             search_text = str(getattr(self, "_pending_search_display", "") or "").strip()
+        filtered_total_current = None
+        try:
+            if hasattr(self, "df_exibido") and isinstance(self.df_exibido, pd.DataFrame):
+                filtered_total_current = len(self.df_exibido)
+            elif isinstance(df_filtrado, pd.DataFrame):
+                filtered_total_current = len(df_filtrado)
+        except Exception:
+            filtered_total_current = None
         self._set_filtered_count_status(
             search_text,
-            filtered_total=len(df_filtrado) if isinstance(df_filtrado, pd.DataFrame) else None,
+            filtered_total=filtered_total_current,
             original_total=len(self.df_completo) if hasattr(self, "df_completo") and self.df_completo is not None else None,
         )
         if hasattr(self, 'clear_filter_button'):
