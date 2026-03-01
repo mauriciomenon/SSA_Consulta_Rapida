@@ -97,14 +97,21 @@ class FilterCache:
     ):
         """Armazena resultado DataFrame no cache; ignora entrada invalida."""
         if not isinstance(result, pd.DataFrame):
-            logger.warning(
+            logger.debug(
                 "FilterCache.put ignorou valor invalido para cache (tipo=%s)",
                 type(result).__name__,
             )
             return
         if self._max_entry_bytes is not None:
-            entry_bytes = int(result.memory_usage(index=True, deep=True).sum())
-            if entry_bytes > self._max_entry_bytes:
+            try:
+                entry_bytes = int(result.memory_usage(index=True, deep=True).sum())
+            except Exception as exc:
+                logger.warning(
+                    "FilterCache.put falhou ao medir tamanho da entrada; ignorando limite (erro=%s)",
+                    exc,
+                )
+                entry_bytes = None
+            if entry_bytes is not None and entry_bytes > self._max_entry_bytes:
                 with self._lock:
                     self._stats['skipped_large_entries'] += 1
                 logger.info(
