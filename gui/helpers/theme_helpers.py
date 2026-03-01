@@ -33,7 +33,11 @@ def build_global_widget_qss(palette: QPalette) -> str:
         f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}\n"
         f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}\n"
         f"QToolTip {{ background-color: {ttbase}; color: {tttext}; border:1px solid {mid}; }}\n"
-        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; }}\n"
+        f"QComboBox {{ background-color: {base}; color: {text}; border:1px solid {mid}; }}\n"
+        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; border:1px solid {mid}; }}\n"
+        f"QCheckBox {{ color: {text}; }}\n"
+        f"QCheckBox::indicator {{ width: 14px; height: 14px; border:1px solid {mid}; background: {base}; }}\n"
+        f"QCheckBox::indicator:checked {{ background: {hi}; border:1px solid {hi}; }}\n"
         "/* SSA_THEME_QSS_END */"
     )
 

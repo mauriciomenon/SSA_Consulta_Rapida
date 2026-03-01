@@ -1,14 +1,15 @@
-# SSA Consulta Rapida v4.27
+# SSA Consulta Rapida v4.27.1
 
-Release 4.27 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas.
+Release 4.27.1 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas, com ajuste de consistencia de tema e legibilidade.
 
-## Release v4.27 (2026-02)
+## Release v4.27.1 (2026-03)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.27.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.27.1.
+- Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
 - Regressao de filtros por coluna coberta por novos testes focados em:
@@ -66,7 +67,7 @@ direnv allow
 .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.27)
+### Documentacao tecnica atual (v4.27.1)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

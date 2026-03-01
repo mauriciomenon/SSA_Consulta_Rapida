@@ -947,7 +947,13 @@ class FilterGUISSAMixin:
             full_name = self._resolve_column_display_name(col)
             name_lbl = QLabel(full_name)
             self._column_filter_labels[col] = name_lbl
-            name_lbl.setMinimumWidth(100)
+            try:
+                label_metrics = name_lbl.fontMetrics()
+                desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
+                name_lbl.setMinimumWidth(max(90, min(260, desired_width)))
+            except Exception as exc:
+                logger.debug("Falha ao ajustar largura do label do filtro de coluna %s: %s", col, exc)
+                name_lbl.setMinimumWidth(100)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:
@@ -988,7 +994,7 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Aplicar da coluna %s: %s", col, exc)
             try:
-                apply_btn.setFixedWidth(72)
+                apply_btn.setFixedWidth(66)
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Aplicar da coluna %s: %s", col, exc)
             def _mk_apply(c=col, tb=term_box):
@@ -1019,7 +1025,7 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
+                clear_btn.setFixedWidth(66)  # Padronizado com o botao Aplicar
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
             try:
@@ -2290,8 +2296,20 @@ class FilterGUISSAMixin:
             QMessageBox.information(_qt_parent(self), "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
             return
 
-        # Cria um nome baseado no filtro (limitado para exibicao)
-        filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
+        # Cria um nome baseado no filtro com truncamento por largura disponivel.
+        filter_name = current_text
+        try:
+            metrics = self.search_input.fontMetrics()
+            width_px = int(self.search_input.width() or self.search_input.minimumWidth() or 320)
+            available = max(64, width_px - 40)
+            ellipsis = "..."
+            if metrics.horizontalAdvance(filter_name) > available:
+                trimmed = filter_name
+                while trimmed and metrics.horizontalAdvance(trimmed + ellipsis) > available:
+                    trimmed = trimmed[:-1]
+                filter_name = (trimmed + ellipsis) if trimmed else ellipsis
+        except Exception as exc:
+            logger.debug("Falha ao truncar nome de filtro persistente por largura: %s", exc)
 
         # Verifica se ja existe
         for f in self.persistent_filters:

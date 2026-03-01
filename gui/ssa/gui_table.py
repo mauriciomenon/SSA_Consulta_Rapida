@@ -18,7 +18,7 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 def _fallback_column_width(col_name: str) -> int:
     if col_name == "#":
-        return 30
+        return 24
     if col_name == "numero_ssa":
         return 110
     if col_name == "localizacao_codigo":
@@ -120,8 +120,8 @@ def display_current_page(window, page_number):
         try:
             if header is not None:
                 header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
+                header.setMinimumSectionSize(26)
+                header.setDefaultSectionSize(92)
         except Exception as exc:
             logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
         return
@@ -315,8 +315,8 @@ def display_current_page(window, page_number):
     try:
         if header is not None:
             header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            header.setMinimumSectionSize(80)
-            header.setDefaultSectionSize(100)
+            header.setMinimumSectionSize(26)
+            header.setDefaultSectionSize(92)
     except Exception as exc:
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
@@ -487,23 +487,19 @@ def _calculate_max_chars_for_column(window, col_name: str, col_idx: int) -> int:
         if width_px is None:
             width_px = window.table_widget.columnWidth(col_idx)
 
-        # Converte pixels em caracteres (aproximadamente 7px por caractere)
+        # Converte pixels em caracteres usando largura util da celula.
         width_px = max(1, int(width_px))
-        max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores proporcoes
+        max_chars = max(8, int((width_px - 10) / 6.3))
 
         # Limites especificos por tipo de coluna
         if col_name in ['descricao_ssa', 'descricao_execucao']:
-            # Descricoes podem usar toda largura disponivel
-            max_chars = max(50, max_chars)  # Minimo mais alto para descricoes
+            max_chars = max(50, min(max_chars, 420))
         elif col_name in ['numero_ssa', 'localizacao_codigo']:
-            # Campos curtos nao precisam de muito espaco
-            max_chars = min(max_chars, 25)
+            max_chars = min(max_chars, 32)
         elif col_name == 'solicitante':
-            # Solicitante deve caber pelo menos "MAURICIO MENON"
-            max_chars = max(15, max_chars)  # Garante pelo menos 15 caracteres
+            max_chars = max(15, min(max_chars, 220))
         else:
-            # Campos gerais - mais generoso
-            max_chars = min(max_chars, 80)  # Limite mais alto
+            max_chars = min(max_chars, 240)
 
         return max_chars
     except Exception:  # noqa: BLE001

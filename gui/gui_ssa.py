@@ -1333,8 +1333,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 header.setSectionsClickable(True)
                 header.setSortIndicatorShown(True)
                 try:
-                    header.setMinimumSectionSize(80)
-                    header.setDefaultSectionSize(100)
+                    header.setMinimumSectionSize(26)
+                    header.setDefaultSectionSize(92)
                 except Exception as exc:
                     logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
                 try:
