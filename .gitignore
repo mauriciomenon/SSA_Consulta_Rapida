@@ -5,6 +5,7 @@
 /temp/*
 !/temp/.gitkeep
 /.beads/
+/config/streamlit_ui_state.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
