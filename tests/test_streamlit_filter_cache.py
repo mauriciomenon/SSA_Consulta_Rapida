@@ -232,6 +232,99 @@ def test_apply_all_filters_cached_applies_derivada_structure_filters() -> None:
     assert out_children["numero_ssa"].tolist() == ["10"]
 
 
+def test_apply_all_filters_cached_supports_manual_exclude_for_estado() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3"],
+            "situacao": ["STE", "ATE", "STE"],
+            "setor_executor": ["IEE3", "IEE3", "IEE4"],
+            "setor_emissor": ["IEE2", "IEE2", "IEE1"],
+        }
+    )
+    out = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={
+            "estado_exclude": ["STE"],
+        },
+    )
+    assert out["numero_ssa"].tolist() == ["2"]
+
+
+def test_apply_all_filters_cached_supports_manual_exclude_for_reprogramacoes() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3"],
+            "situacao": ["ABERTO", "ABERTO", "ABERTO"],
+            "setor_executor": ["IEE3", "IEE3", "IEE3"],
+            "setor_emissor": ["IEE2", "IEE2", "IEE2"],
+            "num_reprogramacoes": [0, 1, 2],
+        }
+    )
+    out = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={
+            "num_reprogramacoes_exclude": [1],
+        },
+    )
+    assert out["numero_ssa"].tolist() == ["1", "3"]
+
+
+def test_apply_all_filters_cached_supports_manual_date_conditions_with_not() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3"],
+            "situacao": ["ABERTO", "ABERTO", "ABERTO"],
+            "setor_executor": ["IEE3", "IEE3", "IEE3"],
+            "setor_emissor": ["IEE2", "IEE2", "IEE2"],
+            "data_cadastro": ["2024-01-10", "2024-01-15", "2024-01-25"],
+            "semana_executada": [202402, 202403, 202404],
+        }
+    )
+    out = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={
+            "data_emissao_inicio": "2024-01-10",
+            "data_emissao_fim": "!2024-01-25",
+        },
+    )
+    assert out["numero_ssa"].tolist() == ["1", "2"]
+
+
+def test_apply_all_filters_cached_supports_execucao_date_not_equal() -> None:
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["1", "2", "3"],
+            "situacao": ["ABERTO", "ABERTO", "ABERTO"],
+            "setor_executor": ["IEE3", "IEE3", "IEE3"],
+            "setor_emissor": ["IEE2", "IEE2", "IEE2"],
+            "semana_executada": [202402, 202403, 202404],
+        }
+    )
+    out = apply_all_filters_cached(
+        df,
+        "",
+        [],
+        [],
+        [],
+        advanced_filters={
+            "data_execucao_inicio": "!2024-01-15",
+        },
+    )
+    assert out["numero_ssa"].tolist() == ["1", "3"]
+
+
 def test_paginate_dataframe_clamps_page_and_returns_total_pages() -> None:
     df = pd.DataFrame({"numero_ssa": [f"2025{i:05d}" for i in range(1, 16)]})
     page_df, total_pages = _paginate_dataframe(df, page=99, page_size=10)

@@ -1125,6 +1125,10 @@ def _build_active_summary(
     consult_api: bool,
 ) -> list[str]:
     summary: list[str] = []
+    def _append_values(label: str, values: list[Any]) -> None:
+        if values:
+            summary.append(f"{label}: " + ", ".join(str(value) for value in values))
+
     if search_terms.strip():
         summary.append(f"Busca: {search_terms.strip()}")
     if situacao_filter:
@@ -1133,20 +1137,20 @@ def _build_active_summary(
         summary.append("Executor: " + ", ".join(str(value) for value in executor_filter))
     if emissor_filter:
         summary.append("Emissor: " + ", ".join(str(value) for value in emissor_filter))
-    if advanced_filters["executor_resp"]:
-        summary.append(
-            "Executor(resp): " + ", ".join(str(value) for value in advanced_filters["executor_resp"])
-        )
-    if advanced_filters["estado"]:
-        summary.append("Estado+: " + ", ".join(str(value) for value in advanced_filters["estado"]))
-    if advanced_filters["ano_emissao"]:
-        summary.append("Ano emissao: " + ", ".join(str(value) for value in advanced_filters["ano_emissao"]))
-    if advanced_filters["ano_execucao"]:
-        summary.append("Ano execucao: " + ", ".join(str(value) for value in advanced_filters["ano_execucao"]))
-    if advanced_filters["num_reprogramacoes"]:
-        summary.append(
-            "Reprogramacoes: " + ", ".join(str(value) for value in advanced_filters["num_reprogramacoes"])
-        )
+    _append_values("Executor(resp)", list(advanced_filters.get("executor_resp") or []))
+    _append_values("Executor(resp)(!)", list(advanced_filters.get("executor_resp_exclude") or []))
+    _append_values("Estado+", list(advanced_filters.get("estado") or []))
+    _append_values("Estado+(!)", list(advanced_filters.get("estado_exclude") or []))
+    _append_values("Ano emissao", list(advanced_filters.get("ano_emissao") or []))
+    _append_values("Ano emissao(!)", list(advanced_filters.get("ano_emissao_exclude") or []))
+    _append_values("Ano execucao", list(advanced_filters.get("ano_execucao") or []))
+    _append_values("Ano execucao(!)", list(advanced_filters.get("ano_execucao_exclude") or []))
+    _append_values("AnoSemana emissao", list(advanced_filters.get("ano_semana_emissao") or []))
+    _append_values("AnoSemana emissao(!)", list(advanced_filters.get("ano_semana_emissao_exclude") or []))
+    _append_values("AnoSemana execucao", list(advanced_filters.get("ano_semana_execucao") or []))
+    _append_values("AnoSemana execucao(!)", list(advanced_filters.get("ano_semana_execucao_exclude") or []))
+    _append_values("Reprogramacoes", list(advanced_filters.get("num_reprogramacoes") or []))
+    _append_values("Reprogramacoes(!)", list(advanced_filters.get("num_reprogramacoes_exclude") or []))
     if advanced_filters["tem_derivada"] != "todos":
         summary.append(f"Tem derivada: {advanced_filters['tem_derivada']}")
     if advanced_filters["tem_derivadas"] != "todos":
@@ -1170,70 +1174,185 @@ def _build_active_summary(
     return summary
 
 
+def _apply_include_exclude_filter(
+    filtered_df: pd.DataFrame,
+    *,
+    column_name: str,
+    include_values: list[Any],
+    exclude_values: list[Any],
+) -> pd.DataFrame:
+    if column_name not in filtered_df.columns:
+        return filtered_df
+    if include_values:
+        filtered_df = filtered_df[filtered_df[column_name].isin(include_values)]
+    if exclude_values:
+        filtered_df = filtered_df[~filtered_df[column_name].isin(exclude_values)]
+    return filtered_df
+
+
+def _apply_numeric_series_include_exclude_filter(
+    filtered_df: pd.DataFrame,
+    *,
+    series: pd.Series,
+    include_values: list[int],
+    exclude_values: list[int],
+) -> pd.DataFrame:
+    if include_values:
+        filtered_df = filtered_df[series.isin(set(include_values))]
+        series = series[filtered_df.index]
+    if exclude_values:
+        filtered_df = filtered_df[~series.isin(set(exclude_values))]
+    return filtered_df
+
+
+def _apply_datetime_manual_boundary_filter(
+    filtered_df: pd.DataFrame,
+    *,
+    column_name: str,
+    start_raw: Any,
+    end_raw: Any,
+) -> pd.DataFrame:
+    if column_name not in filtered_df.columns:
+        return filtered_df
+    start_conditions = _parse_manual_boundary_conditions(start_raw, is_start=True)
+    end_conditions = _parse_manual_boundary_conditions(end_raw, is_start=False)
+    if not start_conditions and not end_conditions:
+        return filtered_df
+    parsed = pd.to_datetime(filtered_df[column_name], errors="coerce")
+    mask = pd.Series(True, index=filtered_df.index)
+    for op, boundary in start_conditions + end_conditions:
+        if op == "ge":
+            current_mask = parsed.ge(boundary).fillna(False)
+        elif op == "le":
+            current_mask = parsed.le(boundary).fillna(False)
+        elif op == "lt":
+            current_mask = parsed.lt(boundary).fillna(False)
+        elif op == "ne":
+            current_mask = parsed.ne(boundary).fillna(False)
+        else:
+            current_mask = parsed.gt(boundary).fillna(False)
+        mask &= current_mask
+    return filtered_df[mask]
+
+
+def _apply_yearweek_manual_boundary_filter(
+    filtered_df: pd.DataFrame,
+    *,
+    week_column: str,
+    start_raw: Any,
+    end_raw: Any,
+) -> pd.DataFrame:
+    if week_column not in filtered_df.columns:
+        return filtered_df
+    start_conditions = _parse_manual_boundary_conditions(start_raw, is_start=True)
+    end_conditions = _parse_manual_boundary_conditions(end_raw, is_start=False)
+    if not start_conditions and not end_conditions:
+        return filtered_df
+    week_series = _compute_yearweek_from_week_series(filtered_df, week_column)
+    mask = pd.Series(True, index=filtered_df.index)
+    for op, boundary in start_conditions + end_conditions:
+        year_week = _date_to_yearweek(boundary)
+        if year_week is None:
+            continue
+        if op == "ge":
+            current_mask = week_series.ge(year_week).fillna(False)
+        elif op == "le":
+            current_mask = week_series.le(year_week).fillna(False)
+        elif op == "lt":
+            current_mask = week_series.lt(year_week).fillna(False)
+        elif op == "ne":
+            current_mask = week_series.ne(year_week).fillna(False)
+        else:
+            current_mask = week_series.gt(year_week).fillna(False)
+        mask &= current_mask
+    return filtered_df[mask]
+
+
 def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filters: Optional[dict[str, Any]]) -> pd.DataFrame:
     adv = advanced_filters or {}
     if not adv:
         return filtered_df
 
-    executor_resp_values = list(adv.get("executor_resp") or [])
-    if executor_resp_values and "responsavel_execucao" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["responsavel_execucao"].isin(executor_resp_values)]
-
-    estado_values = list(adv.get("estado") or [])
-    if estado_values and "situacao" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["situacao"].isin(estado_values)]
+    filtered_df = _apply_include_exclude_filter(
+        filtered_df,
+        column_name="responsavel_execucao",
+        include_values=list(adv.get("executor_resp") or []),
+        exclude_values=list(adv.get("executor_resp_exclude") or []),
+    )
+    filtered_df = _apply_include_exclude_filter(
+        filtered_df,
+        column_name="situacao",
+        include_values=list(adv.get("estado") or []),
+        exclude_values=list(adv.get("estado_exclude") or []),
+    )
 
     ano_emissao_values = [int(v) for v in (adv.get("ano_emissao") or []) if str(v).isdigit()]
-    if ano_emissao_values:
+    ano_emissao_exclude_values = [int(v) for v in (adv.get("ano_emissao_exclude") or []) if str(v).isdigit()]
+    if ano_emissao_values or ano_emissao_exclude_values:
         ano_emissao_series = _compute_year_from_date_series(filtered_df, "data_cadastro")
-        filtered_df = filtered_df[ano_emissao_series.isin(set(ano_emissao_values))]
+        filtered_df = _apply_numeric_series_include_exclude_filter(
+            filtered_df,
+            series=ano_emissao_series,
+            include_values=ano_emissao_values,
+            exclude_values=ano_emissao_exclude_values,
+        )
 
     ano_execucao_values = [int(v) for v in (adv.get("ano_execucao") or []) if str(v).isdigit()]
-    if ano_execucao_values:
+    ano_execucao_exclude_values = [int(v) for v in (adv.get("ano_execucao_exclude") or []) if str(v).isdigit()]
+    if ano_execucao_values or ano_execucao_exclude_values:
         ano_execucao_series = _compute_year_from_week_series(filtered_df, "semana_executada")
-        filtered_df = filtered_df[ano_execucao_series.isin(set(ano_execucao_values))]
+        filtered_df = _apply_numeric_series_include_exclude_filter(
+            filtered_df,
+            series=ano_execucao_series,
+            include_values=ano_execucao_values,
+            exclude_values=ano_execucao_exclude_values,
+        )
 
     ano_semana_emissao_values = [int(v) for v in (adv.get("ano_semana_emissao") or []) if str(v).isdigit()]
-    if ano_semana_emissao_values:
+    ano_semana_emissao_exclude_values = [int(v) for v in (adv.get("ano_semana_emissao_exclude") or []) if str(v).isdigit()]
+    if ano_semana_emissao_values or ano_semana_emissao_exclude_values:
         ano_semana_emissao_series = _compute_yearweek_from_date_series(filtered_df, "data_cadastro")
-        filtered_df = filtered_df[ano_semana_emissao_series.isin(set(ano_semana_emissao_values))]
+        filtered_df = _apply_numeric_series_include_exclude_filter(
+            filtered_df,
+            series=ano_semana_emissao_series,
+            include_values=ano_semana_emissao_values,
+            exclude_values=ano_semana_emissao_exclude_values,
+        )
 
     ano_semana_execucao_values = [int(v) for v in (adv.get("ano_semana_execucao") or []) if str(v).isdigit()]
-    if ano_semana_execucao_values:
+    ano_semana_execucao_exclude_values = [int(v) for v in (adv.get("ano_semana_execucao_exclude") or []) if str(v).isdigit()]
+    if ano_semana_execucao_values or ano_semana_execucao_exclude_values:
         ano_semana_execucao_series = _compute_yearweek_from_week_series(filtered_df, "semana_executada")
-        filtered_df = filtered_df[ano_semana_execucao_series.isin(set(ano_semana_execucao_values))]
+        filtered_df = _apply_numeric_series_include_exclude_filter(
+            filtered_df,
+            series=ano_semana_execucao_series,
+            include_values=ano_semana_execucao_values,
+            exclude_values=ano_semana_execucao_exclude_values,
+        )
 
     reprog_values = [int(v) for v in (adv.get("num_reprogramacoes") or []) if str(v).isdigit()]
-    if reprog_values and "num_reprogramacoes" in filtered_df.columns:
+    reprog_exclude_values = [int(v) for v in (adv.get("num_reprogramacoes_exclude") or []) if str(v).isdigit()]
+    if (reprog_values or reprog_exclude_values) and "num_reprogramacoes" in filtered_df.columns:
         nums = pd.to_numeric(filtered_df["num_reprogramacoes"], errors="coerce").astype("Int64")
-        filtered_df = filtered_df[nums.isin(set(reprog_values))]
+        filtered_df = _apply_numeric_series_include_exclude_filter(
+            filtered_df,
+            series=nums,
+            include_values=reprog_values,
+            exclude_values=reprog_exclude_values,
+        )
 
-    data_emissao_inicio = _normalize_date_boundary(adv.get("data_emissao_inicio"))
-    data_emissao_fim = _normalize_date_boundary(adv.get("data_emissao_fim"))
-    if (data_emissao_inicio is not None or data_emissao_fim is not None) and "data_cadastro" in filtered_df.columns:
-        parsed = pd.to_datetime(filtered_df["data_cadastro"], errors="coerce")
-        if data_emissao_inicio is not None:
-            mask_start = parsed.ge(data_emissao_inicio).fillna(False)
-            filtered_df = filtered_df[mask_start]
-            parsed = parsed[mask_start]
-        if data_emissao_fim is not None:
-            mask_fim = parsed.le(data_emissao_fim).fillna(False)
-            filtered_df = filtered_df[mask_fim]
-
-    data_execucao_inicio = _normalize_date_boundary(adv.get("data_execucao_inicio"))
-    data_execucao_fim = _normalize_date_boundary(adv.get("data_execucao_fim"))
-    if (data_execucao_inicio is not None or data_execucao_fim is not None) and "semana_executada" in filtered_df.columns:
-        week_series = _compute_yearweek_from_week_series(filtered_df, "semana_executada")
-        if data_execucao_inicio is not None:
-            yw_start = _date_to_yearweek(data_execucao_inicio)
-            if yw_start is not None:
-                mask_start = week_series.ge(yw_start).fillna(False)
-                filtered_df = filtered_df[mask_start]
-                week_series = week_series[mask_start]
-        if data_execucao_fim is not None:
-            yw_end = _date_to_yearweek(data_execucao_fim)
-            if yw_end is not None:
-                filtered_df = filtered_df[week_series.le(yw_end).fillna(False)]
+    filtered_df = _apply_datetime_manual_boundary_filter(
+        filtered_df,
+        column_name="data_cadastro",
+        start_raw=adv.get("data_emissao_inicio"),
+        end_raw=adv.get("data_emissao_fim"),
+    )
+    filtered_df = _apply_yearweek_manual_boundary_filter(
+        filtered_df,
+        week_column="semana_executada",
+        start_raw=adv.get("data_execucao_inicio"),
+        end_raw=adv.get("data_execucao_fim"),
+    )
 
     tem_derivada_mode = str(adv.get("tem_derivada") or "todos").strip().lower()
     tem_derivadas_mode = str(adv.get("tem_derivadas") or "todos").strip().lower()
@@ -1520,6 +1639,67 @@ def _normalize_filter_selection(selected: list[Any], options: list[Any]) -> list
     return normalized
 
 
+def _split_manual_filter_tokens(raw_value: Any) -> tuple[list[str], list[str]]:
+    include_tokens: list[str] = []
+    exclude_tokens: list[str] = []
+    raw_text = str(raw_value or "").strip()
+    if not raw_text:
+        return include_tokens, exclude_tokens
+    for piece in raw_text.split(","):
+        token = piece.strip()
+        if not token:
+            continue
+        if token.startswith("!"):
+            neg_token = token[1:].strip()
+            if neg_token:
+                exclude_tokens.append(neg_token)
+            continue
+        include_tokens.append(token)
+    return include_tokens, exclude_tokens
+
+
+def _resolve_include_exclude_values(
+    selected: list[Any],
+    options: list[Any],
+    manual_text: Any,
+) -> tuple[list[Any], list[Any]]:
+    include_values = _normalize_filter_selection(selected, options)
+    include_tokens, exclude_tokens = _split_manual_filter_tokens(manual_text)
+    option_map = {str(value).strip().casefold(): value for value in options}
+
+    for token in include_tokens:
+        mapped = option_map.get(token.casefold())
+        if mapped is not None and mapped not in include_values:
+            include_values.append(mapped)
+
+    exclude_values: list[Any] = []
+    for token in exclude_tokens:
+        mapped = option_map.get(token.casefold())
+        if mapped is not None and mapped not in exclude_values:
+            exclude_values.append(mapped)
+
+    if include_values and exclude_values:
+        include_values = [value for value in include_values if value not in exclude_values]
+    return include_values, exclude_values
+
+
+def _parse_manual_boundary_conditions(raw_value: Any, *, is_start: bool) -> list[tuple[str, pd.Timestamp]]:
+    include_tokens, exclude_tokens = _split_manual_filter_tokens(raw_value)
+    conditions: list[tuple[str, pd.Timestamp]] = []
+
+    for token in include_tokens:
+        parsed = _normalize_date_boundary(token)
+        if parsed is None:
+            continue
+        conditions.append(("ge" if is_start else "le", parsed))
+    for token in exclude_tokens:
+        parsed = _normalize_date_boundary(token)
+        if parsed is None:
+            continue
+        conditions.append(("ne", parsed))
+    return conditions
+
+
 def _default_visible_columns(columns: list[str]) -> list[str]:
     core = [
         'numero_ssa',
@@ -1790,12 +1970,26 @@ if REAL_RUNTIME and not raw_df.empty:
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
                 "executor_resp_sel": [],
+                "executor_resp_manual": "",
+                "executor_resp_exclude": [],
                 "estado_sel": [],
+                "estado_manual": "",
+                "estado_exclude": [],
                 "ano_emissao_sel": [],
+                "ano_emissao_manual": "",
+                "ano_emissao_exclude": [],
                 "ano_execucao_sel": [],
+                "ano_execucao_manual": "",
+                "ano_execucao_exclude": [],
                 "ano_semana_emissao_sel": [],
+                "ano_semana_emissao_manual": "",
+                "ano_semana_emissao_exclude": [],
                 "ano_semana_execucao_sel": [],
+                "ano_semana_execucao_manual": "",
+                "ano_semana_execucao_exclude": [],
                 "num_reprogramacoes_sel": [],
+                "num_reprogramacoes_manual": "",
+                "num_reprogramacoes_exclude": [],
                 "data_emissao_inicio": "",
                 "data_emissao_fim": "",
                 "data_execucao_inicio": "",
@@ -1807,6 +2001,13 @@ if REAL_RUNTIME and not raw_df.empty:
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
         filter_state = st.session_state[state_key]
+        filter_state.setdefault("executor_resp_exclude", [])
+        filter_state.setdefault("estado_exclude", [])
+        filter_state.setdefault("ano_emissao_exclude", [])
+        filter_state.setdefault("ano_execucao_exclude", [])
+        filter_state.setdefault("ano_semana_emissao_exclude", [])
+        filter_state.setdefault("ano_semana_execucao_exclude", [])
+        filter_state.setdefault("num_reprogramacoes_exclude", [])
         filter_state["situacao_sel"] = [
             value for value in filter_state.get("situacao_sel", []) if value in situacoes
         ]
@@ -1955,6 +2156,32 @@ if REAL_RUNTIME and not raw_df.empty:
                 options=advanced_options.get("ano_execucao", []),
                 default=filter_state.get("ano_execucao_sel", []),
             )
+            # Streamlit sidequest policy: keep filter state/UI centralized in this single file.
+            advanced_row_1_manual = st.columns(4)
+            executor_resp_manual_input = advanced_row_1_manual[0].text_input(
+                "Executor (! exclui)",
+                value=str(filter_state.get("executor_resp_manual", "")),
+                placeholder="ex.: op1,!op2",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
+            estado_manual_input = advanced_row_1_manual[1].text_input(
+                "Estado detalhado (! exclui)",
+                value=str(filter_state.get("estado_manual", "")),
+                placeholder="ex.: ste,!ate",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
+            ano_emissao_manual_input = advanced_row_1_manual[2].text_input(
+                "Ano emissao (! exclui)",
+                value=str(filter_state.get("ano_emissao_manual", "")),
+                placeholder="ex.: 2024,!2023",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
+            ano_execucao_manual_input = advanced_row_1_manual[3].text_input(
+                "Ano execucao (! exclui)",
+                value=str(filter_state.get("ano_execucao_manual", "")),
+                placeholder="ex.: 2025,!2022",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
             advanced_row_2 = st.columns(4)
             ano_semana_emissao_input = advanced_row_2[0].multiselect(
                 "AnoSemana emissao",
@@ -1977,6 +2204,25 @@ if REAL_RUNTIME and not raw_df.empty:
                 options=deriv_mode_options,
                 index=deriv_mode_options.index(str(filter_state.get("tem_derivada_mode", "todos"))),
             )
+            advanced_row_2_manual = st.columns(4)
+            ano_semana_emissao_manual_input = advanced_row_2_manual[0].text_input(
+                "AnoSemana emissao (! exclui)",
+                value=str(filter_state.get("ano_semana_emissao_manual", "")),
+                placeholder="ex.: 202401,!202352",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
+            ano_semana_execucao_manual_input = advanced_row_2_manual[1].text_input(
+                "AnoSemana execucao (! exclui)",
+                value=str(filter_state.get("ano_semana_execucao_manual", "")),
+                placeholder="ex.: 202410,!202409",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
+            num_reprogramacoes_manual_input = advanced_row_2_manual[2].text_input(
+                "Num reprogramacoes (! exclui)",
+                value=str(filter_state.get("num_reprogramacoes_manual", "")),
+                placeholder="ex.: 0,!2",
+                help="Use virgula para multiplos valores e ! para diferente de.",
+            )
             use_calendar_mode = st.checkbox(
                 "Usar calendario nas datas",
                 value=bool(filter_state.get("use_calendar_mode", False)),
@@ -1992,6 +2238,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             data_emissao_inicio_picker = advanced_row_3[0].date_input(
                 "Calendario emissao inicio",
+                # Keep None when raw input is empty to avoid injecting implicit date filters.
                 value=_parse_date_input(filter_state.get("data_emissao_inicio", "")),
                 format="YYYY-MM-DD",
                 key="cal_data_emissao_inicio",
@@ -2006,6 +2253,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             data_emissao_fim_picker = advanced_row_3[1].date_input(
                 "Calendario emissao fim",
+                # Keep None when raw input is empty to avoid injecting implicit date filters.
                 value=_parse_date_input(filter_state.get("data_emissao_fim", "")),
                 format="YYYY-MM-DD",
                 key="cal_data_emissao_fim",
@@ -2020,6 +2268,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             data_execucao_inicio_picker = advanced_row_3[2].date_input(
                 "Calendario execucao inicio",
+                # Keep None when raw input is empty to avoid injecting implicit date filters.
                 value=_parse_date_input(filter_state.get("data_execucao_inicio", "")),
                 format="YYYY-MM-DD",
                 key="cal_data_execucao_inicio",
@@ -2034,6 +2283,7 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             data_execucao_fim_picker = advanced_row_3[3].date_input(
                 "Calendario execucao fim",
+                # Keep None when raw input is empty to avoid injecting implicit date filters.
                 value=_parse_date_input(filter_state.get("data_execucao_fim", "")),
                 format="YYYY-MM-DD",
                 key="cal_data_execucao_fim",
@@ -2092,12 +2342,26 @@ if REAL_RUNTIME and not raw_df.empty:
                 "executor_sel": [],
                 "emissor_sel": [],
                 "executor_resp_sel": [],
+                "executor_resp_manual": "",
+                "executor_resp_exclude": [],
                 "estado_sel": [],
+                "estado_manual": "",
+                "estado_exclude": [],
                 "ano_emissao_sel": [],
+                "ano_emissao_manual": "",
+                "ano_emissao_exclude": [],
                 "ano_execucao_sel": [],
+                "ano_execucao_manual": "",
+                "ano_execucao_exclude": [],
                 "ano_semana_emissao_sel": [],
+                "ano_semana_emissao_manual": "",
+                "ano_semana_emissao_exclude": [],
                 "ano_semana_execucao_sel": [],
+                "ano_semana_execucao_manual": "",
+                "ano_semana_execucao_exclude": [],
                 "num_reprogramacoes_sel": [],
+                "num_reprogramacoes_manual": "",
+                "num_reprogramacoes_exclude": [],
                 "data_emissao_inicio": "",
                 "data_emissao_fim": "",
                 "data_execucao_inicio": "",
@@ -2151,12 +2415,26 @@ if REAL_RUNTIME and not raw_df.empty:
                 "executor_sel": list(executor_input_multi),
                 "emissor_sel": list(emissor_input_multi),
                 "executor_resp_sel": list(executor_resp_input),
+                "executor_resp_manual": str(executor_resp_manual_input or "").strip(),
+                "executor_resp_exclude": [],
                 "estado_sel": list(estado_input),
+                "estado_manual": str(estado_manual_input or "").strip(),
+                "estado_exclude": [],
                 "ano_emissao_sel": list(ano_emissao_input),
+                "ano_emissao_manual": str(ano_emissao_manual_input or "").strip(),
+                "ano_emissao_exclude": [],
                 "ano_execucao_sel": list(ano_execucao_input),
+                "ano_execucao_manual": str(ano_execucao_manual_input or "").strip(),
+                "ano_execucao_exclude": [],
                 "ano_semana_emissao_sel": list(ano_semana_emissao_input),
+                "ano_semana_emissao_manual": str(ano_semana_emissao_manual_input or "").strip(),
+                "ano_semana_emissao_exclude": [],
                 "ano_semana_execucao_sel": list(ano_semana_execucao_input),
+                "ano_semana_execucao_manual": str(ano_semana_execucao_manual_input or "").strip(),
+                "ano_semana_execucao_exclude": [],
                 "num_reprogramacoes_sel": list(num_reprogramacoes_input),
+                "num_reprogramacoes_manual": str(num_reprogramacoes_manual_input or "").strip(),
+                "num_reprogramacoes_exclude": [],
                 "data_emissao_inicio": (
                     _format_date_input(data_emissao_inicio_picker)
                     if use_calendar_mode
@@ -2211,35 +2489,63 @@ if REAL_RUNTIME and not raw_df.empty:
     situacao_filter = _normalize_filter_selection(situacao_sel, situacoes)
     executor_filter = _normalize_filter_selection(executor_sel, executores)
     emissor_filter = _normalize_filter_selection(emissor_sel, emissores)
+    executor_resp_filter, executor_resp_exclude = _resolve_include_exclude_values(
+        executor_resp_sel,
+        advanced_options.get("executor_resp", []),
+        filter_state.get("executor_resp_manual", ""),
+    )
+    estado_filter, estado_exclude = _resolve_include_exclude_values(
+        estado_sel,
+        advanced_options.get("estado", []),
+        filter_state.get("estado_manual", ""),
+    )
+    ano_emissao_filter, ano_emissao_exclude = _resolve_include_exclude_values(
+        ano_emissao_sel,
+        advanced_options.get("ano_emissao", []),
+        filter_state.get("ano_emissao_manual", ""),
+    )
+    ano_execucao_filter, ano_execucao_exclude = _resolve_include_exclude_values(
+        ano_execucao_sel,
+        advanced_options.get("ano_execucao", []),
+        filter_state.get("ano_execucao_manual", ""),
+    )
+    ano_semana_emissao_filter, ano_semana_emissao_exclude = _resolve_include_exclude_values(
+        ano_semana_emissao_sel,
+        advanced_options.get("ano_semana_emissao", []),
+        filter_state.get("ano_semana_emissao_manual", ""),
+    )
+    ano_semana_execucao_filter, ano_semana_execucao_exclude = _resolve_include_exclude_values(
+        ano_semana_execucao_sel,
+        advanced_options.get("ano_semana_execucao", []),
+        filter_state.get("ano_semana_execucao_manual", ""),
+    )
+    num_reprogramacoes_filter, num_reprogramacoes_exclude = _resolve_include_exclude_values(
+        num_reprogramacoes_sel,
+        advanced_options.get("num_reprogramacoes", []),
+        filter_state.get("num_reprogramacoes_manual", ""),
+    )
+    filter_state["executor_resp_exclude"] = list(executor_resp_exclude)
+    filter_state["estado_exclude"] = list(estado_exclude)
+    filter_state["ano_emissao_exclude"] = list(ano_emissao_exclude)
+    filter_state["ano_execucao_exclude"] = list(ano_execucao_exclude)
+    filter_state["ano_semana_emissao_exclude"] = list(ano_semana_emissao_exclude)
+    filter_state["ano_semana_execucao_exclude"] = list(ano_semana_execucao_exclude)
+    filter_state["num_reprogramacoes_exclude"] = list(num_reprogramacoes_exclude)
     advanced_filters = {
-        "executor_resp": _normalize_filter_selection(
-            executor_resp_sel,
-            advanced_options.get("executor_resp", []),
-        ),
-        "estado": _normalize_filter_selection(
-            estado_sel,
-            advanced_options.get("estado", []),
-        ),
-        "ano_emissao": _normalize_filter_selection(
-            ano_emissao_sel,
-            advanced_options.get("ano_emissao", []),
-        ),
-        "ano_execucao": _normalize_filter_selection(
-            ano_execucao_sel,
-            advanced_options.get("ano_execucao", []),
-        ),
-        "ano_semana_emissao": _normalize_filter_selection(
-            ano_semana_emissao_sel,
-            advanced_options.get("ano_semana_emissao", []),
-        ),
-        "ano_semana_execucao": _normalize_filter_selection(
-            ano_semana_execucao_sel,
-            advanced_options.get("ano_semana_execucao", []),
-        ),
-        "num_reprogramacoes": _normalize_filter_selection(
-            num_reprogramacoes_sel,
-            advanced_options.get("num_reprogramacoes", []),
-        ),
+        "executor_resp": executor_resp_filter,
+        "executor_resp_exclude": executor_resp_exclude,
+        "estado": estado_filter,
+        "estado_exclude": estado_exclude,
+        "ano_emissao": ano_emissao_filter,
+        "ano_emissao_exclude": ano_emissao_exclude,
+        "ano_execucao": ano_execucao_filter,
+        "ano_execucao_exclude": ano_execucao_exclude,
+        "ano_semana_emissao": ano_semana_emissao_filter,
+        "ano_semana_emissao_exclude": ano_semana_emissao_exclude,
+        "ano_semana_execucao": ano_semana_execucao_filter,
+        "ano_semana_execucao_exclude": ano_semana_execucao_exclude,
+        "num_reprogramacoes": num_reprogramacoes_filter,
+        "num_reprogramacoes_exclude": num_reprogramacoes_exclude,
         "data_emissao_inicio": data_emissao_inicio,
         "data_emissao_fim": data_emissao_fim,
         "data_execucao_inicio": data_execucao_inicio,
