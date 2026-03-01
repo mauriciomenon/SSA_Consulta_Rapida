@@ -535,7 +535,8 @@ def _jump_to_ssa(window, numero_ssa):
             if df is None or df.empty or "numero_ssa" not in df.columns:
                 return None
             df_reset_local = df.reset_index(drop=True)
-            series_norm_local = _get_cached_normalized_series(window, df_reset_local, "numero_ssa")
+            # Avoid caching for this temporary reset_index DataFrame.
+            series_norm_local = _normalize_ssa_series(window, df_reset_local["numero_ssa"])
             mask_local = series_norm_local.eq(num_norm)
             if not mask_local.any():
                 return None
