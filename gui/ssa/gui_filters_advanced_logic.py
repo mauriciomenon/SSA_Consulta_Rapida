@@ -181,6 +181,11 @@ def _apply_include_exclude_filters(
             include_values = _to_str_set(include_values)
             exclude_values = _to_str_set(exclude_values)
             series = None
+            if "divisao" in df.columns:
+                try:
+                    series = cache.get_str("divisao")
+                except Exception as exc:
+                    logger.debug("Failed to read divisao column values: %s", exc)
             try:
                 exec_series = (
                     cache.get_str("setor_executor")
@@ -199,7 +204,11 @@ def _apply_include_exclude_filters(
                         emis_series = pd.Series("", index=df.index)
                     div_exec = exec_series.map(SECTOR_TO_DIV).fillna("").astype(str)
                     div_emis = emis_series.map(SECTOR_TO_DIV).fillna("").astype(str)
-                    series = div_exec.where(div_exec != "", div_emis)
+                    derived_series = div_exec.where(div_exec != "", div_emis)
+                    if series is None:
+                        series = derived_series
+                    else:
+                        series = series.where(series != "", derived_series)
             except Exception as exc:
                 logger.debug("Failed to derive divisao values from sector columns: %s", exc)
             if series is None:

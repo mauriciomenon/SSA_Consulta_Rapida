@@ -34,7 +34,7 @@ def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(tmp_path, mo
         config_manager.save_settings({"b": 2})
 
     assert settings_path.read_text(encoding="utf-8") == original_text
-    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(tmp_prefix)]
+    leftovers = [p for p in cfg_dir.iterdir() if p.name.startswith(tmp_prefix)]
     assert leftovers == []
 
 
