@@ -765,8 +765,8 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                     try:
                         from armazenamento.database_optimized import disable_optimized_import
                         disable_optimized_import()
-                    except ImportError:
-                        pass
+                    except ImportError as e:
+                        logger.debug("disable_optimized_import indisponivel no cleanup: %s", e)
                     except Exception as e:
                         logger.warning(f"Falha ao desativar modo otimizado: {e}")
 

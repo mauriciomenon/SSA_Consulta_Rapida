@@ -20,7 +20,8 @@ def test_optimized_insert_resolves_view_alias_ssas(tmp_path: Path) -> None:
     if not schema_path.exists():
         pytest.fail(f"Schema ausente para setup de teste: {schema_path}")
 
-    database.initialize_database(db_path, str(schema_path))
+    init_ok = database.initialize_database(db_path, str(schema_path))
+    assert init_ok is True
 
     enable_optimized_import()
     try:
@@ -49,7 +50,8 @@ def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> No
     schema_path = _get_project_root() / "config" / "schema.sql"
     if not schema_path.exists():
         pytest.fail(f"Schema ausente para setup de teste: {schema_path}")
-    database.initialize_database(db_path, str(schema_path))
+    init_ok = database.initialize_database(db_path, str(schema_path))
+    assert init_ok is True
 
     enable_optimized_import()
     try:

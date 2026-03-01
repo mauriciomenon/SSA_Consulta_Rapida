@@ -537,8 +537,16 @@ def _apply_theme_widget_styles(
             window.export_list_btn.setStyleSheet(highlight_style)
         if hasattr(window, 'undo_filter_btn'):
             window.undo_filter_btn.setStyleSheet(highlight_style)
-        if hasattr(window, 'clear_all_btn'):
-            window.clear_all_btn.setStyleSheet(highlight_style)
+        if hasattr(window, "add_column_filter_btn") and hasattr(window, "clear_all_btn"):
+            footer_btn_style = (
+                f"QPushButton {{ color:{panel_text}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
+                f"QPushButton:hover {{ border:1px solid {accent}; }}\n"
+            )
+            try:
+                window.add_column_filter_btn.setStyleSheet(footer_btn_style)
+                window.clear_all_btn.setStyleSheet(footer_btn_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo consistente para botoes de filtros por coluna: %s", exc)
 
         if selector is not None and hasattr(selector, 'summary_label'):
             selector.summary_label.setStyleSheet(f"color:{indicator_color};")

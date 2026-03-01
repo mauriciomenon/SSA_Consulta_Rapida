@@ -220,6 +220,8 @@ def extract_data_from_excel(
 
     Args:
         file_path (str): Caminho completo para o arquivo Excel.
+        should_cancel (Optional[Callable[[], bool]]): Callback consultivo para
+            interromper a extracao quando retornar True.
 
     Returns:
         pd.DataFrame: Um DataFrame com os dados extraídos e normalizados.

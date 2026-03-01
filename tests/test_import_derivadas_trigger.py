@@ -415,6 +415,50 @@ def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, 
     assert cache_calls["n"] == 0
 
 
+def test_run_importer_skips_db_only_preflight_when_cancel_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_needs_db_only_derivadas_sync",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("preflight should not run after cancel")),
+    )
+
+    progress_events: list[tuple[str, dict]] = []
+
+    def _progress(event_type: str, data: dict) -> None:
+        progress_events.append((event_type, dict(data)))
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        should_cancel=lambda: True,
+        progress_callback=_progress,
+    )
+
+    assert updated is False
+    assert progress_events
+    assert progress_events[0][0] == "start"
+    assert progress_events[-1][0] == "finish"
+    assert progress_events[-1][1]["total"] == 0
+    assert progress_events[-1][1]["processed"] == 0
+
+
 def test_run_importer_skips_db_only_sync_when_preflight_not_required(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

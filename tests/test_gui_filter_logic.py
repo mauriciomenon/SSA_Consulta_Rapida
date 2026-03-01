@@ -260,6 +260,24 @@ class TestGUIFilterLogic:
         assert 'parciais' not in menu_columns
         assert 'situacao_da_parcial' not in menu_columns
 
+    def test_get_canonical_available_columns_keeps_active_filter_even_outside_non_null_cache(self):
+        self.window.df_completo = pd.DataFrame(
+            {
+                "situacao": ["APV", "STE"],
+                "descricao_ssa": [None, None],
+                "coluna_zerada": [None, None],
+            }
+        )
+        self.window.df_exibido = self.window.df_completo.copy()
+        self.window._non_null_cols_cache = {"situacao"}
+        self.window._active_column_filters = {"descricao_ssa": "teste"}
+
+        columns = self.window._get_canonical_available_columns()
+
+        assert "situacao" in columns
+        assert "descricao_ssa" in columns
+        assert "coluna_zerada" not in columns
+
     def test_clear_all_column_filters_restores_defaults_and_hidden_lines(self):
         self.window._active_column_filters = {
             'numero_ssa': '2026',
@@ -2256,6 +2274,107 @@ class TestGUIFilterLogic:
             assert worker.quit_called is True
             assert worker.wait_calls and worker.wait_calls[0] == 1500
             assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
+    def test_close_event_enforces_rescan_global_cap_and_meta_cleanup(self):
+        class _RunningRescanWorker:
+            def __init__(self):
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+
+            def isRunning(self):
+                return True
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                return None
+
+        old_cap = gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+        worker_old = _RunningRescanWorker()
+        worker_new = _RunningRescanWorker()
+        setattr(gui_ssa, "MAX_GLOBAL_RETIRED_RESCAN_WORKERS", 1)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = [worker_old]
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META[worker_old] = 1.0
+        self.window._active_rescan_worker = worker_new
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS == [worker_new]
+            assert worker_old not in gui_ssa.GLOBAL_RETIRED_RESCAN_META
+            assert worker_new in gui_ssa.GLOBAL_RETIRED_RESCAN_META
+            assert self.window._active_rescan_worker is None
+        finally:
+            setattr(gui_ssa, "MAX_GLOBAL_RETIRED_RESCAN_WORKERS", old_cap)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = []
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
+
+    def test_close_event_uses_running_helper_when_worker_isrunning_is_unstable_after_wait(self, monkeypatch):
+        class _RescanWorkerUnstableAfterWait:
+            def __init__(self):
+                self._is_running_calls = 0
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+                self.terminate_called = False
+
+            def isRunning(self):
+                self._is_running_calls += 1
+                if self._is_running_calls >= 2:
+                    raise RuntimeError("isRunning unstable after wait")
+                return True
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                self.terminate_called = True
+
+        worker = _RescanWorkerUnstableAfterWait()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+        call_counter = {"count": 0}
+        original_running_helper = self.window._is_rescan_worker_running
+
+        def _tracked_running_helper(target):
+            call_counter["count"] += 1
+            return original_running_helper(target)
+
+        monkeypatch.setattr(self.window, "_is_rescan_worker_running", _tracked_running_helper)
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert call_counter["count"] >= 2
             assert self.window._active_rescan_worker is None
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:

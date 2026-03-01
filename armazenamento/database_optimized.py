@@ -337,7 +337,12 @@ def insert_dataframe_optimized(
                         if not update_columns:
                             logger.info("Nenhuma coluna atualizavel encontrada; pulando atualizacao")
                         elif _has_referencing_foreign_keys(conn, target_table):
-                            set_clause = ", ".join([f"{col}=?" for col in update_columns])
+                            quoted_update_columns = []
+                            for col in update_columns:
+                                if not is_valid_identifier(col):
+                                    raise ValueError(f"Invalid SQL identifier for column: {col!r}")
+                                quoted_update_columns.append(_quote_identifier(col))
+                            set_clause = ", ".join([f"{col}=?" for col in quoted_update_columns])
                             update_sql = (
                                 f"UPDATE {target_table_sql} SET {set_clause} WHERE numero_ssa=?"
                             )

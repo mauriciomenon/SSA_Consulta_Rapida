@@ -59,3 +59,34 @@ def test_import_single_file_keeps_unexpected_error_context(monkeypatch: pytest.M
     file_path = str(tmp_path / "input.xlsx")
     with pytest.raises(app_logic.ExtractionError, match="boom"):
         app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+
+
+def test_import_single_file_raises_when_extractor_returns_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: None,
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(app_logic.ExtractionError, match="retornou None"):
+        app_logic._import_single_file(file_path, str(tmp_path / "db.sqlite"), "ssa_table")
+
+
+def test_import_single_file_honors_cancel_before_empty_dataframe_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        app_logic.extractor,
+        "extract_data_from_excel",
+        lambda *args, **kwargs: pd.DataFrame(),
+    )
+
+    file_path = str(tmp_path / "input.xlsx")
+    with pytest.raises(app_logic.ExtractionError, match="operation cancelled"):
+        app_logic._import_single_file(
+            file_path,
+            str(tmp_path / "db.sqlite"),
+            "ssa_table",
+            should_cancel=lambda: True,
+        )

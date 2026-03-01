@@ -107,6 +107,7 @@ COLUMN_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'column_mappings.json')
 
 # Default mapping used if display_mappings.json is missing/invalid
 DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
+    "id": "id",
     "numero_ssa": "Nº SSA",
     "situacao": "Situação",
     "derivada_de": "Derivada de",
@@ -138,6 +139,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "tempo_total": "Tempo Total",
     "desde_1": "Desde (1)",
     "total_tempo_tpe_planejado": "Tempo TPE Plan.",
+    "total_tempo_tpe_executada": "Tempo Total TPE Execcutada",
     "total_tempo_tex_planejado": "Tempo TEX Plan.",
     "total_tempo_tpo_planejado": "Tempo TPO Plan.",
     "total_horas_programadas": "Horas Prog.",
@@ -157,6 +159,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "executado": "Executado",
     "concluido": "Concluído",
     "total_tempo_tpo_executada": "Tempo TPO Exec.",
+    "total_tempo_tex_executada": "Tempo Total TEX Execcutada",
     "data_inicio_programada": "Data Início Prog.",
     "data_programacao": "Data Programação",
     "data_inicio_reprogramada": "Data Início Reprog.",

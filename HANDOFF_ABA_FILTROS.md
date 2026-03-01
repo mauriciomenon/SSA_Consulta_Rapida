@@ -1,5 +1,17 @@
 # Handoff: Otimização Aba Filtros Avançados
 
+## CURRENT STATUS 2026-02-26
+
+- Este arquivo fica como historico de referencia tecnica da evolucao da aba Filtros.
+- Estado operacional atual deve ser lido em:
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/RECOVERY_BACKLOG.md`
+- Branch ativa atual: `codex/dev-filtros-stability`.
+- Release local atual: `4.22.0`.
+
+---
+
 **Data:** 2026-01-08  
 **Contexto:** Otimização de performance e layout da aba "Filtros" (nova) em GUI PyQt6  
 **Arquivo Principal:** `gui/gui_ssa.py` (5449 linhas)  
@@ -438,3 +450,14 @@ Estamos a **um passo** de resolver o problema dos dados. A estrutura está corre
 **Lembre-se:** NUNCA modificar aba SSAs, sempre usar logging em vez de try/except pass, e fazer análise profunda com ferramentas antes de mudanças.
 
 Boa sorte! 🚀
+# STATUS 2026-02-26
+
+Este arquivo e historico de iteracoes.
+Fonte operacional atual:
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (algoritmo atual v4.22)
+- `docs/NEXT_CHAT_MIGRATION.md` (estado atual de execucao)
+
+Pendencias absorvidas nesta migracao:
+1. estado e release atual movidos para docs ativos.
+2. backlog e matriz de pendencias sincronizados com snapshot atual.
+3. este arquivo segue como apoio de handoff; fonte primaria de execucao fica nos docs ativos listados acima.

@@ -180,6 +180,10 @@ def _import_single_file(
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
+        if should_cancel and should_cancel():
+            raise ExtractionError("operation cancelled")
+        if df is None:
+            raise ExtractionError(f"Extractor retornou None para '{file_path}'")
         if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
@@ -287,7 +291,10 @@ def _import_single_file(
             return True, 0  # Nao e um erro critico, apenas nao ha dados
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
-        raise ExtractionError(str(e)) from e
+        message = str(e).strip() or "Erro de extracao sem detalhe"
+        raise ExtractionError(message) from e
+    except ExtractionError:
+        raise
     except DatabaseError:
         raise
     except ImporterError:
@@ -320,8 +327,17 @@ def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
     )
 
 
-def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
+def _needs_db_only_derivadas_sync(
+    db_path: str,
+    table_name: str,
+    *,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> bool:
     """Decide if derivadas sync should run with DB-only source when no files changed."""
+
+    if should_cancel and should_cancel():
+        logger.info("Cancelamento solicitado antes do preflight DB-only de derivadas.")
+        return False
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
         logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
@@ -329,6 +345,9 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
 
     try:
         with database.get_db_connection(db_path) as conn:
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
             db_edges_count = int(
                 conn.execute(
                     f"""
@@ -345,6 +364,10 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
             if db_edges_count <= 0:
                 return False
 
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
+
             ready_tables = {
                 "ssa_derivada_matrix",
                 "ssa_derivada_summary",
@@ -358,6 +381,10 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
             }
             if not ready_tables.issubset(existing_tables):
                 return True
+
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
 
             matrix_active = int(
                 conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
@@ -667,7 +694,15 @@ def run_importer_logic(
         _emit_progress("start", {"total": total_files})
 
         if not files_to_process and not derivadas_sheet_files:
-            db_only_derivadas_sync = _needs_db_only_derivadas_sync(db_path=db_path, table_name=table_name)
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado antes do preflight de derivadas.")
+                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                return False
+            db_only_derivadas_sync = _needs_db_only_derivadas_sync(
+                db_path=db_path,
+                table_name=table_name,
+                should_cancel=should_cancel,
+            )
             if not db_only_derivadas_sync:
                 logger.info(
                     "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."

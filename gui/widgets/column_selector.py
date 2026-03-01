@@ -83,7 +83,14 @@ class ColumnSelector(QWidget):
             self.columns_changed.emit(self.selected_internal_columns)
 
     def _update_summary(self):
-        translated = [self.display_map.get(col, col) for col in self.selected_internal_columns]
+        translated = []
+        for col in self.selected_internal_columns:
+            label = self.display_map.get(col, col)
+            if label == col:
+                logging.getLogger(__name__).warning(
+                    "Coluna sem alias canonico no resumo de colunas: %s", col
+                )
+            translated.append(label)
         if not translated:
             text = "Nenhuma coluna selecionada"
             tooltip = text

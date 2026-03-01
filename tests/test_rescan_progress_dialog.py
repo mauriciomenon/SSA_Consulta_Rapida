@@ -25,7 +25,7 @@ def _spin_until(predicate, timeout_s: float = 0.25) -> bool:
     return bool(predicate())
 
 
-def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
+def test_rescan_progress_dialog_reject_emits_cancel_once_and_keeps_open_until_finished():
     from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
 
     dlg = RescanProgressDialog()
@@ -45,10 +45,15 @@ def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
     assert "Cancelamento solicitado" in dlg.status_label.text()
     assert dlg.isVisible() is True
 
-    # Second reject should close without emitting cancel again.
+    # Second reject should keep dialog open while process is not finished.
+    dlg.reject()
+    assert dlg.isVisible() is True
+    assert len(emitted) == 1
+
+    # After process finishes, reject should close.
+    dlg.set_finished(False, "Processo cancelado pelo usuario")
     dlg.reject()
     assert _spin_until(lambda: dlg.result() == int(QDialog.DialogCode.Rejected))
-    assert len(emitted) == 1
 
 
 def test_rescan_progress_dialog_reject_after_finished_does_not_emit_cancel():
@@ -75,6 +80,20 @@ def test_rescan_progress_dialog_set_finished_failure_without_message_shows_defau
     assert "Reescaneamento falhou" in dlg.status_label.text()
     assert "Erro nao detalhado" in dlg.status_label.text()
     assert "ERRO FINAL" in dlg.error_text.toPlainText()
+
+
+def test_rescan_progress_dialog_set_finished_is_idempotent():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    dlg.set_finished(False, "Primeira falha")
+    first_text = dlg.status_label.text()
+    first_errors = dlg.error_text.toPlainText()
+
+    dlg.set_finished(True, "Nao deve sobrescrever")
+
+    assert dlg.status_label.text() == first_text
+    assert dlg.error_text.toPlainText() == first_errors
 
 
 def test_rescan_progress_dialog_update_progress_clamps_percentage():

@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.api import types as pd_types
 from shared.date_utils import parse_datetime_series_mixed
 from utils.robust_logging import get_robust_logger
-from .gui_filters_advanced_state import AdvancedFilterState, prune_adv_cache
+from .gui_filters_advanced_state import AdvancedFilterState, SECTOR_TO_DIV, prune_adv_cache
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 MAX_ADV_CACHE_ENTRIES = 16
@@ -20,6 +20,15 @@ def _to_int_set(values):
         text = str(raw).strip()
         if text.isdigit():
             result.add(int(text))
+    return result
+
+
+def _to_str_set(values):
+    result = set()
+    for raw in values or []:
+        text = str(raw).strip()
+        if text:
+            result.add(text)
     return result
 
 
@@ -164,17 +173,44 @@ def _apply_include_exclude_filters(
     ]
     for candidate_cols, include_key, exclude_key in column_groups:
         col = next((name for name in candidate_cols if name in df.columns), None)
-        if col is None:
-            continue
         include_values = _get_filter_values(include_key)
         exclude_values = _get_filter_values(exclude_key)
         if not include_values and not exclude_values:
             continue
-        if col in numeric_columns:
+        if include_key == "divisao":
+            include_values = _to_str_set(include_values)
+            exclude_values = _to_str_set(exclude_values)
+            series = None
+            try:
+                exec_series = (
+                    cache.get_str("setor_executor")
+                    if "setor_executor" in df.columns
+                    else None
+                )
+                emis_series = (
+                    cache.get_str("setor_emissor")
+                    if "setor_emissor" in df.columns
+                    else None
+                )
+                if exec_series is not None or emis_series is not None:
+                    if exec_series is None:
+                        exec_series = pd.Series("", index=df.index)
+                    if emis_series is None:
+                        emis_series = pd.Series("", index=df.index)
+                    div_exec = exec_series.map(SECTOR_TO_DIV).fillna("").astype(str)
+                    div_emis = emis_series.map(SECTOR_TO_DIV).fillna("").astype(str)
+                    series = div_exec.where(div_exec != "", div_emis)
+            except Exception as exc:
+                logger.debug("Failed to derive divisao values from sector columns: %s", exc)
+            if series is None:
+                continue
+        elif col in numeric_columns:
             series = cache.get_numeric(col)
             include_values = _to_int_set(include_values or [])
             exclude_values = _to_int_set(exclude_values or [])
         else:
+            if col is None:
+                continue
             series = cache.get_str(col)
         if series is None:
             continue

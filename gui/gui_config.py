@@ -25,6 +25,11 @@ def _resolve_gui_main_preferences_path() -> str:
 
 CONFIG_PATH = _resolve_gui_main_preferences_path()
 
+
+def get_gui_main_preferences_path() -> str:
+    """Return current GUI preferences path resolved from active config hierarchy."""
+    return _resolve_gui_main_preferences_path()
+
 # Contract: these columns must always be available in GUI defaults and mappings.
 REQUIRED_DISPLAY_COLUMNS: List[str] = [
     "numero_ssa",
@@ -296,7 +301,7 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
 def load_gui_main_preferences(config_path: str | None = None) -> Dict[str, Any]:
     """Load GUI main preferences and defensively merge with full defaults."""
     if not config_path:
-        config_path = _resolve_gui_main_preferences_path()
+        config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
         logger.warning("GUI main preferences not found at %s, recreating defaults.", config_path)
         try:

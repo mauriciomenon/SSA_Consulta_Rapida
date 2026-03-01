@@ -5,6 +5,7 @@ import sqlite3
 import pandas as pd
 
 from armazenamento.database_optimized import (
+    _quote_identifier,
     _has_referencing_foreign_keys,
     insert_dataframe_optimized,
 )
@@ -57,3 +58,11 @@ def test_insert_dataframe_optimized_rejects_invalid_table_identifier(tmp_path) -
         insert_dataframe_optimized(df, db_path, table_name="ssa_table;drop_table")
         is False
     )
+
+
+def test_quote_identifier_rejects_invalid_column_identifier() -> None:
+    try:
+        _quote_identifier("coluna-invalida")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass

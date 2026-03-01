@@ -5,7 +5,12 @@ import json
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
-from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
+from core.config_manager import (
+    load_settings,
+    load_display_mappings_integrity,
+    save_settings,
+    _resolve_config_path,  # noqa: SLF001
+)
 from utils.robust_logging import get_robust_logger
 
 
@@ -35,18 +40,46 @@ class _MappingsCacheManager:
 
 _MAPPINGS_CACHE_MANAGER = _MappingsCacheManager()
 
+
+def _resolve_settings_path_for_message() -> str:
+    return _resolve_config_path(os.path.join("config", "settings.json"))
+
+
+def _resolve_mapping_path(file_name: str) -> str | None:
+    if not isinstance(file_name, str):
+        logger.warning("Nome de mapping invalido (tipo=%s).", type(file_name).__name__)
+        return None
+    normalized = file_name.strip()
+    if not normalized:
+        logger.warning("Nome de mapping vazio.")
+        return None
+    if normalized != os.path.basename(normalized):
+        logger.warning("Mapping fora do escopo permitido: '%s'.", normalized)
+        return None
+    if not normalized.lower().endswith(".json"):
+        logger.warning("Mapping com extensao invalida: '%s'.", normalized)
+        return None
+    return _resolve_config_path(os.path.join("config", normalized))
+
+
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
     cached = _MAPPINGS_CACHE_MANAGER.get(file_name)
     if cached is not None:
         return cached
     if file_name == 'display_mappings.json':
-        data = load_display_mappings_integrity()
+        try:
+            data = load_display_mappings_integrity()
+        except Exception as exc:
+            logger.warning("Falha ao carregar display mappings por integridade: %s", exc)
+            return {}
         if isinstance(data, dict):
             _MAPPINGS_CACHE_MANAGER.set(file_name, data)
             return data.copy()
         return {}
-    path = os.path.join(_get_project_root(), 'config', file_name)
+    path = _resolve_mapping_path(file_name)
+    if path is None:
+        return {}
     try:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -61,13 +94,18 @@ def _load_mappings_handler(file_name: str) -> dict:
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
+    settings_path = _resolve_settings_path_for_message()
     try:
         # Delegate to core.config_manager for atomic writes and consistent formatting.
         save_settings(settings)
-        print("Configuracoes salvas com sucesso.")
+        _MAPPINGS_CACHE_MANAGER.clear()
+        print(f"Configuracoes salvas com sucesso em: {settings_path}")
     except (OSError, ValueError, TypeError, RuntimeError) as e:
         logger.exception("Falha ao salvar configuracoes da CLI")
-        print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
+        print(
+            f"ERRO: Nao foi possivel salvar as configuracoes em: {settings_path}. "
+            f"Erro: {e}"
+        )
         raise
 
 
@@ -77,6 +115,10 @@ def _attempt_save_settings(settings: dict) -> bool:
         return True
     except (OSError, ValueError, TypeError, RuntimeError):
         # _save_settings_handler ja registra erro e feedback ao usuario.
+        return False
+    except Exception as exc:
+        logger.exception("Falha inesperada ao salvar configuracoes da CLI: %s", exc)
+        print("ERRO: Falha inesperada ao salvar configuracoes.")
         return False
 
 
