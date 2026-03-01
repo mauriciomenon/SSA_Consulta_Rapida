@@ -15,10 +15,10 @@ Arquitetura de Testes:
 import os
 import sys
 import sqlite3
-import hashlib
 import time
 from contextlib import closing
-from unittest.mock import patch, MagicMock, Mock
+from typing import Any, cast
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -28,14 +28,14 @@ pytest.importorskip(
     "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
 )
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt, QThread
+from PyQt6.QtCore import QThread
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from gui.workers.data_loader_worker import DataLoaderWorker
-from gui.workers.filter_worker import FilterWorker
+from gui.workers.data_loader_worker import DataLoaderWorker  # noqa: E402
+from gui.workers.filter_worker import FilterWorker  # noqa: E402
 
 
 # =============================================================================
@@ -137,7 +137,7 @@ class TestDataLoaderWorkerUnit:
         assert worker._sanitize_identifier("1numeric") == ""
         assert worker._sanitize_identifier("name;delete") == ""
         assert worker._sanitize_identifier("") == ""
-        assert worker._sanitize_identifier(None) == ""
+        assert worker._sanitize_identifier(cast(Any, None)) == ""
 
     def test_quote_identifier(self):
         """Testa escaping de identificadores SQL."""
@@ -205,7 +205,7 @@ class TestDataLoaderWorkerUnit:
         """Testa comportamento quando nenhuma tabela existe."""
         db_path = tmp_path / "test.db"
         # Criar DB vazio
-        with closing(sqlite3.connect(db_path)) as conn:
+        with closing(sqlite3.connect(db_path)):
             pass
 
         worker = DataLoaderWorker(str(db_path), "test_table")
@@ -337,7 +337,7 @@ class TestFilterWorkerUnit:
 
     def test_build_df_hash_none(self):
         """Testa hash quando DataFrame é None."""
-        hash_val = FilterWorker._build_df_hash(None)
+        hash_val = FilterWorker._build_df_hash(cast(Any, None))
 
         assert isinstance(hash_val, str)
         assert len(hash_val) == 16
