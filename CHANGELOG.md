@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [v4.28] - 2026-03-01
 
 ### Changed
-- Release patch `.1` com estabilizacao de tema/legibilidade na GUI:
+- Release `4.28` com estabilizacao de tema/legibilidade na GUI:
   - padronizacao de popup/menu/checkbox com roles de tema;
   - texto de selecao em botoes de multiselect mostra conteudo completo quando cabe;
   - truncamento por largura util, sem corte fixo arbitrario;

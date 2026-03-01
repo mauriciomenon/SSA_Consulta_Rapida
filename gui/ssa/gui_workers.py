@@ -137,12 +137,12 @@ def retain_data_loader_worker_until_finished(
         if worker in retired:
             if worker not in global_workers:
                 global_workers.append(worker)
-            global_meta.setdefault(worker, now)
+            global_meta[worker] = now
             return
         retired.append(worker)
         if worker not in global_workers:
             global_workers.append(worker)
-        global_meta.setdefault(worker, now)
+        global_meta[worker] = now
 
     def _release_worker_ref(w=worker):
         try:
@@ -695,13 +695,17 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
-        non_null_cols = set()
-        for col_name in df_copy.columns:
-            try:
-                if df_copy[col_name].notna().any():
-                    non_null_cols.add(col_name)
-            except Exception:
-                continue
+        try:
+            non_null_mask = df_copy.notna().any(axis=0)
+            non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
+        except Exception:
+            non_null_cols = set()
+            for col_name in df_copy.columns:
+                try:
+                    if df_copy[col_name].notna().any():
+                        non_null_cols.add(col_name)
+                except Exception:
+                    continue
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
     except Exception as exc:
