@@ -5,7 +5,7 @@ This handoff is ready to reuse in the next conversation.
 ## CURRENT TRUTH 2026-03-01 02:20 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.26.1`.
+- Local release baseline: `4.27`.
 - Runtime policy:
   1. uv-first command: `uv run --python 3.13 ...`
   2. fallback order: `3.12 -> 3.11 -> 3.10`.
@@ -23,11 +23,11 @@ This handoff is ready to reuse in the next conversation.
 ## CURRENT TRUTH 2026-02-28 23:46 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.26.1`.
+- Local release baseline: `4.27`.
 - Pre-PR release alignment:
   1. streamlit scope delivered in `v4.24.1` remains intact.
   2. hardening package from `v4.25.0` remains integrated.
-  3. metadata/docs were realigned to `v4.26.1` to remove release drift.
+  3. metadata/docs were realigned to `v4.27` to remove release drift.
 - Execution order for closeout:
   1. kluster auto on touched files.
   2. `py_compile`, `ruff`, `ty`, focused `pytest`.
