@@ -21,6 +21,7 @@ import os
 import pandas as pd
 import json
 import subprocess
+import shutil
 import re
 import logging
 import copy
@@ -2391,11 +2392,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 try:
                     # Best-effort fallback, non-blocking.
                     if sys.platform.startswith("win"):
-                        subprocess.Popen(["explorer", docs_path])
+                        cmd = "explorer"
                     elif sys.platform == "darwin":
-                        subprocess.Popen(["open", docs_path])
+                        cmd = "open"
                     else:
-                        subprocess.Popen(["xdg-open", docs_path])
+                        cmd = "xdg-open"
+                    resolved = shutil.which(cmd)
+                    if not resolved:
+                        raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
+                    subprocess.Popen([resolved, docs_path])
                     return
                 except Exception as fallback_exc:
                     logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)

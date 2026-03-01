@@ -341,7 +341,7 @@ Links uteis:
 - Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
-- Python 3.13+
+- Python 3.10+ (preferir 3.13+ quando disponivel)
 - Windows (testado) ou ambiente compativel com PyQt6
 
 ## Instalação
