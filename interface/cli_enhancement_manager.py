@@ -72,20 +72,24 @@ class CLIEnhancementManager:
                 lock_path = f"{self.settings_file}.lock"
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
                 try:
+                    os.chmod(lock_path, 0o600)
+                except OSError as chmod_exc:
+                    logger.debug("Falha ao ajustar permissao do lock file (%s): %s", lock_path, chmod_exc)
+                try:
                     lock_file = os.fdopen(lock_fd, "a+")
                 except BaseException:
                     os.close(lock_fd)
                     raise
                 self._lock_file_if_possible(lock_file)
             except Exception as exc:
-                logger.warning("Nao foi possivel adquirir lock de settings; gravacao abortada: %s", exc)
+                logger.error("Nao foi possivel adquirir lock de settings; gravacao abortada: %s", exc)
                 if lock_file is not None:
                     try:
                         lock_file.close()
                     except Exception as close_exc:
                         logger.warning("Falha ao fechar lock file de settings: %s", close_exc)
                 lock_file = None
-                return
+                raise RuntimeError("Falha ao salvar configuracoes CLI: lock indisponivel") from exc
 
             fd = None
             tmp_path = None
@@ -104,6 +108,14 @@ class CLIEnhancementManager:
                     except OSError as exc:
                         logger.debug("fsync failed for temp settings file (%s): %s", tmp_path, exc)
                 os.replace(tmp_path, self.settings_file)
+                try:
+                    dir_fd = os.open(target_dir, os.O_RDONLY)
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
+                except OSError as exc:
+                    logger.debug("fsync failed for settings directory (%s): %s", target_dir, exc)
                 tmp_path = None
             finally:
                 if tmp_path:
@@ -119,6 +131,9 @@ class CLIEnhancementManager:
                         )
         except Exception as e:
             logger.error("Erro ao salvar configuracoes CLI: %s", e)
+            if isinstance(e, RuntimeError) and "lock indisponivel" in str(e):
+                raise
+            raise RuntimeError("Falha ao persistir configuracoes CLI") from e
         finally:
             if lock_file is not None:
                 try:
