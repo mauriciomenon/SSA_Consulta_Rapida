@@ -1,17 +1,32 @@
 # gui/helpers/theme_helpers.py
 # Pure stylesheet builder functions for theme application
 
+import re
+
 from PyQt6.QtGui import QPalette
 
 
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_COLOR_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
+
+
+def _is_css_color(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    return bool(_HEX_COLOR_RE.fullmatch(text) or _COLOR_NAME_RE.fullmatch(text))
+
+
 def pick_css_color(*candidates: object, fallback: str) -> str:
-    """Return first non-empty string candidate or fallback."""
+    """Return first valid CSS color candidate, fallback, or safe default."""
     for candidate in candidates:
         if isinstance(candidate, str):
             value = candidate.strip()
-            if value:
+            if value and _is_css_color(value):
                 return value
-    return fallback
+    if isinstance(fallback, str) and _is_css_color(fallback):
+        return fallback.strip()
+    return "#000000"
 
 
 def build_global_widget_qss(palette: QPalette) -> str:

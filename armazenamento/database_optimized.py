@@ -381,7 +381,12 @@ def insert_dataframe_optimized(
                             )
                             for i in range(0, len(update_df), CHUNK_SIZE):
                                 chunk = update_df.iloc[i:i + CHUNK_SIZE]
-                                params = list(chunk[insert_columns].itertuples(index=False, name=None))
+                                normalized_chunk = (
+                                    chunk[insert_columns]
+                                    .astype("object")
+                                    .where(pd.notna(chunk[insert_columns]), None)
+                                )
+                                params = list(normalized_chunk.itertuples(index=False, name=None))
                                 if params:
                                     conn.executemany(insert_sql, params)
                             total_inserted += len(update_df)
