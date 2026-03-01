@@ -8,6 +8,7 @@ import os
 import re
 from typing import Any, Dict, Iterable, List
 from core import config_manager as core_config_manager
+from core.config_manager import atomic_write_json_file
 from utils.robust_logging import get_robust_logger
 
 logger = get_robust_logger().get_logger(__name__, "gui")
@@ -132,6 +133,11 @@ DEFAULT_GUI_MAIN_PREFERENCES["display_mappings"] = copy.deepcopy(
     DEFAULT_GUI_MAIN_PREFERENCES["column_display_names"]
 )
 DEFAULT_GUI_MAIN_PREFERENCES["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
+HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+
+
+def _hard_default_preferences_copy() -> Dict[str, Any]:
+    return copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
 
 # Columns kept in DB for compatibility only; do not offer in interactive GUI selectors.
 COMPATIBILITY_NULL_UI_COLUMNS = {
@@ -298,36 +304,107 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
-def load_gui_main_preferences(config_path: str | None = None) -> Dict[str, Any]:
+def _create_gui_main_preferences_file(config_path: str) -> None:
+    """Create default GUI preferences file atomically."""
+    config_dir = os.path.dirname(config_path)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+    atomic_write_json_file(
+        config_path,
+        _hard_default_preferences_copy(),
+        indent=2,
+        ensure_ascii=False,
+    )
+
+
+def ensure_gui_main_preferences_file(config_path: str | None = None) -> bool:
+    """Ensure GUI preferences file exists, creating it atomically when missing."""
+    if not config_path:
+        config_path = get_gui_main_preferences_path()
+    if os.path.exists(config_path):
+        return True
+    try:
+        _create_gui_main_preferences_file(config_path)
+        return True
+    except Exception as exc:
+        logger.error("Unable to ensure GUI preferences file at %s: %s", config_path, exc)
+        return False
+
+
+def reload_gui_main_preferences_in_place(*, auto_create: bool = False) -> Dict[str, Any]:
+    """Reload GUI preferences from disk into shared in-memory dict."""
+    loaded = load_gui_main_preferences(auto_create=auto_create)
+    GUI_MAIN_PREFERENCES.clear()
+    GUI_MAIN_PREFERENCES.update(loaded)
+    return GUI_MAIN_PREFERENCES
+
+
+def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
+    """Validate minimum expected schema before merge."""
+    if not isinstance(raw_config, dict):
+        return False
+    expected_types: Dict[str, type] = {
+        "display_columns": list,
+        "column_display_names": dict,
+        "display_mappings": dict,
+        "column_widths": dict,
+        "gui_settings": dict,
+    }
+    if not raw_config:
+        return False
+    for key, value in raw_config.items():
+        expected_type = expected_types.get(key)
+        if expected_type is None:
+            continue
+        if not isinstance(value, expected_type):
+            return False
+    return True
+
+
+def load_gui_main_preferences(
+    config_path: str | None = None,
+    *,
+    auto_create: bool = False,
+) -> Dict[str, Any]:
     """Load GUI main preferences and defensively merge with full defaults."""
     if not config_path:
         config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
-        logger.warning("GUI main preferences not found at %s, recreating defaults.", config_path)
-        try:
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as handle:
-                json.dump(DEFAULT_GUI_MAIN_PREFERENCES, handle, ensure_ascii=False, indent=2)
-        except OSError as exc:
-            logger.error("Unable to recreate GUI preferences at %s: %s", config_path, exc)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        logger.warning("GUI main preferences not found at %s, using defaults.", config_path)
+        if auto_create:
+            try:
+                _create_gui_main_preferences_file(config_path)
+            except OSError as exc:
+                logger.error("Unable to create GUI preferences at %s: %s", config_path, exc)
+            except Exception as exc:
+                logger.error("Unexpected error creating GUI preferences at %s: %s", config_path, exc)
+        return _hard_default_preferences_copy()
 
     try:
         with open(config_path, "r", encoding="utf-8") as handle:
             loaded_config = json.load(handle)
     except json.JSONDecodeError as exc:
         logger.error("Unable to parse GUI preferences at %s: %s", config_path, exc)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
     except OSError as exc:
         logger.error("Unable to read GUI preferences at %s: %s", config_path, exc)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
 
     if not isinstance(loaded_config, dict):
         logger.warning("Invalid GUI preference structure at %s, using defaults.", config_path)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
+    if not _has_minimum_preferences_integrity(loaded_config):
+        logger.warning("GUI preferences integrity check failed at %s, using defaults.", config_path)
+        if auto_create:
+            try:
+                _create_gui_main_preferences_file(config_path)
+            except OSError as exc:
+                logger.error("Unable to recreate GUI preferences at %s: %s", config_path, exc)
+            except Exception as exc:
+                logger.error("Unexpected error recreating GUI preferences at %s: %s", config_path, exc)
+        return _hard_default_preferences_copy()
 
     return _merge_preferences(loaded_config)
 
 
-# Loaded once for runtime usage in GUI module.
-GUI_MAIN_PREFERENCES = load_gui_main_preferences()
+GUI_MAIN_PREFERENCES: Dict[str, Any] = load_gui_main_preferences()

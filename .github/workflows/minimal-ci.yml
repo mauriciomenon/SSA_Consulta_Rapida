@@ -35,10 +35,10 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Install minimal dev dependencies
+      - name: Sync dev dependencies
         run: |
           set -euo pipefail
-          uv pip install --system -e . pytest ruff ty
+          uv sync --extra dev
 
       - name: Py compile critical paths
         run: |

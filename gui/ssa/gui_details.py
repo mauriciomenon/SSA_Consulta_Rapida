@@ -12,6 +12,7 @@ import re
 import pandas as pd
 
 from gui.helpers.formatting_helpers import highlight_text
+from gui.helpers.theme_helpers import pick_css_color
 from utils.themes import get_theme_roles
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
@@ -34,15 +35,7 @@ DERIVADAS_DIALOG_MIN_HEIGHT = 650
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
 DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
-
-
-def _pick_css_color(*candidates: object, fallback: str) -> str:
-    for candidate in candidates:
-        if isinstance(candidate, str):
-            value = candidate.strip()
-            if value:
-                return value
-    return fallback
+SSA_NORM_CACHE_MAX_ENTRIES = 64
 
 
 def configure_details_constants(
@@ -177,25 +170,25 @@ def _format_details_html(
     try:
         from PyQt6.QtGui import QPalette as _QPal
 
-        text_color = _pick_css_color(
+        text_color = pick_css_color(
             window.palette().color(_QPal.ColorRole.WindowText).name(),
             theme_roles.get("panel_text"),
             theme_roles.get("label_color"),
             fallback="#d0d0d0",
         )
-        link_color = _pick_css_color(
+        link_color = pick_css_color(
             window.palette().color(_QPal.ColorRole.Highlight).name(),
             theme_roles.get("accent"),
             text_color,
             fallback="#4a90e2",
         )
     except Exception:
-        text_color = _pick_css_color(
+        text_color = pick_css_color(
             theme_roles.get("panel_text"),
             theme_roles.get("label_color"),
             fallback="#d0d0d0",
         )
-        link_color = _pick_css_color(
+        link_color = pick_css_color(
             theme_roles.get("accent"),
             text_color,
             fallback="#4a90e2",
@@ -456,6 +449,10 @@ def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
     if isinstance(cached, pd.Series) and len(cached) == len(df):
         return cached
     normalized = _normalize_ssa_series(window, df[column_name])
+    if len(cache) >= SSA_NORM_CACHE_MAX_ENTRIES:
+        overflow = len(cache) - SSA_NORM_CACHE_MAX_ENTRIES + 1
+        for stale_key in list(cache.keys())[:overflow]:
+            cache.pop(stale_key, None)
     cache[key] = normalized
     return normalized
 
@@ -878,7 +875,7 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
     except Exception:
         roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
-        link_color = _pick_css_color(
+        link_color = pick_css_color(
             roles.get("accent"),
             roles.get("panel_text"),
             roles.get("label_color"),
