@@ -22,6 +22,7 @@ class ColumnManagerDialog(QDialog):
         all_from_map = list(self.display_map.keys())
         explicit_available = list(available_columns or [])
         self.available_columns = explicit_available or all_from_map
+        self._missing_alias_logged = set()
         if not self.available_columns:
             self.available_columns = list(selected_columns)
         if explicit_available:
@@ -95,9 +96,11 @@ class ColumnManagerDialog(QDialog):
         for col in self._ordered_columns(selected_columns):
             display_name = self.display_map.get(col, col)
             if display_name == col:
-                logging.getLogger(__name__).warning(
-                    "Coluna sem alias canonico no gerenciador de colunas: %s", col
-                )
+                if col not in self._missing_alias_logged:
+                    self._missing_alias_logged.add(col)
+                    logging.getLogger(__name__).debug(
+                        "Coluna sem alias canonico no gerenciador de colunas: %s", col
+                    )
             item = QListWidgetItem(display_name)
             try:
                 flags = item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable

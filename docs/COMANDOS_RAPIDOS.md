@@ -23,7 +23,7 @@ Compatibilidade sem uv:
 python -m venv venv
 .\activate_env.ps1
 pip install -r requirements.txt
-uv run --python 3.13 python main.py
+python main.py
 ```
 
 ## COMANDOS PRINCIPAIS

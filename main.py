@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 from typing import Any, Optional, cast
 
@@ -57,8 +58,12 @@ class _ASCIIOnlyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = self._to_ascii(record.msg)
         if record.args:
-            if isinstance(record.args, dict):
-                record.args = {key: self._to_ascii(value) for key, value in record.args.items()}
+            # Preserve mapping-style formatting when LogRecord normalizes
+            # args as a single-tuple containing a mapping.
+            if isinstance(record.args, tuple) and len(record.args) == 1 and isinstance(record.args[0], Mapping):
+                record.args = {str(key): value for key, value in record.args[0].items()}
+            if isinstance(record.args, Mapping):
+                record.args = {str(key): self._to_ascii(value) for key, value in record.args.items()}
             else:
                 record.args = tuple(self._to_ascii(arg) for arg in record.args)
         if record.exc_text:

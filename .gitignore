@@ -6,6 +6,7 @@
 !/temp/.gitkeep
 /.beads/
 /config/streamlit_ui_state.json
+/.uv-matrix/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
