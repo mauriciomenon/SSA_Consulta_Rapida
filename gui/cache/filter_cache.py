@@ -3,6 +3,7 @@
 
 import hashlib
 from collections import OrderedDict
+import math
 import os
 import threading
 import pandas as pd
@@ -20,6 +21,9 @@ def _resolve_cache_max_entry_bytes() -> int | None:
         max_mb = float(raw)
     except ValueError:
         logger.warning("Invalid SSA_CACHE_MAX_MB value: %r", raw)
+        return None
+    if not math.isfinite(max_mb):
+        logger.warning("Invalid SSA_CACHE_MAX_MB non-finite value: %r", raw)
         return None
     if max_mb <= 0:
         return None
