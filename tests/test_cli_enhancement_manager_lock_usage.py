@@ -34,8 +34,14 @@ def test_save_settings_aborts_when_lock_acquisition_fails(tmp_path, monkeypatch)
         lambda _f: (_ for _ in ()).throw(RuntimeError("lock busy")),
     )
 
-    manager._save_settings()
+    try:
+        manager._save_settings()
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "lock indisponivel" in str(exc)
 
+    assert raised
     assert not (tmp_path / "cli_enhancements.json").exists()
 
 
