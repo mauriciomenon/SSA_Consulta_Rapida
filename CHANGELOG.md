@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [v4.27.1] - 2026-03-01
+## [v4.28] - 2026-03-01
 
 ### Changed
 - Release patch `.1` com estabilizacao de tema/legibilidade na GUI:
@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file.
   - texto de selecao em botoes de multiselect mostra conteudo completo quando cabe;
   - truncamento por largura util, sem corte fixo arbitrario;
   - ajustes de robustez para evitar acesso a widget Qt invalido em relayout.
-- Metadados de versao sincronizados para `4.27.1` em `VERSION` e `config/version.json`.
+- Metadados de versao sincronizados para `4.28` em `VERSION` e `config/version.json`.
 
 ## [v4.27] - 2026-03-01
 
