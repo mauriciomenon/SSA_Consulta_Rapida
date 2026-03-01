@@ -67,14 +67,14 @@ Created: `validate_filter_optimizations.py`
 
 ```
 gui/gui_ssa.py (main)
-├── __init__: debounce timer
-├── _on_adv_sector_selection_changed: debouncing
-├── _on_adv_sector_exclude_changed: debouncing
-├── _refresh_advanced_filter_options: vectorization + cache
-├── _refresh_responsavel_options: derived menu + removed duplication
-├── _build_advanced_filters_panel: derived button
-├── _apply_advanced_filters_from_ui: collect derived
-└── _apply_advanced_filters: derived filter logic
+- __init__: debounce timer
+- _on_adv_sector_selection_changed: debouncing
+- _on_adv_sector_exclude_changed: debouncing
+- _refresh_advanced_filter_options: vectorization + cache
+- _refresh_responsavel_options: derived menu + removed duplication
+- _build_advanced_filters_panel: derived button
+- _apply_advanced_filters_from_ui: collect derived
+- _apply_advanced_filters: derived filter logic
 
 docs/FILTER_TAB_OPTIMIZATIONS.md (new)
 validate_filter_optimizations.py (new)
@@ -167,14 +167,3 @@ python main.py --gui
 **Developer**: GitHub Copilot  
 **Date**: 2026-01-08  
 **Status**: READY FOR TESTING AND APPROVAL
-# STATUS 2026-02-26
-
-Este arquivo e historico de iteracoes.
-Fonte operacional atual:
-- `docs/FILTER_TAB_OPTIMIZATIONS.md` (algoritmo atual v4.22)
-- `docs/NEXT_CHAT_MIGRATION.md` (estado atual de execucao)
-
-Pendencias absorvidas nesta migracao:
-1. release/status atualizado nos docs ativos.
-2. regras de layout e validacao visual consolidadas em docs de regra geral.
-3. este arquivo segue como apoio de handoff; decisao final deve usar os docs ativos listados acima.
