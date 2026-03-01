@@ -15,7 +15,6 @@ from gui.qt_stubs import (
     Qt,
     QSignalBlocker,
     QApplication,
-    QTimer,
     QComboBox,
     QCheckBox,
     QFrame,
@@ -193,10 +192,12 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     clear_btn = getattr(self, "_adv_filters_clear_btn", None)
     if apply_btn is None or clear_btn is None:
         return
+    if not _is_widget_valid(apply_btn) or not _is_widget_valid(clear_btn):
+        return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(68, min(112, min_width))
-    max_width = max(min_width + 12, min(138, max_width))
+    min_width = max(62, min(104, min_width))
+    max_width = max(min_width + 10, min(126, max_width))
     try:
         grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
     except Exception:
@@ -205,16 +206,18 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     if width > 0:
         cell_width = max(120, int(width // grid_cols))
         pair_budget = max(116, cell_width - 12)
-        per_button_budget = max(56, int((pair_budget - 10) // 2))
+        per_button_budget = max(52, int((pair_budget - 10) // 2))
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
     if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
         return
     self._adv_filters_action_btn_min_width = min_width
     for btn in (apply_btn, clear_btn):
+        if not _is_widget_valid(btn):
+            continue
         try:
             ref_btn = getattr(self, "search_button", None)
-            if ref_btn is not None:
+            if ref_btn is not None and _is_widget_valid(ref_btn):
                 ref_font = ref_btn.font()
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
@@ -460,18 +463,30 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         if selected_prefixes is not None and prefix not in selected_prefixes:
             continue
         button = getattr(self, button_attr, None)
-        if button is None:
+        if button is None or not _is_widget_valid(button):
             continue
         include_values = [str(v) for v in (filters.get(include_key) or []) if str(v).strip()]
         exclude_values = [str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()]
         if include_values and exclude_values:
-            text = f"{len(include_values)} inc, {len(exclude_values)} dif"
+            candidates = [
+                f"Incluir: {', '.join(include_values)} | Diferente: {', '.join(exclude_values)}",
+                f"Incluir: {', '.join(include_values)}",
+                f"Diferente: {', '.join(exclude_values)}",
+                f"{len(include_values)} incluir, {len(exclude_values)} diferente",
+            ]
         elif include_values:
-            text = f"{len(include_values)} incluir"
+            candidates = [
+                f"Incluir: {', '.join(include_values)}",
+                f"{len(include_values)} incluir",
+            ]
         elif exclude_values:
-            text = f"{len(exclude_values)} diferente"
+            candidates = [
+                f"Diferente: {', '.join(exclude_values)}",
+                f"{len(exclude_values)} diferente",
+            ]
         else:
-            text = "Selecionar"
+            candidates = ["Selecionar"]
+        text = _fit_button_text(button, candidates, candidates[-1])
         try:
             button.setText(text)
             button.setEnabled(True)
@@ -541,20 +556,33 @@ def _update_multiselect_button(self, button, checks, placeholder: str = "Selecio
         except Exception as exc:
             logger.debug("Failed to read exclude checkbox state in multiselect summary: %s", exc)
     total = len(checks or [])
+    selected_text = ", ".join(selected) if selected else ""
+    excluded_text = ", ".join(excluded) if excluded else ""
+    include_prefix = "Incluir: "
+    exclude_prefix = "Diferente: "
     if total == 0:
         text = "Sem dados"
     elif not selected and not excluded:
         text = placeholder
-    elif len(selected) == total and not excluded:
-        text = "Todos"
-    elif selected and excluded:
-        text = f"{len(selected)} inc, {len(excluded)} dif"
-    elif selected:
-        text = f"{len(selected)} incluir"
-    elif excluded:
-        text = f"{len(excluded)} diferente"
     else:
-        text = f"{len(selected)} selecionados"
+        candidates = []
+        if selected and excluded:
+            candidates.append(f"{include_prefix}{selected_text} | {exclude_prefix}{excluded_text}")
+        if selected:
+            candidates.append(f"{include_prefix}{selected_text}")
+        if excluded:
+            candidates.append(f"{exclude_prefix}{excluded_text}")
+        if len(selected) == total and not excluded:
+            candidates.append("Todos")
+        if selected and excluded:
+            candidates.append(f"{len(selected)} incluir, {len(excluded)} diferente")
+        elif selected:
+            candidates.append(f"{len(selected)} incluir")
+        elif excluded:
+            candidates.append(f"{len(excluded)} diferente")
+        candidates.append(f"{len(selected)} selecionados")
+        fallback = candidates[-1]
+        text = _fit_button_text(button, candidates, fallback)
     try:
         button.setText(text)
         # Esmaecimento visual para botoes sem dados
@@ -570,6 +598,132 @@ def _update_multiselect_button(self, button, checks, placeholder: str = "Selecio
             button.setToolTip(placeholder if total > 0 else "Nenhum dado disponivel")
     except Exception as exc:
         logger.debug("Falha ao atualizar resumo/tooltip do botao multiselect: %s", exc)
+
+
+def _fit_button_text(button, candidates, fallback: str) -> str:
+    try:
+        if not _is_widget_valid(button):
+            return str(fallback)
+        fm = button.fontMetrics()
+        width = _safe_widget_width(button)
+        available = max(24, width - 20)
+        for text in candidates:
+            if text and fm.horizontalAdvance(text) <= available:
+                return text
+        primary = next((str(item) for item in candidates if item), str(fallback))
+        if fm.horizontalAdvance(primary) <= available:
+            return primary
+        ellipsis = "..."
+        if fm.horizontalAdvance(ellipsis) >= available:
+            return ellipsis
+        trimmed = primary
+        while trimmed and fm.horizontalAdvance(trimmed + ellipsis) > available:
+            trimmed = trimmed[:-1]
+        return (trimmed + ellipsis) if trimmed else ellipsis
+    except Exception:
+        return str(fallback)
+
+
+def _safe_widget_width(widget) -> int:
+    if widget is None or not _is_widget_valid(widget):
+        return 0
+    try:
+        width_fn = getattr(widget, "width", None)
+        if callable(width_fn):
+            value = int(width_fn() or 0)
+            if value > 0:
+                return value
+    except Exception:
+        pass
+    try:
+        size_hint_fn = getattr(widget, "sizeHint", None)
+        if callable(size_hint_fn):
+            hint = size_hint_fn()
+            if hint is not None:
+                value = int(hint.width() or 0)
+                if value > 0:
+                    return value
+    except Exception:
+        pass
+    try:
+        minimum_width_fn = getattr(widget, "minimumWidth", None)
+        if callable(minimum_width_fn):
+            return max(0, int(minimum_width_fn() or 0))
+    except Exception:
+        pass
+    return 0
+
+
+def _collect_years_from_dates(series):
+    """Extrai anos de datas usando operacoes vetorizadas."""
+    try:
+        ts = pd.to_datetime(series, errors="coerce")
+        years = ts.dt.year.dropna().astype(int).unique()
+        return sorted(years, reverse=True)
+    except Exception:
+        return []
+
+
+def _collect_years_from_weeks(series):
+    """Extrai anos de semanas no formato YYYYWW em modo vetorizado."""
+    try:
+        nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
+        years = (nums // 100).unique()
+        return sorted(years, reverse=True)
+    except Exception:
+        return []
+
+
+def _populate_advanced_values_cache(self, df, cache) -> None:
+    def _unique_sorted(col):
+        try:
+            vals = df[col].dropna().astype(str).str.strip()
+            vals = vals[vals != ""]
+            return sorted(set(vals), key=lambda v: v.casefold())
+        except Exception:
+            return []
+
+    def _sort_sector_values(values):
+        try:
+            return self._sort_sectors(set(values))
+        except Exception:
+            return sorted(set(values), key=lambda v: str(v).casefold())
+
+    cache["exec_vals"] = (
+        _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
+    )
+    cache["emis_vals"] = (
+        _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
+    )
+    cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
+
+    emissao_years = []
+    if "data_cadastro" in df.columns:
+        emissao_years = _collect_years_from_dates(df["data_cadastro"])
+    elif "semana_cadastro" in df.columns:
+        emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
+    cache["emissao_years"] = emissao_years
+
+    execucao_years = []
+    if "semana_executada" in df.columns:
+        execucao_years = _collect_years_from_weeks(df["semana_executada"])
+    cache["execucao_years"] = execucao_years
+
+    cache["prio_emissao_vals"] = (
+        _unique_sorted("grau_prioridade_emissao") if "grau_prioridade_emissao" in df.columns else []
+    )
+    cache["prio_planejamento_vals"] = (
+        _unique_sorted("grau_prioridade_planejamento") if "grau_prioridade_planejamento" in df.columns else []
+    )
+    if "num_reprogramacoes" in df.columns:
+        try:
+            reprog_series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
+            reprog_vals = reprog_series.astype(int).unique()
+            cache["reprog_vals"] = sorted(reprog_vals, reverse=True)
+        except Exception:
+            cache["reprog_vals"] = []
+    else:
+        cache["reprog_vals"] = []
 
 def _rebuild_multiselect_menu(
     self,
@@ -624,10 +778,7 @@ def _rebuild_multiselect_menu(
     except Exception:
         max_label_len = 8
     has_exclude_column = exclude_selected_set is not None
-    try:
-        button_width = int(getattr(button, "width", lambda: 0)() or 0)
-    except Exception:
-        button_width = 0
+    button_width = _safe_widget_width(button)
     content_width = (max_label_len * 8) + (150 if has_exclude_column else 90)
     popup_min_width = max(180, min(360, max(button_width + 12, content_width)))
     popup_max_width = max(popup_min_width, min(560, popup_min_width + 180))
@@ -664,12 +815,21 @@ def _rebuild_multiselect_menu(
             label_inc = QLabel("Conter")
             label_exc = QLabel("Nao conter")
             try:
-                label_inc.setStyleSheet(
-                    "font-size: 10px; color: #555; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;"
+                roles = getattr(self, "_current_theme_roles", None)
+                if not isinstance(roles, dict):
+                    from utils.themes import get_theme_roles
+                    roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+                popup_text = roles.get("popup_text") or roles.get("panel_text") or roles.get("label_color")
+                popup_border = roles.get("popup_border", roles.get("panel_border"))
+                label_style = (
+                    "font-size: 10px;"
+                    f" color: {popup_text};"
+                    f" border: 1px solid {popup_border};"
+                    " border-radius: 2px;"
+                    " padding: 1px 3px;"
                 )
-                label_exc.setStyleSheet(
-                    "font-size: 10px; color: #555; border: 1px solid #aaa; border-radius: 2px; padding: 1px 3px;"
-                )
+                label_inc.setStyleSheet(label_style)
+                label_exc.setStyleSheet(label_style)
                 label_inc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
                 label_exc.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             except Exception as exc:
@@ -688,14 +848,44 @@ def _rebuild_multiselect_menu(
 
     cb_style_include = ""
     cb_style_exclude = ""
+    from utils.themes import get_theme_roles
+    roles = getattr(self, "_current_theme_roles", None)
+    if not isinstance(roles, dict):
+        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
+    popup_bg = roles.get("popup_bg", roles.get("panel_bg"))
+    popup_text = roles.get("popup_text", roles.get("panel_text"))
+    popup_border = roles.get("popup_border", roles.get("panel_border"))
+    checked_bg = roles.get("checkbox_checked_bg", roles.get("accent"))
     apply_checkbox_styles = len(valid_values) <= 300
+    try:
+        popup_bg = roles.get("popup_bg", roles.get("panel_bg", popup_bg))
+        popup_text = roles.get("popup_text", roles.get("panel_text", popup_text))
+        popup_border = roles.get("popup_border", roles.get("panel_border", popup_border))
+        checked_bg = roles.get("checkbox_checked_bg", roles.get("accent", checked_bg))
+        cb_style_include = (
+            "QCheckBox::indicator {"
+            " width:14px; height:14px;"
+            f" border:1px solid {popup_border};"
+            f" background:{popup_bg};"
+            "}"
+            "QCheckBox::indicator:checked {"
+            f" border:1px solid {checked_bg};"
+            f" background:{checked_bg};"
+            "}"
+            "QCheckBox::indicator:checked:hover {"
+            f" background:{checked_bg};"
+            "}"
+        )
+        cb_style_exclude = cb_style_include
+    except Exception as exc:
+        logger.debug("Falha ao gerar estilo de checkbox do menu multiselect: %s", exc)
 
     for val in valid_values:
         label_text = str(val[1]) if isinstance(val, (list, tuple)) and len(val) > 1 else str(val)
         cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
         label = QLabel(label_text)
         try:
-            label.setStyleSheet("font-size: 11px;")
+            label.setStyleSheet(f"font-size: 11px; color: {popup_text};")
         except Exception as exc:
             logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
         include_cb = QCheckBox()
@@ -778,8 +968,8 @@ def _rebuild_multiselect_menu(
         label_mark = QLabel("Selecionar em lote")
         label_clear = QLabel("Limpar selecao em lote")
         try:
-            label_mark.setStyleSheet("font-size: 11px;")
-            label_clear.setStyleSheet("font-size: 11px;")
+            label_mark.setStyleSheet(f"font-size: 11px; color: {popup_text};")
+            label_clear.setStyleSheet(f"font-size: 11px; color: {popup_text};")
         except Exception as exc:
             logger.debug("Falha ao estilizar labels de marcacao em lote no menu multiselect: %s", exc)
 
@@ -803,12 +993,39 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao alinhar scroll do menu multiselect no topo: %s", exc)
     try:
-        from PyQt6.QtGui import QPalette as _QPal
-        pal = (button or scroll).palette()
-        border = pal.color(_QPal.ColorRole.Mid).name()
-        bg = pal.color(_QPal.ColorRole.Base).name()
-        container.setStyleSheet(f"QWidget {{ background: {bg}; }} QLabel {{ font-size: 11px; }}")
-        scroll.setStyleSheet(f"QScrollArea {{ border: 1px solid {border}; }}")
+        container.setStyleSheet(
+            "QWidget {"
+            f" background: {popup_bg};"
+            f" color: {popup_text};"
+            "}"
+            "QLabel {"
+            " font-size: 11px;"
+            f" color: {popup_text};"
+            "}"
+        )
+        scroll.setStyleSheet(
+            "QScrollArea {"
+            f" border: 1px solid {popup_border};"
+            f" background: {popup_bg};"
+            "}"
+        )
+        menu.setStyleSheet(
+            "QMenu {"
+            f" background: {popup_bg};"
+            f" color: {popup_text};"
+            f" border: 1px solid {popup_border};"
+            "}"
+            "QPushButton {"
+            f" color: {popup_text};"
+            f" background: {popup_bg};"
+            f" border: 1px solid {popup_border};"
+            " border-radius: 4px;"
+            " padding: 2px 8px;"
+            "}"
+            "QPushButton:hover {"
+            f" border: 1px solid {checked_bg};"
+            "}"
+        )
     except Exception as exc:
         logger.debug("Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc)
     try:
@@ -869,26 +1086,23 @@ def _rebuild_multiselect_menu(
         except Exception as exc:
             logger.debug("Falha ao conectar acoes de marcacao em lote no menu multiselect: %s", exc)
 
-    # Botoes OK e Cancelar - OK sempre a direita
-    # OTIMIZACAO 2026-01-08: OK apenas fecha o menu, NAO aplica filtro
-    # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle)
+    # Botoes Fechar e Cancelar.
+    # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle).
     if on_apply is not None:
         cancel_btn = QPushButton("Cancelar")
         cancel_btn.setFixedWidth(70)
         cancel_btn.setToolTip("Fechar sem aplicar")
-        ok_btn = QPushButton("OK")
+        ok_btn = QPushButton("Fechar")
         ok_btn.setFixedWidth(70)
-        ok_btn.setToolTip("Confirmar selecao (use botao Aplicar para filtrar)")
+        ok_btn.setToolTip("Fechar e manter selecao para aplicar no botao Aplicar")
         try:
             cancel_btn.clicked.connect(menu.close)
         except Exception as exc:
             logger.debug("Falha ao conectar botao Cancelar no menu multiselect: %s", exc)
         try:
             ok_btn.clicked.connect(menu.close)
-            # REMOVIDO: ok_btn.clicked.connect(on_apply)
-            # Agora o filtro so e aplicado pelo botao "Aplicar" geral
         except Exception as exc:
-            logger.debug("Falha ao conectar botao OK no menu multiselect: %s", exc)
+            logger.debug("Falha ao conectar botao Fechar no menu multiselect: %s", exc)
         ok_row = QWidget()
         ok_layout = QHBoxLayout(ok_row)
         ok_layout.setContentsMargins(6, 4, 6, 6)
@@ -1261,20 +1475,15 @@ def _build_advanced_filters_panel(self):
     self._adv_filters_grid_cols = None
     self._adv_filters_last_widget_count = None
     self._adv_filters_group_obj = group
-    _update_advanced_filters_action_buttons(self, group.width())
+    if _is_widget_valid(group):
+        _update_advanced_filters_action_buttons(self, group.width())
     _enforce_advanced_filters_compact_metrics(self)
 
-    def _deferred_initial_relayout():
-        try:
-            if hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
-                self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
-        except Exception as exc:
-            logger.debug("Falha no relayout inicial deferido dos filtros avancados: %s", exc)
-
     try:
-        QTimer.singleShot(0, _deferred_initial_relayout)
+        if _is_widget_valid(group):
+            self._reorganize_advanced_filters_grid(group.width())
     except Exception as exc:
-        logger.debug("Falha ao agendar relayout inicial deferido dos filtros avancados: %s", exc)
+        logger.debug("Falha no relayout inicial dos filtros avancados: %s", exc)
 
     ctx = {
         "adv_filters_group": group,
@@ -2474,80 +2683,9 @@ def _refresh_advanced_filter_options(self):
         cache = {"df_id": df_id, "df_key": df_key}
         self._adv_values_cache = cache
 
-    def _unique_sorted(col):
-        try:
-            vals = df[col].dropna().astype(str).str.strip()
-            vals = vals[vals != ""]
-            return sorted(set(vals), key=lambda v: v.casefold())
-        except Exception:
-            return []
-
-    def _sort_sector_values(values):
-        try:
-            return self._sort_sectors(set(values))
-        except Exception:
-            return sorted(set(values), key=lambda v: str(v).casefold())
-
     # Popula cache se necessário (bloco único consolidado) - CORRIGIDO: removida duplicação
     if cache.get("exec_vals") is None:
-        cache["exec_vals"] = (
-            _sort_sector_values(_unique_sorted("setor_executor")) if "setor_executor" in df.columns else []
-        )
-        cache["emis_vals"] = (
-            _sort_sector_values(_unique_sorted("setor_emissor")) if "setor_emissor" in df.columns else []
-        )
-        cache["status_vals"] = _unique_sorted("situacao") if "situacao" in df.columns else []
-
-        def _collect_years_from_dates(series):
-            """Extrai anos de datas usando operações vetorizadas (otimizado)."""
-            try:
-                # Vetorizado: converte diretamente para datetime sem apply()
-                ts = pd.to_datetime(series, errors="coerce")
-                # Extrai anos e remove NaT
-                years = ts.dt.year.dropna().astype(int).unique()
-                return sorted(years, reverse=True)
-            except Exception:
-                return []
-
-        def _collect_years_from_weeks(series):
-            """Extrai anos de semanas (formato YYYYWW) vetorizado."""
-            try:
-                nums = pd.to_numeric(series, errors="coerce").dropna().astype(int)
-                # Vetorizado: unique() em vez de tolist() + set() + sorted()
-                years = (nums // 100).unique()
-                return sorted(years, reverse=True)
-            except Exception:
-                return []
-
-        emissao_years = []
-        if "data_cadastro" in df.columns:
-            emissao_years = _collect_years_from_dates(df["data_cadastro"])
-        elif "semana_cadastro" in df.columns:
-            emissao_years = _collect_years_from_weeks(df["semana_cadastro"])
-
-        execucao_years = []
-        if "semana_executada" in df.columns:
-            execucao_years = _collect_years_from_weeks(df["semana_executada"])
-
-        cache["emissao_years"] = emissao_years
-        cache["execucao_years"] = execucao_years
-        cache["prio_emissao_vals"] = (
-            _unique_sorted("grau_prioridade_emissao") if "grau_prioridade_emissao" in df.columns else []
-        )
-        cache["prio_planejamento_vals"] = (
-            _unique_sorted("grau_prioridade_planejamento") if "grau_prioridade_planejamento" in df.columns else []
-        )
-        if "num_reprogramacoes" in df.columns:
-            try:
-                # Vetorizado: dropna() já remove NaN, sem necessidade de lambda
-                reprog_series = pd.to_numeric(df["num_reprogramacoes"], errors="coerce").dropna()
-                # unique() evita tolist() + set() + sorted()
-                reprog_vals = reprog_series.astype(int).unique()
-                cache["reprog_vals"] = sorted(reprog_vals, reverse=True)
-            except Exception:
-                cache["reprog_vals"] = []
-        else:
-            cache["reprog_vals"] = []
+        _populate_advanced_values_cache(self, df, cache)
         self._adv_values_cache = cache
         logger.debug(
             "_refresh_advanced_filter_options: cache populado - exec=%s, emis=%s, status=%s",

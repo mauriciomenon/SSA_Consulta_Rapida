@@ -73,7 +73,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
 }
 
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
-    "#": 30,
+    "#": 24,
     "numero_ssa": 93,
     "localizacao_codigo": 86,
     "setor_executor": 65,

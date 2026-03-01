@@ -1,5 +1,14 @@
 # CHANGELOG DE IMPLEMENTACOES
 
+## 2026-03-01 - Release v4.27.1 (tema geral + legibilidade)
+- Baseline de release patch atualizado:
+  - `VERSION` para `4.27.1`
+  - `config/version.json` para baseline `v4.27.1`
+- GUI de filtros/tabela com consistencia de tema por regra geral:
+  - popups/menus/checks amarrados a roles de tema, com reducao de fallback visual ad-hoc;
+  - resumo de multiselect exibe texto completo quando ha espaco e trunca pelo ultimo caractere util;
+  - ajustes de robustez em relayout para evitar acesso a widget Qt invalido.
+
 ## 2026-03-01 - Release v4.27 (uv-first + python compatibility)
 - Baseline de release atualizado:
   - `VERSION` para `4.27`

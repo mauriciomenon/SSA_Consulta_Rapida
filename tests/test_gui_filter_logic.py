@@ -727,7 +727,7 @@ class TestGUIFilterLogic:
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get("adv_responsavel_solicitante_button")
         assert button is not None
-        assert "inc" in button.text()
+        assert "Incluir:" in button.text()
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {

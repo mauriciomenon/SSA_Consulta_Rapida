@@ -2,16 +2,20 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.27 - CURRENT RELEASE**
+## **RELEASE v4.27.1 - CURRENT RELEASE**
 
 **Data de Lancamento**: Fevereiro 2026
-**Tipo**: Pre-PR Release Alignment
+**Tipo**: Patch de estabilidade de tema e legibilidade
 **Status**: Estavel
 
 ### **Principais entregas**
 - Consolidacao do baseline pre-PR sem perda de melhorias:
-  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.27`.
+  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.27.1`.
   - docs de continuidade e release alinhadas com o baseline atual.
+- Regra geral de tema reforcada na GUI:
+  - popup/menu/checkbox com cores derivadas de roles de tema;
+  - reducao de hardcode visual em fluxos de multiselect e detalhes;
+  - resumo de selecao com texto completo quando houver espaco util.
 - Pacote de hardening mantido e consolidado com foco em risco real:
   - path safety e config resolution em `interface/command_handlers.py`
   - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
@@ -23,13 +27,21 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
-- `README.md` (v4.27 no topo)
+- `README.md` (v4.27.1 no topo)
 - `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/PENDING_ACTION_MATRIX.md`
 - `docs/RECOVERY_BACKLOG.md`
 
 ---
+
+## **RELEASE v4.27**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Pre-PR Release Alignment
+**Status**: Estavel
+
+- Consolidacao de baseline com uv-first, compatibilidade multi-versao e alinhamento de docs para pre-PR.
 
 ## **RELEASE v4.25.0**
 

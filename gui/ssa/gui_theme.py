@@ -119,8 +119,8 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         win = pal.color(_QPal.ColorRole.Window).name()
     except Exception as exc:
         logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
-        wtxt = "#ffffff"
-        win = "#000000"
+        wtxt = roles.get("panel_text") or roles.get("label_color") or roles.get("support_text_color")
+        win = roles.get("panel_bg") or roles.get("summary_frame_bg") or wtxt
     support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
     if support_color.lower() == win.lower():
         support_color = wtxt
@@ -393,6 +393,7 @@ def _apply_theme_widget_styles(
         panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
         panel_text = roles.get('panel_text', txt)
         panel_border = roles.get('panel_border', input_border)
+        window._current_theme_roles = dict(roles)
         try:
             highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
         except Exception as exc:
