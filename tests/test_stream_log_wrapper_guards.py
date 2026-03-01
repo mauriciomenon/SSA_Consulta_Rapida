@@ -2,15 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-import sys
 
 import pytest
 
 
 def _load_module(module_name: str, path: Path):
-    script_dir = str(path.parent)
-    if script_dir not in sys.path:
-        sys.path.insert(0, script_dir)
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None
     assert spec.loader is not None
@@ -20,8 +16,9 @@ def _load_module(module_name: str, path: Path):
 
 
 @pytest.fixture
-def modules():
+def modules(monkeypatch: pytest.MonkeyPatch):
     root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(root / "scripts"))
     v1 = _load_module("stream_wrap_v1", root / "scripts" / "run_pytest_stream_and_log.py")
     v2 = _load_module("stream_wrap_v2", root / "scripts" / "run_pytest_stream_and_log_v2.py")
     common = _load_module("stream_wrap_common", root / "scripts" / "pytest_stream_common.py")

@@ -63,13 +63,17 @@ class CLIEnhancementManager:
     def _save_settings(self):
         """Salva configurações das melhorias."""
         lock_file = None
+        lock_path = ""
+        lock_path_created_now = False
         try:
             os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
             target_dir = os.path.dirname(self.settings_file) or "."
             base_name = os.path.basename(self.settings_file) or "cli_enhancements.json"
+            self._cleanup_stale_temp_settings_files(target_dir, base_name)
 
             try:
                 lock_path = f"{self.settings_file}.lock"
+                lock_path_created_now = not os.path.exists(lock_path)
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
                 if os.name == "posix":
                     try:
@@ -89,6 +93,13 @@ class CLIEnhancementManager:
                         lock_file.close()
                     except Exception as close_exc:
                         logger.warning("Falha ao fechar lock file de settings: %s", close_exc)
+                if lock_path and lock_path_created_now:
+                    try:
+                        os.remove(lock_path)
+                    except FileNotFoundError:
+                        pass
+                    except Exception as remove_exc:
+                        logger.debug("Falha ao remover lock file apos erro de lock '%s': %s", lock_path, remove_exc)
                 lock_file = None
                 raise RuntimeError("Falha ao salvar configuracoes CLI: lock indisponivel") from exc
 
@@ -142,6 +153,32 @@ class CLIEnhancementManager:
                     lock_file.close()
                 except Exception as close_exc:
                     logger.warning("Falha ao fechar lock file final de settings: %s", close_exc)
+
+    def _cleanup_stale_temp_settings_files(self, target_dir: str, base_name: str) -> None:
+        """Remove temp stale de settings para evitar acumulacao de lixo local."""
+        prefix = f".{base_name}.tmp."
+        now = time.time()
+        stale_after_seconds = 24 * 60 * 60
+        try:
+            entries = os.listdir(target_dir)
+        except Exception as exc:
+            logger.debug("Falha ao listar temp stale de settings em '%s': %s", target_dir, exc)
+            return
+
+        for entry in entries:
+            if not entry.startswith(prefix):
+                continue
+            temp_path = os.path.join(target_dir, entry)
+            try:
+                stat = os.stat(temp_path)
+                if now - stat.st_mtime < stale_after_seconds:
+                    continue
+                os.remove(temp_path)
+                logger.debug("Temp stale de settings removido: %s", temp_path)
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                logger.warning("Falha ao remover temp stale de settings '%s': %s", temp_path, exc)
 
     def _lock_file_if_possible(self, f: Any) -> None:
         """Acquire advisory lock for settings writes."""
