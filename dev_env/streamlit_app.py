@@ -2078,6 +2078,13 @@ if REAL_RUNTIME and not raw_df.empty:
             reset_filters = form_cols[1].form_submit_button("Resetar filtros")
 
         if reset_filters:
+            for cal_key in (
+                "cal_data_emissao_inicio",
+                "cal_data_emissao_fim",
+                "cal_data_execucao_inicio",
+                "cal_data_execucao_fim",
+            ):
+                st.session_state.pop(cal_key, None)
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,

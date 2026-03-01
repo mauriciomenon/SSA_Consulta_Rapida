@@ -184,6 +184,9 @@ def _apply_include_exclude_filters(
             if "divisao" in df.columns:
                 try:
                     series = cache.get_str("divisao")
+                    if series is not None:
+                        invalid_tokens = {"", "nan", "none", "null"}
+                        series = series.where(~series.str.strip().str.casefold().isin(invalid_tokens), "")
                 except Exception as exc:
                     logger.debug("Failed to read divisao column values: %s", exc)
             try:
