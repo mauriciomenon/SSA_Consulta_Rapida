@@ -16,6 +16,14 @@ Delivered in this slice:
    - uv-first command format standardized to `uv run --python 3.13 ...`
    - fallback policy explicitly documented (`3.12 -> 3.11 -> 3.10`)
    - `requirements*.txt` kept as compatibility path.
+4. GUI continuity docs added:
+   - `ANALISE_PROFUNDA_GUI.md`
+   - `GUI_SSA_REFACTOR_NOTES.md`
+5. local directories clarified for operations:
+   - `.uv-matrix`: isolated uv virtualenvs used for multi-version validation.
+   - `.alma-snapshots`: local snapshot/cache artifacts, not runtime source.
+   - `launchers/*`: build/packaging scripts and platform configs.
+   - `.venv`: default local development virtualenv.
 
 ## Update 2026-02-28 (release alignment v4.27)
 

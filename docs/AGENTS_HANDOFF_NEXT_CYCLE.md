@@ -19,6 +19,9 @@ This handoff is ready to reuse in the next conversation.
   1. `py_compile` on touched runtime files
   2. `ruff` and `ty` on touched runtime files
   3. `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
+- GUI reference docs for continuity:
+  1. `ANALISE_PROFUNDA_GUI.md`
+  2. `GUI_SSA_REFACTOR_NOTES.md`
 
 ## CURRENT TRUTH 2026-02-28 23:46 - authoritative block
 
