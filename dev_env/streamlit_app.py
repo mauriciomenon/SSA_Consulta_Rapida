@@ -11,7 +11,7 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Tuple, cast
 
@@ -359,8 +359,104 @@ WIDTH_PROFILE_PIXELS = {
 }
 MAIN_TAB_LABELS = ["Filtros", "Tabela", "Exportacao", "Cache e API"]
 STREAMLIT_UI_STATE_FILE_DEFAULT = "streamlit_ui_state.json"
-DEFAULT_STREAMLIT_THEME = "Atlantico"
+DEFAULT_STREAMLIT_THEME = "GitHub Claro"
 STREAMLIT_THEME_PALETTES: dict[str, dict[str, str]] = {
+    "GitHub Claro": {
+        "bg": "#f6f8fa",
+        "panel": "#ffffff",
+        "ink": "#24292f",
+        "muted": "#57606a",
+        "accent": "#0969da",
+        "accent_soft": "#ddf4ff",
+        "border": "#d0d7de",
+        "metric_bg": "#f6f8fa",
+        "input_bg": "#ffffff",
+        "input_ink": "#24292f",
+    },
+    "GitHub Escuro": {
+        "bg": "#0d1117",
+        "panel": "#161b22",
+        "ink": "#e6edf3",
+        "muted": "#8b949e",
+        "accent": "#2f81f7",
+        "accent_soft": "#1f2937",
+        "border": "#30363d",
+        "metric_bg": "#161b22",
+        "input_bg": "#0d1117",
+        "input_ink": "#e6edf3",
+    },
+    "Monokai": {
+        "bg": "#272822",
+        "panel": "#2d2e27",
+        "ink": "#f8f8f2",
+        "muted": "#b3b3a7",
+        "accent": "#a6e22e",
+        "accent_soft": "#3e3d32",
+        "border": "#5a5a4f",
+        "metric_bg": "#2d2e27",
+        "input_bg": "#1e1f1c",
+        "input_ink": "#f8f8f2",
+    },
+    "Dracula": {
+        "bg": "#282a36",
+        "panel": "#343746",
+        "ink": "#f8f8f2",
+        "muted": "#c0c3ce",
+        "accent": "#bd93f9",
+        "accent_soft": "#44475a",
+        "border": "#6272a4",
+        "metric_bg": "#343746",
+        "input_bg": "#1f2130",
+        "input_ink": "#f8f8f2",
+    },
+    "Gruvbox Claro": {
+        "bg": "#fbf1c7",
+        "panel": "#f9f5d7",
+        "ink": "#3c3836",
+        "muted": "#665c54",
+        "accent": "#b57614",
+        "accent_soft": "#f2e5bc",
+        "border": "#d5c4a1",
+        "metric_bg": "#f2e5bc",
+        "input_bg": "#fff8dc",
+        "input_ink": "#3c3836",
+    },
+    "Gruvbox Escuro": {
+        "bg": "#282828",
+        "panel": "#32302f",
+        "ink": "#ebdbb2",
+        "muted": "#a89984",
+        "accent": "#fabd2f",
+        "accent_soft": "#3c3836",
+        "border": "#504945",
+        "metric_bg": "#32302f",
+        "input_bg": "#1d2021",
+        "input_ink": "#ebdbb2",
+    },
+    "Windows": {
+        "bg": "#f3f3f3",
+        "panel": "#ffffff",
+        "ink": "#1f1f1f",
+        "muted": "#525252",
+        "accent": "#0078d4",
+        "accent_soft": "#deecf9",
+        "border": "#c7c7c7",
+        "metric_bg": "#f3f3f3",
+        "input_bg": "#ffffff",
+        "input_ink": "#1f1f1f",
+    },
+    "Adwaita": {
+        "bg": "#f6f5f4",
+        "panel": "#ffffff",
+        "ink": "#2e3436",
+        "muted": "#5c616c",
+        "accent": "#3584e4",
+        "accent_soft": "#dce9fb",
+        "border": "#c0bfbc",
+        "metric_bg": "#f0efee",
+        "input_bg": "#ffffff",
+        "input_ink": "#2e3436",
+    },
     "Atlantico": {
         "bg": "#f2f6fb",
         "panel": "#ffffff",
@@ -562,6 +658,8 @@ def _normalize_streamlit_theme_name(raw_theme: Any) -> str:
 
 def _build_streamlit_theme_css(theme_name: str) -> str:
     theme = STREAMLIT_THEME_PALETTES[_normalize_streamlit_theme_name(theme_name)]
+    input_bg = theme.get("input_bg", theme["panel"])
+    input_ink = theme.get("input_ink", theme["ink"])
     return (
         "<style>"
         ":root {"
@@ -573,14 +671,19 @@ def _build_streamlit_theme_css(theme_name: str) -> str:
         f"--ssa-accent-soft:{theme['accent_soft']};"
         f"--ssa-border:{theme['border']};"
         f"--ssa-metric-bg:{theme['metric_bg']};"
+        f"--ssa-input-bg:{input_bg};"
+        f"--ssa-input-ink:{input_ink};"
         "}"
         ".stApp{background:var(--ssa-bg);color:var(--ssa-ink);}"
+        "section[data-testid='stSidebar']{background:var(--ssa-panel)!important;color:var(--ssa-ink)!important;}"
         ".block-container{padding-top:0.8rem;padding-bottom:0.5rem;}"
         "h1,h2,h3{color:var(--ssa-ink);}"
         ".section-label{font-size:0.84rem;color:var(--ssa-accent);margin-bottom:0.35rem;}"
         ".stButton button{width:100%;border:1px solid var(--ssa-border);}"
         "div[data-testid='stMetric']{background:var(--ssa-metric-bg);border:1px solid var(--ssa-border);"
         "padding:0.5rem 0.65rem;border-radius:0.5rem;}"
+        "div[data-testid='stMetricLabel'] *{color:var(--ssa-muted)!important;}"
+        "div[data-testid='stMetricValue'] *{color:var(--ssa-ink)!important;}"
         "div[data-testid='stDataFrame']{border:1px solid var(--ssa-border);border-radius:0.55rem;"
         "background:var(--ssa-panel);}"
         "div[data-testid='stDataFrame'] div[role='grid']{background:var(--ssa-panel)!important;"
@@ -589,7 +692,12 @@ def _build_streamlit_theme_css(theme_name: str) -> str:
         "padding:0.6rem 0.75rem;border-radius:0.55rem;}"
         "div[data-testid='stHorizontalBlock'] > div{gap:0.45rem;}"
         "div[data-testid='stSelectbox'] > div,div[data-testid='stNumberInput'] > div,"
-        "div[data-testid='stTextInput'] > div{border-color:var(--ssa-border);}"
+        "div[data-testid='stTextInput'] > div,div[data-testid='stMultiSelect'] > div{"
+        "border-color:var(--ssa-border);background:var(--ssa-input-bg)!important;color:var(--ssa-input-ink)!important;}"
+        "div[data-testid='stTextInput'] input,div[data-testid='stNumberInput'] input{"
+        "color:var(--ssa-input-ink)!important;}"
+        "div[data-baseweb='select'] *{color:var(--ssa-input-ink)!important;}"
+        "label,p,span,small{color:var(--ssa-ink);}"
         ".stCaption{color:var(--ssa-muted)!important;}"
         ".ssa-chip{display:inline-block;border:1px solid var(--ssa-border);"
         "background:var(--ssa-accent-soft);color:var(--ssa-ink);"
@@ -836,6 +944,45 @@ def _date_to_yearweek(value: pd.Timestamp) -> int | None:
         except Exception:
             return None
     return None
+
+
+def _compute_sidebar_weekly_kpis(
+    df: pd.DataFrame,
+    reference_dt: Optional[datetime] = None,
+) -> dict[str, int]:
+    empty = {
+        "executadas_semana_atual": 0,
+        "executadas_semana_anterior": 0,
+        "emitidas_semana_atual": 0,
+        "emitidas_semana_anterior": 0,
+    }
+    if df.empty:
+        return empty
+
+    now_dt = reference_dt or datetime.now()
+    current_week = _date_to_yearweek(pd.Timestamp(now_dt))
+    previous_week = _date_to_yearweek(pd.Timestamp(now_dt - timedelta(days=7)))
+    if current_week is None or previous_week is None:
+        return empty
+
+    exec_week = pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    if "data_execucao" in df.columns:
+        exec_week = _compute_yearweek_from_date_series(df, "data_execucao")
+    elif "semana_executada" in df.columns:
+        exec_week = _compute_yearweek_from_week_series(df, "semana_executada")
+
+    emit_week = pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    if "data_emissao" in df.columns:
+        emit_week = _compute_yearweek_from_date_series(df, "data_emissao")
+    elif "data_cadastro" in df.columns:
+        emit_week = _compute_yearweek_from_date_series(df, "data_cadastro")
+
+    return {
+        "executadas_semana_atual": int(exec_week.eq(current_week).fillna(False).sum()),
+        "executadas_semana_anterior": int(exec_week.eq(previous_week).fillna(False).sum()),
+        "emitidas_semana_atual": int(emit_week.eq(current_week).fillna(False).sum()),
+        "emitidas_semana_anterior": int(emit_week.eq(previous_week).fillna(False).sum()),
+    }
 
 
 def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
@@ -1524,8 +1671,13 @@ if REAL_RUNTIME and not raw_df.empty:
     with st.sidebar:
         st.divider()
         st.subheader("Resumo rapido")
+        weekly_kpis = _compute_sidebar_weekly_kpis(raw_df)
         st.metric("Registros no banco", len(raw_df))
-        st.metric("Colunas com dados", len(available_columns_runtime))
+        exec_col, emit_col = st.columns(2)
+        exec_col.metric("Exec semana atual", weekly_kpis["executadas_semana_atual"])
+        exec_col.metric("Exec semana anterior", weekly_kpis["executadas_semana_anterior"])
+        emit_col.metric("Emit semana atual", weekly_kpis["emitidas_semana_atual"])
+        emit_col.metric("Emit semana anterior", weekly_kpis["emitidas_semana_anterior"])
         st.caption(
             "Tema ativo: "
             + _normalize_streamlit_theme_name(
