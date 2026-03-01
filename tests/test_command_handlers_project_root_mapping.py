@@ -11,7 +11,12 @@ def test_load_mappings_handler_uses_project_root(tmp_path, monkeypatch):
     mapping_file = cfg_dir / "sample_mappings.json"
     mapping_file.write_text(json.dumps({"k": "v"}), encoding="utf-8")
 
-    monkeypatch.setattr(ch, "_get_project_root", lambda: str(tmp_path))
+    def _fake_resolve_config_path(path: str) -> str:
+        if path == "config/sample_mappings.json":
+            return str(mapping_file)
+        return str(tmp_path / path)
+
+    monkeypatch.setattr(ch, "_resolve_config_path", _fake_resolve_config_path)
 
     data = ch._load_mappings_handler("sample_mappings.json")
     assert data == {"k": "v"}

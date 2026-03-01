@@ -9,8 +9,7 @@ import os
 import sys
 import logging
 import threading
-import time
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -18,13 +17,12 @@ pytest.importorskip(
     "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
 )
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QThread
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from gui.workers.rescan_worker import RescanWorker, _LogHandler
+from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
 
 
 # =============================================================================
@@ -121,21 +119,18 @@ class TestRescanWorkerUnit:
 
     def test_attach_logger_increments_refcount(self):
         """Testa que _attach_logger incrementa refcount global."""
-        # Nota: Teste simplificado devido a estado global compartilhado
-        # O importante é verificar que o handler é adicionado
         worker = RescanWorker("/fake/main.py", "/fake/project")
         logger = worker.logger
         initial_handlers = len(logger.handlers)
-
         try:
             worker._attach_logger()
-            # Verificar que handler foi adicionado (refcount pode variar devido a estado global)
             assert len(logger.handlers) == initial_handlers + 1
+            assert worker.log_handler in logger.handlers
             assert worker._logger_attached is True
         finally:
-            # Cleanup
             if worker._logger_attached:
                 worker._detach_logger()
+        assert len(logger.handlers) == initial_handlers
 
     def test_detach_logger_removes_handler(self, rescan_worker):
         """Testa que _detach_logger remove handler do logger."""
@@ -176,10 +171,11 @@ class TestRescanWorkerUnit:
 
         try:
             # Attach 3 vezes - handler deve ser adicionado apenas uma vez
-            for i in range(3):
+            for _ in range(3):
                 worker._attach_logger()
                 # Handler deve estar presente
                 assert worker.log_handler in logger.handlers
+            assert len(logger.handlers) == initial_handlers + 1
 
             # Detach 3 vezes
             for _ in range(3):
@@ -187,6 +183,7 @@ class TestRescanWorkerUnit:
 
             # Handler deve ser removido
             assert worker.log_handler not in logger.handlers
+            assert len(logger.handlers) == initial_handlers
             assert worker._logger_attached is False
         finally:
             # Cleanup extra se necessário
@@ -359,8 +356,6 @@ class TestRescanWorkerIntegration:
         rescan_worker.progress.connect(signal_collector.on_progress)
         rescan_worker.finished_success.connect(signal_collector.on_finished_success)
 
-        events = []
-
         def mock_importer(**kwargs):
             callback = kwargs["progress_callback"]
             callback("start", {"total": 3})
@@ -473,7 +468,8 @@ class TestRescanWorkerThreadSafety:
 
     def test_logger_lock_prevents_race_condition(self):
         """Testa que lock previne condições de corrida no logger."""
-        # Nota: Teste simplificado - foco em verificar que não há crash
+        shared_logger = logging.getLogger("ssa")
+        initial_handlers = len(shared_logger.handlers)
         workers = []
         errors = []
 
@@ -498,15 +494,13 @@ class TestRescanWorkerThreadSafety:
         # Cleanup
         for worker in workers:
             if worker._logger_attached:
-                try:
-                    worker._detach_logger()
-                except:
-                    pass
+                worker._detach_logger()
 
         # Verificar que não houve erros
         assert len(errors) == 0
         # Verificar que todos os workers foram criados
         assert len(workers) == 5
+        assert len(shared_logger.handlers) == initial_handlers
 
     def test_stop_is_thread_safe(self, rescan_worker):
         """Testa que stop() é thread-safe."""
