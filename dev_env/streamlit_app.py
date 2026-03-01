@@ -219,6 +219,7 @@ class StreamlitFilterCache:
         situacoes: list,
         executores: list,
         emissores: list,
+        advanced_filters: Optional[dict[str, Any]] = None,
         df_token: Any = None,
     ) -> str:
         """Gera chave unica para o cache baseada nos parametros de filtro."""
@@ -228,6 +229,7 @@ class StreamlitFilterCache:
             'situacoes': sorted(situacoes) if situacoes else [],
             'executores': sorted(executores) if executores else [],
             'emissores': sorted(emissores) if emissores else [],
+            'advanced_filters': _normalize_cache_value(advanced_filters or {}),
             'df_token': df_token,
         }
         
@@ -241,10 +243,19 @@ class StreamlitFilterCache:
         situacoes: list,
         executores: list,
         emissores: list,
+        advanced_filters: Optional[dict[str, Any]] = None,
         df_token: Any = None,
     ) -> Optional[pd.DataFrame]:
         """Recupera resultado do cache se valido."""
-        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
+        key = self._generate_key(
+            df_shape,
+            search_terms,
+            situacoes,
+            executores,
+            emissores,
+            advanced_filters=advanced_filters,
+            df_token=df_token,
+        )
         return self._get_by_key(key)
     
     def put(
@@ -255,10 +266,19 @@ class StreamlitFilterCache:
         executores: list,
         emissores: list,
         result: pd.DataFrame,
+        advanced_filters: Optional[dict[str, Any]] = None,
         df_token: Any = None,
     ):
         """Armazena resultado no cache."""
-        key = self._generate_key(df_shape, search_terms, situacoes, executores, emissores, df_token=df_token)
+        key = self._generate_key(
+            df_shape,
+            search_terms,
+            situacoes,
+            executores,
+            emissores,
+            advanced_filters=advanced_filters,
+            df_token=df_token,
+        )
         stored = self._store_by_key(key, result=result)
         if not stored:
             logger.info(
@@ -406,9 +426,24 @@ else:
     setattr(load_dataframe, "clear", lambda: None)
 
 # Alias para compatibilidade: funcao utilitaria esperada pelos testes
-def apply_filters_with_cache(df: pd.DataFrame, search_terms: str,
-                            situacoes: list, executores: list, emissores: list) -> pd.DataFrame:
-    return apply_all_filters_cached(df, search_terms, situacoes, executores, emissores)
+def apply_filters_with_cache(
+    df: pd.DataFrame,
+    search_terms: str,
+    situacoes: list,
+    executores: list,
+    emissores: list,
+    advanced_filters: Optional[dict[str, Any]] = None,
+    base_derivada_context_map: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    return apply_all_filters_cached(
+        df,
+        search_terms,
+        situacoes,
+        executores,
+        emissores,
+        advanced_filters=advanced_filters,
+        base_derivada_context_map=base_derivada_context_map,
+    )
 
 
 def _compute_df_cache_token(df: pd.DataFrame) -> tuple[Any, ...]:
@@ -556,6 +591,9 @@ def _build_streamlit_theme_css(theme_name: str) -> str:
         "div[data-testid='stSelectbox'] > div,div[data-testid='stNumberInput'] > div,"
         "div[data-testid='stTextInput'] > div{border-color:var(--ssa-border);}"
         ".stCaption{color:var(--ssa-muted)!important;}"
+        ".ssa-chip{display:inline-block;border:1px solid var(--ssa-border);"
+        "background:var(--ssa-accent-soft);color:var(--ssa-ink);"
+        "padding:0.1rem 0.45rem;border-radius:999px;margin-right:0.35rem;font-size:0.78rem;}"
         "</style>"
     )
 
@@ -770,8 +808,274 @@ def apply_cli_filters(df: pd.DataFrame, search_text: str) -> pd.DataFrame:
     return filter_dataframe(df, parsed)
 
 
-def apply_all_filters_cached(df: pd.DataFrame, search_terms: str, 
-                           situacoes: list, executores: list, emissores: list) -> pd.DataFrame:
+def _normalize_date_boundary(raw_value: Any) -> pd.Timestamp | None:
+    text = str(raw_value or "").strip()
+    if not text:
+        return None
+    parsed = pd.to_datetime(text, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed
+
+
+def _date_to_yearweek(value: pd.Timestamp) -> int | None:
+    try:
+        iso_value = value.isocalendar()
+    except Exception:
+        return None
+    year_part = getattr(iso_value, "year", None)
+    week_part = getattr(iso_value, "week", None)
+    if year_part is not None and week_part is not None:
+        try:
+            return int(int(year_part) * 100 + int(week_part))
+        except Exception:
+            return None
+    if isinstance(iso_value, (tuple, list)) and len(iso_value) >= 2:
+        try:
+            return int(int(iso_value[0]) * 100 + int(iso_value[1]))
+        except Exception:
+            return None
+    return None
+
+
+def _compute_year_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
+    if col_name not in df.columns:
+        return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    parsed = pd.to_datetime(df[col_name], errors="coerce")
+    years = parsed.dt.year
+    return years.astype("Int64")
+
+
+def _compute_year_from_week_series(df: pd.DataFrame, col_name: str) -> pd.Series:
+    if col_name not in df.columns:
+        return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    nums = pd.to_numeric(df[col_name], errors="coerce").astype("Int64")
+    years = nums // 100
+    return years.astype("Int64")
+
+
+def _compute_yearweek_from_date_series(df: pd.DataFrame, col_name: str) -> pd.Series:
+    if col_name not in df.columns:
+        return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    parsed = pd.to_datetime(df[col_name], errors="coerce")
+    iso = parsed.dt.isocalendar()
+    yearweek = (iso["year"] * 100) + iso["week"]
+    return yearweek.astype("Int64")
+
+
+def _compute_yearweek_from_week_series(df: pd.DataFrame, col_name: str) -> pd.Series:
+    if col_name not in df.columns:
+        return pd.Series(pd.array([pd.NA] * len(df), dtype="Int64"), index=df.index)
+    return pd.to_numeric(df[col_name], errors="coerce").astype("Int64")
+
+
+def _compute_derivada_flags(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
+    if "numero_ssa" not in df.columns or "derivada_de" not in df.columns:
+        false_series = pd.Series(False, index=df.index)
+        zero_series = pd.Series(0, index=df.index, dtype="Int64")
+        return false_series, false_series, zero_series
+
+    numero = df["numero_ssa"].fillna("").astype(str).str.strip()
+    derivada = df["derivada_de"].fillna("").astype(str).str.strip()
+    invalid = {"", "nan", "none", "null"}
+    has_derivada = ~derivada.str.casefold().isin(invalid)
+    valid_parent = derivada[has_derivada]
+    counts = valid_parent.value_counts()
+    qtd_derivadas = numero.map(counts).fillna(0).astype("Int64")
+    has_children = qtd_derivadas.gt(0)
+    return has_derivada, has_children, qtd_derivadas
+
+
+def _build_derivada_context_map(df: pd.DataFrame) -> pd.DataFrame:
+    if "numero_ssa" not in df.columns:
+        return pd.DataFrame(columns=["numero_ssa", "_tem_derivada_ctx", "_tem_derivadas_ctx", "_qtd_derivadas_ctx"])
+    has_derivada, has_children, qtd_derivadas = _compute_derivada_flags(df)
+    numero_series = df["numero_ssa"].fillna("").astype(str).str.strip()
+    context_map = pd.DataFrame(
+        {
+            "numero_ssa": numero_series,
+            "_tem_derivada_ctx": has_derivada.map({True: "Sim", False: "Nao"}),
+            "_tem_derivadas_ctx": has_children.map({True: "Sim", False: "Nao"}),
+            "_qtd_derivadas_ctx": qtd_derivadas.fillna(0).astype(int),
+        }
+    ).drop_duplicates(subset=["numero_ssa"], keep="first")
+    return context_map
+
+
+def _attach_derivada_context(df: pd.DataFrame, base_context_map: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    if df.empty:
+        return df
+    if "numero_ssa" not in df.columns:
+        return df
+    context_map = base_context_map if isinstance(base_context_map, pd.DataFrame) else None
+    if context_map is None:
+        if "derivada_de" not in df.columns:
+            return df
+        context_map = _build_derivada_context_map(df)
+    df.attrs["_derivada_context_map"] = context_map
+    return df
+
+
+def _build_active_summary(
+    *,
+    search_terms: str,
+    situacao_filter: list[Any],
+    executor_filter: list[Any],
+    emissor_filter: list[Any],
+    advanced_filters: dict[str, Any],
+    consult_api: bool,
+) -> list[str]:
+    summary: list[str] = []
+    if search_terms.strip():
+        summary.append(f"Busca: {search_terms.strip()}")
+    if situacao_filter:
+        summary.append("Situacao: " + ", ".join(str(value) for value in situacao_filter))
+    if executor_filter:
+        summary.append("Executor: " + ", ".join(str(value) for value in executor_filter))
+    if emissor_filter:
+        summary.append("Emissor: " + ", ".join(str(value) for value in emissor_filter))
+    if advanced_filters["executor_resp"]:
+        summary.append(
+            "Executor(resp): " + ", ".join(str(value) for value in advanced_filters["executor_resp"])
+        )
+    if advanced_filters["estado"]:
+        summary.append("Estado+: " + ", ".join(str(value) for value in advanced_filters["estado"]))
+    if advanced_filters["ano_emissao"]:
+        summary.append("Ano emissao: " + ", ".join(str(value) for value in advanced_filters["ano_emissao"]))
+    if advanced_filters["ano_execucao"]:
+        summary.append("Ano execucao: " + ", ".join(str(value) for value in advanced_filters["ano_execucao"]))
+    if advanced_filters["num_reprogramacoes"]:
+        summary.append(
+            "Reprogramacoes: " + ", ".join(str(value) for value in advanced_filters["num_reprogramacoes"])
+        )
+    if advanced_filters["tem_derivada"] != "todos":
+        summary.append(f"Tem derivada: {advanced_filters['tem_derivada']}")
+    if advanced_filters["tem_derivadas"] != "todos":
+        summary.append(f"Tem derivadas: {advanced_filters['tem_derivadas']}")
+    if advanced_filters["data_emissao_inicio"] or advanced_filters["data_emissao_fim"]:
+        summary.append(
+            "Data emissao: "
+            + str(advanced_filters["data_emissao_inicio"] or "-")
+            + " ate "
+            + str(advanced_filters["data_emissao_fim"] or "-")
+        )
+    if advanced_filters["data_execucao_inicio"] or advanced_filters["data_execucao_fim"]:
+        summary.append(
+            "Data execucao: "
+            + str(advanced_filters["data_execucao_inicio"] or "-")
+            + " ate "
+            + str(advanced_filters["data_execucao_fim"] or "-")
+        )
+    if consult_api:
+        summary.append("API: manual")
+    return summary
+
+
+def _apply_advanced_streamlit_filters(filtered_df: pd.DataFrame, advanced_filters: Optional[dict[str, Any]]) -> pd.DataFrame:
+    adv = advanced_filters or {}
+    if not adv:
+        return filtered_df
+
+    executor_resp_values = list(adv.get("executor_resp") or [])
+    if executor_resp_values and "responsavel_execucao" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["responsavel_execucao"].isin(executor_resp_values)]
+
+    estado_values = list(adv.get("estado") or [])
+    if estado_values and "situacao" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["situacao"].isin(estado_values)]
+
+    ano_emissao_values = [int(v) for v in (adv.get("ano_emissao") or []) if str(v).isdigit()]
+    if ano_emissao_values:
+        ano_emissao_series = _compute_year_from_date_series(filtered_df, "data_cadastro")
+        filtered_df = filtered_df[ano_emissao_series.isin(set(ano_emissao_values))]
+
+    ano_execucao_values = [int(v) for v in (adv.get("ano_execucao") or []) if str(v).isdigit()]
+    if ano_execucao_values:
+        ano_execucao_series = _compute_year_from_week_series(filtered_df, "semana_executada")
+        filtered_df = filtered_df[ano_execucao_series.isin(set(ano_execucao_values))]
+
+    ano_semana_emissao_values = [int(v) for v in (adv.get("ano_semana_emissao") or []) if str(v).isdigit()]
+    if ano_semana_emissao_values:
+        ano_semana_emissao_series = _compute_yearweek_from_date_series(filtered_df, "data_cadastro")
+        filtered_df = filtered_df[ano_semana_emissao_series.isin(set(ano_semana_emissao_values))]
+
+    ano_semana_execucao_values = [int(v) for v in (adv.get("ano_semana_execucao") or []) if str(v).isdigit()]
+    if ano_semana_execucao_values:
+        ano_semana_execucao_series = _compute_yearweek_from_week_series(filtered_df, "semana_executada")
+        filtered_df = filtered_df[ano_semana_execucao_series.isin(set(ano_semana_execucao_values))]
+
+    reprog_values = [int(v) for v in (adv.get("num_reprogramacoes") or []) if str(v).isdigit()]
+    if reprog_values and "num_reprogramacoes" in filtered_df.columns:
+        nums = pd.to_numeric(filtered_df["num_reprogramacoes"], errors="coerce").astype("Int64")
+        filtered_df = filtered_df[nums.isin(set(reprog_values))]
+
+    data_emissao_inicio = _normalize_date_boundary(adv.get("data_emissao_inicio"))
+    data_emissao_fim = _normalize_date_boundary(adv.get("data_emissao_fim"))
+    if (data_emissao_inicio is not None or data_emissao_fim is not None) and "data_cadastro" in filtered_df.columns:
+        parsed = pd.to_datetime(filtered_df["data_cadastro"], errors="coerce")
+        if data_emissao_inicio is not None:
+            mask_start = parsed.ge(data_emissao_inicio).fillna(False)
+            filtered_df = filtered_df[mask_start]
+            parsed = parsed[mask_start]
+        if data_emissao_fim is not None:
+            mask_fim = parsed.le(data_emissao_fim).fillna(False)
+            filtered_df = filtered_df[mask_fim]
+
+    data_execucao_inicio = _normalize_date_boundary(adv.get("data_execucao_inicio"))
+    data_execucao_fim = _normalize_date_boundary(adv.get("data_execucao_fim"))
+    if (data_execucao_inicio is not None or data_execucao_fim is not None) and "semana_executada" in filtered_df.columns:
+        week_series = _compute_yearweek_from_week_series(filtered_df, "semana_executada")
+        if data_execucao_inicio is not None:
+            yw_start = _date_to_yearweek(data_execucao_inicio)
+            if yw_start is not None:
+                mask_start = week_series.ge(yw_start).fillna(False)
+                filtered_df = filtered_df[mask_start]
+                week_series = week_series[mask_start]
+        if data_execucao_fim is not None:
+            yw_end = _date_to_yearweek(data_execucao_fim)
+            if yw_end is not None:
+                filtered_df = filtered_df[week_series.le(yw_end).fillna(False)]
+
+    tem_derivada_mode = str(adv.get("tem_derivada") or "todos").strip().lower()
+    tem_derivadas_mode = str(adv.get("tem_derivadas") or "todos").strip().lower()
+    if tem_derivada_mode != "todos" or tem_derivadas_mode != "todos":
+        has_derivada, has_children, _ = _compute_derivada_flags(filtered_df)
+        if tem_derivada_mode == "sim":
+            filtered_df = filtered_df[has_derivada]
+            has_children = has_children[has_derivada]
+        elif tem_derivada_mode == "nao":
+            filtered_df = filtered_df[~has_derivada]
+            has_children = has_children[~has_derivada]
+        if tem_derivadas_mode == "sim":
+            filtered_df = filtered_df[has_children]
+        elif tem_derivadas_mode == "nao":
+            filtered_df = filtered_df[~has_children]
+
+    return filtered_df
+
+
+def _normalize_cache_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return tuple(
+            (str(k), _normalize_cache_value(v))
+            for k, v in sorted(value.items(), key=lambda item: str(item[0]))
+        )
+    if isinstance(value, list):
+        normalized_items = [_normalize_cache_value(v) for v in value]
+        return tuple(sorted(normalized_items, key=lambda v: str(v)))
+    return str(value)
+
+
+def apply_all_filters_cached(
+    df: pd.DataFrame,
+    search_terms: str,
+    situacoes: list,
+    executores: list,
+    emissores: list,
+    *,
+    advanced_filters: Optional[dict[str, Any]] = None,
+    base_derivada_context_map: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
     """Aplica todos os filtros com cache inteligente."""
     df_token = _compute_df_cache_token(df)
     # Verifica cache primeiro
@@ -781,6 +1085,7 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
         situacoes,
         executores,
         emissores,
+        advanced_filters=advanced_filters,
         df_token=df_token,
     )
     if cached_result is not None:
@@ -799,9 +1104,12 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
         filtered_df = filtered_df[filtered_df['setor_executor'].isin(executores)]
     if emissores and 'setor_emissor' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['setor_emissor'].isin(emissores)]
+
+    filtered_df = _apply_advanced_streamlit_filters(filtered_df, advanced_filters)
     
     # Reset index
     filtered_df = filtered_df.reset_index(drop=True)
+    filtered_df = _attach_derivada_context(filtered_df, base_context_map=base_derivada_context_map)
     
     # Armazena no cache
     filter_cache.put(
@@ -811,6 +1119,7 @@ def apply_all_filters_cached(df: pd.DataFrame, search_terms: str,
         executores,
         emissores,
         filtered_df,
+        advanced_filters=advanced_filters,
         df_token=df_token,
     )
     
@@ -903,6 +1212,82 @@ def _build_filter_options(df: pd.DataFrame) -> tuple[list[Any], list[Any], list[
         key=lambda value: str(value),
     )
     return situacoes, executores, emissores
+
+
+def _build_advanced_filter_options(df: pd.DataFrame) -> dict[str, list[Any]]:
+    def _sorted_unique(col_name: str) -> list[Any]:
+        values = df.get(col_name, pd.Series(dtype=str)).dropna().unique().tolist()
+        return sorted(values, key=lambda value: str(value))
+
+    ano_emissao = (
+        _compute_year_from_date_series(df, "data_cadastro")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    ano_execucao = (
+        _compute_year_from_week_series(df, "semana_executada")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    ano_semana_emissao = (
+        _compute_yearweek_from_date_series(df, "data_cadastro")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    ano_semana_execucao = (
+        _compute_yearweek_from_week_series(df, "semana_executada")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    reprog_values = (
+        pd.to_numeric(df.get("num_reprogramacoes", pd.Series(dtype="Int64")), errors="coerce")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+    return {
+        "executor_resp": _sorted_unique("responsavel_execucao"),
+        "estado": _sorted_unique("situacao"),
+        "ano_emissao": sorted(ano_emissao, reverse=True),
+        "ano_execucao": sorted(ano_execucao, reverse=True),
+        "ano_semana_emissao": sorted(ano_semana_emissao, reverse=True),
+        "ano_semana_execucao": sorted(ano_semana_execucao, reverse=True),
+        "num_reprogramacoes": sorted(reprog_values),
+    }
+
+
+def _build_table_with_derivada_context(view_df: pd.DataFrame, filtered_df: pd.DataFrame) -> pd.DataFrame:
+    if view_df.empty:
+        return view_df
+    if "numero_ssa" not in filtered_df.columns:
+        return view_df
+
+    context_map = filtered_df.attrs.get("_derivada_context_map")
+    if not isinstance(context_map, pd.DataFrame):
+        if "derivada_de" not in filtered_df.columns:
+            return view_df
+        context_map = _build_derivada_context_map(filtered_df)
+
+    if "numero_ssa" not in view_df.columns:
+        return view_df
+
+    merged = view_df.merge(context_map, on="numero_ssa", how="left")
+    merged["_tem_derivada_ctx"] = merged["_tem_derivada_ctx"].fillna("Nao")
+    merged["_tem_derivadas_ctx"] = merged["_tem_derivadas_ctx"].fillna("Nao")
+    merged["_qtd_derivadas_ctx"] = pd.to_numeric(
+        merged["_qtd_derivadas_ctx"],
+        errors="coerce",
+    ).fillna(0).astype(int)
+    return merged
 
 
 def _paginate_dataframe(df: pd.DataFrame, page: int, page_size: int) -> tuple[pd.DataFrame, int]:
@@ -1119,6 +1504,7 @@ if REAL_RUNTIME:
         st.caption(f"Arquivos de entrada: {sheet_files_count}")
 
 raw_df = load_dataframe(db_path) if REAL_RUNTIME else pd.DataFrame()
+base_derivada_context_map: Optional[pd.DataFrame] = None
 if REAL_RUNTIME and raw_df.empty:
     st.info(
         "Banco nao encontrado ou sem dados. Use a aba 'Cache e API' em 'Fonte de dados avancada'."
@@ -1126,6 +1512,12 @@ if REAL_RUNTIME and raw_df.empty:
     st.stop()
 
 if REAL_RUNTIME and not raw_df.empty:
+    if "numero_ssa" in raw_df.columns and "derivada_de" in raw_df.columns:
+        try:
+            base_derivada_context_map = _build_derivada_context_map(raw_df)
+        except Exception as exc:
+            logger.debug("Falha ao precomputar contexto de derivadas no Streamlit: %s", exc)
+            base_derivada_context_map = None
     available_columns_runtime = _columns_with_data(raw_df, list(raw_df.columns))
     if not available_columns_runtime:
         available_columns_runtime = list(raw_df.columns)
@@ -1145,6 +1537,19 @@ search_terms = ""
 situacao_sel: list[Any] = []
 executor_sel: list[Any] = []
 emissor_sel: list[Any] = []
+executor_resp_sel: list[Any] = []
+estado_sel: list[Any] = []
+ano_emissao_sel: list[Any] = []
+ano_execucao_sel: list[Any] = []
+ano_semana_emissao_sel: list[Any] = []
+ano_semana_execucao_sel: list[Any] = []
+num_reprogramacoes_sel: list[Any] = []
+data_emissao_inicio = ""
+data_emissao_fim = ""
+data_execucao_inicio = ""
+data_execucao_fim = ""
+tem_derivada_mode = "todos"
+tem_derivadas_mode = "todos"
 selected_columns = list(raw_df.columns)
 limit_rows = 500
 page_size = 250
@@ -1163,8 +1568,9 @@ if REAL_RUNTIME and not raw_df.empty:
     with tab_filters:
         st.subheader("Filtros")
         situacoes, executores, emissores = _build_filter_options(raw_df)
-        default_executor = ['IEE3'] if 'IEE3' in executores else executores[:1]
-        default_emissor = ['IEE3'] if 'IEE3' in emissores else emissores[:1]
+        advanced_options = _build_advanced_filter_options(raw_df)
+        default_executor: list[Any] = []
+        default_emissor: list[Any] = []
         available_columns = _columns_with_data(raw_df, list(raw_df.columns))
         if not available_columns:
             available_columns = list(raw_df.columns)
@@ -1177,10 +1583,22 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "situacao_quick_mode": "Todas",
                 "situacao_sel": [],
                 "executor_sel": default_executor,
                 "emissor_sel": default_emissor,
+                "executor_resp_sel": [],
+                "estado_sel": [],
+                "ano_emissao_sel": [],
+                "ano_execucao_sel": [],
+                "ano_semana_emissao_sel": [],
+                "ano_semana_execucao_sel": [],
+                "num_reprogramacoes_sel": [],
+                "data_emissao_inicio": "",
+                "data_emissao_fim": "",
+                "data_execucao_inicio": "",
+                "data_execucao_fim": "",
+                "tem_derivada_mode": "todos",
+                "tem_derivadas_mode": "todos",
                 "limit_rows": limit_rows,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
@@ -1188,16 +1606,51 @@ if REAL_RUNTIME and not raw_df.empty:
         filter_state["situacao_sel"] = [
             value for value in filter_state.get("situacao_sel", []) if value in situacoes
         ]
-        if str(filter_state.get("situacao_quick_mode", "Manual")) not in {
-            "Manual",
-            "Todas",
-            "Abertas",
-            "Executadas",
-            "Nenhuma",
-        }:
-            filter_state["situacao_quick_mode"] = "Manual"
-        filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores] or default_executor
-        filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores] or default_emissor
+        filter_state["executor_sel"] = [value for value in filter_state.get("executor_sel", []) if value in executores]
+        filter_state["emissor_sel"] = [value for value in filter_state.get("emissor_sel", []) if value in emissores]
+        filter_state["executor_resp_sel"] = [
+            value
+            for value in filter_state.get("executor_resp_sel", [])
+            if value in advanced_options.get("executor_resp", [])
+        ]
+        filter_state["estado_sel"] = [
+            value
+            for value in filter_state.get("estado_sel", [])
+            if value in advanced_options.get("estado", [])
+        ]
+        filter_state["ano_emissao_sel"] = [
+            value
+            for value in filter_state.get("ano_emissao_sel", [])
+            if value in advanced_options.get("ano_emissao", [])
+        ]
+        filter_state["ano_execucao_sel"] = [
+            value
+            for value in filter_state.get("ano_execucao_sel", [])
+            if value in advanced_options.get("ano_execucao", [])
+        ]
+        filter_state["ano_semana_emissao_sel"] = [
+            value
+            for value in filter_state.get("ano_semana_emissao_sel", [])
+            if value in advanced_options.get("ano_semana_emissao", [])
+        ]
+        filter_state["ano_semana_execucao_sel"] = [
+            value
+            for value in filter_state.get("ano_semana_execucao_sel", [])
+            if value in advanced_options.get("ano_semana_execucao", [])
+        ]
+        filter_state["num_reprogramacoes_sel"] = [
+            value
+            for value in filter_state.get("num_reprogramacoes_sel", [])
+            if value in advanced_options.get("num_reprogramacoes", [])
+        ]
+        filter_state["data_emissao_inicio"] = str(filter_state.get("data_emissao_inicio", "") or "")
+        filter_state["data_emissao_fim"] = str(filter_state.get("data_emissao_fim", "") or "")
+        filter_state["data_execucao_inicio"] = str(filter_state.get("data_execucao_inicio", "") or "")
+        filter_state["data_execucao_fim"] = str(filter_state.get("data_execucao_fim", "") or "")
+        if str(filter_state.get("tem_derivada_mode", "todos")).lower() not in {"todos", "sim", "nao"}:
+            filter_state["tem_derivada_mode"] = "todos"
+        if str(filter_state.get("tem_derivadas_mode", "todos")).lower() not in {"todos", "sim", "nao"}:
+            filter_state["tem_derivadas_mode"] = "todos"
         valid_display_values = set(column_display_names.values())
         selected_display_state = [value for value in filter_state.get("selected_display", []) if value in valid_display_values]
         filter_state["selected_display"] = selected_display_state or [column_display_names[col] for col in default_columns]
@@ -1242,6 +1695,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 "Busca (mesma sintaxe da CLI)",
                 value=filter_state.get("search_terms", ""),
                 placeholder="ex.: svp, !ste, mel4",
+                help="Use virgula para multiplos valores e ! para diferente de.",
             )
             consult_api_input = search_row[1].checkbox(
                 "Consulta API manual",
@@ -1249,40 +1703,21 @@ if REAL_RUNTIME and not raw_df.empty:
             )
             apply_search_now = search_row[2].form_submit_button("Filtrar agora")
             st.caption("Filtros principais")
-            row_filters = st.columns([0.72, 0.72, 1.35, 0.62])
-            executor_options = ["(Todos)"] + executores
-            emissor_options = ["(Todos)"] + emissores
-            default_executor_single = (
-                filter_state.get("executor_sel", default_executor)[0]
-                if filter_state.get("executor_sel", default_executor)
-                else "(Todos)"
+            row_filters = st.columns([0.9, 0.9, 1.2, 0.7])
+            executor_input_multi = row_filters[0].multiselect(
+                "Setor exec",
+                options=executores,
+                default=filter_state.get("executor_sel", default_executor),
             )
-            default_emissor_single = (
-                filter_state.get("emissor_sel", default_emissor)[0]
-                if filter_state.get("emissor_sel", default_emissor)
-                else "(Todos)"
-            )
-            if default_executor_single not in executor_options:
-                default_executor_single = "(Todos)"
-            if default_emissor_single not in emissor_options:
-                default_emissor_single = "(Todos)"
-            executor_input_single = row_filters[0].selectbox(
-                "Setor executor",
-                executor_options,
-                index=executor_options.index(default_executor_single),
-            )
-            emissor_input_single = row_filters[1].selectbox(
+            emissor_input_multi = row_filters[1].multiselect(
                 "Setor emissor",
-                emissor_options,
-                index=emissor_options.index(default_emissor_single),
+                options=emissores,
+                default=filter_state.get("emissor_sel", default_emissor),
             )
-            situacao_quick_mode_input = row_filters[2].radio(
-                "Atalho situacao",
-                ["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"],
-                index=["Manual", "Todas", "Abertas", "Executadas", "Nenhuma"].index(
-                    str(filter_state.get("situacao_quick_mode", "Manual"))
-                ),
-                horizontal=True,
+            situacao_input = row_filters[2].multiselect(
+                "Estado",
+                options=situacoes,
+                default=filter_state.get("situacao_sel", []),
             )
             limit_input = int(
                 row_filters[3].number_input(
@@ -1293,41 +1728,76 @@ if REAL_RUNTIME and not raw_df.empty:
                     step=50,
                 )
             )
-            st.caption("Situacao")
-            situacao_counts = (
-                raw_df.get("situacao", pd.Series(dtype=str))
-                .dropna()
-                .astype(str)
-                .value_counts()
+            st.caption("Filtros avancados")
+            advanced_row_1 = st.columns(4)
+            executor_resp_input = advanced_row_1[0].multiselect(
+                "Executor",
+                options=advanced_options.get("executor_resp", []),
+                default=filter_state.get("executor_resp_sel", []),
             )
-            situacao_display_map: dict[str, Any] = {}
-            for value in situacoes:
-                value_text = str(value)
-                display = f"{value_text} ({int(situacao_counts.get(value_text, 0))})"
-                situacao_display_map[display] = value
-            selected_situacao_values = list(filter_state.get("situacao_sel", situacoes))
-            default_situacao_display = [
-                display
-                for display, raw_value in situacao_display_map.items()
-                if raw_value in selected_situacao_values
-            ]
-            manual_mode_active = str(situacao_quick_mode_input) == "Manual"
-            if len(selected_situacao_values) == len(situacoes) or not manual_mode_active:
-                default_situacao_display = []
-            if manual_mode_active:
-                situacao_input_display = st.multiselect(
-                    "Situacao",
-                    options=list(situacao_display_map.keys()),
-                    default=default_situacao_display,
-                )
-                situacao_input = [
-                    situacao_display_map[label]
-                    for label in situacao_input_display
-                    if label in situacao_display_map
-                ]
-            else:
-                situacao_input = []
-                st.caption("Use Manual para escolher situacoes especificas.")
+            estado_input = advanced_row_1[1].multiselect(
+                "Estado detalhado",
+                options=advanced_options.get("estado", []),
+                default=filter_state.get("estado_sel", []),
+            )
+            ano_emissao_input = advanced_row_1[2].multiselect(
+                "Ano emissao",
+                options=advanced_options.get("ano_emissao", []),
+                default=filter_state.get("ano_emissao_sel", []),
+            )
+            ano_execucao_input = advanced_row_1[3].multiselect(
+                "Ano execucao",
+                options=advanced_options.get("ano_execucao", []),
+                default=filter_state.get("ano_execucao_sel", []),
+            )
+            advanced_row_2 = st.columns(4)
+            ano_semana_emissao_input = advanced_row_2[0].multiselect(
+                "AnoSemana emissao",
+                options=advanced_options.get("ano_semana_emissao", []),
+                default=filter_state.get("ano_semana_emissao_sel", []),
+            )
+            ano_semana_execucao_input = advanced_row_2[1].multiselect(
+                "AnoSemana execucao",
+                options=advanced_options.get("ano_semana_execucao", []),
+                default=filter_state.get("ano_semana_execucao_sel", []),
+            )
+            num_reprogramacoes_input = advanced_row_2[2].multiselect(
+                "Num reprogramacoes",
+                options=advanced_options.get("num_reprogramacoes", []),
+                default=filter_state.get("num_reprogramacoes_sel", []),
+            )
+            deriv_mode_options = ["todos", "sim", "nao"]
+            tem_derivada_input = advanced_row_2[3].selectbox(
+                "Tem derivada",
+                options=deriv_mode_options,
+                index=deriv_mode_options.index(str(filter_state.get("tem_derivada_mode", "todos"))),
+            )
+            advanced_row_3 = st.columns(4)
+            data_emissao_inicio_input = advanced_row_3[0].text_input(
+                "Data emissao inicio",
+                value=str(filter_state.get("data_emissao_inicio", "")),
+                placeholder="YYYY-MM-DD",
+            )
+            data_emissao_fim_input = advanced_row_3[1].text_input(
+                "Data emissao fim",
+                value=str(filter_state.get("data_emissao_fim", "")),
+                placeholder="YYYY-MM-DD",
+            )
+            data_execucao_inicio_input = advanced_row_3[2].text_input(
+                "Data execucao inicio",
+                value=str(filter_state.get("data_execucao_inicio", "")),
+                placeholder="YYYY-MM-DD",
+            )
+            data_execucao_fim_input = advanced_row_3[3].text_input(
+                "Data execucao fim",
+                value=str(filter_state.get("data_execucao_fim", "")),
+                placeholder="YYYY-MM-DD",
+            )
+            tem_derivadas_input = st.selectbox(
+                "Tem derivadas (estrutura)",
+                options=deriv_mode_options,
+                index=deriv_mode_options.index(str(filter_state.get("tem_derivadas_mode", "todos"))),
+            )
             st.caption("Colunas visiveis")
             st.caption("Essas colunas sao refletidas na aba Tabela e podem ser ajustadas la tambem.")
             selected_display_input = st.multiselect(
@@ -1355,10 +1825,22 @@ if REAL_RUNTIME and not raw_df.empty:
             st.session_state[state_key] = {
                 "search_terms": "",
                 "consult_api": False,
-                "situacao_quick_mode": "Todas",
                 "situacao_sel": [],
-                "executor_sel": default_executor,
-                "emissor_sel": default_emissor,
+                "executor_sel": [],
+                "emissor_sel": [],
+                "executor_resp_sel": [],
+                "estado_sel": [],
+                "ano_emissao_sel": [],
+                "ano_execucao_sel": [],
+                "ano_semana_emissao_sel": [],
+                "ano_semana_execucao_sel": [],
+                "num_reprogramacoes_sel": [],
+                "data_emissao_inicio": "",
+                "data_emissao_fim": "",
+                "data_execucao_inicio": "",
+                "data_execucao_fim": "",
+                "tem_derivada_mode": "todos",
+                "tem_derivadas_mode": "todos",
                 "limit_rows": 500,
                 "selected_display": [column_display_names[col] for col in default_columns],
             }
@@ -1398,20 +1880,25 @@ if REAL_RUNTIME and not raw_df.empty:
             filter_state["selected_display"] = [column_display_names[col] for col in min_cols]
 
         if apply_filters:
-            resolved_situacao = _resolve_situacao_quick_mode(
-                situacoes=situacoes,
-                manual_values=situacao_input,
-                mode=situacao_quick_mode_input,
-            )
-            resolved_executor = [] if executor_input_single == "(Todos)" else [executor_input_single]
-            resolved_emissor = [] if emissor_input_single == "(Todos)" else [emissor_input_single]
             st.session_state[state_key] = {
                 "search_terms": search_input,
                 "consult_api": consult_api_input,
-                "situacao_quick_mode": str(situacao_quick_mode_input),
-                "situacao_sel": resolved_situacao,
-                "executor_sel": resolved_executor,
-                "emissor_sel": resolved_emissor,
+                "situacao_sel": list(situacao_input),
+                "executor_sel": list(executor_input_multi),
+                "emissor_sel": list(emissor_input_multi),
+                "executor_resp_sel": list(executor_resp_input),
+                "estado_sel": list(estado_input),
+                "ano_emissao_sel": list(ano_emissao_input),
+                "ano_execucao_sel": list(ano_execucao_input),
+                "ano_semana_emissao_sel": list(ano_semana_emissao_input),
+                "ano_semana_execucao_sel": list(ano_semana_execucao_input),
+                "num_reprogramacoes_sel": list(num_reprogramacoes_input),
+                "data_emissao_inicio": data_emissao_inicio_input,
+                "data_emissao_fim": data_emissao_fim_input,
+                "data_execucao_inicio": data_execucao_inicio_input,
+                "data_execucao_fim": data_execucao_fim_input,
+                "tem_derivada_mode": str(tem_derivada_input),
+                "tem_derivadas_mode": str(tem_derivadas_input),
                 "limit_rows": limit_input,
                 "selected_display": selected_display_input,
             }
@@ -1421,9 +1908,22 @@ if REAL_RUNTIME and not raw_df.empty:
         filter_state = st.session_state[state_key]
         search_terms = str(filter_state.get("search_terms", ""))
         consult_api = bool(filter_state.get("consult_api", False))
-        situacao_sel = list(filter_state.get("situacao_sel", situacoes))
-        executor_sel = list(filter_state.get("executor_sel", default_executor))
-        emissor_sel = list(filter_state.get("emissor_sel", default_emissor))
+        situacao_sel = list(filter_state.get("situacao_sel", []))
+        executor_sel = list(filter_state.get("executor_sel", []))
+        emissor_sel = list(filter_state.get("emissor_sel", []))
+        executor_resp_sel = list(filter_state.get("executor_resp_sel", []))
+        estado_sel = list(filter_state.get("estado_sel", []))
+        ano_emissao_sel = list(filter_state.get("ano_emissao_sel", []))
+        ano_execucao_sel = list(filter_state.get("ano_execucao_sel", []))
+        ano_semana_emissao_sel = list(filter_state.get("ano_semana_emissao_sel", []))
+        ano_semana_execucao_sel = list(filter_state.get("ano_semana_execucao_sel", []))
+        num_reprogramacoes_sel = list(filter_state.get("num_reprogramacoes_sel", []))
+        data_emissao_inicio = str(filter_state.get("data_emissao_inicio", "") or "")
+        data_emissao_fim = str(filter_state.get("data_emissao_fim", "") or "")
+        data_execucao_inicio = str(filter_state.get("data_execucao_inicio", "") or "")
+        data_execucao_fim = str(filter_state.get("data_execucao_fim", "") or "")
+        tem_derivada_mode = str(filter_state.get("tem_derivada_mode", "todos"))
+        tem_derivadas_mode = str(filter_state.get("tem_derivadas_mode", "todos"))
         limit_rows = int(filter_state.get("limit_rows", 500))
         selected_display = list(filter_state.get("selected_display", [column_display_names[col] for col in default_columns]))
         display_to_internal = {v: k for k, v in column_display_names.items()}
@@ -1432,6 +1932,42 @@ if REAL_RUNTIME and not raw_df.empty:
     situacao_filter = _normalize_filter_selection(situacao_sel, situacoes)
     executor_filter = _normalize_filter_selection(executor_sel, executores)
     emissor_filter = _normalize_filter_selection(emissor_sel, emissores)
+    advanced_filters = {
+        "executor_resp": _normalize_filter_selection(
+            executor_resp_sel,
+            advanced_options.get("executor_resp", []),
+        ),
+        "estado": _normalize_filter_selection(
+            estado_sel,
+            advanced_options.get("estado", []),
+        ),
+        "ano_emissao": _normalize_filter_selection(
+            ano_emissao_sel,
+            advanced_options.get("ano_emissao", []),
+        ),
+        "ano_execucao": _normalize_filter_selection(
+            ano_execucao_sel,
+            advanced_options.get("ano_execucao", []),
+        ),
+        "ano_semana_emissao": _normalize_filter_selection(
+            ano_semana_emissao_sel,
+            advanced_options.get("ano_semana_emissao", []),
+        ),
+        "ano_semana_execucao": _normalize_filter_selection(
+            ano_semana_execucao_sel,
+            advanced_options.get("ano_semana_execucao", []),
+        ),
+        "num_reprogramacoes": _normalize_filter_selection(
+            num_reprogramacoes_sel,
+            advanced_options.get("num_reprogramacoes", []),
+        ),
+        "data_emissao_inicio": data_emissao_inicio,
+        "data_emissao_fim": data_emissao_fim,
+        "data_execucao_inicio": data_execucao_inicio,
+        "data_execucao_fim": data_execucao_fim,
+        "tem_derivada": str(tem_derivada_mode).strip().lower(),
+        "tem_derivadas": str(tem_derivadas_mode).strip().lower(),
+    }
 
     filtered_df = apply_all_filters_cached(
         raw_df,
@@ -1439,24 +1975,30 @@ if REAL_RUNTIME and not raw_df.empty:
         situacao_filter,
         executor_filter,
         emissor_filter,
+        advanced_filters=advanced_filters,
+        base_derivada_context_map=base_derivada_context_map,
     )
     if limit_rows and len(filtered_df) > limit_rows:
         filtered_df = filtered_df.head(limit_rows).reset_index(drop=True)
 
     view_df = filtered_df[selected_columns] if selected_columns else filtered_df
     rename_map = {col: DISPLAY_MAPPINGS.get(col, col) for col in view_df.columns}
+    rename_map.update(
+        {
+            "_tem_derivada_ctx": "Tem derivada",
+            "_tem_derivadas_ctx": "Tem derivadas",
+            "_qtd_derivadas_ctx": "Qtd derivadas",
+        }
+    )
 
-    active_summary: list[str] = []
-    if search_terms.strip():
-        active_summary.append(f"Busca: {search_terms.strip()}")
-    if situacao_filter:
-        active_summary.append("Situacao: " + ", ".join(str(value) for value in situacao_filter))
-    if executor_filter:
-        active_summary.append("Executor: " + ", ".join(str(value) for value in executor_filter))
-    if emissor_filter:
-        active_summary.append("Emissor: " + ", ".join(str(value) for value in emissor_filter))
-    if consult_api:
-        active_summary.append("API: manual")
+    active_summary = _build_active_summary(
+        search_terms=search_terms,
+        situacao_filter=situacao_filter,
+        executor_filter=executor_filter,
+        emissor_filter=emissor_filter,
+        advanced_filters=advanced_filters,
+        consult_api=consult_api,
+    )
 
     with tab_table:
         with st.expander("Colunas exibidas (atalho rapido)", expanded=False):
@@ -1583,7 +2125,7 @@ if REAL_RUNTIME and not raw_df.empty:
         )
         _remember_width_profile_for_bucket(table_state, width_bucket, width_profile)
 
-        table_view_df = view_df
+        table_view_df = _build_table_with_derivada_context(view_df, filtered_df)
         if sort_column != "(Sem ordenacao)" and sort_column in table_view_df.columns:
             try:
                 table_view_df = table_view_df.sort_values(
@@ -1677,6 +2219,13 @@ if REAL_RUNTIME and not raw_df.empty:
             st.caption(table_caption)
         if active_summary and not compact_mode:
             st.markdown("**Filtros ativos:** " + " | ".join(active_summary))
+        if "numero_ssa" in filtered_df.columns and "derivada_de" in filtered_df.columns:
+            has_derivada, has_children, _ = _compute_derivada_flags(filtered_df)
+            chips = (
+                f"<span class='ssa-chip'>Derivadas: {int(has_derivada.sum())}</span>"
+                f"<span class='ssa-chip'>Com derivadas: {int(has_children.sum())}</span>"
+            )
+            st.markdown(chips, unsafe_allow_html=True)
 
         if table_mode == "Tabela + grafico" and 'situacao' in filtered_df.columns and not filtered_df.empty:
             chart_df = (
@@ -1770,7 +2319,7 @@ if REAL_RUNTIME and not raw_df.empty:
                 stats_info = {
                     "total_registros": len(view_df),
                     "colunas_selecionadas": len(selected_columns),
-                    "filtros_ativos": len([x for x in [search_terms, situacao_sel, executor_sel, emissor_sel] if x]),
+                    "filtros_ativos": len([x for x in active_summary if x]),
                     "cache_hit_rate": f"{filter_cache.get_stats()['hit_rate']:.1f}%",
                 }
                 st.json(stats_info)
