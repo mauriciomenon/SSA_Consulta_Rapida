@@ -2,14 +2,32 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-01 02:20 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.26.1`.
+- Runtime policy:
+  1. uv-first command: `uv run --python 3.13 ...`
+  2. fallback order: `3.12 -> 3.11 -> 3.10`.
+  3. `requirements*.txt` kept for compatibility-only setup.
+- Compatibility status (previously inconclusive, now closed):
+  1. Python 3.10.18: pass
+  2. Python 3.11.14: pass
+  3. Python 3.12.11: pass
+  4. Python 3.13.12: pass
+- Focused gate used in all versions:
+  1. `py_compile` on touched runtime files
+  2. `ruff` and `ty` on touched runtime files
+  3. `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
+
 ## CURRENT TRUTH 2026-02-28 23:46 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.26.0`.
+- Local release baseline: `4.26.1`.
 - Pre-PR release alignment:
   1. streamlit scope delivered in `v4.24.1` remains intact.
   2. hardening package from `v4.25.0` remains integrated.
-  3. metadata/docs were realigned to `v4.26.0` to remove release drift.
+  3. metadata/docs were realigned to `v4.26.1` to remove release drift.
 - Execution order for closeout:
   1. kluster auto on touched files.
   2. `py_compile`, `ruff`, `ty`, focused `pytest`.
