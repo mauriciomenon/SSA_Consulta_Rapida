@@ -278,7 +278,7 @@ Use this file to migrate context to a new chat without losing execution quality.
      - canonical menu candidate filter now uses cached non-null columns;
      - non-null cache is computed on data load and reused in UI candidate paths.
 - Validation closeout for interrupted patch (done):
-  - `uv run python -m py_compile` on touched runtime files: pass
+  - `uv run --python 3.13 python -m py_compile` on touched runtime files: pass
   - `uv run ruff check` on touched runtime files: pass
   - `uv run ty check` on touched runtime files: pass
   - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`:
@@ -555,7 +555,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 3. Run gate for each slice:
 
 ```bash
-uv run python -m py_compile <files>
+uv run --python 3.13 python -m py_compile <files>
 uv run ruff check <files>
 uv run ty check <files>
 uv run pytest -q <focused-tests>
@@ -716,7 +716,7 @@ Fluxo por slice:
 6) checar PR checks
 
 Gate tecnico:
-- uv run python -m py_compile <files>
+- uv run --python 3.13 python -m py_compile <files>
 - uv run ruff check <files>
 - uv run ty check <files>
 - uv run pytest -q <tests focados>

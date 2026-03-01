@@ -115,7 +115,7 @@ Delivered in this optional slice:
    - item `104` resolved: width profile persistence across sessions (`width_profile` + `width_profile_by_bucket`).
    - item `107` resolved: render telemetry persistence across sessions (`streamlit_render_stats`).
 2. Validation evidence:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`34 passed`)
@@ -137,7 +137,7 @@ Delivered in this closeout slice:
    - env gate: `SSA_CACHE_MAX_MB` (default unset keeps prior behavior).
    - cache stats now expose `skipped_large_entries` and `max_entry_mb`.
 2. Focused validation evidence:
-   - `uv run python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass (`32 passed`)
 3. Optional product items in this block are now superseded by a later delivery update:
@@ -209,7 +209,7 @@ Delivered in this verification slice:
      - extraction return/raise contract aligned with current importer flow.
 2. Validation:
    - `uv run pytest -q tests/test_config_manager_mappings_integrity.py tests/test_config_manager_atomic_save.py tests/test_extracao.py`: `18 passed`
-   - `uv run python -m py_compile core/config_manager.py extracao/extractor.py`: pass
+   - `uv run --python 3.13 python -m py_compile core/config_manager.py extracao/extractor.py`: pass
    - `uv run ruff check ...`: pass
    - `uv run ty check core/config_manager.py extracao/extractor.py`: pass
 3. Operational effect:
@@ -359,7 +359,7 @@ Delivered in this streamlit slice:
    - stable tab labels
    - API snapshot permutations
 4. Validation:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`21 passed`)
@@ -372,7 +372,7 @@ Delivered in this streamlit slice:
 1. Added bounded profile window for render telemetry stats in `dev_env/streamlit_app.py`.
 2. Added focused regression in `tests/test_streamlit_filter_cache.py`.
 3. Validation:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`16 passed`)
@@ -386,7 +386,7 @@ Delivered in this package:
    - `tests/test_gui_main_configuration.py::test_load_gui_main_preferences_honors_ssa_config_dir`
    - `tests/test_gui_filter_logic.py::test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown`
 4. Focused validation:
-   - `uv run python -m py_compile` (touched files): pass
+   - `uv run --python 3.13 python -m py_compile` (touched files): pass
    - `uv run ruff check` (touched files): pass
    - `uv run ty check` (touched files): pass
    - focused `pytest`: pass
@@ -414,7 +414,7 @@ Delivered in this minimal slice:
 2. Test update:
    - `tests/test_import_cancellation.py` now asserts `finish_payload["errors"] == []`.
 3. Validation:
-   - `uv run python -m py_compile tests/test_import_cancellation.py`: pass
+   - `uv run --python 3.13 python -m py_compile tests/test_import_cancellation.py`: pass
    - `uv run ruff check tests/test_import_cancellation.py`: pass
    - `uv run ty check tests/test_import_cancellation.py`: pass
    - `uv run pytest -q tests/test_import_cancellation.py`: pass
@@ -428,7 +428,7 @@ Delivered in this minimal slice:
    - explicit `initialize_database(...)` success assertion in both tests.
    - explicit db-file cleanup in `finally` remains in place.
 3. Validation:
-   - `uv run python -m py_compile tests/test_database_optimized_alias_views.py`: pass
+   - `uv run --python 3.13 python -m py_compile tests/test_database_optimized_alias_views.py`: pass
    - `uv run ruff check tests/test_database_optimized_alias_views.py`: pass
    - `uv run ty check tests/test_database_optimized_alias_views.py`: pass
    - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass
@@ -467,7 +467,7 @@ Delivered in this doc slice:
 Delivered in this doc-only slice:
 1. Ran continuity triage for interrupted runtime patch scope.
 2. Local validation rerun completed and green:
-   - `uv run python -m py_compile` (touched runtime files)
+   - `uv run --python 3.13 python -m py_compile` (touched runtime files)
    - `uv run ruff check` (touched runtime files)
    - `uv run ty check` (touched runtime files)
    - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_display.py`

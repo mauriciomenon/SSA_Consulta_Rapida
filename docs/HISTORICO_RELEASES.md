@@ -2,7 +2,7 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.26.0 - CURRENT RELEASE**
+## **RELEASE v4.27 - CURRENT RELEASE**
 
 **Data de Lancamento**: Fevereiro 2026
 **Tipo**: Pre-PR Release Alignment
@@ -10,7 +10,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Principais entregas**
 - Consolidacao do baseline pre-PR sem perda de melhorias:
-  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.26.0`.
+  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.27`.
   - docs de continuidade e release alinhadas com o baseline atual.
 - Pacote de hardening mantido e consolidado com foco em risco real:
   - path safety e config resolution em `interface/command_handlers.py`
@@ -23,7 +23,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
-- `README.md` (v4.26 no topo)
+- `README.md` (v4.27 no topo)
 - `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/PENDING_ACTION_MATRIX.md`
@@ -194,7 +194,7 @@ extracao/
 ### **Requisitos Tecnicos**
 
 #### **Python**
-- **Versao Minima**: Python 3.13+
+- **Versao Minima**: Python 3.10+ (preferir 3.13+)
 - **Ambiente**: Virtual environment recomendado
 - **Gestao**: pyenv para multiplas versoes
 

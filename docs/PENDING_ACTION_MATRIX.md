@@ -27,7 +27,7 @@ Total itens: 108
    - sidebar utilization improved:
      - source status and quick summary metrics added.
 2. Validation snapshot:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`36 passed`)
@@ -93,7 +93,7 @@ Total itens: 108
    - added runtime theme selector in ops tab.
    - theme choice now persists across sessions in Streamlit UI state file.
 2. Validation snapshot:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`36 passed`)
@@ -109,7 +109,7 @@ Total itens: 108
    - item `107` moved from `deferred` to `resolved`:
      - render telemetry now persists across sessions via local state file.
 2. Validation snapshot (focused):
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py tests/test_filter_cache_locking.py`: pass (`34 passed`)
@@ -131,7 +131,7 @@ Total itens: 108
      - `skipped_large_entries`
      - `max_entry_mb`
 2. Focused validation for this closeout:
-   - `uv run python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check gui/cache/filter_cache.py dev_env/streamlit_app.py tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_filter_cache_locking.py tests/test_streamlit_filter_cache.py`: pass (`32 passed`)
 3. Scope note:
@@ -286,7 +286,7 @@ Total itens: 108
    - `tests/test_gui_workers_rescan_data.py`
    - `tests/test_stream_log_wrapper_guards.py`
 3. Validation evidence:
-   - `uv run python -m py_compile` on touched scope: pass
+   - `uv run --python 3.13 python -m py_compile` on touched scope: pass
    - `uv run ruff check` on touched scope: pass
    - `uv run ty check` on touched scope: pass
    - `uv run pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_stream_log_wrapper_guards.py`: pass (`12 passed`)
@@ -309,7 +309,7 @@ Total itens: 108
 2. Additional regression:
    - `tests/test_gui_filter_logic.py`: closeEvent tracks running helper usage under unstable `isRunning` behavior.
 3. Validation evidence:
-   - `uv run python -m py_compile gui/gui_config.py dev_env/streamlit_app.py gui/gui_ssa.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: pass
+   - `uv run --python 3.13 python -m py_compile gui/gui_config.py dev_env/streamlit_app.py gui/gui_ssa.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: pass
    - `uv run ruff check` on same scope: pass
    - `uv run ty check` on same scope: pass
    - `uv run pytest -q tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py tests/test_gui_filter_logic.py`: pass (`150 passed, 1 skipped`)
@@ -325,7 +325,7 @@ Total itens: 108
    - `dev_env/streamlit_app.py`: unified helper for clearing API snapshot state.
    - `tests/test_streamlit_filter_cache.py`: new regression for API snapshot clear helper.
 2. Validation evidence:
-   - `uv run python -m py_compile gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check gui/gui_ssa.py dev_env/streamlit_app.py tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_gui_filter_logic.py tests/test_gui_main_configuration.py tests/test_streamlit_filter_cache.py`: pass (`145 passed, 1 skipped`)
@@ -344,7 +344,7 @@ Total itens: 108
    - stable tab labels
    - API snapshot permutations
 3. Validation evidence:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`21 passed`)
@@ -358,7 +358,7 @@ Total itens: 108
 2. Added focused regression:
    - `tests/test_streamlit_filter_cache.py::test_update_render_telemetry_keeps_profile_window`.
 3. Validation evidence:
-   - `uv run python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
+   - `uv run --python 3.13 python -m py_compile dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ruff check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run ty check dev_env/streamlit_app.py tests/test_streamlit_filter_cache.py`: pass
    - `uv run pytest -q tests/test_streamlit_filter_cache.py`: pass (`16 passed`)
@@ -372,7 +372,7 @@ Total itens: 108
    - `tests/test_gui_main_configuration.py::test_load_gui_main_preferences_honors_ssa_config_dir`
    - `tests/test_gui_filter_logic.py::test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown`
 3. Validation evidence:
-   - `uv run python -m py_compile` (touched files): pass
+   - `uv run --python 3.13 python -m py_compile` (touched files): pass
    - `uv run ruff check` (touched files): pass
    - `uv run ty check` (touched files): pass
    - focused `pytest`: pass
@@ -395,7 +395,7 @@ Total itens: 108
 1. `27` moved to `resolved`:
    - `tests/test_import_cancellation.py` now asserts full `finish` payload contract, including `errors`.
 2. Validation evidence:
-   - `uv run python -m py_compile tests/test_import_cancellation.py`: pass
+   - `uv run --python 3.13 python -m py_compile tests/test_import_cancellation.py`: pass
    - `uv run ruff check tests/test_import_cancellation.py`: pass
    - `uv run ty check tests/test_import_cancellation.py`: pass
    - `uv run pytest -q tests/test_import_cancellation.py`: pass
@@ -410,7 +410,7 @@ Total itens: 108
 2. `23` moved to `resolved`:
    - db temp files are explicitly removed in `finally` and test scope remains under `tmp_path`.
 3. Validation evidence:
-   - `uv run python -m py_compile tests/test_database_optimized_alias_views.py`: pass
+   - `uv run --python 3.13 python -m py_compile tests/test_database_optimized_alias_views.py`: pass
    - `uv run ruff check tests/test_database_optimized_alias_views.py`: pass
    - `uv run ty check tests/test_database_optimized_alias_views.py`: pass
    - `uv run pytest -q tests/test_database_optimized_alias_views.py`: pass

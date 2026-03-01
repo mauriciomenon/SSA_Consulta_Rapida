@@ -24,14 +24,14 @@
 
 ### **Sistema Operacional**
 - Windows 10/11 (testado)
-- Python 3.13+ (recomendado 3.13+)
+- Python 3.10+ (preferir 3.13+)
 - Git for Windows
 - PowerShell 5.1+ ou PowerShell Core
 
 ### **Ferramentas Necessarias**
 ```powershell
 # Verificar versoes instaladas
-python --version          # Deve ser 3.13+
+python --version          # Deve ser 3.10+ (preferir 3.13+)
 git --version             # Qualquer versao recente
 pip --version             # Incluido com Python
 ```
@@ -68,7 +68,12 @@ ls main.py, requirements.txt, README.md
 
 ### **Passo 3: Configurar Ambiente Virtual**
 ```powershell
-# Criar ambiente virtual
+# Fluxo recomendado (uv-first)
+uv venv
+uv sync
+uv run --python 3.13 python --version
+
+# Compatibilidade sem uv (fallback)
 python -m venv venv
 
 # Ativar ambiente (escolha um dos metodos)
@@ -84,10 +89,11 @@ python -m venv venv
 
 ### **Passo 4: Instalar Dependencias**
 ```powershell
-# Atualizar pip
-python -m pip install --upgrade pip
+# Fluxo recomendado (uv-first)
+uv sync
 
-# Instalar dependencias do projeto
+# Compatibilidade sem uv
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 # Verificar instalacao
@@ -164,7 +170,7 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 ### **Teste 1: Help do Sistema**
 ```powershell
 # Verificar help completo
-python main.py --help
+uv run --python 3.13 python main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
 ```
@@ -188,7 +194,7 @@ except ImportError as e:
 ### **Teste 3: Criacao do Banco**
 ```powershell
 # Criar estrutura do banco (sem dados)
-python main.py --reset-db
+uv run --python 3.13 python main.py --reset-db
 
 # Verificar se o banco foi criado
 ls data\ssas.db
@@ -218,13 +224,13 @@ ls docs_entrada
 ### **Passo 2: Importacao Inicial**
 ```powershell
 # Importacao padrao (primeira vez)
-python main.py
+uv run --python 3.13 python main.py
 
 # Ou importacao otimizada (recomendado para arquivos grandes)
-python main.py --optimized
+uv run --python 3.13 python main.py --optimized
 
 # Ou forcar reimportacao completa
-python main.py --force-rescan
+uv run --python 3.13 python main.py --force-rescan
 ```
 
 ### **Passo 3: Verificar Importacao**
@@ -243,7 +249,7 @@ type data\file_cache.json
 ### **Teste 1: Interface CLI**
 ```powershell
 # Testar CLI interativo
-python main.py
+uv run --python 3.13 python main.py
 
 # Comandos de teste na CLI:
 # - Digite: help
@@ -254,7 +260,7 @@ python main.py
 ### **Teste 2: Interface Grafica**
 ```powershell
 # Testar GUI
-python main.py --gui
+uv run --python 3.13 python main.py --gui
 
 # Verificar funcionalidades:
 # - Carregamento da tabela
@@ -298,19 +304,19 @@ python -c "import sys; print('\n'.join(sys.path))"
 
 # Executar do diretorio correto
 cd SSA_Consulta_Rapida
-python main.py
+uv run --python 3.13 python main.py
 ```
 
 ### **Problema: Banco Corrompido**
 ```powershell
 # Reset completo do banco
-python main.py --reset-db
+uv run --python 3.13 python main.py --reset-db
 
 # Limpar cache
 del data\file_cache.json
 
 # Reimportar dados
-python main.py --force-rescan
+uv run --python 3.13 python main.py --force-rescan
 ```
 
 ### **Problema: GUI Nao Abre**
@@ -368,7 +374,7 @@ ls utils\                               # ← Utilitarios diversos
 # Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
 .\activate_env.ps1
-python main.py
+uv run --python 3.13 python main.py
 ```
 
 ### **Manutencao Semanal**
@@ -377,17 +383,17 @@ python main.py
 git pull
 
 # Limpar dados antigos
-python main.py --clean-data
+uv run --python 3.13 python main.py --clean-data
 
 # Teste rapido
-python main.py --help
+uv run --python 3.13 python main.py --help
 ```
 
 ### **Reimportacao Completa**
 ```powershell
 # Quando houver mudancas significativas nos dados
-python main.py --reset-db
-python main.py --optimized --force-rescan
+uv run --python 3.13 python main.py --reset-db
+uv run --python 3.13 python main.py --optimized --force-rescan
 ```
 
 ---
@@ -410,7 +416,7 @@ ls data\historico_backups\              # ← Backups disponiveis
 ### **Informacoes de Debug**
 ```powershell
 # Executar com log detalhado
-python main.py --log-level DEBUG
+uv run --python 3.13 python main.py --log-level DEBUG
 
 # Verificar configuracao do sistema
 python -c "
