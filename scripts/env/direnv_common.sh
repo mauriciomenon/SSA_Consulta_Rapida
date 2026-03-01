@@ -113,6 +113,17 @@ ssa_env__ensure_venv_pip() {
   return 0
 }
 
+ssa_env__refresh_command_cache() {
+  # Refresh shell command hash table after PATH changes (notably for zsh/bash).
+  if command -v rehash >/dev/null 2>&1; then
+    rehash >/dev/null 2>&1 || true
+    return
+  fi
+  if command -v hash >/dev/null 2>&1; then
+    hash -r >/dev/null 2>&1 || true
+  fi
+}
+
 ssa_env__activate_uv_venv() {
   if [[ "${SSA_SKIP_UV:-0}" == "1" ]]; then
     return 1
@@ -165,6 +176,7 @@ ssa_env__activate_uv_venv() {
     fi
     # shellcheck disable=SC1091
     source "$dir/bin/activate"
+    ssa_env__refresh_command_cache
     SSA_ENV_SOURCE="uv-venv"
     export SSA_ENV_SOURCE
     return 0
@@ -323,6 +335,7 @@ ssa_env__activate_local_venv() {
     fi
     # shellcheck disable=SC1091
     source "$dir/bin/activate"
+    ssa_env__refresh_command_cache
     SSA_ENV_SOURCE="venv"
     export SSA_ENV_SOURCE
     return 0
