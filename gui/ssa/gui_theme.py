@@ -559,9 +559,15 @@ def _apply_theme_widget_styles(
         if hasattr(window, 'clear_all_filters_btn'):
             window.clear_all_filters_btn.setStyleSheet(highlight_style)
         if hasattr(window, 'export_list_btn'):
-            window.export_list_btn.setStyleSheet(highlight_style)
+            try:
+                window.export_list_btn.setStyleSheet(highlight_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao export_list_btn: %s", exc)
         if hasattr(window, 'undo_filter_btn'):
-            window.undo_filter_btn.setStyleSheet(highlight_style)
+            try:
+                window.undo_filter_btn.setStyleSheet(highlight_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao undo_filter_btn: %s", exc)
         if hasattr(window, "add_column_filter_btn") and hasattr(window, "clear_all_btn"):
             footer_btn_style = (
                 f"QPushButton {{ color:{panel_text}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
