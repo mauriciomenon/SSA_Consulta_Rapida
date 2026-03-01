@@ -2,6 +2,22 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-02-28 23:46 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.26.0`.
+- Pre-PR release alignment:
+  1. streamlit scope delivered in `v4.24.1` remains intact.
+  2. hardening package from `v4.25.0` remains integrated.
+  3. metadata/docs were realigned to `v4.26.0` to remove release drift.
+- Execution order for closeout:
+  1. kluster auto on touched files.
+  2. `py_compile`, `ruff`, `ty`, focused `pytest`.
+  3. atomic commit and push.
+- Operational note:
+  - this block is now the source of truth for continuation.
+  - blocks below remain historical record.
+
 ## CURRENT TRUTH 2026-02-28 22:10 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.

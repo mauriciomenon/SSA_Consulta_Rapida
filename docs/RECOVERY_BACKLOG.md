@@ -3,6 +3,22 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-02-28 (release alignment v4.26.0)
+
+Delivered in this pre-PR slice:
+1. release metadata aligned to `v4.26.0`:
+   - `VERSION`
+   - `config/version.json`
+2. release docs aligned to remove drift between `v4.24.1`, `v4.25.0`, and current baseline:
+   - `README.md`
+   - `docs/HISTORICO_RELEASES.md`
+   - `docs/NEXT_CHAT_MIGRATION.md`
+   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+   - `docs_saida/CHANGELOG_IMPLEMENTACOES.md`
+3. scope note:
+   - no streamlit code/layout changes.
+   - no hardening logic changes.
+
 ## Update 2026-02-28 (id 92 closed + situacao quick usability)
 
 Delivered in this streamlit micro-slice:

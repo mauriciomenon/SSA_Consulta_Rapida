@@ -2,14 +2,17 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.25.0 - CURRENT RELEASE**
+## **RELEASE v4.26.0 - CURRENT RELEASE**
 
 **Data de Lancamento**: Fevereiro 2026
-**Tipo**: Sprint 25 Graves Closure and Handoff Sync
+**Tipo**: Pre-PR Release Alignment
 **Status**: Estavel
 
 ### **Principais entregas**
-- Fechamento do pacote de 25 graves com foco em risco real:
+- Consolidacao do baseline pre-PR sem perda de melhorias:
+  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.26.0`.
+  - docs de continuidade e release alinhadas com o baseline atual.
+- Pacote de hardening mantido e consolidado com foco em risco real:
   - path safety e config resolution em `interface/command_handlers.py`
   - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
   - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
@@ -17,16 +20,30 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - Handoff sincronizado com bloco `CURRENT TRUTH` no topo de:
   - `docs/NEXT_CHAT_MIGRATION.md`
   - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
-- Metadados de versao locais atualizados para `4.25.0`.
+- Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
 
 ### **Documentacao da versao**
-- `README.md` (v4.25 no topo)
+- `README.md` (v4.26 no topo)
 - `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/PENDING_ACTION_MATRIX.md`
 - `docs/RECOVERY_BACKLOG.md`
 
 ---
+
+## **RELEASE v4.25.0**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Sprint 25 Graves Closure and Handoff Sync
+**Status**: Estavel
+
+### **Principais entregas**
+- Integracao do pacote de hardening com foco em risco real:
+  - SQL guard em `armazenamento/database_optimized.py`
+  - cancelamento/import guardrails em `core/app_logic.py`
+  - path/mapping validation em `interface/command_handlers.py`
+- Regressao focada para command handlers, importer e stream wrappers.
+- Sync de docs de continuidade para handoff entre sessoes.
 
 ## **RELEASE v4.24.0**
 
