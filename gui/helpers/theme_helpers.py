@@ -4,6 +4,16 @@
 from PyQt6.QtGui import QPalette
 
 
+def pick_css_color(*candidates: object, fallback: str) -> str:
+    """Return first non-empty string candidate or fallback."""
+    for candidate in candidates:
+        if isinstance(candidate, str):
+            value = candidate.strip()
+            if value:
+                return value
+    return fallback
+
+
 def build_global_widget_qss(palette: QPalette) -> str:
     """
     Build global QSS for QMenu, QToolTip, and QComboBox widgets.

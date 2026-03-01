@@ -5,23 +5,15 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 
 from core.config_manager import atomic_write_json_file
+from gui.helpers.theme_helpers import pick_css_color
 from utils.themes import get_palette, get_theme_roles, normalize_theme
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
-
-
-def _pick_css_color(*candidates: object, fallback: str) -> str:
-    for candidate in candidates:
-        if isinstance(candidate, str):
-            value = candidate.strip()
-            if value:
-                return value
-    return fallback
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 def get_theme_catalog():
@@ -128,19 +120,19 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         win = pal.color(_QPal.ColorRole.Window).name()
     except Exception as exc:
         logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
-        wtxt = _pick_css_color(
+        wtxt = pick_css_color(
             roles.get("panel_text"),
             roles.get("label_color"),
             roles.get("support_text_color"),
             fallback="#d0d0d0",
         )
-        win = _pick_css_color(
+        win = pick_css_color(
             roles.get("panel_bg"),
             roles.get("summary_frame_bg"),
             wtxt,
             fallback="#2a2a2a",
         )
-    support_color = _pick_css_color(
+    support_color = pick_css_color(
         roles.get("support_text_color"),
         roles.get("label_color"),
         wtxt,
