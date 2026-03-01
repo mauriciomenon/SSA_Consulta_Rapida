@@ -1,20 +1,39 @@
-# SSA Consulta Rapida v4.26.0
+# SSA Consulta Rapida v4.26.1
 
-Release 4.26.0 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas.
+Release 4.26.1 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas.
 
-## Release v4.26.0 (2026-02)
+## Release v4.26.1 (2026-02)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.26.0.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.26.1.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
 - Regressao de filtros por coluna coberta por novos testes focados em:
   - menu de adicionar filtro de coluna (lista completa + exclusao de aliases legados invalidos);
   - clear-all restaurando defaults e linhas ocultas;
   - presenca de botoes Aplicar/Ocultar nas linhas default.
+- Matriz de compatibilidade Python concluida no ciclo atual:
+  - 3.10.18: pass
+  - 3.11.14: pass
+  - 3.12.11: pass
+  - 3.13.12: pass
+
+### Instalar uv (recomendado)
+```bash
+# macOS / Linux (curl)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# macOS / Linux (wget)
+wget -qO- https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell / pwsh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
 ### Execucao rapida com uv (recomendado)
 ```bash
@@ -23,14 +42,17 @@ uv venv
 uv sync
 
 # executar GUI
-uv run python main.py --gui
+uv run --python 3.13 python main.py --gui
 
 # executar CLI
-uv run python main.py
+uv run --python 3.13 python main.py
 
 # executar Streamlit
-uv run python main.py --streamlit
+uv run --python 3.13 python main.py --streamlit
 ```
+
+Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
+`requirements*.txt` permanecem para compatibilidade em ambientes sem uv.
 
 ### Ambiente com pyenv/direnv (compatibilidade)
 ```bash
@@ -345,7 +367,15 @@ Links uteis:
 - Windows (testado) ou ambiente compativel com PyQt6
 
 ## Instalação
+```bash
+# preferencial
+uv venv
+uv sync
+uv run --python 3.13 python main.py --gui
+```
+
 ```pwsh
+# compatibilidade (sem uv)
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
 pip install -r requirements.txt

@@ -1,5 +1,21 @@
 # Documentacao SSA Consulta Rapida
 
+## Tooling padrao (uv-first)
+- Comando principal: `uv run --python 3.13 ...`
+- Fallback de runtime: 3.12 -> 3.11 -> 3.10 quando 3.13 nao estiver disponivel.
+- `requirements*.txt` sao mantidos para compatibilidade em ambientes sem uv.
+
+## Instalar uv
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# ou
+wget -qO- https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
 ## Estrutura da Documentacao
 
 ### Documentos Principais

@@ -8,6 +8,8 @@
 
 ## 2) Validacao obrigatoria
 - Validar sempre no ambiente virtual do projeto.
+- Preferir comando padrao: `uv run --python 3.13 ...`.
+- Quando 3.13 nao estiver disponivel, usar fallback em ordem: 3.12, 3.11, 3.10.
 - Rodar validacoes tecnicas (compile, lint, type-check) antes de commit.
 - Rodar smoke de GUI com timeout para evitar sessao travada.
 - Nao declarar resolvido sem execucao real do fluxo alterado.

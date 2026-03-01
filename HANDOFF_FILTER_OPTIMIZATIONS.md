@@ -8,7 +8,8 @@
   - `docs/NEXT_CHAT_MIGRATION.md`
   - `docs/RECOVERY_BACKLOG.md`
 - Branch ativa atual: `codex/dev-filtros-stability`.
-- Release local atual: `4.22.0`.
+- Release local atual: `4.26.1`.
+- Runtime padrao atual: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
 
 ---
 

@@ -3,10 +3,24 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
-## Update 2026-02-28 (release alignment v4.26.0)
+## Update 2026-03-01 (v4.26.1 uv-first + matrix)
+
+Delivered in this slice:
+1. release bump:
+   - `VERSION` -> `4.26.1`
+   - `config/version.json` -> `v4.26.1`
+2. runtime compatibility completed (previously inconclusive):
+   - isolated uv environments validated in 3.10, 3.11, 3.12, 3.13
+   - result: all pass for focused gates/tests
+3. docs normalization:
+   - uv-first command format standardized to `uv run --python 3.13 ...`
+   - fallback policy explicitly documented (`3.12 -> 3.11 -> 3.10`)
+   - `requirements*.txt` kept as compatibility path.
+
+## Update 2026-02-28 (release alignment v4.26.1)
 
 Delivered in this pre-PR slice:
-1. release metadata aligned to `v4.26.0`:
+1. release metadata aligned to `v4.26.1`:
    - `VERSION`
    - `config/version.json`
 2. release docs aligned to remove drift between `v4.24.1`, `v4.25.0`, and current baseline:

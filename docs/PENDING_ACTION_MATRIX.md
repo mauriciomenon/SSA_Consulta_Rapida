@@ -3,6 +3,17 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-03-01 (runtime matrix closure + uv docs)
+
+1. Matrix closure:
+   - resolved previous inconclusive status for Python version compatibility.
+   - validated with isolated uv envs: `3.10.18`, `3.11.14`, `3.12.11`, `3.13.12`.
+2. Runtime command standard:
+   - document default as `uv run --python 3.13 ...`.
+   - document fallback chain `3.12 -> 3.11 -> 3.10`.
+3. Compatibility note:
+   - keep `requirements*.txt` for non-uv environments only.
+
 ## Update 2026-02-28 (streamlit usability slice: layout + discoverability)
 
 1. Streamlit usability improvements delivered:

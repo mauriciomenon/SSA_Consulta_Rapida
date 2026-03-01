@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [v4.26.1] - 2026-03-01
+
+### Changed
+- Runtime/documentation moved to uv-first usage with explicit command priority:
+  - `uv run --python 3.13 ...` as first option.
+  - fallback order documented: 3.12 -> 3.11 -> 3.10.
+- `requires-python` updated to `>=3.10` to keep compatibility without dropping 3.13 priority.
+- `dev_env/bootstrap.sh` and `dev_env/bootstrap.ps1` now prefer 3.13 and fallback to 3.12/3.11/3.10.
+- `gui/gui_ssa.py` fallback for open folder now checks executable availability (`explorer`, `open`, `xdg-open`) before spawning.
+- `interface/cli_enhancement_manager.py` applies POSIX-specific chmod/fsync steps only on POSIX.
+
+### Validation
+- Multi-version isolated matrix completed with uv envs:
+  - Python 3.10.18: pass
+  - Python 3.11.14: pass
+  - Python 3.12.11: pass
+  - Python 3.13.12: pass
+- Focused checks per version:
+  - `py_compile`, `ruff`, `ty`
+  - `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
+
 ## [Unreleased] - 2025-11-10
 
 ### Fixed

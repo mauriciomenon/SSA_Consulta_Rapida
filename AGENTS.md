@@ -52,6 +52,10 @@ Deliver the new feature end to end with correct behavior and safe rollback, with
 4. Kluster remains mandatory for security/quality/compliance verification after each file change.
 5. Qwen usage does not replace quality gates; quality gates remain mandatory before push.
 6. Any broad search command must use timeout 60s. This includes `rg --hidden --no-ignore`, scans outside the repo root, and recursive scans across large trees. If timeout hits, stop and refine scope before rerun.
+7. Runtime command priority is uv-first:
+   - prefer `uv run --python 3.13 ...`
+   - fallback to `3.12`, `3.11`, `3.10` when `3.13` is unavailable
+   - keep `requirements*.txt` as compatibility path only.
 
 ## Reasoning Profile Rule (Mandatory)
 
