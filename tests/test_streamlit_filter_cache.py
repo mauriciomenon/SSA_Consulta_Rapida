@@ -18,6 +18,7 @@ from dev_env.streamlit_app import (
     _build_streamlit_column_config,
     _build_column_presets,
     _build_filter_options,
+    _compute_sidebar_weekly_kpis,
     _columns_with_data,
     _compute_table_render_height,
     _compute_df_cache_token,
@@ -441,6 +442,44 @@ def test_build_streamlit_theme_css_contains_palette_tokens() -> None:
     assert "<style>" in css
     assert "--ssa-bg" in css
     assert STREAMLIT_THEME_PALETTES["Grafite"]["bg"] in css
+
+
+def test_compute_sidebar_weekly_kpis_uses_exec_and_emission_fields() -> None:
+    df = pd.DataFrame(
+        {
+            "data_execucao": [
+                "2026-03-01",
+                "2026-02-28",
+                "2026-02-22",
+                "2026-02-15",
+            ],
+            "data_cadastro": [
+                "2026-03-01",
+                "2026-02-27",
+                "2026-02-20",
+                "2026-02-14",
+            ],
+        }
+    )
+    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=pd.Timestamp("2026-03-01"))
+    assert metrics["executadas_semana_atual"] == 2
+    assert metrics["executadas_semana_anterior"] == 1
+    assert metrics["emitidas_semana_atual"] == 2
+    assert metrics["emitidas_semana_anterior"] == 1
+
+
+def test_compute_sidebar_weekly_kpis_falls_back_to_semana_executada() -> None:
+    df = pd.DataFrame(
+        {
+            "semana_executada": [202609, 202609, 202608, 202607],
+            "data_emissao": ["2026-03-01", "2026-02-25", "2026-02-17", ""],
+        }
+    )
+    metrics = _compute_sidebar_weekly_kpis(df, reference_dt=pd.Timestamp("2026-03-01"))
+    assert metrics["executadas_semana_atual"] == 2
+    assert metrics["executadas_semana_anterior"] == 1
+    assert metrics["emitidas_semana_atual"] == 2
+    assert metrics["emitidas_semana_anterior"] == 1
 
 
 def test_width_bucket_resolution_thresholds() -> None:
