@@ -3,6 +3,15 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-01 (streamlit single-file policy note)
+
+Decision logged for this cycle:
+1. `dev_env/streamlit_app.py` remains intentionally centralized due explicit sidequest policy (single-file Streamlit scope).
+2. deferred (non-blocking) technical debt:
+   - extract CSS/theme helpers only when policy allows;
+   - extract advanced-filter helper registry only when policy allows.
+3. current priority remains functional stability and regression prevention in the existing single-file workflow.
+
 ## Update 2026-03-01 (v4.27 uv-first + matrix)
 
 Delivered in this slice:

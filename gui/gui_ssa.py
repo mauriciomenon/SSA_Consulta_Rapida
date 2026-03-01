@@ -1022,6 +1022,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.status_label.setStyleSheet(
             "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
+        # Keep toolbar geometry stable even when status text gets longer.
+        self.status_label.setMinimumWidth(520)
+        self.status_label.setMaximumWidth(520)
+        self.status_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
