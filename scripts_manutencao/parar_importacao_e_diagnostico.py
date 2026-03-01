@@ -61,7 +61,7 @@ def find_and_kill_python_processes():
             continue
 
     if not killed_processes:
-        print("  ℹ️  Nenhum processo Python relacionado ao SSA encontrado")
+        print("  ℹ  Nenhum processo Python relacionado ao SSA encontrado")
     else:
         print(f"  OK Parados {len(killed_processes)} processos")
 

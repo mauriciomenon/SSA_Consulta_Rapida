@@ -78,7 +78,7 @@ def test_imports():
         from gui.gui_ssa import SSAMainWindow
         log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
     except Exception as e:  # pragma: no cover - diagnóstico
-        log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")
+        log(f"ℹ GUI principal não disponível ou erro de import: {e}")
 
 def list_dist_contents():
     """Lista conteúdo da pasta dist"""
