@@ -116,6 +116,21 @@ display_df: pd.DataFrame = pd.DataFrame()
 column_config: dict[str, object] = {}
 
 
+def _resolve_api_timeout_seconds() -> float:
+    raw = os.environ.get("SSA_STREAMLIT_API_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return 12.0
+    try:
+        timeout_value = float(raw)
+    except ValueError:
+        logger.warning("Invalid SSA_STREAMLIT_API_TIMEOUT_SECONDS value: %r", raw)
+        return 12.0
+    if not math.isfinite(timeout_value) or timeout_value <= 0:
+        logger.warning("Invalid SSA_STREAMLIT_API_TIMEOUT_SECONDS non-positive/non-finite: %r", raw)
+        return 12.0
+    return max(2.0, timeout_value)
+
+
 def _resolve_cache_max_entry_bytes() -> Optional[int]:
     raw = os.environ.get("SSA_CACHE_MAX_MB", "").strip()
     if not raw:
@@ -3059,7 +3074,10 @@ if REAL_RUNTIME and not raw_df.empty:
                 api_actions = st.columns([1.2, 1.2, 2.6])
                 if api_actions[0].button("Atualizar dados API", key="refresh_api_data"):
                     try:
-                        api_items = fetch_pending_ssas(years=1, opts=RequestOptions(timeout=5.0))
+                        api_items = fetch_pending_ssas(
+                            years=1,
+                            opts=RequestOptions(timeout=_resolve_api_timeout_seconds()),
+                        )
                         mapped = map_to_dataframe(api_items)
                         if mapped is not None and not mapped.empty:
                             cols = [
