@@ -1473,10 +1473,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
         candidates = []
         always_allow = set()
+        mapped_columns = set()
+
+        def _collect_mapped_keys(mapping_obj):
+            if not isinstance(mapping_obj, dict):
+                return
+            for key in mapping_obj.keys():
+                if not isinstance(key, str):
+                    continue
+                key_name = key.strip()
+                if key_name:
+                    mapped_columns.add(key_name)
 
         for attr_name in (
             "visible_columns",
             "default_columns",
+            "_profile_columns",
             "_current_display_columns",
         ):
             values = getattr(self, attr_name, None)
@@ -1486,18 +1498,27 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         active_filters = getattr(self, "_active_column_filters", None)
         if isinstance(active_filters, dict):
-            for key, raw_value in active_filters.items():
+            for key in active_filters.keys():
                 if not isinstance(key, str):
                     continue
-                if str(raw_value).strip():
-                    candidates.append(key)
-                    always_allow.add(key)
+                key_name = key.strip()
+                if not key_name:
+                    continue
+                candidates.append(key_name)
+                always_allow.add(key_name)
         active_widgets = getattr(self, "_column_filter_widgets", None)
         if isinstance(active_widgets, dict):
             for key in active_widgets.keys():
                 if isinstance(key, str):
-                    candidates.append(key)
-                    always_allow.add(key)
+                    key_name = key.strip()
+                    if not key_name:
+                        continue
+                    candidates.append(key_name)
+                    always_allow.add(key_name)
+
+        _collect_mapped_keys(DEFAULT_DISPLAY_MAPPINGS)
+        _collect_mapped_keys(getattr(self, "internal_to_display", None))
+        _collect_mapped_keys(getattr(self, "display_map", None))
 
         non_null_cols = None
         try:
@@ -1508,9 +1529,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Falha ao ler cache de colunas nao nulas para menu canonico: %s", exc)
             non_null_cols = None
 
-        # Nota: nao incluir schema completo do DataFrame/DB aqui.
-        # O objetivo deste menu eh manter lista canonica e estavel de colunas de UI,
-        # evitando "sujeira" com campos tecnicos/eventuais.
+        # Evita scan direto em DataFrame aqui para nao disputar estado com workers.
+        # A fonte oficial para "nao nulas" neste ponto e o cache ja calculado no fluxo de carga.
+
+        if isinstance(non_null_cols, set) and non_null_cols:
+            for col_name in non_null_cols:
+                if col_name in mapped_columns or col_name in always_allow:
+                    candidates.append(col_name)
+        for col_name in always_allow:
+            if col_name in mapped_columns:
+                candidates.append(col_name)
 
         result = []
         seen = set()
@@ -1525,6 +1553,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if col_name in legacy_invalid_columns:
                 continue
             if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                continue
+            if col_name not in mapped_columns and col_name not in always_allow:
                 continue
             if non_null_cols is not None and col_name not in non_null_cols and col_name not in always_allow:
                 continue

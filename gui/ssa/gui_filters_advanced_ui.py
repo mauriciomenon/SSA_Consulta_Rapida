@@ -776,43 +776,81 @@ def _rebuild_multiselect_menu(
         if label_text and label_text.strip():
             valid_values.append(raw_val)
     try:
-        max_label_len = max((len(str(v[1])) if isinstance(v, (list, tuple)) and len(v) > 1 else len(str(v)) for v in valid_values), default=8)
+        fm = button.fontMetrics() if button is not None else None
     except Exception:
-        max_label_len = 8
-    has_exclude_column = exclude_selected_set is not None
-    button_width = _safe_widget_width(button)
-    content_width = (max_label_len * 8) + (128 if has_exclude_column else 84)
-    screen_cap = 420
+        fm = None
     try:
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            geom = screen.availableGeometry()
-            screen_cap = max(320, min(460, int((geom.width() or 0) * 0.34)))
-    except Exception as exc:
-        logger.debug("Falha ao calcular limite de largura do popup por tela: %s", exc)
-    popup_min_width = max(148, min(screen_cap, max(button_width, min(content_width, 210))))
-    popup_max_width = max(
-        popup_min_width,
-        min(screen_cap, max(button_width + 34, min(content_width + 12, button_width + 72))),
-    )
+        if fm is not None:
+            max_label_px = max(
+                (
+                    fm.horizontalAdvance(str(v[1]))
+                    if isinstance(v, (list, tuple)) and len(v) > 1
+                    else fm.horizontalAdvance(str(v))
+                )
+                for v in valid_values
+            )
+        else:
+            max_label_px = max(
+                len(str(v[1])) if isinstance(v, (list, tuple)) and len(v) > 1 else len(str(v))
+                for v in valid_values
+            ) * 8
+    except Exception:
+        max_label_px = 64
+    has_exclude_column = exclude_selected_set is not None
+    content_width = max_label_px + (122 if has_exclude_column else 52)
+    if filter_name:
+        try:
+            header_width = fm.horizontalAdvance(filter_name) if fm is not None else (len(filter_name) * 8)
+        except Exception:
+            header_width = len(filter_name) * 8
+        header_extra = 168 if has_exclude_column else 28
+        content_width = max(content_width, header_width + header_extra)
+    popup_target_width = max(164, min(520, content_width))
+    popup_min_width = popup_target_width
+    popup_max_width = popup_target_width
     try:
         menu.setMinimumWidth(popup_min_width)
         menu.setMaximumWidth(popup_max_width)
     except Exception as exc:
         logger.debug("Falha ao ajustar largura do menu multiselect: %s", exc)
 
+    roles = getattr(self, "_current_theme_roles", None)
+    if not isinstance(roles, dict):
+        roles = {}
+    popup_bg = roles.get("popup_bg") or roles.get("panel_bg")
+    popup_text = roles.get("popup_text") or roles.get("panel_text") or roles.get("label_color")
+    popup_border = roles.get("popup_border") or roles.get("panel_border")
+    checked_bg = roles.get("checkbox_checked_bg") or roles.get("accent")
+    checkbox_bg = roles.get("checkbox_bg") or popup_bg
+    checkbox_border = roles.get("checkbox_border") or popup_border
+    if not popup_bg:
+        popup_bg = "#ffffff"
+    if not popup_text:
+        popup_text = "#222222"
+    if not popup_border:
+        popup_border = "#b0b0b0"
+    if not checked_bg:
+        checked_bg = popup_border
+    if not checkbox_bg:
+        checkbox_bg = popup_bg
+    if not checkbox_border:
+        checkbox_border = popup_border
+
     container = QWidget()
     grid = QGridLayout(container)
-    grid.setContentsMargins(6, 4, 14, 4)
+    grid.setContentsMargins(6, 4, 6, 4)
     grid.setHorizontalSpacing(6)
     grid.setVerticalSpacing(4)
     try:
         grid.setAlignment(Qt.AlignmentFlag.AlignTop)
     except Exception as exc:
         logger.debug("Falha ao alinhar grid do menu multiselect no topo: %s", exc)
-    grid.setColumnStretch(0, 1)
-    grid.setColumnStretch(1, 0)
-    grid.setColumnStretch(2, 0)
+    if has_exclude_column:
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+    else:
+        grid.setColumnStretch(0, 1)
     row_idx = 0
 
     # Header com nome do filtro (sempre) e colunas == / != (so quando tem exclude)
@@ -828,12 +866,6 @@ def _rebuild_multiselect_menu(
             label_inc = QLabel("Conter")
             label_exc = QLabel("Nao conter")
             try:
-                roles = getattr(self, "_current_theme_roles", None)
-                if not isinstance(roles, dict):
-                    from utils.themes import get_theme_roles
-                    roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-                popup_text = roles.get("popup_text") or roles.get("panel_text") or roles.get("label_color")
-                popup_border = roles.get("popup_border", roles.get("panel_border"))
                 label_style = (
                     "font-size: 10px;"
                     f" color: {popup_text};"
@@ -861,24 +893,8 @@ def _rebuild_multiselect_menu(
 
     cb_style_include = ""
     cb_style_exclude = ""
-    from utils.themes import get_theme_roles
-    roles = getattr(self, "_current_theme_roles", None)
-    if not isinstance(roles, dict):
-        roles = get_theme_roles(getattr(self, "_current_theme", "dark"))
-    popup_bg = roles.get("popup_bg", roles.get("panel_bg"))
-    popup_text = roles.get("popup_text", roles.get("panel_text"))
-    popup_border = roles.get("popup_border", roles.get("panel_border"))
-    checked_bg = roles.get("checkbox_checked_bg", roles.get("accent"))
-    checkbox_bg = roles.get("checkbox_bg", popup_bg)
-    checkbox_border = roles.get("checkbox_border", popup_border)
     apply_checkbox_styles = len(valid_values) <= 300
     try:
-        popup_bg = roles.get("popup_bg", roles.get("panel_bg", popup_bg))
-        popup_text = roles.get("popup_text", roles.get("panel_text", popup_text))
-        popup_border = roles.get("popup_border", roles.get("panel_border", popup_border))
-        checked_bg = roles.get("checkbox_checked_bg", roles.get("accent", checked_bg))
-        checkbox_bg = roles.get("checkbox_bg", popup_bg)
-        checkbox_border = roles.get("checkbox_border", popup_border)
         cb_style_include = (
             "QCheckBox::indicator {"
             " width:14px; height:14px;"
@@ -906,6 +922,8 @@ def _rebuild_multiselect_menu(
         cb_value = val[0] if isinstance(val, (list, tuple)) and len(val) > 0 else val
         label = QLabel(label_text)
         try:
+            label.setWordWrap(False)
+            label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             label.setStyleSheet(f"font-size: 11px; color: {popup_text};")
         except Exception as exc:
             logger.debug("Falha ao estilizar label do item no menu multiselect: %s", exc)
@@ -1062,9 +1080,14 @@ def _rebuild_multiselect_menu(
     except Exception as exc:
         logger.debug("Falha ao aplicar estilo visual do scroll/menu multiselect: %s", exc)
     try:
-        visible_rows = max(2, min(10, row_idx))
-        target_height = 18 + (visible_rows * 24)
-        scroll.setFixedHeight(max(92, min(278, target_height)))
+        base_rows = len(valid_values)
+        if filter_name:
+            base_rows += 2
+        if exclude_selected_set is not None:
+            base_rows += 2
+        visible_rows = max(2, min(9, base_rows))
+        target_height = 14 + (visible_rows * 24)
+        scroll.setFixedHeight(max(78, min(246, target_height)))
     except Exception as exc:
         logger.debug("Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc)
     scroll_act = QWidgetAction(menu)
@@ -1413,10 +1436,17 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
+        _, action_min_width, action_max_width = layout_baseline
+        compact_min_width = max(56, min(72, action_min_width - 8))
+        compact_max_width = max(compact_min_width + 6, min(92, action_max_width - 8))
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
+        apply_btn.setMinimumWidth(compact_min_width)
+        apply_btn.setMaximumWidth(compact_max_width)
+        clear_btn.setMinimumWidth(compact_min_width)
+        clear_btn.setMaximumWidth(compact_max_width)
         apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     except Exception as exc:
