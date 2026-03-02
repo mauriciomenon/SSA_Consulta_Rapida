@@ -196,8 +196,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(52, min(86, min_width))
-    max_width = max(min_width + 8, min(104, max_width))
+    min_width = max(74, min(112, min_width))
+    max_width = max(min_width + 18, min(138, max_width))
     try:
         grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
     except Exception:
@@ -205,8 +205,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
     if width > 0:
         cell_width = max(120, int(width // grid_cols))
-        pair_budget = max(116, cell_width - 12)
-        per_button_budget = max(44, int((pair_budget - 8) // 2))
+        pair_budget = max(128, cell_width - 12)
+        per_button_budget = max(64, int((pair_budget - 8) // 2))
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
     new_dims = (min_width, max_width)
@@ -223,7 +223,7 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
                 ref_h = int(ref_btn.height() or ref_btn.sizeHint().height() or LAYOUT_ADV_CONTROL_HEIGHT)
-                ref_h = max(20, min(25, ref_h))
+                ref_h = max(20, min(26, ref_h))
                 btn.setMinimumHeight(ref_h)
                 btn.setMaximumHeight(ref_h)
             btn.setMinimumWidth(min_width)
@@ -1127,10 +1127,10 @@ def _rebuild_multiselect_menu(
     # A aplicacao fica para o botao "Aplicar" geral (evita recalculagens por toggle).
     if on_apply is not None:
         cancel_btn = QPushButton("Cancelar")
-        cancel_btn.setFixedWidth(70)
+        cancel_btn.setFixedWidth(82)
         cancel_btn.setToolTip("Fechar sem aplicar")
         ok_btn = QPushButton("Fechar")
-        ok_btn.setFixedWidth(70)
+        ok_btn.setFixedWidth(82)
         ok_btn.setToolTip("Fechar e manter selecao para aplicar no botao Aplicar")
         try:
             cancel_btn.clicked.connect(menu.close)
@@ -1142,11 +1142,11 @@ def _rebuild_multiselect_menu(
             logger.debug("Falha ao conectar botao Fechar no menu multiselect: %s", exc)
         ok_row = QWidget()
         ok_layout = QHBoxLayout(ok_row)
-        ok_layout.setContentsMargins(6, 4, 6, 6)
-        ok_layout.addStretch()
+        ok_layout.setContentsMargins(8, 4, 8, 6)
+        ok_layout.setSpacing(6)
         ok_layout.addWidget(cancel_btn)
-        ok_layout.addSpacing(8)
         ok_layout.addWidget(ok_btn)
+        ok_layout.addStretch()
         ok_act = QWidgetAction(menu)
         ok_act.setDefaultWidget(ok_row)
         try:
@@ -1417,38 +1417,21 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        _, action_min_width, action_max_width = layout_baseline
-        compact_min_width = max(52, min(74, action_min_width - 10))
-        compact_max_width = max(compact_min_width + 8, min(96, action_max_width - 8))
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        apply_btn.setMinimumWidth(compact_min_width)
-        apply_btn.setMaximumWidth(compact_max_width)
-        clear_btn.setMinimumWidth(compact_min_width)
-        clear_btn.setMaximumWidth(compact_max_width)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox(" ")
-    _flatten_field_box(action_box)
+    action_box = QWidget()
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
-    action_sep = QFrame()
-    action_sep.setFrameShape(QFrame.Shape.VLine)
-    action_sep.setFrameShadow(QFrame.Shadow.Sunken)
-    try:
-        action_sep.setLineWidth(1)
-        action_sep.setMidLineWidth(0)
-    except Exception as exc:
-        logger.debug("Falha ao configurar separador dos botoes de acao dos filtros avancados: %s", exc)
+    action_layout.setSpacing(8)
     action_layout.addWidget(apply_btn)
-    action_layout.addWidget(action_sep)
     action_layout.addWidget(clear_btn)
     initial_widgets = [
         emis_box,
