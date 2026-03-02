@@ -871,7 +871,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self.setWindowTitle("Consulta Rapida de SSAs")
-        self.setGeometry(100, 100, 1100, 700)
+        self.setGeometry(100, 100, 1200, 800)
         # Icone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon

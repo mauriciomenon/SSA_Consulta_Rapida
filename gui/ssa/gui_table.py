@@ -222,12 +222,22 @@ def display_current_page(window, page_number):
                     if "\n" in item_text or "\r" in item_text:
                         item_text = " ".join(item_text.split())
 
-                # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
-                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
-                    # Trunca apenas colunas que nao sao de descricao
-                    max_chars = window._calculate_max_chars_for_column(col_name, col_idx)
-                    if len(item_text) > max_chars:
-                        item_text = item_text[:max_chars-3] + "..."
+                if item_text:
+                    try:
+                        metrics = window.table_widget.fontMetrics()
+                        available_px = max(10, int(window.table_widget.columnWidth(col_idx)) - 12)
+                        if metrics.horizontalAdvance(item_text) > available_px:
+                            item_text = metrics.elidedText(
+                                item_text,
+                                Qt.TextElideMode.ElideRight,
+                                available_px,
+                            )
+                    except Exception as exc:
+                        logger.debug(
+                            "Falha ao truncar texto por largura real da celula (col=%s): %s",
+                            col_name,
+                            exc,
+                        )
 
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)

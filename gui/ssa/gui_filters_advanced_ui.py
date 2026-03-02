@@ -195,10 +195,21 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     if not _is_widget_valid(apply_btn) or not _is_widget_valid(clear_btn):
         return
     _ = width
-    min_width = 60
-    max_width = 60
-    button_height = 24
-    new_dims = (min_width, max_width, button_height)
+    _, min_width, max_width = _resolve_adv_layout_baseline(self)
+    min_width = max(52, min(86, min_width))
+    max_width = max(min_width + 8, min(104, max_width))
+    try:
+        grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
+    except Exception:
+        grid_cols = LAYOUT_GRID_PREF_COLS
+    grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
+    if width > 0:
+        cell_width = max(120, int(width // grid_cols))
+        pair_budget = max(116, cell_width - 12)
+        per_button_budget = max(44, int((pair_budget - 8) // 2))
+        max_width = min(max_width, per_button_budget)
+        min_width = min(min_width, max_width)
+    new_dims = (min_width, max_width)
     if getattr(self, "_adv_filters_action_btn_dims", None) == new_dims:
         return
     self._adv_filters_action_btn_dims = new_dims
@@ -211,8 +222,10 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
                 ref_font = ref_btn.font()
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
-            btn.setMinimumHeight(button_height)
-            btn.setMaximumHeight(button_height)
+                ref_h = int(ref_btn.height() or ref_btn.sizeHint().height() or LAYOUT_ADV_CONTROL_HEIGHT)
+                ref_h = max(20, min(25, ref_h))
+                btn.setMinimumHeight(ref_h)
+                btn.setMaximumHeight(ref_h)
             btn.setMinimumWidth(min_width)
             btn.setMaximumWidth(max_width)
         except Exception as exc:
@@ -759,7 +772,7 @@ def _rebuild_multiselect_menu(
     except Exception:
         max_label_px = 64
     has_exclude_column = exclude_selected_set is not None
-    content_width = max_label_px + (144 if has_exclude_column else 88)
+    content_width = max_label_px + (136 if has_exclude_column else 80)
     if filter_name:
         try:
             header_width = fm.horizontalAdvance(filter_name) if fm is not None else (len(filter_name) * 8)
@@ -767,7 +780,13 @@ def _rebuild_multiselect_menu(
             header_width = len(filter_name) * 8
         header_extra = 170 if has_exclude_column else 34
         content_width = max(content_width, header_width + header_extra)
-    popup_width = max(240, min(280, content_width))
+    include_col_min = 64
+    exclude_col_min = 92
+    if has_exclude_column and fm is not None:
+        include_col_min = max(include_col_min, fm.horizontalAdvance("Conter") + 14)
+        exclude_col_min = max(exclude_col_min, fm.horizontalAdvance("Nao conter") + 14)
+        content_width = max(content_width, include_col_min + exclude_col_min + 140)
+    popup_width = max(220, min(520, content_width))
     try:
         menu.setMinimumWidth(popup_width)
         menu.setMaximumWidth(popup_width)
@@ -809,8 +828,8 @@ def _rebuild_multiselect_menu(
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
-        grid.setColumnMinimumWidth(1, 64)
-        grid.setColumnMinimumWidth(2, 88)
+        grid.setColumnMinimumWidth(1, include_col_min)
+        grid.setColumnMinimumWidth(2, exclude_col_min)
     else:
         grid.setColumnStretch(0, 1)
     row_idx = 0
@@ -1398,23 +1417,38 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
+        _, action_min_width, action_max_width = layout_baseline
+        compact_min_width = max(52, min(74, action_min_width - 10))
+        compact_max_width = max(compact_min_width + 8, min(96, action_max_width - 8))
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setFixedSize(60, 24)
-        clear_btn.setFixedSize(60, 24)
         apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        apply_btn.setMinimumWidth(compact_min_width)
+        apply_btn.setMaximumWidth(compact_max_width)
+        clear_btn.setMinimumWidth(compact_min_width)
+        clear_btn.setMaximumWidth(compact_max_width)
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QWidget()
+    action_box = QGroupBox(" ")
+    _flatten_field_box(action_box)
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(6)
+    action_layout.setSpacing(4)
+    action_sep = QFrame()
+    action_sep.setFrameShape(QFrame.Shape.VLine)
+    action_sep.setFrameShadow(QFrame.Shadow.Sunken)
+    try:
+        action_sep.setLineWidth(1)
+        action_sep.setMidLineWidth(0)
+    except Exception as exc:
+        logger.debug("Falha ao configurar separador dos botoes de acao dos filtros avancados: %s", exc)
     action_layout.addWidget(apply_btn)
+    action_layout.addWidget(action_sep)
     action_layout.addWidget(clear_btn)
     initial_widgets = [
         emis_box,
