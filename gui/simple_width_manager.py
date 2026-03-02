@@ -74,22 +74,22 @@ class SimpleWidthManager:
                 fixed_widths[col] = 40  # +5 px leve
 
             elif col == 'setor_executor':
-                fixed_widths[col] = 45  # +5 px leve
+                fixed_widths[col] = 52
 
             elif col == 'setor_emissor':
-                fixed_widths[col] = 45  # +5 px leve
+                fixed_widths[col] = 52
 
             elif col == 'localizacao_codigo':
-                fixed_widths[col] = 65  # +5 px leve
+                fixed_widths[col] = 76
 
             elif col == 'data_cadastro':
                 fixed_widths[col] = 95  # +10 px leve
 
             elif col == 'semana_cadastro':
-                fixed_widths[col] = 65  # +5 px leve
+                fixed_widths[col] = 72
 
             elif col == 'semana_programada':
-                fixed_widths[col] = 50  # +5 px leve
+                fixed_widths[col] = 68
 
             elif col == 'derivada_de':
                 fixed_widths[col] = 70  # +5 px leve

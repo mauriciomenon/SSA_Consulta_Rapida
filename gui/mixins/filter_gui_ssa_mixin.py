@@ -804,27 +804,25 @@ class FilterGUISSAMixin:
                 pinned.append(col)
                 pinned_seen.add(col)
         remaining = [c for c in valid_cols if c not in pinned_seen]
-        remaining.sort(key=lambda c: self._resolve_column_display_name(c).casefold())
+        remaining.sort(key=lambda c: self._expand_column_alias_for_filter(c).casefold())
         ordered_cols = pinned + remaining
 
         label_counts = {}
         for col in ordered_cols:
-            display = self._resolve_column_display_name(col)
+            display = self._expand_column_alias_for_filter(col)
             key = str(display).strip().casefold()
             label_counts[key] = label_counts.get(key, 0) + 1
         for col in ordered_cols:
-            display = self._resolve_column_display_name(col)
+            display = self._expand_column_alias_for_filter(col)
             display_text = str(display)
             if label_counts.get(display_text.strip().casefold(), 0) > 1:
                 display_text = f"{display_text} [{col}]"
-            action = menu.addAction(display)
+            action = menu.addAction(display_text)
             if action is None:
                 continue
             action.setCheckable(True)
             action.setChecked(col in self._active_column_filters)
             action.setData(col)
-            if hasattr(action, "setText"):
-                action.setText(display_text)
             columns.append(action)
         if not columns:
             menu.deleteLater()
