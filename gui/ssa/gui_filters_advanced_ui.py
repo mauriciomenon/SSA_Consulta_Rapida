@@ -196,8 +196,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(40, min(68, min_width))
-    max_width = max(min_width + 6, min(84, max_width))
+    min_width = max(74, min(112, min_width))
+    max_width = max(min_width + 18, min(138, max_width))
     try:
         grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
     except Exception:
@@ -205,8 +205,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
     if width > 0:
         cell_width = max(120, int(width // grid_cols))
-        pair_budget = max(108, cell_width - 10)
-        per_button_budget = max(40, int((pair_budget - 4) // 2))
+        pair_budget = max(128, cell_width - 12)
+        per_button_budget = max(64, int((pair_budget - 8) // 2))
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
     new_dims = (min_width, max_width)
@@ -469,25 +469,13 @@ def _sync_responsavel_button_summaries(self, only_prefixes=None) -> None:
         include_values = [str(v) for v in (filters.get(include_key) or []) if str(v).strip()]
         exclude_values = [str(v) for v in (filters.get(exclude_key) or []) if str(v).strip()]
         if include_values and exclude_values:
-            candidates = [
-                f"Incluir: {', '.join(include_values)} | Diferente: {', '.join(exclude_values)}",
-                f"Incluir: {', '.join(include_values)}",
-                f"Diferente: {', '.join(exclude_values)}",
-                f"{len(include_values)} incluir, {len(exclude_values)} diferente",
-            ]
+            text = f"{len(include_values)} inc, {len(exclude_values)} dif"
         elif include_values:
-            candidates = [
-                f"Incluir: {', '.join(include_values)}",
-                f"{len(include_values)} incluir",
-            ]
+            text = "1 incluir" if len(include_values) == 1 else f"{len(include_values)} incluir"
         elif exclude_values:
-            candidates = [
-                f"Diferente: {', '.join(exclude_values)}",
-                f"{len(exclude_values)} diferente",
-            ]
+            text = "1 diferente" if len(exclude_values) == 1 else f"{len(exclude_values)} diferente"
         else:
-            candidates = ["Selecionar"]
-        text = _fit_button_text(button, candidates, candidates[-1])
+            text = "Selecionar"
         try:
             button.setText(text)
             button.setEnabled(True)
@@ -557,33 +545,20 @@ def _update_multiselect_button(self, button, checks, placeholder: str = "Selecio
         except Exception as exc:
             logger.debug("Failed to read exclude checkbox state in multiselect summary: %s", exc)
     total = len(checks or [])
-    selected_text = ", ".join(selected) if selected else ""
-    excluded_text = ", ".join(excluded) if excluded else ""
-    include_prefix = "Incluir: "
-    exclude_prefix = "Diferente: "
     if total == 0:
         text = "Sem dados"
     elif not selected and not excluded:
         text = placeholder
+    elif len(selected) == total and not excluded:
+        text = "Todos"
+    elif selected and excluded:
+        text = f"{len(selected)} inc, {len(excluded)} dif"
+    elif selected:
+        text = "1 incluir" if len(selected) == 1 else f"{len(selected)} incluir"
+    elif excluded:
+        text = "1 diferente" if len(excluded) == 1 else f"{len(excluded)} diferente"
     else:
-        candidates = []
-        if selected and excluded:
-            candidates.append(f"{include_prefix}{selected_text} | {exclude_prefix}{excluded_text}")
-        if selected:
-            candidates.append(f"{include_prefix}{selected_text}")
-        if excluded:
-            candidates.append(f"{exclude_prefix}{excluded_text}")
-        if len(selected) == total and not excluded:
-            candidates.append("Todos")
-        if selected and excluded:
-            candidates.append(f"{len(selected)} incluir, {len(excluded)} diferente")
-        elif selected:
-            candidates.append(f"{len(selected)} incluir")
-        elif excluded:
-            candidates.append(f"{len(excluded)} diferente")
-        candidates.append(f"{len(selected)} selecionados")
-        fallback = candidates[-1]
-        text = _fit_button_text(button, candidates, fallback)
+        text = f"{len(selected)} selecionados"
     try:
         button.setText(text)
         # Esmaecimento visual para botoes sem dados
@@ -797,17 +772,17 @@ def _rebuild_multiselect_menu(
     except Exception:
         max_label_px = 64
     has_exclude_column = exclude_selected_set is not None
-    content_width = max_label_px + (122 if has_exclude_column else 52)
+    button_width = _safe_widget_width(button)
+    content_width = max_label_px + (150 if has_exclude_column else 90)
     if filter_name:
         try:
             header_width = fm.horizontalAdvance(filter_name) if fm is not None else (len(filter_name) * 8)
         except Exception:
             header_width = len(filter_name) * 8
-        header_extra = 168 if has_exclude_column else 28
+        header_extra = 170 if has_exclude_column else 34
         content_width = max(content_width, header_width + header_extra)
-    popup_target_width = max(164, min(520, content_width))
-    popup_min_width = popup_target_width
-    popup_max_width = popup_target_width
+    popup_min_width = max(156, min(260, max(button_width + 4, content_width)))
+    popup_max_width = max(popup_min_width, min(320, popup_min_width + 44))
     try:
         menu.setMinimumWidth(popup_min_width)
         menu.setMaximumWidth(popup_max_width)
@@ -838,7 +813,7 @@ def _rebuild_multiselect_menu(
 
     container = QWidget()
     grid = QGridLayout(container)
-    grid.setContentsMargins(6, 4, 6, 4)
+    grid.setContentsMargins(6, 4, 14, 4)
     grid.setHorizontalSpacing(6)
     grid.setVerticalSpacing(4)
     try:
@@ -1085,9 +1060,9 @@ def _rebuild_multiselect_menu(
             base_rows += 2
         if exclude_selected_set is not None:
             base_rows += 2
-        visible_rows = max(2, min(9, base_rows))
-        target_height = 14 + (visible_rows * 24)
-        scroll.setFixedHeight(max(78, min(246, target_height)))
+        visible_rows = max(1, min(9, base_rows))
+        target_height = 12 + (visible_rows * 22)
+        scroll.setFixedHeight(max(58, min(236, target_height)))
     except Exception as exc:
         logger.debug("Falha ao ajustar altura dinamica do scroll no menu multiselect: %s", exc)
     scroll_act = QWidgetAction(menu)
@@ -1436,19 +1411,12 @@ def _build_advanced_filters_panel(self):
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
-        _, action_min_width, action_max_width = layout_baseline
-        compact_min_width = max(56, min(72, action_min_width - 8))
-        compact_max_width = max(compact_min_width + 6, min(92, action_max_width - 8))
         apply_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setMinimumWidth(compact_min_width)
-        apply_btn.setMaximumWidth(compact_max_width)
-        clear_btn.setMinimumWidth(compact_min_width)
-        clear_btn.setMaximumWidth(compact_max_width)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
@@ -1456,7 +1424,7 @@ def _build_advanced_filters_panel(self):
     action_box = QWidget()
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(2)
+    action_layout.setSpacing(8)
     action_layout.addWidget(apply_btn)
     action_layout.addWidget(clear_btn)
     initial_widgets = [
