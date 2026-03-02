@@ -196,8 +196,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(52, min(86, min_width))
-    max_width = max(min_width + 8, min(104, max_width))
+    min_width = max(40, min(68, min_width))
+    max_width = max(min_width + 6, min(84, max_width))
     try:
         grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
     except Exception:
@@ -205,8 +205,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     grid_cols = max(1, min(LAYOUT_GRID_MAX_COLS, grid_cols))
     if width > 0:
         cell_width = max(120, int(width // grid_cols))
-        pair_budget = max(116, cell_width - 12)
-        per_button_budget = max(44, int((pair_budget - 8) // 2))
+        pair_budget = max(108, cell_width - 10)
+        per_button_budget = max(40, int((pair_budget - 4) // 2))
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
     new_dims = (min_width, max_width)
@@ -296,12 +296,12 @@ def _make_multiselect_box(
     button = QToolButton()
     button.setText(placeholder)
     _, action_min, action_max = layout_baseline or _resolve_adv_layout_baseline(self)
-    btn_min = max(70, min(88, action_min - 8))
-    btn_max = max(btn_min + 24, min(150, action_max + 20))
+    _ = action_max
+    btn_min = max(74, min(96, action_min - 4))
     try:
         button.setMinimumWidth(btn_min)
-        button.setMaximumWidth(btn_max)
-        button.setMinimumHeight(32)
+        button.setMaximumWidth(16777215)
+        button.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         button.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     except Exception as exc:
@@ -749,7 +749,7 @@ def _rebuild_multiselect_menu(
     # Obter nome do filtro do titulo do GroupBox pai (subindo na hierarquia)
     filter_name = ""
     try:
-        parent = button.parent()
+        parent = button.parent() if button is not None else None
         seen = set()
         for _ in range(50):
             if parent is None:
@@ -765,7 +765,8 @@ def _rebuild_multiselect_menu(
                 if candidate and candidate not in ("Valores", ""):
                     filter_name = candidate
                     break
-            parent = parent.parent()
+            next_parent = getattr(parent, "parent", None)
+            parent = next_parent() if callable(next_parent) else None
     except Exception as exc:
         logger.debug("Falha ao detectar nome do filtro para menu multiselect: %s", exc)
 
@@ -780,9 +781,20 @@ def _rebuild_multiselect_menu(
         max_label_len = 8
     has_exclude_column = exclude_selected_set is not None
     button_width = _safe_widget_width(button)
-    content_width = (max_label_len * 8) + (120 if has_exclude_column else 76)
-    popup_min_width = max(156, min(260, max(button_width + 4, content_width)))
-    popup_max_width = max(popup_min_width, min(320, popup_min_width + 44))
+    content_width = (max_label_len * 8) + (128 if has_exclude_column else 84)
+    screen_cap = 420
+    try:
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            geom = screen.availableGeometry()
+            screen_cap = max(320, min(460, int((geom.width() or 0) * 0.34)))
+    except Exception as exc:
+        logger.debug("Falha ao calcular limite de largura do popup por tela: %s", exc)
+    popup_min_width = max(148, min(screen_cap, max(button_width, min(content_width, 210))))
+    popup_max_width = max(
+        popup_min_width,
+        min(screen_cap, max(button_width + 34, min(content_width + 12, button_width + 72))),
+    )
     try:
         menu.setMinimumWidth(popup_min_width)
         menu.setMaximumWidth(popup_max_width)
@@ -857,17 +869,21 @@ def _rebuild_multiselect_menu(
     popup_text = roles.get("popup_text", roles.get("panel_text"))
     popup_border = roles.get("popup_border", roles.get("panel_border"))
     checked_bg = roles.get("checkbox_checked_bg", roles.get("accent"))
+    checkbox_bg = roles.get("checkbox_bg", popup_bg)
+    checkbox_border = roles.get("checkbox_border", popup_border)
     apply_checkbox_styles = len(valid_values) <= 300
     try:
         popup_bg = roles.get("popup_bg", roles.get("panel_bg", popup_bg))
         popup_text = roles.get("popup_text", roles.get("panel_text", popup_text))
         popup_border = roles.get("popup_border", roles.get("panel_border", popup_border))
         checked_bg = roles.get("checkbox_checked_bg", roles.get("accent", checked_bg))
+        checkbox_bg = roles.get("checkbox_bg", popup_bg)
+        checkbox_border = roles.get("checkbox_border", popup_border)
         cb_style_include = (
             "QCheckBox::indicator {"
             " width:14px; height:14px;"
-            f" border:1px solid {popup_border};"
-            f" background:{popup_bg};"
+            f" border:1px solid {checkbox_border};"
+            f" background:{checkbox_bg};"
             "}"
             "QCheckBox::indicator:checked {"
             f" border:1px solid {checked_bg};"
@@ -875,6 +891,10 @@ def _rebuild_multiselect_menu(
             "}"
             "QCheckBox::indicator:checked:hover {"
             f" background:{checked_bg};"
+            "}"
+            "QCheckBox::indicator:disabled {"
+            f" border:1px solid {checkbox_border};"
+            f" background:{checkbox_bg};"
             "}"
         )
         cb_style_exclude = cb_style_include
@@ -923,15 +943,27 @@ def _rebuild_multiselect_menu(
             exclude_checks.append(exclude_cb)
         if exclude_cb is not None:
             def _toggle_include(checked, other=exclude_cb):
-                if checked and _is_widget_valid(other) and other.isChecked():
+                if not checked or not _is_widget_valid(other):
+                    return
+                try:
+                    if not other.isChecked():
+                        return
                     other.blockSignals(True)
                     other.setChecked(False)
-                    other.blockSignals(False)
+                finally:
+                    if _is_widget_valid(other):
+                        other.blockSignals(False)
             def _toggle_exclude(checked, other=include_cb):
-                if checked and _is_widget_valid(other) and other.isChecked():
+                if not checked or not _is_widget_valid(other):
+                    return
+                try:
+                    if not other.isChecked():
+                        return
                     other.blockSignals(True)
                     other.setChecked(False)
-                    other.blockSignals(False)
+                finally:
+                    if _is_widget_valid(other):
+                        other.blockSignals(False)
             try:
                 include_cb.toggled.connect(_toggle_include)
                 exclude_cb.toggled.connect(_toggle_exclude)
@@ -1391,21 +1423,11 @@ def _build_advanced_filters_panel(self):
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
     clear_btn.clicked.connect(self._clear_advanced_filters)
-    action_box = QGroupBox(" ")
-    _flatten_field_box(action_box)
+    action_box = QWidget()
     action_layout = QHBoxLayout(action_box)
     action_layout.setContentsMargins(0, 0, 0, 0)
-    action_layout.setSpacing(4)
-    action_sep = QFrame()
-    action_sep.setFrameShape(QFrame.Shape.VLine)
-    action_sep.setFrameShadow(QFrame.Shadow.Sunken)
-    try:
-        action_sep.setLineWidth(1)
-        action_sep.setMidLineWidth(0)
-    except Exception as exc:
-        logger.debug("Falha ao configurar separador dos botoes de acao dos filtros avancados: %s", exc)
+    action_layout.setSpacing(2)
     action_layout.addWidget(apply_btn)
-    action_layout.addWidget(action_sep)
     action_layout.addWidget(clear_btn)
     initial_widgets = [
         emis_box,

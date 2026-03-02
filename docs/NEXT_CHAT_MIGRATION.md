@@ -2,6 +2,24 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-01 23:55 - start from here
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.28`.
+- Latest patch package:
+  1. importer deterministic-failure cache marks for unchanged invalid files.
+  2. derivadas dedicated phase kept compatible with existing contract/tests.
+  3. advanced filter action buttons compacted and separator removed.
+  4. multiselect popup width constrained and stale-widget guards added.
+  5. canonical column candidate sources reduced to avoid noisy placeholder columns.
+  6. direnv path exports now force `${VIRTUAL_ENV}/bin` precedence and refresh shell cache.
+- Validation snapshot:
+  1. touched-file `py_compile`, `ruff`, `ty`: pass
+  2. focused pytest package (`import_derivadas_trigger`, `import_cancellation`, `gui_filters_advanced_logic`): `28 passed`
+- Pending structural work remains deferred:
+  1. split of large GUI routines/classes
+  2. deeper breakup of multiselect menu builder
+
 ## CURRENT TRUTH 2026-03-01 02:20 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
@@ -1302,4 +1320,3 @@ Relatorio final por slice:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-

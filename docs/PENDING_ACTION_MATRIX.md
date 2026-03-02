@@ -3,6 +3,20 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-03-01 (gui filters + importer stabilization)
+
+1. Completed in this slice:
+   - advanced filter action buttons compacted (`Aplicar` / `Limpar`) without global layout rewrite.
+   - multiselect popup width constrained and stale-widget guards strengthened.
+   - canonical column candidate list cleaned to avoid placeholder/profile noise.
+   - deterministic failure caching added for unchanged invalid Excel files.
+2. Validation snapshot:
+   - `py_compile`, `ruff`, `ty` on touched files: pass
+   - focused pytest package: `28 passed`
+3. Deferred by scope:
+   - structural split of large GUI routines remains deferred (non-blocking).
+   - no transversal refactor added in this cycle.
+
 ## Update 2026-03-01 (runtime matrix closure + uv docs)
 
 1. Matrix closure:
@@ -1099,4 +1113,3 @@ Legenda:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-

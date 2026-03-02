@@ -3,6 +3,38 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-01 (gui filters stability + importer noise control)
+
+Delivered in this slice:
+1. `core/app_logic.py`:
+   - fixed indentation regression in derivadas error progress path.
+   - added deterministic-failure cache mark for extraction errors with message:
+     `missing required columns after normalization`.
+   - kept dedicated derivadas phase trigger behavior compatible with existing tests.
+2. `gui/ssa/gui_filters_advanced_ui.py`:
+   - reduced effective width budget for `Aplicar` and `Limpar`.
+   - removed visual separator between action buttons and kept compact spacing.
+   - constrained multiselect popup width by trigger width + screen cap.
+   - hardened parent traversal and checkbox mutual-exclusion callbacks against stale Qt objects.
+3. `gui/gui_ssa.py`:
+   - canonical column candidate source cleaned to avoid profile placeholder noise.
+   - active column candidates now come from visible/default/current + rendered/filled filters.
+4. `gui/ssa/gui_theme.py`:
+   - advanced filter options refresh is triggered when theme changes on filters tab.
+5. `scripts/env/direnv_common.sh`:
+   - ensure `${VIRTUAL_ENV}/bin` is prepended to `PATH` when active.
+   - refresh shell command cache after path exports.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py gui/ssa/gui_theme.py`: pass
+2. `uv run --python 3.13 ruff check core/app_logic.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py gui/ssa/gui_theme.py`: pass
+3. `uv run --python 3.13 ty check core/app_logic.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py gui/ssa/gui_theme.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_import_derivadas_trigger.py tests/test_import_cancellation.py tests/test_gui_filters_advanced_logic.py`: `28 passed`
+
+Deferred (non-blocking, structural):
+1. further breakup of `_rebuild_multiselect_menu` (out of scope for minimal stability patch).
+2. wider `SSAMainWindow` responsibility split (tracked as structural work, no refactor in this slice).
+
 ## Update 2026-03-01 (streamlit single-file policy note)
 
 Decision logged for this cycle:

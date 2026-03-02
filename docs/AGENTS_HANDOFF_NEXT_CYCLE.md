@@ -2,6 +2,25 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-01 23:55 - authoritative block
+
+- Active branch: `codex/dev-filtros-stability`.
+- Local release baseline: `4.28`.
+- Latest stabilized slice:
+  1. importer: deterministic cache mark for invalid unchanged files (`missing required columns after normalization`).
+  2. importer: derivadas dedicated phase behavior preserved (focused tests green).
+  3. advanced filters UI: action buttons compacted and separator removed.
+  4. advanced filters UI: popup width constrained to avoid oversized menus.
+  5. advanced filters UI: stale-widget guards reinforced in toggle callbacks.
+  6. canonical column candidates now avoid profile placeholder noise.
+  7. direnv path export now re-prepends `${VIRTUAL_ENV}/bin` and refreshes command cache.
+- Focused validation snapshot:
+  1. `py_compile`, `ruff`, `ty` on touched files: pass
+  2. `pytest -q tests/test_import_derivadas_trigger.py tests/test_import_cancellation.py tests/test_gui_filters_advanced_logic.py`: `28 passed`
+- Operational note:
+  - keep GUI changes minimal and avoid layout repositioning outside explicit request.
+  - blocks below remain historical record.
+
 ## CURRENT TRUTH 2026-03-01 02:20 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
@@ -1459,4 +1478,3 @@ Entregavel de cada slice:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-

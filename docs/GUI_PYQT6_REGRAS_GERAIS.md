@@ -1,5 +1,20 @@
 # Regras Gerais Para GUI em PyQt6
 
+## Atualizacao 2026-03-01 (popup/button stability follow-up)
+- Em seletores com popup de multiselect, limitar largura por:
+  1. largura do botao disparador
+  2. limite maximo proporcional a largura de tela
+  3. nunca expandir sem necessidade de conteudo real
+- Em callbacks de checkbox com exclusao mutua, validar widget ativo antes de:
+  1. `isChecked()`
+  2. `blockSignals(...)`
+  3. `setChecked(...)`
+- Em botoes de acao lado a lado (`Aplicar`/`Limpar`), preferir:
+  1. largura alvo compacta por orcamento de celula
+  2. sem separador visual extra entre botoes
+  3. sem alterar posicionamento global da janela
+- Em listas de colunas para filtros, evitar placeholders de perfil e ruido tecnico.
+
 ## 1) Escopo e disciplina de mudanca
 - Diagnosticar antes de editar, com evidencia objetiva.
 - Aplicar patch minimo por slice.
@@ -78,4 +93,3 @@
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-
