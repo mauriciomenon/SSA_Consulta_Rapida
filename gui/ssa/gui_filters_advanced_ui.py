@@ -39,7 +39,7 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 # Layout constants
 LAYOUT_MIN_VALID_WIDTH = 1
-LAYOUT_GRID_MIN_COLS = 2
+LAYOUT_GRID_MIN_COLS = 4
 LAYOUT_GRID_MAX_COLS = 4
 LAYOUT_GRID_PREF_COLS = 4
 LAYOUT_ADV_PANEL_MIN_HEIGHT = 82
@@ -1664,6 +1664,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
         "sol_box",
         "prog_box",
         "exec_resp_box",
+        "action_box",
     ]
     visible = [(name, w.get(name)) for name in order if w.get(name) is not None]
     if not visible:
@@ -1693,7 +1694,7 @@ def _reorganize_advanced_filters_grid(self, width: int):
             break
     cols = max(LAYOUT_GRID_MIN_COLS, cols)
     cols = min(cols, len(visible))
-    rows_for_height = max(1, (len(visible) + cols - 1) // cols) + 1
+    rows_for_height = max(1, (len(visible) + cols - 1) // cols)
     try:
         vertical_spacing = int(grid.verticalSpacing())
         margins = grid.contentsMargins()
@@ -1746,16 +1747,6 @@ def _reorganize_advanced_filters_grid(self, width: int):
             logger.debug("Falha ao ajustar largura maxima de celula no painel avancado: %s", exc)
         grid.addWidget(widget, row, col)
         widget.show()
-    action_widget = getattr(self, "_adv_filters_action_widget", None)
-    if action_widget is not None:
-        action_row = max(1, (len(visible) + cols - 1) // cols)
-        action_col = max(0, cols - 2)
-        action_span = min(2, cols)
-        try:
-            grid.addWidget(action_widget, action_row, action_col, 1, action_span)
-            action_widget.show()
-        except Exception as exc:
-            logger.debug("Falha ao posicionar area de acoes no grid avancado: %s", exc)
     for col in range(0, LAYOUT_GRID_MAX_COLS + 3):
         try:
             grid.setColumnStretch(col, 0)
