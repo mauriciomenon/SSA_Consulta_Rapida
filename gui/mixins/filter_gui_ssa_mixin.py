@@ -853,6 +853,24 @@ class FilterGUISSAMixin:
         logger.warning("Coluna sem alias canonico encontrada no menu de filtro: %s", col)
         return str(col)
 
+    def _expand_column_alias_for_filter(self, col: str) -> str:
+        """Prefer full labels in the column-filter list when short aliases exist."""
+        resolved = self._resolve_column_display_name(col)
+        expanded_aliases = {
+            "Exec.": "Setor executor",
+            "Emis.": "Setor emissor",
+            "Sit.": "Situacao",
+            "Loc.": "Localizacao",
+            "Prog.": "Semana programada",
+            "Sem. Cad.": "Semana cadastro",
+            "Prio.": "Prioridade",
+            "Prio. Emissao": "Prioridade emissao",
+            "Prio. Planej.": "Prioridade planejamento",
+            "Resp. Prog.": "Responsavel programacao",
+            "Resp. Exec.": "Responsavel execucao",
+        }
+        return expanded_aliases.get(resolved, resolved)
+
     def _find_unmapped_alias_columns(self, candidates) -> list[str]:
         seen = set()
         missing = []
@@ -944,7 +962,7 @@ class FilterGUISSAMixin:
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(4)
-            full_name = self._resolve_column_display_name(col)
+            full_name = self._expand_column_alias_for_filter(col)
             name_lbl = QLabel(full_name)
             self._column_filter_labels[col] = name_lbl
             try:

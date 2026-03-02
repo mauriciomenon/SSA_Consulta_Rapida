@@ -217,6 +217,8 @@ def display_current_page(window, page_number):
                 item_text = "" if pd.isna(value) else str(value)
                 # Keep table cells single-line to avoid visual clipping on fixed row height.
                 if item_text:
+                    if "\\n" in item_text or "\\r" in item_text:
+                        item_text = item_text.replace("\\n", " ").replace("\\r", " ")
                     if "\n" in item_text or "\r" in item_text:
                         item_text = " ".join(item_text.split())
 

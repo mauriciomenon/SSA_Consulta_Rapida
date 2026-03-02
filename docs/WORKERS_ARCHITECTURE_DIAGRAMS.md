@@ -1,6 +1,6 @@
-# Arquitetura de Workers - Diagrama de Sequ^encia e Fluxo
+# Arquitetura de Workers - Diagrama de Sequência e Fluxo
 
-## Diagrama de Sequ^encia - Carregamento e Filtragem
+## Diagrama de Sequência - Carregamento e Filtragem
 
 ```mermaid
 sequenceDiagram
@@ -111,11 +111,11 @@ classDiagram
 
 ```mermaid
 flowchart TD
-    A[In'icio: _build_df_hash] --> B{df_completo 'e None?}
+    A[Início: _build_df_hash] --> B{df_completo é None?}
     B -->|Sim| C[Retornar hash de 'none']
-    B -->|N~ao| D{row_count <= 24?}
+    B -->|Não| D{row_count <= 24?}
     D -->|Sim| E[Usar DataFrame completo]
-    D -->|N~ao| F[Amostragem estratificada]
+    D -->|Não| F[Amostragem estratificada]
     F --> G[head: 8 linhas]
     F --> H[mid: 8 linhas]
     F --> I[tail: 8 linhas]
@@ -135,13 +135,13 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Usu'ario chama cancel] --> B[_cancel_requested = True]
+    A[Usuário chama cancel] --> B[_cancel_requested = True]
     B --> C[requestInterruption]
-    C --> D{run est'a executando?}
+    C --> D{run está executando?}
     D -->|Sim| E[_is_cancelled?]
     E -->|Sim| F[Retornar early]
-    E -->|N~ao| G[Continuar processamento]
-    D -->|N~ao| H[N~ao faz nada]
+    E -->|Não| G[Continuar processamento]
+    D -->|Não| H[Não faz nada]
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style F fill:#f99,stroke:#333,stroke-width:2px
@@ -155,14 +155,14 @@ stateDiagram-v2
     Idle --> Running: start()
     Running --> Completed: run() finalizado
     Running --> Cancelled: cancel()
-    Running --> Error: Excec~ao
+    Running --> Error: Exceção
     Completed --> Idle: wait() retorna
     Cancelled --> Idle: wait() retorna
     Error --> Idle: error_occurred.emit()
     
     note right of Running
         Verifica _is_cancelled()
-        periodicamente durante execuc~ao
+        periodicamente durante execução
     end note
 ```
 
@@ -172,16 +172,16 @@ stateDiagram-v2
 flowchart LR
     subgraph "Cache Hit"
         A[Chave: hash+chunks+mode] --> B{Existe no cache?}
-        B -->|Sim| C[Retornar c'opia]
+        B -->|Sim| C[Retornar cópia]
         C --> D[Mover para final]
     end
     
     subgraph "Cache Miss"
-        B -->|N~ao| E[Executar filtro]
+        B -->|Não| E[Executar filtro]
         E --> F[Armazenar resultado]
         F --> G{Cache cheio?}
         G -->|Sim| H[Remover mais antigo]
-        G -->|N~ao| I[Adicionar ao final]
+        G -->|Não| I[Adicionar ao final]
         H --> I
     end
 ```

@@ -66,7 +66,7 @@ def test_gui_import():
 
 def test_cli_compatibility():
     """Verifica se CLI ainda funciona após mudanças."""
-    print("\n⌨ TESTANDO COMPATIBILIDADE CLI")
+    print("\nTESTANDO COMPATIBILIDADE CLI")
     print("=" * 50)
 
     try:

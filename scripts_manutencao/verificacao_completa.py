@@ -6,7 +6,7 @@ print("RUN TESTE FINAL - VERIFICAÇÃO COMPLETA")
 print("=" * 60)
 
 # 1. Verificar se o banco tem as colunas corretas
-print("\n1⃣ Verificando esquema do banco de dados...")
+print("\n1. Verificando esquema do banco de dados...")
 try:
     import sqlite3
     conn = sqlite3.connect('data/ssas.db')
@@ -31,7 +31,7 @@ except Exception as e:
     print(f"   ERR Erro no banco: {e}")
 
 # 2. Verificar mapeamento de colunas JSON
-print("\n2⃣ Verificando mapeamentos JSON...")
+print("\n2. Verificando mapeamentos JSON...")
 try:
     import json
     with open('config/column_mappings.json', 'r', encoding='utf-8') as f:
@@ -51,7 +51,7 @@ except Exception as e:
     print(f"   ERR Erro no JSON: {e}")
 
 # 3. Teste de importação de um arquivo problemático
-print("\n3⃣ Testando importação de arquivo problemático...")
+print("\n3. Testando importacao de arquivo problematico...")
 try:
     import os
     from extracao.extractor import extract_data_from_excel
@@ -71,10 +71,12 @@ except Exception as e:
     print(f"   ERR Erro na importação: {e}")
 
 # 4. Verificar se o programa principal roda
-print("\n4⃣ Status do sistema...")
+print("\n4. Status do sistema...")
 try:
     import os
-    result = os.system('python main.py --version > nul 2>&1')
+    import sys
+    redirect = '> nul 2>&1' if sys.platform == 'win32' else '> /dev/null 2>&1'
+    result = os.system(f'python main.py --version {redirect}')
     if result == 0:
         print("   OK Programa principal executável")
     else:

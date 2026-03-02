@@ -462,3 +462,11 @@ Pendencias absorvidas nesta migracao:
 1. estado e release atual movidos para docs ativos.
 2. backlog e matriz de pendencias sincronizados com snapshot atual.
 3. este arquivo segue como apoio de handoff; fonte primaria de execucao fica nos docs ativos listados acima.
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+
