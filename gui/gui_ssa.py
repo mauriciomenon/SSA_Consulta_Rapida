@@ -1471,9 +1471,69 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _get_canonical_available_columns(self) -> list[str]:
         """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
         legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
+        excluded_technical_columns = {
+            "id",
+            "desde",
+            "desde_1",
+            "desde_2",
+            "ate",
+            "ate_1",
+            "ate_2",
+            "tempo_excedido",
+            "tempo_total",
+            "tempo_disponivel",
+            "total_tempo_tpe_planejado",
+            "total_tempo_tex_planejado",
+            "total_tempo_tpo_planejado",
+            "total_tempo_tpe_executada",
+            "total_tempo_tex_executada",
+            "total_tempo_tpo_executada",
+            "total_horas_programadas",
+            "prazo_limite",
+            "data_limite",
+            "status_execucao_prazo",
+            "sistema_origem",
+            "registros_espera",
+            "num_reprobaciones",
+            "situacao_espera",
+            "numero_desvios",
+            "justificativa",
+            "parciais",
+            "situacao_da_parcial",
+            "atividade_especial",
+            "equipamento_retirado",
+            "sn_retirado",
+            "destino",
+            "equipamento_instalado",
+            "sn_instalado",
+            "sn_extra",
+            "origem",
+            "desativacao_da_localizacao",
+            "instalacao_estimada",
+            "executado",
+            "concluido",
+            "situacao_de_desvio",
+            "relacao",
+        }
         candidates = []
+        seen_candidates = set()
         always_allow = set()
         mapped_columns = set()
+
+        def _append_candidate(value, *, allow: bool = False):
+            if not isinstance(value, str):
+                return
+            col_name = value.strip()
+            if not col_name or col_name == "#":
+                return
+            if col_name in seen_candidates:
+                if allow:
+                    always_allow.add(col_name)
+                return
+            seen_candidates.add(col_name)
+            candidates.append(col_name)
+            if allow:
+                always_allow.add(col_name)
 
         def _collect_mapped_keys(mapping_obj):
             if not isinstance(mapping_obj, dict):
@@ -1493,32 +1553,30 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         ):
             values = getattr(self, attr_name, None)
             if isinstance(values, (list, tuple)):
-                candidates.extend(values)
-                always_allow.update([v for v in values if isinstance(v, str)])
+                for value in values:
+                    _append_candidate(value, allow=True)
 
         active_filters = getattr(self, "_active_column_filters", None)
         if isinstance(active_filters, dict):
             for key in active_filters.keys():
-                if not isinstance(key, str):
-                    continue
-                key_name = key.strip()
-                if not key_name:
-                    continue
-                candidates.append(key_name)
-                always_allow.add(key_name)
+                _append_candidate(key, allow=True)
         active_widgets = getattr(self, "_column_filter_widgets", None)
         if isinstance(active_widgets, dict):
             for key in active_widgets.keys():
-                if isinstance(key, str):
-                    key_name = key.strip()
-                    if not key_name:
-                        continue
-                    candidates.append(key_name)
-                    always_allow.add(key_name)
+                _append_candidate(key, allow=True)
 
         _collect_mapped_keys(DEFAULT_DISPLAY_MAPPINGS)
         _collect_mapped_keys(getattr(self, "internal_to_display", None))
         _collect_mapped_keys(getattr(self, "display_map", None))
+
+        allowed_columns = None
+        try:
+            allowed_raw = str(os.environ.get("SSA_ALLOWED_COLUMNS", "") or "").strip()
+            if allowed_raw:
+                allowed_columns = {token.strip() for token in allowed_raw.split(",") if token.strip()}
+        except Exception as exc:
+            logger.debug("Falha ao ler whitelist de colunas via SSA_ALLOWED_COLUMNS: %s", exc)
+            allowed_columns = None
 
         non_null_cols = None
         try:
@@ -1535,10 +1593,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if isinstance(non_null_cols, set) and non_null_cols:
             for col_name in non_null_cols:
                 if col_name in mapped_columns or col_name in always_allow:
-                    candidates.append(col_name)
+                    _append_candidate(col_name, allow=(col_name in always_allow))
         for col_name in always_allow:
             if col_name in mapped_columns:
-                candidates.append(col_name)
+                _append_candidate(col_name, allow=True)
 
         result = []
         seen = set()
@@ -1552,7 +1610,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 continue
             if col_name in legacy_invalid_columns:
                 continue
+            if col_name in excluded_technical_columns:
+                continue
+            if "_relacionada_" in col_name or "_relacionado_" in col_name:
+                continue
             if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                continue
+            if isinstance(allowed_columns, set) and col_name not in allowed_columns:
                 continue
             if col_name not in mapped_columns and col_name not in always_allow:
                 continue
@@ -2694,14 +2758,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             width_change = abs(event.size().width() - self._last_window_width)
             if width_change > 12:  # So recalcula se mudanca for > 12px
                 # Delay para evitar recãlculos excessivos durante resize
-                QTimer.singleShot(300, self._recompute_column_widths_on_resize)
+                expected_revision = int(getattr(self, "_data_revision", 0) or 0)
+                QTimer.singleShot(
+                    300,
+                    lambda rev=expected_revision: self._recompute_column_widths_on_resize(expected_revision=rev),
+                )
 
         # Salva largura atual
         self._last_window_width = event.size().width()
 
-    def _recompute_column_widths_on_resize(self):
+    def _recompute_column_widths_on_resize(self, expected_revision=None):
         """Recalcula e aplica larguras das colunas apos resize da janela."""
         try:
+            if hasattr(self, "isVisible") and not self.isVisible():
+                return
+            if expected_revision is not None:
+                current_revision = int(getattr(self, "_data_revision", 0) or 0)
+                if current_revision != int(expected_revision):
+                    return
             # Verifica se widgets estção em estado vãlido
             if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
                 not self.table_widget or not self.table_widget.isVisible()):
