@@ -85,6 +85,51 @@ RETIRED_WORKER_TTL_SEC = 300.0
 RETIRED_WORKER_FORCE_WAIT_MS = 500
 logger.addHandler(logging.NullHandler())
 
+EXCLUDED_CANONICAL_UI_COLUMNS = {
+    "id",
+    "desde",
+    "desde_1",
+    "desde_2",
+    "ate",
+    "ate_1",
+    "ate_2",
+    "tempo_excedido",
+    "tempo_total",
+    "tempo_disponivel",
+    "total_tempo_tpe_planejado",
+    "total_tempo_tex_planejado",
+    "total_tempo_tpo_planejado",
+    "total_tempo_tpe_executada",
+    "total_tempo_tex_executada",
+    "total_tempo_tpo_executada",
+    "total_horas_programadas",
+    "prazo_limite",
+    "data_limite",
+    "status_execucao_prazo",
+    "sistema_origem",
+    "registros_espera",
+    "num_reprobaciones",
+    "situacao_espera",
+    "numero_desvios",
+    "justificativa",
+    "parciais",
+    "situacao_da_parcial",
+    "atividade_especial",
+    "equipamento_retirado",
+    "sn_retirado",
+    "destino",
+    "equipamento_instalado",
+    "sn_instalado",
+    "sn_extra",
+    "origem",
+    "desativacao_da_localizacao",
+    "instalacao_estimada",
+    "executado",
+    "concluido",
+    "situacao_de_desvio",
+    "relacao",
+}
+
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
 
 # (mantido acima)
@@ -826,7 +871,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.debug("Failed to set WA_DeleteOnClose on main window: %s", exc)
         self.setWindowTitle("Consulta Rapida de SSAs")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1100, 700)
         # Icone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon
@@ -1471,50 +1516,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _get_canonical_available_columns(self) -> list[str]:
         """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
         legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
-        excluded_technical_columns = {
-            "id",
-            "desde",
-            "desde_1",
-            "desde_2",
-            "ate",
-            "ate_1",
-            "ate_2",
-            "tempo_excedido",
-            "tempo_total",
-            "tempo_disponivel",
-            "total_tempo_tpe_planejado",
-            "total_tempo_tex_planejado",
-            "total_tempo_tpo_planejado",
-            "total_tempo_tpe_executada",
-            "total_tempo_tex_executada",
-            "total_tempo_tpo_executada",
-            "total_horas_programadas",
-            "prazo_limite",
-            "data_limite",
-            "status_execucao_prazo",
-            "sistema_origem",
-            "registros_espera",
-            "num_reprobaciones",
-            "situacao_espera",
-            "numero_desvios",
-            "justificativa",
-            "parciais",
-            "situacao_da_parcial",
-            "atividade_especial",
-            "equipamento_retirado",
-            "sn_retirado",
-            "destino",
-            "equipamento_instalado",
-            "sn_instalado",
-            "sn_extra",
-            "origem",
-            "desativacao_da_localizacao",
-            "instalacao_estimada",
-            "executado",
-            "concluido",
-            "situacao_de_desvio",
-            "relacao",
-        }
         candidates = []
         seen_candidates = set()
         always_allow = set()
@@ -1590,37 +1591,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Evita scan direto em DataFrame aqui para nao disputar estado com workers.
         # A fonte oficial para "nao nulas" neste ponto e o cache ja calculado no fluxo de carga.
 
+        for col_name in mapped_columns:
+            _append_candidate(col_name, allow=(col_name in always_allow))
         if isinstance(non_null_cols, set) and non_null_cols:
             for col_name in non_null_cols:
-                if col_name in mapped_columns or col_name in always_allow:
-                    _append_candidate(col_name, allow=(col_name in always_allow))
+                _append_candidate(col_name, allow=(col_name in always_allow))
         for col_name in always_allow:
-            if col_name in mapped_columns:
-                _append_candidate(col_name, allow=True)
+            _append_candidate(col_name, allow=True)
 
         result = []
         seen = set()
+
+        def _is_canonical_column(col_name: str) -> bool:
+            if not col_name or col_name == "#":
+                return False
+            if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
+                return False
+            if col_name in legacy_invalid_columns:
+                return False
+            if col_name in EXCLUDED_CANONICAL_UI_COLUMNS:
+                return False
+            if "_relacionada_" in col_name or "_relacionado_" in col_name:
+                return False
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                return False
+            if isinstance(allowed_columns, set) and col_name not in allowed_columns:
+                return False
+            return True
+
         for col in candidates:
             if not isinstance(col, str):
                 continue
             col_name = col.strip()
-            if not col_name or col_name == "#" or col_name in seen:
+            if col_name in seen:
                 continue
-            if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
-                continue
-            if col_name in legacy_invalid_columns:
-                continue
-            if col_name in excluded_technical_columns:
-                continue
-            if "_relacionada_" in col_name or "_relacionado_" in col_name:
-                continue
-            if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
-                continue
-            if isinstance(allowed_columns, set) and col_name not in allowed_columns:
-                continue
-            if col_name not in mapped_columns and col_name not in always_allow:
-                continue
-            if non_null_cols is not None and col_name not in non_null_cols and col_name not in always_allow:
+            if not _is_canonical_column(col_name):
                 continue
             seen.add(col_name)
             result.append(col_name)
@@ -2772,13 +2777,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             if hasattr(self, "isVisible") and not self.isVisible():
                 return
+            table_widget = getattr(self, "table_widget", None)
+            if not _is_widget_valid(table_widget):
+                return
             if expected_revision is not None:
                 current_revision = int(getattr(self, "_data_revision", 0) or 0)
                 if current_revision != int(expected_revision):
                     return
             # Verifica se widgets estção em estado vãlido
-            if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
-                not self.table_widget or not self.table_widget.isVisible()):
+            if (
+                table_widget is None
+                or not hasattr(self, 'df_para_tabela')
+                or self.df_para_tabela.empty
+                or not table_widget.isVisible()
+            ):
                 return
 
             width_key = (
