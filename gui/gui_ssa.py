@@ -1477,7 +1477,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         for attr_name in (
             "visible_columns",
             "default_columns",
-            "_profile_columns",
             "_current_display_columns",
         ):
             values = getattr(self, attr_name, None)
@@ -1487,7 +1486,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         active_filters = getattr(self, "_active_column_filters", None)
         if isinstance(active_filters, dict):
-            always_allow.update([k for k in active_filters.keys() if isinstance(k, str)])
+            for key, raw_value in active_filters.items():
+                if not isinstance(key, str):
+                    continue
+                if str(raw_value).strip():
+                    candidates.append(key)
+                    always_allow.add(key)
+        active_widgets = getattr(self, "_column_filter_widgets", None)
+        if isinstance(active_widgets, dict):
+            for key in active_widgets.keys():
+                if isinstance(key, str):
+                    candidates.append(key)
+                    always_allow.add(key)
 
         non_null_cols = None
         try:
@@ -1498,18 +1508,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Falha ao ler cache de colunas nao nulas para menu canonico: %s", exc)
             non_null_cols = None
 
-        for df_attr in ("df_completo", "df_exibido"):
-            df_obj = getattr(self, df_attr, None)
-            if isinstance(df_obj, pd.DataFrame):
-                candidates.extend(list(df_obj.columns))
-
-        internal_map = getattr(self, "internal_to_display", None)
-        if isinstance(internal_map, dict):
-            candidates.extend(list(internal_map.keys()))
-
-        display_map = getattr(self, "display_map", None)
-        if isinstance(display_map, dict):
-            candidates.extend(list(display_map.keys()))
+        # Nota: nao incluir schema completo do DataFrame/DB aqui.
+        # O objetivo deste menu eh manter lista canonica e estavel de colunas de UI,
+        # evitando "sujeira" com campos tecnicos/eventuais.
 
         result = []
         seen = set()

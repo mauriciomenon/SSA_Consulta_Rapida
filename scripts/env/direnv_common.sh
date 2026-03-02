@@ -348,11 +348,20 @@ ssa_env__apply_path_exports() {
   export PYTHONUTF8=1
   export PYTHONDONTWRITEBYTECODE=1
   export SSA_ENV_ROOT="$ssa_env__repo_root"
+
+  if [[ -n "${VIRTUAL_ENV:-}" && -d "${VIRTUAL_ENV}/bin" ]]; then
+    case ":$PATH:" in
+      *":${VIRTUAL_ENV}/bin:"*) ;;
+      *) export PATH="${VIRTUAL_ENV}/bin:${PATH}" ;;
+    esac
+  fi
+
   if [[ -z "${SSA_ENV_PATH_APPLIED:-}" ]]; then
     export PATH="$ssa_env__repo_root/scripts:$ssa_env__repo_root/scripts_manutencao:$PATH"
     SSA_ENV_PATH_APPLIED=1
     export SSA_ENV_PATH_APPLIED
   fi
+  ssa_env__refresh_command_cache
   export SSA_ENV_ACTIVE=1
 }
 

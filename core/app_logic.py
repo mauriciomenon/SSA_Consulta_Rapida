@@ -561,6 +561,27 @@ def _update_cache_after_import(
         raise CacheError("Falha ao atualizar o cache apos importacao.") from exc
 
 
+def _update_cache_for_deterministic_failures(
+    failed_files: List[str], cache_file: str
+) -> None:
+    """Atualiza cache para arquivos com falha deterministica para evitar retrabalho inutil."""
+    if not failed_files:
+        return
+    deduped = list(dict.fromkeys([f for f in failed_files if isinstance(f, str) and f.strip()]))
+    if not deduped:
+        return
+    try:
+        caching.update_cache_for_files(deduped, cache_file)
+        logger.info(
+            "Cache atualizado para %s arquivo(s) com falha deterministica (aguardando mudanca de hash).",
+            len(deduped),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Falha ao atualizar cache para arquivos com erro deterministico: %s", exc
+        )
+
+
 # --- Funcao Principal Refatorada ---
 
 
@@ -724,6 +745,7 @@ def run_importer_logic(
         # --- 2. Processar cada arquivo ---
         successfully_processed_files = []
         critical_errors = []
+        deterministic_failed_files = []
 
         try:
             for index, file_path in enumerate(files_to_process):
@@ -832,6 +854,8 @@ def run_importer_logic(
                     if "operation cancelled" in msg and should_cancel:
                         logger.info("Cancelamento solicitado; interrompendo importacao.")
                         break
+                    if "missing required columns after normalization" in msg:
+                        deterministic_failed_files.append(file_path)
                     logger.warning(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
                     )
@@ -953,6 +977,10 @@ def run_importer_logic(
                 "Cache nao sera atualizado nesta execucao."
             )
             return False
+
+        _update_cache_for_deterministic_failures(
+            deterministic_failed_files, cache_file
+        )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:

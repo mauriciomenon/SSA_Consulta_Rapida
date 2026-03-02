@@ -1,5 +1,7 @@
 # Qwen Code Delegation Config
 
+
+
 Objetivo
 - Delegar lotes mecanicos para Qwen Code 3.5 com baixo custo de token/tempo.
 - Manter validacao final e decisao tecnica no agente principal.
@@ -91,4 +93,3 @@ Como utilizar (resumo rapido)
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-
