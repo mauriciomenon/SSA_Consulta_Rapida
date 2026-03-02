@@ -222,23 +222,6 @@ def display_current_page(window, page_number):
                     if "\n" in item_text or "\r" in item_text:
                         item_text = " ".join(item_text.split())
 
-                if item_text:
-                    try:
-                        metrics = window.table_widget.fontMetrics()
-                        available_px = max(10, int(window.table_widget.columnWidth(col_idx)) - 12)
-                        if metrics.horizontalAdvance(item_text) > available_px:
-                            item_text = metrics.elidedText(
-                                item_text,
-                                Qt.TextElideMode.ElideRight,
-                                available_px,
-                            )
-                    except Exception as exc:
-                        logger.debug(
-                            "Falha ao truncar texto por largura real da celula (col=%s): %s",
-                            col_name,
-                            exc,
-                        )
-
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 # Armazena o indice da linha original nos dados filtrados para referencia
