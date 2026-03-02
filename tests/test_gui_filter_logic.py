@@ -301,7 +301,10 @@ class TestGUIFilterLogic:
 
         controls = self._get_column_filter_controls()
         for col in self.window._column_filter_default_columns():
-            label = self.window._resolve_column_display_name(col)
+            if hasattr(self.window, "_expand_column_alias_for_filter"):
+                label = self.window._expand_column_alias_for_filter(col)
+            else:
+                label = self.window._resolve_column_display_name(col)
             assert label in controls
             _, apply_btn, hide_btn = controls[label]
             assert apply_btn.text() == "Aplicar"
@@ -607,8 +610,12 @@ class TestGUIFilterLogic:
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
         controls = self._get_column_filter_controls()
-        emissor_label = self.window._resolve_column_display_name('setor_emissor')
-        executor_label = self.window._resolve_column_display_name('setor_executor')
+        if hasattr(self.window, "_expand_column_alias_for_filter"):
+            emissor_label = self.window._expand_column_alias_for_filter('setor_emissor')
+            executor_label = self.window._expand_column_alias_for_filter('setor_executor')
+        else:
+            emissor_label = self.window._resolve_column_display_name('setor_emissor')
+            executor_label = self.window._resolve_column_display_name('setor_executor')
         assert emissor_label in controls
         assert executor_label in controls
         emissor_edit, emissor_apply, emissor_clear = controls[emissor_label]

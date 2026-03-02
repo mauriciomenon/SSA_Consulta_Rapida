@@ -196,8 +196,8 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
         return
     _ = width
     _, min_width, max_width = _resolve_adv_layout_baseline(self)
-    min_width = max(56, min(92, min_width))
-    max_width = max(min_width + 8, min(112, max_width))
+    min_width = max(52, min(86, min_width))
+    max_width = max(min_width + 8, min(104, max_width))
     try:
         grid_cols = int(getattr(self, "_adv_filters_grid_cols", LAYOUT_GRID_PREF_COLS) or LAYOUT_GRID_PREF_COLS)
     except Exception:
@@ -206,12 +206,13 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
     if width > 0:
         cell_width = max(120, int(width // grid_cols))
         pair_budget = max(116, cell_width - 12)
-        per_button_budget = max(48, int((pair_budget - 10) // 2))
+        per_button_budget = max(44, int((pair_budget - 8) // 2))
         max_width = min(max_width, per_button_budget)
         min_width = min(min_width, max_width)
-    if getattr(self, "_adv_filters_action_btn_min_width", None) == min_width:
+    new_dims = (min_width, max_width)
+    if getattr(self, "_adv_filters_action_btn_dims", None) == new_dims:
         return
-    self._adv_filters_action_btn_min_width = min_width
+    self._adv_filters_action_btn_dims = new_dims
     for btn in (apply_btn, clear_btn):
         if not _is_widget_valid(btn):
             continue
@@ -222,7 +223,7 @@ def _update_advanced_filters_action_buttons(self, width: int) -> None:
                 ref_font.setBold(False)
                 btn.setFont(ref_font)
                 ref_h = int(ref_btn.height() or ref_btn.sizeHint().height() or LAYOUT_ADV_CONTROL_HEIGHT)
-                ref_h = max(22, min(28, ref_h))
+                ref_h = max(20, min(26, ref_h))
                 btn.setMinimumHeight(ref_h)
                 btn.setMaximumHeight(ref_h)
             btn.setMinimumWidth(min_width)
@@ -779,9 +780,9 @@ def _rebuild_multiselect_menu(
         max_label_len = 8
     has_exclude_column = exclude_selected_set is not None
     button_width = _safe_widget_width(button)
-    content_width = (max_label_len * 8) + (132 if has_exclude_column else 84)
-    popup_min_width = max(170, min(300, max(button_width + 6, content_width)))
-    popup_max_width = max(popup_min_width, min(360, popup_min_width + 60))
+    content_width = (max_label_len * 8) + (120 if has_exclude_column else 76)
+    popup_min_width = max(156, min(260, max(button_width + 4, content_width)))
+    popup_max_width = max(popup_min_width, min(320, popup_min_width + 44))
     try:
         menu.setMinimumWidth(popup_min_width)
         menu.setMaximumWidth(popup_max_width)
@@ -1384,8 +1385,8 @@ def _build_advanced_filters_panel(self):
         apply_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMinimumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
         clear_btn.setMaximumHeight(LAYOUT_ADV_CONTROL_HEIGHT)
-        apply_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        clear_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        apply_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     except Exception as exc:
         logger.debug("Falha ao estilizar botoes de acao dos filtros avancados: %s", exc)
     apply_btn.clicked.connect(self._apply_advanced_filters_from_ui)
@@ -1403,9 +1404,9 @@ def _build_advanced_filters_panel(self):
         action_sep.setMidLineWidth(0)
     except Exception as exc:
         logger.debug("Falha ao configurar separador dos botoes de acao dos filtros avancados: %s", exc)
-    action_layout.addWidget(apply_btn, 1)
+    action_layout.addWidget(apply_btn)
     action_layout.addWidget(action_sep)
-    action_layout.addWidget(clear_btn, 1)
+    action_layout.addWidget(clear_btn)
     initial_widgets = [
         emis_box,
         exec_box,
@@ -1470,7 +1471,7 @@ def _build_advanced_filters_panel(self):
     self._adv_filters_apply_btn = apply_btn
     self._adv_filters_clear_btn = clear_btn
     self._adv_filters_action_widget = action_box
-    self._adv_filters_action_btn_min_width = None
+    self._adv_filters_action_btn_dims = None
     self._adv_filters_controls_scroll = controls_scroll
     self._adv_filters_grid_cols = None
     self._adv_filters_last_widget_count = None

@@ -84,3 +84,11 @@ Como utilizar (resumo rapido)
 1. Antes de analise/decisao complexa: aplicar a regra de reasoning definida em `AGENTS.md`.
 2. Para tarefas repetitivas: usar Qwen para checks e checklist.
 3. Antes do commit: validacao final independente do agente principal + kluster clean.
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+

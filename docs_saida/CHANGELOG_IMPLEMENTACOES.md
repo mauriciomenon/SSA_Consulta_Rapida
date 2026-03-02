@@ -59,3 +59,11 @@
 - Sincronizacao dos metadados de versao (arquivo `VERSION` + `config/version.json`) antes do congelamento de build.
 - Conferencia de scripts de logging para garantir que handlers continuem emitindo metricas de desempenho em execucoes GUI/CLI.
 - Revisao das prioridades de colunas para exportacao, validando novamente as chaves `short_labels` e `fixed_widths` usadas no CLI.
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+

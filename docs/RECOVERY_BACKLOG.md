@@ -907,3 +907,11 @@ Approved scope for next slice:
 
 This legacy section was replaced by the canonical active queue in docs/PENDING_ACTION_MATRIX.md.
 Historical review-thread entries were removed here to avoid duplicate pending counts.
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+- Pendencia nao bloqueante: extrair a funcao `_rebuild_multiselect_menu` em blocos menores (layout/estilo/eventos) sem alterar comportamento visual.

@@ -90,8 +90,9 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert df['local'].iloc[1] == 'Sala B'
 
 
-def test_read_report_returns_error_metadata_on_missing_file():
-    df, metadata = read_report("/tmp/arquivo_inexistente_12345.xlsx")
+def test_read_report_returns_error_metadata_on_missing_file(tmp_path):
+    missing_file = tmp_path / "arquivo_inexistente_12345.xlsx"
+    df, metadata = read_report(str(missing_file))
     assert isinstance(df, pd.DataFrame)
     assert df.empty
     assert metadata["stats_dict"]["status"] == "error"
@@ -165,9 +166,10 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     assert extracted.empty
 
 
-def test_extract_data_from_excel_respects_cancel_callback_before_io():
+def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
+    fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):
         extract_data_from_excel(
-            "/tmp/arquivo_que_nao_precisa_existir.xlsx",
+            str(fake_file),
             should_cancel=lambda: True,
         )

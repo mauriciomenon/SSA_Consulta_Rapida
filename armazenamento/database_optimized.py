@@ -18,18 +18,17 @@ fragile - if get_db_connection moves lower in database.py, circular import will 
 # Last modified: 2025-10-29T11:10:00 (circular import documentation)
 
 from __future__ import annotations
-
-import logging
 import sqlite3
 import time
 import pandas as pd
 
+from utils.robust_logging import get_robust_logger
 from .database import get_db_connection  # Top-level import (safe - defined early in database.py)
 from .identifier_utils import is_valid_identifier
-from .numero_ssa_utils import _normalize_numero_ssa_value
 from .schema_manager import ensure_columns_exist
-
-logger = logging.getLogger(__name__)
+from shared.date_utils import parse_datetime_series_mixed
+from shared.numero_ssa import normalize_numero_ssa, normalize_strict
+logger = get_robust_logger().get_logger(__name__, "core")
 
 
 # ===== SQLITE LIMITS AND CHUNK HELPERS =====
@@ -46,13 +45,13 @@ def _quote_identifier(identifier: str) -> str:
 
 
 def _normalize_ssa_storage_value(value) -> str | None:
-    normalized_int = _normalize_numero_ssa_value(value)
-    if normalized_int is None:
+    strict_value = normalize_strict(value)
+    if strict_value is not None:
+        return strict_value
+    legacy_value = normalize_numero_ssa(value)
+    if legacy_value is None:
         return None
-    try:
-        return str(int(normalized_int))
-    except Exception:
-        return None
+    return normalize_strict(legacy_value)
 
 
 def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
@@ -63,6 +62,45 @@ def _validate_canonical_storage_ids(work: pd.DataFrame) -> None:
         series = work[col].dropna().astype(str).str.strip()
         if series.str.contains(".", regex=False).any():
             raise ValueError(f"Non-canonical value detected in {col}; decimal artifact is not allowed")
+
+
+def _deduplicate_ssa_rows(df: pd.DataFrame, *, already_normalized: bool = False) -> pd.DataFrame:
+    """Keep only one row per numero_ssa, prioritizing the newest data_cadastro when available."""
+    if "numero_ssa" not in df.columns or df.empty:
+        return df
+    if already_normalized:
+        normalized_ssa = (
+            df["numero_ssa"]
+            .astype("object")
+            .map(lambda v: None if v is None else (str(v).strip() or None))
+        )
+    else:
+        normalized_ssa = df["numero_ssa"].map(_normalize_ssa_storage_value)
+    valid_mask = normalized_ssa.notna()
+    if not bool(valid_mask.any()):
+        return df.iloc[0:0].copy()
+    if bool(normalized_ssa[valid_mask].is_unique):
+        dedup_df = df.loc[valid_mask].copy()
+        dedup_df["numero_ssa"] = normalized_ssa.loc[valid_mask]
+        return dedup_df
+
+    dedup_df = df.loc[valid_mask].copy()
+    dedup_df["numero_ssa"] = normalized_ssa.loc[valid_mask]
+    if dedup_df.empty:
+        return dedup_df
+    if "data_cadastro" in dedup_df.columns:
+        try:
+            parsed = parse_datetime_series_mixed(dedup_df["data_cadastro"])
+            dedup_df = dedup_df.assign(__sort_date=parsed).sort_values(
+                "__sort_date",
+                ascending=True,
+                na_position="first",
+            )
+            dedup_df = dedup_df.drop(columns=["__sort_date"], errors="ignore")
+        except Exception as exc:
+            logger.debug("Falha ao ordenar deduplicacao por data_cadastro: %s", exc)
+    dedup_df = dedup_df.drop_duplicates(subset=["numero_ssa"], keep="last")
+    return dedup_df
 
 
 def sqlite_safe_chunksize(num_columns: int, cap: int = SQLITE_DEFAULT_CHUNK_CAP) -> int:
@@ -178,7 +216,7 @@ def insert_dataframe_optimized(
         ]
         for col in date_columns:
             if col in work.columns:
-                work[col] = pd.to_datetime(work[col], errors='coerce', dayfirst=True)
+                work[col] = parse_datetime_series_mixed(work[col])
                 work[col] = (
                     work[col]
                     .dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -240,6 +278,7 @@ def insert_dataframe_optimized(
 
             # ===== ESTRATÉGIA OTIMIZADA PARA REGISTROS COM SSA =====
             if not has_ssa.empty:
+                has_ssa = _deduplicate_ssa_rows(has_ssa, already_normalized=True)
                 # Verificar se tabela existe antes de fazer SELECT
                 try:
                     table_exists = pd.read_sql_query(
@@ -292,13 +331,9 @@ def insert_dataframe_optimized(
                                         exc,
                                     )
                                     continue
-                                logger.warning(
-                                    "Falha no lookup de SSAs (chunk=%s): %s",
-                                    len(chunk_ssas),
-                                    exc,
-                                )
-                                i += len(chunk_ssas)
-                                continue
+                                raise RuntimeError(
+                                    f"Falha no lookup de SSAs (chunk={len(chunk_ssas)}): {exc}"
+                                ) from exc
                             if not chunk_df.empty:
                                 chunk_df["numero_ssa"] = chunk_df["numero_ssa"].map(_normalize_ssa_storage_value)
                                 chunk_df = chunk_df[chunk_df["numero_ssa"].notna()]
@@ -356,18 +391,26 @@ def insert_dataframe_optimized(
                     # Processar em chunks seguros para SQLite (centralizado)
                     CHUNK_SIZE = sqlite_safe_chunksize(len(update_df.columns))
                     logger.debug(f"Chunk size calculado: {CHUNK_SIZE} linhas para {len(update_df.columns)} colunas")
+                    savepoint_started = False
                     try:
                         conn.execute("SAVEPOINT ssa_batch_update")
+                        savepoint_started = True
+                    except Exception as exc:
+                        logger.error("Falha ao iniciar SAVEPOINT ssa_batch_update: %s", exc)
+                        raise
+                    try:
                         update_columns = [
                             col for col in update_df.columns if col not in ("numero_ssa", "id")
                         ]
                         if not update_columns:
                             logger.info("Nenhuma coluna atualizavel encontrada; pulando atualizacao")
                         elif _has_referencing_foreign_keys(conn, target_table):
+                            validated_update_columns = []
                             quoted_update_columns = []
                             for col in update_columns:
                                 if not is_valid_identifier(col):
                                     raise ValueError(f"Invalid SQL identifier for column: {col!r}")
+                                validated_update_columns.append(col)
                                 quoted_update_columns.append(_quote_identifier(col))
                             set_clause = ", ".join([f"{col}=?" for col in quoted_update_columns])
                             update_sql = (
@@ -376,7 +419,7 @@ def insert_dataframe_optimized(
                             for i in range(0, len(update_df), CHUNK_SIZE):
                                 chunk = update_df.iloc[i:i + CHUNK_SIZE]
                                 params = list(
-                                    chunk[update_columns + ["numero_ssa"]]
+                                    chunk[validated_update_columns + ["numero_ssa"]]
                                     .itertuples(index=False, name=None)
                                 )
                                 if params:
@@ -421,15 +464,17 @@ def insert_dataframe_optimized(
                                 "[OK] Atualizados %s registros existentes",
                                 len(update_df),
                             )
-                        conn.execute("RELEASE SAVEPOINT ssa_batch_update")
+                        if savepoint_started:
+                            conn.execute("RELEASE SAVEPOINT ssa_batch_update")
                     except Exception:
-                        try:
-                            conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
-                        except Exception as exc:
-                            logger.error(
-                                "Falha ao fazer rollback do SAVEPOINT ssa_batch_update: %s",
-                                exc,
-                            )
+                        if savepoint_started:
+                            try:
+                                conn.execute("ROLLBACK TO SAVEPOINT ssa_batch_update")
+                            except Exception as exc:
+                                logger.error(
+                                    "Falha ao fazer rollback do SAVEPOINT ssa_batch_update: %s",
+                                    exc,
+                                )
                         raise
 
             # Commit explícito
