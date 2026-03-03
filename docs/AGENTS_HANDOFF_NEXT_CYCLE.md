@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 19:20 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. Sprint A hotfix closed in `core/app_logic.py` for full-rescan lock/checkpoint path.
+  2. focused regression added in `tests/test_app_logic_full_rescan_lock.py`.
+- What changed:
+  1. removed explicit `BEGIN IMMEDIATE` from the same block that runs `PRAGMA wal_checkpoint(TRUNCATE)`.
+  2. full-rescan preparation no longer self-locks in a no-contention WAL scenario.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py`: `1 passed`
+  5. kluster auto: clean -> clean
+- Deferred next:
+  1. Sprint C (TOCTOU hardening in `interface/cli_enhancement_manager.py`)
+  2. Sprint B (structured extraction error classification and deterministic-failure cache test)
+  3. Sprint D/E (docs portability and controlled debt cleanup)
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
 ## CURRENT TRUTH 2026-03-03 15:25 - authoritative block
 
 - Active branch: `dev`.
