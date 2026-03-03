@@ -784,42 +784,39 @@ def _build_derivadas_tree_html(
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
-    lines.append("<b>Arvore de derivadas:</b><br/><br/>")
-    lines.append(f"<b>SSA {_ssa_link(target)}</b><br/><br/>")
+    lines.append("<b>Lista de derivadas:</b><br/><br/>")
+    lines.append(f"<b>{_ssa_link(target)}</b><br/><br/>")
     parents = data.get("parents", [])
+    lines.append("<b>SSA originaria</b><br/>")
     if parents:
-        parent_links = ", ".join(_ssa_link(p) for p in parents)
-        lines.append(f"<b>Mae direta:</b> {parent_links}<br/>")
+        for parent in parents:
+            lines.append(f"&nbsp;&nbsp;{_ssa_link(parent)}<br/>")
     else:
-        lines.append("<b>Mae direta:</b> -<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
     lines.append("<br/>")
 
     children = data.get("children", [])
-    lines.append(f"<b>Filhas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
+    lines.append(f"<b>SSAs derivadas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
     if children:
         for child in children:
-            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)}<br/>")
+            lines.append(f"&nbsp;&nbsp;{_ssa_link(child)}<br/>")
     else:
-        lines.append("&nbsp;&nbsp;- nenhuma<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
     lines.append("<br/>")
 
     descendants = data.get("descendants", [])
     desc_count = int(data.get("descendants_count", 0))
-    lines.append(f"<b>Descendentes ({desc_count})</b><br/>")
+    lines.append(f"<b>SSAs derivadas de derivadas ({desc_count})</b><br/>")
     if descendants:
         for item in descendants[:50]:
             ssa = str(item.get("ssa", "")).strip()
-            dist = item.get("min_distance")
             if ssa:
-                lines.append(f"&nbsp;&nbsp;- {_ssa_link(ssa)} (dist={dist})<br/>")
+                lines.append(f"&nbsp;&nbsp;{_ssa_link(ssa)}<br/>")
         extra = len(descendants) - min(len(descendants), 50)
         if extra > 0:
-            lines.append(f"&nbsp;&nbsp;- ... (+{extra})<br/>")
-    elif children:
-        for child in children[:50]:
-            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)} (dist=1)<br/>")
+            lines.append(f"&nbsp;&nbsp;... (+{extra})<br/>")
     else:
-        lines.append("&nbsp;&nbsp;- nenhum<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
 
     ancestors = data.get("ancestors", [])
     if ancestors:
