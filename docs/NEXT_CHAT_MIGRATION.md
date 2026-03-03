@@ -2,6 +2,28 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-03 19:27 - start from here
+
+- Active branch: `dev`.
+- Slice status:
+  1. Sprint B delivered: extraction error classification migrated from substring checks to structured `error_code`.
+  2. deterministic-failure cache trigger covered by dedicated regression tests.
+- Runtime change summary:
+  1. `ExtractionError` in extractor/core now carries optional `error_code`.
+  2. importer loop in `core/app_logic.py` uses `error_code` (`OPERATION_CANCELLED`, `MISSING_REQUIRED_COLUMNS`) instead of message substring parsing.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_import_deterministic_failure_cache.py tests/test_extracao.py tests/test_import_derivadas_trigger.py`: `24 passed`
+  5. kluster auto: clean -> clean
+- Deferred order for next cycle:
+  1. Sprint D (docs-only consistency/portability, no runtime).
+  2. Sprint E (controlled debt cleanup in GUI table helper, no layout change).
+- Local residue contract:
+  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
+  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
+
 ## CURRENT TRUTH 2026-03-03 19:24 - start from here
 
 - Active branch: `dev`.

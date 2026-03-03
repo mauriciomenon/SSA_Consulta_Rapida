@@ -51,7 +51,9 @@ class CacheError(ImporterError):
 class ExtractionError(ImporterError):
     """Erro durante a extracao de dados de um arquivo."""
 
-    pass
+    def __init__(self, message: str, error_code: str | None = None):
+        super().__init__(message)
+        self.error_code = error_code
 
 
 class DatabaseError(ImporterError):
@@ -183,13 +185,13 @@ def _import_single_file(
     try:
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
         if should_cancel and should_cancel():
-            raise ExtractionError("operation cancelled")
+            raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
         if df is None:
             raise ExtractionError(f"Extractor retornou None para '{file_path}'")
         if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
-                raise ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
             validation_report = database.validate_dataframe_before_insert(
@@ -274,7 +276,7 @@ def _import_single_file(
 
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             if should_cancel and should_cancel():
-                raise ExtractionError("operation cancelled")
+                raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
             success = database.insert_dataframe_with_smart_upsert(
                 df, db_path, table_name
             )
@@ -294,7 +296,10 @@ def _import_single_file(
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
         message = str(e).strip() or "Erro de extracao sem detalhe"
-        raise ExtractionError(message) from e
+        raise ExtractionError(
+            message,
+            error_code=getattr(e, "error_code", None),
+        ) from e
     except ExtractionError:
         raise
     except DatabaseError:
@@ -921,11 +926,11 @@ def run_importer_logic(
                     )
                     continue
                 except ExtractionError as e:
-                    msg = str(e).lower()
-                    if "operation cancelled" in msg and should_cancel:
+                    error_code = getattr(e, "error_code", None)
+                    if error_code == "OPERATION_CANCELLED" and should_cancel:
                         logger.info("Cancelamento solicitado; interrompendo importacao.")
                         break
-                    if "missing required columns after normalization" in msg:
+                    if error_code == "MISSING_REQUIRED_COLUMNS":
                         deterministic_failed_files.append(file_path)
                     logger.warning(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."

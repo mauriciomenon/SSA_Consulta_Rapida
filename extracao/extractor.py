@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 class ExtractionError(Exception):
     """Erro durante a extração de dados de um arquivo."""
-    pass
+    def __init__(self, message: str, error_code: str | None = None):
+        super().__init__(message)
+        self.error_code = error_code
 
 def _load_column_mappings() -> dict:
     """
@@ -233,7 +235,10 @@ def extract_data_from_excel(
     try:
         def _check_cancel() -> None:
             if should_cancel is not None and should_cancel():
-                raise ExtractionError("operation cancelled")
+                raise ExtractionError(
+                    "operation cancelled",
+                    error_code="OPERATION_CANCELLED",
+                )
 
         _check_cancel()
         all_sheets_data = []
@@ -329,7 +334,8 @@ def extract_data_from_excel(
         missing_required = required_columns.difference(set(combined_df.columns))
         if missing_required:
             raise ExtractionError(
-                f"Missing required columns after normalization: {sorted(missing_required)}"
+                f"Missing required columns after normalization: {sorted(missing_required)}",
+                error_code="MISSING_REQUIRED_COLUMNS",
             )
 
         if 'prazo_limite' in combined_df.columns:
