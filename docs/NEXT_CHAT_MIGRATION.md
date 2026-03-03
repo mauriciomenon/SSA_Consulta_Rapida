@@ -5,7 +5,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 ## CURRENT TRUTH 2026-03-01 23:55 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.28`.
+- Local release baseline: `4.29`.
 - Latest patch package:
   1. importer deterministic-failure cache marks for unchanged invalid files.
   2. derivadas dedicated phase kept compatible with existing contract/tests.

@@ -1,9 +1,9 @@
 # CHANGELOG DE IMPLEMENTACOES
 
-## 2026-03-01 - Release v4.28 (tema geral + legibilidade)
+## 2026-03-02 - Release v4.29 (tema geral + legibilidade)
 - Baseline de release patch atualizado:
-  - `VERSION` para `4.28`
-  - `config/version.json` para baseline `v4.28`
+  - `VERSION` para `4.29`
+  - `config/version.json` para baseline `v4.29`
 - GUI de filtros/tabela com consistencia de tema por regra geral:
   - popups/menus/checks amarrados a roles de tema, com reducao de fallback visual ad-hoc;
   - resumo de multiselect exibe texto completo quando ha espaco e trunca pelo ultimo caractere util;
@@ -66,4 +66,3 @@
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-
