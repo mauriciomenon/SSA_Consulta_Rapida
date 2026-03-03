@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 19:27 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. Sprint B closed in `core/app_logic.py` + `extracao/extractor.py` with structured extraction error classification.
+  2. dedicated deterministic-cache regression added in `tests/test_import_deterministic_failure_cache.py`.
+- What changed:
+  1. `ExtractionError` now carries optional `error_code` in extractor and core layers.
+  2. importer deterministic-failure classification no longer depends on substring parsing.
+  3. deterministic failure cache is now triggered by `error_code == MISSING_REQUIRED_COLUMNS`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_import_deterministic_failure_cache.py tests/test_extracao.py tests/test_import_derivadas_trigger.py`: `24 passed`
+  5. kluster auto: clean -> clean
+- Deferred next:
+  1. Sprint D (docs-only portability and consistency cleanup)
+  2. Sprint E (controlled technical debt cleanup in GUI table helper path)
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
 ## CURRENT TRUTH 2026-03-03 19:24 - authoritative block
 
 - Active branch: `dev`.

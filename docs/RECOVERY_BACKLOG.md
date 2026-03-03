@@ -3,6 +3,30 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (sprint B structured extraction classification)
+
+Delivered in this slice:
+1. `ExtractionError` now supports structured `error_code` in both `core/app_logic.py` and `extracao/extractor.py`.
+2. Import loop in `core/app_logic.py` now classifies extraction outcomes by `error_code` (no substring matching for deterministic failure detection).
+3. Added focused tests in `tests/test_import_deterministic_failure_cache.py`:
+   - preserve extractor `error_code` when normalized into core layer;
+   - update deterministic-failure cache by `MISSING_REQUIRED_COLUMNS` code path.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_import_deterministic_failure_cache.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_import_deterministic_failure_cache.py tests/test_extracao.py tests/test_import_derivadas_trigger.py`: `24 passed`
+5. kluster auto review runs in this slice: clean -> clean
+
+Decision and scope:
+1. Sprint B closed with minimal runtime change in extraction error contract and deterministic cache trigger.
+2. No GUI layout or position change in this slice.
+
+Deferred (next slices):
+1. Sprint D: docs-only portability and consistency cleanup.
+2. Sprint E: controlled technical debt cleanup in GUI table helper path.
+
 ## Update 2026-03-03 (sprint C lock-file TOCTOU hardening)
 
 Delivered in this slice:

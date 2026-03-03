@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+import core.app_logic as app_logic
+import extracao.extractor as extractor
+
+
+def _patch_integrity_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app_logic.database, "repair_database_if_needed", lambda *a, **k: True)
+    monkeypatch.setattr(
+        app_logic.database,
+        "verify_database_integrity",
+        lambda *a, **k: {
+            "is_valid": True,
+            "database_accessible": True,
+            "table_exists": True,
+            "schema_valid": True,
+            "data_consistent": True,
+            "disk_space_sufficient": True,
+            "warnings": [],
+            "issues": [],
+        },
+    )
+
+
+def test_import_single_file_preserves_extraction_error_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    xlsx_path = tmp_path / "bad.xlsx"
+    xlsx_path.write_bytes(b"x")
+
+    def _raise_extract(*_args, **_kwargs):
+        raise extractor.ExtractionError(
+            "Missing required columns after normalization: ['numero_ssa']",
+            error_code="MISSING_REQUIRED_COLUMNS",
+        )
+
+    monkeypatch.setattr(app_logic.extractor, "extract_data_from_excel", _raise_extract)
+
+    with pytest.raises(app_logic.ExtractionError) as excinfo:
+        app_logic._import_single_file(
+            str(xlsx_path),
+            str(tmp_path / "db.sqlite"),
+            "ssa_table",
+        )
+
+    assert excinfo.value.error_code == "MISSING_REQUIRED_COLUMNS"
+
+
+def test_run_importer_updates_deterministic_failure_cache_by_error_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    bad_file = docs_dir / "Consulta SSA - bad.xlsx"
+    bad_file.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety,
+        "ALLOWED_ROOTS",
+        list(path_safety.ALLOWED_ROOTS) + [tmp_path],
+    )
+    _patch_integrity_ok(monkeypatch)
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [str(bad_file)])
+    monkeypatch.setattr(app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *a, **k: (_ for _ in ()).throw(
+            app_logic.ExtractionError(
+                "Missing required columns after normalization: ['numero_ssa']",
+                error_code="MISSING_REQUIRED_COLUMNS",
+            )
+        ),
+    )
+
+    deterministic_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_for_deterministic_failures",
+        lambda failed_files, cache_file: deterministic_calls.append(list(failed_files)),
+    )
+    cache_after_calls = {"n": 0}
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_after_calls.__setitem__("n", cache_after_calls["n"] + 1),
+    )
+
+    updated = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is False
+    assert deterministic_calls == [[str(bad_file)]]
+    assert cache_after_calls["n"] == 0
