@@ -41,10 +41,11 @@ class RescanWorker(QThread):
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
-    def __init__(self, main_py_path, project_root):
+    def __init__(self, main_py_path, project_root, force_import: bool = True):
         super().__init__()
         self.main_py_path = main_py_path  # Not used anymore but kept for compatibility
         self.project_root = project_root
+        self.force_import = bool(force_import)
         self._should_stop = False
 
         # Set up logging to capture import messages
@@ -127,7 +128,8 @@ class RescanWorker(QThread):
     def run(self):
         """Execute rescan in background thread using modular import."""
         try:
-            self.output_line.emit("=== Iniciando Reescaneamento (Modular) ===")
+            mode_label = "FULL" if self.force_import else "DIFF"
+            self.output_line.emit(f"=== Iniciando Reescaneamento ({mode_label}) ===")
             self.output_line.emit("")
             self.progress.emit(5, "Configurando...")
 
@@ -140,7 +142,7 @@ class RescanWorker(QThread):
                 data_dir='data',
                 db_name='ssas.db',
                 table_name='ssa_table',
-                force_import=True,  # Rescan = force reimport
+                force_import=self.force_import,
                 should_cancel=lambda: self._should_stop,
                 progress_callback=self._progress_callback,
             )

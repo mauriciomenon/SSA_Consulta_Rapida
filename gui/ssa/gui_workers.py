@@ -909,6 +909,33 @@ def rescan_data(
     retired_force_wait_ms: int,
     sip_module,
 ) -> None:
+    force_import = True
+    if qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
+        prompt = qmessagebox(window)
+        prompt.setWindowTitle("Modo de Reescaneamento")
+        prompt.setText("Escolha o modo de reprocessamento dos arquivos.")
+        prompt.setInformativeText(
+            "Diff usa hashes e processa apenas arquivos alterados. "
+            "Full recria o banco do zero e reprocessa tudo."
+        )
+        diff_btn = prompt.addButton("Diff (hash)", qmessagebox.ButtonRole.ActionRole)
+        full_btn = prompt.addButton("Full (zera e reprocessa)", qmessagebox.ButtonRole.ActionRole)
+        cancel_btn = prompt.addButton(qmessagebox.StandardButton.Cancel)
+        try:
+            prompt.setDefaultButton(diff_btn)
+        except Exception:
+            pass
+        prompt.exec()
+        clicked = prompt.clickedButton()
+        if clicked is None or clicked == cancel_btn:
+            _set_status_label_text(
+                window,
+                "Status: Reescaneamento cancelado pelo usuario.",
+                context="rescan.cancel.mode",
+            )
+            return
+        force_import = clicked == full_btn
+
     try:
         prune_retired_rescan_workers(
             window,
@@ -944,7 +971,12 @@ def rescan_data(
 
     progress_dialog = rescan_dialog_cls(window)
 
-    worker = rescan_worker_cls(main_py_path, project_root)
+    try:
+        worker = rescan_worker_cls(main_py_path, project_root, force_import=force_import)
+    except TypeError as exc:
+        if "force_import" not in str(exc):
+            raise
+        worker = rescan_worker_cls(main_py_path, project_root)
     window._active_rescan_worker = worker
 
     _connect_signal(worker.output_line, progress_dialog.append_output, label="rescan.output_line")
