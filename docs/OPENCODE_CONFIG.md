@@ -18,7 +18,7 @@
    - Variantes: high, medium, low
 
 3. **Google (Gemini - Para multimodal)**
-   - Modelo: `google/antigravity-gemini-3.1-pro`
+   - Modelo: `google/antigravity-gemini-3-pro`
    - Modelo: `google/antigravity-gemini-3-flash`
    - Contexto: 1M tokens
    - Suporte a imagem/PDF

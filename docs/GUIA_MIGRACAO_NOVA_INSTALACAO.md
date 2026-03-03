@@ -71,7 +71,11 @@ ls main.py, requirements.txt, README.md
 # Fluxo recomendado (uv-first)
 uv venv
 uv sync
-uv run --python 3.13 python --version
+
+# Definir runtime com fallback explicito
+# Ordem recomendada: 3.13 -> 3.12 -> 3.11 -> 3.10
+$PY_RUNTIME = "3.13"
+uv run --python $PY_RUNTIME python --version
 
 # Compatibilidade sem uv (fallback)
 python -m venv venv
@@ -170,7 +174,7 @@ pip list | findstr -i "pandas pyqt6 openpyxl"
 ### **Teste 1: Help do Sistema**
 ```powershell
 # Verificar help completo
-uv run --python 3.13 python main.py --help
+uv run --python $PY_RUNTIME python main.py --help
 
 # Deve exibir help detalhado com todas as opcoes
 ```
@@ -194,7 +198,7 @@ except ImportError as e:
 ### **Teste 3: Criacao do Banco**
 ```powershell
 # Criar estrutura do banco (sem dados)
-uv run --python 3.13 python main.py --reset-db
+uv run --python $PY_RUNTIME python main.py --reset-db
 
 # Verificar se o banco foi criado
 ls data\ssas.db
@@ -224,13 +228,13 @@ ls docs_entrada
 ### **Passo 2: Importacao Inicial**
 ```powershell
 # Importacao padrao (primeira vez)
-uv run --python 3.13 python main.py
+uv run --python $PY_RUNTIME python main.py
 
 # Ou importacao otimizada (recomendado para arquivos grandes)
-uv run --python 3.13 python main.py --optimized
+uv run --python $PY_RUNTIME python main.py --optimized
 
 # Ou forcar reimportacao completa
-uv run --python 3.13 python main.py --force-rescan
+uv run --python $PY_RUNTIME python main.py --force-rescan
 ```
 
 ### **Passo 3: Verificar Importacao**
@@ -249,7 +253,7 @@ type data\file_cache.json
 ### **Teste 1: Interface CLI**
 ```powershell
 # Testar CLI interativo
-uv run --python 3.13 python main.py
+uv run --python $PY_RUNTIME python main.py
 
 # Comandos de teste na CLI:
 # - Digite: help
@@ -260,7 +264,7 @@ uv run --python 3.13 python main.py
 ### **Teste 2: Interface Grafica**
 ```powershell
 # Testar GUI
-uv run --python 3.13 python main.py --gui
+uv run --python $PY_RUNTIME python main.py --gui
 
 # Verificar funcionalidades:
 # - Carregamento da tabela
@@ -304,19 +308,19 @@ python -c "import sys; print('\n'.join(sys.path))"
 
 # Executar do diretorio correto
 cd SSA_Consulta_Rapida
-uv run --python 3.13 python main.py
+uv run --python $PY_RUNTIME python main.py
 ```
 
 ### **Problema: Banco Corrompido**
 ```powershell
 # Reset completo do banco
-uv run --python 3.13 python main.py --reset-db
+uv run --python $PY_RUNTIME python main.py --reset-db
 
 # Limpar cache
 del data\file_cache.json
 
 # Reimportar dados
-uv run --python 3.13 python main.py --force-rescan
+uv run --python $PY_RUNTIME python main.py --force-rescan
 ```
 
 ### **Problema: GUI Nao Abre**
@@ -374,7 +378,7 @@ ls utils\                               # ← Utilitarios diversos
 # Sequencia completa de inicializacao
 cd C:\Users\[SEU_USUARIO]\git\SSA_Consulta_Rapida
 .\activate_env.ps1
-uv run --python 3.13 python main.py
+uv run --python $PY_RUNTIME python main.py
 ```
 
 ### **Manutencao Semanal**
@@ -383,17 +387,17 @@ uv run --python 3.13 python main.py
 git pull
 
 # Limpar dados antigos
-uv run --python 3.13 python main.py --clean-data
+uv run --python $PY_RUNTIME python main.py --clean-data
 
 # Teste rapido
-uv run --python 3.13 python main.py --help
+uv run --python $PY_RUNTIME python main.py --help
 ```
 
 ### **Reimportacao Completa**
 ```powershell
 # Quando houver mudancas significativas nos dados
-uv run --python 3.13 python main.py --reset-db
-uv run --python 3.13 python main.py --optimized --force-rescan
+uv run --python $PY_RUNTIME python main.py --reset-db
+uv run --python $PY_RUNTIME python main.py --optimized --force-rescan
 ```
 
 ---
@@ -416,7 +420,7 @@ ls data\historico_backups\              # ← Backups disponiveis
 ### **Informacoes de Debug**
 ```powershell
 # Executar com log detalhado
-uv run --python 3.13 python main.py --log-level DEBUG
+uv run --python $PY_RUNTIME python main.py --log-level DEBUG
 
 # Verificar configuracao do sistema
 python -c "
