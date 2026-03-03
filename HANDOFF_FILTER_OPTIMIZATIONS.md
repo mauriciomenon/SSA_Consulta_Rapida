@@ -8,7 +8,7 @@
   - `docs/NEXT_CHAT_MIGRATION.md`
   - `docs/RECOVERY_BACKLOG.md`
 - Branch ativa atual: `codex/dev-filtros-stability`.
-- Release local atual: `4.27`.
+- Release local atual: `4.29`.
 - Runtime padrao atual: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
 
 ---
@@ -175,4 +175,3 @@ python main.py --gui
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-

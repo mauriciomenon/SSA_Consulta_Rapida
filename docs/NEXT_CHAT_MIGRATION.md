@@ -20,7 +20,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. split of large GUI routines/classes
   2. deeper breakup of multiselect menu builder
 
-## CURRENT TRUTH 2026-03-01 02:20 - start from here
+## HISTORICAL SNAPSHOT 2026-03-01 02:20
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.27`.
@@ -40,7 +40,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. `ANALISE_PROFUNDA_GUI.md`
   2. `GUI_SSA_REFACTOR_NOTES.md`
 
-## CURRENT TRUTH 2026-02-28 23:46 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 23:46
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.27`.
