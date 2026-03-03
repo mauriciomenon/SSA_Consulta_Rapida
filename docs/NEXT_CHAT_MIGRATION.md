@@ -2,6 +2,30 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-03 19:24 - start from here
+
+- Active branch: `dev`.
+- Slice status:
+  1. Sprint C delivered: TOCTOU hardening for CLI settings lock-file path.
+  2. focused race regression added for preexisting lock-file preservation.
+- Runtime change summary:
+  1. lock-file creation now attempts atomic exclusive create first (`O_EXCL`).
+  2. when lock file already exists, flow reopens existing lock file without marking it as created-by-current-process.
+  3. lock-file cleanup on lock acquisition failure now preserves third-party preexisting lock files.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`: `10 passed`
+  5. kluster auto: clean -> clean
+- Deferred order for next cycle:
+  1. Sprint B (structured extraction error classification + deterministic cache coverage).
+  2. Sprint D (docs consistency/portability, no runtime).
+  3. Sprint E (controlled debt in GUI table helper path, no layout change).
+- Local residue contract:
+  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
+  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
+
 ## CURRENT TRUTH 2026-03-03 19:20 - start from here
 
 - Active branch: `dev`.
