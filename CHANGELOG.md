@@ -2,15 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
-## [v4.28] - 2026-03-01
+## [v4.29] - 2026-03-02
 
 ### Changed
-- Release `4.28` com estabilizacao de tema/legibilidade na GUI:
+- Release `4.29` com estabilizacao de tema/legibilidade na GUI:
   - padronizacao de popup/menu/checkbox com roles de tema;
   - texto de selecao em botoes de multiselect mostra conteudo completo quando cabe;
   - truncamento por largura util, sem corte fixo arbitrario;
   - ajustes de robustez para evitar acesso a widget Qt invalido em relayout.
-- Metadados de versao sincronizados para `4.28` em `VERSION` e `config/version.json`.
+- Metadados de versao sincronizados para `4.29` em `VERSION` e `config/version.json`.
 
 ## [v4.27] - 2026-03-01
 
@@ -120,4 +120,3 @@ For the full technical changelog and implementation details, see `docs_saida/CHA
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
-

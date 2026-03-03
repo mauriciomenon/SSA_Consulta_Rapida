@@ -5,7 +5,7 @@ This handoff is ready to reuse in the next conversation.
 ## CURRENT TRUTH 2026-03-01 23:55 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
-- Local release baseline: `4.28`.
+- Local release baseline: `4.29`.
 - Latest stabilized slice:
   1. importer: deterministic cache mark for invalid unchanged files (`missing required columns after normalization`).
   2. importer: derivadas dedicated phase behavior preserved (focused tests green).
