@@ -4,7 +4,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 
 ## CURRENT TRUTH 2026-03-03 15:25 - start from here
 
-- Frozen policy baseline: `docs/POLICY_BASELINE_V1_FROZEN.md` (read before execution).
+- Frozen policy baseline: `docs/POLICY_BASELINE_V1_1_FROZEN.md` (read before execution).
 
 - Active branch: `dev`.
 - Control-source baseline:
