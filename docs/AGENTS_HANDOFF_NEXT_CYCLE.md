@@ -2,6 +2,28 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 19:31 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. Sprint D docs-only consistency/portability package completed.
+  2. no runtime code touched.
+- What changed:
+  1. `docs/OHMYOPENCODE_MANUAL.md`: replaced user-specific bun path with `$HOME` path.
+  2. `docs/OPENCODE_CONFIG.md`: Gemini model name aligned in provider list (`google/antigravity-gemini-3-pro`).
+  3. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`: command examples now use `$PY_RUNTIME` and explicit fallback order.
+- Validation (periodic gates):
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py interface/cli_enhancement_manager.py`: pass
+  2. `uv run --python 3.13 ruff check core/app_logic.py interface/cli_enhancement_manager.py`: pass
+  3. `uv run --python 3.13 ty check core/app_logic.py interface/cli_enhancement_manager.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_import_deterministic_failure_cache.py`: `11 passed`
+  5. kluster auto: clean -> clean
+- Deferred next:
+  1. Sprint E (controlled debt cleanup in GUI table helper path, no layout changes)
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
 ## CURRENT TRUTH 2026-03-03 19:27 - authoritative block
 
 - Active branch: `dev`.

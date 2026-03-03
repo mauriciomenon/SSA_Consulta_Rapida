@@ -206,7 +206,7 @@ oh-my-opencode doctor
 ### PATH incorreto
 Adicionar ao `~/.zshrc`:
 ```bash
-export PATH="/Users/menon/.bun/bin:$PATH"
+export PATH="$HOME/.bun/bin:$PATH"
 export PATH="$HOME/Library/pnpm/global/5/node_modules/.bin:$PATH"
 ```
 

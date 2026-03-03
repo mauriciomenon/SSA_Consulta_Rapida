@@ -3,6 +3,27 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (sprint D docs consistency and portability)
+
+Delivered in this slice:
+1. `docs/OHMYOPENCODE_MANUAL.md`: replaced local hardcoded path with `$HOME` for portability.
+2. `docs/OPENCODE_CONFIG.md`: aligned Gemini model identifier in provider list to match table usage (`google/antigravity-gemini-3-pro`).
+3. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`: replaced fixed `--python 3.13` examples with `--python $PY_RUNTIME` and added explicit fallback chain (`3.13 -> 3.12 -> 3.11 -> 3.10`).
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py interface/cli_enhancement_manager.py`: pass
+2. `uv run --python 3.13 ruff check core/app_logic.py interface/cli_enhancement_manager.py`: pass
+3. `uv run --python 3.13 ty check core/app_logic.py interface/cli_enhancement_manager.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_import_deterministic_failure_cache.py`: `11 passed`
+5. kluster auto review runs in this slice: clean -> clean
+
+Decision and scope:
+1. Sprint D closed as docs-only (`DOC_SYNC`) with no runtime code edits.
+2. GUI layout/position unchanged.
+
+Deferred (next slices):
+1. Sprint E: controlled technical debt cleanup in GUI table helper path.
+
 ## Update 2026-03-03 (sprint B structured extraction classification)
 
 Delivered in this slice:
