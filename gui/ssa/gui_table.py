@@ -163,6 +163,17 @@ def display_current_page(window, page_number):
         if data_uuid is not None:
             page = int(window.paginator.current_page)
             page_size = int(window.paginator.page_size)
+            width_signature = ()
+            try:
+                width_manager = getattr(window, "width_manager", None)
+                min_char_sizes = getattr(width_manager, "min_char_sizes", None)
+                if isinstance(min_char_sizes, dict):
+                    width_signature = tuple(
+                        (col, min_char_sizes.get(col, "__default__"))
+                        for col in display_df.columns
+                    )
+            except Exception as exc:
+                logger.debug("Falha ao compor assinatura de largura para chave de cache: %s", exc)
             display_df_hash = (
                 data_uuid,
                 df_exibido_id,
@@ -170,6 +181,7 @@ def display_current_page(window, page_number):
                 page_size,
                 len(display_df),
                 tuple(display_df.columns),
+                width_signature,
             )
     except Exception as exc:
         logger.debug("Falha ao gerar chave de cache do DataFrame de exibicao: %s", exc)
