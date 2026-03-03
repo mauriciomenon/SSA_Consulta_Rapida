@@ -12,6 +12,8 @@ import sys
 import logging
 import json
 import sqlite3
+import time
+from datetime import datetime
 import pandas as pd
 import re
 from pathlib import Path
@@ -582,6 +584,73 @@ def _update_cache_for_deterministic_failures(
         )
 
 
+def _recreate_database_for_full_rescan(db_path: str) -> None:
+    """Create a clean DB for full rescan by rotating the previous file."""
+    if not os.path.exists(db_path):
+        return
+    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
+    last_error: Optional[Exception] = None
+    for attempt in range(1, 4):
+        try:
+            with sqlite3.connect(db_path, timeout=2) as conn:
+                conn.execute("PRAGMA busy_timeout = 2000")
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+            last_error = None
+            break
+        except sqlite3.Error as exc:
+            last_error = exc
+            if "locked" in str(exc).lower() and attempt < 3:
+                logger.warning(
+                    "Banco bloqueado na preparacao do full rescan (tentativa %s/3).",
+                    attempt,
+                )
+                time.sleep(0.35 * attempt)
+                continue
+            break
+    if last_error is not None:
+        raise DatabaseError(
+            "Falha ao preparar full rescan por lock ativo no banco. "
+            f"Feche acessos concorrentes e tente novamente: {last_error}"
+        ) from last_error
+    wal_path = f"{db_path}-wal"
+    if os.path.exists(wal_path):
+        try:
+            wal_size = int(os.path.getsize(wal_path))
+        except OSError as exc:
+            raise DatabaseError(
+                f"Falha ao validar estado do WAL antes do full rescan: {exc}"
+            ) from exc
+        if wal_size > 0:
+            raise DatabaseError(
+                "WAL ativo detectado antes da rotacao do banco. "
+                "Feche acessos concorrentes e tente novamente."
+            )
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
+    try:
+        os.replace(db_path, backup_path)
+        logger.info(
+            "Banco anterior movido para backup de full rescan: %s",
+            os.path.basename(backup_path),
+        )
+        for suffix in ("-wal", "-shm"):
+            sidecar = f"{db_path}{suffix}"
+            if not os.path.exists(sidecar):
+                continue
+            sidecar_backup = f"{backup_path}{suffix}"
+            os.replace(sidecar, sidecar_backup)
+            logger.info(
+                "Arquivo auxiliar do banco movido para backup: %s",
+                os.path.basename(sidecar_backup),
+            )
+    except OSError as exc:
+        raise DatabaseError(
+            f"Falha ao preparar banco limpo para full rescan: {exc}"
+        ) from exc
+
+
 # --- Funcao Principal Refatorada ---
 
 
@@ -655,6 +724,8 @@ def run_importer_logic(
 
         # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
+        if force_import:
+            _recreate_database_for_full_rescan(db_path)
 
         # Verificar e reparar banco se necessario
         if not database.repair_database_if_needed(db_path, table_name=table_name):
@@ -694,6 +765,7 @@ def run_importer_logic(
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
         derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
         db_only_derivadas_sync = False
+        auto_derivadas_sync_enabled = bool(force_import)
         total_files = len(files_to_process)
         progress_cb = progress_callback
 
@@ -719,11 +791,12 @@ def run_importer_logic(
                 logger.info("Cancelamento solicitado antes do preflight de derivadas.")
                 _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
                 return False
-            db_only_derivadas_sync = _needs_db_only_derivadas_sync(
-                db_path=db_path,
-                table_name=table_name,
-                should_cancel=should_cancel,
-            )
+            if auto_derivadas_sync_enabled:
+                db_only_derivadas_sync = _needs_db_only_derivadas_sync(
+                    db_path=db_path,
+                    table_name=table_name,
+                    should_cancel=should_cancel,
+                )
             if not db_only_derivadas_sync:
                 logger.info(
                     "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
@@ -884,7 +957,7 @@ def run_importer_logic(
                     continue
             sync_materialized = False
             derivadas_sync_blocking_error = False
-            should_run_derivadas_sync = (
+            should_run_derivadas_sync = auto_derivadas_sync_enabled and (
                 bool(successfully_processed_files)
                 or bool(derivadas_sheet_files)
                 or bool(db_only_derivadas_sync)

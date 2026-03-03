@@ -326,12 +326,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         '--skip-import',
         action='store_true',
-        help='''Pula a importacao/verificacao inicial e inicia a GUI/CLI usando o banco existente.
+        help='''Flag legada de compatibilidade.
 
-        Use quando voce precisa abrir o app rapidamente e aceita trabalhar com dados possivelmente desatualizados.
-        Para importar depois:
+        A importacao inicial automatica esta desativada por padrao.
+        Para importar manualmente:
           - GUI: use o botao "Reescanear" (quando disponivel)
-          - CLI: execute sem --skip-import (ou com --force-rescan, se necessario)
+          - CLI: use --force-rescan/--rescan
         '''
     )
 
@@ -488,9 +488,6 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     if getattr(args, 'version', False):
         print(get_app_version())
         return
-
-    if getattr(args, "skip_import", False) and getattr(args, "force_rescan", False):
-        parser.error("--skip-import nao pode ser combinado com --force-rescan/--rescan")
 
     # Configura logging
     _configure_logging(project_root)
@@ -668,10 +665,14 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             return
 
         # --- 3. Importacao de Dados (fluxo normal) ---
-        if getattr(args, "skip_import", False):
-            logger.info("Pulando importacao/verificacao inicial (--skip-import).")
+        if not getattr(args, "force_rescan", False):
+            logger.info(
+                "Importacao automatica no startup desativada. "
+                "Use --force-rescan/--rescan ou acione manualmente via GUI/CLI."
+            )
             db_updated = False
         else:
+            logger.info("Full rescan solicitado via CLI; preparando recriacao do banco e reprocessamento completo.")
             # Determina se a reimportacao e forcada e se deve usar versao otimizada
             force_import = args.force_rescan
 
