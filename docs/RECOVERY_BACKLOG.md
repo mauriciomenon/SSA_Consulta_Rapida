@@ -988,3 +988,31 @@ Historical review-thread entries were removed here to avoid duplicate pending co
 - Padronizar instalacao de dependencias de desenvolvimento (`dependency-groups` vs `optional-dependencies`) e documentar comando oficial de `uv`.
 - Nota de politica vigente: sync automatico de derivadas permanece restrito a rescan full/forcado e acao manual dedicada.
 - Corrigir botao/fluxo de limpeza da pesquisa geral: apos `Enter` em pesquisa geral, o termo anterior nao esta sendo limpo de forma consistente.
+
+## Atualizacao 2026-03-03 (pos-merge PR42 no branch dev - triagem de reviews)
+- Contexto:
+  - PR #42 foi aceito e mergeado em `dev`.
+  - Esta secao registra triagem tecnica dos comentarios Copilot/Cubic pos-merge.
+
+- Confirmado como bug real (prioridade alta para proximo ciclo):
+  - `core/app_logic.py`:
+    - `BEGIN IMMEDIATE` seguido de `PRAGMA wal_checkpoint(TRUNCATE)` no mesmo bloco pode falhar por lock no checkpoint.
+    - Acao: separar checkpoint da transacao explicita e validar com teste focado de lock.
+
+- Confirmado como decisao intencional (nao corrigir agora):
+  - `core/app_logic.py`:
+    - `auto_derivadas_sync_enabled = bool(force_import)` e gate de sync pos-import.
+    - Politica atual mantida: sync automatico de derivadas somente em full rescan/forcado ou acao manual (`Atualizar Derivadas`).
+    - Acao opcional futura: adicionar log explicito quando houver planilha de derivadas em import incremental e sync for pulado por politica.
+
+- Pendencias nao bloqueantes (deferidas):
+  - `core/app_logic.py`: substituir classificacao por substring de erro por codigo/sinal estruturado em `ExtractionError`.
+  - `armazenamento/database_upsert_logic.py` vs `armazenamento/database_optimized.py`: centralizar normalizacao/validacao canonica de SSA para evitar drift.
+  - `core/app_logic.py`: adicionar teste unitario cobrindo cache de falha deterministica e skip em execucao seguinte sem mudanca de hash/mtime.
+  - `AGENTS.md`: trocar caminho absoluto do backlog por caminho relativo de repo.
+  - `docs/OHMYOPENCODE_MANUAL.md`: trocar `/Users/menon/...` por `$HOME/...` para portabilidade.
+  - `docs/OPENCODE_CONFIG.md`: alinhar nome de modelo Gemini entre secoes para evitar identificador inconsistente.
+  - `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`: documentar fallback runtime sem hardcode fixo em `--python 3.13`.
+  - `interface/cli_enhancement_manager.py`: revisar TOCTOU em lock-file (`exists` + `open` nao atomico).
+  - `docs/ARQUITETURA_IMPORTACAO.md`: remover recomendacao incorreta de `pd.read_excel(..., chunksize=...)`.
+  - `gui/ssa/gui_table.py`: avaliar remocao de helper morto (`_calculate_max_chars_for_column`) ou reuso explicito.
