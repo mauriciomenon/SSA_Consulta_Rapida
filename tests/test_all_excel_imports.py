@@ -430,12 +430,15 @@ class ExcelImportTester:
             rate = result.get('import_rate_records_per_sec', 0)
 
             if result.get('skipped', False):
-                status = "⏭️"
-                records = "-"
-                duration = "-"
-                rate = "-"
+                status = "SKIP"
+                records = None
+                duration = None
+                rate = None
 
-            content += f"| {file_name} | {status} | {records} | {duration} | {rate} |\n"
+            records_cell = records if records is not None else "-"
+            duration_cell = duration if duration is not None else "-"
+            rate_cell = rate if rate is not None else "-"
+            content += f"| {file_name} | {status} | {records_cell} | {duration_cell} | {rate_cell} |\n"
 
         content += """
 ## Problemas Identificados

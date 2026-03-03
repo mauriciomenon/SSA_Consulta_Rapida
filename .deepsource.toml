@@ -14,5 +14,9 @@ enabled = true
   runtime_version = "3.x.x"
 
 [[code_formatters]]
-name = "black"
-enabled = false
+name = "ruff"
+enabled = true
+
+[[code_formatters]]
+name = "isort"
+enabled = true

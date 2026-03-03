@@ -5,14 +5,15 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 
 from core.config_manager import atomic_write_json_file
+from gui.helpers.theme_helpers import pick_css_color
 from utils.themes import get_palette, get_theme_roles, normalize_theme
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 
 def get_theme_catalog():
@@ -119,10 +120,25 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         win = pal.color(_QPal.ColorRole.Window).name()
     except Exception as exc:
         logger.debug("Falha ao ler cores da paleta no menu de temas; usando fallback: %s", exc)
-        wtxt = "#ffffff"
-        win = "#000000"
-    support_color = roles.get("support_text_color") or roles.get("label_color") or wtxt
-    if support_color.lower() == win.lower():
+        wtxt = pick_css_color(
+            roles.get("panel_text"),
+            roles.get("label_color"),
+            roles.get("support_text_color"),
+            fallback="#d0d0d0",
+        )
+        win = pick_css_color(
+            roles.get("panel_bg"),
+            roles.get("summary_frame_bg"),
+            wtxt,
+            fallback="#2a2a2a",
+        )
+    support_color = pick_css_color(
+        roles.get("support_text_color"),
+        roles.get("label_color"),
+        wtxt,
+        fallback=wtxt,
+    )
+    if support_color.casefold() == win.casefold():
         support_color = wtxt
     is_default_theme = normalize_theme(theme_default or "") == current_theme
 
@@ -393,6 +409,7 @@ def _apply_theme_widget_styles(
         panel_bg = roles.get('panel_bg', pal_active.color(_QPal.ColorRole.Window).name())
         panel_text = roles.get('panel_text', txt)
         panel_border = roles.get('panel_border', input_border)
+        window._current_theme_roles = dict(roles)
         try:
             highlight_fg = pal_active.color(_QPal.ColorRole.HighlightedText).name()
         except Exception as exc:
@@ -414,8 +431,14 @@ def _apply_theme_widget_styles(
             "QToolButton {"
             f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
             " border-radius:4px; padding:2px 6px; }"
+            "QToolButton:hover {"
+            f" border:1px solid {input_focus};"
+            "}"
             "QToolButton:pressed {"
             f" background: {accent_soft}; "
+            "}"
+            "QToolButton:checked {"
+            f" border:1px solid {accent}; background: {accent_soft};"
             "}"
         )
         adv_buttons = [
@@ -427,6 +450,8 @@ def _apply_theme_widget_styles(
             "adv_year_execucao_button",
             "adv_prioridade_emissao_button",
             "adv_prioridade_planejamento_button",
+            "adv_reprog_button",
+            "adv_derivada_button",
             "adv_responsavel_solicitante_button",
             "adv_responsavel_programacao_button",
             "adv_responsavel_execucao_button",
@@ -439,6 +464,45 @@ def _apply_theme_widget_styles(
                     btn.setStyleSheet(tool_btn_css)
                 except Exception as exc:
                     logger.debug("Falha ao aplicar estilo no botao avancado %s: %s", name, exc)
+        action_btn_css = (
+            "QPushButton {"
+            f" color: {panel_text}; background: {panel_bg}; border:1px solid {panel_border};"
+            " border-radius:4px; padding:2px 8px; }"
+            "QPushButton:hover {"
+            f" border:1px solid {accent};"
+            "}"
+            "QPushButton:pressed {"
+            f" background: {accent_soft};"
+            "}"
+        )
+        for name in ("_adv_filters_apply_btn", "_adv_filters_clear_btn"):
+            btn = getattr(window, name, None)
+            if btn is not None:
+                try:
+                    btn.setStyleSheet(action_btn_css)
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo no botao de acao %s: %s", name, exc)
+        combo_css = (
+            "QComboBox {"
+            f" color: {input_text}; background: {input_bg}; border:1px solid {input_border};"
+            " border-radius:4px; padding:2px 6px; }"
+            "QComboBox:hover {"
+            f" border:1px solid {input_focus};"
+            "}"
+            "QComboBox::drop-down { border:0px; }"
+            "QComboBox QAbstractItemView {"
+            f" color: {panel_text}; background: {panel_bg};"
+            f" selection-background-color: {accent_soft}; selection-color: {panel_text};"
+            f" border:1px solid {panel_border};"
+            "}"
+        )
+        for name in ("adv_macro_combo", "adv_reprog_mode"):
+            combo = getattr(window, name, None)
+            if combo is not None:
+                try:
+                    combo.setStyleSheet(combo_css)
+                except Exception as exc:
+                    logger.debug("Falha ao aplicar estilo no combo avancado %s: %s", name, exc)
         adv_line_edits = [
             "adv_week_emissao_start",
             "adv_week_emissao_end",
@@ -496,6 +560,15 @@ def _apply_theme_widget_styles(
                 window.adv_filters_group.setStyleSheet('')
             else:
                 window.adv_filters_group.setStyleSheet(group_css)
+        action_widget = getattr(window, "_adv_filters_action_widget", None)
+        if action_widget is not None:
+            try:
+                if normalized in light_themes:
+                    action_widget.setStyleSheet("")
+                else:
+                    action_widget.setStyleSheet(group_css)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no action box dos filtros avancados: %s", exc)
 
         highlight_style = (
             f"font-weight:600; color:{accent}; background:{panel_bg}; "
@@ -534,11 +607,25 @@ def _apply_theme_widget_styles(
         if hasattr(window, 'clear_all_filters_btn'):
             window.clear_all_filters_btn.setStyleSheet(highlight_style)
         if hasattr(window, 'export_list_btn'):
-            window.export_list_btn.setStyleSheet(highlight_style)
+            try:
+                window.export_list_btn.setStyleSheet(highlight_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao export_list_btn: %s", exc)
         if hasattr(window, 'undo_filter_btn'):
-            window.undo_filter_btn.setStyleSheet(highlight_style)
-        if hasattr(window, 'clear_all_btn'):
-            window.clear_all_btn.setStyleSheet(highlight_style)
+            try:
+                window.undo_filter_btn.setStyleSheet(highlight_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo no botao undo_filter_btn: %s", exc)
+        if hasattr(window, "add_column_filter_btn") and hasattr(window, "clear_all_btn"):
+            footer_btn_style = (
+                f"QPushButton {{ color:{panel_text}; background:{panel_bg}; border:1px solid {panel_border}; border-radius:4px; padding:4px 10px; }}\n"
+                f"QPushButton:hover {{ border:1px solid {accent}; }}\n"
+            )
+            try:
+                window.add_column_filter_btn.setStyleSheet(footer_btn_style)
+                window.clear_all_btn.setStyleSheet(footer_btn_style)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar estilo consistente para botoes de filtros por coluna: %s", exc)
 
         if selector is not None and hasattr(selector, 'summary_label'):
             selector.summary_label.setStyleSheet(f"color:{indicator_color};")
@@ -551,8 +638,18 @@ def _apply_theme_widget_styles(
 
 def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
     try:
+        try:
+            # Force a full advanced-menu rebuild under the active theme.
+            setattr(window, "_adv_options_dirty", True)
+        except Exception as exc:
+            logger.debug("Falha ao marcar opcoes avancadas como dirty apos troca de tema: %s", exc)
         if getattr(window, "_current_tab_kind", None) == "filters":
             window._pending_theme_refresh_column_filters = normalized
+            try:
+                if hasattr(window, "_refresh_advanced_filter_options"):
+                    window._refresh_advanced_filter_options()
+            except Exception as exc:
+                logger.debug("Falha ao atualizar menus avancados apos troca de tema: %s", exc)
         else:
             window._refresh_column_filter_widgets()
             window._pending_theme_refresh_column_filters = None
@@ -613,6 +710,27 @@ def apply_theme(
         window.update_details_from_selection()
     except Exception as exc:
         logger.debug("Falha ao atualizar painel de detalhes apos apply_theme: %s", exc)
+
+
+def reapply_current_theme_widget_styles(
+    window,
+    *,
+    highlight_defaults: tuple[str, str] | None = None,
+) -> None:
+    """Reaplica estilos de widgets do tema atual sem persistir configuracao."""
+    highlight_defaults = highlight_defaults or ("yellow", "bold")
+    highlight_bg_default, highlight_weight_default = highlight_defaults
+    normalized = normalize_theme(getattr(window, "_current_theme", "") or "")
+    roles = get_theme_roles(normalized)
+    pal = window.palette()
+    _apply_theme_widget_styles(
+        window,
+        normalized,
+        pal,
+        roles,
+        highlight_bg_default=highlight_bg_default,
+        highlight_weight_default=highlight_weight_default,
+    )
 
 
 def apply_macos_contrast(window, theme_name: str) -> None:

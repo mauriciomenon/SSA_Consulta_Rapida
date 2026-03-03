@@ -57,11 +57,12 @@ def find_and_kill_python_processes():
                         except psutil_mod.AccessDenied:
                             print(f"  ERR Sem permissão para parar processo {proc.info['pid']}")
 
-        except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied, psutil_mod.ZombieProcess):
+        except (psutil_mod.NoSuchProcess, psutil_mod.AccessDenied, psutil_mod.ZombieProcess) as exc:
+            print(f"  WARN Falha ao acessar processo: {getattr(proc, 'pid', '?')} ({exc})")
             continue
 
     if not killed_processes:
-        print("  ℹ️  Nenhum processo Python relacionado ao SSA encontrado")
+        print("  INFO Nenhum processo Python relacionado ao SSA encontrado")
     else:
         print(f"  OK Parados {len(killed_processes)} processos")
 

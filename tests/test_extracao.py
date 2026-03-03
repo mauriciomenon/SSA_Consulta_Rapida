@@ -9,7 +9,12 @@ import sys
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from extracao.extractor import read_report
+from extracao.extractor import (
+    ExtractionError,
+    _normalize_tempo_excedido_value,
+    extract_data_from_excel,
+    read_report,
+)
 
 # --- Fixtures: Preparando o Ambiente de Teste ---
 
@@ -21,7 +26,7 @@ def temp_excel_file(tmp_path):
     """
     # Dados de exemplo que vamos colocar no Excel
     data = {
-        'Nº SSA': [101, 102],
+        'Nº SSA': [202500101, 202500102],
         'Local': ['Sala A', 'Sala B'],
         'Descrição da SSA': ['Problema no servidor', 'Falha na rede'],
         'Emitida Em': ['01/07/2025', '15/07/2025'],
@@ -29,10 +34,10 @@ def temp_excel_file(tmp_path):
     }
     df = pd.DataFrame(data)
 
-    # O cabeçalho está na segunda linha, então inserimos uma linha em branco no topo
+    # Escreve cabecalho na primeira linha para o fluxo robust-only de read_report.
     file_path = tmp_path / "relatorio_teste.xlsx"
     writer = pd.ExcelWriter(file_path, engine='openpyxl')
-    df.to_excel(writer, index=False, startrow=1)
+    df.to_excel(writer, index=False)
     writer.close()
 
     return str(file_path)
@@ -76,17 +81,95 @@ def test_read_report_success(temp_excel_file, setup_test_config):
     assert df is not None
     assert not df.empty
 
-    # Verifica se as colunas foram renomeadas para os nomes canônicos
-    expected_columns = ['numero_ssa', 'localizacao', 'descricao_ssa', 'data_cadastro']
+    # Verifica colunas esperadas no fluxo robust-only.
+    expected_columns = ['numero_ssa', 'local', 'descricao_ssa', 'data_cadastro']
     assert all(col in df.columns for col in expected_columns)
 
-    # Verifica se a coluna inútil (totalmente vazia) foi removida
-    assert 'Coluna Inutil' not in df.columns
-
-    # Verifica se o tipo de dado da data foi convertido corretamente
-    assert pd.api.types.is_datetime64_any_dtype(df['data_cadastro'])
-
     # Verifica se os dados foram lidos corretamente
-    assert df['numero_ssa'].iloc[0] == 101
-    assert df['localizacao'].iloc[1] == 'Sala B'
+    assert str(df['numero_ssa'].iloc[0]) == "202500101"
+    assert df['local'].iloc[1] == 'Sala B'
 
+
+def test_read_report_returns_error_metadata_on_missing_file(tmp_path):
+    missing_file = tmp_path / "arquivo_inexistente_12345.xlsx"
+    df, metadata = read_report(str(missing_file))
+    assert isinstance(df, pd.DataFrame)
+    assert df.empty
+    assert metadata["stats_dict"]["status"] == "error"
+    assert "error" in metadata["stats_dict"]
+
+
+def test_normalize_tempo_excedido_minutes_with_m_suffix():
+    assert _normalize_tempo_excedido_value("1h 30m") == "PT1H30M"
+    assert _normalize_tempo_excedido_value("15mi") == "PT15M"
+
+
+def test_normalize_tempo_excedido_months_with_mo_suffix():
+    assert _normalize_tempo_excedido_value("2mo 5d") == "P2M5D"
+
+
+def test_normalize_tempo_excedido_does_not_match_partial_words():
+    assert _normalize_tempo_excedido_value("15minutes") == "15minutes"
+    assert _normalize_tempo_excedido_value("1h30m") == "PT1H30M"
+
+
+def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
+    # Header exists, but required canonical columns are not present.
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Local": ["Sala A"],
+            "Descricao sem mapeamento": ["x"],
+        }
+    )
+    file_path = tmp_path / "missing_required.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    with pytest.raises(ExtractionError) as excinfo:
+        extract_data_from_excel(str(file_path))
+
+    assert "Missing required columns" in str(excinfo.value)
+
+
+def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_required(
+    tmp_path, monkeypatch
+):
+    # Empty mapping should keep original names and fail required canonical check.
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Emitida Em": ["01/07/2025"],
+            "Descricao da SSA": ["teste"],
+        }
+    )
+    file_path = tmp_path / "empty_mapping.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    monkeypatch.setattr("extracao.extractor._load_column_mappings", lambda: {})
+    with pytest.raises(ExtractionError) as excinfo:
+        extract_data_from_excel(str(file_path))
+
+    assert "Missing required columns" in str(excinfo.value)
+
+
+def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp_path):
+    # Contract: never returns None. Header-only input returns empty DataFrame.
+    df = pd.DataFrame(columns=["Nº SSA", "Descrição da SSA", "Emitida Em"])
+    file_path = tmp_path / "header_only.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    extracted = extract_data_from_excel(str(file_path))
+    assert isinstance(extracted, pd.DataFrame)
+    assert extracted.empty
+
+
+def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
+    fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
+    with pytest.raises(ExtractionError, match="operation cancelled"):
+        extract_data_from_excel(
+            str(fake_file),
+            should_cancel=lambda: True,
+        )

@@ -10,6 +10,7 @@ from typing import Any, cast
 import pandas as pd
 import pytest
 from unittest.mock import patch
+import PyQt6.QtWidgets as QtWidgets
 
 pytest.importorskip('PyQt6', reason='Dependência PyQt6 indisponível no ambiente de teste')
 
@@ -25,6 +26,7 @@ from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
@@ -186,9 +188,189 @@ class TestGUIFilterLogic:
 
         # Limpa todos e garante reset completo
         self.window._clear_all_column_filters()
-        assert not self.window._active_column_filters
+        assert self.window._active_column_filters
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
         self.window._refresh_after_filter_change()
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
+
+    def test_add_column_menu_includes_full_candidates_and_excludes_legacy_aliases(self, monkeypatch):
+        class _FakeAction:
+            def __init__(self, text: str):
+                self.text = text
+                self.data_value = None
+                self.checked = False
+
+            def setCheckable(self, _state: bool):
+                return None
+
+            def setChecked(self, state: bool):
+                self.checked = bool(state)
+
+            def setData(self, value: str):
+                self.data_value = value
+
+            def data(self):
+                return self.data_value
+
+        class _FakeMenu:
+            created_actions: list[_FakeAction] = []
+
+            def __init__(self, _parent=None):
+                self.actions: list[_FakeAction] = []
+
+            def addAction(self, text: str):
+                action = _FakeAction(text)
+                self.actions.append(action)
+                _FakeMenu.created_actions.append(action)
+                return action
+
+            def exec(self, _pos):
+                return None
+
+            def deleteLater(self):
+                return None
+
+        self.window.internal_to_display['No SSA'] = 'No SSA'
+        self.window.internal_to_display['Data Cadastro'] = 'Data Cadastro'
+        self.window.internal_to_display['numero_ssa'] = 'Numero SSA'
+        self.window.internal_to_display['registros_espera'] = 'Registros Espera'
+        self.window.internal_to_display['num_reprobaciones'] = 'Num Reprobaciones'
+        self.window.internal_to_display['situacao_espera'] = 'Situacao Espera'
+        self.window.internal_to_display['numero_desvios'] = 'Numero Desvios'
+        self.window.internal_to_display['ate'] = 'Ate'
+        self.window.internal_to_display['justificativa'] = 'Justificativa'
+        self.window.internal_to_display['parciais'] = 'Parciais'
+        self.window.internal_to_display['situacao_da_parcial'] = 'Situacao Parcial'
+
+        monkeypatch.setattr(QtWidgets, "QMenu", _FakeMenu)
+
+        self.window._open_add_column_filter_menu()
+        menu_columns = {action.data() for action in _FakeMenu.created_actions}
+
+        assert 'situacao' in menu_columns
+        assert 'numero_ssa' in menu_columns
+        assert 'descricao_execucao' in menu_columns
+        assert 'No SSA' not in menu_columns
+        assert 'Data Cadastro' not in menu_columns
+        assert 'registros_espera' not in menu_columns
+        assert 'num_reprobaciones' not in menu_columns
+        assert 'situacao_espera' not in menu_columns
+        assert 'numero_desvios' not in menu_columns
+        assert 'ate' not in menu_columns
+        assert 'justificativa' not in menu_columns
+        assert 'parciais' not in menu_columns
+        assert 'situacao_da_parcial' not in menu_columns
+
+    def test_get_canonical_available_columns_keeps_active_filter_even_outside_non_null_cache(self):
+        self.window.df_completo = pd.DataFrame(
+            {
+                "situacao": ["APV", "STE"],
+                "descricao_ssa": [None, None],
+                "coluna_zerada": [None, None],
+            }
+        )
+        self.window.df_exibido = self.window.df_completo.copy()
+        self.window._non_null_cols_cache = {"situacao"}
+        self.window._active_column_filters = {"descricao_ssa": "teste"}
+
+        columns = self.window._get_canonical_available_columns()
+
+        assert "situacao" in columns
+        assert "descricao_ssa" in columns
+        assert "coluna_zerada" not in columns
+
+    def test_clear_all_column_filters_restores_defaults_and_hidden_lines(self):
+        self.window._active_column_filters = {
+            'numero_ssa': '2026',
+            'situacao': 'STE',
+        }
+        self.window._hidden_column_filter_lines = {'descricao_ssa', 'setor_executor'}
+        self.window._build_column_filters_panel()
+
+        self.window._clear_all_column_filters()
+
+        default_cols = self.window._column_filter_default_columns()
+        assert tuple(self.window._active_column_filters.keys()) == default_cols
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
+        assert self.window._hidden_column_filter_lines == set()
+
+    def test_default_column_filter_rows_show_apply_and_hide_buttons(self):
+        self.window._active_column_filters = {
+            col: '' for col in self.window._column_filter_default_columns()
+        }
+        self.window._build_column_filters_panel()
+
+        controls = self._get_column_filter_controls()
+        for col in self.window._column_filter_default_columns():
+            if hasattr(self.window, "_expand_column_alias_for_filter"):
+                label = self.window._expand_column_alias_for_filter(col)
+            else:
+                label = self.window._resolve_column_display_name(col)
+            assert label in controls
+            _, apply_btn, hide_btn = controls[label]
+            assert apply_btn.text() == "Aplicar"
+            assert hide_btn.text() == "Ocultar"
+            assert not apply_btn.isHidden()
+            assert not hide_btn.isHidden()
+
+    def test_table_render_collapses_multiline_text_to_single_line(self):
+        df = self.base_df.copy()
+        df.loc[0, "descricao_ssa"] = "Linha A\nLinha B"
+        df.loc[1, "descricao_ssa"] = "Linha C\\nLinha D"
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col_idx = self.window._current_display_columns.index("descricao_ssa")
+        item = self.window.table_widget.item(0, col_idx)
+        assert item is not None
+        assert "\n" not in item.text()
+        assert "\r" not in item.text()
+        assert "Linha A Linha B" in item.text()
+
+        item_literal = self.window.table_widget.item(1, col_idx)
+        assert item_literal is not None
+        assert "\\n" not in item_literal.text()
+        assert "Linha C Linha D" in item_literal.text()
+
+    def test_refresh_after_filter_change_updates_filtered_status_counter(self):
+        self.window._active_column_filters = {"situacao": "STE"}
+        self.window._refresh_after_filter_change()
+        QApplication.processEvents()
+
+        status = self.window.status_label.text()
+        assert "SSAs filtradas" in status
+        assert "1 de 5" in status
+
+    def test_set_filtered_count_status_accepts_suffix(self):
+        self.window._set_filtered_count_status("", filtered_total=2, original_total=5, suffix="Aviso: teste.")
+        status = self.window.status_label.text()
+        assert status == "Status: SSAs filtradas: 2 de 5. Aviso: teste."
+
+    def test_apply_advanced_filters_notice_uses_count_status_helper(self, monkeypatch):
+        self.window._pending_search_display = "Busca X"
+
+        def _fake_refresh():
+            callback = getattr(self.window, "_adv_notice_callback", None)
+            if callable(callback):
+                callback("derivada_empty")
+
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", _fake_refresh)
+        self.window._apply_advanced_filters_from_ui(store_only=False)
+        status = self.window.status_label.text()
+        assert "Status: SSAs filtradas:" in status
+        assert "para 'Busca X'" in status
+        assert "Aviso: nenhuma derivada encontrada para o filtro." in status
+
+    def test_find_unmapped_alias_columns_reports_only_unmapped(self):
+        self.window.internal_to_display["numero_ssa"] = "Numero SSA"
+        missing = self.window._find_unmapped_alias_columns(
+            ["numero_ssa", "descricao_ssa", "coluna_sem_alias", "#", "coluna_sem_alias"]
+        )
+        assert missing == ["coluna_sem_alias"]
 
     def test_general_search_and_or_display(self):
         self.window.df_completo = self.base_df.copy()
@@ -290,6 +472,33 @@ class TestGUIFilterLogic:
 
         assert table.minimumHeight() >= 220
         assert bottom_top > table_bottom
+
+    def test_bottom_panels_keep_single_synced_height_after_resize(self):
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
+        self.window.resize(1520, 980)
+        QApplication.processEvents()
+        self.window._sync_bottom_panel_heights()
+        QApplication.processEvents()
+
+        groups = []
+        for ctx in self.window._tab_contexts:
+            for key in ("details_group", "adv_filters_group", "col_filters_group"):
+                widget = ctx.get(key)
+                if widget is None:
+                    continue
+                if widget in groups:
+                    continue
+                groups.append(widget)
+
+        assert len(groups) >= 3
+        min_heights = {int(g.minimumHeight()) for g in groups}
+        max_heights = {int(g.maximumHeight()) for g in groups}
+        assert len(min_heights) == 1
+        assert len(max_heights) == 1
+        synced_height = next(iter(min_heights))
+        assert synced_height == next(iter(max_heights))
+        assert 180 <= synced_height <= 360
 
     def test_clear_filter_button_reflects_active_filters(self):
         self.window.search_input.setText('')
@@ -402,9 +611,16 @@ class TestGUIFilterLogic:
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
         controls = self._get_column_filter_controls()
-        assert 'Emissor' in controls
-        emissor_edit, emissor_apply, emissor_clear = controls['Emissor']
-        executor_edit, executor_apply, _ = controls['Executor']
+        if hasattr(self.window, "_expand_column_alias_for_filter"):
+            emissor_label = self.window._expand_column_alias_for_filter('setor_emissor')
+            executor_label = self.window._expand_column_alias_for_filter('setor_executor')
+        else:
+            emissor_label = self.window._resolve_column_display_name('setor_emissor')
+            executor_label = self.window._resolve_column_display_name('setor_executor')
+        assert emissor_label in controls
+        assert executor_label in controls
+        emissor_edit, emissor_apply, emissor_clear = controls[emissor_label]
+        executor_edit, executor_apply, _ = controls[executor_label]
         assert emissor_clear.text() == "Ocultar"
         assert "continua ativo" in (emissor_clear.toolTip() or "").casefold()
 
@@ -422,7 +638,7 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
-        assert 'Emissor' not in controls_after
+        assert emissor_label not in controls_after
         # Valores permanecem iguais (grupo ainda ativo)
         assert self.window._active_column_filters['setor_emissor'] == 'MEL3, MEL4'
         assert self.window._active_column_filters['setor_executor'] == 'MEL3, MEL4'
@@ -519,7 +735,7 @@ class TestGUIFilterLogic:
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get("adv_responsavel_solicitante_button")
         assert button is not None
-        assert "inc" in button.text()
+        assert "Incluir:" in button.text()
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
@@ -960,12 +1176,39 @@ class TestGUIFilterLogic:
         assert str(series.get("numero_ssa")) == "200"
         assert str(series.get("descricao_ssa")) == "B"
 
+    def test_header_resize_updates_runtime_column_width_cache(self):
+        self.window._current_display_columns = ["#", "descricao_ssa"]
+        self.window._saved_gui_column_widths = {}
+        self.window._gui_column_pixel_widths = {}
+
+        self.window._on_header_section_resized(1, 100, 222)
+
+        assert self.window._saved_gui_column_widths.get("descricao_ssa") == 222
+        assert self.window._gui_column_pixel_widths.get("descricao_ssa") == 222
+
+    def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
+        self.window._saved_gui_column_widths = {"descricao_ssa": 222}
+        calls = {"persist": 0}
+
+        def _fake_persist():
+            calls["persist"] += 1
+            return True
+
+        monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
+        old_column_widths = dict(gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths", {}))
+        try:
+            ssa_gui_table._flush_column_width_preferences(self.window)
+            assert gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths", {}).get("descricao_ssa") == 222
+            assert calls["persist"] == 1
+        finally:
+            gui_ssa.GUI_MAIN_PREFERENCES["column_widths"] = old_column_widths
+
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
         with patch(
             "gui.ssa.gui_details._collect_derivadas_tree_data",
             return_value={
                 "target": "202602147",
-                "parents": [],
+                "parents": ["202500111"],
                 "children": [],
                 "descendants": [],
                 "ancestors": [],
@@ -975,13 +1218,14 @@ class TestGUIFilterLogic:
         ):
             html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
-        assert "Arvore de derivadas:" in html
-        assert "SSA <a href=\"ssa-panel:202602147\"" in html
-        assert "Mae direta:</b> -" in html
-        assert "Filhas diretas (0)" in html
-        assert "- nenhuma" in html
-        assert "Descendentes (0)" in html
-        assert "- nenhum" in html
+        assert "Lista de derivadas:" in html
+        assert "<b><a href=\"ssa-panel:202602147\"" in html
+        assert "SSA originaria" in html
+        assert "SSA originaria:" not in html
+        assert "202500111" in html
+        assert "num0" not in html
+        assert "SSAs derivadas diretas (0)" in html
+        assert "SSAs derivadas de derivadas (0)" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
@@ -1293,6 +1537,58 @@ class TestGUIFilterLogic:
         self.window._reorganize_advanced_filters_grid(1201)
         self.window._reorganize_advanced_filters_grid(800)
         assert self.window._adv_filters_main_grid.count() > 0
+
+    def test_reorganize_advanced_filters_grid_allows_narrow_valid_width(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._reorganize_advanced_filters_grid(90)
+        assert self.window._adv_filters_layout_mode == "cols_4"
+
+        grid = self.window._adv_filters_main_grid
+        widgets = self.window._adv_filters_grid_widgets
+        exec_resp_item = grid.itemAtPosition(3, 2)
+        assert exec_resp_item is not None
+        assert exec_resp_item.widget() is widgets["exec_resp_box"]
+
+    def test_reorganize_advanced_filters_grid_ignores_non_positive_width_and_recomputes(self):
+        filter_tab_idx = next(
+            idx for idx, ctx in enumerate(self.window._tab_contexts)
+            if ctx.get("tab_kind") == "filters"
+        )
+        self.window.main_tabs.setCurrentIndex(filter_tab_idx)
+        QApplication.processEvents()
+
+        self.window._reorganize_advanced_filters_grid(1501)
+        assert str(self.window._adv_filters_layout_mode).startswith("cols_")
+        previous_mode = self.window._adv_filters_layout_mode
+
+        self.window._reorganize_advanced_filters_grid(0)
+        assert self.window._adv_filters_layout_mode == previous_mode
+
+        self.window._reorganize_advanced_filters_grid(800)
+        assert self.window._adv_filters_layout_mode == "cols_4"
+
+    def test_reprogramacoes_menu_builds_without_responsavel_materialized(self):
+        self.window.df_completo = self.base_df.assign(num_reprogramacoes=[0, 1, 2, 2, 3]).copy()
+        self.window._adv_values_cache = {}
+        self.window._responsavel_materialized_prefixes = set()
+        self.window._advanced_filters = {
+            "num_reprogramacoes_mode": "eq",
+            "num_reprogramacoes_values": ["2"],
+        }
+
+        self.window._refresh_advanced_filter_options()
+        QApplication.processEvents()
+
+        checks = getattr(self.window, "adv_reprog_checks", [])
+        assert checks, "reprogramacoes checks should be materialized even before responsavel filters"
+        selected = self.window._get_checked_values(checks)
+        assert "2" in selected
 
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
@@ -1924,6 +2220,203 @@ class TestGUIFilterLogic:
         assert worker.deleted is True
         assert worker not in filter_mixin.GLOBAL_RETIRED_FILTER_WORKERS
 
+    def test_close_event_retains_slow_rescan_worker_globally_and_clears_active_ref(self):
+        class _SlowRescanWorker:
+            def __init__(self):
+                self._running = True
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+                self.terminate_called = False
+
+            def isRunning(self):
+                return self._running
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                self.terminate_called = True
+
+        worker = _SlowRescanWorker()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker.terminate_called is True
+            assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
+    def test_close_event_retains_rescan_worker_when_isrunning_check_fails_mid_shutdown(self):
+        class _FlakyRescanWorker:
+            def __init__(self):
+                self._running = True
+                self._is_running_calls = 0
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+
+            def isRunning(self):
+                self._is_running_calls += 1
+                if self._is_running_calls == 2:
+                    raise RuntimeError("intermittent isRunning failure")
+                return self._running
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                return None
+
+        worker = _FlakyRescanWorker()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert worker.wait_calls and worker.wait_calls[0] == 1500
+            assert worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
+    def test_close_event_enforces_rescan_global_cap_and_meta_cleanup(self):
+        class _RunningRescanWorker:
+            def __init__(self):
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+
+            def isRunning(self):
+                return True
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                return None
+
+        old_cap = gui_ssa.MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+        worker_old = _RunningRescanWorker()
+        worker_new = _RunningRescanWorker()
+        setattr(gui_ssa, "MAX_GLOBAL_RETIRED_RESCAN_WORKERS", 1)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = [worker_old]
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META[worker_old] = 1.0
+        self.window._active_rescan_worker = worker_new
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS == [worker_new]
+            assert worker_old not in gui_ssa.GLOBAL_RETIRED_RESCAN_META
+            assert worker_new in gui_ssa.GLOBAL_RETIRED_RESCAN_META
+            assert self.window._active_rescan_worker is None
+        finally:
+            setattr(gui_ssa, "MAX_GLOBAL_RETIRED_RESCAN_WORKERS", old_cap)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS[:] = []
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.clear()
+
+    def test_close_event_uses_running_helper_when_worker_isrunning_is_unstable_after_wait(self, monkeypatch):
+        class _RescanWorkerUnstableAfterWait:
+            def __init__(self):
+                self._is_running_calls = 0
+                self.stop_called = False
+                self.quit_called = False
+                self.wait_calls = []
+                self.terminate_called = False
+
+            def isRunning(self):
+                self._is_running_calls += 1
+                if self._is_running_calls >= 2:
+                    raise RuntimeError("isRunning unstable after wait")
+                return True
+
+            def stop(self):
+                self.stop_called = True
+
+            def quit(self):
+                self.quit_called = True
+
+            def wait(self, ms):
+                self.wait_calls.append(ms)
+                return False
+
+            def terminate(self):
+                self.terminate_called = True
+
+        worker = _RescanWorkerUnstableAfterWait()
+        if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+        self.window._active_rescan_worker = worker
+        call_counter = {"count": 0}
+        original_running_helper = self.window._is_rescan_worker_running
+
+        def _tracked_running_helper(target):
+            call_counter["count"] += 1
+            return original_running_helper(target)
+
+        monkeypatch.setattr(self.window, "_is_rescan_worker_running", _tracked_running_helper)
+
+        try:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+
+            assert event.isAccepted() is True
+            assert worker.stop_called is True
+            assert worker.quit_called is True
+            assert call_counter["count"] >= 2
+            assert self.window._active_rescan_worker is None
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_RESCAN_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_RESCAN_META.pop(worker, None)
+
     def test_on_load_finished_current_request_cleans_worker_and_restores_ui(self):
         class _FakeSignal:
             def disconnect(self, _callback=None):
@@ -1969,6 +2462,20 @@ class TestGUIFilterLogic:
         assert self.window.progress_bar.isVisible() is False
         assert self.window.load_button.isEnabled() is True
         assert self.window.search_button.isEnabled() is True
+
+    def test_on_filter_finished_skips_width_adjustments_when_table_widget_invalid(self, monkeypatch):
+        self.window._active_filter_request_id = 77
+        self.window._active_filter_search_request_id = 77
+        self.window._active_filter_search_display = "Teste"
+        monkeypatch.setattr(self.window, "_refresh_after_filter_change", lambda: None)
+        monkeypatch.setattr(self.window, "_apply_search_display", lambda: None)
+        self.window.table_widget = None
+
+        self.window.on_filter_finished(self.base_df.copy(), request_id=77)
+
+        status = self.window.status_label.text()
+        assert "Status: SSAs filtradas:" in status
+        assert "para 'Teste'" in status
 
     def test_load_data_replaces_previous_loader_worker_and_tracks_request(self):
         class _FakeSignal:
@@ -2497,3 +3004,53 @@ class TestGUIFilterLogic:
         finally:
             if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
                 gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+
+    def test_retain_loader_worker_rehydrates_global_tracking_when_local_ref_exists(self):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def disconnect(self, _callback=None):
+                self._callbacks.clear()
+
+            def emit(self, *args, **kwargs):
+                for callback in list(self._callbacks):
+                    callback(*args, **kwargs)
+
+        class _RunningWorker:
+            def __init__(self):
+                self.data_loaded = _FakeSignal()
+                self.error_occurred = _FakeSignal()
+                self.finished = _FakeSignal()
+                self._running = True
+
+            def isRunning(self):
+                return self._running
+
+            def quit(self):
+                self._running = True
+
+            def wait(self, _ms):
+                return False
+
+            def deleteLater(self):
+                return None
+
+        worker = _RunningWorker()
+        self.window._retired_data_loader_workers = [worker]
+        if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+        gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)
+
+        try:
+            self.window._retain_data_loader_worker_until_finished(worker)
+
+            assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS
+            assert worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META
+        finally:
+            if worker in gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS:
+                gui_ssa.GLOBAL_RETIRED_DATA_LOADER_WORKERS.remove(worker)
+            gui_ssa.GLOBAL_RETIRED_DATA_LOADER_META.pop(worker, None)

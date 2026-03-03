@@ -2,12 +2,32 @@
 # LRU cache for filter results
 
 import hashlib
-import logging
-import pandas as pd
 from collections import OrderedDict
+import math
+import os
 import threading
+import pandas as pd
 
-logger = logging.getLogger(__name__)
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "gui")
+
+
+def _resolve_cache_max_entry_bytes() -> int | None:
+    raw = os.environ.get("SSA_CACHE_MAX_MB", "").strip()
+    if not raw:
+        return None
+    try:
+        max_mb = float(raw)
+    except ValueError:
+        logger.warning("Invalid SSA_CACHE_MAX_MB value: %r", raw)
+        return None
+    if not math.isfinite(max_mb):
+        logger.warning("Invalid SSA_CACHE_MAX_MB non-finite value: %r", raw)
+        return None
+    if max_mb <= 0:
+        return None
+    return int(max_mb * 1024 * 1024)
 
 
 class FilterCache:
@@ -15,8 +35,9 @@ class FilterCache:
 
     def __init__(self, max_size: int = 50, lock=None):
         self.max_size = max_size
+        self._max_entry_bytes = _resolve_cache_max_entry_bytes()
         self._cache = OrderedDict()  # LRU cache
-        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+        self._stats = {'hits': 0, 'misses': 0, 'evictions': 0, 'skipped_large_entries': 0}
         # This cache is shared across FilterWorker instances and accessed from QThreads.
         # Protect internal state to prevent races (e.g., key in cache then pop KeyError).
         self._lock = lock or threading.Lock()
@@ -74,7 +95,31 @@ class FilterCache:
         result: pd.DataFrame,
         cache_context: str | None = None,
     ):
-        """Armazena resultado no cache."""
+        """Armazena resultado DataFrame no cache; ignora entrada invalida."""
+        if not isinstance(result, pd.DataFrame):
+            logger.debug(
+                "FilterCache.put ignorou valor invalido para cache (tipo=%s)",
+                type(result).__name__,
+            )
+            return
+        if self._max_entry_bytes is not None:
+            try:
+                entry_bytes = int(result.memory_usage(index=True, deep=True).sum())
+            except Exception as exc:
+                logger.warning(
+                    "FilterCache.put falhou ao medir tamanho da entrada; ignorando limite (erro=%s)",
+                    exc,
+                )
+                entry_bytes = None
+            if entry_bytes is not None and entry_bytes > self._max_entry_bytes:
+                with self._lock:
+                    self._stats['skipped_large_entries'] += 1
+                logger.info(
+                    "FilterCache.put skipped large DataFrame entry (bytes=%s, max_bytes=%s)",
+                    entry_bytes,
+                    self._max_entry_bytes,
+                )
+                return
         key = self._generate_key(df_hash, search_chunks, default_mode, cache_context=cache_context)
         result_copy = result.copy()
 
@@ -99,7 +144,7 @@ class FilterCache:
         """Limpa todo o cache."""
         with self._lock:
             self._cache.clear()
-            self._stats = {'hits': 0, 'misses': 0, 'evictions': 0}
+            self._stats = {'hits': 0, 'misses': 0, 'evictions': 0, 'skipped_large_entries': 0}
             logger.debug("Filter cache cleared")
 
     def get_stats(self) -> dict:
@@ -117,5 +162,11 @@ class FilterCache:
             'hits': stats['hits'],
             'misses': stats['misses'],
             'evictions': stats['evictions'],
-            'hit_rate': hit_rate
+            'skipped_large_entries': stats['skipped_large_entries'],
+            'max_entry_mb': (
+                round(self._max_entry_bytes / (1024 * 1024), 3)
+                if self._max_entry_bytes is not None
+                else None
+            ),
+            'hit_rate': hit_rate,
         }

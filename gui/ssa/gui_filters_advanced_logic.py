@@ -6,8 +6,9 @@ from __future__ import annotations
 import hashlib
 import pandas as pd
 from pandas.api import types as pd_types
+from shared.date_utils import parse_datetime_series_mixed
 from utils.robust_logging import get_robust_logger
-from .gui_filters_advanced_state import AdvancedFilterState, prune_adv_cache
+from .gui_filters_advanced_state import AdvancedFilterState, SECTOR_TO_DIV, prune_adv_cache
 
 logger = get_robust_logger().get_logger(__name__, "gui")
 MAX_ADV_CACHE_ENTRIES = 16
@@ -19,6 +20,15 @@ def _to_int_set(values):
         text = str(raw).strip()
         if text.isdigit():
             result.add(int(text))
+    return result
+
+
+def _to_str_set(values):
+    result = set()
+    for raw in values or []:
+        text = str(raw).strip()
+        if text:
+            result.add(text)
     return result
 
 
@@ -163,17 +173,56 @@ def _apply_include_exclude_filters(
     ]
     for candidate_cols, include_key, exclude_key in column_groups:
         col = next((name for name in candidate_cols if name in df.columns), None)
-        if col is None:
-            continue
         include_values = _get_filter_values(include_key)
         exclude_values = _get_filter_values(exclude_key)
         if not include_values and not exclude_values:
             continue
-        if col in numeric_columns:
+        if include_key == "divisao":
+            include_values = _to_str_set(include_values)
+            exclude_values = _to_str_set(exclude_values)
+            series = None
+            if "divisao" in df.columns:
+                try:
+                    series = cache.get_str("divisao")
+                    if series is not None:
+                        invalid_tokens = {"", "nan", "none", "null"}
+                        series = series.where(~series.str.strip().str.casefold().isin(invalid_tokens), "")
+                except Exception as exc:
+                    logger.debug("Failed to read divisao column values: %s", exc)
+            try:
+                exec_series = (
+                    cache.get_str("setor_executor")
+                    if "setor_executor" in df.columns
+                    else None
+                )
+                emis_series = (
+                    cache.get_str("setor_emissor")
+                    if "setor_emissor" in df.columns
+                    else None
+                )
+                if exec_series is not None or emis_series is not None:
+                    if exec_series is None:
+                        exec_series = pd.Series("", index=df.index)
+                    if emis_series is None:
+                        emis_series = pd.Series("", index=df.index)
+                    div_exec = exec_series.map(SECTOR_TO_DIV).fillna("").astype(str)
+                    div_emis = emis_series.map(SECTOR_TO_DIV).fillna("").astype(str)
+                    derived_series = div_exec.where(div_exec != "", div_emis)
+                    if series is None:
+                        series = derived_series
+                    else:
+                        series = series.where(series != "", derived_series)
+            except Exception as exc:
+                logger.debug("Failed to derive divisao values from sector columns: %s", exc)
+            if series is None:
+                continue
+        elif col in numeric_columns:
             series = cache.get_numeric(col)
             include_values = _to_int_set(include_values or [])
             exclude_values = _to_int_set(exclude_values or [])
         else:
+            if col is None:
+                continue
             series = cache.get_str(col)
         if series is None:
             continue
@@ -218,7 +267,10 @@ def _apply_reprogramacoes_filter(df: pd.DataFrame, filters: dict, mask: pd.Serie
 
 def _compute_years_from_data_cadastro(series: pd.Series) -> tuple[pd.Series, str | None]:
     notice = None
-    ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+    if pd_types.is_numeric_dtype(series):
+        ts = pd.to_datetime(series, errors="coerce", dayfirst=True)
+    else:
+        ts = parse_datetime_series_mixed(series)
     if pd_types.is_numeric_dtype(series):
         nums = pd.to_numeric(series, errors="coerce")
         num_mask = nums.notna() & nums.gt(0)

@@ -249,10 +249,10 @@ Status: "Exibindo 300 de 12.000 SSAs (use filtros para refinar)"
 #### **Solucao - Modo Optimized**
 ```bash
 # Usar modo otimizado para arquivos grandes
-python main.py --import arquivo_grande.xlsx --optimized
+uv run --python 3.13 python main.py --import arquivo_grande.xlsx --optimized
 
 # GUI com modo otimizado
-python main.py --gui --optimized
+uv run --python 3.13 python main.py --gui --optimized
 ```
 
 #### **Algoritmo de Otimizacao**
@@ -293,7 +293,7 @@ du -h arquivo.xlsx
 ##### **3.2 Teste de Importacao Basica**
 ```bash
 # Importacao em modo debug
-python main.py --import arquivo.xlsx --debug
+uv run --python 3.13 python main.py --import arquivo.xlsx --debug
 
 # Verificar logs
 tail -f logs/import_debug.log
@@ -428,8 +428,8 @@ rm -f config/*_preferences.json
 rm -rf logs/*
 rm -rf __pycache__/*
 
-# Reinstalar dependencias
-pip install -r requirements.txt --force-reinstall
+# Reinstalar dependencias (uv-first)
+uv sync --refresh
 ```
 
 #### **6.2 Recuperacao de Dados**
@@ -647,7 +647,7 @@ python scripts_manutencao/verificar_integridade.py
 python scripts_manutencao/database_analysis.py
 
 # Validar importacoes apos correcoes
-python main.py -rescan --verify-integrity
+uv run --python 3.13 python main.py -rescan --verify-integrity
 ```
 
 ---

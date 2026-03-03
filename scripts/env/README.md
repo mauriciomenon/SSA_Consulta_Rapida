@@ -103,6 +103,11 @@ Os scripts garantem que o Python está ativo antes de instalar dependências.
 
 **Instalar dependências de desenvolvimento:**
 ```bash
+uv sync --extra dev
+```
+
+Compatibilidade sem uv:
+```bash
 pip install -r requirements_dev.txt
 ```
 

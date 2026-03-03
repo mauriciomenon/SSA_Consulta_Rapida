@@ -64,4 +64,30 @@ def test_column_visibility_loop_continues_when_save_fails(monkeypatch):
 
     command_handlers._handle_column_visibility(settings)
 
-    assert settings["display_settings"]["column_visibility"]["numero_ssa"] is False
+    # Save falhou, entao a alteracao deve ser desfeita para estado original.
+    assert settings["display_settings"]["column_visibility"]["numero_ssa"] is True
+
+
+def test_save_settings_handler_clears_mapping_cache(monkeypatch):
+    command_handlers._MAPPINGS_CACHE_MANAGER.clear()
+    command_handlers._MAPPINGS_CACHE_MANAGER.set("display_mappings.json", {"k": "v"})
+
+    monkeypatch.setattr(command_handlers, "save_settings", lambda _settings: None)
+
+    command_handlers._save_settings_handler({"x": 1})
+
+    assert command_handlers._MAPPINGS_CACHE_MANAGER.get("display_mappings.json") is None
+
+
+def test_save_settings_handler_reports_resolved_settings_path(monkeypatch, capsys):
+    monkeypatch.setattr(command_handlers, "save_settings", lambda _settings: None)
+    monkeypatch.setattr(
+        command_handlers,
+        "_resolve_settings_path_for_message",
+        lambda: "/tmp/custom/settings.json",
+    )
+
+    command_handlers._save_settings_handler({"x": 1})
+
+    out = capsys.readouterr().out
+    assert "/tmp/custom/settings.json" in out

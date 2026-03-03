@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import sqlite3
 
-from armazenamento.database_optimized import _has_referencing_foreign_keys
+import pandas as pd
+
+from armazenamento.database_optimized import (
+    _quote_identifier,
+    _has_referencing_foreign_keys,
+    insert_dataframe_optimized,
+)
 
 
 def test_has_referencing_foreign_keys_rejects_invalid_target_identifier() -> None:
@@ -35,3 +41,28 @@ def test_has_referencing_foreign_keys_detects_valid_reference() -> None:
         assert _has_referencing_foreign_keys(conn, "ssa_table") is True
     finally:
         conn.close()
+
+
+def test_insert_dataframe_optimized_rejects_invalid_table_identifier(tmp_path) -> None:
+    db_path = str(tmp_path / "invalid_identifier.db")
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["123456789"],
+            "data_cadastro": [pd.Timestamp("2025-01-01")],
+            "situacao": ["TESTE"],
+            "descricao_ssa": ["ok"],
+        }
+    )
+
+    assert (
+        insert_dataframe_optimized(df, db_path, table_name="ssa_table;drop_table")
+        is False
+    )
+
+
+def test_quote_identifier_rejects_invalid_column_identifier() -> None:
+    try:
+        _quote_identifier("coluna-invalida")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass

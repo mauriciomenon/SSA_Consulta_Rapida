@@ -20,10 +20,19 @@ class ColumnManagerDialog(QDialog):
         self.display_map = display_map or {}
         self.default_columns = list(default_columns or [])
         all_from_map = list(self.display_map.keys())
-        self.available_columns = list(available_columns or []) or all_from_map
+        explicit_available = list(available_columns or [])
+        self.available_columns = explicit_available or all_from_map
+        self._missing_alias_logged = set()
         if not self.available_columns:
             self.available_columns = list(selected_columns)
-        self.available_columns = list(dict.fromkeys(self.available_columns + [c for c in all_from_map if c not in self.available_columns]))
+        if explicit_available:
+            self.available_columns = list(dict.fromkeys(self.available_columns))
+        else:
+            self.available_columns = list(
+                dict.fromkeys(
+                    self.available_columns + [c for c in all_from_map if c not in self.available_columns]
+                )
+            )
         self._build_ui(selected_columns)
 
     def _build_ui(self, selected_columns):
@@ -86,6 +95,12 @@ class ColumnManagerDialog(QDialog):
         self.list_widget.clear()
         for col in self._ordered_columns(selected_columns):
             display_name = self.display_map.get(col, col)
+            if display_name == col:
+                if col not in self._missing_alias_logged:
+                    self._missing_alias_logged.add(col)
+                    logging.getLogger(__name__).debug(
+                        "Coluna sem alias canonico no gerenciador de colunas: %s", col
+                    )
             item = QListWidgetItem(display_name)
             try:
                 flags = item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable

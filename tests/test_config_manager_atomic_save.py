@@ -12,8 +12,10 @@ import core.config_manager as config_manager  # noqa: E402
 
 
 def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(tmp_path, monkeypatch):
-    settings_path = tmp_path / "settings.json"
-    monkeypatch.setattr(config_manager, "USER_SETTINGS_FILE", str(settings_path))
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+    settings_path = cfg_dir / "settings.json"
 
     initial = {"a": 1}
     settings_path.write_text(json.dumps(initial, indent=4, ensure_ascii=False), encoding="utf-8")
@@ -32,13 +34,15 @@ def test_save_settings_is_atomic_and_does_not_corrupt_existing_file(tmp_path, mo
         config_manager.save_settings({"b": 2})
 
     assert settings_path.read_text(encoding="utf-8") == original_text
-    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(tmp_prefix)]
+    leftovers = [p for p in cfg_dir.iterdir() if p.name.startswith(tmp_prefix)]
     assert leftovers == []
 
 
 def test_save_settings_writes_valid_json(tmp_path, monkeypatch):
-    settings_path = tmp_path / "settings.json"
-    monkeypatch.setattr(config_manager, "USER_SETTINGS_FILE", str(settings_path))
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+    settings_path = cfg_dir / "settings.json"
 
     data = {"a": 1, "b": {"nested": True}}
     config_manager.save_settings(data)
@@ -46,3 +50,54 @@ def test_save_settings_writes_valid_json(tmp_path, monkeypatch):
     loaded = json.loads(settings_path.read_text(encoding="utf-8"))
     assert loaded == data
 
+
+def test_ensure_default_settings_reports_copy_failure(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    example = cfg_dir / "default_settings.json.example"
+    example.write_text("{}", encoding="utf-8")
+
+    def _fail_copy(_src, _dst):
+        raise IOError("copy boom")
+
+    monkeypatch.setattr(config_manager, "_atomic_copy_file", _fail_copy)
+
+    errors = config_manager.ensure_default_settings(fail_fast=False)
+    assert errors
+    assert any(item.startswith("copy_failed:") for item in errors)
+
+
+def test_ensure_default_settings_raises_in_fail_fast_mode(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    example = cfg_dir / "default_settings.json.example"
+    example.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(config_manager, "_atomic_copy_file", lambda _src, _dst: (_ for _ in ()).throw(IOError("copy boom")))
+
+    with pytest.raises(RuntimeError, match="ensure_default_settings failed"):
+        config_manager.ensure_default_settings(fail_fast=True)
+
+
+def test_ensure_default_settings_reports_generate_failure(tmp_path, monkeypatch):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    monkeypatch.setattr(config_manager, "_atomic_copy_file", lambda _s, _d: (_ for _ in ()).throw(FileNotFoundError()))
+
+    def _fail_write(*_args, **_kwargs):
+        raise IOError("write boom")
+
+    monkeypatch.setattr(config_manager, "_atomic_write_json_file", _fail_write)
+
+    errors = config_manager.ensure_default_settings(fail_fast=False)
+    assert errors
+    assert any(
+        item.startswith("copy_failed:") or item.startswith("generate_failed:")
+        for item in errors
+    )

@@ -34,7 +34,11 @@ def test_basic_functionality():
 def test_database():
     """Testa se o banco está acessível"""
     try:
-        print("\n️ Testando acesso ao banco...")
+        print("\nINFO Testando acesso ao banco...")
+
+        if not os.path.exists("data"):
+            print("ERR Diretorio data/ nao encontrado")
+            return False
 
         # Verifica se o arquivo do banco existe
         db_path = "data/ssa_consulta_rapida.db"
@@ -209,7 +213,7 @@ def main():
     print("   INFO Modo padrão:    python main.py")
     print("   PERF Modo otimizado: python main.py --optimized")
     print("   INFO Interface GUI:  python main.py --gui")
-    print("   ️ Gerenciar DB:   python scripts_manutencao/gerenciar_banco.py")
+    print("   INFO Gerenciar DB:   python scripts_manutencao/gerenciar_banco.py")
     print("   INFO Ver ajuda:      python main.py --help")
 
 if __name__ == "__main__":

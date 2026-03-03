@@ -1,20 +1,85 @@
 # interface/command_handlers.py 20250723 163500 (v1.0 - Funcoes de Tratamento de Comandos)
 import os
 import json
-import logging
 
 # Importacoes relativas necessarias para as funcoes
 # Supondo que 'config' esta no root do projeto para os settings
 # Isso sera ajustado via sys.path em cli.py/main.py se necessario
-from core.config_manager import load_settings, load_display_mappings_integrity, save_settings
+from core.config_manager import (
+    load_settings,
+    load_display_mappings_integrity,
+    save_settings,
+    _resolve_config_path,  # noqa: SLF001
+)
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+
+def _get_project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+logger = get_robust_logger().get_logger(__name__, "cli")
+
+
+class _MappingsCacheManager:
+    def __init__(self) -> None:
+        self._cache: dict[str, dict] = {}
+
+    def get(self, file_name: str) -> dict | None:
+        value = self._cache.get(file_name)
+        if value is None:
+            return None
+        return value.copy()
+
+    def set(self, file_name: str, value: dict) -> None:
+        self._cache[file_name] = value.copy()
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
+_MAPPINGS_CACHE_MANAGER = _MappingsCacheManager()
+
+
+def _resolve_settings_path_for_message() -> str:
+    return _resolve_config_path(os.path.join("config", "settings.json"))
+
+
+def _resolve_mapping_path(file_name: str) -> str | None:
+    if not isinstance(file_name, str):
+        logger.warning("Nome de mapping invalido (tipo=%s).", type(file_name).__name__)
+        return None
+    normalized = file_name.strip()
+    if not normalized:
+        logger.warning("Nome de mapping vazio.")
+        return None
+    if normalized != os.path.basename(normalized):
+        logger.warning("Mapping fora do escopo permitido: '%s'.", normalized)
+        return None
+    if not normalized.lower().endswith(".json"):
+        logger.warning("Mapping com extensao invalida: '%s'.", normalized)
+        return None
+    return _resolve_config_path(os.path.join("config", normalized))
+
 
 def _load_mappings_handler(file_name: str) -> dict:
     """Carrega mapeamentos de configuracao de arquivos JSON."""
+    cached = _MAPPINGS_CACHE_MANAGER.get(file_name)
+    if cached is not None:
+        return cached
     if file_name == 'display_mappings.json':
-        return load_display_mappings_integrity()
-    path = os.path.join('config', file_name)
+        try:
+            data = load_display_mappings_integrity()
+        except Exception as exc:
+            logger.warning("Falha ao carregar display mappings por integridade: %s", exc)
+            return {}
+        if isinstance(data, dict):
+            _MAPPINGS_CACHE_MANAGER.set(file_name, data)
+            return data.copy()
+        return {}
+    path = _resolve_mapping_path(file_name)
+    if path is None:
+        return {}
     try:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -22,20 +87,40 @@ def _load_mappings_handler(file_name: str) -> dict:
         logger.warning("Falha ao carregar mapping '%s': %s", path, exc)
         return {}
     if isinstance(data, dict):
-        return data
+        _MAPPINGS_CACHE_MANAGER.set(file_name, data)
+        return data.copy()
     logger.warning("Mapping '%s' em formato invalido; usando fallback vazio.", path)
     return {}
 
 def _save_settings_handler(settings: dict):
     """Salva as configuracoes atualizadas de volta ao settings.json."""
+    settings_path = _resolve_settings_path_for_message()
     try:
         # Delegate to core.config_manager for atomic writes and consistent formatting.
         save_settings(settings)
-        print("Configuracoes salvas com sucesso.")
+        _MAPPINGS_CACHE_MANAGER.clear()
+        print(f"Configuracoes salvas com sucesso em: {settings_path}")
     except (OSError, ValueError, TypeError, RuntimeError) as e:
         logger.exception("Falha ao salvar configuracoes da CLI")
-        print(f"ERRO: Nao foi possivel salvar as configuracoes. Erro: {e}")
+        print(
+            f"ERRO: Nao foi possivel salvar as configuracoes em: {settings_path}. "
+            f"Erro: {e}"
+        )
         raise
+
+
+def _attempt_save_settings(settings: dict) -> bool:
+    try:
+        _save_settings_handler(settings)
+        return True
+    except (OSError, ValueError, TypeError, RuntimeError):
+        # _save_settings_handler ja registra erro e feedback ao usuario.
+        return False
+    except Exception as exc:
+        logger.exception("Falha inesperada ao salvar configuracoes da CLI: %s", exc)
+        print("ERRO: Falha inesperada ao salvar configuracoes.")
+        return False
+
 
 def print_help():
     """Exibe a mensagem de ajuda para os comandos da CLI."""
@@ -121,12 +206,11 @@ def _handle_column_visibility(settings: dict):
             if 0 <= idx < len(column_names):
                 selected_col = column_names[idx]
                 current_state = column_visibility.get(selected_col, True)
-                column_visibility[selected_col] = not current_state
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
+                new_state = not current_state
+                column_visibility[selected_col] = new_state
+                if not _attempt_save_settings(settings):
+                    column_visibility[selected_col] = current_state
+                    print("Falha ao salvar. Alteracao de visibilidade foi desfeita.")
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -160,26 +244,35 @@ def _handle_column_widths(settings: dict):
             if 0 <= idx < len(display_names):
                 selected_display_name = display_names[idx]
                 new_width_input = input(f"Digite a nova largura para '{selected_display_name}' (numero ou 'Auto' para automatico): ").strip()
+                had_existing_width = selected_display_name in column_widths
+                previous_width = column_widths.get(selected_display_name)
+                changed = False
 
                 if new_width_input.lower() == 'auto':
                     if selected_display_name in column_widths:
                         del column_widths[selected_display_name]
-                    print(f"Largura de '{selected_display_name}' definida como automatica.")
+                        changed = True
+                    if changed:
+                        print(f"Largura de '{selected_display_name}' definida como automatica.")
                 elif new_width_input.isdigit():
                     new_width = int(new_width_input)
                     if new_width > 0:
-                        column_widths[selected_display_name] = new_width
-                        print(f"Largura de '{selected_display_name}' definida como {new_width}.")
+                        if (not had_existing_width) or previous_width != new_width:
+                            column_widths[selected_display_name] = new_width
+                            changed = True
+                        if changed:
+                            print(f"Largura de '{selected_display_name}' definida como {new_width}.")
                     else:
                         print("Largura deve ser um numero positivo.")
                 else:
                     print("Entrada invalida. Por favor, digite um numero ou 'Auto'.")
 
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
+                if changed and not _attempt_save_settings(settings):
+                    if had_existing_width:
+                        column_widths[selected_display_name] = previous_width
+                    else:
+                        column_widths.pop(selected_display_name, None)
+                    print("Falha ao salvar. Alteracao de largura foi desfeita.")
             else:
                 print("Numero de coluna invalido.")
         else:
@@ -203,13 +296,13 @@ def _handle_user_preferences(settings: dict):
 
         if choice == '1':
             current_state = user_preferences.get('auto_scroll_to_end', False)
-            user_preferences['auto_scroll_to_end'] = not current_state
-            try:
-                _save_settings_handler(settings) # Usar a propria funcao de save
-            except (OSError, ValueError, TypeError, RuntimeError):
-                # Mantem menu interativo ativo mesmo com erro de persistencia.
-                pass
-            print(f"Rolagem automatica agora esta {'ATIVADA' if not current_state else 'DESATIVADA'}.")
+            new_state = not current_state
+            user_preferences['auto_scroll_to_end'] = new_state
+            if _attempt_save_settings(settings):
+                print(f"Rolagem automatica agora esta {'ATIVADA' if new_state else 'DESATIVADA'}.")
+            else:
+                user_preferences['auto_scroll_to_end'] = current_state
+                print("Falha ao salvar. Alteracao de rolagem automatica foi desfeita.")
         elif choice == '2':
             _handle_default_filters(settings)
         elif choice == '0':
@@ -235,12 +328,11 @@ def _handle_default_filters(settings: dict):
             new_filter = input("Digite o novo termo de filtro para adicionar: ").strip()
             if new_filter and new_filter not in default_filters:
                 default_filters.append(new_filter)
-                try:
-                    _save_settings_handler(settings) # Usar a propria funcao de save
-                except (OSError, ValueError, TypeError, RuntimeError):
-                    # Mantem menu interativo ativo mesmo com erro de persistencia.
-                    pass
-                print(f"'{new_filter}' adicionado aos filtros padrao.")
+                if _attempt_save_settings(settings):
+                    print(f"'{new_filter}' adicionado aos filtros padrao.")
+                else:
+                    default_filters.pop()
+                    print("Falha ao salvar. Inclusao de filtro foi desfeita.")
             else:
                 print("Termo invalido ou ja existente.")
         elif choice == '2':
@@ -255,12 +347,11 @@ def _handle_default_filters(settings: dict):
                 filter_index = int(input("Digite o numero do filtro para remover: ").strip()) - 1
                 if 0 <= filter_index < len(default_filters):
                     removed_filter = default_filters.pop(filter_index)
-                    try:
-                        _save_settings_handler(settings) # Usar a propria funcao de save
-                    except (OSError, ValueError, TypeError, RuntimeError):
-                        # Mantem menu interativo ativo mesmo com erro de persistencia.
-                        pass
-                    print(f"'{removed_filter}' removido dos filtros padrao.")
+                    if _attempt_save_settings(settings):
+                        print(f"'{removed_filter}' removido dos filtros padrao.")
+                    else:
+                        default_filters.insert(filter_index, removed_filter)
+                        print("Falha ao salvar. Remocao de filtro foi desfeita.")
                 else:
                     print("Numero de filtro invalido.")
             except ValueError:

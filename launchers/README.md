@@ -103,10 +103,16 @@ Recomenda-se comparar tamanhos antes/depois para decidir se compensa no pipeline
 
 ### **Pre-requisitos**
 ```bash
-# Python 3.13+ com dependencias
-pip install -r requirements.txt
+# Python 3.10+ (preferir 3.13+) com dependencias (uv-first)
+uv sync
 
 # PyInstaller para builds
+uv pip install pyinstaller
+```
+
+Compatibilidade sem uv:
+```bash
+pip install -r requirements.txt
 pip install pyinstaller
 ```
 

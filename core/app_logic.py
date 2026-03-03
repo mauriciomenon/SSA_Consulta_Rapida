@@ -12,6 +12,8 @@ import sys
 import logging
 import json
 import sqlite3
+import time
+from datetime import datetime
 import pandas as pd
 import re
 from pathlib import Path
@@ -180,6 +182,10 @@ def _import_single_file(
     logger.info(f"Iniciando importacao de '{file_path}'...")
     try:
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
+        if should_cancel and should_cancel():
+            raise ExtractionError("operation cancelled")
+        if df is None:
+            raise ExtractionError(f"Extractor retornou None para '{file_path}'")
         if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
@@ -287,14 +293,23 @@ def _import_single_file(
             return True, 0  # Nao e um erro critico, apenas nao ha dados
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
-        raise ExtractionError(str(e)) from e
+        message = str(e).strip() or "Erro de extracao sem detalhe"
+        raise ExtractionError(message) from e
+    except ExtractionError:
+        raise
     except DatabaseError:
         raise
     except ImporterError:
         raise
     except Exception as e:
-        logger.error(f"Erro inesperado ao importar '{file_path}': {e}")
-        raise ExtractionError(f"Erro ao importar {file_path}: {e}") from e
+        error_type = type(e).__name__
+        logger.exception(
+            "Erro inesperado (%s) ao importar '%s': %s",
+            error_type,
+            file_path,
+            e,
+        )
+        raise ExtractionError(f"{error_type} ao importar {file_path}: {e}") from e
 
 
 def _is_derivadas_sheet_file(file_path: str) -> bool:
@@ -314,8 +329,17 @@ def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
     )
 
 
-def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
+def _needs_db_only_derivadas_sync(
+    db_path: str,
+    table_name: str,
+    *,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> bool:
     """Decide if derivadas sync should run with DB-only source when no files changed."""
+
+    if should_cancel and should_cancel():
+        logger.info("Cancelamento solicitado antes do preflight DB-only de derivadas.")
+        return False
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
         logger.warning("Nome de tabela invalido para preflight de derivadas: %r", table_name)
@@ -323,6 +347,9 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
 
     try:
         with database.get_db_connection(db_path) as conn:
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
             db_edges_count = int(
                 conn.execute(
                     f"""
@@ -339,6 +366,10 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
             if db_edges_count <= 0:
                 return False
 
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
+
             ready_tables = {
                 "ssa_derivada_matrix",
                 "ssa_derivada_summary",
@@ -352,6 +383,10 @@ def _needs_db_only_derivadas_sync(db_path: str, table_name: str) -> bool:
             }
             if not ready_tables.issubset(existing_tables):
                 return True
+
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado durante preflight DB-only de derivadas.")
+                return False
 
             matrix_active = int(
                 conn.execute("SELECT COUNT(*) FROM ssa_derivada_matrix WHERE active = 1").fetchone()[0]
@@ -528,6 +563,94 @@ def _update_cache_after_import(
         raise CacheError("Falha ao atualizar o cache apos importacao.") from exc
 
 
+def _update_cache_for_deterministic_failures(
+    failed_files: List[str], cache_file: str
+) -> None:
+    """Atualiza cache para arquivos com falha deterministica para evitar retrabalho inutil."""
+    if not failed_files:
+        return
+    deduped = list(dict.fromkeys([f for f in failed_files if isinstance(f, str) and f.strip()]))
+    if not deduped:
+        return
+    try:
+        caching.update_cache_for_files(deduped, cache_file)
+        logger.info(
+            "Cache atualizado para %s arquivo(s) com falha deterministica (aguardando mudanca de hash).",
+            len(deduped),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Falha ao atualizar cache para arquivos com erro deterministico: %s", exc
+        )
+
+
+def _recreate_database_for_full_rescan(db_path: str) -> None:
+    """Create a clean DB for full rescan by rotating the previous file."""
+    if not os.path.exists(db_path):
+        return
+    logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
+    last_error: Optional[Exception] = None
+    for attempt in range(1, 4):
+        try:
+            with sqlite3.connect(db_path, timeout=2) as conn:
+                conn.execute("PRAGMA busy_timeout = 2000")
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+            last_error = None
+            break
+        except sqlite3.Error as exc:
+            last_error = exc
+            if "locked" in str(exc).lower() and attempt < 3:
+                logger.warning(
+                    "Banco bloqueado na preparacao do full rescan (tentativa %s/3).",
+                    attempt,
+                )
+                time.sleep(0.35 * attempt)
+                continue
+            break
+    if last_error is not None:
+        raise DatabaseError(
+            "Falha ao preparar full rescan por lock ativo no banco. "
+            f"Feche acessos concorrentes e tente novamente: {last_error}"
+        ) from last_error
+    wal_path = f"{db_path}-wal"
+    if os.path.exists(wal_path):
+        try:
+            wal_size = int(os.path.getsize(wal_path))
+        except OSError as exc:
+            raise DatabaseError(
+                f"Falha ao validar estado do WAL antes do full rescan: {exc}"
+            ) from exc
+        if wal_size > 0:
+            raise DatabaseError(
+                "WAL ativo detectado antes da rotacao do banco. "
+                "Feche acessos concorrentes e tente novamente."
+            )
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{db_path}.full_rescan_backup_{timestamp}"
+    try:
+        os.replace(db_path, backup_path)
+        logger.info(
+            "Banco anterior movido para backup de full rescan: %s",
+            os.path.basename(backup_path),
+        )
+        for suffix in ("-wal", "-shm"):
+            sidecar = f"{db_path}{suffix}"
+            if not os.path.exists(sidecar):
+                continue
+            sidecar_backup = f"{backup_path}{suffix}"
+            os.replace(sidecar, sidecar_backup)
+            logger.info(
+                "Arquivo auxiliar do banco movido para backup: %s",
+                os.path.basename(sidecar_backup),
+            )
+    except OSError as exc:
+        raise DatabaseError(
+            f"Falha ao preparar banco limpo para full rescan: {exc}"
+        ) from exc
+
+
 # --- Funcao Principal Refatorada ---
 
 
@@ -601,6 +724,8 @@ def run_importer_logic(
 
         # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
+        if force_import:
+            _recreate_database_for_full_rescan(db_path)
 
         # Verificar e reparar banco se necessario
         if not database.repair_database_if_needed(db_path, table_name=table_name):
@@ -640,6 +765,7 @@ def run_importer_logic(
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
         derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
         db_only_derivadas_sync = False
+        auto_derivadas_sync_enabled = bool(force_import)
         total_files = len(files_to_process)
         progress_cb = progress_callback
 
@@ -661,7 +787,16 @@ def run_importer_logic(
         _emit_progress("start", {"total": total_files})
 
         if not files_to_process and not derivadas_sheet_files:
-            db_only_derivadas_sync = _needs_db_only_derivadas_sync(db_path=db_path, table_name=table_name)
+            if should_cancel and should_cancel():
+                logger.info("Cancelamento solicitado antes do preflight de derivadas.")
+                _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
+                return False
+            if auto_derivadas_sync_enabled:
+                db_only_derivadas_sync = _needs_db_only_derivadas_sync(
+                    db_path=db_path,
+                    table_name=table_name,
+                    should_cancel=should_cancel,
+                )
             if not db_only_derivadas_sync:
                 logger.info(
                     "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
@@ -683,6 +818,7 @@ def run_importer_logic(
         # --- 2. Processar cada arquivo ---
         successfully_processed_files = []
         critical_errors = []
+        deterministic_failed_files = []
 
         try:
             for index, file_path in enumerate(files_to_process):
@@ -791,6 +927,8 @@ def run_importer_logic(
                     if "operation cancelled" in msg and should_cancel:
                         logger.info("Cancelamento solicitado; interrompendo importacao.")
                         break
+                    if "missing required columns after normalization" in msg:
+                        deterministic_failed_files.append(file_path)
                     logger.warning(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
                     )
@@ -819,7 +957,7 @@ def run_importer_logic(
                     continue
             sync_materialized = False
             derivadas_sync_blocking_error = False
-            should_run_derivadas_sync = (
+            should_run_derivadas_sync = auto_derivadas_sync_enabled and (
                 bool(successfully_processed_files)
                 or bool(derivadas_sheet_files)
                 or bool(db_only_derivadas_sync)
@@ -912,6 +1050,10 @@ def run_importer_logic(
                 "Cache nao sera atualizado nesta execucao."
             )
             return False
+
+        _update_cache_for_deterministic_failures(
+            deterministic_failed_files, cache_file
+        )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:

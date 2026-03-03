@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## [v4.29] - 2026-03-02
+
+### Changed
+- Release `4.29` com estabilizacao de tema/legibilidade na GUI:
+  - padronizacao de popup/menu/checkbox com roles de tema;
+  - texto de selecao em botoes de multiselect mostra conteudo completo quando cabe;
+  - truncamento por largura util, sem corte fixo arbitrario;
+  - ajustes de robustez para evitar acesso a widget Qt invalido em relayout.
+- Metadados de versao sincronizados para `4.29` em `VERSION` e `config/version.json`.
+
+## [v4.27] - 2026-03-01
+
+### Changed
+- Runtime/documentation moved to uv-first usage with explicit command priority:
+  - `uv run --python 3.13 ...` as first option.
+  - fallback order documented: 3.12 -> 3.11 -> 3.10.
+- `requires-python` updated to `>=3.10` to keep compatibility without dropping 3.13 priority.
+- `dev_env/bootstrap.sh` and `dev_env/bootstrap.ps1` now prefer 3.13 and fallback to 3.12/3.11/3.10.
+- `gui/gui_ssa.py` fallback for open folder now checks executable availability (`explorer`, `open`, `xdg-open`) before spawning.
+- `interface/cli_enhancement_manager.py` applies POSIX-specific chmod/fsync steps only on POSIX.
+
+### Validation
+- Multi-version isolated matrix completed with uv envs:
+  - Python 3.10.18: pass
+  - Python 3.11.14: pass
+  - Python 3.12.11: pass
+  - Python 3.13.12: pass
+- Focused checks per version:
+  - `py_compile`, `ruff`, `ty`
+  - `pytest -q tests/test_open_docs_folder_nonblocking.py tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`
+
 ## [Unreleased] - 2025-11-10
 
 ### Fixed
@@ -82,3 +113,10 @@ Released: https://github.com/mauriciomenon/SSA_Consulta_Rapida/releases/tag/v4.0
 ---
 
 For the full technical changelog and implementation details, see `docs_saida/CHANGELOG_IMPLEMENTACOES.md` and `docs/HISTORICO_ULTIMOS_50_COMMITS.md`.
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.

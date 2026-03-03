@@ -1,9 +1,11 @@
 import ast
 import pandas as pd
 import re
+import warnings
 from pathlib import Path
 
-from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters
+from gui.ssa.gui_filters_advanced_logic import _apply_advanced_filters, _compute_years_from_data_cadastro
+from gui.ssa import gui_filters_advanced_logic as adv_logic
 from gui.ssa import gui_filters_advanced_ui as adv_ui
 
 
@@ -184,6 +186,26 @@ def test_apply_advanced_filters_supports_legacy_ano_emissao_key():
     assert filtered["numero_ssa"].tolist() == ["202500001", "202500002"]
 
 
+def test_compute_years_from_data_cadastro_handles_mixed_iso_and_dayfirst_without_warning():
+    series = pd.Series(
+        [
+            "2026-02-25 16:16:50",
+            "25/02/2026",
+            "invalid",
+        ]
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        years, notice = _compute_years_from_data_cadastro(series)
+
+    assert years.iloc[0] == 2026
+    assert years.iloc[1] == 2026
+    assert pd.isna(years.iloc[2])
+    assert notice == "ano_emissao_parse_skipped"
+    assert not any("dayfirst=True" in str(item.message) for item in caught)
+
+
 def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():
     window = _DummyWindow({"ano_execucao": 2025, "ano_execucao_exclude": True})
     df = pd.DataFrame(
@@ -201,6 +223,81 @@ def test_apply_advanced_filters_supports_legacy_ano_execucao_exclude_flag():
         notice_callback=None,
     )
     assert filtered["numero_ssa"].tolist() == ["202400001"]
+
+
+def test_apply_advanced_filters_reprogramacoes_eq_lte_gte():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003", "202500004"],
+            "num_reprogramacoes": [0, 1, 2, 3],
+        }
+    )
+
+    window_eq = _DummyWindow({"num_reprogramacoes_mode": "eq", "num_reprogramacoes_values": ["2"]})
+    filtered_eq = _apply_advanced_filters(
+        window_eq,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_eq["numero_ssa"].tolist() == ["202500003"]
+
+    window_lte = _DummyWindow({"num_reprogramacoes_mode": "lte", "num_reprogramacoes_values": ["1"]})
+    filtered_lte = _apply_advanced_filters(
+        window_lte,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_lte["numero_ssa"].tolist() == ["202500001", "202500002"]
+
+    window_gte = _DummyWindow({"num_reprogramacoes_mode": "gte", "num_reprogramacoes_values": ["2"]})
+    filtered_gte = _apply_advanced_filters(
+        window_gte,
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_gte["numero_ssa"].tolist() == ["202500003", "202500004"]
+
+
+def test_apply_advanced_filters_derives_divisao_from_setor_columns(monkeypatch):
+    monkeypatch.setattr(
+        adv_logic,
+        "SECTOR_TO_DIV",
+        {
+            "IEE3": "SMIN",
+            "MEL3": "SMME",
+        },
+    )
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001", "202500002", "202500003"],
+            "setor_executor": ["IEE3", "MEL3", ""],
+            "setor_emissor": ["", "", "IEE3"],
+        }
+    )
+
+    filtered_include = _apply_advanced_filters(
+        _DummyWindow({"divisao": ["SMIN"]}),
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_include["numero_ssa"].tolist() == ["202500001", "202500003"]
+
+    filtered_exclude = _apply_advanced_filters(
+        _DummyWindow({"divisao_exclude_values": ["SMIN"]}),
+        df,
+        cache_token=1,
+        normalize_ssa_series=_normalize_ssa_series,
+        notice_callback=None,
+    )
+    assert filtered_exclude["numero_ssa"].tolist() == ["202500002"]
 
 
 def test_advanced_filter_keys_from_ui_are_covered_by_logic_or_active_detector():
@@ -233,6 +330,7 @@ def test_logic_and_detector_keys_are_produced_by_ui_or_marked_legacy():
         "ano_emissao_exclude",
         "ano_execucao",
         "ano_execucao_exclude",
+        "derivada_all_ste",
         "responsavel_solicitante",
         "responsavel_solicitante_exclude_values",
         "divisao",

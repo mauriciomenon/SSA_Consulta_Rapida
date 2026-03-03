@@ -1,14 +1,81 @@
-# SSA Consulta Rapida v4.12.0
+# SSA Consulta Rapida v4.29
 
-Release 4.12.0 consolida a limpeza documental e garante que README, changelog completo e prioridade de colunas estejam sincronizados com os testes automatizados. Esta versao tambem atualiza os metadados de versao, reafirma o escopo de logging robusto e mantem o historico completo das correcões anteriores.
+Release 4.29 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas, com ajuste de consistencia de tema e legibilidade.
 
-## Release v4.12.0 (2025-12)
+## Release v4.29 (2026-03)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.12.0 com foco em limpeza documental e paridade de testes.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.29.
+- Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
+- Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
+- Regressao nova: teste para garantir altura sincronizada unica apos resize.
+- Regressao de filtros por coluna coberta por novos testes focados em:
+  - menu de adicionar filtro de coluna (lista completa + exclusao de aliases legados invalidos);
+  - clear-all restaurando defaults e linhas ocultas;
+  - presenca de botoes Aplicar/Ocultar nas linhas default.
+- Matriz de compatibilidade Python concluida no ciclo atual:
+  - 3.10.18: pass
+  - 3.11.14: pass
+  - 3.12.11: pass
+  - 3.13.12: pass
+
+### Instalar uv (recomendado)
+```bash
+# macOS / Linux (curl)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# macOS / Linux (wget)
+wget -qO- https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell / pwsh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Execucao rapida com uv (recomendado)
+```bash
+# criar/sincronizar ambiente
+uv venv
+uv sync
+
+# executar GUI
+uv run --python 3.13 python main.py --gui
+
+# executar CLI
+uv run --python 3.13 python main.py
+
+# executar Streamlit
+uv run --python 3.13 python main.py --streamlit
+```
+
+Fallback quando 3.13 nao estiver disponivel: 3.12, depois 3.11, depois 3.10.
+`requirements*.txt` permanecem para compatibilidade em ambientes sem uv.
+
+### Ambiente com pyenv/direnv (compatibilidade)
+```bash
+# selecionar versao python do projeto
+pyenv local 3.13.12
+
+# carregar variaveis do direnv (quando configurado)
+direnv allow
+
+# executar no venv local existente
+.venv/bin/python main.py --gui
+```
+
+### Documentacao tecnica atual (v4.29)
+- Algoritmo do layout dinamico (4 colunas):
+  - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
+- Regras gerais de GUI em PyQt6:
+  - `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+
+---
+## Historico (versoes anteriores)
+As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 
 ### Otimização de Requirements (2025-12-05)
 - **Objetivo:** Reduzir redundâncias e melhorar manutenção
@@ -297,11 +364,19 @@ Links uteis:
 - Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
-- Python 3.13+
+- Python 3.10+ (preferir 3.13+ quando disponivel)
 - Windows (testado) ou ambiente compativel com PyQt6
 
 ## Instalação
+```bash
+# preferencial
+uv venv
+uv sync
+uv run --python 3.13 python main.py --gui
+```
+
 ```pwsh
+# compatibilidade (sem uv)
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -741,3 +816,10 @@ Regra (_resumida_):
 ## Notas
 - Consulte `docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md` para pedidos/entregas/validacao
 - Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo tecnica
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.

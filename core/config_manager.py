@@ -8,11 +8,12 @@ Responsável por carregar, salvar e garantir a existência do arquivo settings.j
 import json
 import os
 import shutil
-import logging
 import tempfile
 from typing import Dict, Any
+from utils.path_safety import PathSafetyError, ensure_path_is_allowed
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "core")
 
 def _atomic_write_json_file(path: str, data: Any, *, indent: int, ensure_ascii: bool) -> None:
     """Write JSON atomically to prevent truncated/corrupted config files on crash."""
@@ -72,19 +73,10 @@ def _atomic_copy_file(src: str, dst: str) -> None:
     base_name = os.path.basename(dst) or "file"
     os.makedirs(target_dir, exist_ok=True)
 
-    fd = None
     tmp_path = None
     try:
-        fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
-        try:
-            os.close(fd)
-            fd = None
-        except Exception as exc:
-            logger.warning(
-                "Falha ao fechar file descriptor temporario para copia atomica '%s': %s",
-                dst,
-                exc,
-            )
+        with tempfile.NamedTemporaryFile(prefix=f".{base_name}.tmp.", dir=target_dir, delete=False) as tmp_file:
+            tmp_path = tmp_file.name
         shutil.copyfile(src, tmp_path)
         try:
             with open(tmp_path, "rb") as f:
@@ -94,15 +86,6 @@ def _atomic_copy_file(src: str, dst: str) -> None:
         os.replace(tmp_path, dst)
         tmp_path = None
     finally:
-        if fd is not None:
-            try:
-                os.close(fd)
-            except Exception as exc:
-                logger.warning(
-                    "Falha ao fechar file descriptor temporario para copia '%s': %s",
-                    dst,
-                    exc,
-                )
         if tmp_path:
             try:
                 os.remove(tmp_path)
@@ -124,6 +107,7 @@ COLUMN_MAPPINGS_FILE = os.path.join(CONFIG_DIR, 'column_mappings.json')
 
 # Default mapping used if display_mappings.json is missing/invalid
 DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
+    "id": "id",
     "numero_ssa": "Nº SSA",
     "situacao": "Situação",
     "derivada_de": "Derivada de",
@@ -155,6 +139,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "tempo_total": "Tempo Total",
     "desde_1": "Desde (1)",
     "total_tempo_tpe_planejado": "Tempo TPE Plan.",
+    "total_tempo_tpe_executada": "Tempo Total TPE Execcutada",
     "total_tempo_tex_planejado": "Tempo TEX Plan.",
     "total_tempo_tpo_planejado": "Tempo TPO Plan.",
     "total_horas_programadas": "Horas Prog.",
@@ -174,6 +159,7 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "executado": "Executado",
     "concluido": "Concluído",
     "total_tempo_tpo_executada": "Tempo TPO Exec.",
+    "total_tempo_tex_executada": "Tempo Total TEX Execcutada",
     "data_inicio_programada": "Data Início Prog.",
     "data_programacao": "Data Programação",
     "data_inicio_reprogramada": "Data Início Reprog.",
@@ -458,7 +444,27 @@ DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
 
 def _get_config_dir() -> str:
     """Allow tests/overrides via SSA_CONFIG_DIR; default to 'config'."""
-    return os.environ.get('SSA_CONFIG_DIR') or CONFIG_DIR
+    raw_cfg_dir = os.environ.get('SSA_CONFIG_DIR')
+    if not raw_cfg_dir:
+        return CONFIG_DIR
+    try:
+        return str(
+            ensure_path_is_allowed(
+                raw_cfg_dir,
+                purpose='SSA_CONFIG_DIR',
+                expect_directory=True,
+            )
+        )
+    except PathSafetyError as exc:
+        logger.warning("SSA_CONFIG_DIR invalido (%s). Usando '%s'.", exc, CONFIG_DIR)
+        return CONFIG_DIR
+
+def _resolve_config_path(default_path: str) -> str:
+    """Resolve a config path honoring SSA_CONFIG_DIR while keeping default constants."""
+    cfg_dir = _get_config_dir()
+    if cfg_dir == CONFIG_DIR:
+        return default_path
+    return os.path.join(cfg_dir, os.path.basename(default_path))
 
 def load_display_mappings_integrity() -> Dict[str, str]:
     """Load display_mappings.json; if missing/invalid, recreate with defaults and return it."""
@@ -539,10 +545,12 @@ def load_settings() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: Um dicionário com as configurações.
     """
-    settings_path = USER_SETTINGS_FILE
+    user_settings_file = _resolve_config_path(USER_SETTINGS_FILE)
+    default_settings_file = _resolve_config_path(DEFAULT_SETTINGS_FILE)
+    settings_path = user_settings_file
     if not os.path.exists(settings_path):
         logger.info(f"Arquivo de configuração do usuário '{settings_path}' não encontrado. Carregando padrões.")
-        settings_path = DEFAULT_SETTINGS_FILE
+        settings_path = default_settings_file
 
     try:
         with open(settings_path, 'r', encoding='utf-8') as f:
@@ -565,39 +573,54 @@ def save_settings(settings: Dict[str, Any]):
     Args:
         settings (Dict[str, Any]): O dicionário de configurações a ser salvo.
     """
+    user_settings_file = _resolve_config_path(USER_SETTINGS_FILE)
     try:
-        os.makedirs(os.path.dirname(USER_SETTINGS_FILE), exist_ok=True)
-        _atomic_write_json_file(USER_SETTINGS_FILE, settings, indent=4, ensure_ascii=False)
-        logger.info(f"Configurações salvas em '{USER_SETTINGS_FILE}'.")
+        os.makedirs(os.path.dirname(user_settings_file), exist_ok=True)
+        _atomic_write_json_file(user_settings_file, settings, indent=4, ensure_ascii=False)
+        logger.info(f"Configurações salvas em '{user_settings_file}'.")
     except IOError as e:
-        logger.error(f"Erro ao salvar configurações em '{USER_SETTINGS_FILE}': {e}")
+        logger.error(f"Erro ao salvar configurações em '{user_settings_file}': {e}")
         raise
 
-def ensure_default_settings():
+def ensure_default_settings(*, fail_fast: bool = True) -> list[str]:
     """
     Garante que os arquivos de configuração padrão existam.
     Se não existirem, os copia dos arquivos de exemplo ou os cria.
+
+    Args:
+        fail_fast (bool): Se True, levanta RuntimeError quando houver falhas.
+
+    Returns:
+        list[str]: Lista de erros de provisionamento. Lista vazia indica sucesso.
+
+    Raises:
+        RuntimeError: Quando `fail_fast=True` e existir falha de provisionamento.
     """
+    errors: list[str] = []
     required_files = {
-        DEFAULT_SETTINGS_FILE: 'default_settings.json.example',
-        DISPLAY_MAPPINGS_FILE: 'display_mappings.json.example',
-        COLUMN_MAPPINGS_FILE: 'column_mappings.json.example',
+        _resolve_config_path(DEFAULT_SETTINGS_FILE): 'default_settings.json.example',
+        _resolve_config_path(DISPLAY_MAPPINGS_FILE): 'display_mappings.json.example',
+        _resolve_config_path(COLUMN_MAPPINGS_FILE): 'column_mappings.json.example',
         # Adicione outros arquivos de configuração aqui se necessário
     }
 
     for target_file, example_file in required_files.items():
         if not os.path.exists(target_file):
-            example_path = os.path.join(CONFIG_DIR, example_file)
+            cfg_dir = _get_config_dir()
+            example_path = os.path.join(cfg_dir, example_file)
+            if not os.path.exists(example_path):
+                example_path = os.path.join(CONFIG_DIR, example_file)
             if os.path.exists(example_path):
                 try:
                     _atomic_copy_file(example_path, target_file)
                     logger.info(f"Arquivo de configuração padrão criado: {target_file}")
                 except IOError as e:
                     logger.error(f"Falha ao copiar '{example_path}' para '{target_file}': {e}")
+                    errors.append(f"copy_failed:{target_file}")
             else:
                 # Cria um arquivo padrão mínimo quando o exemplo não existir
                 try:
-                    os.makedirs(CONFIG_DIR, exist_ok=True)
+                    os.makedirs(cfg_dir, exist_ok=True)
                     if target_file.endswith('default_settings.json'):
                         default_content = {
                             "display_settings": {
@@ -629,6 +652,12 @@ def ensure_default_settings():
                         logger.warning(f"Arquivo de exemplo '{example_path}' não encontrado para '{target_file}'.")
                 except Exception as e:
                     logger.error(f"Falha ao gerar arquivo padrão '{target_file}': {e}")
+                    errors.append(f"generate_failed:{target_file}")
+    if errors:
+        logger.critical("ensure_default_settings completed with errors: %s", "; ".join(errors))
+        if fail_fast:
+            raise RuntimeError("ensure_default_settings failed: " + "; ".join(errors))
+    return errors
 
 # --- Placeholder para handler de configuração via CLI ---
 # Este handler pode ser expandido para um menu interativo ou edição direta.

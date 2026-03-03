@@ -12,6 +12,7 @@ import re
 from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
+from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     text = str(value).strip()
     if not text:
         return None
-    matches = re.findall(r"(\d+)\s*(mi|m|d|h)", text.lower())
+    matches = re.findall(r"(\d+)\s*(mi|mo|m|d|h)(?=\s|$|\d)", text.lower())
     if not matches:
         return text
     units = {"months": 0, "days": 0, "hours": 0, "minutes": 0}
@@ -104,6 +105,8 @@ def _normalize_tempo_excedido_value(value) -> str | None:
         if unit == 'mi':
             units['minutes'] += qty
         elif unit == 'm':
+            units['minutes'] += qty
+        elif unit == 'mo':
             units['months'] += qty
         elif unit == 'd':
             units['days'] += qty
@@ -217,6 +220,8 @@ def extract_data_from_excel(
 
     Args:
         file_path (str): Caminho completo para o arquivo Excel.
+        should_cancel (Optional[Callable[[], bool]]): Callback consultivo para
+            interromper a extracao quando retornar True.
 
     Returns:
         pd.DataFrame: Um DataFrame com os dados extraídos e normalizados.
@@ -427,22 +432,31 @@ def extract_data_from_excel(
         logger.error("Erro inesperado ao processar '%s': %s", file_path, e, exc_info=True)
         raise ExtractionError(f"Unexpected error processing Excel file: {base_name}") from e
 
-def read_report(file_path: str) -> tuple[Optional[pd.DataFrame], Dict[str, Any]]:
+def read_report(file_path: str) -> tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Lê um relatório Excel e retorna um DataFrame normalizado e metadados simples.
+    Le um relatorio Excel e retorna um DataFrame normalizado e metadados simples.
 
-    Esta função é um invólucro (wrapper) em torno de `extract_data_from_excel`,
-    mantendo compatibilidade com chamadas existentes que esperam uma tupla
-    (df, meta).
+    A leitura usa `import_excel_robust` como caminho unico de ingestao.
 
     Args:
         file_path: Caminho do arquivo .xlsx a ser lido.
 
     Returns:
-        Tuple[Optional[pd.DataFrame], Dict[str, Any]]: O DataFrame resultante (ou None em caso de erro)
-        e um dicionário de metadados mínimos contendo ao menos o caminho de origem.
+        Tuple[pd.DataFrame, Dict[str, Any]]: DataFrame resultante
+        (vazio em caso de erro) e metadados com source_path e stats_dict.
     """
-    df = extract_data_from_excel(file_path)
-    metadata: Dict[str, Any] = {"source_path": file_path}
-    # Poderemos adicionar mais metadados no futuro (ex.: número de planilhas, tempo de execução, etc.)
+    if not os.path.exists(file_path):
+        metadata: Dict[str, Any] = {
+            "source_path": file_path,
+            "stats_dict": {"status": "error", "error": f"File not found: {os.path.basename(file_path)}"},
+        }
+        logger.warning("Falha em read_report para '%s': arquivo nao encontrado", file_path)
+        return pd.DataFrame(), metadata
+
+    df, stats_dict = import_excel_robust(file_path)
+
+    metadata = {
+        "source_path": file_path,
+        "stats_dict": stats_dict,
+    }
     return df, metadata
