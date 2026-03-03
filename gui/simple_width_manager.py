@@ -92,7 +92,7 @@ class SimpleWidthManager:
                 fixed_widths[col] = 68
 
             elif col == 'derivada_de':
-                fixed_widths[col] = 70  # +5 px leve
+                fixed_widths[col] = 86  # evita truncar IDs numericos em "Derivada de"
 
             elif col == 'grau_prioridade_emissao':
                 fixed_widths[col] = 70  # +5 px leve
