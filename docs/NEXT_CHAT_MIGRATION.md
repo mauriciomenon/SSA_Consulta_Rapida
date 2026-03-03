@@ -2,6 +2,25 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-03 15:25 - start from here
+
+- Active branch: `dev`.
+- Control-source baseline:
+  1. `AGENTS.md` is the operational source of truth for process/policies.
+  2. `docs/RECOVERY_BACKLOG.md` tracks deferred and non-blocking items.
+  3. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` tracks compact handoff for next session.
+- Critical continuity note:
+  1. chat-only decisions are not sufficient.
+  2. every approved policy/process update must be mirrored to control files in-repo.
+- Incident and correction:
+  1. commit `e3c7cdcb` consolidated AGENTS operational model.
+  2. regression removed detailed kluster block.
+  3. commit `ce0d3fc1` restored full kluster block.
+- Migration contract for next chat:
+  1. read `AGENTS.md` first.
+  2. read top block of `docs/RECOVERY_BACKLOG.md` second.
+  3. use this file only as session bootstrap and timeline map.
+
 ## CURRENT TRUTH 2026-03-01 23:55 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.

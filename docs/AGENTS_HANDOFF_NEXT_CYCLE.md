@@ -2,6 +2,25 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 15:25 - authoritative block
+
+- Active branch: `dev`.
+- Source of truth order:
+  1. `AGENTS.md` (process + policy contract)
+  2. `docs/RECOVERY_BACKLOG.md` (deferred/triage map)
+  3. `docs/NEXT_CHAT_MIGRATION.md` (bootstrap timeline)
+- What changed in this session:
+  1. operational policy pack was consolidated in `AGENTS.md` (XP+SDLC + slice contract + scope controls).
+  2. full kluster detailed block was restored after overwrite regression.
+  3. control files were explicitly synchronized to avoid chat-only loss.
+- Traceability:
+  1. `e3c7cdcb` - AGENTS consolidation.
+  2. `ce0d3fc1` - kluster block restore.
+  3. current DOC_SYNC commit - control-file registration.
+- Mandatory for next session:
+  1. no policy decision remains only in chat.
+  2. mirror approved rules into control docs in the same slice.
+
 ## CURRENT TRUTH 2026-03-01 23:55 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.

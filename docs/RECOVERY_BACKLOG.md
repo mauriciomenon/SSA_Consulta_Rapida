@@ -3,6 +3,25 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (control files hard-sync for next chat)
+
+Delivered in this slice:
+1. all operational rules negotiated in chat were persisted into repository control docs (no longer chat-only).
+2. `AGENTS.md` now includes explicit XP+SDLC flow, slice contract, scope protocol, change categories, PR comment policy, git stash policy, timestamp policy, and tooling policy.
+3. kluster detailed mandatory block was restored in full after regression introduced by full-file overwrite.
+
+Traceability:
+1. initial consolidation commit: `e3c7cdcb`.
+2. kluster block full restore commit: `ce0d3fc1`.
+3. control-file sync commit: this slice (DOC_SYNC).
+
+Operational rule reinforced:
+1. conversation outputs must be mirrored into control files for continuity.
+2. chat log is historical evidence, but repository control files are the authoritative migration source.
+
+Deferred follow-up (non-blocking):
+1. unify old duplicated `CURRENT TRUTH` blocks in migration docs into a single active block + historical snapshots only.
+
 ## Update 2026-03-03 (startup import policy + rescan modes)
 
 Delivered in this slice:
