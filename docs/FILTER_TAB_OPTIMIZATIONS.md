@@ -316,3 +316,19 @@ Eliminated ~30 lines duplicated block in `_refresh_responsavel_options` that rec
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
 
+## Atualizacao 2026-03-02 (ajuste simples de popup longo)
+- Release candidate status:
+  - Current advanced-filters behavior is baseline `RC1` for this cycle.
+- Adotado clamp simples para nomes longos nos popups de `Solicitante`, `Resp Prog`, `Resp Exec`.
+- Regra atual no codigo:
+  - `SIMPLE_POPUP_TEXT_CLAMP = True`
+  - `SIMPLE_POPUP_LABEL_MAX_PX = 300`
+  - `SIMPLE_POPUP_RIGHT_GUTTER_PX = 10`
+  - `SIMPLE_POPUP_SCROLLBAR_GUARD_PX = 18`
+- Comportamento:
+  - popup nao cresce indefinidamente por nome longo;
+  - texto longo e cortado com `...` (tooltip mantem valor completo);
+  - coluna de `Nao conter` ganha pequena folga visual na direita.
+  - listas longas (com barra vertical) reservam largura extra para evitar corte de `Nao conter`.
+- Reversao facil:
+  - setar `SIMPLE_POPUP_TEXT_CLAMP = False` em `gui/ssa/gui_filters_advanced_ui.py`.
