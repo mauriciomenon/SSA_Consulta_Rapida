@@ -3,6 +3,16 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-02 (golden release 2 baseline)
+
+Decision logged for this cycle:
+1. mark current advanced-filter behavior as `golden release 2` official recovery baseline.
+2. from this point, changes in advanced filters must be minimal and theme-consistent only.
+3. no geometry expansion or broad layout refactor is allowed in this lane.
+4. target for this slice:
+   - consistent theme application across all advanced-filter controls;
+   - centered `Cancelar` and `Fechar` footer actions in multiselect popup.
+
 ## Update 2026-03-01 (gui filters stability + importer noise control)
 
 Delivered in this slice:

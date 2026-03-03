@@ -952,6 +952,18 @@ class FilterGUISSAMixin:
                 (col, "") for col in self._column_filter_default_columns()
             )
 
+        # Keep a minimum label column aligned with "Descricao Execucao".
+        # If a label is longer, current behavior still pushes the input right.
+        min_label_column_width = 100
+        try:
+            ref_name = self._expand_column_alias_for_filter("descricao_execucao")
+            ref_probe = QLabel(ref_name)
+            ref_metrics = ref_probe.fontMetrics()
+            ref_width = int(ref_metrics.horizontalAdvance(ref_name) + 16)
+            min_label_column_width = max(100, min(260, ref_width))
+        except Exception as exc:
+            logger.debug("Falha ao calcular largura minima de alinhamento dos labels de filtro: %s", exc)
+
 
         for col, term in self._active_column_filters.items():
             # Pula linhas ocultas (removidas da exibição)
@@ -966,10 +978,11 @@ class FilterGUISSAMixin:
             try:
                 label_metrics = name_lbl.fontMetrics()
                 desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
-                name_lbl.setMinimumWidth(max(90, min(260, desired_width)))
+                dynamic_width = max(90, min(260, desired_width))
+                name_lbl.setMinimumWidth(max(min_label_column_width, dynamic_width))
             except Exception as exc:
                 logger.debug("Falha ao ajustar largura do label do filtro de coluna %s: %s", col, exc)
-                name_lbl.setMinimumWidth(100)
+                name_lbl.setMinimumWidth(min_label_column_width)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:

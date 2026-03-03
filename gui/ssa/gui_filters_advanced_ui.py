@@ -1650,7 +1650,7 @@ def _build_advanced_filters_panel(self):
     main_grid = QGridLayout()
     main_grid.setContentsMargins(0, 0, 0, 0)
     main_grid.setHorizontalSpacing(4)
-    main_grid.setVerticalSpacing(2)
+    main_grid.setVerticalSpacing(3)
     apply_btn = QPushButton("Aplicar")
     clear_btn = QPushButton("Limpar")
     try:
