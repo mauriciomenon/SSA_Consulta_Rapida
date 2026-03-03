@@ -1,12 +1,18 @@
+# POLICY BASELINE V1 FROZEN
+
+Status: LOCKED
+Created-at: 2026-03-03 16:30:09 -0300
+Source-file: AGENTS.md
+Source-sha256: b065c85a331d32e396fe3fc7c0a63c8bd12cdbcaf052b88fc02b5c7a3ef36767
+
+Policy:
+- This file is a frozen snapshot of AGENTS.md at creation time.
+- Do not edit unless user gives explicit command to bump baseline version.
+- Any future changes must create a new baseline file (for example V2), never overwrite V1.
+
+---
+
 # SSA Consulta Rapida AGENTS Guide
-
-
-## Baseline V1 Frozen
-
-- Canonical frozen snapshot: `docs/POLICY_BASELINE_V1_FROZEN.md`
-- Change rule: do not edit V1; create new baseline version file if policy evolves.
-- Update only with explicit user command and DOC_SYNC commit.
-
 
 ## Current Truth
 
