@@ -1666,6 +1666,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._bind_tab_context(ctx)
         if ctx.get("tab_kind") == "filters":
             try:
+                ssa_gui_theme.reapply_current_theme_widget_styles(
+                    self,
+                    highlight_defaults=(HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT),
+                )
+            except Exception as exc:
+                logger.debug("Falha ao reaplicar estilos do tema na aba de filtros: %s", exc)
+            pending_theme = getattr(self, "_pending_theme_refresh_column_filters", None)
+            if pending_theme:
+                try:
+                    if hasattr(self, "_refresh_advanced_filter_options"):
+                        self._refresh_advanced_filter_options()
+                except Exception as exc:
+                    logger.debug("Falha ao atualizar filtros avancados pendentes na troca de aba: %s", exc)
+                finally:
+                    self._pending_theme_refresh_column_filters = None
+            try:
                 self._reorganize_advanced_filters_grid(getattr(self, "adv_filters_group").width())
             except Exception as exc:
                 logger.debug("Falha ao reorganizar filtros avancados apos troca de aba: %s", exc)
