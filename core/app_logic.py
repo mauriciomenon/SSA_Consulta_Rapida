@@ -594,9 +594,7 @@ def _recreate_database_for_full_rescan(db_path: str) -> None:
         try:
             with sqlite3.connect(db_path, timeout=2) as conn:
                 conn.execute("PRAGMA busy_timeout = 2000")
-                conn.execute("BEGIN IMMEDIATE")
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                conn.commit()
             last_error = None
             break
         except sqlite3.Error as exc:

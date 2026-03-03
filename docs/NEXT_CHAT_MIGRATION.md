@@ -2,6 +2,29 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-03 19:20 - start from here
+
+- Active branch: `dev`.
+- Slice status:
+  1. Sprint A delivered: lock/checkpoint hotfix in `_recreate_database_for_full_rescan`.
+  2. Focused regression added for WAL checkpoint + DB rotation path.
+- Runtime change summary:
+  1. removed explicit `BEGIN IMMEDIATE` before `PRAGMA wal_checkpoint(TRUNCATE)` in the same checkpoint block.
+  2. goal: avoid self-lock during full-rescan preparation.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py`: `1 passed`
+  5. kluster auto: clean -> clean
+- Deferred order for next cycle:
+  1. Sprint C (TOCTOU lock-file in CLI enhancement settings).
+  2. Sprint B (structured extraction error classification + deterministic cache test).
+  3. Sprint D and Sprint E (docs consistency and controlled debt).
+- Local residue contract:
+  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
+  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
+
 ## CURRENT TRUTH 2026-03-03 15:25 - start from here
 
 - Frozen policy baseline: `docs/POLICY_BASELINE_V1_1_FROZEN.md` (read before execution).

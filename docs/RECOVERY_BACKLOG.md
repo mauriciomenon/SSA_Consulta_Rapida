@@ -3,6 +3,28 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (sprint A lock checkpoint hotfix)
+
+Delivered in this slice:
+1. `core/app_logic.py` full-rescan DB preparation now runs `PRAGMA wal_checkpoint(TRUNCATE)` without explicit `BEGIN IMMEDIATE` in the same block, avoiding self-lock during checkpoint.
+2. Added focused regression `tests/test_app_logic_full_rescan_lock.py` to validate WAL checkpoint + DB rotation path without external lock contention.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py`: `1 passed`
+5. kluster auto review runs in this slice: clean -> clean (no issues, no agent_todo_list)
+
+Decision and scope:
+1. Sprint A is closed as `BUG_REAL` with minimal patch in runtime + focused test.
+2. No GUI layout/position change in this slice.
+
+Deferred (next slices):
+1. Sprint C: review TOCTOU path in `interface/cli_enhancement_manager.py`.
+2. Sprint B: migrate extraction deterministic-failure classification from message substring to structured signal.
+3. Sprint D/E: docs portability consistency and controlled technical debt cleanup.
+
 ## Update 2026-03-03 (control files hard-sync for next chat)
 
 Delivered in this slice:
