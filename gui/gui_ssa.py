@@ -2465,14 +2465,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
+        old_width = self.table_widget.columnWidth(column_index)
         self.table_widget.resizeColumnToContents(column_index)
-        # Salva a nova largura
-        header_item = self.table_widget.horizontalHeaderItem(column_index)
-        if header_item and column_index > 0:  # Nção salvar largura da coluna de ándice
-            internal_column = self.visible_columns[column_index - 1] if column_index <= len(self.visible_columns) else None
-            if internal_column:
-                new_width = self.table_widget.columnWidth(column_index)
-                self._save_column_width(internal_column, new_width)
+        new_width = self.table_widget.columnWidth(column_index)
+        self._on_header_section_resized(column_index, old_width, new_width)
 
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""

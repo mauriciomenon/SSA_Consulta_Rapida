@@ -730,10 +730,6 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         window._refresh_advanced_filter_options()
     except Exception as e:
         logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
-    try:
-        window._update_derivadas_button_state()
-    except Exception as exc:
-        logger.warning("Falha ao atualizar estado do botao de derivadas: %s", exc)
     profile_hint = f" (perfil: {window.current_filter_profile})" if window.current_filter_profile else ""
     if hasattr(window, "_set_filtered_count_status"):
         try:

@@ -507,6 +507,47 @@ def _on_header_section_resized(window, logical_index: int, old_size: int, new_si
             window._saved_gui_column_widths[col_name] = new_px
             if hasattr(window, '_gui_column_pixel_widths'):
                 window._gui_column_pixel_widths[col_name] = new_px
+            _schedule_column_width_preferences_persist(window)
     except Exception as exc:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.
         logger.debug("Falha ao persistir largura de coluna redimensionada: %s", exc)
+
+
+def _flush_column_width_preferences(window) -> None:
+    """Persiste larguras salvas em cache local para preferencias da GUI."""
+    try:
+        saved_widths = getattr(window, "_saved_gui_column_widths", None)
+        if not isinstance(saved_widths, dict):
+            return
+        from gui.gui_config import GUI_MAIN_PREFERENCES
+
+        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
+        changed = False
+        for col_name, width in saved_widths.items():
+            if not isinstance(col_name, str) or not col_name:
+                continue
+            try:
+                width_px = max(30, min(int(width), 1200))
+            except (TypeError, ValueError):
+                continue
+            if prefs_widths.get(col_name) != width_px:
+                prefs_widths[col_name] = width_px
+                changed = True
+        if changed and hasattr(window, "_persist_gui_preferences"):
+            window._persist_gui_preferences()
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao atualizar preferencias de largura de coluna: %s", exc)
+
+
+def _schedule_column_width_preferences_persist(window) -> None:
+    """Debounce de persistencia de largura para evitar IO excessivo em drag de header."""
+    timer = getattr(window, "_column_width_persist_timer", None)
+    try:
+        if timer is None:
+            timer = QTimer(window)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: _flush_column_width_preferences(window))
+            setattr(window, "_column_width_persist_timer", timer)
+        timer.start(250)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao agendar persistencia de largura de coluna: %s", exc)
