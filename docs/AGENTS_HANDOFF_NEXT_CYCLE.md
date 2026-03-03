@@ -2,6 +2,30 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 19:24 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. Sprint C TOCTOU hardening in `interface/cli_enhancement_manager.py`.
+  2. focused race regression added in `tests/test_cli_enhancement_manager_lock_usage.py`.
+- What changed:
+  1. lock-file flow now attempts atomic exclusive create first (`O_EXCL`).
+  2. when lock file preexists, process opens existing lock file without setting "created now".
+  3. cleanup path on lock failure no longer removes preexisting lock files from other process windows.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`: `10 passed`
+  5. kluster auto: clean -> clean
+- Deferred next:
+  1. Sprint B (structured extraction error classification and deterministic-failure cache test)
+  2. Sprint D (docs-only portability and consistency cleanup)
+  3. Sprint E (controlled technical debt cleanup in GUI table helper path)
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
 ## CURRENT TRUTH 2026-03-03 19:20 - authoritative block
 
 - Active branch: `dev`.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import types
 import errno as errno_mod
+import os
 
 import interface.cli_enhancement_manager as cli_mgr_mod
 from interface.cli_enhancement_manager import CLIEnhancementManager
@@ -178,3 +179,50 @@ def test_lock_file_fails_fast_for_non_lock_msvcrt_error(tmp_path, monkeypatch):
         assert "Falha critica" in str(exc)
 
     assert raised
+
+
+def test_save_settings_does_not_remove_preexisting_lock_file_on_lock_failure(
+    tmp_path, monkeypatch
+):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+    manager.settings = {"enhanced_table_printer": True}
+
+    real_os_open = os.open
+    lock_path = f"{manager.settings_file}.lock"
+    lock_attempts = {"count": 0}
+    remove_calls: list[str] = []
+
+    def _fake_open(path, flags, mode=0o777):  # noqa: ANN001,ANN002,ANN003
+        if path == lock_path:
+            lock_attempts["count"] += 1
+            if lock_attempts["count"] == 1 and (flags & os.O_EXCL):
+                raise FileExistsError()
+        return real_os_open(path, flags, mode)
+
+    def _spy_remove(path):  # noqa: ANN001
+        remove_calls.append(path)
+        return os.unlink(path)
+
+    monkeypatch.setattr(cli_mgr_mod.os, "open", _fake_open)
+    monkeypatch.setattr(cli_mgr_mod.os, "remove", _spy_remove)
+    monkeypatch.setattr(
+        manager,
+        "_lock_file_if_possible",
+        lambda _f: (_ for _ in ()).throw(RuntimeError("lock busy")),
+    )
+
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    os.close(lock_fd)
+
+    try:
+        manager._save_settings()
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "lock indisponivel" in str(exc)
+
+    assert raised
+    assert lock_attempts["count"] >= 2
+    assert remove_calls == []
+    assert os.path.exists(lock_path)

@@ -73,8 +73,12 @@ class CLIEnhancementManager:
 
             try:
                 lock_path = f"{self.settings_file}.lock"
-                lock_path_created_now = not os.path.exists(lock_path)
-                lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+                try:
+                    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+                    lock_path_created_now = True
+                except FileExistsError:
+                    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+                    lock_path_created_now = False
                 if os.name == "posix":
                     try:
                         os.chmod(lock_path, 0o600)

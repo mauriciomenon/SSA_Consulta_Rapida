@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (sprint C lock-file TOCTOU hardening)
+
+Delivered in this slice:
+1. `interface/cli_enhancement_manager.py` lock-file creation now uses atomic open-first flow (`O_EXCL`) with explicit fallback when lock file already exists.
+2. Removal of lock file on lock acquisition failure remains restricted to files created by the current process.
+3. Added focused race regression in `tests/test_cli_enhancement_manager_lock_usage.py` to validate no removal of preexisting lock file during lock contention failure.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+2. `uv run --python 3.13 ruff check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+3. `uv run --python 3.13 ty check interface/cli_enhancement_manager.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_cli_enhancement_manager_lock_usage.py tests/test_cli_enhancement_manager_atomic_save.py`: `10 passed`
+5. kluster auto review runs in this slice: clean -> clean
+
+Decision and scope:
+1. Sprint C closed as `BUG_REAL` with minimal patch in lock path and focused regression.
+2. Runtime outside CLI settings lock path unchanged.
+
+Deferred (next slices):
+1. Sprint B: structured extraction error classification and deterministic-failure cache test coverage.
+2. Sprint D: docs-only portability and consistency adjustments.
+3. Sprint E: controlled technical debt cleanup in GUI table helper path.
+
 ## Update 2026-03-03 (sprint A lock checkpoint hotfix)
 
 Delivered in this slice:
