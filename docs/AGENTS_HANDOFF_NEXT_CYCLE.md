@@ -21,7 +21,7 @@ This handoff is ready to reuse in the next conversation.
   - keep GUI changes minimal and avoid layout repositioning outside explicit request.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-03-01 02:20 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-01 02:20
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.27`.
@@ -42,7 +42,7 @@ This handoff is ready to reuse in the next conversation.
   1. `ANALISE_PROFUNDA_GUI.md`
   2. `GUI_SSA_REFACTOR_NOTES.md`
 
-## CURRENT TRUTH 2026-02-28 23:46 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 23:46
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.27`.
