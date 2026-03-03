@@ -638,6 +638,11 @@ def _apply_theme_widget_styles(
 
 def _refresh_filter_widgets_for_theme(window, normalized: str) -> None:
     try:
+        try:
+            # Force a full advanced-menu rebuild under the active theme.
+            setattr(window, "_adv_options_dirty", True)
+        except Exception as exc:
+            logger.debug("Falha ao marcar opcoes avancadas como dirty apos troca de tema: %s", exc)
         if getattr(window, "_current_tab_kind", None) == "filters":
             window._pending_theme_refresh_column_filters = normalized
             try:

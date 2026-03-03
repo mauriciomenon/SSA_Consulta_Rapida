@@ -960,6 +960,8 @@ Approved scope for next slice:
   - accepted waivers,
   - mandatory follow-up links.
 - Rever `pyproject.toml` addopts com ignores de testes e considerar remocao para ampliar cobertura (sugestao para relatorio final do sprint atual).
+- Ajustar seletor "Configurar colunas visiveis" para sempre exibir nomes amigaveis (display names) em vez de nomes internos de coluna quando disponiveis.
+- Centralizar persistencia de largura de coluna em fluxo unico (manager/config), evitando logica espalhada entre cache local de GUI e manipuladores de tabela.
 
 ## Execution model
 

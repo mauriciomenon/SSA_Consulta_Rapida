@@ -26,6 +26,7 @@ from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui import gui_ssa  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
+from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.mixins import filter_gui_ssa_mixin as filter_mixin  # noqa: E402
 
 ORIGINAL_LOAD_DATA = SSAMainWindow.load_data
@@ -1174,6 +1175,33 @@ class TestGUIFilterLogic:
         assert series is not None
         assert str(series.get("numero_ssa")) == "200"
         assert str(series.get("descricao_ssa")) == "B"
+
+    def test_header_resize_updates_runtime_column_width_cache(self):
+        self.window._current_display_columns = ["#", "descricao_ssa"]
+        self.window._saved_gui_column_widths = {}
+        self.window._gui_column_pixel_widths = {}
+
+        self.window._on_header_section_resized(1, 100, 222)
+
+        assert self.window._saved_gui_column_widths.get("descricao_ssa") == 222
+        assert self.window._gui_column_pixel_widths.get("descricao_ssa") == 222
+
+    def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
+        self.window._saved_gui_column_widths = {"descricao_ssa": 222}
+        calls = {"persist": 0}
+
+        def _fake_persist():
+            calls["persist"] += 1
+            return True
+
+        monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
+        old_column_widths = dict(gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths", {}))
+        try:
+            ssa_gui_table._flush_column_width_preferences(self.window)
+            assert gui_ssa.GUI_MAIN_PREFERENCES.get("column_widths", {}).get("descricao_ssa") == 222
+            assert calls["persist"] == 1
+        finally:
+            gui_ssa.GUI_MAIN_PREFERENCES["column_widths"] = old_column_widths
 
     def test_build_derivadas_tree_html_uses_spaced_header_layout(self):
         with patch(
