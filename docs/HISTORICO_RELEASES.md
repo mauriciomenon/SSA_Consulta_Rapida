@@ -2,7 +2,119 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v3.11 - CURRENT RELEASE**
+## **RELEASE v4.29 - CURRENT RELEASE**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Patch de estabilidade de tema e legibilidade
+**Status**: Estavel
+
+### **Principais entregas**
+- Consolidacao do baseline pre-PR sem perda de melhorias:
+  - metadados de versao sincronizados em `VERSION` e `config/version.json` para `4.29`.
+  - docs de continuidade e release alinhadas com o baseline atual.
+- Regra geral de tema reforcada na GUI:
+  - popup/menu/checkbox com cores derivadas de roles de tema;
+  - reducao de hardcode visual em fluxos de multiselect e detalhes;
+  - resumo de selecao com texto completo quando houver espaco util.
+- Pacote de hardening mantido e consolidado com foco em risco real:
+  - path safety e config resolution em `interface/command_handlers.py`
+  - guardrails de cancelamento/retorno inesperado em `core/app_logic.py`
+  - timeout configuravel de reader join em `scripts/pytest_stream_common.py`
+- Regressao focada adicionada para command handlers, importer e stream wrappers.
+- Handoff sincronizado com bloco `CURRENT TRUTH` no topo de:
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Entregas streamlit (`v4.24.1`) e hardening (`v4.25.0`) preservadas no historico da branch.
+
+### **Documentacao da versao**
+- `README.md` (v4.29 no topo)
+- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
+- `docs/PENDING_ACTION_MATRIX.md`
+- `docs/RECOVERY_BACKLOG.md`
+
+---
+
+## **RELEASE v4.27**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Pre-PR Release Alignment
+**Status**: Estavel
+
+- Consolidacao de baseline com uv-first, compatibilidade multi-versao e alinhamento de docs para pre-PR.
+
+## **RELEASE v4.25.0**
+
+**Data de Lancamento**: Fevereiro 2026
+**Tipo**: Sprint 25 Graves Closure and Handoff Sync
+**Status**: Estavel
+
+### **Principais entregas**
+- Integracao do pacote de hardening com foco em risco real:
+  - SQL guard em `armazenamento/database_optimized.py`
+  - cancelamento/import guardrails em `core/app_logic.py`
+  - path/mapping validation em `interface/command_handlers.py`
+- Regressao focada para command handlers, importer e stream wrappers.
+- Sync de docs de continuidade para handoff entre sessoes.
+
+## **RELEASE v4.24.0**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: Lower Panel Height Sync Lock  
+**Status**: Estavel
+
+### **Principais entregas**
+- Trava unica de altura sincronizada para os 3 blocos inferiores:
+  - detalhes da SSA
+  - filtros avancados
+  - filtros por coluna
+- Gatilhos de sincronizacao aplicados em:
+  - init da janela
+  - troca de aba
+  - resize
+  - rebuild de filtros por coluna
+- Ajuste de estabilidade: sync de altura em troca/bind com chamada deferida (`singleShot`) para evitar thrash visual.
+- Regressao nova:
+  - `tests/test_gui_filter_logic.py::test_bottom_panels_keep_single_synced_height_after_resize`
+
+### **Documentacao da versao**
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `README.md` (v4.24 no topo, historico abaixo)
+
+---
+
+## **RELEASE v4.22.0**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: GUI Stability and Column Filter Regression Lock  
+**Status**: Estavel
+
+### **Principais entregas**
+- Politica de 4 colunas para Filtros Avancados.
+- Algoritmo dinamico de largura/altura por viewport.
+- Barra de acoes ancorada fora do scroll de campos.
+- Ajuste de fonte dinamica por largura.
+- Ajuste de largura de `Reprogramacoes` e campos de `AnoSemana`.
+- Novos testes de regressao para filtros por coluna:
+  - menu de adicionar com lista completa e sem aliases invalidos;
+  - clear-all restaurando defaults e reset de linhas ocultas;
+  - linhas default mantendo botoes `Aplicar` e `Ocultar`.
+
+### **Documentacao da versao**
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.22 no topo)
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `README.md` (v4.22 no topo, historico abaixo)
+
+---
+
+## **RELEASE v4.21.0**
+
+**Data de Lancamento**: Fevereiro 2026  
+**Tipo**: GUI Layout Stability Update  
+**Status**: Estavel
+
+## **RELEASE v3.11**
 
 **Data de Lancamento**: Outubro 2025  
 **Tipo**: Major Update focado em usabilidade  
@@ -94,7 +206,7 @@ extracao/
 ### **Requisitos Tecnicos**
 
 #### **Python**
-- **Versao Minima**: Python 3.13+
+- **Versao Minima**: Python 3.10+ (preferir 3.13+)
 - **Ambiente**: Virtual environment recomendado
 - **Gestao**: pyenv para multiplas versoes
 

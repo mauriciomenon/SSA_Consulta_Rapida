@@ -1,7 +1,32 @@
 # gui/helpers/theme_helpers.py
 # Pure stylesheet builder functions for theme application
 
+import re
+
 from PyQt6.QtGui import QPalette
+
+
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_COLOR_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
+
+
+def _is_css_color(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    return bool(_HEX_COLOR_RE.fullmatch(text) or _COLOR_NAME_RE.fullmatch(text))
+
+
+def pick_css_color(*candidates: object, fallback: str) -> str:
+    """Return first valid CSS color candidate, fallback, or safe default."""
+    for candidate in candidates:
+        if isinstance(candidate, str):
+            value = candidate.strip()
+            if value and _is_css_color(value):
+                return value
+    if isinstance(fallback, str) and _is_css_color(fallback):
+        return fallback.strip()
+    return "#000000"
 
 
 def build_global_widget_qss(palette: QPalette) -> str:
@@ -33,7 +58,11 @@ def build_global_widget_qss(palette: QPalette) -> str:
         f"QMenu::separator {{ height:1px; background: {mid}; margin:4px 8px; }}\n"
         f"QMenu::item:selected {{ background-color: {hi}; color: {hitxt}; }}\n"
         f"QToolTip {{ background-color: {ttbase}; color: {tttext}; border:1px solid {mid}; }}\n"
-        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; }}\n"
+        f"QComboBox {{ background-color: {base}; color: {text}; border:1px solid {mid}; }}\n"
+        f"QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; selection-background-color: {hi}; selection-color: {hitxt}; border:1px solid {mid}; }}\n"
+        f"QCheckBox {{ color: {text}; }}\n"
+        f"QCheckBox::indicator {{ width: 14px; height: 14px; border:1px solid {mid}; background: {base}; }}\n"
+        f"QCheckBox::indicator:checked {{ background: {hi}; border:1px solid {hi}; }}\n"
         "/* SSA_THEME_QSS_END */"
     )
 

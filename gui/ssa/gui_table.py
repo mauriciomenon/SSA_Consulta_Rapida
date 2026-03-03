@@ -18,7 +18,7 @@ logger = get_robust_logger().get_logger(__name__, "gui")
 
 def _fallback_column_width(col_name: str) -> int:
     if col_name == "#":
-        return 30
+        return 24
     if col_name == "numero_ssa":
         return 110
     if col_name == "localizacao_codigo":
@@ -120,8 +120,8 @@ def display_current_page(window, page_number):
         try:
             if header is not None:
                 header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-                header.setMinimumSectionSize(80)
-                header.setDefaultSectionSize(100)
+                header.setMinimumSectionSize(26)
+                header.setDefaultSectionSize(92)
         except Exception as exc:
             logger.debug("Falha ao restaurar configuracao do header em tabela vazia: %s", exc)
         return
@@ -163,6 +163,17 @@ def display_current_page(window, page_number):
         if data_uuid is not None:
             page = int(window.paginator.current_page)
             page_size = int(window.paginator.page_size)
+            width_signature = ()
+            try:
+                width_manager = getattr(window, "width_manager", None)
+                min_char_sizes = getattr(width_manager, "min_char_sizes", None)
+                if isinstance(min_char_sizes, dict):
+                    width_signature = tuple(
+                        (col, min_char_sizes.get(col, "__default__"))
+                        for col in display_df.columns
+                    )
+            except Exception as exc:
+                logger.debug("Falha ao compor assinatura de largura para chave de cache: %s", exc)
             display_df_hash = (
                 data_uuid,
                 df_exibido_id,
@@ -170,6 +181,7 @@ def display_current_page(window, page_number):
                 page_size,
                 len(display_df),
                 tuple(display_df.columns),
+                width_signature,
             )
     except Exception as exc:
         logger.debug("Falha ao gerar chave de cache do DataFrame de exibicao: %s", exc)
@@ -215,13 +227,12 @@ def display_current_page(window, page_number):
             try:
                 value = row_data.iloc[col_idx]
                 item_text = "" if pd.isna(value) else str(value)
-
-                # CORRECAO v3.0.5: Nao truncar colunas de descricao e solicitante - deixar word wrap funcionar
-                if col_name not in ['descricao_ssa', 'descricao_execucao', 'solicitante']:
-                    # Trunca apenas colunas que nao sao de descricao
-                    max_chars = window._calculate_max_chars_for_column(col_name, col_idx)
-                    if len(item_text) > max_chars:
-                        item_text = item_text[:max_chars-3] + "..."
+                # Keep table cells single-line to avoid visual clipping on fixed row height.
+                if item_text:
+                    if "\\n" in item_text or "\\r" in item_text:
+                        item_text = item_text.replace("\\n", " ").replace("\\r", " ")
+                    if "\n" in item_text or "\r" in item_text:
+                        item_text = " ".join(item_text.split())
 
                 item = QTableWidgetItem(item_text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
@@ -305,8 +316,8 @@ def display_current_page(window, page_number):
     try:
         if header is not None:
             header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            header.setMinimumSectionSize(80)
-            header.setDefaultSectionSize(100)
+            header.setMinimumSectionSize(26)
+            header.setDefaultSectionSize(92)
     except Exception as exc:
         logger.debug("Falha ao restaurar configuracao interativa do header: %s", exc)
 
@@ -408,8 +419,6 @@ def _compute_widths_for_df(
     column_widths = width_manager.compute_optimal_widths(
         df=visible_df,
         available_width=table_width,
-        display_mappings=internal_to_display,
-        saved_widths=saved_widths,
         column_order=correct_column_order
     )
     if sys.platform == "darwin":
@@ -479,23 +488,19 @@ def _calculate_max_chars_for_column(window, col_name: str, col_idx: int) -> int:
         if width_px is None:
             width_px = window.table_widget.columnWidth(col_idx)
 
-        # Converte pixels em caracteres (aproximadamente 7px por caractere)
+        # Converte pixels em caracteres usando largura util da celula.
         width_px = max(1, int(width_px))
-        max_chars = max(15, int((width_px - 10) / 6.5))  # Melhores proporcoes
+        max_chars = max(8, int((width_px - 10) / 6.3))
 
         # Limites especificos por tipo de coluna
         if col_name in ['descricao_ssa', 'descricao_execucao']:
-            # Descricoes podem usar toda largura disponivel
-            max_chars = max(50, max_chars)  # Minimo mais alto para descricoes
+            max_chars = max(50, min(max_chars, 420))
         elif col_name in ['numero_ssa', 'localizacao_codigo']:
-            # Campos curtos nao precisam de muito espaco
-            max_chars = min(max_chars, 25)
+            max_chars = min(max_chars, 32)
         elif col_name == 'solicitante':
-            # Solicitante deve caber pelo menos "MAURICIO MENON"
-            max_chars = max(15, max_chars)  # Garante pelo menos 15 caracteres
+            max_chars = max(15, min(max_chars, 220))
         else:
-            # Campos gerais - mais generoso
-            max_chars = min(max_chars, 80)  # Limite mais alto
+            max_chars = min(max_chars, 240)
 
         return max_chars
     except Exception:  # noqa: BLE001
@@ -514,6 +519,47 @@ def _on_header_section_resized(window, logical_index: int, old_size: int, new_si
             window._saved_gui_column_widths[col_name] = new_px
             if hasattr(window, '_gui_column_pixel_widths'):
                 window._gui_column_pixel_widths[col_name] = new_px
+            _schedule_column_width_preferences_persist(window)
     except Exception as exc:  # noqa: BLE001
         # Evita quebrar a GUI por falhas de IO, mas preserva evidencia no log.
         logger.debug("Falha ao persistir largura de coluna redimensionada: %s", exc)
+
+
+def _flush_column_width_preferences(window) -> None:
+    """Persiste larguras salvas em cache local para preferencias da GUI."""
+    try:
+        saved_widths = getattr(window, "_saved_gui_column_widths", None)
+        if not isinstance(saved_widths, dict):
+            return
+        from gui.gui_config import GUI_MAIN_PREFERENCES
+
+        prefs_widths = GUI_MAIN_PREFERENCES.setdefault("column_widths", {})
+        changed = False
+        for col_name, width in saved_widths.items():
+            if not isinstance(col_name, str) or not col_name:
+                continue
+            try:
+                width_px = max(30, min(int(width), 1200))
+            except (TypeError, ValueError):
+                continue
+            if prefs_widths.get(col_name) != width_px:
+                prefs_widths[col_name] = width_px
+                changed = True
+        if changed and hasattr(window, "_persist_gui_preferences"):
+            window._persist_gui_preferences()
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao atualizar preferencias de largura de coluna: %s", exc)
+
+
+def _schedule_column_width_preferences_persist(window) -> None:
+    """Debounce de persistencia de largura para evitar IO excessivo em drag de header."""
+    timer = getattr(window, "_column_width_persist_timer", None)
+    try:
+        if timer is None:
+            timer = QTimer(window)
+            timer.setSingleShot(True)
+            timer.timeout.connect(lambda: _flush_column_width_preferences(window))
+            setattr(window, "_column_width_persist_timer", timer)
+        timer.start(250)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao agendar persistencia de largura de coluna: %s", exc)

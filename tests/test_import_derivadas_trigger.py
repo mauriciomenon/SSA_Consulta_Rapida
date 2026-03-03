@@ -109,7 +109,7 @@ def test_run_importer_triggers_derivadas_sync_for_special_sheets(tmp_path: Path,
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is True
@@ -146,7 +146,7 @@ def test_run_importer_keeps_running_when_derivadas_sync_fails(tmp_path: Path, mo
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is False
@@ -202,7 +202,7 @@ def test_run_importer_runs_dedicated_derivadas_phase_even_without_regular_files(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is True
@@ -253,7 +253,7 @@ def test_run_importer_rejects_special_sync_without_parse_evidence(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is False
@@ -300,7 +300,7 @@ def test_run_importer_runs_db_only_derivadas_sync_for_regular_import(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is True
@@ -358,7 +358,7 @@ def test_run_importer_accepts_db_materialization_when_special_sheet_has_no_edges
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is True
@@ -404,7 +404,7 @@ def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, 
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is True
@@ -413,6 +413,50 @@ def test_run_importer_runs_db_only_sync_when_preflight_requires(tmp_path: Path, 
     assert sync_calls[0]["actor"] == "importer-derivadas-sync"
     assert "sheet_files" not in sync_calls[0]
     assert cache_calls["n"] == 0
+
+
+def test_run_importer_skips_db_only_preflight_when_cancel_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(path_safety, "ALLOWED_ROOTS", list(path_safety.ALLOWED_ROOTS) + [tmp_path])
+    _patch_integrity_ok(monkeypatch)
+
+    import core.app_logic as app_logic
+
+    monkeypatch.setattr(app_logic, "_get_files_to_process", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_needs_db_only_derivadas_sync",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("preflight should not run after cancel")),
+    )
+
+    progress_events: list[tuple[str, dict]] = []
+
+    def _progress(event_type: str, data: dict) -> None:
+        progress_events.append((event_type, dict(data)))
+
+    updated = run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=True,
+        should_cancel=lambda: True,
+        progress_callback=_progress,
+    )
+
+    assert updated is False
+    assert progress_events
+    assert progress_events[0][0] == "start"
+    assert progress_events[-1][0] == "finish"
+    assert progress_events[-1][1]["total"] == 0
+    assert progress_events[-1][1]["processed"] == 0
 
 
 def test_run_importer_skips_db_only_sync_when_preflight_not_required(
@@ -440,7 +484,7 @@ def test_run_importer_skips_db_only_sync_when_preflight_not_required(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is False
@@ -499,7 +543,7 @@ def test_run_importer_blocks_success_when_derivadas_consistency_fails(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
     )
 
     assert updated is False
@@ -558,7 +602,7 @@ def test_run_importer_reports_consistency_issue_counts_in_progress_error(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
         progress_callback=lambda event, payload: events.append((event, payload)),
     )
 
@@ -608,7 +652,7 @@ def test_run_importer_rejects_special_sheet_without_individual_evidence(
         data_dir=str(data_dir),
         db_name="test.db",
         table_name="ssa_table",
-        force_import=False,
+        force_import=True,
         progress_callback=lambda event, payload: events.append((event, payload)),
     )
 

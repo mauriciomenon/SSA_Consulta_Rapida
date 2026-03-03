@@ -45,3 +45,21 @@ def test_rescan_worker_cleanup_does_not_hang_when_logger_cleanup_fails(monkeypat
     assert "boom" in emitted[0]
     assert worker._logger_attached is False
     assert rescan_worker_mod._LOGGER_REFCOUNT == baseline_refcount
+
+
+def test_rescan_worker_cleanup_releases_logger_on_success(monkeypatch):
+    baseline_refcount = rescan_worker_mod._LOGGER_REFCOUNT
+    worker = RescanWorker("main.py", project_root)
+    success_emitted = []
+    error_emitted = []
+    worker.finished_success.connect(lambda: success_emitted.append(True))
+    worker.finished_error.connect(error_emitted.append)
+
+    monkeypatch.setattr(rescan_worker_mod, "run_importer_logic", lambda **_kwargs: True)
+
+    worker.run()
+
+    assert success_emitted == [True]
+    assert error_emitted == []
+    assert worker._logger_attached is False
+    assert rescan_worker_mod._LOGGER_REFCOUNT == baseline_refcount

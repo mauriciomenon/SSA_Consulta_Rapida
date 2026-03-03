@@ -6,6 +6,7 @@ pytest.importorskip("PyQt6", reason="Dependencia PyQt6 indisponivel no ambiente 
 
 from unittest.mock import patch
 
+import gui.mixins.filter_gui_ssa_mixin as mixin_module
 from gui.mixins.filter_gui_ssa_mixin import FilterGUISSAMixin
 
 
@@ -27,9 +28,8 @@ def test_on_filter_error_skips_modal_dialog_in_pytest(monkeypatch):
     monkeypatch.setenv("PYTEST_CURRENT_TEST", os.environ.get("PYTEST_CURRENT_TEST") or "1")
 
     win = _DummyWindow()
-    with patch("gui.mixins.filter_gui_ssa_mixin.QMessageBox.critical") as critical:
+    with patch.object(mixin_module.QMessageBox, "critical") as critical:
         win.on_filter_error("boom")
 
     assert critical.called is False
     assert win.status_label.text_value == "Status: Erro ao aplicar filtro."
-

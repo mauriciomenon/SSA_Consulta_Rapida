@@ -59,6 +59,84 @@ class TestGUIMainConfiguration:
             assert "derivada_de" in config["display_columns"]
             assert config["version"] == "1.0.0"
 
+    def test_load_gui_main_preferences_honors_ssa_config_dir(self, tmp_path, monkeypatch):
+        """GUI config deve respeitar SSA_CONFIG_DIR ao resolver gui_main_preferences.json."""
+        from gui.gui_config import load_gui_main_preferences
+
+        cfg_dir = tmp_path / "cfg_gui"
+        cfg_dir.mkdir()
+        cfg_file = cfg_dir / "gui_main_preferences.json"
+        cfg_file.write_text(
+            json.dumps(
+                {
+                    "display_columns": ["numero_ssa", "situacao"],
+                    "column_display_names": {"numero_ssa": "No SSA"},
+                    "column_widths": {"numero_ssa": 99},
+                    "gui_settings": {"page_size": 77},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+        config = load_gui_main_preferences()
+
+        assert config["gui_settings"]["page_size"] == 77
+        assert config["column_widths"]["numero_ssa"] == 99
+        assert config["column_display_names"]["numero_ssa"] == "No SSA"
+
+    def test_load_gui_main_preferences_with_missing_ssa_config_dir_uses_defaults(self, tmp_path, monkeypatch):
+        """Quando SSA_CONFIG_DIR aponta para pasta ausente, contrato default deve permanecer estavel."""
+        from gui.gui_config import load_gui_main_preferences
+
+        missing_dir = tmp_path / "cfg_missing"
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(missing_dir))
+
+        config = load_gui_main_preferences()
+
+        assert "display_columns" in config
+        assert "numero_ssa" in config["display_columns"]
+        assert "column_display_names" in config
+        assert "numero_ssa" in config["column_display_names"]
+
+    def test_get_gui_main_preferences_path_reflects_runtime_env_change(self, tmp_path, monkeypatch):
+        from gui import gui_config
+
+        cfg_dir = tmp_path / "cfg_runtime"
+        cfg_dir.mkdir()
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+        resolved = gui_config.get_gui_main_preferences_path()
+
+        assert resolved.endswith("gui_main_preferences.json")
+        assert str(cfg_dir) in resolved
+
+    def test_load_gui_main_preferences_explicit_path_has_precedence_over_env(self, tmp_path, monkeypatch):
+        from gui.gui_config import load_gui_main_preferences
+
+        cfg_dir_env = tmp_path / "cfg_env"
+        cfg_dir_env.mkdir()
+        monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir_env))
+
+        explicit_path = tmp_path / "explicit_gui_main_preferences.json"
+        explicit_path.write_text(
+            json.dumps(
+                {
+                    "display_columns": ["numero_ssa", "situacao"],
+                    "column_display_names": {"numero_ssa": "Numero Expl"},
+                    "column_widths": {"numero_ssa": 88},
+                    "gui_settings": {"page_size": 33},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        config = load_gui_main_preferences(config_path=str(explicit_path))
+
+        assert config["column_display_names"]["numero_ssa"] == "Numero Expl"
+        assert config["column_widths"]["numero_ssa"] == 88
+        assert config["gui_settings"]["page_size"] == 33
+
     def test_load_gui_main_preferences_invalid_json(self):
         """Testa comportamento com JSON invalido."""
         from gui.gui_config import load_gui_main_preferences

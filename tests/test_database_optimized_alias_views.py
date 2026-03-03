@@ -4,15 +4,24 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from armazenamento import database
 from armazenamento.database_optimized import disable_optimized_import, enable_optimized_import
 
 
+def _get_project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
 def test_optimized_insert_resolves_view_alias_ssas(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
+    schema_path = _get_project_root() / "config" / "schema.sql"
+    if not schema_path.exists():
+        pytest.fail(f"Schema ausente para setup de teste: {schema_path}")
 
-    database.initialize_database(db_path, "config/schema.sql")
+    init_ok = database.initialize_database(db_path, str(schema_path))
+    assert init_ok is True
 
     enable_optimized_import()
     try:
@@ -33,11 +42,16 @@ def test_optimized_insert_resolves_view_alias_ssas(tmp_path: Path) -> None:
         assert count == 1
     finally:
         disable_optimized_import()
+        Path(db_path).unlink(missing_ok=True)
 
 
 def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test_decimal.db")
-    database.initialize_database(db_path, "config/schema.sql")
+    schema_path = _get_project_root() / "config" / "schema.sql"
+    if not schema_path.exists():
+        pytest.fail(f"Schema ausente para setup de teste: {schema_path}")
+    init_ok = database.initialize_database(db_path, str(schema_path))
+    assert init_ok is True
 
     enable_optimized_import()
     try:
@@ -65,3 +79,4 @@ def test_optimized_insert_normalizes_decimal_ssa_artifacts(tmp_path: Path) -> No
         assert str(row[1]) == "202500123"
     finally:
         disable_optimized_import()
+        Path(db_path).unlink(missing_ok=True)

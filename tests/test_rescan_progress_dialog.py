@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 pytest.importorskip(
@@ -12,7 +14,18 @@ def qapp():
     yield app
 
 
-def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
+def _spin_until(predicate, timeout_s: float = 0.25) -> bool:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        QApplication.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.005)
+    QApplication.processEvents()
+    return bool(predicate())
+
+
+def test_rescan_progress_dialog_reject_emits_cancel_once_and_keeps_open_until_finished():
     from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
 
     dlg = RescanProgressDialog()
@@ -20,20 +33,27 @@ def test_rescan_progress_dialog_reject_emits_cancel_once_and_closes():
     dlg.cancel_requested.connect(lambda: emitted.append(1))
 
     dlg.show()
-    QApplication.processEvents()
+    assert _spin_until(lambda: dlg.isVisible())
 
     dlg.reject()
-    QApplication.processEvents()
+    assert _spin_until(lambda: dlg._cancel_requested is True)
 
     assert len(emitted) == 1
     assert dlg._cancel_requested is True
+    assert dlg.cancel_button.isEnabled() is False
+    assert dlg.close_button.isEnabled() is False
+    assert "Cancelamento solicitado" in dlg.status_label.text()
     assert dlg.isVisible() is True
 
-    # Second reject should close without emitting cancel again.
+    # Second reject should keep dialog open while process is not finished.
     dlg.reject()
-    QApplication.processEvents()
+    assert dlg.isVisible() is True
     assert len(emitted) == 1
-    assert dlg.result() == int(QDialog.DialogCode.Rejected)
+
+    # After process finishes, reject should close.
+    dlg.set_finished(False, "Processo cancelado pelo usuario")
+    dlg.reject()
+    assert _spin_until(lambda: dlg.result() == int(QDialog.DialogCode.Rejected))
 
 
 def test_rescan_progress_dialog_reject_after_finished_does_not_emit_cancel():
@@ -45,7 +65,7 @@ def test_rescan_progress_dialog_reject_after_finished_does_not_emit_cancel():
 
     dlg.set_finished(True)
     dlg.reject()
-    QApplication.processEvents()
+    assert _spin_until(lambda: dlg.result() == int(QDialog.DialogCode.Rejected))
 
     assert emitted == []
 
@@ -55,11 +75,25 @@ def test_rescan_progress_dialog_set_finished_failure_without_message_shows_defau
 
     dlg = RescanProgressDialog()
     dlg.set_finished(False, "")
-    QApplication.processEvents()
+    assert _spin_until(lambda: "Reescaneamento falhou" in dlg.status_label.text())
 
     assert "Reescaneamento falhou" in dlg.status_label.text()
     assert "Erro nao detalhado" in dlg.status_label.text()
     assert "ERRO FINAL" in dlg.error_text.toPlainText()
+
+
+def test_rescan_progress_dialog_set_finished_is_idempotent():
+    from gui.widgets.rescan_progress_dialog import RescanProgressDialog  # noqa: E402
+
+    dlg = RescanProgressDialog()
+    dlg.set_finished(False, "Primeira falha")
+    first_text = dlg.status_label.text()
+    first_errors = dlg.error_text.toPlainText()
+
+    dlg.set_finished(True, "Nao deve sobrescrever")
+
+    assert dlg.status_label.text() == first_text
+    assert dlg.error_text.toPlainText() == first_errors
 
 
 def test_rescan_progress_dialog_update_progress_clamps_percentage():

@@ -125,7 +125,7 @@ When another IA sends findings:
 5. Run gate after each slice:
 
 ```bash
-uv run python -m py_compile <files>
+uv run --python 3.13 python -m py_compile <files>
 uv run ruff check <files>
 uv run ty check <files>
 uv run pytest -q tests/test_gui_filters_facade_contract.py

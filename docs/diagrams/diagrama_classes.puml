@@ -1,0 +1,113 @@
+@startuml Diagrama_Classes_Importacao
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+' Classes Principais
+class ImportStats {
+    +total_rows_in: int
+    +total_rows_out: int
+    +original_columns_count: int
+    +mapped_columns_count: int
+    +dropped_columns: List[str]
+    +merged_columns: Dict[str, List[str]]
+    +date_parse_failures: Dict[str, int]
+    +duplicate_rows_dropped: int
+    +invalid_numero_ssa_rows: int
+    +file_path: str
+    +header_candidate_lines_considered: int
+    +selected_header_line_index: int | None
+    +alias_hits: int
+    +to_dict(): Dict[str, Any]
+}
+
+class EnhancedAMSImporter {
+    -known_formats: Dict[str, Dict]
+    +detect_format(df: DataFrame): str
+    +safe_column_addition(existing_df, new_df): DataFrame
+    +import_with_format_detection(file_path): DataFrame | None
+    -_apply_format_transformations(df, format_type): DataFrame
+}
+
+class RescanWorker {
+    +progress: pyqtSignal
+    +finished: pyqtSignal
+    +error: pyqtSignal
+    -docs_dir: str
+    -db_path: str
+    -force_import: bool
+    --
+    +__init__(docs_dir, db_path, force_import)
+    +run(): void
+    +cancel(): void
+}
+
+class DataLoaderWorker {
+    +data_ready: pyqtSignal
+    +error: pyqtSignal
+    -query: str
+    --
+    +__init__(query: str)
+    +run(): void
+}
+
+class FilterWorker {
+    +result_ready: pyqtSignal
+    +error: pyqtSignal
+    -df: DataFrame
+    -filters: Dict
+    --
+    +__init__(df, filters)
+    +run(): void
+}
+
+' Funções do Módulo robust_importer
+class robust_importer {
+    +import_excel_robust(file_path, mappings_path, drop_empty_numero_ssa, deduplicate): Tuple[DataFrame, Dict]
+    -_canonicalize_header(h: str): str
+    -_build_alias_mapping(mapping_json_path): Tuple[Dict, Dict]
+    -_coalesce_columns(df, columns): Series
+    -_clean_numero_ssa_series(series): Tuple[Series, Series]
+    -_parse_single_date(val): str | None
+    -_strip_accents(text): str
+}
+
+' Funções do Módulo app_logic
+class app_logic {
+    +run_importer_logic(docs_dir, db_path, cache_file, force_import, progress_callback): bool
+    +_import_single_file(file_path, db_path, table_name, should_cancel): Tuple[bool, int]
+    +_get_files_to_process(docs_dir, cache_file, force_import): List[str]
+    +_update_cache_after_import(processed_files, cache_file): void
+    +import_files_to_database(files, db_path): bool
+}
+
+' Funções do Módulo database_optimized
+class database_optimized {
+    +insert_dataframe_optimized(df, db_path, table_name): bool
+    -_normalize_ssa_storage_value(value): str | None
+    -_validate_canonical_storage_ids(work): void
+    -_quote_identifier(identifier): str
+    -_has_referencing_foreign_keys(conn, target_table): bool
+    -_resolve_physical_table(conn, table_name): str
+    +sqlite_safe_chunksize(num_columns, cap): int
+    +enable_optimized_import(): void
+    +disable_optimized_import(): void
+}
+
+' Relacionamentos
+RescanWorker ..down> app_logic : usa
+DataLoaderWorker ..down> app_logic : usa
+FilterWorker ..down> app_logic : usa
+
+app_logic ..down> robust_importer : importa via
+app_logic ..down> database_optimized : persiste via
+
+robust_importer ..right> ImportStats : cria
+
+EnhancedAMSImporter ..down> app_logic : alternativa
+
+@enduml

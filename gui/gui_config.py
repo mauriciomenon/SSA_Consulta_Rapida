@@ -4,15 +4,32 @@ from __future__ import annotations
 
 import copy
 import json
-import logging
 import os
+import re
 from typing import Any, Dict, Iterable, List
+from core import config_manager as core_config_manager
+from core.config_manager import atomic_write_json_file
+from utils.robust_logging import get_robust_logger
 
-logger = logging.getLogger(__name__)
+logger = get_robust_logger().get_logger(__name__, "gui")
 
 # gui/gui_config.py -> gui -> project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-CONFIG_PATH = os.path.join(project_root, "config", "gui_main_preferences.json")
+
+
+def _resolve_gui_main_preferences_path() -> str:
+    """Resolve GUI preferences path strictly via centralized config hierarchy."""
+    return core_config_manager._resolve_config_path(  # noqa: SLF001
+        os.path.join(core_config_manager.CONFIG_DIR, "gui_main_preferences.json")
+    )
+
+
+CONFIG_PATH = _resolve_gui_main_preferences_path()
+
+
+def get_gui_main_preferences_path() -> str:
+    """Return current GUI preferences path resolved from active config hierarchy."""
+    return _resolve_gui_main_preferences_path()
 
 # Contract: these columns must always be available in GUI defaults and mappings.
 REQUIRED_DISPLAY_COLUMNS: List[str] = [
@@ -32,12 +49,10 @@ REQUIRED_DISPLAY_COLUMNS: List[str] = [
 
 DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
     "numero_ssa": "Numero SSA",
-    "Número da SSA": "No SSA",
     "setor_executor": "Exec.",
     "situacao": "Sit.",
     "descricao_ssa": "Descricao da SSA",
     "data_cadastro": "Cadastro",
-    "Data Cadastro": "Cadastro",
     "semana_cadastro": "Sem. Cad.",
     "localizacao_codigo": "Loc.",
     "grau_prioridade": "Prio.",
@@ -59,7 +74,7 @@ DEFAULT_COLUMN_DISPLAY_NAMES: Dict[str, str] = {
 }
 
 DEFAULT_COLUMN_WIDTHS: Dict[str, int] = {
-    "#": 30,
+    "#": 24,
     "numero_ssa": 93,
     "localizacao_codigo": 86,
     "setor_executor": 65,
@@ -118,8 +133,26 @@ DEFAULT_GUI_MAIN_PREFERENCES["display_mappings"] = copy.deepcopy(
     DEFAULT_GUI_MAIN_PREFERENCES["column_display_names"]
 )
 DEFAULT_GUI_MAIN_PREFERENCES["required_display_columns"] = list(REQUIRED_DISPLAY_COLUMNS)
+HARD_DEFAULT_GUI_MAIN_PREFERENCES: Dict[str, Any] = copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+
+
+def _hard_default_preferences_copy() -> Dict[str, Any]:
+    return copy.deepcopy(HARD_DEFAULT_GUI_MAIN_PREFERENCES)
+
+# Columns kept in DB for compatibility only; do not offer in interactive GUI selectors.
+COMPATIBILITY_NULL_UI_COLUMNS = {
+    "registros_espera",
+    "num_reprobaciones",
+    "situacao_espera",
+    "numero_desvios",
+    "ate",
+    "justificativa",
+    "parciais",
+    "situacao_da_parcial",
+}
 
 _MERGE_KEYS = {"display_columns", "hidden_columns", "column_display_names", "column_widths", "gui_settings"}
+_LEGACY_INVALID_COLUMN_KEYS = {"Número da SSA", "Numero da SSA", "No SSA", "Data Cadastro"}
 
 
 def _unique_str_list(values: Iterable[Any]) -> List[str]:
@@ -170,6 +203,10 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     merged["hidden_columns"] = hidden_columns
 
     names = copy.deepcopy(DEFAULT_COLUMN_DISPLAY_NAMES)
+    allowed_name_keys = set(DEFAULT_COLUMN_DISPLAY_NAMES.keys())
+    allowed_name_keys.update(display_columns)
+    allowed_name_keys.update(hidden_columns)
+    allowed_name_keys.update(REQUIRED_DISPLAY_COLUMNS)
     loaded_names = loaded_config.get("column_display_names")
     if isinstance(loaded_names, dict):
         for key, value in loaded_names.items():
@@ -178,6 +215,18 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
             key_clean = key.strip()
             value_clean = value.strip()
             if not key_clean or not value_clean:
+                continue
+            if key_clean in _LEGACY_INVALID_COLUMN_KEYS:
+                continue
+            if (
+                key_clean != "#"
+                and key_clean not in allowed_name_keys
+                and not re.fullmatch(r"[a-z][a-z0-9_]*", key_clean)
+            ):
+                logger.warning(
+                    "Ignoring invalid column_display_names key '%s' (expected internal key format).",
+                    key_clean,
+                )
                 continue
             names[key_clean] = value_clean
     for required in REQUIRED_DISPLAY_COLUMNS:
@@ -255,28 +304,107 @@ def _merge_preferences(loaded_config: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
-def load_gui_main_preferences(config_path: str = CONFIG_PATH) -> Dict[str, Any]:
+def _create_gui_main_preferences_file(config_path: str) -> None:
+    """Create default GUI preferences file atomically."""
+    config_dir = os.path.dirname(config_path)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+    atomic_write_json_file(
+        config_path,
+        _hard_default_preferences_copy(),
+        indent=2,
+        ensure_ascii=False,
+    )
+
+
+def ensure_gui_main_preferences_file(config_path: str | None = None) -> bool:
+    """Ensure GUI preferences file exists, creating it atomically when missing."""
+    if not config_path:
+        config_path = get_gui_main_preferences_path()
+    if os.path.exists(config_path):
+        return True
+    try:
+        _create_gui_main_preferences_file(config_path)
+        return True
+    except Exception as exc:
+        logger.error("Unable to ensure GUI preferences file at %s: %s", config_path, exc)
+        return False
+
+
+def reload_gui_main_preferences_in_place(*, auto_create: bool = False) -> Dict[str, Any]:
+    """Reload GUI preferences from disk into shared in-memory dict."""
+    loaded = load_gui_main_preferences(auto_create=auto_create)
+    GUI_MAIN_PREFERENCES.clear()
+    GUI_MAIN_PREFERENCES.update(loaded)
+    return GUI_MAIN_PREFERENCES
+
+
+def _has_minimum_preferences_integrity(raw_config: Any) -> bool:
+    """Validate minimum expected schema before merge."""
+    if not isinstance(raw_config, dict):
+        return False
+    expected_types: Dict[str, type] = {
+        "display_columns": list,
+        "column_display_names": dict,
+        "display_mappings": dict,
+        "column_widths": dict,
+        "gui_settings": dict,
+    }
+    if not raw_config:
+        return False
+    for key, value in raw_config.items():
+        expected_type = expected_types.get(key)
+        if expected_type is None:
+            continue
+        if not isinstance(value, expected_type):
+            return False
+    return True
+
+
+def load_gui_main_preferences(
+    config_path: str | None = None,
+    *,
+    auto_create: bool = False,
+) -> Dict[str, Any]:
     """Load GUI main preferences and defensively merge with full defaults."""
+    if not config_path:
+        config_path = get_gui_main_preferences_path()
     if not os.path.exists(config_path):
         logger.warning("GUI main preferences not found at %s, using defaults.", config_path)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        if auto_create:
+            try:
+                _create_gui_main_preferences_file(config_path)
+            except OSError as exc:
+                logger.error("Unable to create GUI preferences at %s: %s", config_path, exc)
+            except Exception as exc:
+                logger.error("Unexpected error creating GUI preferences at %s: %s", config_path, exc)
+        return _hard_default_preferences_copy()
 
     try:
         with open(config_path, "r", encoding="utf-8") as handle:
             loaded_config = json.load(handle)
     except json.JSONDecodeError as exc:
         logger.error("Unable to parse GUI preferences at %s: %s", config_path, exc)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
     except OSError as exc:
         logger.error("Unable to read GUI preferences at %s: %s", config_path, exc)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
 
     if not isinstance(loaded_config, dict):
         logger.warning("Invalid GUI preference structure at %s, using defaults.", config_path)
-        return copy.deepcopy(DEFAULT_GUI_MAIN_PREFERENCES)
+        return _hard_default_preferences_copy()
+    if not _has_minimum_preferences_integrity(loaded_config):
+        logger.warning("GUI preferences integrity check failed at %s, using defaults.", config_path)
+        if auto_create:
+            try:
+                _create_gui_main_preferences_file(config_path)
+            except OSError as exc:
+                logger.error("Unable to recreate GUI preferences at %s: %s", config_path, exc)
+            except Exception as exc:
+                logger.error("Unexpected error recreating GUI preferences at %s: %s", config_path, exc)
+        return _hard_default_preferences_copy()
 
     return _merge_preferences(loaded_config)
 
 
-# Loaded once for runtime usage in GUI module.
-GUI_MAIN_PREFERENCES = load_gui_main_preferences()
+GUI_MAIN_PREFERENCES: Dict[str, Any] = load_gui_main_preferences()

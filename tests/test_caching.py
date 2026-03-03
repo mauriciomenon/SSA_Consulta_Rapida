@@ -158,3 +158,15 @@ def test_get_files_to_process_upgrades_legacy_cache_file(tmp_path, monkeypatch):
 
     files_to_process = caching.get_files_to_process(str(docs_dir), str(cache_file))
     assert files_to_process == []
+
+
+def test_get_files_to_process_requeues_when_stat_unavailable(temp_docs_dir, monkeypatch):
+    def _no_stat(_path):  # noqa: ARG001
+        return None
+
+    monkeypatch.setattr(caching, "_safe_file_stat", _no_stat)
+    files_to_process = get_files_to_process(temp_docs_dir, {})
+
+    assert len(files_to_process) == 2
+    filenames = {os.path.basename(path) for path in files_to_process}
+    assert filenames == {"relatorio_a.xlsx", "relatorio_b.xlsx"}

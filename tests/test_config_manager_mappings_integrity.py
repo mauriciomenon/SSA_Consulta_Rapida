@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import core.config_manager as config_manager
+import pytest
 
 
 def test_load_display_mappings_integrity_restores_file_and_returns_restored(tmp_path, monkeypatch):
@@ -31,3 +32,31 @@ def test_load_column_mappings_integrity_restores_invalid_file(tmp_path, monkeypa
     on_disk = json.loads(invalid_path.read_text(encoding="utf-8"))
     assert result == on_disk
     assert result == config_manager.DEFAULT_COLUMN_MAPPINGS
+
+
+@pytest.mark.parametrize(
+    ("loader_name", "expected_name", "filename"),
+    [
+        ("load_display_mappings_integrity", "DEFAULT_DISPLAY_MAPPINGS", "display_mappings.json"),
+        ("load_column_mappings_integrity", "DEFAULT_COLUMN_MAPPINGS", "column_mappings.json"),
+    ],
+)
+def test_load_mappings_integrity_returns_defaults_when_restore_write_fails(
+    tmp_path,
+    monkeypatch,
+    loader_name: str,
+    expected_name: str,
+    filename: str,
+):
+    cfg_dir = tmp_path / "cfg"
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(cfg_dir))
+
+    def _fail_atomic_write(*args, **kwargs):  # noqa: ANN002,ANN003
+        raise OSError("write blocked")
+
+    monkeypatch.setattr(config_manager, "_atomic_write_json_file", _fail_atomic_write)
+    loader = getattr(config_manager, loader_name)
+    expected = getattr(config_manager, expected_name)
+    result = loader()
+    assert result == expected
+    assert not (cfg_dir / filename).exists()

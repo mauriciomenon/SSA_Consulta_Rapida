@@ -185,9 +185,13 @@ def main():
                 )
                 overall_success = overall_success and success
             elif verbose:
-                print(f"\n⏭️  Pulando {build_system} (build nao encontrado)")
+                print(f"\nSKIP Pulando {build_system} (build nao encontrado)")
     else:
         build_dir = build_dirs[args.build_system]
+        if not build_dir.exists():
+            if verbose:
+                print(f"WARN Build directory not found: {build_dir}")
+            return 1
         if verbose:
             print("=" * 60)
             print(f"Copiando dados para build: {args.build_system.upper()}")

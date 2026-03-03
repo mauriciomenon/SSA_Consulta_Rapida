@@ -51,6 +51,7 @@ except ImportError:
 # Imports do core
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
+from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
@@ -61,6 +62,8 @@ from utils.robust_logging import get_robust_logger
 
 # Module logger
 logger = get_robust_logger().get_logger(__name__, "gui")
+_NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
+_HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -76,6 +79,13 @@ def _is_search_widget_valid(widget: Any) -> bool:
         return not sip.isdeleted(widget)
     except Exception:
         return False
+
+
+def _has_named_alias(mapping: dict[str, str] | None, col: str) -> bool:
+    if not isinstance(mapping, dict):
+        return False
+    value = str(mapping.get(col, "") or "").strip()
+    return bool(value and value != col)
 
 
 def _connect_filter_signal(signal, slot, *, label: str) -> bool:
@@ -104,7 +114,6 @@ def _connect_filter_signal(signal, slot, *, label: str) -> bool:
 # Retencao global defensiva para workers de filtro que sobreviverem ao ciclo da janela.
 GLOBAL_RETIRED_FILTER_WORKERS = []
 MAX_GLOBAL_RETIRED_FILTER_WORKERS = 64
-
 class FilterGUISSAMixin:
     """
     Mixin containing all filter-related methods.
@@ -415,21 +424,33 @@ class FilterGUISSAMixin:
         self._widths_computed_for_df_hash = None
         self._refresh_after_filter_change()
         # CORRECAO 2026-01-08: Exibir contagem de hits e termos de busca
-        total_original = len(self.df_completo) if hasattr(self, 'df_completo') and self.df_completo is not None else 0
-        total_filtrado = len(self.df_exibido)
         search_text = ""
         current_search_request_id = getattr(self, "_active_filter_search_request_id", None)
         if effective_request_id is not None and effective_request_id == current_search_request_id:
             search_text = str(getattr(self, "_active_filter_search_display", "") or "").strip()
         if not search_text:
             search_text = str(getattr(self, "_pending_search_display", "") or "").strip()
-        if search_text:
-            self.status_label.setText(f"Status: {total_filtrado} de {total_original} SSAs encontradas para '{search_text}'")
-        else:
-            self.status_label.setText(f"Status: {total_filtrado} SSAs encontradas.")
+        filtered_total_current = None
+        try:
+            if hasattr(self, "df_exibido") and isinstance(self.df_exibido, pd.DataFrame):
+                filtered_total_current = len(self.df_exibido)
+            elif isinstance(df_filtrado, pd.DataFrame):
+                filtered_total_current = len(df_filtrado)
+        except Exception:
+            filtered_total_current = None
+        self._set_filtered_count_status(
+            search_text,
+            filtered_total=filtered_total_current,
+            original_total=len(self.df_completo) if hasattr(self, "df_completo") and self.df_completo is not None else None,
+        )
         if hasattr(self, 'clear_filter_button'):
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
         self._apply_search_display()
+        table_widget = getattr(self, "table_widget", None)
+        table_widget_valid = _is_search_widget_valid(table_widget)
+        if not table_widget_valid:
+            logger.debug("table_widget indisponivel no fim de on_filter_finished; pulando ajustes de largura.")
+            return
         # Reforça reaplicação de larguras após busca para evitar colunas zeradas em headless/CI
         try:
             self._ensure_nonzero_column_widths()
@@ -663,7 +684,7 @@ class FilterGUISSAMixin:
         # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
         self._df_last_search_filtered = self.df_completo.copy()
         self._refresh_after_filter_change()
-        self.status_label.setText(f"Status: Busca geral limpa. {len(self.df_exibido)} SSAs exibidas.")
+        self._set_filtered_count_status("")
         try:
             if hasattr(self, 'clear_filter_button'):
                 self.clear_filter_button.setEnabled(self._has_any_active_filters())
@@ -735,20 +756,70 @@ class FilterGUISSAMixin:
 
 
     def _open_add_column_filter_menu(self):
-        """Exibe menu com colunas visiveis para ativar filtros dedicados."""
+        """Exibe menu com todas as colunas disponiveis para ativar filtros dedicados."""
         try:
             from PyQt6.QtWidgets import QMenu
         except Exception:
             return
-        if not hasattr(self, '_current_display_columns') or not self._current_display_columns:
-            return
         menu = QMenu(_qt_parent(self))
         columns = []
-        for col in self._current_display_columns:
-            if col == '#':
+        candidates = []
+        canonical_provider = getattr(self, "_get_canonical_available_columns", None)
+        if callable(canonical_provider):
+            try:
+                candidates.extend(canonical_provider())
+            except Exception as exc:
+                logger.debug("Falha ao obter lista canonica de colunas para menu de filtros: %s", exc)
+        candidates.extend((self._active_column_filters or {}).keys())
+
+        seen = set()
+        try:
+            self._last_unmapped_alias_columns = self._find_unmapped_alias_columns(candidates)
+        except Exception as exc:
+            logger.debug("Falha ao mapear colunas sem alias: %s", exc)
+            self._last_unmapped_alias_columns = []
+        legacy_invalid_columns = {"Número da SSA", "Numero da SSA", "No SSA", "Data Cadastro"}
+        valid_cols = []
+        for col in candidates:
+            if not isinstance(col, str) or not col or col == "#" or col in seen:
                 continue
-            display = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
-            action = menu.addAction(display)
+            if col in COMPATIBILITY_NULL_UI_COLUMNS:
+                continue
+            if col in legacy_invalid_columns:
+                continue
+            display = self._resolve_column_display_name(col)
+            if str(display).strip() == "No SSA" and col != "numero_ssa":
+                continue
+            seen.add(col)
+            valid_cols.append(col)
+
+        pinned = []
+        pinned_seen = set()
+        for col in (getattr(self, "_current_display_columns", []) or []):
+            if col in valid_cols and col not in pinned_seen:
+                pinned.append(col)
+                pinned_seen.add(col)
+        for col in self._active_column_filters.keys():
+            if col in valid_cols and col not in pinned_seen:
+                pinned.append(col)
+                pinned_seen.add(col)
+        remaining = [c for c in valid_cols if c not in pinned_seen]
+        remaining.sort(key=lambda c: self._expand_column_alias_for_filter(c).casefold())
+        ordered_cols = pinned + remaining
+
+        label_counts = {}
+        for col in ordered_cols:
+            display = self._expand_column_alias_for_filter(col)
+            key = str(display).strip().casefold()
+            label_counts[key] = label_counts.get(key, 0) + 1
+        for col in ordered_cols:
+            display = self._expand_column_alias_for_filter(col)
+            display_text = str(display)
+            if label_counts.get(display_text.strip().casefold(), 0) > 1:
+                display_text = f"{display_text} [{col}]"
+            action = menu.addAction(display_text)
+            if action is None:
+                continue
             action.setCheckable(True)
             action.setChecked(col in self._active_column_filters)
             action.setData(col)
@@ -766,6 +837,50 @@ class FilterGUISSAMixin:
             self._deactivate_column_filter(col_name)
         else:
             self._activate_column_filter(col_name)
+
+    def _resolve_column_display_name(self, col: str) -> str:
+        internal_map = getattr(self, "internal_to_display", None)
+        if not isinstance(internal_map, dict):
+            internal_map = {}
+        internal_alias = internal_map.get(col, col)
+        if str(internal_alias).strip() and str(internal_alias).strip() != str(col):
+            return str(internal_alias)
+        default_alias = DEFAULT_DISPLAY_MAPPINGS.get(col)
+        if str(default_alias or "").strip():
+            return str(default_alias)
+        logger.warning("Coluna sem alias canonico encontrada no menu de filtro: %s", col)
+        return str(col)
+
+    def _expand_column_alias_for_filter(self, col: str) -> str:
+        """Prefer full labels in the column-filter list when short aliases exist."""
+        resolved = self._resolve_column_display_name(col)
+        expanded_aliases = {
+            "Exec.": "Setor executor",
+            "Emis.": "Setor emissor",
+            "Sit.": "Situacao",
+            "Loc.": "Localizacao",
+            "Prog.": "Semana programada",
+            "Sem. Cad.": "Semana cadastro",
+            "Prio.": "Prioridade",
+            "Prio. Emissao": "Prioridade emissao",
+            "Prio. Planej.": "Prioridade planejamento",
+            "Resp. Prog.": "Responsavel programacao",
+            "Resp. Exec.": "Responsavel execucao",
+        }
+        return expanded_aliases.get(resolved, resolved)
+
+    def _find_unmapped_alias_columns(self, candidates) -> list[str]:
+        seen = set()
+        missing = []
+        for col in candidates:
+            if not isinstance(col, str) or not col or col in seen or col == "#":
+                continue
+            seen.add(col)
+            has_internal = _has_named_alias(getattr(self, "internal_to_display", None), col)
+            has_default = col in DEFAULT_DISPLAY_MAPPINGS
+            if not has_internal and not has_default:
+                missing.append(col)
+        return sorted(missing)
 
 
     def _activate_column_filter(self, col_name: str):
@@ -833,15 +948,21 @@ class FilterGUISSAMixin:
             self._hidden_column_filter_lines = set()
 
         if not self._active_column_filters:
-            lbl = QLabel("Nenhum filtro por coluna aplicado.")
-            lbl.setWordWrap(True)
-            target_layout.addWidget(lbl)
-            target_layout.addStretch()
-            self._column_filter_inputs = {}
-            self._column_filter_labels = {}
-            self._pending_filter_focus = None
-            self._update_col_filter_indicator()
-            return
+            self._active_column_filters = OrderedDict(
+                (col, "") for col in self._column_filter_default_columns()
+            )
+
+        # Keep a minimum label column aligned with "Descricao Execucao".
+        # If a label is longer, current behavior still pushes the input right.
+        min_label_column_width = 100
+        try:
+            ref_name = self._expand_column_alias_for_filter("descricao_execucao")
+            ref_probe = QLabel(ref_name)
+            ref_metrics = ref_probe.fontMetrics()
+            ref_width = int(ref_metrics.horizontalAdvance(ref_name) + 16)
+            min_label_column_width = max(100, min(260, ref_width))
+        except Exception as exc:
+            logger.debug("Falha ao calcular largura minima de alinhamento dos labels de filtro: %s", exc)
 
 
         for col, term in self._active_column_filters.items():
@@ -851,10 +972,17 @@ class FilterGUISSAMixin:
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(4)
-            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col, self.internal_to_display.get(col, col))
+            full_name = self._expand_column_alias_for_filter(col)
             name_lbl = QLabel(full_name)
             self._column_filter_labels[col] = name_lbl
-            name_lbl.setMinimumWidth(100)
+            try:
+                label_metrics = name_lbl.fontMetrics()
+                desired_width = int(label_metrics.horizontalAdvance(full_name) + 16)
+                dynamic_width = max(90, min(260, desired_width))
+                name_lbl.setMinimumWidth(max(min_label_column_width, dynamic_width))
+            except Exception as exc:
+                logger.debug("Falha ao ajustar largura do label do filtro de coluna %s: %s", col, exc)
+                name_lbl.setMinimumWidth(min_label_column_width)
             try:
                 name_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:
@@ -895,7 +1023,7 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Aplicar da coluna %s: %s", col, exc)
             try:
-                apply_btn.setFixedWidth(72)
+                apply_btn.setFixedWidth(66)
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Aplicar da coluna %s: %s", col, exc)
             def _mk_apply(c=col, tb=term_box):
@@ -926,7 +1054,7 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setFixedWidth(72)  # Padronizado com o botão Aplicar
+                clear_btn.setFixedWidth(66)  # Padronizado com o botao Aplicar
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
             try:
@@ -949,12 +1077,6 @@ class FilterGUISSAMixin:
             except Exception as exc:
                 logger.debug("Falha ao conectar botao ocultar para filtro de coluna %s: %s", col, exc)
             # Oculta o botão para colunas fixas que não devem ser removidas da exibição
-            try:
-                fixed_cols = {"descricao_ssa", "setor_executor", "situacao", "localizacao_codigo", "descricao_localizacao"}
-                if col in fixed_cols:
-                    clear_btn.setVisible(False)
-            except Exception as exc:
-                logger.debug("Falha ao ajustar visibilidade do botao ocultar da coluna %s: %s", col, exc)
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
@@ -989,6 +1111,11 @@ class FilterGUISSAMixin:
             row_w.setLayout(footer)
             target_layout.addWidget(row_w)
         target_layout.addStretch()
+        try:
+            if hasattr(self, "_sync_bottom_panel_heights"):
+                self._sync_bottom_panel_heights()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar altura dos paineis inferiores apos rebuild de filtros por coluna: %s", exc)
 
 
 
@@ -1010,6 +1137,34 @@ class FilterGUISSAMixin:
                 f"QLineEdit:focus {{ border:1px solid {input_focus}; }}\n"
             )
             input_widget.setStyleSheet(style)
+
+    def _set_filtered_count_status(
+        self,
+        search_text: str = "",
+        filtered_total: int | None = None,
+        original_total: int | None = None,
+        suffix: str = "",
+    ):
+        total_original = (
+            int(original_total)
+            if original_total is not None
+            else (len(self.df_completo) if hasattr(self, "df_completo") and self.df_completo is not None else 0)
+        )
+        total_filtrado = (
+            int(filtered_total)
+            if filtered_total is not None
+            else (len(self.df_exibido) if hasattr(self, "df_exibido") and self.df_exibido is not None else 0)
+        )
+        query = str(search_text or "").strip()
+        suffix_text = str(suffix or "").strip()
+        if suffix_text and not suffix_text.startswith(" "):
+            suffix_text = f" {suffix_text}"
+        if query:
+            self.status_label.setText(
+                f"Status: SSAs filtradas: {total_filtrado} de {total_original} para '{query}'.{suffix_text}"
+            )
+        else:
+            self.status_label.setText(f"Status: SSAs filtradas: {total_filtrado} de {total_original}.{suffix_text}")
 
 
     def _refresh_column_filter_widgets(self):
@@ -1046,26 +1201,33 @@ class FilterGUISSAMixin:
 
 
     def _clear_all_column_filters(self):
-        if self._active_column_filters:
-            self._safe_store_last_filter_state("clear_all_column_filters")
-            for group in getattr(self, '_column_or_groups', []):
-                group['values'] = []
-            self._active_column_filters.clear()
-            # Restaura linhas ocultas apenas na exibição
-            try:
-                self._hidden_column_filter_lines.clear()
-            except Exception:
-                self._hidden_column_filter_lines = set()
-            # Limpa também o texto dedicado de OR (somente exibição)
-            self._dedicated_or_text = ''
-            self._mark_profile_as_custom()
+        if not self._active_column_filters:
+            self._active_column_filters = OrderedDict(
+                (col, "") for col in self._column_filter_default_columns()
+            )
             self._build_column_filters_panel()
-            self._refresh_after_filter_change()
-            try:
-                if hasattr(self, "clear_filter_button"):
-                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception as exc:
-                logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
+            return
+        self._safe_store_last_filter_state("clear_all_column_filters")
+        for group in getattr(self, '_column_or_groups', []):
+            group['values'] = []
+        self._active_column_filters = OrderedDict(
+            (col, "") for col in self._column_filter_default_columns()
+        )
+        # Restaura linhas ocultas apenas na exibição
+        try:
+            self._hidden_column_filter_lines.clear()
+        except Exception:
+            self._hidden_column_filter_lines = set()
+        # Limpa também o texto dedicado de OR (somente exibição)
+        self._dedicated_or_text = ''
+        self._mark_profile_as_custom()
+        self._build_column_filters_panel()
+        self._refresh_after_filter_change()
+        try:
+            if hasattr(self, "clear_filter_button"):
+                self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        except Exception as exc:
+            logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
@@ -1193,7 +1355,7 @@ class FilterGUISSAMixin:
         self._update_col_filter_indicator()
 
         # Atualizar interface
-        self.status_label.setText(f"Status: {len(self.df_exibido)} SSAs carregadas. Pronto para filtrar.")
+        self._set_filtered_count_status("")
         if hasattr(self, 'clear_filter_button'):
             self.clear_filter_button.setEnabled(self._has_any_active_filters())
 
@@ -1219,7 +1381,7 @@ class FilterGUISSAMixin:
                 return 'Descricao da SSA'
             if col == 'situacao':
                 return 'Situacao'
-            return self.internal_to_display.get(col, col.replace('_', ' ').title())
+            return self._resolve_column_display_name(col)
 
         # Filtro OU dedicado (exibição)
         or_text = str(getattr(self, '_dedicated_or_text', '') or '').strip()
@@ -1486,9 +1648,14 @@ class FilterGUISSAMixin:
             if col not in self._active_column_filters:
                 self._active_column_filters[col] = ""
         # Garante linhas iniciais úteis mesmo sem perfil aplicado
-        for default_col in ("setor_executor", "setor_emissor", "descricao_ssa"):
+        for default_col in self._column_filter_default_columns():
             if default_col not in self._active_column_filters:
                 self._active_column_filters[default_col] = ""
+
+
+    def _column_filter_default_columns(self) -> tuple[str, ...]:
+        """Colunas padrao sempre visiveis no painel de filtros por coluna."""
+        return ("descricao_ssa", "setor_executor", "setor_emissor", "descricao_execucao")
 
 
     def _reset_or_groups(self):
@@ -1607,6 +1774,10 @@ class FilterGUISSAMixin:
                 self.clear_filter_button.setEnabled(self._has_any_active_filters())
         except Exception as exc:
             logger.debug("Falha ao atualizar estado do botao limpar no refresh de filtros: %s", exc)
+        try:
+            self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or ""))
+        except Exception as exc:
+            logger.debug("Falha ao atualizar status de total filtrado no refresh: %s", exc)
 
 
     def _snapshot_filter_state(self) -> dict:
@@ -2047,6 +2218,27 @@ class FilterGUISSAMixin:
             self._cached_default_mode = gui_settings.get("default_filter_mode", "contains")
         default_mode = self._cached_default_mode
 
+        def _safe_regex_contains(s: pd.Series, pattern: str) -> pd.Series:
+            pattern_text = str(pattern or "")
+            if not pattern_text:
+                return pd.Series([True] * len(s), index=s.index)
+            has_lookaround = "(?=" in pattern_text or "(?!" in pattern_text or "(?<=" in pattern_text or "(?<!" in pattern_text
+            has_backref = bool(re.search(r"\\[1-9]", pattern_text))
+            if (
+                len(pattern_text) > 120
+                or _NESTED_QUANTIFIER_RE.search(pattern_text)
+                or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
+                or has_lookaround
+                or has_backref
+            ):
+                logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
+                return s.str.contains(pattern_text, case=False, na=False, regex=False)
+            try:
+                pat = re.compile(pattern_text, re.IGNORECASE)
+                return s.str.contains(pat, na=False)
+            except re.error:
+                return s.str.contains(pattern_text, case=False, na=False, regex=False)
+
         def match_token(s: pd.Series, token: str) -> pd.Series:
             neg = token.startswith('!')
             t = token[1:] if neg else token
@@ -2057,12 +2249,7 @@ class FilterGUISSAMixin:
                 return ~res if neg else res
             # Regex explácito
             if t.startswith('~') and len(t) > 1:
-                try:
-                    import re
-                    pat = re.compile(t[1:], re.IGNORECASE)
-                    res = s.str.contains(pat, na=False)
-                except Exception:
-                    res = s.str.contains(t[1:], case=False, na=False)
+                res = _safe_regex_contains(s, t[1:])
             elif t.startswith('='):
                 res = s.str.casefold().eq(t[1:].casefold())
             elif t.startswith('^'):
@@ -2077,12 +2264,7 @@ class FilterGUISSAMixin:
                 elif default_mode == 'exact':
                     res = s.str.casefold().eq(t.casefold())
                 elif default_mode == 'regex':
-                    try:
-                        import re
-                        pat = re.compile(t, re.IGNORECASE)
-                        res = s.str.contains(pat, na=False)
-                    except Exception:
-                        res = s.str.contains(t, case=False, na=False)
+                    res = _safe_regex_contains(s, t)
                 else:  # contains
                     res = s.str.contains(t, case=False, na=False)
             return ~res if neg else res
@@ -2143,8 +2325,20 @@ class FilterGUISSAMixin:
             QMessageBox.information(_qt_parent(self), "Aviso", "Digite um filtro na caixa de pesquisa antes de salvar.")
             return
 
-        # Cria um nome baseado no filtro (limitado para exibicao)
-        filter_name = current_text[:20] + "..." if len(current_text) > 20 else current_text
+        # Cria um nome baseado no filtro com truncamento por largura disponivel.
+        filter_name = current_text
+        try:
+            metrics = self.search_input.fontMetrics()
+            width_px = int(self.search_input.width() or self.search_input.minimumWidth() or 320)
+            available = max(64, width_px - 40)
+            ellipsis = "..."
+            if metrics.horizontalAdvance(filter_name) > available:
+                trimmed = filter_name
+                while trimmed and metrics.horizontalAdvance(trimmed + ellipsis) > available:
+                    trimmed = trimmed[:-1]
+                filter_name = (trimmed + ellipsis) if trimmed else ellipsis
+        except Exception as exc:
+            logger.debug("Falha ao truncar nome de filtro persistente por largura: %s", exc)
 
         # Verifica se ja existe
         for f in self.persistent_filters:

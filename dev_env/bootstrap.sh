@@ -92,6 +92,14 @@ init_pyenv_shell() {
 create_virtualenv_if_missing() {
   if ! have_cmd pyenv; then
     echo "[aviso] pyenv nao disponivel; criando fallback .venv com python do sistema"
+    if ! have_cmd python3; then
+      echo "[erro] python3 nao encontrado para criar fallback .venv"
+      exit 1
+    fi
+    if ! python3 -m venv --help >/dev/null 2>&1; then
+      echo "[erro] modulo venv indisponivel no python3 atual"
+      exit 1
+    fi
     python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install -U pip
@@ -104,14 +112,28 @@ create_virtualenv_if_missing() {
     echo "[ok] Virtualenv pyenv '$VENV_NAME' ja existe"
   else
     echo "[info] Criando virtualenv pyenv '$VENV_NAME'"
-    # Descobre a ultima 3.13.x disponivel
-    PY_VER=$(pyenv install -l | sed -n 's/^  \(3\.13\.[0-9]\+\)$/\1/p' | tail -1)
+    # Prefer 3.13.x; fallback to 3.12/3.11/3.10 if needed.
+    PYENV_LIST=$(pyenv install -l | sed 's/^[[:space:]]*//')
+    PY_VER=""
+    for MAJOR in 3.13 3.12 3.11 3.10; do
+      CANDIDATE=$(printf "%s\n" "$PYENV_LIST" | sed -n "s/^\\(${MAJOR}\\.[0-9]\\+\\)$/\\1/p" | tail -1)
+      if [[ -n "${CANDIDATE:-}" ]]; then
+        PY_VER="$CANDIDATE"
+        break
+      fi
+    done
     if [[ -z "${PY_VER:-}" ]]; then
-      echo "[erro] Nao foi possivel descobrir versao 3.13.x no pyenv. Verifique a instalacao do pyenv."
+      echo "[erro] Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv."
       exit 1
     fi
-    pyenv install -s "$PY_VER"
-    pyenv virtualenv "$PY_VER" "$VENV_NAME"
+    if ! pyenv install -s "$PY_VER"; then
+      echo "[erro] Falha ao instalar Python $PY_VER via pyenv."
+      exit 1
+    fi
+    if ! pyenv virtualenv "$PY_VER" "$VENV_NAME"; then
+      echo "[erro] Falha ao criar virtualenv $VENV_NAME."
+      exit 1
+    fi
   fi
 
   # Ativa sem mexer em .python-version

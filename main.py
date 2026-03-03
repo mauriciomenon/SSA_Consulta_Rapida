@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 from typing import Any, Optional, cast
 
@@ -57,7 +58,14 @@ class _ASCIIOnlyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = self._to_ascii(record.msg)
         if record.args:
-            record.args = tuple(self._to_ascii(arg) for arg in record.args)
+            # Preserve mapping-style formatting when LogRecord normalizes
+            # args as a single-tuple containing a mapping.
+            if isinstance(record.args, tuple) and len(record.args) == 1 and isinstance(record.args[0], Mapping):
+                record.args = {str(key): value for key, value in record.args[0].items()}
+            if isinstance(record.args, Mapping):
+                record.args = {str(key): self._to_ascii(value) for key, value in record.args.items()}
+            else:
+                record.args = tuple(self._to_ascii(arg) for arg in record.args)
         if record.exc_text:
             record.exc_text = self._to_ascii(record.exc_text)
         return True
@@ -190,6 +198,9 @@ def get_app_version():
         return _get_version()
     except ImportError:
         return "3.11+"
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Falha ao obter versao via utils.version: %s", exc)
+        return "3.11+"
 
 
 def launch_streamlit(project_root: str, port: Optional[int] = None) -> bool:
@@ -315,12 +326,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
     parser.add_argument(
         '--skip-import',
         action='store_true',
-        help='''Pula a importacao/verificacao inicial e inicia a GUI/CLI usando o banco existente.
+        help='''Flag legada de compatibilidade.
 
-        Use quando voce precisa abrir o app rapidamente e aceita trabalhar com dados possivelmente desatualizados.
-        Para importar depois:
+        A importacao inicial automatica esta desativada por padrao.
+        Para importar manualmente:
           - GUI: use o botao "Reescanear" (quando disponivel)
-          - CLI: execute sem --skip-import (ou com --force-rescan, se necessario)
+          - CLI: use --force-rescan/--rescan
         '''
     )
 
@@ -475,21 +486,15 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
     # --version: imprime e sai antes de qualquer outra acao
     if getattr(args, 'version', False):
-        try:
-            print(get_app_version())
-        except Exception:
-            print('0.0.0')
+        print(get_app_version())
         return
-
-    if getattr(args, "skip_import", False) and getattr(args, "force_rescan", False):
-        parser.error("--skip-import nao pode ser combinado com --force-rescan/--rescan")
 
     # Configura logging
     _configure_logging(project_root)
     try:
         logger.setLevel(getattr(logging, args.log_level))
     except AttributeError:
-        print(f"Nível de log inválido: {args.log_level}. Usando INFO.")
+        print(f"Nivel de log invalido: {args.log_level}. Usando INFO.")
         logger.setLevel(logging.INFO)
 
     # Banner inicial
@@ -624,7 +629,12 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
         logger.debug("Garantindo configuracoes padrao...")
         logger.debug("Iniciando configuracao do sistema...")
         try:
-            ensure_default_settings()
+            config_errors = ensure_default_settings(fail_fast=False)
+            if config_errors:
+                logger.warning(
+                    "Configuracao padrao concluida com erros nao bloqueantes: %s",
+                    "; ".join(config_errors),
+                )
             logger.debug("Configuracoes padrao verificadas.")
             logger.debug("Configuracao do sistema concluida com sucesso.")
         except Exception as e:
@@ -655,10 +665,14 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
             return
 
         # --- 3. Importacao de Dados (fluxo normal) ---
-        if getattr(args, "skip_import", False):
-            logger.info("Pulando importacao/verificacao inicial (--skip-import).")
+        if not getattr(args, "force_rescan", False):
+            logger.info(
+                "Importacao automatica no startup desativada. "
+                "Use --force-rescan/--rescan ou acione manualmente via GUI/CLI."
+            )
             db_updated = False
         else:
+            logger.info("Full rescan solicitado via CLI; preparando recriacao do banco e reprocessamento completo.")
             # Determina se a reimportacao e forcada e se deve usar versao otimizada
             force_import = args.force_rescan
 
@@ -737,28 +751,43 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
 
             logger.info(f"Iniciando processo de importacao (force_rescan={force_import}, optimized={use_optimized})...")
 
-            try:
-                logger.debug("Executando run_importer_logic...")
-                db_updated = run_importer_logic(force_import=force_import)
-                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-            except Exception as e:
-                logger.error("Falha critica na importacao de dados: %s", e)
+            def _log_import_failure_context() -> None:
                 logger.error("Este e o ponto mais critico do processo. Verifique:")
                 logger.error("  1. Existencia e permissoes da pasta 'data'")
                 logger.error("  2. Conexao com o banco de dados")
                 logger.error("  3. Arquivos Excel na pasta de entrada")
                 logger.error("  4. Memoria disponivel do sistema")
-                raise
+
+            first_import_error: Exception | None = None
+            try:
+                logger.debug("Executando run_importer_logic...")
+                db_updated = run_importer_logic(force_import=force_import)
+                logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
+            except Exception as e:
+                first_import_error = e
             finally:
                 # Desativar importacao otimizada apos uso
                 if optimized_enabled:
                     try:
                         from armazenamento.database_optimized import disable_optimized_import
                         disable_optimized_import()
-                    except ImportError:
-                        pass
+                    except ImportError as e:
+                        logger.debug("disable_optimized_import indisponivel no cleanup: %s", e)
                     except Exception as e:
                         logger.warning(f"Falha ao desativar modo otimizado: {e}")
+
+            if first_import_error is not None:
+                if use_optimized and force_import:
+                    logger.error(
+                        "Falha no modo otimizado durante --force-rescan; sem fallback legado automatico para evitar reprocessamento duplicado."
+                    )
+                elif use_optimized:
+                    logger.error(
+                        "Falha no modo otimizado; sem fallback legado automatico para preservar desempenho e previsibilidade."
+                    )
+                logger.error("Falha critica na importacao de dados: %s", first_import_error)
+                _log_import_failure_context()
+                raise first_import_error
 
             if db_updated:
                 logger.info("Banco de dados atualizado com sucesso.")

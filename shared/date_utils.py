@@ -15,7 +15,7 @@ import pandas as pd
 from datetime import timedelta
 import re
 
-__all__ = ["parse_any_date", "bulk_parse_dates"]
+__all__ = ["parse_any_date", "bulk_parse_dates", "parse_datetime_series_mixed"]
 
 EXCEL_EPOCH = "1899-12-30"
 
@@ -65,3 +65,19 @@ def parse_any_date(value) -> str | None:
 
 def bulk_parse_dates(values: Iterable) -> list[str | None]:
     return [parse_any_date(v) for v in values]
+
+
+def parse_datetime_series_mixed(series: pd.Series) -> pd.Series:
+    """Parse series with mixed ISO and day-first strings without warning noise."""
+    if not isinstance(series, pd.Series):
+        return pd.to_datetime(series, errors="coerce", dayfirst=True)
+    text_series = series.astype(str).str.strip()
+    iso_mask = text_series.str.match(
+        r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$",
+        na=False,
+    )
+    ts_local = pd.to_datetime(series.where(~iso_mask), errors="coerce", dayfirst=True)
+    if bool(iso_mask.any()):
+        ts_iso = pd.to_datetime(series.where(iso_mask), errors="coerce", dayfirst=False)
+        return ts_local.where(~iso_mask, ts_iso)
+    return ts_local

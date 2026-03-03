@@ -26,6 +26,7 @@ class ColumnSelector(QWidget):
         self.default_columns = list(default_columns or initial_columns)
         self.selected_internal_columns = list(initial_columns)
         self.available_columns = list(available_columns or self.display_map.keys())
+        self._missing_alias_logged = set()
         for col in self.selected_internal_columns:
             if col not in self.available_columns:
                 self.available_columns.append(col)
@@ -83,7 +84,16 @@ class ColumnSelector(QWidget):
             self.columns_changed.emit(self.selected_internal_columns)
 
     def _update_summary(self):
-        translated = [self.display_map.get(col, col) for col in self.selected_internal_columns]
+        translated = []
+        for col in self.selected_internal_columns:
+            label = self.display_map.get(col, col)
+            if label == col:
+                if col not in self._missing_alias_logged:
+                    self._missing_alias_logged.add(col)
+                    logging.getLogger(__name__).debug(
+                        "Coluna sem alias canonico no resumo de colunas: %s", col
+                    )
+            translated.append(label)
         if not translated:
             text = "Nenhuma coluna selecionada"
             tooltip = text

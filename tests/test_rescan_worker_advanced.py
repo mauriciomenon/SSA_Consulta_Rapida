@@ -1,0 +1,579 @@
+"""
+Testes para RescanWorker
+
+Este módulo contém testes de unidade e integração para o RescanWorker,
+responsável por reescanear dados de forma assíncrona.
+"""
+
+import os
+import sys
+import logging
+import threading
+from unittest.mock import patch, MagicMock
+
+import pytest
+
+pytest.importorskip(
+    "PyQt6", reason="Dependência PyQt6 indisponível no ambiente de teste"
+)
+from PyQt6.QtWidgets import QApplication
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from gui.workers.rescan_worker import RescanWorker, _LogHandler  # noqa: E402
+
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+
+@pytest.fixture(scope="module", autouse=True)
+def qapp():
+    """Fixture para garantir QApplication disponível."""
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
+@pytest.fixture
+def rescan_worker(qapp):
+    """Cria instância de RescanWorker para testes."""
+    worker = RescanWorker(
+        main_py_path="/fake/path/main.py", project_root="/fake/project"
+    )
+    yield worker
+    # Cleanup
+    if worker._logger_attached:
+        worker._detach_logger()
+
+
+@pytest.fixture
+def signal_collector():
+    """Helper para coletar signals emitidos."""
+
+    class SignalCollector:
+        def __init__(self):
+            self.output_lines = []
+            self.error_lines = []
+            self.progress = []
+            self.finished_success = False
+            self.finished_error = None
+
+        def on_output(self, msg):
+            self.output_lines.append(msg)
+
+        def on_error(self, msg):
+            self.error_lines.append(msg)
+
+        def on_progress(self, pct, msg):
+            self.progress.append((pct, msg))
+
+        def on_finished_success(self):
+            self.finished_success = True
+
+        def on_finished_error(self, msg):
+            self.finished_error = msg
+
+    return SignalCollector()
+
+
+# =============================================================================
+# Testes Unitários - RescanWorker
+# =============================================================================
+
+
+class TestRescanWorkerUnit:
+    """Testes unitários para RescanWorker."""
+
+    def test_init_creates_worker(self):
+        """Testa que construtor cria worker corretamente."""
+        worker = RescanWorker(main_py_path="/path/main.py", project_root="/project")
+
+        assert worker.main_py_path == "/path/main.py"
+        assert worker.project_root == "/project"
+        assert worker._should_stop is False
+        assert worker._logger_attached is False
+        assert isinstance(worker.log_handler, _LogHandler)
+
+    def test_stop_sets_flag(self, rescan_worker):
+        """Testa que stop() seta flag de cancelamento."""
+        assert rescan_worker._should_stop is False
+        rescan_worker.stop()
+        assert rescan_worker._should_stop is True
+
+    def test_attach_logger_adds_handler(self, rescan_worker):
+        """Testa que _attach_logger adiciona handler ao logger."""
+        logger = rescan_worker.logger
+        initial_handlers = len(logger.handlers)
+
+        rescan_worker._attach_logger()
+
+        assert rescan_worker._logger_attached is True
+        assert len(logger.handlers) == initial_handlers + 1
+        assert rescan_worker.log_handler in logger.handlers
+
+        # Cleanup
+        rescan_worker._detach_logger()
+
+    def test_attach_logger_increments_refcount(self):
+        """Testa que _attach_logger incrementa refcount global."""
+        worker = RescanWorker("/fake/main.py", "/fake/project")
+        logger = worker.logger
+        initial_handlers = len(logger.handlers)
+        try:
+            worker._attach_logger()
+            assert len(logger.handlers) == initial_handlers + 1
+            assert worker.log_handler in logger.handlers
+            assert worker._logger_attached is True
+        finally:
+            if worker._logger_attached:
+                worker._detach_logger()
+        assert len(logger.handlers) == initial_handlers
+
+    def test_detach_logger_removes_handler(self, rescan_worker):
+        """Testa que _detach_logger remove handler do logger."""
+        logger = rescan_worker.logger
+
+        rescan_worker._attach_logger()
+        assert rescan_worker.log_handler in logger.handlers
+
+        rescan_worker._detach_logger()
+        assert rescan_worker.log_handler not in logger.handlers
+        assert rescan_worker._logger_attached is False
+
+    def test_detach_logger_decrements_refcount(self):
+        """Testa que _detach_logger decrementa refcount global."""
+        # Nota: Teste simplificado devido a estado global compartilhado
+        worker = RescanWorker("/fake/main.py", "/fake/project")
+        logger = worker.logger
+
+        worker._attach_logger()
+        assert worker.log_handler in logger.handlers
+
+        try:
+            worker._detach_logger()
+            # Verificar que handler foi removido (comportamento principal)
+            assert worker.log_handler not in logger.handlers
+            assert worker._logger_attached is False
+        finally:
+            # Cleanup extra se necessário
+            if worker._logger_attached:
+                worker._detach_logger()
+
+    def test_multiple_attach_detach_refcount(self):
+        """Testa refcount com múltiplos attach/detach."""
+        # Nota: Teste simplificado devido a estado global compartilhado
+        worker = RescanWorker("/fake/main.py", "/fake/project")
+        logger = worker.logger
+        initial_handlers = len(logger.handlers)
+
+        try:
+            # Attach 3 vezes - handler deve ser adicionado apenas uma vez
+            for _ in range(3):
+                worker._attach_logger()
+                # Handler deve estar presente
+                assert worker.log_handler in logger.handlers
+            assert len(logger.handlers) == initial_handlers + 1
+
+            # Detach 3 vezes
+            for _ in range(3):
+                worker._detach_logger()
+
+            # Handler deve ser removido
+            assert worker.log_handler not in logger.handlers
+            assert len(logger.handlers) == initial_handlers
+            assert worker._logger_attached is False
+        finally:
+            # Cleanup extra se necessário
+            while worker._logger_attached:
+                worker._detach_logger()
+
+    def test_progress_callback_start(self, rescan_worker, signal_collector):
+        """Testa callback de progresso - evento start."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.progress.connect(signal_collector.on_progress)
+
+        rescan_worker._progress_callback("start", {"total": 10})
+
+        assert len(signal_collector.output_lines) == 1
+        assert "10 arquivos" in signal_collector.output_lines[0]
+        assert len(signal_collector.progress) == 1
+        assert signal_collector.progress[0] == (10, "Iniciando processamento...")
+
+    def test_progress_callback_file_start(self, rescan_worker, signal_collector):
+        """Testa callback de progresso - evento file_start."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.progress.connect(signal_collector.on_progress)
+
+        rescan_worker._progress_callback(
+            "file_start", {"filename": "test.xlsx", "current": 5, "total": 10}
+        )
+
+        assert len(signal_collector.output_lines) == 1
+        assert "test.xlsx" in signal_collector.output_lines[0]
+        assert len(signal_collector.progress) == 1
+        # 10 + (5/10 * 70) = 45%
+        assert signal_collector.progress[0][0] == 45
+
+    def test_progress_callback_file_success(self, rescan_worker, signal_collector):
+        """Testa callback de progresso - evento file_success."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+
+        rescan_worker._progress_callback(
+            "file_success", {"filename": "test.xlsx", "records": 100}
+        )
+
+        assert len(signal_collector.output_lines) == 1
+        assert "[OK]" in signal_collector.output_lines[0]
+        assert "test.xlsx" in signal_collector.output_lines[0]
+        assert "100 registros" in signal_collector.output_lines[0]
+
+    def test_progress_callback_file_error(self, rescan_worker, signal_collector):
+        """Testa callback de progresso - evento file_error."""
+        rescan_worker.error_line.connect(signal_collector.on_error)
+
+        rescan_worker._progress_callback(
+            "file_error", {"filename": "test.xlsx", "error": "Arquivo corrompido"}
+        )
+
+        assert len(signal_collector.error_lines) == 1
+        assert "[ERRO]" in signal_collector.error_lines[0]
+        assert "test.xlsx" in signal_collector.error_lines[0]
+        assert "Arquivo corrompido" in signal_collector.error_lines[0]
+
+    def test_progress_callback_finish(self, rescan_worker, signal_collector):
+        """Testa callback de progresso - evento finish."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.progress.connect(signal_collector.on_progress)
+
+        rescan_worker._progress_callback(
+            "finish",
+            {"total": 10, "processed": 8, "errors": ["file1.xlsx", "file2.xlsx"]},
+        )
+
+        assert (
+            len(signal_collector.output_lines) == 3
+        )  # linha em branco + mensagem + erros
+        assert "8/10" in signal_collector.output_lines[1]
+        assert "2 arquivos falharam" in signal_collector.output_lines[2]
+        assert signal_collector.progress[0] == (90, "Finalizando...")
+
+    def test_progress_callback_stopped(self, rescan_worker, signal_collector):
+        """Testa que callback não processa quando stopped."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker._should_stop = True
+
+        rescan_worker._progress_callback("start", {"total": 10})
+
+        assert len(signal_collector.output_lines) == 0
+
+
+# =============================================================================
+# Testes de Integração - RescanWorker
+# =============================================================================
+
+
+class TestRescanWorkerIntegration:
+    """Testes de integração para RescanWorker com signals."""
+
+    def test_run_emits_output_signals(self, rescan_worker, signal_collector):
+        """Testa que run() emite signals de output."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.progress.connect(signal_collector.on_progress)
+        rescan_worker.finished_success.connect(signal_collector.on_finished_success)
+
+        # Mock run_importer_logic para retornar sucesso
+        with patch("gui.workers.rescan_worker.run_importer_logic", return_value=True):
+            rescan_worker.run()
+
+        assert len(signal_collector.output_lines) > 0
+        assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
+        assert signal_collector.finished_success is True
+
+    def test_run_emits_error_on_failure(self, rescan_worker, signal_collector):
+        """Testa que run() emite error em falha."""
+        rescan_worker.error_line.connect(signal_collector.on_error)
+        rescan_worker.finished_error.connect(signal_collector.on_finished_error)
+
+        # Mock run_importer_logic para retornar falha
+        with patch("gui.workers.rescan_worker.run_importer_logic", return_value=False):
+            rescan_worker.run()
+
+        assert signal_collector.finished_error is not None
+        assert "nenhum dado foi atualizado" in signal_collector.finished_error
+
+    def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
+        """Testa que run() emite error em exceção."""
+        rescan_worker.error_line.connect(signal_collector.on_error)
+        rescan_worker.finished_error.connect(signal_collector.on_finished_error)
+
+        # Mock run_importer_logic para levantar exceção
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic",
+            side_effect=Exception("Erro de teste"),
+        ):
+            rescan_worker.run()
+
+        assert signal_collector.finished_error is not None
+        assert "Erro de teste" in signal_collector.finished_error
+        assert len(signal_collector.error_lines) > 0
+
+    def test_run_emits_cancelled_when_stopped(self, rescan_worker, signal_collector):
+        """Testa que run() emite cancelled quando stopped."""
+        rescan_worker.finished_error.connect(signal_collector.on_finished_error)
+
+        # Parar worker antes de executar
+        rescan_worker.stop()
+
+        with patch("gui.workers.rescan_worker.run_importer_logic", return_value=True):
+            rescan_worker.run()
+
+        assert signal_collector.finished_error is not None
+        assert "cancelado" in signal_collector.finished_error.lower()
+
+    def test_run_calls_importer_with_correct_params(self, rescan_worker):
+        """Testa que run() chama importer com parâmetros corretos."""
+        with patch("gui.workers.rescan_worker.run_importer_logic") as mock_importer:
+            mock_importer.return_value = True
+            rescan_worker.run()
+
+            mock_importer.assert_called_once()
+            call_kwargs = mock_importer.call_args[1]
+
+            assert call_kwargs["docs_dir"] == "docs_entrada"
+            assert call_kwargs["data_dir"] == "data"
+            assert call_kwargs["db_name"] == "ssas.db"
+            assert call_kwargs["table_name"] == "ssa_table"
+            assert call_kwargs["force_import"] is True
+            assert callable(call_kwargs["should_cancel"])
+            assert callable(call_kwargs["progress_callback"])
+
+    def test_progress_sequence(self, rescan_worker, signal_collector):
+        """Testa sequência completa de progresso."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.progress.connect(signal_collector.on_progress)
+        rescan_worker.finished_success.connect(signal_collector.on_finished_success)
+
+        def mock_importer(**kwargs):
+            callback = kwargs["progress_callback"]
+            callback("start", {"total": 3})
+            callback("file_start", {"filename": "file1.xlsx", "current": 1, "total": 3})
+            callback("file_success", {"filename": "file1.xlsx", "records": 10})
+            callback("file_start", {"filename": "file2.xlsx", "current": 2, "total": 3})
+            callback("file_success", {"filename": "file2.xlsx", "records": 20})
+            callback("finish", {"total": 3, "processed": 2, "errors": []})
+            return True
+
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic", side_effect=mock_importer
+        ):
+            rescan_worker.run()
+
+        # Verificar sequência de progresso
+        assert len(signal_collector.progress) >= 4
+        assert signal_collector.progress[0][0] == 5  # Configurando
+        assert signal_collector.progress[1][0] == 10  # Start
+        assert signal_collector.progress[-2][0] == 90  # Finish
+        assert signal_collector.progress[-1][0] == 100  # Concluído
+
+        assert signal_collector.finished_success is True
+
+
+# =============================================================================
+# Testes para _LogHandler
+# =============================================================================
+
+
+class TestLogHandler:
+    """Testes para o handler de logs customizado."""
+
+    def test_emit_output_signal(self):
+        """Testa emissão de log para output_signal."""
+        output_signal = MagicMock()
+        error_signal = MagicMock()
+
+        handler = _LogHandler(output_signal, error_signal)
+        handler.setLevel(logging.INFO)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="Mensagem de info",
+            args=(),
+            exc_info=None,
+        )
+
+        handler.emit(record)
+
+        output_signal.emit.assert_called_once()
+        error_signal.emit.assert_not_called()
+
+    def test_emit_error_signal(self):
+        """Testa emissão de log para error_signal."""
+        output_signal = MagicMock()
+        error_signal = MagicMock()
+
+        handler = _LogHandler(output_signal, error_signal)
+        handler.setLevel(logging.INFO)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.ERROR,
+            pathname="",
+            lineno=0,
+            msg="Mensagem de erro",
+            args=(),
+            exc_info=None,
+        )
+
+        handler.emit(record)
+
+        output_signal.emit.assert_not_called()
+        error_signal.emit.assert_called_once()
+
+    def test_emit_handles_exception(self):
+        """Testa que emit não quebra em exceção."""
+        output_signal = MagicMock()
+        output_signal.emit.side_effect = Exception("Signal error")
+        error_signal = MagicMock()
+
+        handler = _LogHandler(output_signal, error_signal)
+        handler.setLevel(logging.INFO)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="Teste",
+            args=(),
+            exc_info=None,
+        )
+
+        # Não deve levantar exceção
+        handler.emit(record)
+
+
+# =============================================================================
+# Testes de Thread Safety
+# =============================================================================
+
+
+class TestRescanWorkerThreadSafety:
+    """Testes de thread safety para RescanWorker."""
+
+    def test_logger_lock_prevents_race_condition(self):
+        """Testa que lock previne condições de corrida no logger."""
+        shared_logger = logging.getLogger("ssa")
+        initial_handlers = len(shared_logger.handlers)
+        workers = []
+        errors = []
+
+        def create_and_attach():
+            try:
+                worker = RescanWorker("/fake/main.py", "/fake/project")
+                worker._attach_logger()
+                workers.append(worker)
+            except Exception as e:
+                errors.append(str(e))
+
+        # Criar múltiplas threads
+        threads = []
+        for _ in range(5):
+            t = threading.Thread(target=create_and_attach)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        # Cleanup
+        for worker in workers:
+            if worker._logger_attached:
+                worker._detach_logger()
+
+        # Verificar que não houve erros
+        assert len(errors) == 0
+        # Verificar que todos os workers foram criados
+        assert len(workers) == 5
+        assert len(shared_logger.handlers) == initial_handlers
+
+    def test_stop_is_thread_safe(self, rescan_worker):
+        """Testa que stop() é thread-safe."""
+        rescan_worker._should_stop = False
+
+        def stop_worker():
+            rescan_worker.stop()
+
+        threads = []
+        for _ in range(10):
+            t = threading.Thread(target=stop_worker)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        assert rescan_worker._should_stop is True
+
+
+# =============================================================================
+# Testes de Regressão
+# =============================================================================
+
+
+class TestRescanWorkerRegression:
+    """Testes de regressão para bugs identificados."""
+
+    def test_detach_logger_idempotent(self, rescan_worker):
+        """Testa que detach_logger é idempotente (não quebra se chamado múltiplas vezes)."""
+        rescan_worker._attach_logger()
+        rescan_worker._detach_logger()
+
+        # Segunda chamada não deve quebrar
+        rescan_worker._detach_logger()
+        rescan_worker._detach_logger()
+
+        assert rescan_worker._logger_attached is False
+
+    def test_progress_callback_with_missing_keys(self, rescan_worker, signal_collector):
+        """Testa que callback lida com dados incompletos."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+
+        # Chamar com dados incompletos - não deve quebrar
+        # file_start com defaults: current=0, total=1
+        rescan_worker._progress_callback("file_start", {})  # Sem current/total
+        rescan_worker._progress_callback("file_success", {})  # Sem filename (usa '')
+
+        # Não deve quebrar - file_error emite em error_line
+        rescan_worker.error_line.connect(signal_collector.on_error)
+        rescan_worker._progress_callback("file_error", {})  # Sem error
+
+        # Verificar que emitiu (pode ser menos que 3 se algum não emitir)
+        assert len(signal_collector.output_lines) >= 1
+        assert len(signal_collector.error_lines) >= 1
+
+    def test_run_cleanup_on_exception(self, rescan_worker, signal_collector):
+        """Testa que cleanup é executado mesmo em exceção."""
+        rescan_worker._attach_logger()
+        assert rescan_worker._logger_attached is True
+
+        rescan_worker.finished_error.connect(signal_collector.on_finished_error)
+
+        with patch(
+            "gui.workers.rescan_worker.run_importer_logic",
+            side_effect=Exception("Erro forçado"),
+        ):
+            rescan_worker.run()
+
+        # Logger deve ser detached mesmo com exceção
+        assert rescan_worker._logger_attached is False
+        assert signal_collector.finished_error is not None
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

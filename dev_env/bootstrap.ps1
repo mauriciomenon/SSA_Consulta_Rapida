@@ -47,8 +47,15 @@ function Ensure-VirtualEnv() {
   } else {
     Write-Host "[info] Criando virtualenv '$VenvName'"
     $list = (& pyenv install -l) -split "`n" | ForEach-Object { $_.Trim() }
-    $ver = $list | Where-Object { $_ -match '^3\.13\.[0-9]+$' } | Select-Object -Last 1
-    if (-not $ver) { throw "Não foi possível descobrir versão 3.13.x no pyenv-win." }
+    $ver = $null
+    foreach ($major in @('3.13', '3.12', '3.11', '3.10')) {
+      $candidate = $list | Where-Object { $_ -match ("^{0}\\.[0-9]+$" -f [regex]::Escape($major)) } | Select-Object -Last 1
+      if ($candidate) {
+        $ver = $candidate
+        break
+      }
+    }
+    if (-not $ver) { throw "Nao foi possivel descobrir versao Python suportada (3.13-3.10) no pyenv-win." }
     pyenv install -s $ver
     pyenv virtualenv $ver $VenvName
   }

@@ -21,6 +21,7 @@ import os
 import pandas as pd
 import json
 import subprocess
+import shutil
 import re
 import logging
 import copy
@@ -53,6 +54,7 @@ from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
+    COMPATIBILITY_NULL_UI_COLUMNS,
     load_gui_main_preferences,  # noqa: F401 - re-export for compatibility
 )
 
@@ -82,6 +84,51 @@ GLOBAL_RETIRED_RESCAN_META = {}
 RETIRED_WORKER_TTL_SEC = 300.0
 RETIRED_WORKER_FORCE_WAIT_MS = 500
 logger.addHandler(logging.NullHandler())
+
+EXCLUDED_CANONICAL_UI_COLUMNS = {
+    "id",
+    "desde",
+    "desde_1",
+    "desde_2",
+    "ate",
+    "ate_1",
+    "ate_2",
+    "tempo_excedido",
+    "tempo_total",
+    "tempo_disponivel",
+    "total_tempo_tpe_planejado",
+    "total_tempo_tex_planejado",
+    "total_tempo_tpo_planejado",
+    "total_tempo_tpe_executada",
+    "total_tempo_tex_executada",
+    "total_tempo_tpo_executada",
+    "total_horas_programadas",
+    "prazo_limite",
+    "data_limite",
+    "status_execucao_prazo",
+    "sistema_origem",
+    "registros_espera",
+    "num_reprobaciones",
+    "situacao_espera",
+    "numero_desvios",
+    "justificativa",
+    "parciais",
+    "situacao_da_parcial",
+    "atividade_especial",
+    "equipamento_retirado",
+    "sn_retirado",
+    "destino",
+    "equipamento_instalado",
+    "sn_instalado",
+    "sn_extra",
+    "origem",
+    "desativacao_da_localizacao",
+    "instalacao_estimada",
+    "executado",
+    "concluido",
+    "situacao_de_desvio",
+    "relacao",
+}
 
 from utils.formatting import format_dataframe_for_display, format_cell  # noqa: E402
 
@@ -216,7 +263,10 @@ except ImportError as exc:
     class QPushButton(QWidget):
         def __init__(self, *a, **k):
             self.clicked = _Sig()
+            self.toggled = _Sig()
             self._text = a[0] if a else ""
+            self._checkable = False
+            self._checked = False
         def setToolTip(self, *a, **k):
             pass
         def setEnabled(self, *a, **k):
@@ -225,6 +275,12 @@ except ImportError as exc:
             self._text = text
         def text(self):
             return self._text
+        def setCheckable(self, enabled):
+            self._checkable = bool(enabled)
+        def setChecked(self, val):
+            self._checked = bool(val)
+        def isChecked(self):
+            return self._checked
         def setStyleSheet(self, *a, **k):
             pass
         def setMaximumWidth(self, *a, **k):
@@ -763,7 +819,6 @@ except Exception as exc:
     logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
 
 TABLE_NAME = 'ssas'
-
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
@@ -1012,6 +1067,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.status_label.setStyleSheet(
             "border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
+        # Keep toolbar geometry stable even when status text gets longer.
+        self.status_label.setMinimumWidth(520)
+        self.status_label.setMaximumWidth(520)
+        self.status_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 0)
@@ -1043,6 +1102,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         main_layout.addWidget(cast(Any, self.main_tabs))
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
         self._bind_tab_context(ctx_main)
+        try:
+            QTimer.singleShot(0, self._sync_bottom_panel_heights)
+        except Exception as exc:
+            logger.debug("Falha ao agendar sincronizacao inicial de altura dos paineis inferiores: %s", exc)
 
         # --- Conecta Workers / Flags ---
         # Threads iniciadas sob demanda
@@ -1119,7 +1182,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self.display_map,
             self.visible_columns,
             default_columns=self.default_columns,
-            available_columns=list(self.display_map.keys()),
+            available_columns=self._get_canonical_available_columns(),
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
@@ -1315,8 +1378,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 header.setSectionsClickable(True)
                 header.setSortIndicatorShown(True)
                 try:
-                    header.setMinimumSectionSize(80)
-                    header.setDefaultSectionSize(100)
+                    header.setMinimumSectionSize(26)
+                    header.setDefaultSectionSize(92)
                 except Exception as exc:
                     logger.debug("Falha ao configurar tamanho minimo/default do header da tabela: %s", exc)
                 try:
@@ -1383,7 +1446,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         footer.addStretch()
         add_column_filter_btn = QPushButton("Adicionar filtro de coluna")
         add_column_filter_btn.setMaximumWidth(260)
-        add_column_filter_btn.setToolTip("Selecionar coluna visivel para ativar filtro dedicado")
+        add_column_filter_btn.setToolTip("Selecionar qualquer coluna para ativar filtro dedicado")
         add_column_filter_btn.clicked.connect(self._open_add_column_filter_menu)
         footer.addWidget(cast(Any, add_column_filter_btn))
         footer.addSpacing(8)
@@ -1450,6 +1513,124 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             ctx.update(adv_ctx)
         return ctx
 
+    def _get_canonical_available_columns(self) -> list[str]:
+        """Retorna colunas elegiveis para seletores de UI (sem legados invalidos)."""
+        legacy_invalid_columns = {"Numero da SSA", "Número da SSA", "No SSA", "Data Cadastro"}
+        candidates = []
+        seen_candidates = set()
+        always_allow = set()
+        mapped_columns = set()
+
+        def _append_candidate(value, *, allow: bool = False):
+            if not isinstance(value, str):
+                return
+            col_name = value.strip()
+            if not col_name or col_name == "#":
+                return
+            if col_name in seen_candidates:
+                if allow:
+                    always_allow.add(col_name)
+                return
+            seen_candidates.add(col_name)
+            candidates.append(col_name)
+            if allow:
+                always_allow.add(col_name)
+
+        def _collect_mapped_keys(mapping_obj):
+            if not isinstance(mapping_obj, dict):
+                return
+            for key in mapping_obj.keys():
+                if not isinstance(key, str):
+                    continue
+                key_name = key.strip()
+                if key_name:
+                    mapped_columns.add(key_name)
+
+        for attr_name in (
+            "visible_columns",
+            "default_columns",
+            "_profile_columns",
+            "_current_display_columns",
+        ):
+            values = getattr(self, attr_name, None)
+            if isinstance(values, (list, tuple)):
+                for value in values:
+                    _append_candidate(value, allow=True)
+
+        active_filters = getattr(self, "_active_column_filters", None)
+        if isinstance(active_filters, dict):
+            for key in active_filters.keys():
+                _append_candidate(key, allow=True)
+        active_widgets = getattr(self, "_column_filter_widgets", None)
+        if isinstance(active_widgets, dict):
+            for key in active_widgets.keys():
+                _append_candidate(key, allow=True)
+
+        _collect_mapped_keys(DEFAULT_DISPLAY_MAPPINGS)
+        _collect_mapped_keys(getattr(self, "internal_to_display", None))
+        _collect_mapped_keys(getattr(self, "display_map", None))
+
+        allowed_columns = None
+        try:
+            allowed_raw = str(os.environ.get("SSA_ALLOWED_COLUMNS", "") or "").strip()
+            if allowed_raw:
+                allowed_columns = {token.strip() for token in allowed_raw.split(",") if token.strip()}
+        except Exception as exc:
+            logger.debug("Falha ao ler whitelist de colunas via SSA_ALLOWED_COLUMNS: %s", exc)
+            allowed_columns = None
+
+        non_null_cols = None
+        try:
+            cached_cols = getattr(self, "_non_null_cols_cache", None)
+            if isinstance(cached_cols, set) and cached_cols:
+                non_null_cols = set(cached_cols)
+        except Exception as exc:
+            logger.debug("Falha ao ler cache de colunas nao nulas para menu canonico: %s", exc)
+            non_null_cols = None
+
+        # Evita scan direto em DataFrame aqui para nao disputar estado com workers.
+        # A fonte oficial para "nao nulas" neste ponto e o cache ja calculado no fluxo de carga.
+
+        for col_name in mapped_columns:
+            _append_candidate(col_name, allow=(col_name in always_allow))
+        if isinstance(non_null_cols, set) and non_null_cols:
+            for col_name in non_null_cols:
+                _append_candidate(col_name, allow=(col_name in always_allow))
+        for col_name in always_allow:
+            _append_candidate(col_name, allow=True)
+
+        result = []
+        seen = set()
+
+        def _is_canonical_column(col_name: str) -> bool:
+            if not col_name or col_name == "#":
+                return False
+            if col_name in COMPATIBILITY_NULL_UI_COLUMNS:
+                return False
+            if col_name in legacy_invalid_columns:
+                return False
+            if col_name in EXCLUDED_CANONICAL_UI_COLUMNS:
+                return False
+            if "_relacionada_" in col_name or "_relacionado_" in col_name:
+                return False
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", col_name):
+                return False
+            if isinstance(allowed_columns, set) and col_name not in allowed_columns:
+                return False
+            return True
+
+        for col in candidates:
+            if not isinstance(col, str):
+                continue
+            col_name = col.strip()
+            if col_name in seen:
+                continue
+            if not _is_canonical_column(col_name):
+                continue
+            seen.add(col_name)
+            result.append(col_name)
+        return result
+
     def _schedule_adv_options_refresh(self):
         if getattr(self, "_adv_options_scheduled", False):
             return
@@ -1483,9 +1664,109 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         ctx = self._tab_contexts[index]
         self._bind_tab_context(ctx)
+        if ctx.get("tab_kind") == "filters":
+            try:
+                ssa_gui_theme.reapply_current_theme_widget_styles(
+                    self,
+                    highlight_defaults=(HIGHLIGHT_BACKGROUND_COLOR, HIGHLIGHT_FONT_WEIGHT),
+                )
+            except Exception as exc:
+                logger.debug("Falha ao reaplicar estilos do tema na aba de filtros: %s", exc)
+            pending_theme = getattr(self, "_pending_theme_refresh_column_filters", None)
+            if pending_theme:
+                try:
+                    if hasattr(self, "_refresh_advanced_filter_options"):
+                        self._refresh_advanced_filter_options()
+                except Exception as exc:
+                    logger.debug("Falha ao atualizar filtros avancados pendentes na troca de aba: %s", exc)
+                finally:
+                    self._pending_theme_refresh_column_filters = None
+            try:
+                self._reorganize_advanced_filters_grid(getattr(self, "adv_filters_group").width())
+            except Exception as exc:
+                logger.debug("Falha ao reorganizar filtros avancados apos troca de aba: %s", exc)
+            try:
+                QTimer.singleShot(
+                    0,
+                    lambda: self._reorganize_advanced_filters_grid(getattr(self, "adv_filters_group").width()),
+                )
+            except Exception as exc:
+                logger.debug("Falha ao agendar reorganizacao deferida apos troca de aba: %s", exc)
+        try:
+            self._queue_bottom_panel_height_sync()
+        except Exception as exc:
+            logger.debug("Falha ao enfileirar sincronizacao de altura apos troca de aba: %s", exc)
 
-    def _make_multiselect_box(self, title: str, placeholder: str = "Selecionar", with_exclude: bool = True):
-        return ssa_gui_filters._make_multiselect_box(self, title, placeholder, with_exclude)
+    def _compute_bottom_panel_target_height(self) -> int:
+        try:
+            window_height = int(self.height())
+        except Exception:
+            window_height = 900
+        if window_height <= 0:
+            window_height = 900
+        try:
+            base_font_pt = int(self.font().pointSize())
+        except Exception:
+            base_font_pt = 10
+        if base_font_pt <= 0:
+            base_font_pt = 10
+        base_height = int(window_height * 0.28)
+        font_adjust = max(0, base_font_pt - 10) * 8
+        target = base_height + font_adjust
+        return max(180, min(360, target))
+
+    def _queue_bottom_panel_height_sync(self) -> None:
+        try:
+            QTimer.singleShot(0, self._sync_bottom_panel_heights)
+        except Exception as exc:
+            logger.debug("Falha ao enfileirar sincronizacao de altura dos paineis inferiores: %s", exc)
+            self._sync_bottom_panel_heights()
+
+    def _sync_bottom_panel_heights(self) -> None:
+        if not hasattr(self, "_tab_contexts"):
+            return
+        target = self._compute_bottom_panel_target_height()
+        seen = set()
+        groups = []
+        for ctx in self._tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            for key in ("details_group", "col_filters_group", "adv_filters_group"):
+                widget = ctx.get(key)
+                if widget is None:
+                    continue
+                wid = id(widget)
+                if wid in seen:
+                    continue
+                seen.add(wid)
+                groups.append(widget)
+        for widget in groups:
+            try:
+                widget.setMinimumHeight(target)
+                widget.setMaximumHeight(target)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar altura do painel inferior %s: %s", widget, exc)
+        try:
+            current_kind = getattr(self, "_current_tab_kind", None)
+            if current_kind == "filters" and hasattr(self, "adv_filters_group") and self.adv_filters_group is not None:
+                self._reorganize_advanced_filters_grid(self.adv_filters_group.width())
+        except Exception as exc:
+            logger.debug("Falha ao reorganizar painel avancado apos sync de altura: %s", exc)
+
+    def _make_multiselect_box(
+        self,
+        title: str,
+        placeholder: str = "Selecionar",
+        with_exclude: bool = True,
+        layout_baseline=None,
+    ):
+        return ssa_gui_filters._make_multiselect_box(
+            self,
+            title,
+            placeholder,
+            with_exclude,
+            layout_baseline=layout_baseline,
+        )
 
     def _set_menu_pre_show_hook(self, button, callback):
         return ssa_gui_filters._set_menu_pre_show_hook(self, button, callback)
@@ -1553,7 +1834,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         return ssa_gui_filters._on_derivada_has_toggled(self, checked)
 
     def _on_derivada_all_ste_toggled(self, checked: bool):
-        return ssa_gui_filters._on_derivada_all_ste_toggled(self, checked)
+        _ = checked
+        return None
 
     def _show_derivadas_popup(self):
         return ssa_gui_filters._show_derivadas_popup(self)
@@ -1651,6 +1933,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         return ssa_gui_filters._refresh_priority_menus(
             self, prio_emissao_vals, prio_planejamento_vals, filters, apply_cb
         )
+
+    def _refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb):
+        return ssa_gui_filters._refresh_reprogramacoes_menu(self, reprog_vals, filters, apply_cb)
 
     def _refresh_advanced_filter_options(self):
         return ssa_gui_filters._refresh_advanced_filter_options(self)
@@ -1839,7 +2124,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 return
 
             menu = QMenu(self)
-            full_name = DEFAULT_DISPLAY_MAPPINGS.get(col_name, self.internal_to_display.get(col_name, col_name))
+            full_name = self._resolve_column_display_name(col_name)
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
@@ -2180,14 +2465,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
+        old_width = self.table_widget.columnWidth(column_index)
         self.table_widget.resizeColumnToContents(column_index)
-        # Salva a nova largura
-        header_item = self.table_widget.horizontalHeaderItem(column_index)
-        if header_item and column_index > 0:  # Nção salvar largura da coluna de ándice
-            internal_column = self.visible_columns[column_index - 1] if column_index <= len(self.visible_columns) else None
-            if internal_column:
-                new_width = self.table_widget.columnWidth(column_index)
-                self._save_column_width(internal_column, new_width)
+        new_width = self.table_widget.columnWidth(column_index)
+        self._on_header_section_resized(column_index, old_width, new_width)
 
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""
@@ -2227,11 +2508,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 try:
                     # Best-effort fallback, non-blocking.
                     if sys.platform.startswith("win"):
-                        subprocess.Popen(["explorer", docs_path])
+                        cmd = "explorer"
                     elif sys.platform == "darwin":
-                        subprocess.Popen(["open", docs_path])
+                        cmd = "open"
                     else:
-                        subprocess.Popen(["xdg-open", docs_path])
+                        cmd = "xdg-open"
+                    resolved = shutil.which(cmd)
+                    if not resolved:
+                        raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
+                    subprocess.Popen([resolved, docs_path])
                     return
                 except Exception as fallback_exc:
                     logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
@@ -2479,6 +2764,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     self._reorganize_advanced_filters_grid(width)
         except Exception as exc:
             logger.debug("Falha ao reorganizar grid de filtros durante resize: %s", exc)
+        try:
+            self._sync_bottom_panel_heights()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar altura dos paineis inferiores durante resize: %s", exc)
 
         # So recalcula se ha dados carregados e uma mudanca significativa na largura
         if (hasattr(self, 'df_exibido') and not self.df_exibido.empty and
@@ -2486,17 +2775,34 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             width_change = abs(event.size().width() - self._last_window_width)
             if width_change > 12:  # So recalcula se mudanca for > 12px
                 # Delay para evitar recãlculos excessivos durante resize
-                QTimer.singleShot(300, self._recompute_column_widths_on_resize)
+                expected_revision = int(getattr(self, "_data_revision", 0) or 0)
+                QTimer.singleShot(
+                    300,
+                    lambda rev=expected_revision: self._recompute_column_widths_on_resize(expected_revision=rev),
+                )
 
         # Salva largura atual
         self._last_window_width = event.size().width()
 
-    def _recompute_column_widths_on_resize(self):
+    def _recompute_column_widths_on_resize(self, expected_revision=None):
         """Recalcula e aplica larguras das colunas apos resize da janela."""
         try:
+            if hasattr(self, "isVisible") and not self.isVisible():
+                return
+            table_widget = getattr(self, "table_widget", None)
+            if not _is_widget_valid(table_widget):
+                return
+            if expected_revision is not None:
+                current_revision = int(getattr(self, "_data_revision", 0) or 0)
+                if current_revision != int(expected_revision):
+                    return
             # Verifica se widgets estção em estado vãlido
-            if (not hasattr(self, 'df_para_tabela') or self.df_para_tabela.empty or
-                not self.table_widget or not self.table_widget.isVisible()):
+            if (
+                table_widget is None
+                or not hasattr(self, 'df_para_tabela')
+                or self.df_para_tabela.empty
+                or not table_widget.isVisible()
+            ):
                 return
 
             width_key = (
@@ -2587,45 +2893,107 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Best-effort: parar reescaneamento/importacao em andamento ao encerrar a janela.
         rescan_worker = getattr(self, "_active_rescan_worker", None)
         if rescan_worker is not None:
+            retained_globally = False
+
+            def _retain_rescan_worker_global(target_worker, *, reason: str) -> bool:
+                workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
+                timestamp = perf_counter()
+
+                def _enforce_rescan_cap() -> None:
+                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) <= MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
+                        return
+                    overflow = len(GLOBAL_RETIRED_RESCAN_WORKERS) - MAX_GLOBAL_RETIRED_RESCAN_WORKERS
+                    dropped_workers = GLOBAL_RETIRED_RESCAN_WORKERS[:overflow]
+                    GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[overflow:]
+                    for dropped_worker in dropped_workers:
+                        GLOBAL_RETIRED_RESCAN_META.pop(dropped_worker, None)
+
+                try:
+                    if not ssa_gui_workers.is_data_loader_worker_alive(target_worker, sip):
+                        logger.debug(
+                            "RescanWorker invalido no closeEvent (%s); retencao global ignorada.",
+                            reason,
+                        )
+                        return False
+                    if workers_lock is None:
+                        if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                            GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
+                        GLOBAL_RETIRED_RESCAN_META[target_worker] = timestamp
+                        _enforce_rescan_cap()
+                    else:
+                        with workers_lock:
+                            if target_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
+                                GLOBAL_RETIRED_RESCAN_WORKERS.append(target_worker)
+                            GLOBAL_RETIRED_RESCAN_META[target_worker] = timestamp
+                            _enforce_rescan_cap()
+                    try:
+                        self._prune_retired_rescan_workers()
+                    except Exception as exc:
+                        logger.debug("Falha ao podar rescan workers apos retencao global: %s", exc)
+                    logger.debug("RescanWorker retido globalmente durante closeEvent (%s).", reason)
+                    return True
+                except Exception as exc:
+                    logger.debug(
+                        "Falha ao reter RescanWorker globalmente no closeEvent (%s): %s",
+                        reason,
+                        exc,
+                    )
+                    return False
+
+            retained_globally = _retain_rescan_worker_global(
+                rescan_worker,
+                reason="pre-shutdown-transfer",
+            )
+
             try:
-                if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
+                try:
+                    running_now = self._is_rescan_worker_running(rescan_worker)
+                except Exception as exc:
+                    running_now = True
+                    logger.debug(
+                        "Falha ao consultar estado inicial do RescanWorker no closeEvent (%s). Assumindo ativo para shutdown defensivo.",
+                        exc,
+                    )
+                if running_now or retained_globally:
                     try:
                         if hasattr(rescan_worker, "stop"):
                             rescan_worker.stop()
                     except Exception as exc:
                         logger.debug("Falha ao solicitar stop do RescanWorker no closeEvent: %s", exc)
                     try:
+                        if hasattr(rescan_worker, "quit"):
+                            rescan_worker.quit()
+                    except Exception as exc:
+                        logger.debug("Falha ao solicitar quit do RescanWorker no closeEvent: %s", exc)
+                    try:
                         rescan_worker.wait(1500)
                     except Exception as exc:
                         logger.debug("Falha ao aguardar RescanWorker no closeEvent: %s", exc)
                     try:
-                        if hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning():
-                            workers_lock = getattr(ssa_gui_workers, "_GLOBAL_WORKERS_LOCK", None)
-                            if workers_lock is None:
-                                if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                    GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                    GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                    if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                        GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-                            else:
-                                with workers_lock:
-                                    if rescan_worker not in GLOBAL_RETIRED_RESCAN_WORKERS:
-                                        GLOBAL_RETIRED_RESCAN_WORKERS.append(rescan_worker)
-                                        GLOBAL_RETIRED_RESCAN_META[rescan_worker] = perf_counter()
-                                        if len(GLOBAL_RETIRED_RESCAN_WORKERS) > MAX_GLOBAL_RETIRED_RESCAN_WORKERS:
-                                            GLOBAL_RETIRED_RESCAN_WORKERS[:] = GLOBAL_RETIRED_RESCAN_WORKERS[-MAX_GLOBAL_RETIRED_RESCAN_WORKERS:]
-                            self._prune_retired_rescan_workers()
-                            logger.debug(
-                                "RescanWorker ainda ativo durante closeEvent; mantendo referencia global."
+                        if self._is_rescan_worker_running(rescan_worker):
+                            try:
+                                if hasattr(rescan_worker, "terminate"):
+                                    rescan_worker.terminate()
+                                    rescan_worker.wait(1500)
+                            except Exception as exc:
+                                logger.debug("Falha no fallback terminate do RescanWorker no closeEvent: %s", exc)
+                        if self._is_rescan_worker_running(rescan_worker):
+                            retained_globally = _retain_rescan_worker_global(
+                                rescan_worker,
+                                reason="still-running-after-shutdown",
                             )
                     except Exception as exc:
                         logger.debug("Falha ao checar/reter RescanWorker no closeEvent: %s", exc)
             except Exception as exc:
                 logger.debug("Falha ao encerrar RescanWorker durante closeEvent: %s", exc)
             finally:
+                if not retained_globally:
+                    _retain_rescan_worker_global(
+                        rescan_worker,
+                        reason="fallback-finally",
+                    )
                 try:
-                    if not (hasattr(rescan_worker, "isRunning") and rescan_worker.isRunning()):
-                        self._active_rescan_worker = None
+                    self._active_rescan_worker = None
                 except Exception:
                     self._active_rescan_worker = None
 

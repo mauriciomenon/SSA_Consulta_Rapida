@@ -1,5 +1,18 @@
 # Handoff: Filter Tab Optimizations - Completed
 
+## CURRENT STATUS 2026-02-26
+
+- Este arquivo permanece como historico tecnico de um ciclo anterior.
+- Fonte operacional atual:
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/RECOVERY_BACKLOG.md`
+- Branch ativa atual: `codex/dev-filtros-stability`.
+- Release local atual: `4.29`.
+- Runtime padrao atual: `uv run --python 3.13 ...` (fallback 3.12 -> 3.11 -> 3.10).
+
+---
+
 ## Status: IMPLEMENTED (NOT COMMITTED)
 
 **Branch**: `dev`  
@@ -55,14 +68,14 @@ Created: `validate_filter_optimizations.py`
 
 ```
 gui/gui_ssa.py (main)
-├── __init__: debounce timer
-├── _on_adv_sector_selection_changed: debouncing
-├── _on_adv_sector_exclude_changed: debouncing
-├── _refresh_advanced_filter_options: vectorization + cache
-├── _refresh_responsavel_options: derived menu + removed duplication
-├── _build_advanced_filters_panel: derived button
-├── _apply_advanced_filters_from_ui: collect derived
-└── _apply_advanced_filters: derived filter logic
+- __init__: debounce timer
+- _on_adv_sector_selection_changed: debouncing
+- _on_adv_sector_exclude_changed: debouncing
+- _refresh_advanced_filter_options: vectorization + cache
+- _refresh_responsavel_options: derived menu + removed duplication
+- _build_advanced_filters_panel: derived button
+- _apply_advanced_filters_from_ui: collect derived
+- _apply_advanced_filters: derived filter logic
 
 docs/FILTER_TAB_OPTIMIZATIONS.md (new)
 validate_filter_optimizations.py (new)
@@ -155,3 +168,10 @@ python main.py --gui
 **Developer**: GitHub Copilot  
 **Date**: 2026-01-08  
 **Status**: READY FOR TESTING AND APPROVAL
+
+## Atualizacao 2026-03-01 (ciclo gui-tema-import)
+- Corrigido tema dos menus de selecao para herdar cores do tema ativo (sem fallback escuro fixo).
+- Reduzido tamanho efetivo dos botoes Aplicar/Limpar dos filtros avancados.
+- Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
+- Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
+- Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.

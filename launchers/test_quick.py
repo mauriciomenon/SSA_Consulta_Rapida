@@ -6,13 +6,24 @@ Teste rápido dos executáveis existentes
 import subprocess
 import time
 
+from utils.robust_logging import get_robust_logger
 from version_info import REPO_ROOT, get_current_version
 
 APP_VERSION = get_current_version()
 DIST_BASE = REPO_ROOT / "launchers" / "dist"
+logger = get_robust_logger().get_logger(__name__, "maintenance")
 
 def log(msg, level="INFO"):
-    print(f"[{time.strftime('%H:%M:%S')}] {level}: {msg}")
+    text = f"[{time.strftime('%H:%M:%S')}] {msg}"
+    level_norm = str(level or "INFO").upper()
+    if level_norm in {"ERR", "ERROR"}:
+        logger.error(text)
+    elif level_norm in {"WARN", "WARNING"}:
+        logger.warning(text)
+    elif level_norm in {"DEBUG"}:
+        logger.debug(text)
+    else:
+        logger.info(text)
 
 def test_existing_executables():
     """Testa executáveis já construídos"""
@@ -77,8 +88,10 @@ def test_imports():
     try:
         from gui.gui_ssa import SSAMainWindow
         log(f"OK GUI principal importa OK (classe: {SSAMainWindow.__name__})")
-    except Exception as e:  # pragma: no cover - diagnóstico
-        log(f"ℹ️ GUI principal não disponível ou erro de import: {e}")
+    except ImportError as e:  # pragma: no cover - diagnostico
+        log(f"INFO GUI principal nao disponivel ou erro de import: {e}")
+    except Exception as e:  # pragma: no cover - diagnostico
+        log(f"ERR Erro inesperado ao importar GUI principal: {e}")
 
 def list_dist_contents():
     """Lista conteúdo da pasta dist"""

@@ -12,6 +12,8 @@ import re
 import pandas as pd
 
 from gui.helpers.formatting_helpers import highlight_text
+from gui.helpers.theme_helpers import pick_css_color
+from utils.themes import get_theme_roles
 from utils.formatting import format_cell
 from utils.robust_logging import get_robust_logger
 
@@ -33,6 +35,7 @@ DERIVADAS_DIALOG_MIN_HEIGHT = 650
 DERIVADAS_DIALOG_DETAILS_FONT_PT = 12.0
 DERIVADAS_DIALOG_TREE_FONT_PT = 12.0
 DERIVADAS_DIALOG_LABEL_FONT_PT = 11.0
+SSA_NORM_CACHE_MAX_ENTRIES = 64
 
 
 def configure_details_constants(
@@ -163,14 +166,33 @@ def _format_details_html(
 
     search_terms = _collect_highlight_terms(window) if highlight_search_terms else []
 
+    theme_roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
     try:
         from PyQt6.QtGui import QPalette as _QPal
 
-        text_color = window.palette().color(_QPal.ColorRole.WindowText).name()
-        link_color = window.palette().color(_QPal.ColorRole.Highlight).name()
+        text_color = pick_css_color(
+            window.palette().color(_QPal.ColorRole.WindowText).name(),
+            theme_roles.get("panel_text"),
+            theme_roles.get("label_color"),
+            fallback="#d0d0d0",
+        )
+        link_color = pick_css_color(
+            window.palette().color(_QPal.ColorRole.Highlight).name(),
+            theme_roles.get("accent"),
+            text_color,
+            fallback="#4a90e2",
+        )
     except Exception:
-        text_color = "#000000"
-        link_color = text_color
+        text_color = pick_css_color(
+            theme_roles.get("panel_text"),
+            theme_roles.get("label_color"),
+            fallback="#d0d0d0",
+        )
+        link_color = pick_css_color(
+            theme_roles.get("accent"),
+            text_color,
+            fallback="#4a90e2",
+        )
 
     html_lines = [
         (
@@ -415,6 +437,26 @@ def _normalize_ssa_series(window, series: pd.Series) -> pd.Series:
             return pd.Series([""] * len(series), index=getattr(series, "index", None))
 
 
+def _get_cached_normalized_series(window, df, column_name: str) -> pd.Series:
+    if df is None or column_name not in getattr(df, "columns", []):
+        return pd.Series(dtype="object")
+    cache = getattr(window, "_ssa_norm_cache", None)
+    if not isinstance(cache, dict):
+        cache = {}
+        window._ssa_norm_cache = cache
+    key = (id(df), str(column_name))
+    cached = cache.get(key)
+    if isinstance(cached, pd.Series) and len(cached) == len(df):
+        return cached
+    normalized = _normalize_ssa_series(window, df[column_name])
+    if len(cache) >= SSA_NORM_CACHE_MAX_ENTRIES:
+        overflow = len(cache) - SSA_NORM_CACHE_MAX_ENTRIES + 1
+        for stale_key in list(cache.keys())[:overflow]:
+            cache.pop(stale_key, None)
+    cache[key] = normalized
+    return normalized
+
+
 def update_details_from_selection(window):
     """Atualiza o painel de detalhes com base na linha selecionada."""
     if window.table_widget.rowCount() == 0:
@@ -494,7 +536,7 @@ def _get_derivadas_for_ssa(window, numero_ssa):
     if not num_norm:
         return []
     try:
-        series_norm = _normalize_ssa_series(window, window.df_completo["derivada_de"])
+        series_norm = _get_cached_normalized_series(window, window.df_completo, "derivada_de")
         mask = series_norm.eq(num_norm)
         derived_raw = window.df_completo.loc[mask, "numero_ssa"].tolist()
         derived = []
@@ -517,6 +559,7 @@ def _jump_to_ssa(window, numero_ssa):
             if df is None or df.empty or "numero_ssa" not in df.columns:
                 return None
             df_reset_local = df.reset_index(drop=True)
+            # Avoid caching for this temporary reset_index DataFrame.
             series_norm_local = _normalize_ssa_series(window, df_reset_local["numero_ssa"])
             mask_local = series_norm_local.eq(num_norm)
             if not mask_local.any():
@@ -558,7 +601,7 @@ def _get_series_for_ssa(window, numero_ssa):
         if df is None or df.empty or "numero_ssa" not in df.columns:
             return None
         try:
-            series_norm = _normalize_ssa_series(window, df["numero_ssa"])
+            series_norm = _get_cached_normalized_series(window, df, "numero_ssa")
             mask = series_norm.eq(target)
             if not mask.any():
                 return None
@@ -711,10 +754,13 @@ def _collect_derivadas_tree_data(window, numero_ssa):
 def _build_derivadas_tree_html(
     window,
     numero_ssa,
-    link_color="#2d5af0",
+    link_color=None,
     tree_font_pt=None,
     font_family=None,
 ):
+    if not link_color:
+        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+        link_color = roles.get("accent") or roles.get("panel_text") or roles.get("label_color")
     data = _collect_derivadas_tree_data(window, numero_ssa)
     target = data.get("target", "")
     if not target:
@@ -738,42 +784,39 @@ def _build_derivadas_tree_html(
     lines.append(
         f'<div style="font-family:{font_family}; font-size:{tree_font_pt:.2f}pt; line-height:1.45;">'
     )
-    lines.append("<b>Arvore de derivadas:</b><br/><br/>")
-    lines.append(f"<b>SSA {_ssa_link(target)}</b><br/><br/>")
+    lines.append("<b>Lista de derivadas:</b><br/><br/>")
+    lines.append(f"<b>{_ssa_link(target)}</b><br/><br/>")
     parents = data.get("parents", [])
+    lines.append("<b>SSA originaria</b><br/>")
     if parents:
-        parent_links = ", ".join(_ssa_link(p) for p in parents)
-        lines.append(f"<b>Mae direta:</b> {parent_links}<br/>")
+        for parent in parents:
+            lines.append(f"&nbsp;&nbsp;{_ssa_link(parent)}<br/>")
     else:
-        lines.append("<b>Mae direta:</b> -<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
     lines.append("<br/>")
 
     children = data.get("children", [])
-    lines.append(f"<b>Filhas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
+    lines.append(f"<b>SSAs derivadas diretas ({int(data.get('direct_children_count', 0))})</b><br/>")
     if children:
         for child in children:
-            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)}<br/>")
+            lines.append(f"&nbsp;&nbsp;{_ssa_link(child)}<br/>")
     else:
-        lines.append("&nbsp;&nbsp;- nenhuma<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
     lines.append("<br/>")
 
     descendants = data.get("descendants", [])
     desc_count = int(data.get("descendants_count", 0))
-    lines.append(f"<b>Descendentes ({desc_count})</b><br/>")
+    lines.append(f"<b>SSAs derivadas de derivadas ({desc_count})</b><br/>")
     if descendants:
         for item in descendants[:50]:
             ssa = str(item.get("ssa", "")).strip()
-            dist = item.get("min_distance")
             if ssa:
-                lines.append(f"&nbsp;&nbsp;- {_ssa_link(ssa)} (dist={dist})<br/>")
+                lines.append(f"&nbsp;&nbsp;{_ssa_link(ssa)}<br/>")
         extra = len(descendants) - min(len(descendants), 50)
         if extra > 0:
-            lines.append(f"&nbsp;&nbsp;- ... (+{extra})<br/>")
-    elif children:
-        for child in children[:50]:
-            lines.append(f"&nbsp;&nbsp;- {_ssa_link(child)} (dist=1)<br/>")
+            lines.append(f"&nbsp;&nbsp;... (+{extra})<br/>")
     else:
-        lines.append("&nbsp;&nbsp;- nenhum<br/>")
+        lines.append("&nbsp;&nbsp;nenhuma<br/>")
 
     ancestors = data.get("ancestors", [])
     if ancestors:
@@ -828,7 +871,13 @@ def _open_details_dialog_for_ssa(window, numero_ssa):
     try:
         link_color = window.palette().color(QPalette.ColorRole.Highlight).name()
     except Exception:
-        link_color = "#2d5af0"
+        roles = get_theme_roles(getattr(window, "_current_theme", "dark"))
+        link_color = pick_css_color(
+            roles.get("accent"),
+            roles.get("panel_text"),
+            roles.get("label_color"),
+            fallback="#4a90e2",
+        )
 
     current_target = {"ssa": target}
     dialog_font_pt = DERIVADAS_DIALOG_DETAILS_FONT_PT

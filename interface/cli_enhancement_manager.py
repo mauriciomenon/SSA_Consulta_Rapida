@@ -5,11 +5,21 @@ Permite ativar/desativar enhanced table printer facilmente.
 
 import os
 import json
-import logging
 import tempfile
+import time
+import errno
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from utils.robust_logging import get_robust_logger
+
+logger = get_robust_logger().get_logger(__name__, "cli")
+
+LOCK_RETRY_ATTEMPTS = 3
+LOCK_RETRY_DELAY_SECONDS = 0.05
+
+
+def _get_project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import fcntl
@@ -27,7 +37,7 @@ class CLIEnhancementManager:
 
     def __init__(self):
         """Inicializa o gerenciador de melhorias."""
-        self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.project_root = _get_project_root()
         self.settings_file = os.path.join(self.project_root, 'config', 'cli_enhancements.json')
         self.settings = self._load_settings()
 
@@ -53,28 +63,45 @@ class CLIEnhancementManager:
     def _save_settings(self):
         """Salva configurações das melhorias."""
         lock_file = None
+        lock_path = ""
+        lock_path_created_now = False
         try:
             os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
             target_dir = os.path.dirname(self.settings_file) or "."
             base_name = os.path.basename(self.settings_file) or "cli_enhancements.json"
+            self._cleanup_stale_temp_settings_files(target_dir, base_name)
 
             try:
                 lock_path = f"{self.settings_file}.lock"
+                lock_path_created_now = not os.path.exists(lock_path)
                 lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+                if os.name == "posix":
+                    try:
+                        os.chmod(lock_path, 0o600)
+                    except OSError as chmod_exc:
+                        logger.debug("Falha ao ajustar permissao do lock file (%s): %s", lock_path, chmod_exc)
                 try:
-                    lock_file = os.fdopen(lock_fd, "w")
+                    lock_file = os.fdopen(lock_fd, "a+")
                 except BaseException:
                     os.close(lock_fd)
                     raise
                 self._lock_file_if_possible(lock_file)
             except Exception as exc:
-                logger.debug("Nao foi possivel preparar lock para settings: %s", exc)
+                logger.error("Nao foi possivel adquirir lock de settings; gravacao abortada: %s", exc)
                 if lock_file is not None:
                     try:
                         lock_file.close()
                     except Exception as close_exc:
                         logger.warning("Falha ao fechar lock file de settings: %s", close_exc)
+                if lock_path and lock_path_created_now:
+                    try:
+                        os.remove(lock_path)
+                    except FileNotFoundError:
+                        pass
+                    except Exception as remove_exc:
+                        logger.debug("Falha ao remover lock file apos erro de lock '%s': %s", lock_path, remove_exc)
                 lock_file = None
+                raise RuntimeError("Falha ao salvar configuracoes CLI: lock indisponivel") from exc
 
             fd = None
             tmp_path = None
@@ -86,7 +113,6 @@ class CLIEnhancementManager:
                     os.close(fd)
                     raise
                 with fobj as f:
-                    self._lock_file_if_possible(f)
                     json.dump(self.settings, f, indent=2, ensure_ascii=False)
                     f.flush()
                     try:
@@ -94,6 +120,15 @@ class CLIEnhancementManager:
                     except OSError as exc:
                         logger.debug("fsync failed for temp settings file (%s): %s", tmp_path, exc)
                 os.replace(tmp_path, self.settings_file)
+                if os.name == "posix":
+                    try:
+                        dir_fd = os.open(target_dir, os.O_RDONLY)
+                        try:
+                            os.fsync(dir_fd)
+                        finally:
+                            os.close(dir_fd)
+                    except OSError as exc:
+                        logger.debug("fsync failed for settings directory (%s): %s", target_dir, exc)
                 tmp_path = None
             finally:
                 if tmp_path:
@@ -109,6 +144,9 @@ class CLIEnhancementManager:
                         )
         except Exception as e:
             logger.error("Erro ao salvar configuracoes CLI: %s", e)
+            if isinstance(e, RuntimeError) and "lock indisponivel" in str(e):
+                raise
+            raise RuntimeError("Falha ao persistir configuracoes CLI") from e
         finally:
             if lock_file is not None:
                 try:
@@ -116,31 +154,71 @@ class CLIEnhancementManager:
                 except Exception as close_exc:
                     logger.warning("Falha ao fechar lock file final de settings: %s", close_exc)
 
-    def _lock_file_if_possible(self, f: Any) -> None:
-        """Best-effort file lock to avoid races on settings writes."""
+    def _cleanup_stale_temp_settings_files(self, target_dir: str, base_name: str) -> None:
+        """Remove temp stale de settings para evitar acumulacao de lixo local."""
+        prefix = f".{base_name}.tmp."
+        now = time.time()
+        stale_after_seconds = 24 * 60 * 60
         try:
-            if fcntl is not None:
-                flags = fcntl.LOCK_EX
-                if hasattr(fcntl, "LOCK_NB"):
-                    flags |= fcntl.LOCK_NB
-                fcntl.flock(f.fileno(), flags)
-            elif msvcrt is not None:  # pragma: no cover - Windows
-                mode = getattr(msvcrt, "LK_NBLCK", msvcrt.LK_LOCK)
-                try:
-                    current_pos = f.tell()
-                except Exception as exc:
-                    logger.debug("Nao foi possivel ler posicao atual do lock file: %s", exc)
-                    current_pos = 0
-                try:
-                    file_size = os.fstat(f.fileno()).st_size
-                except Exception as exc:
-                    logger.debug("Nao foi possivel ler tamanho do lock file: %s", exc)
-                    file_size = 0
-                remaining = file_size - current_pos
-                lock_len = max(remaining, 1)
-                msvcrt.locking(f.fileno(), mode, lock_len)
+            entries = os.listdir(target_dir)
         except Exception as exc:
-            logger.debug("Nao foi possivel aplicar lock no settings: %s", exc)
+            logger.debug("Falha ao listar temp stale de settings em '%s': %s", target_dir, exc)
+            return
+
+        for entry in entries:
+            if not entry.startswith(prefix):
+                continue
+            temp_path = os.path.join(target_dir, entry)
+            try:
+                stat = os.stat(temp_path)
+                if now - stat.st_mtime < stale_after_seconds:
+                    continue
+                os.remove(temp_path)
+                logger.debug("Temp stale de settings removido: %s", temp_path)
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                logger.warning("Falha ao remover temp stale de settings '%s': %s", temp_path, exc)
+
+    def _lock_file_if_possible(self, f: Any) -> None:
+        """Acquire advisory lock for settings writes."""
+        if fcntl is not None:
+            if not hasattr(fcntl, "LOCK_NB"):
+                raise RuntimeError("Backend fcntl sem LOCK_NB; lock bloqueante nao permitido")
+            flags = fcntl.LOCK_EX | fcntl.LOCK_NB
+            last_exc = None
+            for attempt in range(LOCK_RETRY_ATTEMPTS):
+                try:
+                    fcntl.flock(f.fileno(), flags)
+                    return
+                except OSError as exc:
+                    last_exc = exc
+                    if exc.errno not in (errno.EAGAIN, errno.EACCES):
+                        raise RuntimeError(f"Falha ao aplicar flock no settings: {exc}") from exc
+                    if attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                        time.sleep(LOCK_RETRY_DELAY_SECONDS)
+            raise RuntimeError(f"Falha ao aplicar flock no settings apos retries: {last_exc}") from last_exc
+        if msvcrt is not None:  # pragma: no cover - Windows
+            mode = msvcrt.LK_NBLCK  # Always use non-blocking lock
+            last_exc = None
+            for attempt in range(LOCK_RETRY_ATTEMPTS):
+                lock_len = 1
+                try:
+                    f.seek(0)
+                except Exception:
+                    pass
+                try:
+                    msvcrt.locking(f.fileno(), mode, lock_len)
+                    return
+                except OSError as exc:
+                    last_exc = exc
+                    # Retry only on lock contention; fail fast on other OS errors.
+                    if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                        raise RuntimeError(f"Falha critica ao aplicar msvcrt.locking no settings: {exc}") from exc
+                    if attempt + 1 < LOCK_RETRY_ATTEMPTS:
+                        time.sleep(LOCK_RETRY_DELAY_SECONDS)
+            raise RuntimeError(f"Falha ao aplicar msvcrt.locking no settings apos retries: {last_exc}") from last_exc
+        raise RuntimeError("Nenhum backend de lock disponivel para settings")
 
     def is_enhanced_printer_enabled(self) -> bool:
         """Verifica se enhanced table printer está habilitado."""

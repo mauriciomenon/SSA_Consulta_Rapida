@@ -27,6 +27,7 @@ from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Versão antiga como fallback
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.cli_enhancement_manager import enhancement_manager
+from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from utils.version import get_app_version, get_app_version_long
 
 # Configura logger específico para este módulo
@@ -40,34 +41,110 @@ CLI_PAGINATION_TRACKER: Dict[int, Dict[str, Any]] = {}
 DEFAULT_FILTER_TERMS_CACHE: Dict[str, Any] = {}
 
 
+class _CLIPaginationTrackerManager:
+    def __init__(self, store: Dict[int, Dict[str, Any]]) -> None:
+        self._store = store
+        self._prune_tick = 0
+        self._next_key = 1
+
+    def key_for(self, df: pd.DataFrame, *, create: bool = True) -> int | None:
+        attrs = getattr(df, "attrs", None)
+        if isinstance(attrs, dict):
+            existing = attrs.get("_cli_pagination_key")
+            if isinstance(existing, int):
+                return existing
+            if create:
+                key = self._next_key
+                self._next_key += 1
+                attrs["_cli_pagination_key"] = key
+                return key
+        return id(df) if create else None
+
+    def reset(self, df: pd.DataFrame) -> None:
+        key = self.key_for(df)
+        if key is None:
+            return
+        self._store[key] = {
+            'next_page': 0,
+            'total_pages': 0,
+            'rendered_pages': 0,
+            'page_size': 0,
+        }
+
+    def update(self, df: pd.DataFrame, state: Optional[Dict[str, Any]]) -> None:
+        key = self.key_for(df)
+        if key is None:
+            return
+        if state is None:
+            self._store.pop(key, None)
+            return
+        self._store[key] = state
+
+    def release(self, df: pd.DataFrame) -> None:
+        key = self.key_for(df, create=False)
+        if key is not None:
+            self._store.pop(key, None)
+
+    def prune_for_stack(self, results_stack: list, *, force: bool = False) -> None:
+        active_ids = {
+            key
+            for entry in results_stack
+            if entry
+            for key in [self.key_for(entry[0], create=False)]
+            if key is not None
+        }
+        # Hot-path guard: skip full scan when tracker is near active stack size.
+        if not force and len(self._store) <= len(active_ids) + 4:
+            return
+        # Amortize pruning to avoid repeated full scans on interactive commands.
+        self._prune_tick = (self._prune_tick + 1) % 4
+        if not force and self._prune_tick != 0 and len(self._store) <= 512:
+            return
+        for state_key in list(self._store.keys()):
+            if state_key not in active_ids:
+                self._store.pop(state_key, None)
+
+    def next_page_for(self, df: pd.DataFrame) -> int:
+        state = self.state_for(df)
+        if not state:
+            return 0
+        next_page = state.get('next_page')
+        if next_page is None:
+            return int(state.get('total_pages', 0))
+        return max(0, int(next_page))
+
+    def state_for(self, df: pd.DataFrame) -> Dict[str, Any]:
+        key = self.key_for(df, create=False)
+        if key is None:
+            return {}
+        return self._store.get(key) or {}
+
+
+_PAGINATION_TRACKER_MANAGER = _CLIPaginationTrackerManager(CLI_PAGINATION_TRACKER)
+
+
 def _reset_pagination_state(df: pd.DataFrame) -> None:
-    CLI_PAGINATION_TRACKER[id(df)] = {
-        'next_page': 0,
-        'total_pages': 0,
-        'rendered_pages': 0,
-        'page_size': 0,
-    }
+    _PAGINATION_TRACKER_MANAGER.reset(df)
 
 
 def _update_pagination_state(df: pd.DataFrame, state: Optional[Dict[str, Any]]) -> None:
-    if state is None:
-        CLI_PAGINATION_TRACKER.pop(id(df), None)
-        return
-    CLI_PAGINATION_TRACKER[id(df)] = state
+    _PAGINATION_TRACKER_MANAGER.update(df, state)
 
 
 def _release_pagination_state(df: pd.DataFrame) -> None:
-    CLI_PAGINATION_TRACKER.pop(id(df), None)
+    _PAGINATION_TRACKER_MANAGER.release(df)
+
+
+def _prune_pagination_tracker_for_stack(results_stack: list, *, force: bool = False) -> None:
+    _PAGINATION_TRACKER_MANAGER.prune_for_stack(results_stack, force=force)
 
 
 def _next_page_for(df: pd.DataFrame) -> int:
-    state = CLI_PAGINATION_TRACKER.get(id(df))
-    if not state:
-        return 0
-    next_page = state.get('next_page')
-    if next_page is None:
-        return int(state.get('total_pages', 0))
-    return max(0, int(next_page))
+    return _PAGINATION_TRACKER_MANAGER.next_page_for(df)
+
+
+def _pagination_state_key_for_df(df: pd.DataFrame) -> int | None:
+    return _PAGINATION_TRACKER_MANAGER.key_for(df, create=False)
 
 # --- Funções Auxiliares Refatoradas ---
 
@@ -235,6 +312,10 @@ def get_ssa_query(table_name: str = 'ssa_table') -> str:
     Retorna a query customizada para mapear colunas corretamente.
     Usa os nomes de coluna normalizados da tabela atual.
     """
+    if table_name in {"ssas", "ssa_chamados"}:
+        table_name = "ssa_table"
+    elif table_name != "ssa_table":
+        raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
     return f'''
     SELECT
         numero_ssa,
@@ -568,6 +649,7 @@ def _handle_back(results_stack: list):
         print("...filtro anterior restaurado.")
         if results_stack:
             _reset_pagination_state(results_stack[-1][0])
+        _prune_pagination_tracker_for_stack(results_stack)
     else:
         print("Nenhum filtro anterior para restaurar.")
 
@@ -576,6 +658,7 @@ def _handle_reset(db_path: str, table_name: str, results_stack: list, display_ma
     print("...todos os filtros foram zerados e a base completa (ou com filtros padrão) foi recarregada.")
     initial_df_reset, initial_filter_terms_reset = _get_initial_state(db_path, table_name, settings)
     results_stack.clear()
+    CLI_PAGINATION_TRACKER.clear()
     results_stack.append((initial_df_reset, initial_filter_terms_reset))
     _reset_pagination_state(initial_df_reset)
     # Exibe o novo estado
@@ -787,15 +870,22 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         print("Nenhum termo de filtro atual para remover.")
         return
     remaining = [t for t in current_terms if t.lower() != term_to_remove.lower()]
-    # Base para re-aplicar é o estado anterior, se existir; senão o mesmo current_df
-    if len(results_stack) >= 2:
+    # Otimizacao: remocao LIFO pode reaplicar do estado anterior (menor).
+    # Para remocao fora de ordem, reaplica da base para nao manter filtro removido.
+    remove_key = term_to_remove.lower()
+    is_lifo_remove = bool(current_terms) and (
+        current_terms[-1].lower() == remove_key
+        and all(t.lower() != remove_key for t in current_terms[:-1])
+    )
+    if is_lifo_remove and len(results_stack) >= 2:
         base_df = results_stack[-2][0]
     else:
-        base_df = current_df
+        base_df = results_stack[0][0] if results_stack else current_df
     if remaining:
         new_df = filter_dataframe(base_df, remaining)
         results_stack[-1] = (new_df, remaining)
         _reset_pagination_state(new_df)
+        _prune_pagination_tracker_for_stack(results_stack, force=True)
         print(f"Removido termo '{term_to_remove}'. Filtro atual: {', '.join(remaining)}")
         _render_single_page(
             new_df,
@@ -811,6 +901,7 @@ def _handle_remove_filter(parts: List[str], results_stack: list, display_map: di
         if results_stack:
             top_df, top_terms = results_stack[-1]
             _reset_pagination_state(top_df)
+            _prune_pagination_tracker_for_stack(results_stack, force=True)
             _render_single_page(
                 top_df,
                 display_map,
@@ -850,7 +941,7 @@ def _handle_show_more(
         print("Sem estado atual.")
         return
     current_df, current_terms = results_stack[-1]
-    state = CLI_PAGINATION_TRACKER.get(id(current_df)) or {}
+    state = _PAGINATION_TRACKER_MANAGER.state_for(current_df)
     next_page = state.get('next_page')
     total_pages = state.get('total_pages', 0)
     show_all = bool(args and args[0] in {'z', 'tudo', 'all'})
@@ -914,7 +1005,7 @@ def _handle_clear_all_filters(db_path: str, table_name: str, results_stack: list
     # Clona settings sem default_filters
     fresh_settings = dict(settings or {})
     fresh_settings['default_filters'] = []
-    df = query_db(db_path, '', get_ssa_query())
+    df = query_db(db_path, '', get_ssa_query(table_name))
     results_stack.clear()
     results_stack.append((df, []))
     CLI_PAGINATION_TRACKER.clear()
@@ -1003,6 +1094,50 @@ def start_cli_loop(db_path: str, table_name: str):
         'cols', 'x', 'l', 'listar', 'filtros', 'm', 'mais', 'clear', 'clearall'
     ]
 
+    def _refresh_after_config_change() -> None:
+        nonlocal settings, display_map, results_stack, _config_changed
+        previous_default_filters = list(settings.get('default_filters') or [])
+        handle_config_command()
+        _config_changed = True
+        settings = load_settings()
+        display_map = load_display_mappings_integrity()
+        current_default_filters = list(settings.get('default_filters') or [])
+        if not results_stack:
+            return
+
+        # Recarrega base apenas quando filtros padrao mudam; evita custo desnecessario.
+        if current_default_filters != previous_default_filters:
+            previous_base_terms = list(results_stack[0][1] or [])
+            previous_current_terms = list(results_stack[-1][1] or [])
+            preserved_user_terms: list[str] = []
+            base_len = len(previous_base_terms)
+            if (
+                base_len <= len(previous_current_terms)
+                and previous_current_terms[:base_len] == previous_base_terms
+            ):
+                preserved_user_terms = previous_current_terms[base_len:]
+            refreshed_base_df, refreshed_base_terms = _get_initial_state(db_path, table_name, settings)
+            if preserved_user_terms:
+                refreshed_df = filter_dataframe(refreshed_base_df, preserved_user_terms)
+                refreshed_terms = refreshed_base_terms + preserved_user_terms
+            else:
+                refreshed_df = refreshed_base_df
+                refreshed_terms = refreshed_base_terms
+            results_stack = [(refreshed_df, refreshed_terms)]
+        else:
+            refreshed_df, refreshed_terms = results_stack[-1]
+
+        CLI_PAGINATION_TRACKER.clear()
+        _reset_pagination_state(refreshed_df)
+        _render_single_page(
+            refreshed_df,
+            display_map,
+            settings,
+            _print_cache,
+            refreshed_terms,
+            start_page=0,
+        )
+
     while True:
         try:
             # OTIMIZAÇÃO: Só recarrega configurações quando necessário
@@ -1040,8 +1175,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
-                    # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                    display_map = handle_config_command()
+                    _refresh_after_config_change()
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
@@ -1061,25 +1195,7 @@ def start_cli_loop(db_path: str, table_name: str):
                 elif command in ['rescan']:
                     _handle_rescan(db_path, table_name, results_stack, display_map, settings, _print_cache)
                 elif command in ['c', 'config']:
-                     # OTIMIZAÇÃO: Sinaliza que configurações mudaram
-                     handle_config_command()
-                     _config_changed = True
-                     # Após configurar, força um refresh do estado e exibição
-                     settings = load_settings()
-                     display_map = load_display_mappings_integrity()
-                     # Recarrega o estado inicial com as novas configurações
-                     initial_df_after_config, initial_filter_terms_after_config = _get_initial_state(db_path, table_name, settings)
-                     results_stack = [(initial_df_after_config, initial_filter_terms_after_config)]
-                     CLI_PAGINATION_TRACKER.clear()
-                     _reset_pagination_state(initial_df_after_config)
-                     _render_single_page(
-                         initial_df_after_config,
-                         display_map,
-                         settings,
-                         _print_cache,
-                         initial_filter_terms_after_config,
-                         start_page=0,
-                     )
+                    _refresh_after_config_change()
                 else:
                     # Handlers simples que não precisam de argumentos específicos do loop
                     simple_handler = cast(Callable[[], Any], COMMAND_HANDLERS[command])
@@ -1117,13 +1233,19 @@ def start_cli_loop(db_path: str, table_name: str):
                     # Verifica se é um número SSA direto (começa com 2025 ou é numérico)
                     if user_input.strip().isdigit() or user_input.strip().startswith('2025'):
                         ssa_number = user_input.strip()
-                        # Procura SSA específica na tabela atual
-                        matching_rows = current_df[current_df['numero_ssa'].astype(str).str.contains(ssa_number, na=False)]
-                        if not matching_rows.empty:
-                            # Mostra detalhes da primeira ocorrência
-                            _show_ssa_details(matching_rows.iloc[0], display_map)
-                            continue
-                        else:
+                        normalized_ssa = normalize_numero_ssa_strict(ssa_number)
+                        if 'numero_ssa' in current_df.columns:
+                            numero_series = current_df['numero_ssa'].astype(str)
+                            # Procura SSA específica na tabela atual
+                            if normalized_ssa:
+                                match_mask = numero_series.eq(normalized_ssa)
+                            else:
+                                match_mask = numero_series.str.contains(ssa_number, na=False, regex=False)
+                            matching_rows = current_df[match_mask]
+                            if not matching_rows.empty:
+                                # Mostra detalhes da primeira ocorrência
+                                _show_ssa_details(matching_rows.iloc[0], display_map)
+                                continue
                             print(f"SSA {ssa_number} não encontrada na tabela atual.")
                             continue
 
