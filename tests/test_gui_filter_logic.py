@@ -1180,7 +1180,7 @@ class TestGUIFilterLogic:
             "gui.ssa.gui_details._collect_derivadas_tree_data",
             return_value={
                 "target": "202602147",
-                "parents": [],
+                "parents": ["202500111"],
                 "children": [],
                 "descendants": [],
                 "ancestors": [],
@@ -1190,13 +1190,14 @@ class TestGUIFilterLogic:
         ):
             html = ssa_gui_details._build_derivadas_tree_html(self.window, "202602147")
 
-        assert "Arvore de derivadas:" in html
-        assert "SSA <a href=\"ssa-panel:202602147\"" in html
-        assert "Mae direta:</b> -" in html
-        assert "Filhas diretas (0)" in html
-        assert "- nenhuma" in html
-        assert "Descendentes (0)" in html
-        assert "- nenhum" in html
+        assert "Lista de derivadas:" in html
+        assert "<b><a href=\"ssa-panel:202602147\"" in html
+        assert "SSA originaria" in html
+        assert "SSA originaria:" not in html
+        assert "202500111" in html
+        assert "num0" not in html
+        assert "SSAs derivadas diretas (0)" in html
+        assert "SSAs derivadas de derivadas (0)" in html
 
     def test_exclude_toggle_syncs_checkbox_state_across_tabs(self):
         """Toggle programático deve manter estado interno e checkboxes em sincronia."""
