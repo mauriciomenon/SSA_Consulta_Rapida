@@ -3,6 +3,28 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (startup import policy + rescan modes)
+
+Delivered in this slice:
+1. startup import is disabled by default in `main.py`; app starts using current DB state.
+2. full rescan now recreates DB from zero by rotating current `ssas.db` to timestamped backup and then reimporting all files.
+3. derivadas auto-sync now runs only in full import flows (`force_import=True`) or manual GUI action (`Atualizar Derivadas`).
+4. GUI `Reescanear` now offers explicit mode choice:
+   - `Diff (hash)`: process only changed files.
+   - `Full (zera e reprocessa)`: recreate DB and reimport all.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py main.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_import_derivadas_trigger.py`: pass
+2. `uv run --python 3.13 ruff check core/app_logic.py main.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_import_derivadas_trigger.py`: pass
+3. `uv run --python 3.13 ty check core/app_logic.py main.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_import_derivadas_trigger.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_import_derivadas_trigger.py tests/test_derivadas_sync.py tests/test_gui_workers_rescan_data.py`: `35 passed`
+
+Deferred long-term item (do not implement in this slice):
+1. background import into a separate candidate DB file and user prompt to switch when ready:
+   - run import without blocking normal usage;
+   - on success, show prompt like `Novo banco pronto. Deseja usar agora?`;
+   - keep current DB untouched until explicit user confirmation.
+
 ## Update 2026-03-02 (golden release 2 baseline)
 
 Decision logged for this cycle:
