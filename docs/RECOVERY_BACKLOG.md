@@ -3,6 +3,40 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (PR #43 comments triage: real bugs fixed, noise deferred)
+
+Session timestamp:
+1. start: `2026-03-04 06:27:03 -0300`
+2. end: `2026-03-04 06:29:30 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets OR-group metadata via `_reset_or_groups()`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: `_mk_remove_line` no longer uses broad silent `except Exception`.
+3. `gui/gui_ssa.py`: `debounce_delay` parsing now catches only `(TypeError, ValueError)` and logs explicit fallback.
+4. `gui/mixins/tab_context_gui_ssa_mixin.py`: removed duplicated `_sync_clear_filter_button_state()` call in bind flow.
+5. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_resets_or_group_metadata`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_or_group_metadata or clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_button_state_syncs_across_tabs_without_switch or undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore"`: `5 passed`
+5. kluster auto review run in this slice: clean -> clean -> clean -> clean
+
+PR comment status mapping:
+1. fixed now (`BUG_REAL`): stale OR-group metadata after global clear.
+2. fixed now (`BUG_REAL`): broad/no-log fallback in debounce parse.
+3. fixed now (`BUG_REAL`): silent broad `except` in `_mk_remove_line`.
+4. fixed now (`BUG_REAL`): duplicated cross-tab clear-button sync call in bind.
+5. deferred (`DECISAO_INTENCIONAL`): make debounce floor configurable now; current fixed floor is approved policy for this lane.
+6. deferred (`NAO_BLOQUEANTE_DEFERIDO`): wide cleanup of broad `except` patterns across legacy GUI path (outside this minimal slice).
+7. rejected (`FALSO_POSITIVO`): speculative suggestions with weak/no anchored evidence (regex over-restriction claims without reproducible regression).
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on real, reproducible PR findings only.
+2. no layout/positioning changes.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-04 (tab-specific search handlers and regex guard hardening)
 
 Session timestamp:

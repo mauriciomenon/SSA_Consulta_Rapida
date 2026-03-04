@@ -1176,10 +1176,11 @@ class FilterGUISSAMixin:
 
             def _mk_remove_line(c=col):
                 def _inner():
-                    try:
-                        self._hidden_column_filter_lines.add(c)
-                    except Exception:
-                        self._hidden_column_filter_lines = {c}
+                    hidden_lines = getattr(self, "_hidden_column_filter_lines", None)
+                    if not isinstance(hidden_lines, set):
+                        hidden_lines = set()
+                        self._hidden_column_filter_lines = hidden_lines
+                    hidden_lines.add(c)
                     self._build_column_filters_panel()
                 return _inner
             try:
@@ -1409,6 +1410,7 @@ class FilterGUISSAMixin:
         self._active_column_filters = OrderedDict(
             (col, "") for col in self._column_filter_default_columns()
         )
+        self._reset_or_groups()
 
         # Limpar filtros auxiliares/avancados
         self._exclude_ste_sca = False

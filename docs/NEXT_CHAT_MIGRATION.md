@@ -2,7 +2,7 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 01:44 - start from here
+## CURRENT TRUTH 2026-03-04 06:29 - start from here
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice status:
@@ -17,6 +17,8 @@ Use this file to migrate context to a new chat without losing execution quality.
   9. undo button enabled-state now syncs between both tabs, including advanced-filter clear/restore flow.
   10. search apply/clear buttons now route through dedicated handlers per tab (`main` and `filters`) with equivalent behavior.
   11. regex safety guard in column filter path tightened to reduce catastrophic regex risk.
+  12. PR #43 feedback triage executed; all `BUG_REAL` comments fixed in minimal patch.
+  13. non-blocking/noise PR comments classified with explicit status (`DECISAO_INTENCIONAL`, `NAO_BLOQUEANTE_DEFERIDO`, `FALSO_POSITIVO`).
 - Runtime change summary:
   1. `gui/mixins/filter_gui_ssa_mixin.py`: `clear_filter` now resets `_active_filter_search_display` and `_active_filter_search_request_id`.
   2. `gui/gui_ssa.py`: general search debounce now enforces minimum `1400 ms`.
@@ -31,6 +33,9 @@ Use this file to migrate context to a new chat without losing execution quality.
   11. `gui/mixins/filter_gui_ssa_mixin.py`: undo-state sync helper now updates all `undo_filter_btn` widgets across tab contexts.
   12. `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`: search apply/clear now use tab-specific handlers while keeping same filtering behavior.
   13. `gui/mixins/filter_gui_ssa_mixin.py`: regex guard added (`meta_char_count` and alternation+quantifier block) for safer fallback to literal search.
+  14. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets `_column_or_groups`/`_column_to_or_group` using `_reset_or_groups()`.
+  15. `gui/mixins/filter_gui_ssa_mixin.py`: `_mk_remove_line` no longer hides errors with broad silent `except`.
+  16. `gui/gui_ssa.py` + `gui/mixins/tab_context_gui_ssa_mixin.py`: debounce parse fallback now logs explicitly and bind flow no longer duplicates clear-button sync call.
 - Validation snapshot:
   1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
   2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
@@ -43,7 +48,8 @@ Use this file to migrate context to a new chat without losing execution quality.
   9. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
   10. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
   11. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "search_buttons_route_to_tab_specific_handlers or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or clear_filter_button_state_syncs_across_tabs_without_switch or build_column_mask_blocks_heavy_regex_patterns"`: `4 passed`
-  12. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> issue(P4 regex safety) -> clean
+  12. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_or_group_metadata or clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_button_state_syncs_across_tabs_without_switch or undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore"`: `5 passed`
+  13. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> issue(P4 regex safety) -> clean -> clean -> clean -> clean -> clean -> clean
 - Evidence commit:
   1. `2c7982b1` (`STABILITY_PATCH`).
   2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
@@ -53,6 +59,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
   7. `32fca7c1` (`STABILITY_PATCH`: cross-tab undo-button state sync).
   8. `fcc3715e` (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
+  9. pending in this working slice (`STABILITY_PATCH`: PR #43 bug-real triage fixes).
 - Next cycle:
   1. keep no-layout-change policy and minimal-scope slices.
   2. monitor for regressions around async filter state and request-scoped display markers.

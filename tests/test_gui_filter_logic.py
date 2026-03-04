@@ -1491,6 +1491,20 @@ class TestGUIFilterLogic:
         assert tuple(self.window._active_column_filters.keys()) == default_cols
         assert not any(str(v).strip() for v in self.window._active_column_filters.values())
 
+    def test_clear_all_filters_global_resets_or_group_metadata(self):
+        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
+        QApplication.processEvents()
+        assert len(self.window._column_or_groups) >= 1
+        assert len(self.window._column_to_or_group) >= 1
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window._column_or_groups == []
+        assert self.window._column_to_or_group == {}
+        summary_text = str(self.window.filters_summary_label.text() or "").casefold()
+        assert "executor ou emissor (ou)" not in summary_text
+
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
         df = pd.DataFrame(
             {

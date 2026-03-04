@@ -60,10 +60,6 @@ class TabContextGUISSAMixin:
 
     def _sync_bind_search_state(self: _TabContextHostProtocol, ctx: dict) -> None:
         try:
-            self._sync_clear_filter_button_state()
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar estado do botao limpar filtro no bind de aba: %s", exc)
-        try:
             if ctx.get("tab_kind") == "filters":
                 try:
                     debounce_timer = self._debounce_timer
