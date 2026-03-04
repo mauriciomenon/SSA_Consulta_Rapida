@@ -3,6 +3,67 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint6 hotfix: data_cadastro column filter trigger consistency)
+
+Session timestamp:
+1. start: `2026-03-04 09:53:38 -0300`
+2. end: `2026-03-04 10:01:00 -0300`
+
+Delivered in this slice:
+1. root cause fixed in `gui/mixins/filter_gui_ssa_mixin.py`:
+   - column-filter comparison used raw `data_cadastro` values (`YYYY-MM-DD HH:MM:SS`) only;
+   - table displays dates as `DD/MM/YYYY`, causing user-visible mismatch and apparent delayed application.
+2. `_apply_column_filters` now supports date display matching for slash-based terms:
+   - keeps raw comparison path;
+   - adds OR match against cached `DD/MM/YYYY` projection for date-like columns.
+3. added helper methods for maintainability/performance:
+   - `_should_match_date_display_filter(...)`
+   - `_get_column_filter_date_display_series(...)` with per-DataFrame cache.
+4. added regression `tests/test_gui_filter_logic.py::test_data_cadastro_column_filter_accepts_display_date_on_first_apply`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_filter_button_state_syncs_across_tabs_without_switch"`: `4 passed`.
+5. kluster auto in this slice: issue(P4,P4) -> clean -> clean -> clean.
+
+Decision and scope:
+1. this is a `HOTFIX_BLOCKER` in filter consistency path only.
+2. no GUI layout/positioning change.
+3. no DB schema/data mutation.
+
+## Update 2026-03-04 (sprint5 canonical reprogramacoes numeric lane)
+
+Session timestamp:
+1. start: `2026-03-04 09:40:56 -0300`
+2. end: `2026-03-04 09:44:37 -0300`
+
+Delivered in this slice:
+1. added `gui/ssa/reprogramacoes_numeric.py` with canonical helper for numeric extraction:
+   - `total_de_reprogramacoes` as primary source;
+   - fallback numeric parse of `num_reprogramacoes`;
+   - final digit extraction fallback for legacy text rows.
+2. `gui/gui_ssa.py`: robust sort for `num_reprogramacoes` now uses the shared helper.
+3. `gui/ssa/gui_filters_advanced_logic.py` and `gui/ssa/gui_filters_advanced_ui.py`: advanced reprogramacoes filter/cache now use the same helper, avoiding divergent conversions.
+4. `gui/gui_ssa.py`: best-fit baseline probe now guarded (`sizeHintForColumn` only when `rowCount <= 500`) to avoid O(R*C) UI cost on large tables.
+5. added focused regressions:
+   - `tests/test_gui_filters_advanced_logic.py::test_apply_advanced_filters_reprogramacoes_prefers_total_de_reprogramacoes_when_available`
+   - `tests/test_gui_filter_logic.py::test_reprogramacoes_menu_uses_total_de_reprogramacoes_with_legacy_text_values`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "reprogramacoes or on_header_clicked_sorts_num_reprogramacoes_mixed_types or best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action"`: `8 passed`.
+5. kluster auto in this slice: clean -> clean -> clean -> clean.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` without DB schema or layout change.
+2. legacy text (`Reprogramacao #1`) remains accepted as input artifact; runtime now normalizes numeric behavior consistently.
+3. `situacao_reprogramacao` (`(SPG)`) remains informational/legacy in this sprint and is not promoted to active filter logic.
+4. deferred note kept active: legacy non-ASCII content in old scripts/tests is not globally normalized in this slice to avoid transversal high-risk edits.
+
 ## Update 2026-03-04 (sprint4 best-fit calibration against real Qt auto-fit)
 
 Session timestamp:

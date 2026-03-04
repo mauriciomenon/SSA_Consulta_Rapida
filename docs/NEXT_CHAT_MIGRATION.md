@@ -2,7 +2,65 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 09:27 - start from here
+## CURRENT TRUTH 2026-03-04 10:01 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint6 delivered: `data_cadastro` column filter now applies consistently with displayed date format.
+  2. user report ("cadastro not immediate / needs extra operation") traced to raw-vs-display date mismatch in filter path.
+- Runtime change summary:
+  1. `gui/mixins/filter_gui_ssa_mixin.py`: `_apply_column_filters` now OR-combines raw date matching with display-date matching (`DD/MM/YYYY`) for slash-based filters.
+  2. `gui/mixins/filter_gui_ssa_mixin.py`: added `_should_match_date_display_filter(...)`.
+  3. `gui/mixins/filter_gui_ssa_mixin.py`: added `_get_column_filter_date_display_series(...)` with per-DataFrame cache to avoid repeated parse/format work.
+  4. `tests/test_gui_filter_logic.py`: added `test_data_cadastro_column_filter_accepts_display_date_on_first_apply`.
+- Data evidence snapshot:
+  1. `data/ssas.db`: `data_cadastro` persisted as ISO datetime (`YYYY-MM-DD HH:MM:SS`) across `70954` non-null rows.
+  2. GUI renders `data_*` columns as `DD/MM/YYYY`, so prior behavior could fail on first apply when user typed displayed date text.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_filter_button_state_syncs_across_tabs_without_switch"`: `4 passed`.
+  5. kluster auto in this slice: issue(P4,P4) -> clean -> clean -> clean.
+- Evidence commit:
+  1. `05c443cf` (`STABILITY_PATCH`: canonical reprogramacoes numeric flow).
+  2. pending commit in current sprint6 slice.
+- Next cycle:
+  1. run user validation on affected columns (`data_cadastro`, `data_programada`, other `data_*`) in both tabs.
+  2. if approved, continue display-label cleanup sprint without DB mutation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:46 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint4 is closed and committed (`df65682c`) with best-fit calibration aligned to Qt baseline.
+  2. sprint5 delivered canonical numeric handling for reprogramacoes across sort/filter/menu cache, without DB schema mutation.
+- Runtime change summary:
+  1. `gui/ssa/reprogramacoes_numeric.py`: new canonical helper `get_num_reprogramacoes_numeric_series(...)` with priority `total_de_reprogramacoes` -> numeric `num_reprogramacoes` -> digit extraction fallback.
+  2. `gui/gui_ssa.py`: robust sort path now reuses shared helper; best-fit baseline probe guarded (`sizeHintForColumn` only when `rowCount <= 500`).
+  3. `gui/ssa/gui_filters_advanced_logic.py`: advanced `num_reprogramacoes` filter now uses shared numeric helper.
+  4. `gui/ssa/gui_filters_advanced_ui.py`: advanced options cache for reprogramacoes now uses shared numeric helper.
+  5. `tests/test_gui_filters_advanced_logic.py` + `tests/test_gui_filter_logic.py`: new regressions for legacy-text rows preferring `total_de_reprogramacoes`.
+- Data evidence snapshot:
+  1. mixed-source dataset confirmed: `num_reprogramacoes` has `5589` numeric-like rows and `1099` legacy text rows (`Reprogramacao #1`).
+  2. all `1099` legacy-text rows overlap with non-null `total_de_reprogramacoes` and `situacao_reprogramacao='(SPG)'`.
+  3. active runtime usage now normalized through one helper to avoid sort/filter drift.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "reprogramacoes or on_header_clicked_sorts_num_reprogramacoes_mixed_types or best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action"`: `8 passed`.
+  5. kluster auto in this slice: clean.
+- Evidence commit:
+  1. `df65682c` (`STABILITY_PATCH`: sprint4 best-fit calibration).
+  2. pending commit in current sprint5 slice.
+- Next cycle:
+  1. sprint de exibicao: continuar ajuste de labels amigaveis em tabela e adicionar-colunas (sem alterar runtime de dados).
+  2. sprint de DB (se aprovado): auditoria controlada de campos legados/redundantes antes de qualquer saneamento.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:27 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.
