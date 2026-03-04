@@ -3,6 +3,248 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (PR #43 comments triage: real bugs fixed, noise deferred)
+
+Session timestamp:
+1. start: `2026-03-04 06:27:03 -0300`
+2. end: `2026-03-04 06:29:30 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets OR-group metadata via `_reset_or_groups()`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: `_mk_remove_line` no longer uses broad silent `except Exception`.
+3. `gui/gui_ssa.py`: `debounce_delay` parsing now catches only `(TypeError, ValueError)` and logs explicit fallback.
+4. `gui/mixins/tab_context_gui_ssa_mixin.py`: removed duplicated `_sync_clear_filter_button_state()` call in bind flow.
+5. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_resets_or_group_metadata`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_or_group_metadata or clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_button_state_syncs_across_tabs_without_switch or undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore"`: `5 passed`
+5. kluster auto review run in this slice: clean -> clean -> clean -> clean
+
+PR comment status mapping:
+1. fixed now (`BUG_REAL`): stale OR-group metadata after global clear.
+2. fixed now (`BUG_REAL`): broad/no-log fallback in debounce parse.
+3. fixed now (`BUG_REAL`): silent broad `except` in `_mk_remove_line`.
+4. fixed now (`BUG_REAL`): duplicated cross-tab clear-button sync call in bind.
+5. deferred (`DECISAO_INTENCIONAL`): make debounce floor configurable now; current fixed floor is approved policy for this lane.
+6. deferred (`NAO_BLOQUEANTE_DEFERIDO`): wide cleanup of broad `except` patterns across legacy GUI path (outside this minimal slice).
+7. rejected (`FALSO_POSITIVO`): speculative suggestions with weak/no anchored evidence (regex over-restriction claims without reproducible regression).
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on real, reproducible PR findings only.
+2. no layout/positioning changes.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+## Update 2026-03-04 (tab-specific search handlers and regex guard hardening)
+
+Session timestamp:
+1. start: `2026-03-04 01:40:00 -0300`
+2. end: `2026-03-04 01:44:21 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: search controls now route through dedicated per-tab handlers (`main`/`filters`) for `Aplicar` and `Limpar Busca`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: added dedicated handler methods `_on_general_search_apply_clicked` and `_on_general_search_clear_clicked`.
+3. `gui/mixins/filter_gui_ssa_mixin.py`: strengthened regex safety guard in `_build_column_mask` (`meta_char_count` and alternation+quantifier blocking).
+4. `tests/test_gui_filter_logic.py`: added regression `test_search_buttons_route_to_tab_specific_handlers`.
+5. `tests/test_gui_filter_logic.py`: added regression `test_build_column_mask_blocks_heavy_regex_patterns`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "search_buttons_route_to_tab_specific_handlers or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or clear_filter_button_state_syncs_across_tabs_without_switch or build_column_mask_blocks_heavy_regex_patterns"`: `4 passed`
+5. kluster auto review run in this slice: clean -> issue(P4 regex safety) -> clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on handler identity per tab and safety hardening for regex filter path.
+2. no layout/positioning change.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+## Update 2026-03-04 (cross-tab sync for undo button state)
+
+Session timestamp:
+1. start: `2026-03-04 01:20:00 -0300`
+2. end: `2026-03-04 01:39:47 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: added centralized helpers to sync `undo_filter_btn` enabled-state across all tab contexts.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: `_update_undo_button_state` now updates all tab undo buttons, not only active tab.
+3. `tests/test_gui_filter_logic.py`: added regression `test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for undo-state consistency and advanced-filter undo coverage.
+2. no layout/positioning changes.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+## Update 2026-03-04 (cross-tab sync for clear-search button state)
+
+Session timestamp:
+1. start: `2026-03-04 00:27:39 -0300`
+2. end: `2026-03-04 01:02:15 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: added central helpers to sync `clear_filter_button` state across all tab contexts.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: replaced single-widget `clear_filter_button.setEnabled(...)` calls with shared cross-tab sync.
+3. `gui/mixins/tab_context_gui_ssa_mixin.py`: bind step now uses shared clear-button sync method.
+4. `tests/test_gui_filter_logic.py`: added regression `test_clear_filter_button_state_syncs_across_tabs_without_switch`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for state consistency only; no layout or positioning change.
+2. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+## Update 2026-03-04 (clear-search button wording clarity)
+
+Session timestamp:
+1. start: `2026-03-04 00:23:12 -0300`
+2. end: `2026-03-04 00:25:01 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: changed clear-search button text from `Limpar Filtro` to `Limpar Busca`.
+2. `gui/gui_ssa.py`: added explicit tooltip clarifying that only general search is cleared.
+3. `tests/test_gui_filter_logic.py`: added regression `test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or test_clear_filter_clears_only_general_search_and_keeps_advanced_filters or test_clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+5. kluster auto review run in this slice: clean -> clean
+
+Decision and scope:
+1. this is a low-risk `STABILITY_PATCH` for UX wording clarity only; no filter logic behavior change.
+2. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+3. evidence commit: `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
+
+## Update 2026-03-04 (tooltip encoding fix and column-filter 3-button row)
+
+Session timestamp:
+1. start: `2026-03-04 00:08:50 -0300`
+2. end: `2026-03-04 00:14:10 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: fixed corrupted week tooltip text and simplified to `Semana ISO atual`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: column-filter row now has `Aplicar`, `Limpar`, `Ocultar`.
+3. `gui/mixins/filter_gui_ssa_mixin.py`: `Limpar` clears current column value and reapplies filters without hiding the row.
+4. `gui/widgets/filter_help_dialog.py`: help text updated to reflect `Aplicar + Limpar + Ocultar`.
+5. `tests/test_gui_filter_logic.py`: updated control parser and added regression `test_column_filter_row_clear_button_clears_value_without_hiding_row`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
+5. kluster auto review run in this slice: clean
+
+Diagnostic scan:
+1. global scan for mojibake patterns in `*.py` completed.
+2. no remaining mojibake pattern found in touched runtime/test files after this patch.
+3. deferred note (approved): "existem muitos caracteres nao-ASCII legados em scripts/tests antigos (texto PT-BR), mas isso nao e necessariamente erro de codificacao; normalizei apenas erros reais neste slice para evitar mudanca transversal de alto risco."
+4. where to clean in future controlled slice:
+   - `scripts_manutencao/*.py`
+   - `tests/teste_*.py`
+   - legacy CLI/script text blocks under `interface/cli.py` and `interface/command_handlers.py`
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on user-visible filter button behavior and encoding fix in GUI tooltip.
+2. no change in startup/import policy or out-of-scope modules.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+## Update 2026-03-04 (global clear baseline consistency in filter buttons)
+
+Session timestamp:
+1. start: `2026-03-04 00:00:27 -0300`
+2. end: `2026-03-04 00:07:25 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets column filters using `_column_filter_default_columns()` instead of hardcoded subset.
+2. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_restores_default_column_filter_keys`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_all_filters_global_resets_exclude_and_advanced_filters"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` to remove inconsistent reset behavior between related clear actions.
+2. runtime outside filter-clear path unchanged.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Evidence commit:
+1. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
+
+## Update 2026-03-03 (follow-up regression for header context-menu undo path)
+
+Session timestamp:
+1. start: `2026-03-03 23:55:05 -0300`
+2. end: `2026-03-03 23:59:04 -0300`
+
+Delivered in this slice:
+1. added direct regression in `tests/test_gui_filter_logic.py` to validate header context-menu apply path stores undo snapshot end-to-end.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a test-only `STABILITY_PATCH` follow-up to close previously deferred coverage gap.
+2. runtime behavior unchanged in this slice.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Evidence commit:
+1. `22bbd3dc` (`STABILITY_PATCH`: header context-menu undo regression test).
+
+## Update 2026-03-03 (filter buttons stability hardening on feature branch)
+
+Session timestamp:
+1. start: `2026-03-03 23:46:42 -0300`
+2. end: `2026-03-03 23:53:25 -0300`
+
+Delivered in this slice:
+1. fixed high-risk stale async state after `clear_filter` by resetting request-scoped search markers in `gui/mixins/filter_gui_ssa_mixin.py`.
+2. raised effective general-search debounce floor to `1400 ms` in `gui/gui_ssa.py` to encourage explicit `Aplicar`.
+3. completed undo snapshot coverage for column filter activation/deactivation and header context-menu apply path.
+4. aligned help text to real column-filter controls (`Aplicar` + `Ocultar`) in `gui/widgets/filter_help_dialog.py`.
+5. added focused regressions in `tests/test_gui_filter_logic.py` for stale state clear path, debounce floor, and undo snapshots in column filter entry points.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
+5. kluster auto review runs in this slice: clean -> clean -> clean -> clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on filter-state consistency and undo coverage with minimal behavioral changes.
+2. branch used by explicit approval: `codex/fix-filter-buttons-state-sync`.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Deferred non-blocking:
+1. add a direct regression for the full Qt header context-menu interaction path that asserts undo snapshot behavior end-to-end (current coverage validates internal entry points and data path).
+
+Evidence commit:
+1. `2c7982b1` (`STABILITY_PATCH`: runtime + tests for filter-state hardening).
+
 ## Update 2026-03-03 (slice G targeted regression coverage for A/B/C)
 
 Session timestamp:

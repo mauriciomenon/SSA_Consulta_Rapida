@@ -2,7 +2,80 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-03 22:23 - authoritative block
+## CURRENT TRUTH 2026-03-04 06:29 - authoritative block
+
+- Active branch: `codex/fix-filter-buttons-state-sync`.
+- Slice delivered:
+  1. stale async state after `clear_filter` removed (`_active_filter_search_display` and `_active_filter_search_request_id` now reset).
+  2. debounce floor increased to `1400 ms` for general search to favor explicit `Aplicar`.
+  3. undo snapshot coverage expanded to missing entry points (header context apply + activate/deactivate column filter).
+  4. help text aligned to real behavior (`Aplicar` + `Ocultar`).
+  5. deferred header context-menu apply + undo end-to-end regression is now covered by direct test.
+  6. global clear for all filters now restores default column-filter key baseline.
+  7. week tooltip encoding issue fixed.
+  8. column-filter row now exposes `Aplicar`, `Limpar`, and `Ocultar`.
+  9. clear-search button text/scope now explicit (`Limpar Busca` + tooltip).
+  10. clear-search button enabled-state now stays synchronized between tabs.
+  11. undo button enabled-state now stays synchronized between tabs.
+  12. search apply/clear controls now route through tab-specific handlers (`main` and `filters`) with same functional behavior.
+  13. regex safety guard in column-filter path is stricter to reduce catastrophic regex patterns.
+  14. PR #43 triage closed for `BUG_REAL` findings with targeted minimal patches.
+- What changed:
+  1. `gui/mixins/filter_gui_ssa_mixin.py`: clear-state reset and undo snapshot hooks for activate/deactivate column filter.
+  2. `gui/gui_ssa.py`: debounce minimum floor and undo snapshot hook in header context apply.
+  3. `tests/test_gui_filter_logic.py`: added regressions for stale clear state, debounce floor, and undo snapshot entry points.
+  4. `gui/widgets/filter_help_dialog.py`: updated filter-help wording.
+  5. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now uses `_column_filter_default_columns()` for column-key reset.
+  6. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_restores_default_column_filter_keys`.
+  7. `gui/gui_ssa.py`: week tooltip text normalized to `Semana ISO atual`.
+  8. `gui/mixins/filter_gui_ssa_mixin.py`: added row-level `Limpar` button (clear value, keep row visible) and kept `Ocultar` as visual-only action.
+  9. `gui/widgets/filter_help_dialog.py`: help text aligned with three button actions.
+  10. `tests/test_gui_filter_logic.py`: updated row-control parsing and added regression `test_column_filter_row_clear_button_clears_value_without_hiding_row`.
+  11. `gui/gui_ssa.py`: clear-search button renamed to `Limpar Busca` and tooltip clarifies scope.
+  12. `tests/test_gui_filter_logic.py`: added regression `test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs`.
+  13. `gui/mixins/filter_gui_ssa_mixin.py` + `gui/mixins/tab_context_gui_ssa_mixin.py`: centralized clear-button enabled-state sync across tab contexts.
+  14. `tests/test_gui_filter_logic.py`: added regression `test_clear_filter_button_state_syncs_across_tabs_without_switch`.
+  15. `gui/mixins/filter_gui_ssa_mixin.py`: centralized undo-button enabled-state sync across tab contexts.
+  16. `tests/test_gui_filter_logic.py`: added regression `test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore`.
+  17. `gui/gui_ssa.py` + `gui/mixins/filter_gui_ssa_mixin.py`: search apply/clear now call dedicated per-tab handlers.
+  18. `gui/mixins/filter_gui_ssa_mixin.py`: regex guard hardening in `_build_column_mask`.
+  19. `tests/test_gui_filter_logic.py`: added regressions `test_search_buttons_route_to_tab_specific_handlers` and `test_build_column_mask_blocks_heavy_regex_patterns`.
+  20. `gui/mixins/filter_gui_ssa_mixin.py`: global clear now also resets OR-group metadata (`_column_or_groups`/`_column_to_or_group`).
+  21. `gui/mixins/filter_gui_ssa_mixin.py`: `_mk_remove_line` updated to deterministic state init (no broad silent `except`).
+  22. `gui/gui_ssa.py`: debounce parse fallback now logs explicit warning and uses narrow exception class.
+  23. `gui/mixins/tab_context_gui_ssa_mixin.py`: removed duplicate `_sync_clear_filter_button_state()` call in bind flow.
+  24. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_resets_or_group_metadata`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
+  5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
+  6. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_all_filters_global_resets_exclude_and_advanced_filters"`: `3 passed`
+  7. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
+  8. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or test_clear_filter_clears_only_general_search_and_keeps_advanced_filters or test_clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+  9. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+  10. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
+  11. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "search_buttons_route_to_tab_specific_handlers or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or clear_filter_button_state_syncs_across_tabs_without_switch or build_column_mask_blocks_heavy_regex_patterns"`: `4 passed`
+  12. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_or_group_metadata or clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_button_state_syncs_across_tabs_without_switch or undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore"`: `5 passed`
+  13. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> issue(P4 regex safety) -> clean -> clean -> clean -> clean -> clean -> clean
+- Evidence:
+  1. `2c7982b1` (`STABILITY_PATCH`: filter state stabilization package).
+  2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
+  3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
+  4. `776c5905` (`STABILITY_PATCH`: tooltip encoding fix and 3-button row behavior).
+  5. `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
+  6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
+  7. `32fca7c1` (`STABILITY_PATCH`: cross-tab undo-button state sync).
+  8. `fcc3715e` (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
+  9. `6f1ef11b` (`STABILITY_PATCH`: PR #43 bug-real triage fixes).
+- Deferred non-blocking:
+  1. broad repository-wide non-ASCII normalization remains deferred because most findings are legacy localized strings and require controlled transversal policy.
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
+## HISTORICAL SNAPSHOT 2026-03-03 22:23 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
