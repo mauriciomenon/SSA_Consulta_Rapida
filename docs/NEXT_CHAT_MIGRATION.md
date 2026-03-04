@@ -2,29 +2,27 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-03 21:12 - start from here
+## CURRENT TRUTH 2026-03-03 22:16 - start from here
 
 - Active branch: `dev`.
 - Slice status:
-  1. Sprint E delivered: controlled debt cleanup by removing dead GUI table helper/facade methods.
-  2. no GUI layout/position changes.
+  1. Slice F delivered: control docs normalized to keep a single `CURRENT TRUTH` block in active migration/handoff docs.
+  2. Sprint A-E package remains closed; no new runtime risk introduced.
 - Runtime change summary:
-  1. removed `gui/ssa/gui_table.py::_calculate_max_chars_for_column` (dead symbol, no callers).
-  2. removed `gui/gui_ssa.py::_calculate_max_chars_for_column` facade pass-through.
+  1. no runtime file changed in this slice.
+  2. scope limited to docs governance normalization.
 - Validation snapshot:
-  1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  2. `uv run --python 3.13 ruff check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  3. `uv run --python 3.13 ty check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_gui_table_render_resilience.py tests/test_gui_filter_logic.py -k "display_current_page or column_width"`: `5 passed, 109 deselected`
-  5. kluster auto: clean -> clean
+  1. `rg '^## CURRENT TRUTH ' docs/NEXT_CHAT_MIGRATION.md | wc -l`: `1`
+  2. `rg '^## CURRENT TRUTH ' docs/AGENTS_HANDOFF_NEXT_CYCLE.md | wc -l`: `1`
+  3. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py interface/cli_enhancement_manager.py gui/ssa/gui_table.py gui/gui_ssa.py`: pass
 - Next cycle:
-  1. no open blocker from Sprint A-E package in current lane.
-  2. keep monitoring with minimal slices and preserve no-layout-change policy.
+  1. keep stabilization in minimal slices and preserve no-layout-change policy.
+  2. use docs-only lane for further migration readability cleanup if needed.
 - Local residue contract:
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
 
-## CURRENT TRUTH 2026-03-03 19:31 - start from here
+## HISTORICAL SNAPSHOT 2026-03-03 19:31 - start from here
 
 - Active branch: `dev`.
 - Slice status:
@@ -46,7 +44,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
 
-## CURRENT TRUTH 2026-03-03 19:27 - start from here
+## HISTORICAL SNAPSHOT 2026-03-03 19:27 - start from here
 
 - Active branch: `dev`.
 - Slice status:
@@ -68,7 +66,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
 
-## CURRENT TRUTH 2026-03-03 19:24 - start from here
+## HISTORICAL SNAPSHOT 2026-03-03 19:24 - start from here
 
 - Active branch: `dev`.
 - Slice status:
@@ -92,7 +90,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
 
-## CURRENT TRUTH 2026-03-03 19:20 - start from here
+## HISTORICAL SNAPSHOT 2026-03-03 19:20 - start from here
 
 - Active branch: `dev`.
 - Slice status:
@@ -115,7 +113,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
 
-## CURRENT TRUTH 2026-03-03 15:25 - start from here
+## HISTORICAL SNAPSHOT 2026-03-03 15:25 - start from here
 
 - Frozen policy baseline: `docs/POLICY_BASELINE_V1_1_FROZEN.md` (read before execution).
 
@@ -136,7 +134,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   2. read top block of `docs/RECOVERY_BACKLOG.md` second.
   3. use this file only as session bootstrap and timeline map.
 
-## CURRENT TRUTH 2026-03-01 23:55 - start from here
+## HISTORICAL SNAPSHOT 2026-03-01 23:55 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.29`.
@@ -189,7 +187,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   2. run `py_compile`, `ruff`, `ty`, and focused `pytest`.
   3. commit atomic release/doc update and push.
 
-## CURRENT TRUTH 2026-02-28 22:10 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 22:10 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -229,7 +227,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   4. atualizar matrix/backlog/handoff no mesmo slice.
   5. manter blocos antigos somente como historico, sem usar como fonte de verdade.
 
-## CURRENT TRUTH 2026-02-28 12:25 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 12:25 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -250,7 +248,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   5. executar gates: `py_compile`, `ruff`, `ty`, `pytest` focado.
   6. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
 
-## CURRENT TRUTH 2026-02-28 04:40 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 04:40 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -265,7 +263,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Kluster snapshot:
   - `kluster_code_review_auto` runs in this package: clean
 
-## CURRENT TRUTH 2026-02-28 04:10 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 04:10 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -280,7 +278,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Kluster snapshot:
   - `kluster_code_review_auto` runs in this package: clean
 
-## CURRENT TRUTH 2026-02-28 03:35 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 03:35 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -295,7 +293,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Kluster snapshot:
   - `kluster_code_review_auto` runs in this package: clean
 
-## CURRENT TRUTH 2026-02-28 02:55 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 02:55 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -311,7 +309,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Kluster snapshot:
   - `kluster_code_review_auto` runs in this package: clean
 
-## CURRENT TRUTH 2026-02-28 02:05 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 02:05 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -332,7 +330,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   3. apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
   4. atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
 
-## CURRENT TRUTH 2026-02-28 01:10 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 01:10 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -352,7 +350,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   3. Apos editar: kluster auto -> `py_compile` -> `ruff` -> `ty` -> `pytest` focado.
   4. Atualizar `docs/PENDING_ACTION_MATRIX.md` e `docs/RECOVERY_BACKLOG.md`.
 
-## CURRENT TRUTH 2026-02-28 00:18 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 00:18 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -368,7 +366,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - blocks below are historical context and must not override this top block.
 
-## CURRENT TRUTH 2026-02-28 00:00 - start from here
+## HISTORICAL SNAPSHOT 2026-02-28 00:00 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -389,7 +387,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - blocks below are historical context and must not override this top block.
 
-## CURRENT TRUTH 2026-02-27 16:32 - start from here
+## HISTORICAL SNAPSHOT 2026-02-27 16:32 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -417,7 +415,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - blocks below are historical context and must not override this top block.
 
-## CURRENT TRUTH 2026-02-27 15:53 - start from here
+## HISTORICAL SNAPSHOT 2026-02-27 15:53 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -447,7 +445,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - sections below remain historical context and must not override this block.
 
-## CURRENT TRUTH 2026-02-26 21:40 - start from here
+## HISTORICAL SNAPSHOT 2026-02-26 21:40 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -475,7 +473,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - sections below remain historical context and must not override this block.
 
-## CURRENT TRUTH 2026-02-26 17:05 - start from here
+## HISTORICAL SNAPSHOT 2026-02-26 17:05 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.22.0`.
@@ -494,7 +492,7 @@ Use this file to migrate context to a new chat without losing execution quality.
 - Important:
   - sections below remain historical context and must not override this block.
 
-## CURRENT TRUTH 2026-02-26 14:07 - start from here
+## HISTORICAL SNAPSHOT 2026-02-26 14:07 - start from here
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.22.0`.
