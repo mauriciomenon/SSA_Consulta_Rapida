@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (cross-tab sync for clear-search button state)
+
+Session timestamp:
+1. start: `2026-03-04 00:27:39 -0300`
+2. end: `2026-03-04 01:02:15 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: added central helpers to sync `clear_filter_button` state across all tab contexts.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: replaced single-widget `clear_filter_button.setEnabled(...)` calls with shared cross-tab sync.
+3. `gui/mixins/tab_context_gui_ssa_mixin.py`: bind step now uses shared clear-button sync method.
+4. `tests/test_gui_filter_logic.py`: added regression `test_clear_filter_button_state_syncs_across_tabs_without_switch`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for state consistency only; no layout or positioning change.
+2. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-04 (clear-search button wording clarity)
 
 Session timestamp:
