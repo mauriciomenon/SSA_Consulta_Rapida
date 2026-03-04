@@ -2,7 +2,33 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 08:39 - authoritative block
+## CURRENT TRUTH 2026-03-04 09:11 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. hardened display-label source so table/add-columns no longer depend on partial local maps.
+  2. canonical merge path now enforced at window startup.
+  3. regression added for extra-column alias resolution in table header.
+- What changed:
+  1. `gui/gui_ssa.py`: init now uses `load_display_mappings()` directly.
+  2. `tests/test_gui_filter_logic.py`: added `test_table_header_uses_merged_default_alias_for_extra_column`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "table_header_uses_merged_default_alias_for_extra_column or on_header_clicked_sorts_num_reprogramacoes_mixed_types or header_context_menu_exposes_best_fit_visible_action"`: `3 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence:
+  1. pending commit in current sprint3 label slice.
+- Deferred non-blocking:
+  1. optional curated naming pass for remaining labels (display-only lane).
+  2. db-saneamento sprint still separated by scope contract.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:39 - authoritative block
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

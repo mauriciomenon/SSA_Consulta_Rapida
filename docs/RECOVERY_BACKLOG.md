@@ -3,6 +3,31 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint3 display-label merge hardening for table and add-columns)
+
+Session timestamp:
+1. start: `2026-03-04 09:02:15 -0300`
+2. end: `2026-03-04 09:11:13 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: initialization now always uses canonical `load_display_mappings()` merge path.
+2. guarantees merged aliases (`DEFAULT_DISPLAY_MAPPINGS` + `column_display_names` + `display_mappings`) are applied to:
+   - table headers
+   - add-column/filter selectors that rely on `internal_to_display`.
+3. `tests/test_gui_filter_logic.py`: added regression `test_table_header_uses_merged_default_alias_for_extra_column`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "table_header_uses_merged_default_alias_for_extra_column or on_header_clicked_sorts_num_reprogramacoes_mixed_types or header_context_menu_exposes_best_fit_visible_action"`: `3 passed`.
+5. kluster auto in this slice: clean -> clean.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` in display-label lane only (no DB/runtime schema mutation).
+2. no GUI layout/positioning change.
+3. next step remains label curation refinement (if needed) and separate DB-saneamento sprint.
+
 ## Update 2026-03-04 (sprint2 best-fit visible columns via width manager)
 
 Session timestamp:

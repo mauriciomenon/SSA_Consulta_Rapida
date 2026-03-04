@@ -2,7 +2,29 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 08:39 - start from here
+## CURRENT TRUTH 2026-03-04 09:11 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint3 delivered in label lane: display-map merge hardening for table headers and add-columns selectors.
+  2. canonical alias source now always includes defaults + gui overrides.
+- Runtime change summary:
+  1. `gui/gui_ssa.py`: switched window init mapping source to `load_display_mappings()` merged path.
+  2. `tests/test_gui_filter_logic.py`: new regression `test_table_header_uses_merged_default_alias_for_extra_column`.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "table_header_uses_merged_default_alias_for_extra_column or on_header_clicked_sorts_num_reprogramacoes_mixed_types or header_context_menu_exposes_best_fit_visible_action"`: `3 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence commit:
+  1. pending commit in current sprint3 label slice.
+- Next cycle:
+  1. optional fine-grained label curation for remaining column aliases (display-only, no DB rewrite).
+  2. keep db-saneamento as separate sprint boundary.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:39 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.
