@@ -897,8 +897,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception:
             self._info_font = None
 
-        # Carrega mapeamentos de exibicao das preferencias da GUI principal
-        self.display_map = GUI_MAIN_PREFERENCES.get("display_mappings", load_display_mappings())
+        # Carrega mapeamentos de exibicao com merge defensivo para evitar labels tecnicos.
+        # Fonte canonica: defaults + column_display_names + display_mappings.
+        self.display_map = load_display_mappings()
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
 
         # Colunas padrção para exibiçção (das configurações JSON)

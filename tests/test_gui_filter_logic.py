@@ -1451,6 +1451,32 @@ class TestGUIFilterLogic:
 
         assert guarded_width <= base_width + 40
 
+    def test_table_header_uses_merged_default_alias_for_extra_column(self, monkeypatch):
+        reduced_map = {"numero_ssa": "Numero SSA", "situacao": "Situacao"}
+        monkeypatch.setattr(self.window, "display_map", reduced_map.copy())
+        monkeypatch.setattr(self.window, "internal_to_display", reduced_map.copy())
+
+        merged = gui_ssa.load_display_mappings()
+        self.window.display_map = merged
+        self.window.internal_to_display = dict(merged)
+
+        df = self.base_df.assign(situacao_reprogramacao=["(SPG)"] * len(self.base_df)).copy()
+        if "situacao_reprogramacao" not in self.window.visible_columns:
+            self.window.visible_columns.append("situacao_reprogramacao")
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col_idx = self.window._current_display_columns.index("situacao_reprogramacao")
+        header_item = self.window.table_widget.horizontalHeaderItem(col_idx)
+        assert header_item is not None
+        header_text = header_item.text()
+        assert "situacao_reprogramacao" not in header_text.casefold()
+        assert "reprog" in header_text.casefold() or "reprogram" in header_text.casefold()
+
     def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
         self.window._saved_gui_column_widths = {"descricao_ssa": 222}
         calls = {"persist": 0}
