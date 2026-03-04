@@ -2,20 +2,22 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-03 22:16 - authoritative block
+## CURRENT TRUTH 2026-03-03 22:23 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
-  1. Slice F docs normalization completed in control files.
-  2. only one `CURRENT TRUTH` block is now kept in each active migration/handoff doc.
+  1. Slice G targeted regression coverage completed for A/B/C lanes.
+  2. this slice changed tests only; runtime modules unchanged.
 - What changed:
-  1. reclassified legacy `CURRENT TRUTH` headings into `HISTORICAL SNAPSHOT` in `docs/NEXT_CHAT_MIGRATION.md`.
-  2. reclassified legacy `CURRENT TRUTH` headings into `HISTORICAL SNAPSHOT` in `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`.
-  3. updated top active blocks to reflect this docs governance state.
+  1. `tests/test_app_logic_full_rescan_lock.py`: added sidecar move regression for full-rescan backup.
+  2. `tests/test_import_deterministic_failure_cache.py`: added cancel-classification regression (`OPERATION_CANCELLED` not added as deterministic failed file).
+  3. `tests/test_cli_enhancement_manager_lock_usage.py`: added lock-file cleanup regression for lock failure on newly created lock file.
 - Validation:
-  1. `rg '^## CURRENT TRUTH ' docs/NEXT_CHAT_MIGRATION.md | wc -l`: `1`
-  2. `rg '^## CURRENT TRUTH ' docs/AGENTS_HANDOFF_NEXT_CYCLE.md | wc -l`: `1`
-  3. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py interface/cli_enhancement_manager.py gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  1. `uv run --python 3.13 python -m py_compile tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  2. `uv run --python 3.13 ruff check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  3. `uv run --python 3.13 ty check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: `14 passed`
+  5. kluster auto: clean -> clean
 - Next state:
   1. Sprint A-E package remains closed in this lane.
   2. keep future fixes minimal and behavior-preserving.
