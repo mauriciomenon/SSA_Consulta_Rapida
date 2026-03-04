@@ -640,6 +640,31 @@ class TestGUIFilterLogic:
         assert self.window._adv_options_dirty is False
         refresh_mock.assert_called_once()
 
+    def test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore(self):
+        undo_buttons = []
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("undo_filter_btn")
+            if button is not None:
+                undo_buttons.append(button)
+        assert len(undo_buttons) == 2
+        assert all(button.isEnabled() is False for button in undo_buttons)
+
+        self.window._advanced_filters = {"situacao": ["STE"]}
+        self.window._advanced_filters_active = True
+        self.window._clear_advanced_filters()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert all(button.isEnabled() is True for button in undo_buttons)
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {"situacao": ["STE"]}
+        assert self.window._advanced_filters_active is True
+        assert all(button.isEnabled() is False for button in undo_buttons)
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()

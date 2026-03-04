@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 01:02 - authoritative block
+## CURRENT TRUTH 2026-03-04 01:39 - authoritative block
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice delivered:
@@ -16,6 +16,7 @@ This handoff is ready to reuse in the next conversation.
   8. column-filter row now exposes `Aplicar`, `Limpar`, and `Ocultar`.
   9. clear-search button text/scope now explicit (`Limpar Busca` + tooltip).
   10. clear-search button enabled-state now stays synchronized between tabs.
+  11. undo button enabled-state now stays synchronized between tabs.
 - What changed:
   1. `gui/mixins/filter_gui_ssa_mixin.py`: clear-state reset and undo snapshot hooks for activate/deactivate column filter.
   2. `gui/gui_ssa.py`: debounce minimum floor and undo snapshot hook in header context apply.
@@ -31,6 +32,8 @@ This handoff is ready to reuse in the next conversation.
   12. `tests/test_gui_filter_logic.py`: added regression `test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs`.
   13. `gui/mixins/filter_gui_ssa_mixin.py` + `gui/mixins/tab_context_gui_ssa_mixin.py`: centralized clear-button enabled-state sync across tab contexts.
   14. `tests/test_gui_filter_logic.py`: added regression `test_clear_filter_button_state_syncs_across_tabs_without_switch`.
+  15. `gui/mixins/filter_gui_ssa_mixin.py`: centralized undo-button enabled-state sync across tab contexts.
+  16. `tests/test_gui_filter_logic.py`: added regression `test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore`.
 - Validation:
   1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
   2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
@@ -41,14 +44,16 @@ This handoff is ready to reuse in the next conversation.
   7. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
   8. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or test_clear_filter_clears_only_general_search_and_keeps_advanced_filters or test_clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
   9. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter_button_state_syncs_across_tabs_without_switch or clear_filter_button_reflects_active_filters or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
-  10. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean
+  10. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
+  11. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean -> clean
 - Evidence:
   1. `2c7982b1` (`STABILITY_PATCH`: filter state stabilization package).
   2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
   3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
   4. `776c5905` (`STABILITY_PATCH`: tooltip encoding fix and 3-button row behavior).
   5. `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
-  6. pending in this working slice (`STABILITY_PATCH`: cross-tab clear-button state sync).
+  6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
+  7. pending in this working slice (`STABILITY_PATCH`: cross-tab undo-button state sync).
 - Deferred non-blocking:
   1. broad repository-wide non-ASCII normalization remains deferred because most findings are legacy localized strings and require controlled transversal policy.
 - Local residue status:
