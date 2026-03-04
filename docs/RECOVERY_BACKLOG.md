@@ -3,6 +3,31 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (tab-specific search handlers and regex guard hardening)
+
+Session timestamp:
+1. start: `2026-03-04 01:40:00 -0300`
+2. end: `2026-03-04 01:44:21 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: search controls now route through dedicated per-tab handlers (`main`/`filters`) for `Aplicar` and `Limpar Busca`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: added dedicated handler methods `_on_general_search_apply_clicked` and `_on_general_search_clear_clicked`.
+3. `gui/mixins/filter_gui_ssa_mixin.py`: strengthened regex safety guard in `_build_column_mask` (`meta_char_count` and alternation+quantifier blocking).
+4. `tests/test_gui_filter_logic.py`: added regression `test_search_buttons_route_to_tab_specific_handlers`.
+5. `tests/test_gui_filter_logic.py`: added regression `test_build_column_mask_blocks_heavy_regex_patterns`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "search_buttons_route_to_tab_specific_handlers or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or clear_filter_button_state_syncs_across_tabs_without_switch or build_column_mask_blocks_heavy_regex_patterns"`: `4 passed`
+5. kluster auto review run in this slice: clean -> issue(P4 regex safety) -> clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on handler identity per tab and safety hardening for regex filter path.
+2. no layout/positioning change.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-04 (cross-tab sync for undo button state)
 
 Session timestamp:

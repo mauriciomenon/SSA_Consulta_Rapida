@@ -1172,12 +1172,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             search_input.setMinimumHeight(26)
         except Exception as exc:
             logger.debug("Falha ao aplicar altura minima no campo de pesquisa: %s", exc)
-        search_input.returnPressed.connect(self.initiate_filtering)
+        search_input.returnPressed.connect(
+            lambda tab=tab_kind: self._on_general_search_apply_clicked(tab)
+        )
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("Aplicar")
-        search_button.clicked.connect(self.initiate_filtering)
+        search_button.clicked.connect(
+            lambda _checked=False, tab=tab_kind: self._on_general_search_apply_clicked(tab)
+        )
         clear_filter_button = QPushButton("Limpar Busca")
-        clear_filter_button.clicked.connect(self.clear_filter)
+        clear_filter_button.clicked.connect(
+            lambda _checked=False, tab=tab_kind: self._on_general_search_clear_clicked(tab)
+        )
         clear_filter_button.setToolTip(
             "Limpa apenas a busca geral. Filtros de coluna e avancados continuam ativos."
         )
