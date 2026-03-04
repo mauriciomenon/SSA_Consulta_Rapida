@@ -182,6 +182,46 @@ DEFAULT_DISPLAY_MAPPINGS: Dict[str, str] = {
     "relacao": "Relação"
 }
 
+# Column affinity score (higher means closer to left in "show all by affinity").
+# Keep this as a plain map so UI flows can reuse it without layout coupling.
+COLUMN_AFFINITY_SCORES: Dict[str, int] = {
+    # Core identifiers
+    "numero_ssa": 1000,
+    "situacao": 980,
+    "derivada_de": 960,
+    "localizacao_codigo": 940,
+    "descricao_localizacao": 930,
+    "equipamento": 920,
+    "descricao_ssa": 900,
+    # Emissao
+    "data_cadastro": 860,
+    "semana_cadastro": 850,
+    "solicitante": 840,
+    "setor_emissor": 830,
+    "grau_prioridade_emissao": 820,
+    # Planejamento
+    "grau_prioridade_planejamento": 780,
+    "semana_programada": 770,
+    "responsavel_programacao": 760,
+    # Programacao
+    "data_inicio_programada": 730,
+    "data_programacao": 720,
+    # Reprogramacao
+    "num_reprogramacoes": 680,
+    "total_de_reprogramacoes": 670,
+    "data_inicio_reprogramada": 660,
+    "data_reprogramacao": 650,
+    "situacao_reprogramacao": 640,
+    # Execucao
+    "descricao_execucao": 600,
+    "responsavel_execucao": 590,
+    "semana_executada": 580,
+    "execucao_simples": 570,
+    "execucao_parcial": 560,
+    "concluido": 550,
+    "executado": 540,
+}
+
 # Default mapping used if column_mappings.json is missing/invalid
 DEFAULT_COLUMN_MAPPINGS: Dict[str, list] = {
     "numero_ssa": [

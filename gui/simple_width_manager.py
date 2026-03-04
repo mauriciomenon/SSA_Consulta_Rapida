@@ -32,6 +32,11 @@ class SimpleWidthManager:
         }
 
         self.expandable_columns = ['descricao_ssa', 'descricao_execucao', 'solicitante']
+        self.max_pixel_widths = {
+            "descricao_ssa": 620,
+            "descricao_execucao": 560,
+            "solicitante": 320,
+        }
 
     def compute_optimal_widths(
         self,
@@ -133,7 +138,56 @@ class SimpleWidthManager:
 
                 fixed_widths[col] += total_extra
 
+        for col, width in list(fixed_widths.items()):
+            max_px = int(self.max_pixel_widths.get(col, 1000))
+            fixed_widths[col] = max(30, min(int(width), max_px))
+
         return fixed_widths
+
+    def capture_current_column_widths(self, table_widget, current_columns) -> dict[str, int]:
+        captured: dict[str, int] = {}
+        if table_widget is None:
+            return captured
+        for idx, col_name in enumerate(list(current_columns or [])):
+            if not isinstance(col_name, str) or not col_name:
+                continue
+            try:
+                width = int(table_widget.columnWidth(idx))
+            except Exception:
+                width = 0
+            if width > 0:
+                captured[col_name] = width
+        return captured
+
+    def restore_column_widths(
+        self,
+        table_widget,
+        current_columns,
+        widths: dict[str, int],
+        *,
+        saved_widths: dict | None = None,
+        gui_widths: dict | None = None,
+    ) -> dict[str, int]:
+        applied: dict[str, int] = {}
+        if table_widget is None or not isinstance(widths, dict):
+            return applied
+        current_cols = list(current_columns or [])
+        for col_name, width in widths.items():
+            if col_name not in current_cols:
+                continue
+            idx = current_cols.index(col_name)
+            col_max = int(self.max_pixel_widths.get(col_name, 1000))
+            safe_width = max(30, min(int(width), col_max))
+            try:
+                table_widget.setColumnWidth(idx, safe_width)
+            except Exception:
+                continue
+            applied[col_name] = safe_width
+            if isinstance(saved_widths, dict):
+                saved_widths[col_name] = safe_width
+            if isinstance(gui_widths, dict):
+                gui_widths[col_name] = safe_width
+        return applied
 
     def compute_streamlit_width_buckets(
         self,
@@ -228,7 +282,7 @@ class SimpleWidthManager:
             final_px = min(final_px, baseline_cap)
             final_px = max(final_px, baseline_floor)
 
-        max_px = 900 if col_name in {"descricao_ssa", "descricao_execucao"} else 420
+        max_px = int(self.max_pixel_widths.get(col_name, 420))
         return max(40, min(max(int(header_px), int(final_px)), max_px))
 
 

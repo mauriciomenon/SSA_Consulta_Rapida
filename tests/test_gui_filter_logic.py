@@ -1458,6 +1458,86 @@ class TestGUIFilterLogic:
 
         assert calls["count"] == 1
 
+    def test_header_context_menu_exposes_show_all_columns_by_affinity_action(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Exibir todas colunas (afinidade)"):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        calls = {"count": 0}
+        monkeypatch.setattr(
+            self.window,
+            "_show_all_columns_by_affinity",
+            lambda: calls.__setitem__("count", calls["count"] + 1),
+        )
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 1
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+        self.window.show_header_context_menu(pos)
+
+        assert calls["count"] == 1
+
+    def test_show_all_columns_by_affinity_reorders_same_select_all_set(self, monkeypatch):
+        source = ["data_programacao", "descricao_execucao", "numero_ssa"]
+        captured = {}
+        monkeypatch.setattr(self.window, "_get_select_all_columns_from_selector", lambda: source.copy())
+        monkeypatch.setattr(self.window, "on_columns_changed", lambda cols: captured.setdefault("cols", cols))
+
+        self.window._show_all_columns_by_affinity()
+
+        assert set(captured["cols"]) == set(source)
+        assert captured["cols"] == ["numero_ssa", "data_programacao", "descricao_execucao"]
+
+    def test_on_header_clicked_preserves_column_widths_after_sort(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert "descricao_ssa" in self.window._current_display_columns
+        descricao_index = self.window._current_display_columns.index("descricao_ssa")
+        sort_index = self.window._current_display_columns.index("numero_ssa")
+
+        self.window.table_widget.setColumnWidth(descricao_index, 333)
+        self.window._saved_gui_column_widths["descricao_ssa"] = 333
+        self.window._gui_column_pixel_widths["descricao_ssa"] = 333
+        QApplication.processEvents()
+
+        self.window.on_header_clicked(sort_index)
+        QApplication.processEvents()
+
+        assert self.window.table_widget.columnWidth(descricao_index) == 333
+
     def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
         expanded_df = pd.concat([self.base_df.copy() for _ in range(20)], ignore_index=True)
         expanded_df["descricao_ssa"] = ["Texto curto"] * len(expanded_df)
@@ -1484,6 +1564,20 @@ class TestGUIFilterLogic:
         assert guarded_width is not None
 
         assert guarded_width <= base_width + 40
+
+    def test_best_fit_width_respects_predefined_max_for_long_columns(self):
+        series = pd.Series(["X" * 4000] * 50)
+        def _measure(value):
+            return len(str(value)) * 7
+        width = self.window.width_manager.compute_best_fit_width(
+            series=series,
+            header_text="Descricao da SSA",
+            col_name="descricao_ssa",
+            measure_text=_measure,
+            baseline_px=None,
+            sample_limit=200,
+        )
+        assert width <= self.window.width_manager.max_pixel_widths["descricao_ssa"]
 
     def test_table_header_uses_merged_default_alias_for_extra_column(self, monkeypatch):
         reduced_map = {"numero_ssa": "Numero SSA", "situacao": "Situacao"}
