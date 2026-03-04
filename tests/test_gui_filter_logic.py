@@ -521,6 +521,16 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == ''
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs(self):
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("clear_filter_button")
+            assert button is not None
+            assert button.text() == "Limpar Busca"
+            tooltip = str(button.toolTip() or "").casefold()
+            assert "apenas a busca geral" in tooltip
+            assert "coluna" in tooltip
+            assert "avancados" in tooltip
+
     def test_clear_filter_clears_only_general_search_and_keeps_advanced_filters(self):
         self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
