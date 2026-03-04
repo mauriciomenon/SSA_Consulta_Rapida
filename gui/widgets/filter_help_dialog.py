@@ -48,14 +48,14 @@ class FilterHelpDialog(QDialog):
             <p><i>Nota:</i> Nao e possivel marcar o mesmo valor em ambas as colunas simultaneamente.</p>
             <h4>Exemplos</h4>
             <ul>
-              <li><code>mel3</code> — procura por MEL3</li>
-              <li><code>pendente, programar</code> — termos combinados</li>
-              <li><code>executada, !mel4</code> — exclui MEL4</li>
-              <li><code>g076, amp</code> — combina setores</li>
-              <li><code>=NULL</code> — somente campos vazios/nulos</li>
+              <li><code>mel3</code> - procura por MEL3</li>
+              <li><code>pendente, programar</code> - termos combinados</li>
+              <li><code>executada, !mel4</code> - exclui MEL4</li>
+              <li><code>g076, amp</code> - combina setores</li>
+              <li><code>=NULL</code> - somente campos vazios/nulos</li>
             </ul>
             <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b> e <b>Ocultar</b> (oculta a linha sem limpar o valor ativo). Regras identicas as do filtro geral.</p>
+            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b>, <b>Limpar</b> e <b>Ocultar</b>. Regras identicas as do filtro geral.</p>
             <h4>Dicas</h4>
             <ul>
               <li>Nao diferencia maiusculas/minusculas</li>

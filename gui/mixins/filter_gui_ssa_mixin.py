@@ -1000,7 +1000,7 @@ class FilterGUISSAMixin:
                 display_text = str(term)
             term_box = QLineEdit(display_text)
             self._column_filter_inputs[col] = term_box
-            # Placeholder sem conectivos OU/AND — OR agora é dedicado
+            # Placeholder sem conectivos OU/AND - OR agora e dedicado
             term_box.setPlaceholderText("Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
             # Reduzido para garantir visibilidade dos botões em telas estreitas
             term_box.setMinimumWidth(220)
@@ -1049,45 +1049,94 @@ class FilterGUISSAMixin:
                         logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
-            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
-            clear_btn = QPushButton("Ocultar")
+            # Botao Limpar remove o valor do filtro, mas mantem a linha visivel.
+            clear_btn = QPushButton("Limpar")
             try:
                 clear_btn.setMinimumHeight(26)
             except Exception as exc:
-                logger.debug("Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s", col, exc)
+                logger.debug("Falha ao aplicar altura minima no botao Limpar da coluna %s: %s", col, exc)
             try:
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Limpar da coluna %s: %s", col, exc)
+            try:
+                clear_btn.setFixedWidth(66)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Limpar da coluna %s: %s", col, exc)
+            try:
+                clear_btn.setToolTip("Limpa o valor desta coluna e reaplica os filtros.")
+            except Exception as exc:
+                logger.debug("Falha ao aplicar tooltip no botao Limpar da coluna %s: %s", col, exc)
+
+            def _mk_clear_value(c=col, tb=term_box):
+                def _inner():
+                    current_text = str(self._active_column_filters.get(c, "")).strip()
+                    typed_text = str(tb.text()).strip()
+                    if not current_text and not typed_text:
+                        return
+                    self._safe_store_last_filter_state("clear_column_filter_value")
+                    self._active_column_filters[c] = ""
+                    self._sync_or_group_values(c, "")
+                    try:
+                        tb.blockSignals(True)
+                        tb.setText("")
+                    finally:
+                        try:
+                            tb.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais no input apos limpar coluna %s: %s", c, exc)
+                    self._mark_profile_as_custom()
+                    self._build_column_filters_panel()
+                    self._refresh_after_filter_change()
+                    try:
+                        if hasattr(self, "clear_filter_button"):
+                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+                    except Exception as exc:
+                        logger.debug("Falha ao atualizar botao limpar apos limpar valor da coluna %s: %s", c, exc)
+                return _inner
+            try:
+                clear_btn.clicked.connect(_mk_clear_value())
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao limpar para filtro de coluna %s: %s", col, exc)
+
+            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
+            hide_btn = QPushButton("Ocultar")
+            try:
+                hide_btn.setMinimumHeight(26)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s", col, exc)
+            try:
+                hide_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setFixedWidth(66)  # Padronizado com o botao Aplicar
+                hide_btn.setFixedWidth(66)
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
+                hide_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
             except Exception as exc:
                 logger.debug("Falha ao aplicar tooltip no botao Ocultar da coluna %s: %s", col, exc)
-            
+
             def _mk_remove_line(c=col):
                 def _inner():
                     try:
                         self._hidden_column_filter_lines.add(c)
                     except Exception:
                         self._hidden_column_filter_lines = {c}
-                    # Não altera self._active_column_filters[c]
                     self._build_column_filters_panel()
-                    # Não refiltra; apenas exibição
                 return _inner
             try:
-                clear_btn.clicked.connect(_mk_remove_line())
+                hide_btn.clicked.connect(_mk_remove_line())
             except Exception as exc:
                 logger.debug("Falha ao conectar botao ocultar para filtro de coluna %s: %s", col, exc)
-            # Oculta o botão para colunas fixas que não devem ser removidas da exibição
+
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
             row.addWidget(clear_btn)
-            # Layout order: label, input, Aplicar, Ocultar (OU button removed - only commas needed)
+            row.addWidget(hide_btn)
+            # Layout order: label, input, Aplicar, Limpar, Ocultar
             row_w = QWidget()
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
