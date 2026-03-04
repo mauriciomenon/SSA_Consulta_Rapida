@@ -60,7 +60,7 @@ This handoff is ready to reuse in the next conversation.
   5. `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
   6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
   7. `32fca7c1` (`STABILITY_PATCH`: cross-tab undo-button state sync).
-  8. pending in this working slice (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
+  8. `fcc3715e` (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
 - Deferred non-blocking:
   1. broad repository-wide non-ASCII normalization remains deferred because most findings are legacy localized strings and require controlled transversal policy.
 - Local residue status:
