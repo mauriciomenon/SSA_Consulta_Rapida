@@ -119,12 +119,13 @@ class TestGUIFilterLogic:
             if row_widget is None:
                 continue
             row_layout = row_widget.layout()
-            if row_layout is None or row_layout.count() < 4:
+            if row_layout is None or row_layout.count() < 5:
                 continue
             label_widget = row_layout.itemAt(0).widget()
             edit_widget = row_layout.itemAt(1).widget()
             apply_widget = row_layout.itemAt(2).widget()
             clear_widget = row_layout.itemAt(3).widget()
+            hide_widget = row_layout.itemAt(4).widget()
             if not isinstance(label_widget, QLabel):
                 continue
             if not isinstance(edit_widget, QLineEdit):
@@ -133,7 +134,9 @@ class TestGUIFilterLogic:
                 continue
             if not isinstance(clear_widget, QPushButton):
                 continue
-            controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget)
+            if not isinstance(hide_widget, QPushButton):
+                continue
+            controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget, hide_widget)
         return controls
 
     def test_profile_or_filters_executor_or_emissor(self):
@@ -294,7 +297,7 @@ class TestGUIFilterLogic:
         assert not any(str(v).strip() for v in self.window._active_column_filters.values())
         assert self.window._hidden_column_filter_lines == set()
 
-    def test_default_column_filter_rows_show_apply_and_hide_buttons(self):
+    def test_default_column_filter_rows_show_apply_clear_and_hide_buttons(self):
         self.window._active_column_filters = {
             col: '' for col in self.window._column_filter_default_columns()
         }
@@ -307,10 +310,12 @@ class TestGUIFilterLogic:
             else:
                 label = self.window._resolve_column_display_name(col)
             assert label in controls
-            _, apply_btn, hide_btn = controls[label]
+            _, apply_btn, clear_btn, hide_btn = controls[label]
             assert apply_btn.text() == "Aplicar"
+            assert clear_btn.text() == "Limpar"
             assert hide_btn.text() == "Ocultar"
             assert not apply_btn.isHidden()
+            assert not clear_btn.isHidden()
             assert not hide_btn.isHidden()
 
     def test_table_render_collapses_multiline_text_to_single_line(self):
@@ -619,10 +624,12 @@ class TestGUIFilterLogic:
             executor_label = self.window._resolve_column_display_name('setor_executor')
         assert emissor_label in controls
         assert executor_label in controls
-        emissor_edit, emissor_apply, emissor_clear = controls[emissor_label]
-        executor_edit, executor_apply, _ = controls[executor_label]
-        assert emissor_clear.text() == "Ocultar"
-        assert "continua ativo" in (emissor_clear.toolTip() or "").casefold()
+        emissor_edit, emissor_apply, emissor_clear, emissor_hide = controls[emissor_label]
+        executor_edit, executor_apply, _, _ = controls[executor_label]
+        assert emissor_clear.text() == "Limpar"
+        assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
+        assert emissor_hide.text() == "Ocultar"
+        assert "continua ativo" in (emissor_hide.toolTip() or "").casefold()
 
         emissor_edit.setText('MEL3, MEL4')
         cast(Any, QTest).mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
@@ -634,7 +641,7 @@ class TestGUIFilterLogic:
 
         # "Remover linha" agora apenas oculta a linha, não limpa o valor
         emissor_edit.setText('')
-        cast(Any, QTest).mouseClick(emissor_clear, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(emissor_hide, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
@@ -648,6 +655,32 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
+
+    def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
+        self.window._active_column_filters = {col: '' for col in self.window._column_filter_default_columns()}
+        self.window._build_column_filters_panel()
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        label = (
+            self.window._expand_column_alias_for_filter("descricao_ssa")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("descricao_ssa")
+        )
+        assert label in controls
+        edit_widget, apply_btn, clear_btn, _hide_btn = controls[label]
+
+        edit_widget.setText("Teste A")
+        cast(Any, QTest).mouseClick(apply_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
+
+        cast(Any, QTest).mouseClick(clear_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["descricao_ssa"] == ""
+        controls_after = self._get_column_filter_controls()
+        assert label in controls_after
 
     def test_activate_column_filter_stores_undo_snapshot(self):
         self.window._last_filter_state = None

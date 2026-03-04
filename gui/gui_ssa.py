@@ -1050,7 +1050,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
         toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
-        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo, nção clicãvel)
+        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo)
         try:
             from datetime import date
             y, w, _ = date.today().isocalendar()
@@ -1063,7 +1063,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "font-weight:600; border:1px solid palette(mid); border-radius:4px; padding:2px 6px;"
         )
         self.week_label.setStyleSheet(self._week_label_style)
-        self.week_label.setToolTip("Semana ISO atual (nção clicãvel)")
+        self.week_label.setToolTip("Semana ISO atual")
         toolbar_layout.addSpacing(6)
         toolbar_layout.addWidget(cast(Any, self.week_label))
 
