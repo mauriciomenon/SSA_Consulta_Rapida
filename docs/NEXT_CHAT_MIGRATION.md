@@ -59,7 +59,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   6. `50bf94f0` (`STABILITY_PATCH`: cross-tab clear-button state sync).
   7. `32fca7c1` (`STABILITY_PATCH`: cross-tab undo-button state sync).
   8. `fcc3715e` (`STABILITY_PATCH`: tab-specific search handlers + regex guard hardening).
-  9. pending in this working slice (`STABILITY_PATCH`: PR #43 bug-real triage fixes).
+  9. `6f1ef11b` (`STABILITY_PATCH`: PR #43 bug-real triage fixes).
 - Next cycle:
   1. keep no-layout-change policy and minimal-scope slices.
   2. monitor for regressions around async filter state and request-scoped display markers.
