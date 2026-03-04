@@ -50,7 +50,11 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
+from core.config_manager import (  # noqa: E402
+    DEFAULT_DISPLAY_MAPPINGS,
+    COLUMN_AFFINITY_SCORES,
+    atomic_write_json_file,
+)
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -2119,6 +2123,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             # Ignora a coluna de ándice
             if col_name == '#':
                 return
+            preserved_widths = self._capture_current_column_widths()
+            self._skip_width_recompute_once = True
 
             # Alterna direçção ao clicar na mesma coluna
             if getattr(self, 'sort_column', None) == col_name:
@@ -2148,6 +2154,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             self.paginator.set_dataframe(self.df_exibido)
             (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
+            self._restore_column_widths(preserved_widths)
 
             # Indicador visual na UI
             try:
@@ -2181,6 +2188,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
             best_fit_visible_action = QAction("Best fit colunas visiveis", self)
+            show_all_affinity_action = QAction("Exibir todas colunas (afinidade)", self)
 
             def _apply():
                 term = None
@@ -2218,6 +2226,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
             best_fit_visible_action.triggered.connect(self.best_fit_visible_columns)
+            show_all_affinity_action.triggered.connect(self._show_all_columns_by_affinity)
 
             cast(Any, menu).addAction(apply_action)
             if col_name in self._active_column_filters:
@@ -2225,6 +2234,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if self._active_column_filters:
                 cast(Any, menu).addAction(clear_all_action)
             cast(Any, menu).addAction(best_fit_visible_action)
+            cast(Any, menu).addAction(show_all_affinity_action)
             menu.exec(header.mapToGlobal(pos))
         except Exception as exc:
             logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
@@ -2285,6 +2295,71 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
         # As configurações ficam no arquivo gui_main_preferences.json
+
+    def _get_select_all_columns_from_selector(self) -> list[str]:
+        selector = getattr(self, "column_selector", None)
+        available = []
+        selected = []
+        default_columns = list(getattr(self, "default_columns", []) or [])
+        if selector is not None:
+            available = list(getattr(selector, "available_columns", []) or [])
+            selected = list(getattr(selector, "selected_internal_columns", []) or [])
+        canonical = list(self._get_canonical_available_columns() or [])
+        if not available:
+            available = canonical
+        else:
+            available = list(dict.fromkeys(available + [col for col in canonical if col not in available]))
+        selection = [col for col in selected if col in available]
+        if not selection:
+            selection = [col for col in default_columns if col in available]
+        remaining = [col for col in available if col not in selection]
+        return selection + remaining
+
+    def _sort_columns_by_affinity_desc(self, columns: list[str]) -> list[str]:
+        if not columns:
+            return []
+        base_index = {col: idx for idx, col in enumerate(columns)}
+        return sorted(
+            list(dict.fromkeys(columns)),
+            key=lambda col: (
+                -int(COLUMN_AFFINITY_SCORES.get(col, 0)),
+                int(base_index.get(col, 10000)),
+            ),
+        )
+
+    def _show_all_columns_by_affinity(self) -> None:
+        select_all_columns = self._get_select_all_columns_from_selector()
+        if not select_all_columns:
+            return
+        ordered_columns = self._sort_columns_by_affinity_desc(select_all_columns)
+        self.on_columns_changed(ordered_columns)
+
+    def _capture_current_column_widths(self) -> dict[str, int]:
+        width_manager = getattr(self, "width_manager", None)
+        if width_manager is None or not hasattr(width_manager, "capture_current_column_widths"):
+            return {}
+        return width_manager.capture_current_column_widths(
+            self.table_widget,
+            getattr(self, "_current_display_columns", []),
+        )
+
+    def _restore_column_widths(self, widths: dict[str, int]) -> None:
+        if not isinstance(widths, dict) or not widths:
+            return
+        width_manager = getattr(self, "width_manager", None)
+        if width_manager is None or not hasattr(width_manager, "restore_column_widths"):
+            return
+        gui_widths = getattr(self, "_gui_column_pixel_widths", None)
+        if not isinstance(gui_widths, dict):
+            gui_widths = {}
+            self._gui_column_pixel_widths = gui_widths
+        width_manager.restore_column_widths(
+            self.table_widget,
+            getattr(self, "_current_display_columns", []),
+            widths,
+            saved_widths=getattr(self, "_saved_gui_column_widths", {}),
+            gui_widths=gui_widths,
+        )
 
     def display_current_page(self, page_number):
         return ssa_gui_table.display_current_page(self, page_number)

@@ -2,7 +2,38 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 10:01 - start from here
+## CURRENT TRUTH 2026-03-04 10:29 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint7 delivered guardrails for ultra-long columns and sort width stability.
+  2. header context menu now includes `Exibir todas colunas (afinidade)`.
+- Runtime change summary:
+  1. `core/config_manager.py`: added `COLUMN_AFFINITY_SCORES` (desc ranking map for reusable column affinity order).
+  2. `gui/simple_width_manager.py`: introduced `max_pixel_widths` and hard clamp in width computation.
+  3. `gui/ssa/gui_table.py`: width apply now respects per-column max map and can skip one recompute cycle (`_skip_width_recompute_once`).
+  4. `gui/gui_ssa.py`: sort now captures/restores widths to avoid lateral width drift after asc/desc click.
+  5. `gui/gui_ssa.py`: new menu action `Exibir todas colunas (afinidade)` uses same source set as selector `Selecionar tudo`, then applies affinity order.
+  6. `tests/test_gui_filter_logic.py`: added focused regressions for:
+     - new context action exposure;
+     - show-all affinity ordering with same source set;
+     - width preservation after sort;
+     - max-width clamp for long columns.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or header_context_menu_exposes_show_all_columns_by_affinity_action or show_all_columns_by_affinity_reorders_same_select_all_set or on_header_clicked_preserves_column_widths_after_sort or best_fit_width_respects_predefined_max_for_long_columns or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `7 passed`.
+  5. kluster auto in this slice: clean across all touched files.
+- Evidence commit:
+  1. `6899894b` (`HOTFIX_BLOCKER`: align date column filters with displayed format).
+  2. pending commit in current sprint7 slice.
+- Next cycle:
+  1. user validation focused on sort behavior under repeated toggles in full-column mode.
+  2. optional extension: expose affinity order as explicit preset in column selector dialog.
+
+## HISTORICAL SNAPSHOT 2026-03-04 10:01 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

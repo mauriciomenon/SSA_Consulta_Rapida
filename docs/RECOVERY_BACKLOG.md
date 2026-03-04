@@ -3,6 +3,37 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint7 stability: width guardrails + sort stability + show-all affinity)
+
+Session timestamp:
+1. start: `2026-03-04 10:11:48 -0300`
+2. end: `2026-03-04 10:29:08 -0300`
+
+Delivered in this slice:
+1. added predefined max width guardrails for long columns:
+   - `descricao_ssa`
+   - `descricao_execucao`
+   - `solicitante`
+2. stabilized sort behavior to preserve current column widths after asc/desc sort:
+   - avoids lateral "runaway" width effect after header click.
+3. added header context action:
+   - `Exibir todas colunas (afinidade)`
+4. new affinity model (`coluna -> score desc`) introduced for ordered "show all" flow.
+5. action contract aligned to existing selector:
+   - source columns come from same select-all base (`ColumnSelector` available list/order).
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or header_context_menu_exposes_show_all_columns_by_affinity_action or show_all_columns_by_affinity_reorders_same_select_all_set or on_header_clicked_preserves_column_widths_after_sort or best_fit_width_respects_predefined_max_for_long_columns or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `7 passed`.
+5. kluster auto in this slice: clean across all touched files.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` with no GUI layout/position change.
+2. no DB/schema/data mutation.
+3. affinity ranking is now explicit and reusable for future column-order flows.
+
 ## Update 2026-03-04 (sprint6 hotfix: data_cadastro column filter trigger consistency)
 
 Session timestamp:
