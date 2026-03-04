@@ -3,6 +3,31 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (global clear baseline consistency in filter buttons)
+
+Session timestamp:
+1. start: `2026-03-04 00:00:27 -0300`
+2. end: `2026-03-04 00:07:25 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now resets column filters using `_column_filter_default_columns()` instead of hardcoded subset.
+2. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_restores_default_column_filter_keys`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_all_filters_global_resets_exclude_and_advanced_filters"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` to remove inconsistent reset behavior between related clear actions.
+2. runtime outside filter-clear path unchanged.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Evidence commit:
+1. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
+
 ## Update 2026-03-03 (follow-up regression for header context-menu undo path)
 
 Session timestamp:
