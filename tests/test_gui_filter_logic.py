@@ -1808,6 +1808,31 @@ class TestGUIFilterLogic:
         selected = self.window._get_checked_values(checks)
         assert "2" in selected
 
+    def test_on_header_clicked_sorts_num_reprogramacoes_mixed_types(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+
+        self.window.on_header_clicked(logical_index)
+        asc_vals = self.window.df_exibido["num_reprogramacoes"].tolist()
+        assert asc_vals[:3] == [0, "Reprogramacao #1", 2]
+        assert asc_vals[-2:] == ["", None]
+
+        self.window.on_header_clicked(logical_index)
+        desc_vals = self.window.df_exibido["num_reprogramacoes"].tolist()
+        assert desc_vals[:3] == [2, "Reprogramacao #1", 0]
+        assert desc_vals[-2:] == ["", None]
+
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
         self.window._save_advanced_filters_default()

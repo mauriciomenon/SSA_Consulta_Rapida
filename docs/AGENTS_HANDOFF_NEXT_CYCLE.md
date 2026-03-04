@@ -2,7 +2,32 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 08:14 - authoritative block
+## CURRENT TRUTH 2026-03-04 08:28 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. fixed runtime sort failure for mixed `num_reprogramacoes` values (`int` + legacy `str`).
+  2. added focused regression for asc/desc header sort behavior on mixed values.
+- What changed:
+  1. `gui/gui_ssa.py`: added `_sort_num_reprogramacoes_robust` and targeted routing in `on_header_clicked`.
+  2. `tests/test_gui_filter_logic.py`: added `test_on_header_clicked_sorts_num_reprogramacoes_mixed_types`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or reprogramacoes_menu_builds_without_responsavel_materialized"`: `2 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence:
+  1. pending commit in current hotfix slice.
+- Deferred non-blocking:
+  1. sprint2 implementation for reusable `best fit all visible columns` with anti-outlier guard.
+  2. sprint2 display-label cleanup without DB/runtime migration.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:14 - authoritative block
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.
