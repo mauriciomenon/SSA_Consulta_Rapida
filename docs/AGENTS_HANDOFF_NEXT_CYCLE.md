@@ -2,7 +2,34 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 06:29 - authoritative block
+## CURRENT TRUTH 2026-03-04 07:50 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. post-merge cleanup finished on local environment and git refs.
+  2. local branch set reduced to `dev` and `main`.
+  3. remote branch set reduced to `origin/dev` and `origin/main` (plus `origin/HEAD` pointer).
+  4. local preference-file noise mitigation applied for `config/gui_main_preferences.json`.
+  5. stash content audited (`config/gui_main_preferences.json`, `data/ssas.db`), awaiting final user confirmation for drop.
+- What changed:
+  1. `.gitignore`: now includes `config/gui_main_preferences.json`.
+  2. local index state: `git update-index --skip-worktree config/gui_main_preferences.json`.
+  3. local branch cleanup: removed non-core branches from workspace.
+  4. remote branch cleanup: removed stale feature/recovery refs from `origin`.
+- Validation:
+  1. `git branch --list`: only `dev`, `main`.
+  2. `git fetch --prune && git branch -r`: only `origin/dev`, `origin/main`, `origin/HEAD -> origin/main`.
+  3. periodic python gates from latest verification window remain green (`py_compile`, `ruff`, `ty`, focused `pytest`).
+  4. kluster auto in this slice: clean -> clean -> clean.
+- Evidence:
+  1. pending commit in current hygiene slice.
+- Deferred non-blocking:
+  1. final stash disposal action is pending explicit user confirmation.
+- Local residue status:
+  1. `config/gui_main_preferences.json` kept local and muted via `skip-worktree`.
+  2. `stash@{0}` kept pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 06:29 - authoritative block
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice delivered:

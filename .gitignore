@@ -473,3 +473,4 @@ config/cache/
 config/codex.sqlite3*
 config/hypercorn.toml
 config/secret_key
+config/gui_main_preferences.json

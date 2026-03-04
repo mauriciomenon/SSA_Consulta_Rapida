@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (post-merge environment cleanup and branch hygiene)
+
+Session timestamp:
+1. start: `2026-03-04 07:50:00 -0300`
+2. end: `2026-03-04 07:50:20 -0300`
+
+Delivered in this slice:
+1. `.gitignore`: added `config/gui_main_preferences.json` to repository ignore policy.
+2. local git index: applied `skip-worktree` to `config/gui_main_preferences.json` to stop local noise for tracked preference changes.
+3. branch hygiene (local): removed all branches except `dev` and `main`.
+4. branch hygiene (remote): removed non-core remote branches; remaining refs are `origin/main` and `origin/dev` (plus `origin/HEAD` pointer).
+5. stash triage: `stash@{0}` inspected; contains only `config/gui_main_preferences.json` and `data/ssas.db`.
+
+Validation:
+1. `git branch --list`: only `dev`, `main`.
+2. `git fetch --prune && git branch -r`: only `origin/main`, `origin/dev`, `origin/HEAD -> origin/main`.
+3. `git status --short`: local residue from `config/gui_main_preferences.json` neutralized by `skip-worktree`.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for environment hygiene only; no runtime behavior change.
+2. no GUI layout/positioning changes.
+3. pending explicit user confirmation: final action for `stash@{0}` (recommended path: drop).
+
 ## Update 2026-03-04 (PR #43 comments triage: real bugs fixed, noise deferred)
 
 Session timestamp:
