@@ -1377,6 +1377,80 @@ class TestGUIFilterLogic:
         snapshot_filters = self.window._last_filter_state.get("active_column_filters") or {}
         assert str(snapshot_filters.get("situacao", "")).strip() == ""
 
+    def test_header_context_menu_exposes_best_fit_visible_action(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Best fit colunas visiveis"):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        calls = {"count": 0}
+        monkeypatch.setattr(self.window, "best_fit_visible_columns", lambda: calls.__setitem__("count", calls["count"] + 1))
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 1  # "#"(0), "numero_ssa"(1)
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+        self.window.show_header_context_menu(pos)
+
+        assert calls["count"] == 1
+
+    def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
+        expanded_df = pd.concat([self.base_df.copy() for _ in range(20)], ignore_index=True)
+        expanded_df["descricao_ssa"] = ["Texto curto"] * len(expanded_df)
+
+        self.window.df_completo = expanded_df.copy()
+        self.window.df_exibido = expanded_df.copy()
+        self.window._df_last_search_filtered = expanded_df.copy()
+        self.window.paginator.set_dataframe(expanded_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        col_idx = self.window._current_display_columns.index("descricao_ssa")
+        base_width = self.window._compute_best_fit_width_for_column(col_idx)
+        assert base_width is not None
+
+        with_outlier = expanded_df.copy()
+        with_outlier.loc[len(with_outlier) - 1, "descricao_ssa"] = "X" * 5000
+        self.window.df_completo = with_outlier.copy()
+        self.window.df_exibido = with_outlier.copy()
+        self.window._df_last_search_filtered = with_outlier.copy()
+        self.window.paginator.set_dataframe(with_outlier.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        guarded_width = self.window._compute_best_fit_width_for_column(col_idx)
+        assert guarded_width is not None
+
+        assert guarded_width <= base_width + 40
+
     def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
         self.window._saved_gui_column_widths = {"descricao_ssa": 222}
         calls = {"persist": 0}
