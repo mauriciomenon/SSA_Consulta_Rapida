@@ -34,8 +34,7 @@ Use this file to migrate context to a new chat without losing execution quality.
   1. `2c7982b1` (`STABILITY_PATCH`).
   2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
   3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
-- Next evidence commit:
-  1. pending in this working slice (tooltip + 3-button row patch not committed yet).
+  4. `776c5905` (`STABILITY_PATCH`: tooltip encoding fix and 3-button row behavior).
 - Next cycle:
   1. keep no-layout-change policy and minimal-scope slices.
   2. monitor for regressions around async filter state and request-scoped display markers.
