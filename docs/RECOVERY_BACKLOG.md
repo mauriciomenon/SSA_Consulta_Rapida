@@ -3,6 +3,37 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (filter buttons stability hardening on feature branch)
+
+Session timestamp:
+1. start: `2026-03-03 23:46:42 -0300`
+2. end: `2026-03-03 23:53:25 -0300`
+
+Delivered in this slice:
+1. fixed high-risk stale async state after `clear_filter` by resetting request-scoped search markers in `gui/mixins/filter_gui_ssa_mixin.py`.
+2. raised effective general-search debounce floor to `1400 ms` in `gui/gui_ssa.py` to encourage explicit `Aplicar`.
+3. completed undo snapshot coverage for column filter activation/deactivation and header context-menu apply path.
+4. aligned help text to real column-filter controls (`Aplicar` + `Ocultar`) in `gui/widgets/filter_help_dialog.py`.
+5. added focused regressions in `tests/test_gui_filter_logic.py` for stale state clear path, debounce floor, and undo snapshots in column filter entry points.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
+5. kluster auto review runs in this slice: clean -> clean -> clean -> clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on filter-state consistency and undo coverage with minimal behavioral changes.
+2. branch used by explicit approval: `codex/fix-filter-buttons-state-sync`.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Deferred non-blocking:
+1. add a direct regression for the full Qt header context-menu interaction path that asserts undo snapshot behavior end-to-end (current coverage validates internal entry points and data path).
+
+Evidence commit:
+1. `2c7982b1` (`STABILITY_PATCH`: runtime + tests for filter-state hardening).
+
 ## Update 2026-03-03 (slice G targeted regression coverage for A/B/C)
 
 Session timestamp:
