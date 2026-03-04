@@ -3,6 +3,26 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (slice F control-doc current-truth normalization)
+
+Session timestamp:
+1. start: `2026-03-03 22:16:00 -0300`
+2. end: `2026-03-03 22:17:56 -0300`
+
+Delivered in this slice:
+1. `docs/NEXT_CHAT_MIGRATION.md`: normalized heading model to keep exactly one `CURRENT TRUTH` block at top and reclassified older `CURRENT TRUTH` sections as `HISTORICAL SNAPSHOT`.
+2. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`: normalized heading model to keep exactly one `CURRENT TRUTH` block at top and reclassified older `CURRENT TRUTH` sections as `HISTORICAL SNAPSHOT`.
+3. top blocks in migration/handoff now record this normalization as the active doc state.
+
+Validation:
+1. structural grep check: `NEXT_CHAT_MIGRATION.md` has `1` `CURRENT TRUTH` heading.
+2. structural grep check: `AGENTS_HANDOFF_NEXT_CYCLE.md` has `1` `CURRENT TRUTH` heading.
+3. runtime files unchanged in this slice.
+
+Decision and scope:
+1. this is a docs-only `DOC_SYNC` slice, no runtime/test/gui code edits.
+2. local residues remain unchanged by policy: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-03 (sprint E controlled technical debt in gui table)
 
 Delivered in this slice:

@@ -2,30 +2,28 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-03 21:12 - authoritative block
+## CURRENT TRUTH 2026-03-03 22:16 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
-  1. Sprint E controlled debt cleanup completed in GUI table module boundary.
-  2. removed dead helper method and dead facade pass-through.
+  1. Slice F docs normalization completed in control files.
+  2. only one `CURRENT TRUTH` block is now kept in each active migration/handoff doc.
 - What changed:
-  1. deleted `gui/ssa/gui_table.py::_calculate_max_chars_for_column` (no caller references).
-  2. deleted `gui/gui_ssa.py::_calculate_max_chars_for_column` wrapper.
-  3. no layout/position/UI geometry changes.
+  1. reclassified legacy `CURRENT TRUTH` headings into `HISTORICAL SNAPSHOT` in `docs/NEXT_CHAT_MIGRATION.md`.
+  2. reclassified legacy `CURRENT TRUTH` headings into `HISTORICAL SNAPSHOT` in `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`.
+  3. updated top active blocks to reflect this docs governance state.
 - Validation:
-  1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  2. `uv run --python 3.13 ruff check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  3. `uv run --python 3.13 ty check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
-  4. `uv run --python 3.13 pytest -q tests/test_gui_table_render_resilience.py tests/test_gui_filter_logic.py -k "display_current_page or column_width"`: `5 passed, 109 deselected`
-  5. kluster auto: clean -> clean
+  1. `rg '^## CURRENT TRUTH ' docs/NEXT_CHAT_MIGRATION.md | wc -l`: `1`
+  2. `rg '^## CURRENT TRUTH ' docs/AGENTS_HANDOFF_NEXT_CYCLE.md | wc -l`: `1`
+  3. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py interface/cli_enhancement_manager.py gui/ssa/gui_table.py gui/gui_ssa.py`: pass
 - Next state:
-  1. Sprint A-E package closed in this lane.
+  1. Sprint A-E package remains closed in this lane.
   2. keep future fixes minimal and behavior-preserving.
 - Local residue status:
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
 
-## CURRENT TRUTH 2026-03-03 19:31 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-03 19:31 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
@@ -47,7 +45,7 @@ This handoff is ready to reuse in the next conversation.
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
 
-## CURRENT TRUTH 2026-03-03 19:27 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-03 19:27 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
@@ -70,7 +68,7 @@ This handoff is ready to reuse in the next conversation.
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
 
-## CURRENT TRUTH 2026-03-03 19:24 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-03 19:24 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
@@ -94,7 +92,7 @@ This handoff is ready to reuse in the next conversation.
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
 
-## CURRENT TRUTH 2026-03-03 19:20 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-03 19:20 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
@@ -117,7 +115,7 @@ This handoff is ready to reuse in the next conversation.
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
 
-## CURRENT TRUTH 2026-03-03 15:25 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-03 15:25 - authoritative block
 
 - Active branch: `dev`.
 - Source of truth order:
@@ -136,7 +134,7 @@ This handoff is ready to reuse in the next conversation.
   1. no policy decision remains only in chat.
   2. mirror approved rules into control docs in the same slice.
 
-## CURRENT TRUTH 2026-03-01 23:55 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-01 23:55 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.29`.
@@ -192,7 +190,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 22:10 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 22:10 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -237,7 +235,7 @@ This handoff is ready to reuse in the next conversation.
   - blocks below remain historical record.
   - doc hygiene rule: do not promote older blocks above this one.
 
-## CURRENT TRUTH 2026-02-28 12:25 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 12:25 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.25.0`.
@@ -262,7 +260,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 04:40 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 04:40 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -280,7 +278,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 04:10 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 04:10 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -298,7 +296,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 03:35 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 03:35 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -316,7 +314,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 02:55 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 02:55 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -335,7 +333,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 02:05 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 02:05 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -354,7 +352,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 01:10 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 01:10 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -375,7 +373,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 00:18 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 00:18 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -392,7 +390,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-28 00:00 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-28 00:00 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -414,7 +412,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-27 16:32 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-27 16:32 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -438,7 +436,7 @@ This handoff is ready to reuse in the next conversation.
   - this block is now the source of truth for continuation.
   - blocks below remain historical record.
 
-## CURRENT TRUTH 2026-02-27 15:53 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-27 15:53 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -466,7 +464,7 @@ This handoff is ready to reuse in the next conversation.
 - Operational note:
   - blocks below are historical record and must not override this top block.
 
-## CURRENT TRUTH 2026-02-26 21:40 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-26 21:40 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.24.0`.
@@ -491,7 +489,7 @@ This handoff is ready to reuse in the next conversation.
 - Operational note:
   - blocks below are historical record and must not override this top block.
 
-## CURRENT TRUTH 2026-02-26 17:05 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-26 17:05 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.22.0`.
@@ -509,7 +507,7 @@ This handoff is ready to reuse in the next conversation.
 - Operational note:
   - older sections below are historical record only.
 
-## CURRENT TRUTH 2026-02-26 14:07 - authoritative block
+## HISTORICAL SNAPSHOT 2026-02-26 14:07 - authoritative block
 
 - Active branch: `codex/dev-filtros-stability`.
 - Local release baseline: `4.22.0`.
