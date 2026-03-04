@@ -170,7 +170,8 @@ class SimpleWidthManager:
         header_text: str,
         col_name: str,
         measure_text,
-        sample_limit: int = 2000,
+        baseline_px: int | None = None,
+        sample_limit: int = 800,
     ) -> int:
         """Compute deterministic best-fit width with anti-outlier guard."""
         normalized_header = str(header_text or col_name or "").strip()
@@ -195,23 +196,40 @@ class SimpleWidthManager:
             sample_series = sample_series.sample(n=int(sample_limit), random_state=0)
 
         normalized = sample_series.map(lambda value: value.replace("\n", " ").replace("\r", " ").strip())
-        lengths = normalized.map(len)
-        lengths = lengths[lengths > 0]
+        measure_cache: dict[str, int] = {}
 
-        header_chars = max(6, len(normalized_header))
-        if len(lengths) == 0:
-            target_chars = header_chars
+        def _measure_cached(value: str) -> int:
+            cached = measure_cache.get(value)
+            if cached is None:
+                cached = int(measure_text(value))
+                measure_cache[value] = cached
+            return cached
+
+        widths_px = normalized.map(_measure_cached)
+        widths_px = widths_px[widths_px > 0]
+
+        if len(widths_px) == 0:
+            target_px = int(header_px)
         else:
-            median_chars = int(lengths.median())
-            p90_chars = int(lengths.quantile(0.90))
-            p95_chars = int(lengths.quantile(0.95))
-            outlier_guard = max(header_chars, median_chars * 3)
-            target_chars = max(header_chars, median_chars, p90_chars)
-            target_chars = min(target_chars, p95_chars, outlier_guard)
+            median_px = int(widths_px.median())
+            p85_px = int(widths_px.quantile(0.85))
+            p92_px = int(widths_px.quantile(0.92))
+            outlier_guard_px = max(int(header_px), int(median_px * 2.4))
+            target_px = max(int(header_px), median_px, p85_px)
+            target_px = min(target_px, p92_px, outlier_guard_px)
 
-        target_px = int(measure_text("W" * max(1, target_chars))) + 26
+        final_px = int(target_px) + 26
+
+        baseline_value = int(baseline_px or 0)
+        if baseline_value > 0:
+            # Keep close to real Qt auto-fit behavior and avoid width explosions.
+            baseline_cap = int(max(int(header_px) + 24, baseline_value * 1.35 + 12))
+            baseline_floor = int(max(int(header_px), baseline_value + 6))
+            final_px = min(final_px, baseline_cap)
+            final_px = max(final_px, baseline_floor)
+
         max_px = 900 if col_name in {"descricao_ssa", "descricao_execucao"} else 420
-        return max(40, min(max(int(header_px), int(target_px)), max_px))
+        return max(40, min(max(int(header_px), int(final_px)), max_px))
 
 
 class SimpleCacheManager:

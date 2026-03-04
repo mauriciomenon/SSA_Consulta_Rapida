@@ -2,7 +2,30 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 09:11 - start from here
+## CURRENT TRUTH 2026-03-04 09:27 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint4 delivered: best-fit width behavior recalibrated to align with real Qt auto-fit baseline.
+  2. performance hardening added to best-fit text measurement path.
+- Runtime change summary:
+  1. `gui/simple_width_manager.py`: best-fit now uses sampled real text pixel widths (not synthetic `"W"*N` sizing).
+  2. `gui/simple_width_manager.py`: baseline clamp uses Qt auto-fit reference plus anti-outlier limits.
+  3. `gui/simple_width_manager.py`: added measurement cache and reduced default sample size (`800`).
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action or table_header_uses_merged_default_alias_for_extra_column"`: `3 passed`.
+  5. kluster auto in this slice: issue(P4) -> clean -> clean.
+- Evidence commit:
+  1. pending commit in current sprint4 slice.
+- Next cycle:
+  1. immediate diagnostic slice for reprogramacao fields (`num_reprogramacoes`, `total_de_reprogramacoes`, `situacao_reprogramacao`) with source/use-risk mapping.
+  2. decide policy: keep current behavior, force numeric canonical source, or defer to DB cleanup sprint.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:11 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.
