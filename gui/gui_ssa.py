@@ -2078,6 +2078,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             sip_module=sip,
         )
 
+    def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
+        """Sort num_reprogramacoes with mixed legacy values without TypeError."""
+        if self.df_exibido is None or self.df_exibido.empty:
+            return self.df_exibido
+        if "num_reprogramacoes" not in self.df_exibido.columns:
+            return self.df_exibido
+
+        raw_series = self.df_exibido["num_reprogramacoes"]
+        numeric = pd.to_numeric(raw_series, errors="coerce")
+        if bool(numeric.isna().any()):
+            extracted = raw_series.astype(str).str.extract(r"(-?\d+)")[0]
+            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
+            numeric = numeric.fillna(extracted_numeric)
+
+        sort_df = self.df_exibido.assign(
+            __reprog_is_nan=numeric.isna(),
+            __reprog_num=numeric,
+            __reprog_txt=raw_series.astype(str).str.casefold(),
+        )
+        sorted_df = sort_df.sort_values(
+            by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
+            ascending=[True, bool(ascending), True],
+            na_position="last",
+            kind="mergesort",
+        )
+        return sorted_df.drop(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+
     def on_header_clicked(self, logical_index: int):
         try:
             if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -2101,11 +2128,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             # Ordena resultado filtrado atual e reinicia paginaçção
             try:
-                self.df_exibido = self.df_exibido.sort_values(
-                    by=self.sort_column,
-                    ascending=self.sort_ascending,
-                    na_position='last'
-                )
+                if self.sort_column == "num_reprogramacoes":
+                    self.df_exibido = self._sort_num_reprogramacoes_robust(self.sort_ascending)
+                else:
+                    self.df_exibido = self.df_exibido.sort_values(
+                        by=self.sort_column,
+                        ascending=self.sort_ascending,
+                        na_position='last'
+                    )
                 self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(

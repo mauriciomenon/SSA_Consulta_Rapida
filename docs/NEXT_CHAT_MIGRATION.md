@@ -2,7 +2,30 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 08:14 - start from here
+## CURRENT TRUTH 2026-03-04 08:28 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. sprint1 blocker hotfix delivered for mixed-type sort in `num_reprogramacoes`.
+  2. targeted regression test added for asc/desc sort with legacy mixed values.
+- Runtime change summary:
+  1. `gui/gui_ssa.py`: `on_header_clicked` now uses robust sort path for `num_reprogramacoes` to avoid `int` vs `str` comparison crash.
+  2. `tests/test_gui_filter_logic.py`: new regression `test_on_header_clicked_sorts_num_reprogramacoes_mixed_types`.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or reprogramacoes_menu_builds_without_responsavel_materialized"`: `2 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence commit:
+  1. pending commit in current hotfix slice.
+- Next cycle:
+  1. sprint2 step A: add reusable `best fit all visible columns` action (header/table context menu entry point) with anti-outlier rule.
+  2. sprint2 step B: label cleanup in table and add-columns flow (display naming only, no DB rewrite).
+  3. keep no-layout-change policy and minimal-risk patching.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:14 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

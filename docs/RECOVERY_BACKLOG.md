@@ -3,6 +3,28 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint1 hotfix: robust sort for num_reprogramacoes)
+
+Session timestamp:
+1. start: `2026-03-04 08:24:32 -0300`
+2. end: `2026-03-04 08:28:21 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: added `_sort_num_reprogramacoes_robust` and routed header sort for `num_reprogramacoes` to mixed-type-safe path.
+2. `tests/test_gui_filter_logic.py`: added regression `test_on_header_clicked_sorts_num_reprogramacoes_mixed_types`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or reprogramacoes_menu_builds_without_responsavel_materialized"`: `2 passed`.
+5. kluster auto in this slice: clean -> clean.
+
+Decision and scope:
+1. this is a `HOTFIX_BLOCKER` for active runtime warning/failure in column sort.
+2. no GUI layout/positioning change.
+3. next prioritized slice remains sprint2 (`best fit all visible columns` with anti-outlier guard + label cleanup).
+
 ## Update 2026-03-04 (release snapshot v4.29 + baseline promote to v4.30)
 
 Session timestamp:
