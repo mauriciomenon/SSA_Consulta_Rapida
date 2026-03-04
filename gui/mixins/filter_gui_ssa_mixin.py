@@ -224,6 +224,38 @@ class FilterGUISSAMixin:
             has_advanced = False
         return bool(has_search or has_column_filters or has_exclude_ste or has_advanced)
 
+    def _iter_clear_filter_buttons(self):
+        seen_ids = set()
+        direct_button = getattr(self, "clear_filter_button", None)
+        if direct_button is not None:
+            seen_ids.add(id(direct_button))
+            yield direct_button
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            button = ctx.get("clear_filter_button")
+            if button is None:
+                continue
+            button_id = id(button)
+            if button_id in seen_ids:
+                continue
+            seen_ids.add(button_id)
+            yield button
+
+    def _set_clear_filter_buttons_enabled(self, enabled: bool) -> None:
+        target_state = bool(enabled)
+        for button in self._iter_clear_filter_buttons():
+            try:
+                button.setEnabled(target_state)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar estado de botao limpar em contexto de aba: %s", exc)
+
+    def _sync_clear_filter_button_state(self) -> None:
+        self._set_clear_filter_buttons_enabled(self._has_any_active_filters())
+
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
         try:
@@ -285,8 +317,7 @@ class FilterGUISSAMixin:
         # remove empty chunk lists
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
 
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
 
         if chunk_terms_lists:
             display_text = self._format_search_display(chunk_terms_lists)
@@ -443,8 +474,7 @@ class FilterGUISSAMixin:
             filtered_total=filtered_total_current,
             original_total=len(self.df_completo) if hasattr(self, "df_completo") and self.df_completo is not None else None,
         )
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
         self._apply_search_display()
         table_widget = getattr(self, "table_widget", None)
         table_widget_valid = _is_search_widget_valid(table_widget)
@@ -687,11 +717,7 @@ class FilterGUISSAMixin:
         self._df_last_search_filtered = self.df_completo.copy()
         self._refresh_after_filter_change()
         self._set_filtered_count_status("")
-        try:
-            if hasattr(self, 'clear_filter_button'):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar filtro: %s", exc)
+        self._sync_clear_filter_button_state()
         # Atualizar resumo de filtros
         try:
             self._update_filters_summary()
@@ -1042,11 +1068,7 @@ class FilterGUISSAMixin:
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
-                    try:
-                        if hasattr(self, "clear_filter_button"):
-                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-                    except Exception as exc:
-                        logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
+                    self._sync_clear_filter_button_state()
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
             # Botao Limpar remove o valor do filtro, mas mantem a linha visivel.
@@ -1088,11 +1110,7 @@ class FilterGUISSAMixin:
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
-                    try:
-                        if hasattr(self, "clear_filter_button"):
-                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-                    except Exception as exc:
-                        logger.debug("Falha ao atualizar botao limpar apos limpar valor da coluna %s: %s", c, exc)
+                    self._sync_clear_filter_button_state()
                 return _inner
             try:
                 clear_btn.clicked.connect(_mk_clear_value())
@@ -1248,11 +1266,7 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
-            try:
-                if hasattr(self, "clear_filter_button"):
-                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception as exc:
-                logger.debug("Falha ao atualizar botao limpar apos limpar filtro de coluna %s: %s", col_name, exc)
+            self._sync_clear_filter_button_state()
 
 
     def _clear_all_column_filters(self):
@@ -1278,11 +1292,7 @@ class FilterGUISSAMixin:
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
-        try:
-            if hasattr(self, "clear_filter_button"):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
+        self._sync_clear_filter_button_state()
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
@@ -1410,8 +1420,7 @@ class FilterGUISSAMixin:
 
         # Atualizar interface
         self._set_filtered_count_status("")
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
 
         # Atualizar resumo de filtros
         self._update_filters_summary()
@@ -1823,11 +1832,7 @@ class FilterGUISSAMixin:
             self._update_filters_summary()
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
-        try:
-            if hasattr(self, "clear_filter_button"):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar no refresh de filtros: %s", exc)
+        self._sync_clear_filter_button_state()
         try:
             self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or ""))
         except Exception as exc:
@@ -1959,10 +1964,7 @@ class FilterGUISSAMixin:
                 self._update_filters_summary()
             except Exception as exc:
                 logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
-            try:
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception as exc:
-                logger.debug("Falha ao atualizar estado do botao limpar no restore: %s", exc)
+            self._sync_clear_filter_button_state()
             selector = getattr(self, 'profile_selector', None)
             if selector is not None:
                 idx = selector.findData(self.current_filter_profile) if self.current_filter_profile else selector.findData(None)

@@ -600,6 +600,24 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_filter_button_state_syncs_across_tabs_without_switch(self):
+        buttons = []
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("clear_filter_button")
+            if button is not None:
+                buttons.append(button)
+        assert len(buttons) == 2
+        assert all(button.isEnabled() is False for button in buttons)
+
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert all(button.isEnabled() is True for button in buttons)
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+        assert all(button.isEnabled() is False for button in buttons)
+
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)
