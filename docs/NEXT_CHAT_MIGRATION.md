@@ -2,6 +2,28 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-03 21:12 - start from here
+
+- Active branch: `dev`.
+- Slice status:
+  1. Sprint E delivered: controlled debt cleanup by removing dead GUI table helper/facade methods.
+  2. no GUI layout/position changes.
+- Runtime change summary:
+  1. removed `gui/ssa/gui_table.py::_calculate_max_chars_for_column` (dead symbol, no callers).
+  2. removed `gui/gui_ssa.py::_calculate_max_chars_for_column` facade pass-through.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  2. `uv run --python 3.13 ruff check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  3. `uv run --python 3.13 ty check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_gui_table_render_resilience.py tests/test_gui_filter_logic.py -k "display_current_page or column_width"`: `5 passed, 109 deselected`
+  5. kluster auto: clean -> clean
+- Next cycle:
+  1. no open blocker from Sprint A-E package in current lane.
+  2. keep monitoring with minimal slices and preserve no-layout-change policy.
+- Local residue contract:
+  1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
+  2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
+
 ## CURRENT TRUTH 2026-03-03 19:31 - start from here
 
 - Active branch: `dev`.

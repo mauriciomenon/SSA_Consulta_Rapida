@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-03 21:12 - authoritative block
+
+- Active branch: `dev`.
+- Slice delivered:
+  1. Sprint E controlled debt cleanup completed in GUI table module boundary.
+  2. removed dead helper method and dead facade pass-through.
+- What changed:
+  1. deleted `gui/ssa/gui_table.py::_calculate_max_chars_for_column` (no caller references).
+  2. deleted `gui/gui_ssa.py::_calculate_max_chars_for_column` wrapper.
+  3. no layout/position/UI geometry changes.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  2. `uv run --python 3.13 ruff check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  3. `uv run --python 3.13 ty check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_gui_table_render_resilience.py tests/test_gui_filter_logic.py -k "display_current_page or column_width"`: `5 passed, 109 deselected`
+  5. kluster auto: clean -> clean
+- Next state:
+  1. Sprint A-E package closed in this lane.
+  2. keep future fixes minimal and behavior-preserving.
+- Local residue status:
+  1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
+  2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
+
 ## CURRENT TRUTH 2026-03-03 19:31 - authoritative block
 
 - Active branch: `dev`.
