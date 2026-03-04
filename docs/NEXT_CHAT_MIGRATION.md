@@ -2,13 +2,14 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-03 23:53 - start from here
+## CURRENT TRUTH 2026-03-03 23:59 - start from here
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice status:
   1. high-risk stale async state after `Limpar Filtro` fixed.
   2. medium-risk undo snapshot gaps for column filter entry points fixed.
   3. debounce floor increased to encourage explicit `Aplicar` usage.
+  4. deferred header context-menu apply + undo end-to-end regression added and validated.
 - Runtime change summary:
   1. `gui/mixins/filter_gui_ssa_mixin.py`: `clear_filter` now resets `_active_filter_search_display` and `_active_filter_search_request_id`.
   2. `gui/gui_ssa.py`: general search debounce now enforces minimum `1400 ms`.
@@ -19,12 +20,14 @@ Use this file to migrate context to a new chat without losing execution quality.
   2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
   3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
   4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
-  5. kluster auto: clean -> clean -> clean -> clean
+  5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
+  6. kluster auto: clean -> clean -> clean -> clean -> clean
 - Evidence commit:
   1. `2c7982b1` (`STABILITY_PATCH`).
+  2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
 - Next cycle:
-  1. add direct GUI interaction regression for header context-menu apply + undo end-to-end.
-  2. keep no-layout-change policy and minimal-scope slices.
+  1. keep no-layout-change policy and minimal-scope slices.
+  2. monitor for regressions around async filter state and request-scoped display markers.
 - Local residue contract:
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
