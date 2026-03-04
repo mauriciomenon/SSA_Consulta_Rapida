@@ -3,6 +3,8 @@ Simple Width Manager - Versão simplificada para integração imediata
 Elimina código frankenstein com implementação funcional mínima.
 """
 
+import pandas as pd
+
 class SimpleWidthManager:
     """
     Gerenciador simples de larguras de colunas.
@@ -161,6 +163,55 @@ class SimpleWidthManager:
             else:
                 buckets[col] = "large"
         return buckets
+
+    def compute_best_fit_width(
+        self,
+        series,
+        header_text: str,
+        col_name: str,
+        measure_text,
+        sample_limit: int = 2000,
+    ) -> int:
+        """Compute deterministic best-fit width with anti-outlier guard."""
+        normalized_header = str(header_text or col_name or "").strip()
+        if normalized_header.startswith("[f] "):
+            normalized_header = normalized_header[4:]
+        header_px = int(measure_text(normalized_header)) + 28
+
+        if col_name == "#":
+            return max(26, min(int(header_px), 90))
+
+        if series is None:
+            return max(40, min(int(header_px), 420))
+
+        try:
+            sample_series = pd.Series(series).dropna().astype(str)
+        except Exception:
+            sample_series = pd.Series(dtype="string")
+        if len(sample_series) == 0:
+            return max(40, min(int(header_px), 420))
+
+        if len(sample_series) > int(sample_limit):
+            sample_series = sample_series.sample(n=int(sample_limit), random_state=0)
+
+        normalized = sample_series.map(lambda value: value.replace("\n", " ").replace("\r", " ").strip())
+        lengths = normalized.map(len)
+        lengths = lengths[lengths > 0]
+
+        header_chars = max(6, len(normalized_header))
+        if len(lengths) == 0:
+            target_chars = header_chars
+        else:
+            median_chars = int(lengths.median())
+            p90_chars = int(lengths.quantile(0.90))
+            p95_chars = int(lengths.quantile(0.95))
+            outlier_guard = max(header_chars, median_chars * 3)
+            target_chars = max(header_chars, median_chars, p90_chars)
+            target_chars = min(target_chars, p95_chars, outlier_guard)
+
+        target_px = int(measure_text("W" * max(1, target_chars))) + 26
+        max_px = 900 if col_name in {"descricao_ssa", "descricao_execucao"} else 420
+        return max(40, min(max(int(header_px), int(target_px)), max_px))
 
 
 class SimpleCacheManager:

@@ -2,7 +2,35 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 08:28 - authoritative block
+## CURRENT TRUTH 2026-03-04 08:39 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. best-fit for visible columns added to header context menu.
+  2. best-fit width algorithm centralized in `SimpleWidthManager` with anti-outlier guard.
+  3. existing per-column auto-fit path now reuses centralized best-fit logic.
+  4. focused regressions added for menu action trigger and outlier protection.
+- What changed:
+  1. `gui/simple_width_manager.py`: new `compute_best_fit_width(...)`.
+  2. `gui/gui_ssa.py`: new `best_fit_visible_columns` flow and header menu action.
+  3. `tests/test_gui_filter_logic.py`: two regressions for best-fit action/guard.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `3 passed`.
+  5. kluster auto in this slice: clarification(P4) -> issue(P3) -> issue(P4) -> clean.
+- Evidence:
+  1. pending commit in current sprint2 slice.
+- Deferred non-blocking:
+  1. next display-label cleanup sprint (friendly naming consistency).
+  2. separate db-saneamento sprint remains pending.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:28 - authoritative block
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

@@ -2179,6 +2179,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
+            best_fit_visible_action = QAction("Best fit colunas visiveis", self)
 
             def _apply():
                 term = None
@@ -2215,12 +2216,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             apply_action.triggered.connect(_apply)
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
+            best_fit_visible_action.triggered.connect(self.best_fit_visible_columns)
 
             cast(Any, menu).addAction(apply_action)
             if col_name in self._active_column_filters:
                 cast(Any, menu).addAction(clear_action)
             if self._active_column_filters:
                 cast(Any, menu).addAction(clear_all_action)
+            cast(Any, menu).addAction(best_fit_visible_action)
             menu.exec(header.mapToGlobal(pos))
         except Exception as exc:
             logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
@@ -2514,8 +2517,57 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self.visible_columns.remove(internal_column)
                 self.on_columns_changed(self.visible_columns)
 
+    def _compute_best_fit_width_for_column(self, column_index: int, sample_limit: int = 2000) -> int | None:
+        if column_index < 0 or column_index >= self.table_widget.columnCount():
+            return None
+        cols = getattr(self, "_current_display_columns", None)
+        if not cols or column_index >= len(cols):
+            return None
+        col_name = cols[column_index]
+        header_item = self.table_widget.horizontalHeaderItem(column_index)
+        header_text = str(header_item.text()) if header_item is not None else str(col_name)
+        width_manager = getattr(self, "width_manager", None)
+        font_metrics = self.table_widget.fontMetrics()
+        series = None
+        if self.df_exibido is not None and not self.df_exibido.empty and col_name in self.df_exibido.columns:
+            series = self.df_exibido[col_name]
+        if width_manager is not None and hasattr(width_manager, "compute_best_fit_width"):
+            return int(
+                width_manager.compute_best_fit_width(
+                    series=series,
+                    header_text=header_text,
+                    col_name=col_name,
+                    measure_text=font_metrics.horizontalAdvance,
+                    sample_limit=int(sample_limit),
+                )
+            )
+        header_px = int(font_metrics.horizontalAdvance(str(header_text))) + 28
+        if col_name == "#":
+            return max(26, min(int(header_px), 90))
+        return max(40, min(int(header_px), 420))
+
+    def _best_fit_column_width(self, column_index: int) -> bool:
+        width = self._compute_best_fit_width_for_column(column_index)
+        if width is None:
+            return False
+        old_width = self.table_widget.columnWidth(column_index)
+        self.table_widget.setColumnWidth(column_index, int(width))
+        self._on_header_section_resized(column_index, old_width, int(width))
+        return True
+
+    def best_fit_visible_columns(self):
+        col_count = self.table_widget.columnCount()
+        if col_count <= 0:
+            return
+        for column_index in range(col_count):
+            if column_index == 0:
+                continue
+            self._best_fit_column_width(column_index)
+
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
+        if self._best_fit_column_width(column_index):
+            return
         old_width = self.table_widget.columnWidth(column_index)
         self.table_widget.resizeColumnToContents(column_index)
         new_width = self.table_widget.columnWidth(column_index)

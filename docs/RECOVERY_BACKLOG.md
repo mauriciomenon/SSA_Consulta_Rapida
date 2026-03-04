@@ -3,6 +3,36 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint2 best-fit visible columns via width manager)
+
+Session timestamp:
+1. start: `2026-03-04 08:31:10 -0300`
+2. end: `2026-03-04 08:39:30 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: added header context-menu action `Best fit colunas visiveis`.
+2. `gui/gui_ssa.py`: added reusable orchestration methods:
+   - `_compute_best_fit_width_for_column`
+   - `_best_fit_column_width`
+   - `best_fit_visible_columns`
+3. `gui/simple_width_manager.py`: added centralized `compute_best_fit_width(...)` with anti-outlier guard.
+4. `gui/gui_ssa.py`: `auto_fit_column` now reuses best-fit path first.
+5. `tests/test_gui_filter_logic.py`: added regressions:
+   - `test_header_context_menu_exposes_best_fit_visible_action`
+   - `test_best_fit_width_guard_ignores_single_extreme_outlier`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `3 passed`.
+5. kluster auto in this slice: clarification(P4 centralize width logic) -> issue(P3 map contract) -> issue(P4 pandas constructor compatibility) -> clean.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on reusable best-fit behavior only.
+2. no GUI layout/positioning change.
+3. db/runtime schema migration remains deferred to next sprint lane.
+
 ## Update 2026-03-04 (sprint1 hotfix: robust sort for num_reprogramacoes)
 
 Session timestamp:
