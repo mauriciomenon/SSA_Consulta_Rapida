@@ -978,8 +978,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Larguras salvas por coluna (das configurações JSON) - mantido para compatibilidade
         self._saved_gui_column_widths = GUI_MAIN_PREFERENCES.get("column_widths", {}).copy()
 
-        # Debounce de filtro (da configuraçção JSON)
+        # Debounce de filtro (da configuracao JSON).
+        # Mantemos um piso para incentivar uso do botao "Aplicar" sem remover debounce.
         debounce_delay = gui_settings.get("debounce_delay", 250)
+        try:
+            debounce_delay = int(debounce_delay)
+        except Exception:
+            debounce_delay = 250
+        minimum_search_debounce_ms = 1400
+        if debounce_delay < minimum_search_debounce_ms:
+            debounce_delay = minimum_search_debounce_ms
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
         self._debounce_timer.setInterval(debounce_delay)
@@ -2147,7 +2155,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 else:
                     term = self.search_input.text().strip()
                 if term is not None:
-                    self._active_column_filters[col_name] = str(term).strip()
+                    normalized_term = str(term).strip()
+                    if str(self._active_column_filters.get(col_name, "")).strip() != normalized_term:
+                        self._safe_store_last_filter_state("header_context_apply_column_filter")
+                    self._active_column_filters[col_name] = normalized_term
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()

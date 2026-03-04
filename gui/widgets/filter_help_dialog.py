@@ -55,7 +55,7 @@ class FilterHelpDialog(QDialog):
               <li><code>=NULL</code> — somente campos vazios/nulos</li>
             </ul>
             <h4>Filtro por coluna</h4>
-            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b> e <b>Limpar</b>. Regras identicas as do filtro geral.</p>
+            <p>Abra o menu com <b>clique direito</b> no titulo da coluna. O painel a direita mostra os filtros por coluna com botoes <b>Aplicar</b> e <b>Ocultar</b> (oculta a linha sem limpar o valor ativo). Regras identicas as do filtro geral.</p>
             <h4>Dicas</h4>
             <ul>
               <li>Nao diferencia maiusculas/minusculas</li>

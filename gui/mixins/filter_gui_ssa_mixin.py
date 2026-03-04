@@ -680,6 +680,8 @@ class FilterGUISSAMixin:
                 except Exception as unblock_exc:
                     logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
+        self._active_filter_search_display = ""
+        self._active_filter_search_request_id = None
         # Nao limpa filtros avancados nem filtros de coluna aqui.
         # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
         self._df_last_search_filtered = self.df_completo.copy()
@@ -888,6 +890,7 @@ class FilterGUISSAMixin:
         if not col_name:
             return
         if col_name not in self._active_column_filters:
+            self._safe_store_last_filter_state("activate_column_filter")
             self._active_column_filters[col_name] = ""
             try:
                 self._mark_profile_as_custom()
@@ -902,6 +905,9 @@ class FilterGUISSAMixin:
         """Remove coluna do conjunto de filtros ativos e atualiza a interface."""
         if not col_name:
             return
+        if col_name not in self._active_column_filters and col_name not in self._column_to_or_group:
+            return
+        self._safe_store_last_filter_state("deactivate_column_filter")
         removed = False
         if col_name in self._column_to_or_group:
             group = self._column_to_or_group.get(col_name)
