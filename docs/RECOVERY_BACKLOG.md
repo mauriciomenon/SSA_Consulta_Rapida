@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (cross-tab sync for undo button state)
+
+Session timestamp:
+1. start: `2026-03-04 01:20:00 -0300`
+2. end: `2026-03-04 01:39:47 -0300`
+
+Delivered in this slice:
+1. `gui/mixins/filter_gui_ssa_mixin.py`: added centralized helpers to sync `undo_filter_btn` enabled-state across all tab contexts.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: `_update_undo_button_state` now updates all tab undo buttons, not only active tab.
+3. `tests/test_gui_filter_logic.py`: added regression `test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore or clear_advanced_filters_forces_refresh_when_pending_schedule or test_header_context_menu_apply_stores_undo_snapshot"`: `3 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for undo-state consistency and advanced-filter undo coverage.
+2. no layout/positioning changes.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-04 (cross-tab sync for clear-search button state)
 
 Session timestamp:

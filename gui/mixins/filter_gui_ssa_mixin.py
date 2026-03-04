@@ -256,6 +256,35 @@ class FilterGUISSAMixin:
     def _sync_clear_filter_button_state(self) -> None:
         self._set_clear_filter_buttons_enabled(self._has_any_active_filters())
 
+    def _iter_undo_filter_buttons(self):
+        seen_ids = set()
+        direct_button = getattr(self, "undo_filter_btn", None)
+        if direct_button is not None:
+            seen_ids.add(id(direct_button))
+            yield direct_button
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            button = ctx.get("undo_filter_btn")
+            if button is None:
+                continue
+            button_id = id(button)
+            if button_id in seen_ids:
+                continue
+            seen_ids.add(button_id)
+            yield button
+
+    def _set_undo_filter_buttons_enabled(self, enabled: bool) -> None:
+        target_state = bool(enabled)
+        for button in self._iter_undo_filter_buttons():
+            try:
+                button.setEnabled(target_state)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar estado de botao undo em contexto de aba: %s", exc)
+
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
         try:
@@ -1980,13 +2009,7 @@ class FilterGUISSAMixin:
 
 
     def _update_undo_button_state(self) -> None:
-        btn = getattr(self, "undo_filter_btn", None)
-        if btn is None:
-            return
-        try:
-            btn.setEnabled(bool(getattr(self, "_last_filter_state", None)))
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao de desfazer filtros: %s", exc)
+        self._set_undo_filter_buttons_enabled(bool(getattr(self, "_last_filter_state", None)))
 
 
     def _apply_search_display(self):
