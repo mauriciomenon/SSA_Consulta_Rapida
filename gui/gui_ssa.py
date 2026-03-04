@@ -983,9 +983,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         debounce_delay = gui_settings.get("debounce_delay", 250)
         try:
             debounce_delay = int(debounce_delay)
-        except Exception:
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Valor invalido para debounce_delay nas preferencias (%s); usando fallback 250 ms.",
+                exc,
+            )
             debounce_delay = 250
-        minimum_search_debounce_ms = 1400
+        minimum_search_debounce_ms = 1400  # ms
         if debounce_delay < minimum_search_debounce_ms:
             debounce_delay = minimum_search_debounce_ms
         self._debounce_timer = QTimer(self)
