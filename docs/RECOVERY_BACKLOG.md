@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (clear-search button wording clarity)
+
+Session timestamp:
+1. start: `2026-03-04 00:23:12 -0300`
+2. end: `2026-03-04 00:25:01 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: changed clear-search button text from `Limpar Filtro` to `Limpar Busca`.
+2. `gui/gui_ssa.py`: added explicit tooltip clarifying that only general search is cleared.
+3. `tests/test_gui_filter_logic.py`: added regression `test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs or test_clear_filter_clears_only_general_search_and_keeps_advanced_filters or test_clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `3 passed`
+5. kluster auto review run in this slice: clean -> clean
+
+Decision and scope:
+1. this is a low-risk `STABILITY_PATCH` for UX wording clarity only; no filter logic behavior change.
+2. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+3. evidence commit: `182c51b0` (`STABILITY_PATCH`: clear-search button wording clarity).
+
 ## Update 2026-03-04 (tooltip encoding fix and column-filter 3-button row)
 
 Session timestamp:
