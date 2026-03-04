@@ -2,7 +2,35 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 06:29 - start from here
+## CURRENT TRUTH 2026-03-04 07:50 - start from here
+
+- Active branch: `dev`.
+- Slice status:
+  1. PR #43 was merged into `dev` (`f6f10596`).
+  2. feature branch cleanup completed; only `dev` and `main` remain local.
+  3. remote branch cleanup completed; only `origin/dev` and `origin/main` remain (plus `origin/HEAD` pointer).
+  4. local preference noise mitigation applied: `config/gui_main_preferences.json` added to `.gitignore` and marked `skip-worktree` locally.
+  5. stash inspection completed; `stash@{0}` contains only `config/gui_main_preferences.json` and `data/ssas.db`.
+- Runtime change summary:
+  1. none in this slice (environment hygiene only).
+- Validation snapshot:
+  1. `git branch --list`: only `dev`, `main`.
+  2. `git fetch --prune && git branch -r`: only `origin/dev`, `origin/main`, `origin/HEAD -> origin/main`.
+  3. local gates (periodic): `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
+  4. local gates (periodic): `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
+  5. local gates (periodic): `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass.
+  6. local gates (periodic): `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py`: `125 passed, 1 skipped`.
+  7. kluster auto in this slice: clean -> clean -> clean.
+- Evidence commit:
+  1. pending commit in current hygiene slice.
+- Next cycle:
+  1. confirm final stash action (`drop` recommended because it is only local prefs + local db delta).
+  2. keep working from `dev` with minimal-scope stabilization slices.
+- Local residue contract:
+  1. `config/gui_main_preferences.json` should stay local-only and ignored in day-to-day status.
+  2. `stash@{0}` pending explicit confirmation for final disposal.
+
+## HISTORICAL SNAPSHOT 2026-03-04 06:29 - start from here
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice status:
