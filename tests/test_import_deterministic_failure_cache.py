@@ -104,3 +104,64 @@ def test_run_importer_updates_deterministic_failure_cache_by_error_code(
     assert updated is False
     assert deterministic_calls == [[str(bad_file)]]
     assert cache_after_calls["n"] == 0
+
+
+def test_run_importer_does_not_mark_cancelled_as_deterministic_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    cancelled_file = docs_dir / "Consulta SSA - cancel.xlsx"
+    cancelled_file.write_bytes(b"x")
+    data_dir = tmp_path / "data"
+
+    from utils import path_safety
+
+    monkeypatch.setattr(
+        path_safety,
+        "ALLOWED_ROOTS",
+        list(path_safety.ALLOWED_ROOTS) + [tmp_path],
+    )
+    _patch_integrity_ok(monkeypatch)
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *a, **k: [str(cancelled_file)],
+    )
+    monkeypatch.setattr(app_logic, "_discover_derivadas_sheet_files", lambda *_a, **_k: [])
+    monkeypatch.setattr(
+        app_logic,
+        "_import_single_file",
+        lambda *a, **k: (_ for _ in ()).throw(
+            app_logic.ExtractionError(
+                "operation cancelled",
+                error_code="OPERATION_CANCELLED",
+            )
+        ),
+    )
+
+    deterministic_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_for_deterministic_failures",
+        lambda failed_files, cache_file: deterministic_calls.append(list(failed_files)),
+    )
+    cache_after_calls = {"n": 0}
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *a, **k: cache_after_calls.__setitem__("n", cache_after_calls["n"] + 1),
+    )
+
+    updated = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+        should_cancel=lambda: False,
+    )
+
+    assert updated is False
+    assert deterministic_calls == [[]]
+    assert cache_after_calls["n"] == 0

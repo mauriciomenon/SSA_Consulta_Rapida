@@ -226,3 +226,34 @@ def test_save_settings_does_not_remove_preexisting_lock_file_on_lock_failure(
     assert lock_attempts["count"] >= 2
     assert remove_calls == []
     assert os.path.exists(lock_path)
+
+
+def test_save_settings_removes_new_lock_file_on_lock_failure(tmp_path, monkeypatch):
+    manager = CLIEnhancementManager()
+    manager.settings_file = str(tmp_path / "cli_enhancements.json")
+    manager.settings = {"enhanced_table_printer": True}
+
+    lock_path = f"{manager.settings_file}.lock"
+    remove_calls: list[str] = []
+
+    def _spy_remove(path):  # noqa: ANN001
+        remove_calls.append(path)
+        return os.unlink(path)
+
+    monkeypatch.setattr(cli_mgr_mod.os, "remove", _spy_remove)
+    monkeypatch.setattr(
+        manager,
+        "_lock_file_if_possible",
+        lambda _f: (_ for _ in ()).throw(RuntimeError("lock busy")),
+    )
+
+    try:
+        manager._save_settings()
+        raised = False
+    except RuntimeError as exc:
+        raised = True
+        assert "lock indisponivel" in str(exc)
+
+    assert raised
+    assert lock_path in remove_calls
+    assert not os.path.exists(lock_path)

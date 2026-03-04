@@ -41,3 +41,28 @@ def test_recreate_database_for_full_rescan_without_external_lock(tmp_path: Path)
         conn.close()
     assert row is not None
     assert int(row[0]) == 2
+
+
+def test_recreate_database_for_full_rescan_moves_existing_sidecars(tmp_path: Path) -> None:
+    db_path = tmp_path / "ssas.db"
+    _build_wal_db(db_path)
+
+    wal_sidecar = Path(f"{db_path}-wal")
+    shm_sidecar = Path(f"{db_path}-shm")
+    wal_sidecar.write_bytes(b"")
+    shm_sidecar.write_bytes(b"")
+
+    _recreate_database_for_full_rescan(str(db_path))
+
+    backups = sorted(
+        p
+        for p in tmp_path.glob("ssas.db.full_rescan_backup_*")
+        if not p.name.endswith(("-wal", "-shm"))
+    )
+    assert len(backups) == 1
+    backup_path = backups[0]
+
+    assert not wal_sidecar.exists()
+    assert not shm_sidecar.exists()
+    assert Path(f"{backup_path}-wal").exists()
+    assert Path(f"{backup_path}-shm").exists()

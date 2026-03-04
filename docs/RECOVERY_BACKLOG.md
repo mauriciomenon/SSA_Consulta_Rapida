@@ -3,6 +3,28 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (slice G targeted regression coverage for A/B/C)
+
+Session timestamp:
+1. start: `2026-03-03 22:20:26 -0300`
+2. end: `2026-03-03 22:24:33 -0300`
+
+Delivered in this slice:
+1. `tests/test_app_logic_full_rescan_lock.py`: added regression to assert sidecar move (`-wal`/`-shm`) into full-rescan backup path.
+2. `tests/test_import_deterministic_failure_cache.py`: added regression to assert `OPERATION_CANCELLED` does not mark deterministic failed file list.
+3. `tests/test_cli_enhancement_manager_lock_usage.py`: added regression to assert lock file created by current process is removed when lock acquisition fails.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+2. `uv run --python 3.13 ruff check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+3. `uv run --python 3.13 ty check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: `14 passed`
+5. kluster auto review runs in this slice: clean -> clean
+
+Decision and scope:
+1. this is a test-only `STABILITY_PATCH` slice; runtime behavior unchanged.
+2. local residues remain unchanged by policy: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-03 (slice F control-doc current-truth normalization)
 
 Session timestamp:

@@ -2,22 +2,24 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-03 22:16 - start from here
+## CURRENT TRUTH 2026-03-03 22:23 - start from here
 
 - Active branch: `dev`.
 - Slice status:
-  1. Slice F delivered: control docs normalized to keep a single `CURRENT TRUTH` block in active migration/handoff docs.
-  2. Sprint A-E package remains closed; no new runtime risk introduced.
+  1. Slice G delivered: targeted regression coverage for A/B/C in tests only.
+  2. Sprint A-E package remains closed; no runtime behavior change introduced.
 - Runtime change summary:
   1. no runtime file changed in this slice.
-  2. scope limited to docs governance normalization.
+  2. new tests validate sidecar backup move, cancel classification cache behavior, and lock-file cleanup path.
 - Validation snapshot:
-  1. `rg '^## CURRENT TRUTH ' docs/NEXT_CHAT_MIGRATION.md | wc -l`: `1`
-  2. `rg '^## CURRENT TRUTH ' docs/AGENTS_HANDOFF_NEXT_CYCLE.md | wc -l`: `1`
-  3. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py interface/cli_enhancement_manager.py gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+  1. `uv run --python 3.13 python -m py_compile tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  2. `uv run --python 3.13 ruff check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  3. `uv run --python 3.13 ty check tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: pass
+  4. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_deterministic_failure_cache.py tests/test_cli_enhancement_manager_lock_usage.py`: `14 passed`
+  5. kluster auto: clean -> clean
 - Next cycle:
   1. keep stabilization in minimal slices and preserve no-layout-change policy.
-  2. use docs-only lane for further migration readability cleanup if needed.
+  2. monitor runtime lanes; prioritize only bug-real deltas with focused tests.
 - Local residue contract:
   1. keep out-of-scope file unchanged: `config/gui_main_preferences.json`.
   2. keep stash untouched: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`).
