@@ -2246,9 +2246,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
     def _compute_gui_column_widths(self, df: pd.DataFrame):
         return ssa_gui_table._compute_gui_column_widths(self, df)
 
-    def _calculate_max_chars_for_column(self, col_name: str, col_idx: int):
-        return ssa_gui_table._calculate_max_chars_for_column(self, col_name, col_idx)
-
     def _on_header_section_resized(self, logical_index: int, old_size: int, new_size: int):
         return ssa_gui_table._on_header_section_resized(self, logical_index, old_size, new_size)
 

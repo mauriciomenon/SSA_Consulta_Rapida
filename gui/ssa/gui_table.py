@@ -480,33 +480,6 @@ def _compute_gui_column_widths(window, df: pd.DataFrame):
         visible_cols = ['#'] + (visible_columns if visible_columns else [])
         window._gui_column_pixel_widths = {col: 100 for col in visible_cols}
 
-def _calculate_max_chars_for_column(window, col_name: str, col_idx: int) -> int:
-    """Calcula o numero maximo de caracteres baseado na largura da coluna."""
-    try:
-        # Usa largura calculada pelo WidthManager ou largura atual da coluna
-        width_px = getattr(window, '_gui_column_pixel_widths', {}).get(col_name)
-        if width_px is None:
-            width_px = window.table_widget.columnWidth(col_idx)
-
-        # Converte pixels em caracteres usando largura util da celula.
-        width_px = max(1, int(width_px))
-        max_chars = max(8, int((width_px - 10) / 6.3))
-
-        # Limites especificos por tipo de coluna
-        if col_name in ['descricao_ssa', 'descricao_execucao']:
-            max_chars = max(50, min(max_chars, 420))
-        elif col_name in ['numero_ssa', 'localizacao_codigo']:
-            max_chars = min(max_chars, 32)
-        elif col_name == 'solicitante':
-            max_chars = max(15, min(max_chars, 220))
-        else:
-            max_chars = min(max_chars, 240)
-
-        return max_chars
-    except Exception:  # noqa: BLE001
-        # Fallback mais generoso
-        return 80
-
 def _on_header_section_resized(window, logical_index: int, old_size: int, new_size: int):
     """Salva a largura ajustada pelo usuario na configuracao persistente."""
     try:

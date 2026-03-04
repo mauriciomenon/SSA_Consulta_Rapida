@@ -3,6 +3,24 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (sprint E controlled technical debt in gui table)
+
+Delivered in this slice:
+1. Removed dead helper `_calculate_max_chars_for_column` from `gui/ssa/gui_table.py`.
+2. Removed dead facade pass-through `_calculate_max_chars_for_column` from `gui/gui_ssa.py`.
+3. No visual/layout/position behavior changed.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_table.py gui/gui_ssa.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_table_render_resilience.py tests/test_gui_filter_logic.py -k "display_current_page or column_width"`: `5 passed, 109 deselected`
+5. kluster auto review runs in this slice: clean -> clean
+
+Decision and scope:
+1. Sprint E closed as low-risk debt cleanup with dead code removal only.
+2. Runtime behavior outside removed dead symbols unchanged.
+
 ## Update 2026-03-03 (sprint D docs consistency and portability)
 
 Delivered in this slice:
