@@ -38,7 +38,7 @@ This handoff is ready to reuse in the next conversation.
   1. `2c7982b1` (`STABILITY_PATCH`: filter state stabilization package).
   2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
   3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
-  4. pending in current working slice (tooltip + 3-button row patch not committed yet).
+  4. `776c5905` (`STABILITY_PATCH`: tooltip encoding fix and 3-button row behavior).
 - Deferred non-blocking:
   1. broad repository-wide non-ASCII normalization remains deferred because most findings are legacy localized strings and require controlled transversal policy.
 - Local residue status:

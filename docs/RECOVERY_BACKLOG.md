@@ -26,7 +26,11 @@ Validation:
 Diagnostic scan:
 1. global scan for mojibake patterns in `*.py` completed.
 2. no remaining mojibake pattern found in touched runtime/test files after this patch.
-3. legacy non-ASCII text still exists in historical scripts/tests; not all are encoding errors and broad normalization remains deferred to avoid high-risk transversal changes.
+3. deferred note (approved): "existem muitos caracteres nao-ASCII legados em scripts/tests antigos (texto PT-BR), mas isso nao e necessariamente erro de codificacao; normalizei apenas erros reais neste slice para evitar mudanca transversal de alto risco."
+4. where to clean in future controlled slice:
+   - `scripts_manutencao/*.py`
+   - `tests/teste_*.py`
+   - legacy CLI/script text blocks under `interface/cli.py` and `interface/command_handlers.py`
 
 Decision and scope:
 1. this is a `STABILITY_PATCH` focused on user-visible filter button behavior and encoding fix in GUI tooltip.
