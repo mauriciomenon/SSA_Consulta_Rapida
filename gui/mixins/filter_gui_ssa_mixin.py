@@ -1308,11 +1308,10 @@ class FilterGUISSAMixin:
         self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
-        # Limpar todos os filtros de coluna
-        if self._active_column_filters:
-            self._active_column_filters.clear()
-            for k in ("situacao", "setor_executor", "descricao_ssa"):
-                self._active_column_filters[k] = ""
+        # Limpar todos os filtros de coluna com o mesmo baseline padrao
+        self._active_column_filters = OrderedDict(
+            (col, "") for col in self._column_filter_default_columns()
+        )
 
         # Limpar filtros auxiliares/avancados
         self._exclude_ste_sca = False
