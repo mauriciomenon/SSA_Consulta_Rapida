@@ -2,7 +2,34 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.29 - CURRENT RELEASE**
+## **RELEASE v4.30 - CURRENT RELEASE**
+
+**Data de Lancamento**: Marco 2026
+**Tipo**: Baseline update para sprint de saneamento
+**Status**: Em andamento
+
+### **Principais entregas**
+- Snapshot oficial do estado estavel anterior com tag/release GitHub:
+  - tag: `v4.29`
+  - release: `SSA Consulta Rapida v4.29`
+- Baseline local promovido para `4.30` em:
+  - `VERSION`
+  - `config/version.json`
+  - docs ativos de referencia
+- Proximo foco tecnico definido:
+  - saneamento de labels de colunas em exibicao/seletores
+  - robustez de ordenacao para `num_reprogramacoes` com dados legados mistos
+  - opcao de best-fit para todas as colunas visiveis com regra anti-outlier
+
+### **Documentacao da versao**
+- `README.md` (v4.30 no topo)
+- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.30`)
+
+---
+
+## **RELEASE v4.29**
 
 **Data de Lancamento**: Fevereiro 2026
 **Tipo**: Patch de estabilidade de tema e legibilidade
