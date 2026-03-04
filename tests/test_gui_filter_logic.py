@@ -1369,6 +1369,19 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_all_filters_global_restores_default_column_filter_keys(self):
+        self.window._active_column_filters = {
+            "situacao": "STE",
+            "numero_ssa": "2026",
+            "descricao_ssa": "Teste",
+        }
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        default_cols = self.window._column_filter_default_columns()
+        assert tuple(self.window._active_column_filters.keys()) == default_cols
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
+
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
         df = pd.DataFrame(
             {
