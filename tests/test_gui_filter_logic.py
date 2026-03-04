@@ -531,6 +531,24 @@ class TestGUIFilterLogic:
             assert "coluna" in tooltip
             assert "avancados" in tooltip
 
+    def test_search_buttons_route_to_tab_specific_handlers(self):
+        main_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main")
+        filters_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters")
+        main_ctx["clear_filter_button"].setEnabled(True)
+        filters_ctx["clear_filter_button"].setEnabled(True)
+
+        with (
+            patch.object(self.window, "_on_general_search_apply_clicked") as apply_mock,
+            patch.object(self.window, "_on_general_search_clear_clicked") as clear_mock,
+        ):
+            cast(Any, QTest).mouseClick(main_ctx["search_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(filters_ctx["search_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(main_ctx["clear_filter_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(filters_ctx["clear_filter_button"], Qt.MouseButton.LeftButton)
+
+        assert [call.args[0] for call in apply_mock.call_args_list] == ["main", "filters"]
+        assert [call.args[0] for call in clear_mock.call_args_list] == ["main", "filters"]
+
     def test_clear_filter_clears_only_general_search_and_keeps_advanced_filters(self):
         self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
@@ -734,6 +752,11 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters["descricao_ssa"] == ""
         controls_after = self._get_column_filter_controls()
         assert label in controls_after
+
+    def test_build_column_mask_blocks_heavy_regex_patterns(self):
+        series = pd.Series(["aaaaaaaaaaaa", "bbb"], dtype="string")
+        mask = self.window._build_column_mask(series, "~(a+)+$")
+        assert list(mask) == [False, False]
 
     def test_activate_column_filter_stores_undo_snapshot(self):
         self.window._last_filter_state = None

@@ -64,6 +64,7 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 _NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
 _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
+_REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -327,6 +328,14 @@ class FilterGUISSAMixin:
                 self.filter_thread = None
         if reason:
             logger.debug("Worker anterior cancelado (%s)", reason)
+
+    def _on_general_search_apply_clicked(self, tab_kind: str) -> None:
+        logger.debug("Acao aplicar busca geral acionada (tab_kind=%s)", tab_kind)
+        self.initiate_filtering()
+
+    def _on_general_search_clear_clicked(self, tab_kind: str) -> None:
+        logger.debug("Acao limpar busca geral acionada (tab_kind=%s)", tab_kind)
+        self.clear_filter()
 
     def initiate_filtering(self):
         if self.df_completo.empty:
@@ -2303,12 +2312,16 @@ class FilterGUISSAMixin:
                 return pd.Series([True] * len(s), index=s.index)
             has_lookaround = "(?=" in pattern_text or "(?!" in pattern_text or "(?<=" in pattern_text or "(?<!" in pattern_text
             has_backref = bool(re.search(r"\\[1-9]", pattern_text))
+            meta_char_count = len(_REGEX_META_CHAR_RE.findall(pattern_text))
+            has_alternation_with_quantifier = "|" in pattern_text and bool(re.search(r"[+*?{]", pattern_text))
             if (
                 len(pattern_text) > 120
                 or _NESTED_QUANTIFIER_RE.search(pattern_text)
                 or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
                 or has_lookaround
                 or has_backref
+                or meta_char_count > 16
+                or has_alternation_with_quantifier
             ):
                 logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
                 return s.str.contains(pattern_text, case=False, na=False, regex=False)
