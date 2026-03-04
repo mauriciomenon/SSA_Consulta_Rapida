@@ -1215,6 +1215,59 @@ class TestGUIFilterLogic:
         assert self.window._saved_gui_column_widths.get("descricao_ssa") == 222
         assert self.window._gui_column_pixel_widths.get("descricao_ssa") == 222
 
+    def test_header_context_menu_apply_stores_undo_snapshot(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Filtrar "):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        self.window._last_filter_state = None
+        self.window._active_column_filters["situacao"] = ""
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 2  # "#"(0), numero_ssa(1), situacao(2)
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("STE", True)):
+            self.window.show_header_context_menu(pos)
+            QApplication.processEvents()
+
+        assert self.window._active_column_filters["situacao"] == "STE"
+        assert self.window._last_filter_state is not None
+        snapshot_filters = self.window._last_filter_state.get("active_column_filters") or {}
+        assert str(snapshot_filters.get("situacao", "")).strip() == ""
+
     def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
         self.window._saved_gui_column_widths = {"descricao_ssa": 222}
         calls = {"persist": 0}
