@@ -753,6 +753,40 @@ class TestGUIFilterLogic:
         controls_after = self._get_column_filter_controls()
         assert label in controls_after
 
+    def test_data_cadastro_column_filter_accepts_display_date_on_first_apply(self):
+        df = self.base_df.assign(
+            data_cadastro=[
+                "2025-01-01 08:00:00",
+                "2025-01-02 09:00:00",
+                "2025-01-02 10:00:00",
+                "2025-03-01 11:00:00",
+                "",
+            ]
+        ).copy()
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+
+        self.window._activate_column_filter("data_cadastro")
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        label = (
+            self.window._expand_column_alias_for_filter("data_cadastro")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("data_cadastro")
+        )
+        assert label in controls
+
+        edit_widget, apply_btn, _clear_btn, _hide_btn = controls[label]
+        edit_widget.setText("02/01/2025")
+        cast(Any, QTest).mouseClick(apply_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["data_cadastro"] == "02/01/2025"
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == {2, 3}
+
     def test_build_column_mask_blocks_heavy_regex_patterns(self):
         series = pd.Series(["aaaaaaaaaaaa", "bbb"], dtype="string")
         mask = self.window._build_column_mask(series, "~(a+)+$")
