@@ -3,6 +3,36 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (tooltip encoding fix and column-filter 3-button row)
+
+Session timestamp:
+1. start: `2026-03-04 00:08:50 -0300`
+2. end: `2026-03-04 00:14:10 -0300`
+
+Delivered in this slice:
+1. `gui/gui_ssa.py`: fixed corrupted week tooltip text and simplified to `Semana ISO atual`.
+2. `gui/mixins/filter_gui_ssa_mixin.py`: column-filter row now has `Aplicar`, `Limpar`, `Ocultar`.
+3. `gui/mixins/filter_gui_ssa_mixin.py`: `Limpar` clears current column value and reapplies filters without hiding the row.
+4. `gui/widgets/filter_help_dialog.py`: help text updated to reflect `Aplicar + Limpar + Ocultar`.
+5. `tests/test_gui_filter_logic.py`: updated control parser and added regression `test_column_filter_row_clear_button_clears_value_without_hiding_row`.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
+5. kluster auto review run in this slice: clean
+
+Diagnostic scan:
+1. global scan for mojibake patterns in `*.py` completed.
+2. no remaining mojibake pattern found in touched runtime/test files after this patch.
+3. legacy non-ASCII text still exists in historical scripts/tests; not all are encoding errors and broad normalization remains deferred to avoid high-risk transversal changes.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` focused on user-visible filter button behavior and encoding fix in GUI tooltip.
+2. no change in startup/import policy or out-of-scope modules.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
 ## Update 2026-03-04 (global clear baseline consistency in filter buttons)
 
 Session timestamp:

@@ -2,7 +2,7 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 00:07 - authoritative block
+## CURRENT TRUTH 2026-03-04 00:14 - authoritative block
 
 - Active branch: `codex/fix-filter-buttons-state-sync`.
 - Slice delivered:
@@ -12,6 +12,8 @@ This handoff is ready to reuse in the next conversation.
   4. help text aligned to real behavior (`Aplicar` + `Ocultar`).
   5. deferred header context-menu apply + undo end-to-end regression is now covered by direct test.
   6. global clear for all filters now restores default column-filter key baseline.
+  7. week tooltip encoding issue fixed.
+  8. column-filter row now exposes `Aplicar`, `Limpar`, and `Ocultar`.
 - What changed:
   1. `gui/mixins/filter_gui_ssa_mixin.py`: clear-state reset and undo snapshot hooks for activate/deactivate column filter.
   2. `gui/gui_ssa.py`: debounce minimum floor and undo snapshot hook in header context apply.
@@ -19,6 +21,10 @@ This handoff is ready to reuse in the next conversation.
   4. `gui/widgets/filter_help_dialog.py`: updated filter-help wording.
   5. `gui/mixins/filter_gui_ssa_mixin.py`: `_clear_all_filters_global` now uses `_column_filter_default_columns()` for column-key reset.
   6. `tests/test_gui_filter_logic.py`: added regression `test_clear_all_filters_global_restores_default_column_filter_keys`.
+  7. `gui/gui_ssa.py`: week tooltip text normalized to `Semana ISO atual`.
+  8. `gui/mixins/filter_gui_ssa_mixin.py`: added row-level `Limpar` button (clear value, keep row visible) and kept `Ocultar` as visual-only action.
+  9. `gui/widgets/filter_help_dialog.py`: help text aligned with three button actions.
+  10. `tests/test_gui_filter_logic.py`: updated row-control parsing and added regression `test_column_filter_row_clear_button_clears_value_without_hiding_row`.
 - Validation:
   1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
   2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/mixins/filter_gui_ssa_mixin.py gui/widgets/filter_help_dialog.py tests/test_gui_filter_logic.py`: pass
@@ -26,13 +32,15 @@ This handoff is ready to reuse in the next conversation.
   4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_filter or debounce or activate_column_filter_stores_undo_snapshot or deactivate_column_filter_stores_undo_snapshot"`: `15 passed, 1 skipped`
   5. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
   6. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "clear_all_filters_global_resets_full_filter_state_matrix or clear_all_filters_global_restores_default_column_filter_keys or clear_all_filters_global_resets_exclude_and_advanced_filters"`: `3 passed`
-  7. kluster auto: clean -> clean -> clean -> clean -> clean -> clean
+  7. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "default_column_filter_rows_show_apply_clear_and_hide_buttons or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_all_filters_global_restores_default_column_filter_keys or clear_filter_on_filters_tab_clears_search_in_all_tabs"`: `5 passed`
+  8. kluster auto: clean -> clean -> clean -> clean -> clean -> clean -> clean
 - Evidence:
   1. `2c7982b1` (`STABILITY_PATCH`: filter state stabilization package).
   2. `22bbd3dc` (`STABILITY_PATCH`: follow-up regression for header context-menu undo path).
   3. `98269107` (`STABILITY_PATCH`: global clear baseline consistency).
+  4. pending in current working slice (tooltip + 3-button row patch not committed yet).
 - Deferred non-blocking:
-  1. none in current filter-button scope.
+  1. broad repository-wide non-ASCII normalization remains deferred because most findings are legacy localized strings and require controlled transversal policy.
 - Local residue status:
   1. out-of-scope local file kept unchanged: `config/gui_main_preferences.json`
   2. stash kept unchanged: `stash@{0}` (`local-wip-config-db-before-dev-switch-20260303`)
