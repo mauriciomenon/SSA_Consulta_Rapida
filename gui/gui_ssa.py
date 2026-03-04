@@ -1176,8 +1176,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         search_input.textChanged.connect(self._on_search_text_changed)
         search_button = QPushButton("Aplicar")
         search_button.clicked.connect(self.initiate_filtering)
-        clear_filter_button = QPushButton("Limpar Filtro")
+        clear_filter_button = QPushButton("Limpar Busca")
         clear_filter_button.clicked.connect(self.clear_filter)
+        clear_filter_button.setToolTip(
+            "Limpa apenas a busca geral. Filtros de coluna e avancados continuam ativos."
+        )
         clear_filter_button.setEnabled(False)
         left.addWidget(cast(Any, search_label))
         left.addWidget(cast(Any, search_input))
