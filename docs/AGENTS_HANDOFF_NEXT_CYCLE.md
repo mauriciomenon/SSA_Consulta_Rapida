@@ -2,7 +2,31 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 09:11 - authoritative block
+## CURRENT TRUTH 2026-03-04 09:27 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. recalibrated best-fit width behavior to avoid exaggerated widths versus real header double-click fit.
+  2. added performance guard in best-fit measurement path (cache + lower sample volume).
+- What changed:
+  1. `gui/simple_width_manager.py`: best-fit now measures sampled real text widths and clamps to Qt baseline.
+  2. `gui/simple_width_manager.py`: `sample_limit` reduced to `800` and repeated measurement cached.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action or table_header_uses_merged_default_alias_for_extra_column"`: `3 passed`.
+  5. kluster auto in this slice: issue(P4) -> clean -> clean.
+- Evidence:
+  1. pending commit in current sprint4 slice.
+- Deferred non-blocking:
+  1. immediate follow-up slice for evidence report and policy decision on reprogramacao fields.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:11 - authoritative block
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

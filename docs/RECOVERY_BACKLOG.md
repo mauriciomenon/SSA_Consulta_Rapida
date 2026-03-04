@@ -3,6 +3,29 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (sprint4 best-fit calibration against real Qt auto-fit)
+
+Session timestamp:
+1. start: `2026-03-04 09:21:19 -0300`
+2. end: `2026-03-04 09:27:28 -0300`
+
+Delivered in this slice:
+1. `gui/simple_width_manager.py`: best-fit algorithm recalibrated from synthetic `"W"*N` estimate to sampled real-text pixel widths.
+2. added baseline clamp against Qt real auto-fit (`sizeHintForColumn`) to avoid width over-expansion.
+3. reduced sampling pressure (`sample_limit` default now `800`) and added measurement cache to reduce repeated font-metric calls.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action or table_header_uses_merged_default_alias_for_extra_column"`: `3 passed`.
+5. kluster auto in this slice: issue(P4 intent/perf) -> clean -> clean.
+
+Decision and scope:
+1. this is a `STABILITY_PATCH` for width behavior only.
+2. no GUI layout/positioning change.
+3. dedicated follow-up slice opened next for `num_reprogramacoes`/`total_de_reprogramacoes`/`situacao_reprogramacao` evidence and risk handling.
+
 ## Update 2026-03-04 (sprint3 display-label merge hardening for table and add-columns)
 
 Session timestamp:
