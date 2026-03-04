@@ -3,6 +3,30 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-03 (follow-up regression for header context-menu undo path)
+
+Session timestamp:
+1. start: `2026-03-03 23:55:05 -0300`
+2. end: `2026-03-03 23:59:04 -0300`
+
+Delivered in this slice:
+1. added direct regression in `tests/test_gui_filter_logic.py` to validate header context-menu apply path stores undo snapshot end-to-end.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile tests/test_gui_filter_logic.py`: pass
+2. `uv run --python 3.13 ruff check tests/test_gui_filter_logic.py`: pass
+3. `uv run --python 3.13 ty check tests/test_gui_filter_logic.py`: pass
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "test_header_context_menu_apply_stores_undo_snapshot"`: `1 passed`
+5. kluster auto review run in this slice: clean
+
+Decision and scope:
+1. this is a test-only `STABILITY_PATCH` follow-up to close previously deferred coverage gap.
+2. runtime behavior unchanged in this slice.
+3. local residues kept out of scope: `config/gui_main_preferences.json` and `stash@{0}`.
+
+Evidence commit:
+1. `22bbd3dc` (`STABILITY_PATCH`: header context-menu undo regression test).
+
 ## Update 2026-03-03 (filter buttons stability hardening on feature branch)
 
 Session timestamp:
