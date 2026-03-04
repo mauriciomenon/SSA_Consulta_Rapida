@@ -3,6 +3,26 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-04 (release snapshot v4.29 + baseline promote to v4.30)
+
+Session timestamp:
+1. start: `2026-03-04 08:14:11 -0300`
+2. end: `2026-03-04 08:22:31 -0300`
+
+Delivered in this slice:
+1. created GitHub tag `v4.29` on commit `bf78666e`.
+2. created GitHub release `SSA Consulta Rapida v4.29` as pre-sprint stable snapshot.
+3. promoted local baseline metadata to `4.30` (`VERSION` + `config/version.json`).
+4. synchronized active release docs to `4.30`.
+
+Validation:
+1. `gh release view v4.29`: published.
+2. `git tag -l v4.29`: present.
+
+Decision and scope:
+1. this is a `DOC_SYNC` + release housekeeping slice before runtime changes.
+2. runtime bug fix (`num_reprogramacoes` mixed-type sorting) remains prioritized for next slice.
+
 ## Update 2026-03-04 (post-merge environment cleanup and branch hygiene)
 
 Session timestamp:

@@ -2,7 +2,32 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 07:50 - start from here
+## CURRENT TRUTH 2026-03-04 08:14 - start from here
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. GitHub snapshot of previous stable state created before sprint start:
+     - tag `v4.29` on commit `bf78666e`;
+     - release `SSA Consulta Rapida v4.29`.
+  2. Version metadata promoted to `4.30`:
+     - `VERSION`
+     - `config/version.json`.
+  3. Active reference docs promoted to `4.30` baseline.
+  4. Technical sprint queued next: sorting fix for `num_reprogramacoes` + global best-fit for visible columns (with anti-outlier rule).
+- Runtime change summary:
+  1. none yet in runtime logic for this slice (release/version/doc sync only).
+- Validation snapshot:
+  1. `gh release view v4.29`: published.
+  2. `git tag -l v4.29`: present and pushed.
+- Evidence commit:
+  1. pending commit in current version/doc sync slice.
+- Next cycle:
+  1. execute runtime Slice A (sort robustness for mixed int/str in `num_reprogramacoes`).
+  2. execute runtime Slice B (reusable `best fit all visible columns` action with anti-outlier guard).
+  3. keep no-layout-change policy and minimal-risk patches.
+
+## HISTORICAL SNAPSHOT 2026-03-04 07:50 - start from here
 
 - Active branch: `dev`.
 - Slice status:

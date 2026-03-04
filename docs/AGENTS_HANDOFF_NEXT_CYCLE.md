@@ -2,7 +2,36 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 07:50 - authoritative block
+## CURRENT TRUTH 2026-03-04 08:14 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. created official GitHub snapshot for previous stable baseline:
+     - tag `v4.29` on commit `bf78666e`
+     - release `SSA Consulta Rapida v4.29`.
+  2. promoted local baseline metadata to `4.30`.
+  3. synchronized active release docs to `4.30`.
+  4. prepared next runtime work package for:
+     - robust sort of `num_reprogramacoes` with mixed legacy values;
+     - reusable best-fit action for all visible columns with anti-outlier guard.
+- What changed:
+  1. `VERSION` updated to `4.30`.
+  2. `config/version.json` updated (`version_short`, `version_long`).
+  3. release/baseline docs updated (`README`, `HISTORICO_RELEASES`, `FILTER_TAB_OPTIMIZATIONS`, migration/handoff).
+- Validation:
+  1. `gh release view v4.29`: published.
+  2. `git tag -l v4.29`: present locally/remotely.
+- Evidence:
+  1. pending commit in current version/doc sync slice.
+- Deferred non-blocking:
+  1. runtime fix for sort warning remains next prioritized slice.
+  2. final stash disposal action still pending explicit user confirmation.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 07:50 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:
