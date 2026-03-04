@@ -119,12 +119,13 @@ class TestGUIFilterLogic:
             if row_widget is None:
                 continue
             row_layout = row_widget.layout()
-            if row_layout is None or row_layout.count() < 4:
+            if row_layout is None or row_layout.count() < 5:
                 continue
             label_widget = row_layout.itemAt(0).widget()
             edit_widget = row_layout.itemAt(1).widget()
             apply_widget = row_layout.itemAt(2).widget()
             clear_widget = row_layout.itemAt(3).widget()
+            hide_widget = row_layout.itemAt(4).widget()
             if not isinstance(label_widget, QLabel):
                 continue
             if not isinstance(edit_widget, QLineEdit):
@@ -133,7 +134,9 @@ class TestGUIFilterLogic:
                 continue
             if not isinstance(clear_widget, QPushButton):
                 continue
-            controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget)
+            if not isinstance(hide_widget, QPushButton):
+                continue
+            controls[label_widget.text()] = (edit_widget, apply_widget, clear_widget, hide_widget)
         return controls
 
     def test_profile_or_filters_executor_or_emissor(self):
@@ -294,7 +297,7 @@ class TestGUIFilterLogic:
         assert not any(str(v).strip() for v in self.window._active_column_filters.values())
         assert self.window._hidden_column_filter_lines == set()
 
-    def test_default_column_filter_rows_show_apply_and_hide_buttons(self):
+    def test_default_column_filter_rows_show_apply_clear_and_hide_buttons(self):
         self.window._active_column_filters = {
             col: '' for col in self.window._column_filter_default_columns()
         }
@@ -307,10 +310,12 @@ class TestGUIFilterLogic:
             else:
                 label = self.window._resolve_column_display_name(col)
             assert label in controls
-            _, apply_btn, hide_btn = controls[label]
+            _, apply_btn, clear_btn, hide_btn = controls[label]
             assert apply_btn.text() == "Aplicar"
+            assert clear_btn.text() == "Limpar"
             assert hide_btn.text() == "Ocultar"
             assert not apply_btn.isHidden()
+            assert not clear_btn.isHidden()
             assert not hide_btn.isHidden()
 
     def test_table_render_collapses_multiline_text_to_single_line(self):
@@ -516,6 +521,34 @@ class TestGUIFilterLogic:
         assert self.window.search_input.text() == ''
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_search_button_label_and_tooltip_are_explicit_on_both_tabs(self):
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("clear_filter_button")
+            assert button is not None
+            assert button.text() == "Limpar Busca"
+            tooltip = str(button.toolTip() or "").casefold()
+            assert "apenas a busca geral" in tooltip
+            assert "coluna" in tooltip
+            assert "avancados" in tooltip
+
+    def test_search_buttons_route_to_tab_specific_handlers(self):
+        main_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "main")
+        filters_ctx = next(ctx for ctx in self.window._tab_contexts if ctx.get("tab_kind") == "filters")
+        main_ctx["clear_filter_button"].setEnabled(True)
+        filters_ctx["clear_filter_button"].setEnabled(True)
+
+        with (
+            patch.object(self.window, "_on_general_search_apply_clicked") as apply_mock,
+            patch.object(self.window, "_on_general_search_clear_clicked") as clear_mock,
+        ):
+            cast(Any, QTest).mouseClick(main_ctx["search_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(filters_ctx["search_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(main_ctx["clear_filter_button"], Qt.MouseButton.LeftButton)
+            cast(Any, QTest).mouseClick(filters_ctx["clear_filter_button"], Qt.MouseButton.LeftButton)
+
+        assert [call.args[0] for call in apply_mock.call_args_list] == ["main", "filters"]
+        assert [call.args[0] for call in clear_mock.call_args_list] == ["main", "filters"]
+
     def test_clear_filter_clears_only_general_search_and_keeps_advanced_filters(self):
         self.window._advanced_filters = {"situacao": ["STE"], "setor_executor": ["IEE3"]}
         self.window._advanced_filters_active = True
@@ -585,6 +618,24 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert self.window.clear_filter_button.isEnabled() is False
 
+    def test_clear_filter_button_state_syncs_across_tabs_without_switch(self):
+        buttons = []
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("clear_filter_button")
+            if button is not None:
+                buttons.append(button)
+        assert len(buttons) == 2
+        assert all(button.isEnabled() is False for button in buttons)
+
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+        assert all(button.isEnabled() is True for button in buttons)
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+        assert all(button.isEnabled() is False for button in buttons)
+
     def test_clear_advanced_filters_forces_refresh_when_pending_schedule(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)
@@ -607,6 +658,31 @@ class TestGUIFilterLogic:
         assert self.window._adv_options_dirty is False
         refresh_mock.assert_called_once()
 
+    def test_undo_button_state_syncs_across_tabs_after_advanced_clear_and_restore(self):
+        undo_buttons = []
+        for ctx in self.window._tab_contexts:
+            button = ctx.get("undo_filter_btn")
+            if button is not None:
+                undo_buttons.append(button)
+        assert len(undo_buttons) == 2
+        assert all(button.isEnabled() is False for button in undo_buttons)
+
+        self.window._advanced_filters = {"situacao": ["STE"]}
+        self.window._advanced_filters_active = True
+        self.window._clear_advanced_filters()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {}
+        assert self.window._advanced_filters_active is False
+        assert all(button.isEnabled() is True for button in undo_buttons)
+
+        self.window._restore_last_filter_state()
+        QApplication.processEvents()
+
+        assert self.window._advanced_filters == {"situacao": ["STE"]}
+        assert self.window._advanced_filters_active is True
+        assert all(button.isEnabled() is False for button in undo_buttons)
+
     def test_column_filter_buttons_flow(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
         QApplication.processEvents()
@@ -619,10 +695,12 @@ class TestGUIFilterLogic:
             executor_label = self.window._resolve_column_display_name('setor_executor')
         assert emissor_label in controls
         assert executor_label in controls
-        emissor_edit, emissor_apply, emissor_clear = controls[emissor_label]
-        executor_edit, executor_apply, _ = controls[executor_label]
-        assert emissor_clear.text() == "Ocultar"
-        assert "continua ativo" in (emissor_clear.toolTip() or "").casefold()
+        emissor_edit, emissor_apply, emissor_clear, emissor_hide = controls[emissor_label]
+        executor_edit, executor_apply, _, _ = controls[executor_label]
+        assert emissor_clear.text() == "Limpar"
+        assert "limpa o valor" in (emissor_clear.toolTip() or "").casefold()
+        assert emissor_hide.text() == "Ocultar"
+        assert "continua ativo" in (emissor_hide.toolTip() or "").casefold()
 
         emissor_edit.setText('MEL3, MEL4')
         cast(Any, QTest).mouseClick(emissor_apply, Qt.MouseButton.LeftButton)
@@ -634,7 +712,7 @@ class TestGUIFilterLogic:
 
         # "Remover linha" agora apenas oculta a linha, não limpa o valor
         emissor_edit.setText('')
-        cast(Any, QTest).mouseClick(emissor_clear, Qt.MouseButton.LeftButton)
+        cast(Any, QTest).mouseClick(emissor_hide, Qt.MouseButton.LeftButton)
         QApplication.processEvents()
         # Verifica que a linha do Emissor foi removida da exibição
         controls_after = self._get_column_filter_controls()
@@ -648,6 +726,63 @@ class TestGUIFilterLogic:
         QApplication.processEvents()
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
+
+    def test_column_filter_row_clear_button_clears_value_without_hiding_row(self):
+        self.window._active_column_filters = {col: '' for col in self.window._column_filter_default_columns()}
+        self.window._build_column_filters_panel()
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        label = (
+            self.window._expand_column_alias_for_filter("descricao_ssa")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("descricao_ssa")
+        )
+        assert label in controls
+        edit_widget, apply_btn, clear_btn, _hide_btn = controls[label]
+
+        edit_widget.setText("Teste A")
+        cast(Any, QTest).mouseClick(apply_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+        assert self.window._active_column_filters["descricao_ssa"] == "Teste A"
+
+        cast(Any, QTest).mouseClick(clear_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["descricao_ssa"] == ""
+        controls_after = self._get_column_filter_controls()
+        assert label in controls_after
+
+    def test_build_column_mask_blocks_heavy_regex_patterns(self):
+        series = pd.Series(["aaaaaaaaaaaa", "bbb"], dtype="string")
+        mask = self.window._build_column_mask(series, "~(a+)+$")
+        assert list(mask) == [False, False]
+
+    def test_activate_column_filter_stores_undo_snapshot(self):
+        self.window._last_filter_state = None
+        self.window.search_input.setText("Marca")
+        QApplication.processEvents()
+
+        self.window._activate_column_filter("coluna_temporaria_teste")
+        QApplication.processEvents()
+
+        assert self.window._last_filter_state is not None
+        snapshot = self.window._last_filter_state
+        assert snapshot.get("search_text", "").strip() == "Marca"
+        assert "coluna_temporaria_teste" not in (snapshot.get("active_column_filters") or {})
+
+    def test_deactivate_column_filter_stores_undo_snapshot(self):
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._last_filter_state = None
+        QApplication.processEvents()
+
+        self.window._deactivate_column_filter("descricao_ssa")
+        QApplication.processEvents()
+
+        assert self.window._last_filter_state is not None
+        snapshot = self.window._last_filter_state
+        assert str((snapshot.get("active_column_filters") or {}).get("descricao_ssa", "")).strip() == "Teste A"
+        assert "descricao_ssa" not in self.window._active_column_filters
 
     @pytest.mark.skip(reason="exclude_ste_checkbox está oculto na UI atual; efeito funcional coberto por test_exclude_ste_sca_combined_with_or_group")
     def test_exclude_checkbox_and_clear_filter_button(self):
@@ -961,6 +1096,9 @@ class TestGUIFilterLogic:
         for ctx in self.window._tab_contexts:
             assert ctx["search_input"].text().strip() == "Teste A, Teste D"
 
+    def test_general_search_debounce_uses_minimum_interval(self):
+        assert int(self.window._debounce_timer.interval()) >= 1400
+
     def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
         self.window.search_input.setText("Teste A")
         self.window.initiate_filtering()
@@ -1186,6 +1324,59 @@ class TestGUIFilterLogic:
         assert self.window._saved_gui_column_widths.get("descricao_ssa") == 222
         assert self.window._gui_column_pixel_widths.get("descricao_ssa") == 222
 
+    def test_header_context_menu_apply_stores_undo_snapshot(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Filtrar "):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        self.window._last_filter_state = None
+        self.window._active_column_filters["situacao"] = ""
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 2  # "#"(0), numero_ssa(1), situacao(2)
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("STE", True)):
+            self.window.show_header_context_menu(pos)
+            QApplication.processEvents()
+
+        assert self.window._active_column_filters["situacao"] == "STE"
+        assert self.window._last_filter_state is not None
+        snapshot_filters = self.window._last_filter_state.get("active_column_filters") or {}
+        assert str(snapshot_filters.get("situacao", "")).strip() == ""
+
     def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
         self.window._saved_gui_column_widths = {"descricao_ssa": 222}
         calls = {"persist": 0}
@@ -1286,6 +1477,33 @@ class TestGUIFilterLogic:
         assert self.window._advanced_filters_active is False
         assert Counter(self._extract_visible_ssa()) == Counter([1, 2, 3, 4, 5])
         assert self.window.clear_filter_button.isEnabled() is False
+
+    def test_clear_all_filters_global_restores_default_column_filter_keys(self):
+        self.window._active_column_filters = {
+            "situacao": "STE",
+            "numero_ssa": "2026",
+            "descricao_ssa": "Teste",
+        }
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        default_cols = self.window._column_filter_default_columns()
+        assert tuple(self.window._active_column_filters.keys()) == default_cols
+        assert not any(str(v).strip() for v in self.window._active_column_filters.values())
+
+    def test_clear_all_filters_global_resets_or_group_metadata(self):
+        self.window._apply_filter_profile("IEE3 + MEL3 + MEL4", refresh=True)
+        QApplication.processEvents()
+        assert len(self.window._column_or_groups) >= 1
+        assert len(self.window._column_to_or_group) >= 1
+
+        self.window._clear_all_filters_global()
+        QApplication.processEvents()
+
+        assert self.window._column_or_groups == []
+        assert self.window._column_to_or_group == {}
+        summary_text = str(self.window.filters_summary_label.text() or "").casefold()
+        assert "executor ou emissor (ou)" not in summary_text
 
     def test_build_derivadas_tree_normalizes_and_ignores_invalid_values(self):
         df = pd.DataFrame(
@@ -1634,6 +1852,22 @@ class TestGUIFilterLogic:
 
         self.window.on_filter_finished(stale_df, request_id=20)
         assert self.window._df_last_search_filtered.equals(self.base_df)
+
+    def test_clear_filter_resets_async_search_display_state(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert self.window._active_filter_search_request_id is not None
+        assert str(getattr(self.window, "_active_filter_search_display", "") or "").strip() == "Teste A"
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._active_filter_search_request_id is None
+        assert str(getattr(self.window, "_active_filter_search_display", "") or "").strip() == ""
 
     def test_clear_all_filters_global_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 30

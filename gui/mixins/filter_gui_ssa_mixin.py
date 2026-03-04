@@ -64,6 +64,7 @@ from utils.robust_logging import get_robust_logger
 logger = get_robust_logger().get_logger(__name__, "gui")
 _NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()]*[+*][^()]*)\)\s*[+*{]")
 _HEAVY_QUANTIFIER_CHAIN_RE = re.compile(r"(?:[+*]|\{[^}]*\}){3,}")
+_REGEX_META_CHAR_RE = re.compile(r"[*+?{}|()[\]]")
 
 
 def _qt_parent(obj: Any) -> QWidget | None:
@@ -224,6 +225,67 @@ class FilterGUISSAMixin:
             has_advanced = False
         return bool(has_search or has_column_filters or has_exclude_ste or has_advanced)
 
+    def _iter_clear_filter_buttons(self):
+        seen_ids = set()
+        direct_button = getattr(self, "clear_filter_button", None)
+        if direct_button is not None:
+            seen_ids.add(id(direct_button))
+            yield direct_button
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            button = ctx.get("clear_filter_button")
+            if button is None:
+                continue
+            button_id = id(button)
+            if button_id in seen_ids:
+                continue
+            seen_ids.add(button_id)
+            yield button
+
+    def _set_clear_filter_buttons_enabled(self, enabled: bool) -> None:
+        target_state = bool(enabled)
+        for button in self._iter_clear_filter_buttons():
+            try:
+                button.setEnabled(target_state)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar estado de botao limpar em contexto de aba: %s", exc)
+
+    def _sync_clear_filter_button_state(self) -> None:
+        self._set_clear_filter_buttons_enabled(self._has_any_active_filters())
+
+    def _iter_undo_filter_buttons(self):
+        seen_ids = set()
+        direct_button = getattr(self, "undo_filter_btn", None)
+        if direct_button is not None:
+            seen_ids.add(id(direct_button))
+            yield direct_button
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            button = ctx.get("undo_filter_btn")
+            if button is None:
+                continue
+            button_id = id(button)
+            if button_id in seen_ids:
+                continue
+            seen_ids.add(button_id)
+            yield button
+
+    def _set_undo_filter_buttons_enabled(self, enabled: bool) -> None:
+        target_state = bool(enabled)
+        for button in self._iter_undo_filter_buttons():
+            try:
+                button.setEnabled(target_state)
+            except Exception as exc:
+                logger.debug("Falha ao sincronizar estado de botao undo em contexto de aba: %s", exc)
+
     def _set_filter_ui_idle(self) -> None:
         """Garante estado visual de ociosidade após abortar/limpar filtros."""
         try:
@@ -267,6 +329,14 @@ class FilterGUISSAMixin:
         if reason:
             logger.debug("Worker anterior cancelado (%s)", reason)
 
+    def _on_general_search_apply_clicked(self, tab_kind: str) -> None:
+        logger.debug("Acao aplicar busca geral acionada (tab_kind=%s)", tab_kind)
+        self.initiate_filtering()
+
+    def _on_general_search_clear_clicked(self, tab_kind: str) -> None:
+        logger.debug("Acao limpar busca geral acionada (tab_kind=%s)", tab_kind)
+        self.clear_filter()
+
     def initiate_filtering(self):
         if self.df_completo.empty:
             QMessageBox.information(_qt_parent(self), "Aviso", "Nenhum dado carregado para filtrar.")
@@ -285,8 +355,7 @@ class FilterGUISSAMixin:
         # remove empty chunk lists
         chunk_terms_lists = [terms for terms in chunk_terms_lists if terms]
 
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
 
         if chunk_terms_lists:
             display_text = self._format_search_display(chunk_terms_lists)
@@ -443,8 +512,7 @@ class FilterGUISSAMixin:
             filtered_total=filtered_total_current,
             original_total=len(self.df_completo) if hasattr(self, "df_completo") and self.df_completo is not None else None,
         )
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
         self._apply_search_display()
         table_widget = getattr(self, "table_widget", None)
         table_widget_valid = _is_search_widget_valid(table_widget)
@@ -680,16 +748,14 @@ class FilterGUISSAMixin:
                 except Exception as unblock_exc:
                     logger.debug("Falha ao reativar sinais do campo de busca apos clear_filter: %s", unblock_exc)
         self._pending_search_display = None
+        self._active_filter_search_display = ""
+        self._active_filter_search_request_id = None
         # Nao limpa filtros avancados nem filtros de coluna aqui.
         # Esse botao limpa apenas a busca geral; limpeza global usa "_clear_all_filters_global".
         self._df_last_search_filtered = self.df_completo.copy()
         self._refresh_after_filter_change()
         self._set_filtered_count_status("")
-        try:
-            if hasattr(self, 'clear_filter_button'):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar filtro: %s", exc)
+        self._sync_clear_filter_button_state()
         # Atualizar resumo de filtros
         try:
             self._update_filters_summary()
@@ -888,6 +954,7 @@ class FilterGUISSAMixin:
         if not col_name:
             return
         if col_name not in self._active_column_filters:
+            self._safe_store_last_filter_state("activate_column_filter")
             self._active_column_filters[col_name] = ""
             try:
                 self._mark_profile_as_custom()
@@ -902,6 +969,9 @@ class FilterGUISSAMixin:
         """Remove coluna do conjunto de filtros ativos e atualiza a interface."""
         if not col_name:
             return
+        if col_name not in self._active_column_filters and col_name not in self._column_to_or_group:
+            return
+        self._safe_store_last_filter_state("deactivate_column_filter")
         removed = False
         if col_name in self._column_to_or_group:
             group = self._column_to_or_group.get(col_name)
@@ -994,7 +1064,7 @@ class FilterGUISSAMixin:
                 display_text = str(term)
             term_box = QLineEdit(display_text)
             self._column_filter_inputs[col] = term_box
-            # Placeholder sem conectivos OU/AND — OR agora é dedicado
+            # Placeholder sem conectivos OU/AND - OR agora e dedicado
             term_box.setPlaceholderText("Separe termos por vírgulas. Modos: foo, ^pre, suf$, =exato, ~regex, !neg")
             # Reduzido para garantir visibilidade dos botões em telas estreitas
             term_box.setMinimumWidth(220)
@@ -1036,52 +1106,94 @@ class FilterGUISSAMixin:
                     self._mark_profile_as_custom()
                     self._build_column_filters_panel()
                     self._refresh_after_filter_change()
-                    try:
-                        if hasattr(self, "clear_filter_button"):
-                            self.clear_filter_button.setEnabled(self._has_any_active_filters())
-                    except Exception as exc:
-                        logger.debug("Falha ao atualizar botao limpar apos aplicar filtro de coluna %s: %s", c, exc)
+                    self._sync_clear_filter_button_state()
                 return _inner
             apply_btn.clicked.connect(_mk_apply())
-            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
-            clear_btn = QPushButton("Ocultar")
+            # Botao Limpar remove o valor do filtro, mas mantem a linha visivel.
+            clear_btn = QPushButton("Limpar")
             try:
                 clear_btn.setMinimumHeight(26)
             except Exception as exc:
-                logger.debug("Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s", col, exc)
+                logger.debug("Falha ao aplicar altura minima no botao Limpar da coluna %s: %s", col, exc)
             try:
                 clear_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             except Exception as exc:
+                logger.debug("Falha ao aplicar size policy no botao Limpar da coluna %s: %s", col, exc)
+            try:
+                clear_btn.setFixedWidth(66)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar largura fixa no botao Limpar da coluna %s: %s", col, exc)
+            try:
+                clear_btn.setToolTip("Limpa o valor desta coluna e reaplica os filtros.")
+            except Exception as exc:
+                logger.debug("Falha ao aplicar tooltip no botao Limpar da coluna %s: %s", col, exc)
+
+            def _mk_clear_value(c=col, tb=term_box):
+                def _inner():
+                    current_text = str(self._active_column_filters.get(c, "")).strip()
+                    typed_text = str(tb.text()).strip()
+                    if not current_text and not typed_text:
+                        return
+                    self._safe_store_last_filter_state("clear_column_filter_value")
+                    self._active_column_filters[c] = ""
+                    self._sync_or_group_values(c, "")
+                    try:
+                        tb.blockSignals(True)
+                        tb.setText("")
+                    finally:
+                        try:
+                            tb.blockSignals(False)
+                        except Exception as exc:
+                            logger.debug("Falha ao reativar sinais no input apos limpar coluna %s: %s", c, exc)
+                    self._mark_profile_as_custom()
+                    self._build_column_filters_panel()
+                    self._refresh_after_filter_change()
+                    self._sync_clear_filter_button_state()
+                return _inner
+            try:
+                clear_btn.clicked.connect(_mk_clear_value())
+            except Exception as exc:
+                logger.debug("Falha ao conectar botao limpar para filtro de coluna %s: %s", col, exc)
+
+            # Botao para ocultar a linha da exibicao (nao altera o valor do filtro)
+            hide_btn = QPushButton("Ocultar")
+            try:
+                hide_btn.setMinimumHeight(26)
+            except Exception as exc:
+                logger.debug("Falha ao aplicar altura minima no botao Ocultar da coluna %s: %s", col, exc)
+            try:
+                hide_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            except Exception as exc:
                 logger.debug("Falha ao aplicar size policy no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setFixedWidth(66)  # Padronizado com o botao Aplicar
+                hide_btn.setFixedWidth(66)
             except Exception as exc:
                 logger.debug("Falha ao aplicar largura fixa no botao Ocultar da coluna %s: %s", col, exc)
             try:
-                clear_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
+                hide_btn.setToolTip("Oculta a linha. O filtro desta coluna continua ativo.")
             except Exception as exc:
                 logger.debug("Falha ao aplicar tooltip no botao Ocultar da coluna %s: %s", col, exc)
-            
+
             def _mk_remove_line(c=col):
                 def _inner():
-                    try:
-                        self._hidden_column_filter_lines.add(c)
-                    except Exception:
-                        self._hidden_column_filter_lines = {c}
-                    # Não altera self._active_column_filters[c]
+                    hidden_lines = getattr(self, "_hidden_column_filter_lines", None)
+                    if not isinstance(hidden_lines, set):
+                        hidden_lines = set()
+                        self._hidden_column_filter_lines = hidden_lines
+                    hidden_lines.add(c)
                     self._build_column_filters_panel()
-                    # Não refiltra; apenas exibição
                 return _inner
             try:
-                clear_btn.clicked.connect(_mk_remove_line())
+                hide_btn.clicked.connect(_mk_remove_line())
             except Exception as exc:
                 logger.debug("Falha ao conectar botao ocultar para filtro de coluna %s: %s", col, exc)
-            # Oculta o botão para colunas fixas que não devem ser removidas da exibição
+
             row.addWidget(name_lbl)
             row.addWidget(term_box, 1)
             row.addWidget(apply_btn)
             row.addWidget(clear_btn)
-            # Layout order: label, input, Aplicar, Ocultar (OU button removed - only commas needed)
+            row.addWidget(hide_btn)
+            # Layout order: label, input, Aplicar, Limpar, Ocultar
             row_w = QWidget()
             row_w.setLayout(row)
             target_layout.addWidget(row_w)
@@ -1193,11 +1305,7 @@ class FilterGUISSAMixin:
             self._mark_profile_as_custom()
             self._build_column_filters_panel()
             self._refresh_after_filter_change()
-            try:
-                if hasattr(self, "clear_filter_button"):
-                    self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception as exc:
-                logger.debug("Falha ao atualizar botao limpar apos limpar filtro de coluna %s: %s", col_name, exc)
+            self._sync_clear_filter_button_state()
 
 
     def _clear_all_column_filters(self):
@@ -1223,11 +1331,7 @@ class FilterGUISSAMixin:
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
-        try:
-            if hasattr(self, "clear_filter_button"):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar botao limpar apos limpar todos filtros de coluna: %s", exc)
+        self._sync_clear_filter_button_state()
 
 
     def _on_exclude_ste_sca_toggled(self, checked: bool):
@@ -1302,11 +1406,11 @@ class FilterGUISSAMixin:
         self._pending_search_display = None
         self._df_last_search_filtered = pd.DataFrame()
 
-        # Limpar todos os filtros de coluna
-        if self._active_column_filters:
-            self._active_column_filters.clear()
-            for k in ("situacao", "setor_executor", "descricao_ssa"):
-                self._active_column_filters[k] = ""
+        # Limpar todos os filtros de coluna com o mesmo baseline padrao
+        self._active_column_filters = OrderedDict(
+            (col, "") for col in self._column_filter_default_columns()
+        )
+        self._reset_or_groups()
 
         # Limpar filtros auxiliares/avancados
         self._exclude_ste_sca = False
@@ -1356,8 +1460,7 @@ class FilterGUISSAMixin:
 
         # Atualizar interface
         self._set_filtered_count_status("")
-        if hasattr(self, 'clear_filter_button'):
-            self.clear_filter_button.setEnabled(self._has_any_active_filters())
+        self._sync_clear_filter_button_state()
 
         # Atualizar resumo de filtros
         self._update_filters_summary()
@@ -1769,11 +1872,7 @@ class FilterGUISSAMixin:
             self._update_filters_summary()
         except Exception as exc:
             logger.debug("Falha ao atualizar resumo de filtros no refresh: %s", exc)
-        try:
-            if hasattr(self, "clear_filter_button"):
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao limpar no refresh de filtros: %s", exc)
+        self._sync_clear_filter_button_state()
         try:
             self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or ""))
         except Exception as exc:
@@ -1905,10 +2004,7 @@ class FilterGUISSAMixin:
                 self._update_filters_summary()
             except Exception as exc:
                 logger.debug("Falha ao atualizar resumo de filtros no restore: %s", exc)
-            try:
-                self.clear_filter_button.setEnabled(self._has_any_active_filters())
-            except Exception as exc:
-                logger.debug("Falha ao atualizar estado do botao limpar no restore: %s", exc)
+            self._sync_clear_filter_button_state()
             selector = getattr(self, 'profile_selector', None)
             if selector is not None:
                 idx = selector.findData(self.current_filter_profile) if self.current_filter_profile else selector.findData(None)
@@ -1924,13 +2020,7 @@ class FilterGUISSAMixin:
 
 
     def _update_undo_button_state(self) -> None:
-        btn = getattr(self, "undo_filter_btn", None)
-        if btn is None:
-            return
-        try:
-            btn.setEnabled(bool(getattr(self, "_last_filter_state", None)))
-        except Exception as exc:
-            logger.debug("Falha ao atualizar estado do botao de desfazer filtros: %s", exc)
+        self._set_undo_filter_buttons_enabled(bool(getattr(self, "_last_filter_state", None)))
 
 
     def _apply_search_display(self):
@@ -2224,12 +2314,16 @@ class FilterGUISSAMixin:
                 return pd.Series([True] * len(s), index=s.index)
             has_lookaround = "(?=" in pattern_text or "(?!" in pattern_text or "(?<=" in pattern_text or "(?<!" in pattern_text
             has_backref = bool(re.search(r"\\[1-9]", pattern_text))
+            meta_char_count = len(_REGEX_META_CHAR_RE.findall(pattern_text))
+            has_alternation_with_quantifier = "|" in pattern_text and bool(re.search(r"[+*?{]", pattern_text))
             if (
                 len(pattern_text) > 120
                 or _NESTED_QUANTIFIER_RE.search(pattern_text)
                 or _HEAVY_QUANTIFIER_CHAIN_RE.search(pattern_text)
                 or has_lookaround
                 or has_backref
+                or meta_char_count > 16
+                or has_alternation_with_quantifier
             ):
                 logger.warning("Regex de filtro bloqueado por seguranca; usando busca literal.")
                 return s.str.contains(pattern_text, case=False, na=False, regex=False)
