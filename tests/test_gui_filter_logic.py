@@ -649,6 +649,32 @@ class TestGUIFilterLogic:
         assert self.window._active_column_filters['setor_executor'] == 'IEE3, MEL4'
         assert self.window._active_column_filters['setor_emissor'] == 'IEE3, MEL4'
 
+    def test_activate_column_filter_stores_undo_snapshot(self):
+        self.window._last_filter_state = None
+        self.window.search_input.setText("Marca")
+        QApplication.processEvents()
+
+        self.window._activate_column_filter("coluna_temporaria_teste")
+        QApplication.processEvents()
+
+        assert self.window._last_filter_state is not None
+        snapshot = self.window._last_filter_state
+        assert snapshot.get("search_text", "").strip() == "Marca"
+        assert "coluna_temporaria_teste" not in (snapshot.get("active_column_filters") or {})
+
+    def test_deactivate_column_filter_stores_undo_snapshot(self):
+        self.window._active_column_filters["descricao_ssa"] = "Teste A"
+        self.window._last_filter_state = None
+        QApplication.processEvents()
+
+        self.window._deactivate_column_filter("descricao_ssa")
+        QApplication.processEvents()
+
+        assert self.window._last_filter_state is not None
+        snapshot = self.window._last_filter_state
+        assert str((snapshot.get("active_column_filters") or {}).get("descricao_ssa", "")).strip() == "Teste A"
+        assert "descricao_ssa" not in self.window._active_column_filters
+
     @pytest.mark.skip(reason="exclude_ste_checkbox está oculto na UI atual; efeito funcional coberto por test_exclude_ste_sca_combined_with_or_group")
     def test_exclude_checkbox_and_clear_filter_button(self):
         self.window._apply_filter_profile('IEE3 + MEL3 + MEL4', refresh=True)
@@ -960,6 +986,9 @@ class TestGUIFilterLogic:
         assert Counter(self._extract_visible_ssa()) == Counter([1])
         for ctx in self.window._tab_contexts:
             assert ctx["search_input"].text().strip() == "Teste A, Teste D"
+
+    def test_general_search_debounce_uses_minimum_interval(self):
+        assert int(self.window._debounce_timer.interval()) >= 1400
 
     def test_clear_filter_on_filters_tab_clears_search_in_all_tabs(self):
         self.window.search_input.setText("Teste A")
@@ -1634,6 +1663,22 @@ class TestGUIFilterLogic:
 
         self.window.on_filter_finished(stale_df, request_id=20)
         assert self.window._df_last_search_filtered.equals(self.base_df)
+
+    def test_clear_filter_resets_async_search_display_state(self):
+        self.window._sync_filtering = False
+        self.window.search_input.setText("Teste A")
+        self.window.initiate_filtering()
+        QApplication.processEvents()
+
+        assert self.window._active_filter_search_request_id is not None
+        assert str(getattr(self.window, "_active_filter_search_display", "") or "").strip() == "Teste A"
+
+        self.window.clear_filter()
+        QApplication.processEvents()
+
+        assert self.window.search_input.text() == ""
+        assert self.window._active_filter_search_request_id is None
+        assert str(getattr(self.window, "_active_filter_search_display", "") or "").strip() == ""
 
     def test_clear_all_filters_global_invalidates_pending_async_result(self):
         self.window._filter_request_seq = 30
