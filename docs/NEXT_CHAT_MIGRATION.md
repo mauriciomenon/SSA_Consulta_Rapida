@@ -2,7 +2,27 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-05 08:40 - start from here
+## CURRENT TRUTH 2026-03-05 09:41 - start from here
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- PR #44 triage status:
+  1. critical-only fixes applied in `a07afd7a`.
+  2. fixed now: date-filter negation bug, hash width clamp regression, and silent width-manager exception suppression.
+  3. non-blocking/broad comments deferred to backlog for separate slices.
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or data_cadastro_column_filter_negation_matches_display_date or best_fit_width_respects_predefined_max_for_long_columns or compute_optimal_widths_keeps_hash_column_minimum_24 or on_header_clicked_preserves_column_widths_after_sort or header_context_menu_exposes_best_fit_visible_action"`: `6 passed`.
+  5. kluster auto in this slice: clean -> clean -> clean -> clean -> clean.
+- Evidence commit:
+  1. `a07afd7a`.
+- Next cycle:
+  1. complete PR comment status replies (fixed/deferred/falso-positivo) with links to evidence.
+  2. keep deferred architectural suggestions outside this PR.
+
+## HISTORICAL SNAPSHOT 2026-03-05 08:40 - start from here
 
 - Active branch: `codex/reapply-good-commits-20260305`.
 - Local release baseline: `4.30`.

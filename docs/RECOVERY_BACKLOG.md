@@ -3,6 +3,40 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (pr44 review triage: critical-only fix lane)
+
+Session timestamp:
+1. start: `2026-03-05 09:30:55 -0300`
+2. end: `2026-03-05 09:41:00 -0300`
+
+Delivered in this slice:
+1. fixed cubic P1 date-negation regression in date display/raw merge path.
+2. fixed cubic P2 hash-column min width regression (`#` kept at 24).
+3. removed silent exception suppression in width manager capture/restore path with explicit debug logs.
+4. added regressions in `tests/test_gui_filter_logic.py`:
+   - `test_data_cadastro_column_filter_negation_matches_display_date`
+   - `test_compute_optimal_widths_keeps_hash_column_minimum_24`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or data_cadastro_column_filter_negation_matches_display_date or best_fit_width_respects_predefined_max_for_long_columns or compute_optimal_widths_keeps_hash_column_minimum_24 or on_header_clicked_preserves_column_widths_after_sort or header_context_menu_exposes_best_fit_visible_action"`: `6 passed`.
+5. kluster auto in this slice: clean -> clean -> clean -> clean -> clean.
+
+Decision and scope:
+1. this is `HOTFIX_BLOCKER` limited to real bugs in existing replay PR (#44).
+2. no layout repositioning and no DB/runtime schema mutation.
+3. deferred comments (non-blocking / broad changes) were kept out of this slice and remain tracked:
+   - gui_table setColumnWidth try/except hardening (`comment 2890593020`)
+   - test helper dedup refactor (`comment 2890610562`)
+   - dynamic width limits by DPI (`comment 2890684063`)
+   - affinity fallback heuristic for unknown columns (`comment 2890684069`)
+   - skip-flag architectural refactor (`comment 2890684081`)
+   - wider date separator heuristic (`comment 2890684089`)
+   - optional sort unification with advanced helper (`comment 2890654323`)
+   - process-only config backup warning (`comment 2890631211`)
+
 ## Update 2026-03-05 (safe reapply from clean base, d4 excluded)
 
 Session timestamp:
