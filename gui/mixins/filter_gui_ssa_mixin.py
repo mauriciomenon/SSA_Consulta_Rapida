@@ -52,6 +52,7 @@ except ImportError:
 from core.app_logic import filter_dataframe, parse_search_terms
 from core.config_manager import DEFAULT_DISPLAY_MAPPINGS
 from gui.gui_config import COMPATIBILITY_NULL_UI_COLUMNS
+from shared.date_utils import parse_datetime_series_mixed
 
 # Imports de gui helpers
 from gui.helpers.formatting_helpers import normalize_chunk_for_parse, format_search_display
@@ -1820,11 +1821,64 @@ class FilterGUISSAMixin:
             if not raw_str:
                 continue
             col_series = working_df[col].astype(str)
-            mask &= self._build_column_mask(col_series, raw_str)
+            col_mask = self._build_column_mask(col_series, raw_str)
+            if self._should_match_date_display_filter(col, raw_str):
+                display_dates = self._get_column_filter_date_display_series(working_df, col)
+                if display_dates is not None and not display_dates.empty:
+                    tokens = [token.strip() for token in raw_str.split(",") if token.strip()]
+                    include_tokens = [token for token in tokens if not token.startswith("!")]
+                    exclude_tokens = [token for token in tokens if token.startswith("!")]
+
+                    if include_tokens:
+                        include_expr = ", ".join(include_tokens)
+                        include_mask = (
+                            self._build_column_mask(col_series, include_expr)
+                            | self._build_column_mask(display_dates, include_expr)
+                        )
+                    else:
+                        include_mask = pd.Series(True, index=working_df.index)
+
+                    if exclude_tokens:
+                        exclude_expr = ", ".join(exclude_tokens)
+                        exclude_mask = (
+                            self._build_column_mask(col_series, exclude_expr)
+                            & self._build_column_mask(display_dates, exclude_expr)
+                        )
+                    else:
+                        exclude_mask = pd.Series(True, index=working_df.index)
+
+                    col_mask = include_mask & exclude_mask
+
+            mask &= col_mask
 
         if mask.all():
             return working_df
         return working_df[mask]
+
+    def _should_match_date_display_filter(self, col: str, raw_filter: str) -> bool:
+        col_lower = str(col or "").casefold()
+        if "data" not in col_lower and not col_lower.startswith("dt_"):
+            return False
+        return "/" in str(raw_filter or "")
+
+    def _get_column_filter_date_display_series(self, df: pd.DataFrame, col: str) -> pd.Series | None:
+        if df is None or col not in df.columns:
+            return None
+        cache_df_id = getattr(self, "_column_filter_date_cache_df_id", None)
+        if cache_df_id != id(df):
+            self._column_filter_date_cache_df_id = id(df)
+            self._column_filter_date_cache = {}
+        cache = getattr(self, "_column_filter_date_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._column_filter_date_cache = cache
+        cached = cache.get(col)
+        if isinstance(cached, pd.Series):
+            return cached
+        parsed_dates = parse_datetime_series_mixed(df[col])
+        display_dates = parsed_dates.dt.strftime("%d/%m/%Y").fillna("").astype(str)
+        cache[col] = display_dates
+        return display_dates
 
 
     def _refresh_after_filter_change(self):

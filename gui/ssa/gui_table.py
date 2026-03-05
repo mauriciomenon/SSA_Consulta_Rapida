@@ -273,6 +273,10 @@ def display_current_page(window, page_number):
         vw = -1
     need_cols = (not hasattr(window, '_widths_columns_sig')) or (window._widths_columns_sig != cols_sig)
     need_vw = (not hasattr(window, '_last_viewport_w')) or (abs(vw - window._last_viewport_w) > 12)
+    if bool(getattr(window, "_skip_width_recompute_once", False)):
+        window._skip_width_recompute_once = False
+        need_cols = False
+        need_vw = False
     if need_cols or need_vw:
         window._compute_gui_column_widths(display_df)
         window._widths_columns_sig = cols_sig
@@ -295,8 +299,17 @@ def display_current_page(window, page_number):
         if px is None:
             px = _fallback_column_width(col_key)
 
-        # Aplica limites de seguranca apenas
-        px = max(30, min(int(px), 1000))  # Permite larguras maiores para descriptions
+        # Aplica limites de seguranca por coluna.
+        max_px = 1000
+        width_manager = getattr(window, "width_manager", None)
+        max_map = getattr(width_manager, "max_pixel_widths", None)
+        if isinstance(max_map, dict):
+            try:
+                max_px = int(max_map.get(col_key, max_px))
+            except Exception:
+                max_px = 1000
+        min_px = 24 if str(col_key) == "#" else 30
+        px = max(min_px, min(int(px), max_px))
 
         window.table_widget.setColumnWidth(i, px)
 

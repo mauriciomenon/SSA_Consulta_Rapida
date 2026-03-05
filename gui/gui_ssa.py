@@ -50,7 +50,11 @@ from gui.ssa import gui_filters_advanced as ssa_gui_filters  # noqa: E402
 from gui.ssa import gui_table as ssa_gui_table  # noqa: E402
 from gui.ssa import gui_details as ssa_gui_details  # noqa: E402
 from utils.themes import get_theme_roles, normalize_theme  # noqa: E402
-from core.config_manager import DEFAULT_DISPLAY_MAPPINGS, atomic_write_json_file  # noqa: E402
+from core.config_manager import (  # noqa: E402
+    DEFAULT_DISPLAY_MAPPINGS,
+    COLUMN_AFFINITY_SCORES,
+    atomic_write_json_file,
+)
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -897,8 +901,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception:
             self._info_font = None
 
-        # Carrega mapeamentos de exibicao das preferencias da GUI principal
-        self.display_map = GUI_MAIN_PREFERENCES.get("display_mappings", load_display_mappings())
+        # Carrega mapeamentos de exibicao com merge defensivo para evitar labels tecnicos.
+        # Fonte canonica: defaults + column_display_names + display_mappings.
+        self.display_map = load_display_mappings()
         self.internal_to_display = {k: v for k, v in self.display_map.items()}
 
         # Colunas padrção para exibiçção (das configurações JSON)
@@ -2078,6 +2083,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             sip_module=sip,
         )
 
+    def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
+        """Sort num_reprogramacoes with mixed legacy values without TypeError."""
+        if self.df_exibido is None or self.df_exibido.empty:
+            return self.df_exibido
+        if "num_reprogramacoes" not in self.df_exibido.columns:
+            return self.df_exibido
+
+        raw_series = self.df_exibido["num_reprogramacoes"]
+        numeric = pd.to_numeric(raw_series, errors="coerce")
+        if bool(numeric.isna().any()):
+            extracted = raw_series.astype(str).str.extract(r"(-?\d+)")[0]
+            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
+            numeric = numeric.fillna(extracted_numeric)
+
+        sort_df = self.df_exibido.assign(
+            __reprog_is_nan=numeric.isna(),
+            __reprog_num=numeric,
+            __reprog_txt=raw_series.astype(str).str.casefold(),
+        )
+        sorted_df = sort_df.sort_values(
+            by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
+            ascending=[True, bool(ascending), True],
+            na_position="last",
+            kind="mergesort",
+        )
+        return sorted_df.drop(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+
     def on_header_clicked(self, logical_index: int):
         try:
             if logical_index < 0 or self.table_widget.columnCount() == 0:
@@ -2091,6 +2123,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             # Ignora a coluna de ándice
             if col_name == '#':
                 return
+            preserved_widths = self._capture_current_column_widths()
+            self._skip_width_recompute_once = True
 
             # Alterna direçção ao clicar na mesma coluna
             if getattr(self, 'sort_column', None) == col_name:
@@ -2101,11 +2135,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             # Ordena resultado filtrado atual e reinicia paginaçção
             try:
-                self.df_exibido = self.df_exibido.sort_values(
-                    by=self.sort_column,
-                    ascending=self.sort_ascending,
-                    na_position='last'
-                )
+                if self.sort_column == "num_reprogramacoes":
+                    self.df_exibido = self._sort_num_reprogramacoes_robust(self.sort_ascending)
+                else:
+                    self.df_exibido = self.df_exibido.sort_values(
+                        by=self.sort_column,
+                        ascending=self.sort_ascending,
+                        na_position='last'
+                    )
                 self._bump_data_revision("sort_column")
             except Exception as exc:
                 logger.warning(
@@ -2117,6 +2154,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             self.paginator.set_dataframe(self.df_exibido)
             (lambda cp=max(1, min(getattr(self.paginator,'current_page',1), getattr(self.paginator,'total_pages',1))): self.display_current_page(cp))()
+            self._restore_column_widths(preserved_widths)
 
             # Indicador visual na UI
             try:
@@ -2149,6 +2187,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             apply_action = QAction(f"Filtrar '{full_name}'...", self)
             clear_action = QAction("Limpar filtro desta coluna", self)
             clear_all_action = QAction("Limpar todos filtros de colunas", self)
+            best_fit_visible_action = QAction("Best fit colunas visiveis", self)
+            show_all_affinity_action = QAction("Exibir todas colunas (afinidade)", self)
 
             def _apply():
                 term = None
@@ -2185,12 +2225,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             apply_action.triggered.connect(_apply)
             clear_action.triggered.connect(_clear)
             clear_all_action.triggered.connect(_clear_all)
+            best_fit_visible_action.triggered.connect(self.best_fit_visible_columns)
+            show_all_affinity_action.triggered.connect(self._show_all_columns_by_affinity)
 
             cast(Any, menu).addAction(apply_action)
             if col_name in self._active_column_filters:
                 cast(Any, menu).addAction(clear_action)
             if self._active_column_filters:
                 cast(Any, menu).addAction(clear_all_action)
+            cast(Any, menu).addAction(best_fit_visible_action)
+            cast(Any, menu).addAction(show_all_affinity_action)
             menu.exec(header.mapToGlobal(pos))
         except Exception as exc:
             logger.debug("Falha ao abrir menu de contexto do header da tabela: %s", exc)
@@ -2251,6 +2295,71 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
         # As configurações ficam no arquivo gui_main_preferences.json
+
+    def _get_select_all_columns_from_selector(self) -> list[str]:
+        selector = getattr(self, "column_selector", None)
+        available = []
+        selected = []
+        default_columns = list(getattr(self, "default_columns", []) or [])
+        if selector is not None:
+            available = list(getattr(selector, "available_columns", []) or [])
+            selected = list(getattr(selector, "selected_internal_columns", []) or [])
+        canonical = list(self._get_canonical_available_columns() or [])
+        if not available:
+            available = canonical
+        else:
+            available = list(dict.fromkeys(available + [col for col in canonical if col not in available]))
+        selection = [col for col in selected if col in available]
+        if not selection:
+            selection = [col for col in default_columns if col in available]
+        remaining = [col for col in available if col not in selection]
+        return selection + remaining
+
+    def _sort_columns_by_affinity_desc(self, columns: list[str]) -> list[str]:
+        if not columns:
+            return []
+        base_index = {col: idx for idx, col in enumerate(columns)}
+        return sorted(
+            list(dict.fromkeys(columns)),
+            key=lambda col: (
+                -int(COLUMN_AFFINITY_SCORES.get(col, 0)),
+                int(base_index.get(col, 10000)),
+            ),
+        )
+
+    def _show_all_columns_by_affinity(self) -> None:
+        select_all_columns = self._get_select_all_columns_from_selector()
+        if not select_all_columns:
+            return
+        ordered_columns = self._sort_columns_by_affinity_desc(select_all_columns)
+        self.on_columns_changed(ordered_columns)
+
+    def _capture_current_column_widths(self) -> dict[str, int]:
+        width_manager = getattr(self, "width_manager", None)
+        if width_manager is None or not hasattr(width_manager, "capture_current_column_widths"):
+            return {}
+        return width_manager.capture_current_column_widths(
+            self.table_widget,
+            getattr(self, "_current_display_columns", []),
+        )
+
+    def _restore_column_widths(self, widths: dict[str, int]) -> None:
+        if not isinstance(widths, dict) or not widths:
+            return
+        width_manager = getattr(self, "width_manager", None)
+        if width_manager is None or not hasattr(width_manager, "restore_column_widths"):
+            return
+        gui_widths = getattr(self, "_gui_column_pixel_widths", None)
+        if not isinstance(gui_widths, dict):
+            gui_widths = {}
+            self._gui_column_pixel_widths = gui_widths
+        width_manager.restore_column_widths(
+            self.table_widget,
+            getattr(self, "_current_display_columns", []),
+            widths,
+            saved_widths=getattr(self, "_saved_gui_column_widths", {}),
+            gui_widths=gui_widths,
+        )
 
     def display_current_page(self, page_number):
         return ssa_gui_table.display_current_page(self, page_number)
@@ -2484,8 +2593,57 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self.visible_columns.remove(internal_column)
                 self.on_columns_changed(self.visible_columns)
 
+    def _compute_best_fit_width_for_column(self, column_index: int, sample_limit: int = 2000) -> int | None:
+        if column_index < 0 or column_index >= self.table_widget.columnCount():
+            return None
+        cols = getattr(self, "_current_display_columns", None)
+        if not cols or column_index >= len(cols):
+            return None
+        col_name = cols[column_index]
+        header_item = self.table_widget.horizontalHeaderItem(column_index)
+        header_text = str(header_item.text()) if header_item is not None else str(col_name)
+        width_manager = getattr(self, "width_manager", None)
+        font_metrics = self.table_widget.fontMetrics()
+        series = None
+        if self.df_exibido is not None and not self.df_exibido.empty and col_name in self.df_exibido.columns:
+            series = self.df_exibido[col_name]
+        if width_manager is not None and hasattr(width_manager, "compute_best_fit_width"):
+            return int(
+                width_manager.compute_best_fit_width(
+                    series=series,
+                    header_text=header_text,
+                    col_name=col_name,
+                    measure_text=font_metrics.horizontalAdvance,
+                    sample_limit=int(sample_limit),
+                )
+            )
+        header_px = int(font_metrics.horizontalAdvance(str(header_text))) + 28
+        if col_name == "#":
+            return max(26, min(int(header_px), 90))
+        return max(40, min(int(header_px), 420))
+
+    def _best_fit_column_width(self, column_index: int) -> bool:
+        width = self._compute_best_fit_width_for_column(column_index)
+        if width is None:
+            return False
+        old_width = self.table_widget.columnWidth(column_index)
+        self.table_widget.setColumnWidth(column_index, int(width))
+        self._on_header_section_resized(column_index, old_width, int(width))
+        return True
+
+    def best_fit_visible_columns(self):
+        col_count = self.table_widget.columnCount()
+        if col_count <= 0:
+            return
+        for column_index in range(col_count):
+            if column_index == 0:
+                continue
+            self._best_fit_column_width(column_index)
+
     def auto_fit_column(self, column_index):
         """Ajusta automaticamente a largura da coluna baseada no conteudo."""
+        if self._best_fit_column_width(column_index):
+            return
         old_width = self.table_widget.columnWidth(column_index)
         self.table_widget.resizeColumnToContents(column_index)
         new_width = self.table_widget.columnWidth(column_index)
