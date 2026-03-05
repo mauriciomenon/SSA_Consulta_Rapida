@@ -3,6 +3,31 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (slice minimo: bootstrap sem falso no-such-table)
+
+Session timestamp:
+1. start: `2026-03-05 20:24:05 -0300`
+2. end: `2026-03-05 20:27:24 -0300`
+
+Decision delivered:
+1. `ensure_column_exists` now exits safely when target table does not exist yet.
+2. this removes false startup noise (`no such table: ssa_table`) during early full-rescan/bootstrap phase.
+
+Files changed:
+1. `armazenamento/database.py`
+2. `tests/test_database_verification.py`
+
+Technical note:
+1. guard added before `ALTER TABLE`:
+   - checks `sqlite_master` for target table existence.
+   - if absent, returns `False` with debug message and no error log.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database.py tests/test_database_verification.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "ensure_column_exists_no_error_when_table_absent or validate_missing_data_cadastro_status_exceptions_are_allowed or verify_valid_database"`: `3 passed`.
+
 ## Update 2026-03-05 (slice minimo: ADI/ASE sem data_cadastro)
 
 Session timestamp:

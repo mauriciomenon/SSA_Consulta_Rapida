@@ -2,6 +2,24 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 20:27 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Bootstrap hardening delivered:
+  1. `ensure_column_exists` no longer attempts `ALTER TABLE` when target table does not exist yet.
+  2. expected result: no false `no such table: ssa_table` error during startup/bootstrap window.
+- Files changed:
+  1. `armazenamento/database.py`
+  2. `tests/test_database_verification.py`
+- New regression:
+  1. `test_ensure_column_exists_no_error_when_table_absent`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database.py tests/test_database_verification.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "ensure_column_exists_no_error_when_table_absent or validate_missing_data_cadastro_status_exceptions_are_allowed or verify_valid_database"`: `3 passed, 10 deselected`.
+
 ## CURRENT TRUTH 2026-03-05 20:09 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
