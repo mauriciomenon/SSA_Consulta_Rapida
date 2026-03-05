@@ -439,6 +439,19 @@ def ensure_column_exists(
             raise ValueError(f"Invalid SQL identifier for column: {column_name}")
 
         with get_db_connection(db_path) as conn:
+            table_exists_row = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (physical_table,),
+            ).fetchone()
+            if not table_exists_row:
+                logger.debug(
+                    "Tabela '%s' ainda nao existe em '%s'; coluna '%s' sera aplicada apos criacao da tabela.",
+                    physical_table,
+                    db_path,
+                    column_name,
+                )
+                return False
+
             cursor = conn.execute(f"PRAGMA table_info({physical_table})")  # noqa: S608
             existing_columns = {row[1] for row in cursor.fetchall()}
             if column_name in existing_columns:

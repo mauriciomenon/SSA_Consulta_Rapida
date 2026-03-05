@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from armazenamento.database import (
+    ensure_column_exists,
     initialize_database,
     repair_database_if_needed,
     validate_dataframe_before_insert,
@@ -21,6 +22,15 @@ TOTAL_VALID_ROWS = 2  # Constante para evitar magic numbers
 
 class TestDatabaseVerification:  # noqa: D101
     """Testes para verificação de integridade do banco."""
+
+    def test_ensure_column_exists_no_error_when_table_absent(self, tmp_path, caplog):
+        """Nao deve logar erro quando a tabela ainda nao existe no bootstrap."""
+        db_path = os.path.join(tmp_path, 'no_table_yet.db')
+
+        added = ensure_column_exists(db_path, 'ssa_table', 'arquivo_origem', 'TEXT')
+
+        assert added is False
+        assert "Falha ao garantir coluna" not in caplog.text
 
     def test_verify_nonexistent_database(self):
         """No modelo atual, banco inexistente é considerado válido para criação."""

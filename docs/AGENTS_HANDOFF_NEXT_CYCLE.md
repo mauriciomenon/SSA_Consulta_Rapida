@@ -2,6 +2,23 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 20:27 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Bootstrap fix delivered:
+  1. `ensure_column_exists` now checks table existence before `ALTER TABLE`.
+  2. when table is absent, function returns safely (`False`) and avoids false error log.
+- Files changed:
+  1. `armazenamento/database.py`
+  2. `tests/test_database_verification.py`
+- Test evidence:
+  1. added `test_ensure_column_exists_no_error_when_table_absent`.
+  2. focused validation run remained green.
+- Expected operational impact:
+  1. remove startup noise `no such table: ssa_table` in early rescan/bootstrap phase.
+  2. no behavior change in data rules or GUI.
+
 ## CURRENT TRUTH 2026-03-05 20:09 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
