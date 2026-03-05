@@ -161,14 +161,14 @@ class TestDataValidation:
         assert len(report['warnings']) > 0
         assert "datas inválidas" in str(report['warnings'])
 
-    def test_validate_missing_data_cadastro_scc_is_allowed(self):
-        """SCC sem data_cadastro nao deve gerar erro critico."""
+    def test_validate_missing_data_cadastro_status_exceptions_are_allowed(self):
+        """SCC, ADI e ASE sem data_cadastro nao devem gerar erro critico."""
         df = pd.DataFrame(
             {
-                'numero_ssa': [202222569, 202214992, 202500001],
-                'situacao': ['SCC', 'SCC', 'ADI'],
-                'data_cadastro': [None, None, None],
-                'descricao_ssa': ['Cancelada 1', 'Cancelada 2', 'Pendente sem emissao'],
+                'numero_ssa': [202222569, 202214992, 202500001, 202500002],
+                'situacao': ['SCC', 'ADI', 'ASE', 'APG'],
+                'data_cadastro': [None, None, None, None],
+                'descricao_ssa': ['Caso SCC', 'Caso ADI', 'Caso ASE', 'Caso APG'],
             }
         )
 
@@ -176,7 +176,7 @@ class TestDataValidation:
 
         assert report['is_valid'] is False
         assert "Coluna 'data_cadastro' possui 1 valores ausentes" in report['issues']
-        assert report['invalid_by_column']['data_cadastro'] == [2]
+        assert report['invalid_by_column']['data_cadastro'] == [3]
 
 
 class TestDatabaseRepair:

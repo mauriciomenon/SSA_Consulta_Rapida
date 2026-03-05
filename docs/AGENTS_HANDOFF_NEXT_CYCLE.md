@@ -2,6 +2,26 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 20:09 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Runtime rule delivered:
+  1. missing `data_cadastro` is now accepted for statuses `SCC`, `ADI`, and `ASE`.
+  2. implementation kept minimal; no parallel queue/retry model added.
+- Changed files:
+  1. `armazenamento/database_validation.py`
+  2. `tests/test_database_verification.py`
+- Test coverage:
+  1. updated regression ensures `SCC/ADI/ASE` without date stay valid while a non-whitelisted status still fails date requirement.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_status_exceptions_are_allowed or validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed, 9 deselected`.
+- Impact note:
+  1. expected `missing_data_cadastro` lane reduction from `221` residual (after SCC-only) to `0` for current dataset behavior.
+
 ## CURRENT TRUTH 2026-03-05 19:42 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
