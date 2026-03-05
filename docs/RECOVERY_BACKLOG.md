@@ -3,6 +3,34 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (sprint importacao grave lane: strict numeric reprogramacoes)
+
+Session timestamp:
+1. start: `2026-03-05 13:05:56 -0300`
+2. end: `2026-03-05 13:15:48 -0300`
+
+Delivered in this slice:
+1. `extracao/extractor.py` `_normalize_datatypes` now enforces strict numeric conversion for `num_reprogramacoes`.
+2. non-numeric legacy text in `num_reprogramacoes` is coerced to null.
+3. when `num_reprogramacoes` is null and `total_de_reprogramacoes` is present, a controlled backfill is applied from `total_de_reprogramacoes`.
+4. focused regression tests added in `tests/test_extracao.py`:
+   - `test_normalize_datatypes_num_reprogramacoes_uses_total_when_text_legacy`
+   - `test_normalize_datatypes_num_reprogramacoes_keeps_numeric_value`
+   - `test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_extracao.py -k "normalize_datatypes_num_reprogramacoes or read_report or extract_data_from_excel"`: `9 passed, 3 deselected`.
+5. kluster auto in this slice: clean -> clean.
+
+Decision and scope:
+1. this is `HOTFIX_BLOCKER` for import normalization only.
+2. no GUI/layout changes.
+3. no DB schema migration in this slice.
+4. import concept unchanged; only numeric integrity for `num_reprogramacoes` was hardened.
+
 ## Update 2026-03-05 (pr44 review triage: critical-only fix lane)
 
 Session timestamp:
