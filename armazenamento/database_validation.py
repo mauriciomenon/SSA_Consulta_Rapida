@@ -35,11 +35,22 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
         ('data_cadastro', 'error'),
         ('situacao', 'warning'),
     ]
+    situacao_upper = None
+    if 'situacao' in df.columns:
+        situacao_upper = (
+            df['situacao']
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
     for column, severity in required_columns:
         if column not in df.columns:
             continue
         series = df[column]
         missing_mask = series.isna() | (series.astype(str).str.strip() == '')
+        # Business exception: cancelled SSAs (SCC) can legitimately have no emit date.
+        if column == 'data_cadastro' and situacao_upper is not None:
+            missing_mask = missing_mask & (situacao_upper != 'SCC')
         missing_count = int(missing_mask.sum())
         if missing_count == 0:
             continue

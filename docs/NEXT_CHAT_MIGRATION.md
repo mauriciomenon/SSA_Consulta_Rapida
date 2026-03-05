@@ -2,6 +2,28 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 16:43 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- New delivered validation rule (minimal slice):
+  1. `situacao=SCC` with missing `data_cadastro` is accepted as valid (no critical issue/drop for this condition).
+  2. non-SCC missing `data_cadastro` keeps current strict behavior.
+- Files changed:
+  1. `armazenamento/database_validation.py`
+  2. `tests/test_database_verification.py`
+- Focused test added:
+  1. `test_validate_missing_data_cadastro_scc_is_allowed`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed`.
+- Impact evidence (from previous full-run diagnostics):
+  1. baseline missing-data drop: `2171`.
+  2. SCC share in that set: `1950`.
+  3. estimated reduction with rule: `2171 -> 221` (`-89.820%` in missing-data drop lane).
+
 ## CURRENT TRUTH 2026-03-05 14:12 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

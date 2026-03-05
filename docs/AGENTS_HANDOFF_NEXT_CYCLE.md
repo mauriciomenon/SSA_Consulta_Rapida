@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 16:43 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered minimal slice:
+  1. validation exception applied: `situacao=SCC` + missing `data_cadastro` is valid (no critical drop for this pair).
+  2. strict behavior preserved for non-SCC missing `data_cadastro`.
+  3. no changes in extractor mapping, schema bootstrap, or GUI.
+- Files changed:
+  1. `armazenamento/database_validation.py`
+  2. `tests/test_database_verification.py`
+- New regression test:
+  1. `test_validate_missing_data_cadastro_scc_is_allowed`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed`.
+- Impact estimate linked to full-run evidence:
+  1. missing-data drop baseline: `2171`.
+  2. SCC rows inside missing-data set: `1950`.
+  3. expected missing-data drop after rule: `221` (`-89.820%`).
+
 ## CURRENT TRUTH 2026-03-05 14:12 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
