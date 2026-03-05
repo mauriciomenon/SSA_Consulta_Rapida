@@ -209,6 +209,22 @@ def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
             logger.debug(f"Convertendo '{col}' para Int64...")
             df_normalized[col] = pd.to_numeric(df_normalized[col], errors='coerce').astype('Int64')
 
+    # Keep canonical numeric semantics for reprogramacoes:
+    # - num_reprogramacoes accepts only strict numeric values
+    # - total_de_reprogramacoes backfills num_reprogramacoes when available
+    if 'num_reprogramacoes' in df_normalized.columns:
+        logger.debug("Convertendo 'num_reprogramacoes' para Int64 (strict numeric)...")
+        num_series = pd.to_numeric(df_normalized['num_reprogramacoes'], errors='coerce')
+        if 'total_de_reprogramacoes' in df_normalized.columns:
+            backfill_mask = num_series.isna() & df_normalized['total_de_reprogramacoes'].notna()
+            if backfill_mask.any():
+                logger.debug(
+                    "Backfill de 'num_reprogramacoes' com 'total_de_reprogramacoes' em %s linhas.",
+                    int(backfill_mask.sum()),
+                )
+                num_series.loc[backfill_mask] = df_normalized.loc[backfill_mask, 'total_de_reprogramacoes']
+        df_normalized['num_reprogramacoes'] = num_series.astype('Int64')
+
     logger.debug("Normalização de tipos concluída.")
     return df_normalized
 

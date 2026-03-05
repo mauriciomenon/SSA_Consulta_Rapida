@@ -11,6 +11,7 @@ sys.path.insert(0, project_root)
 
 from extracao.extractor import (
     ExtractionError,
+    _normalize_datatypes,
     _normalize_tempo_excedido_value,
     extract_data_from_excel,
     read_report,
@@ -173,3 +174,55 @@ def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
             str(fake_file),
             should_cancel=lambda: True,
         )
+
+
+def test_normalize_datatypes_num_reprogramacoes_uses_total_when_text_legacy():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500001"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["01/01/2025"],
+            "num_reprogramacoes": ["Reprogramacao #1"],
+            "total_de_reprogramacoes": ["3"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert out["num_reprogramacoes"].iloc[0] == 3
+    assert out["total_de_reprogramacoes"].iloc[0] == 3
+
+
+def test_normalize_datatypes_num_reprogramacoes_keeps_numeric_value():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500002"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["02/01/2025"],
+            "num_reprogramacoes": ["2"],
+            "total_de_reprogramacoes": ["5"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert out["num_reprogramacoes"].iloc[0] == 2
+    assert out["total_de_reprogramacoes"].iloc[0] == 5
+
+
+def test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null():
+    df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500003"],
+            "descricao_ssa": ["Teste"],
+            "data_cadastro": ["03/01/2025"],
+            "num_reprogramacoes": ["Reprogramacao #7"],
+        }
+    )
+
+    out = _normalize_datatypes(df)
+
+    assert str(out["num_reprogramacoes"].dtype) == "Int64"
+    assert pd.isna(out["num_reprogramacoes"].iloc[0])

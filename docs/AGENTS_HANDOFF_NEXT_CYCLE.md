@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 13:15 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. strict numeric normalization for `num_reprogramacoes` in extraction path.
+  2. legacy textual values in `num_reprogramacoes` are coerced to null (no text persistence in this numeric field).
+  3. controlled fallback only when needed: backfill from `total_de_reprogramacoes` when `num_reprogramacoes` is null after coercion.
+  4. focused regression tests added in `tests/test_extracao.py` for three cases:
+     - legacy text + valid total
+     - already numeric `num_reprogramacoes`
+     - legacy text without total
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_extracao.py -k "normalize_datatypes_num_reprogramacoes or read_report or extract_data_from_excel"`: `9 passed, 3 deselected`.
+  5. kluster auto in this slice: clean -> clean.
+- Scope lock confirmation:
+  1. no GUI/layout changes.
+  2. no DB schema mutation.
+  3. no extraction concept rewrite; only grave numeric integrity fix.
+
 ## CURRENT TRUTH 2026-03-05 09:41 - authoritative block
 
 - Active branch: `codex/reapply-good-commits-20260305`.

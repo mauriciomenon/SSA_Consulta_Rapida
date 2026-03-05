@@ -2,6 +2,31 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 13:15 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice status:
+  1. importacao hotfix applied for strict numeric handling in `num_reprogramacoes`.
+  2. legacy textual values in `num_reprogramacoes` are now coerced to null.
+  3. controlled backfill: `total_de_reprogramacoes` now fills `num_reprogramacoes` only when `num_reprogramacoes` is null after coercion.
+- Files changed in this slice:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_extracao.py -k "normalize_datatypes_num_reprogramacoes or read_report or extract_data_from_excel"`: `9 passed, 3 deselected`.
+  5. kluster auto in this slice: clean -> clean.
+- Scope guard:
+  1. no GUI/layout changes.
+  2. no schema migration.
+  3. no broad refactor.
+
 ## CURRENT TRUTH 2026-03-05 09:41 - start from here
 
 - Active branch: `codex/reapply-good-commits-20260305`.
