@@ -2,7 +2,300 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 07:50 - authoritative block
+## CURRENT TRUTH 2026-03-05 09:41 - authoritative block
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- PR #44 review triage delivered:
+  1. fixed critical review items in `a07afd7a`:
+     - date-filter negation bug in display/raw merge path;
+     - hash (`#`) min width regression (24 preserved);
+     - silent exception suppression removed in width manager helpers.
+  2. added regressions:
+     - `test_data_cadastro_column_filter_negation_matches_display_date`
+     - `test_compute_optimal_widths_keeps_hash_column_minimum_24`
+  3. deferred broad/non-blocking comments to backlog lane (no refactor in this PR).
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or data_cadastro_column_filter_negation_matches_display_date or best_fit_width_respects_predefined_max_for_long_columns or compute_optimal_widths_keeps_hash_column_minimum_24 or on_header_clicked_preserves_column_widths_after_sort or header_context_menu_exposes_best_fit_visible_action"`: `6 passed`.
+  5. kluster auto in this slice: clean -> clean -> clean -> clean -> clean.
+- Evidence:
+  1. `a07afd7a` (`HOTFIX_BLOCKER`).
+- Deferred non-blocking:
+  1. architectural suggestions from bot reviews remain tracked in `docs/RECOVERY_BACKLOG.md` (2026-03-05 triage block).
+
+## HISTORICAL SNAPSHOT 2026-03-05 08:40 - authoritative block
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- Replay delivered:
+  1. clean branch from `bf78666e`.
+  2. replay applied with approved commits only:
+     - `9601ffb8`
+     - `a87c72d7`
+     - `88de4155`
+     - `8400fe42`
+     - `df65682c`
+     - `6899894b`
+     - `956c0f4a`
+  3. explicit exclusion: `d4c2c5ca` (deferred for controlled reimplementation, no raw replay).
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or best_fit or show_all_columns_by_affinity or data_cadastro_column_filter_accepts_display_date_on_first_apply"`: `7 passed`.
+  5. kluster auto in replay cycle: clean -> clean -> clean.
+- Evidence:
+  1. HEAD replay branch: `5b145b78`.
+- Deferred non-blocking:
+  1. reimplement `d4c2c5ca` intent via requirements-first slice, with explicit diff preview before edit.
+- Local residue status:
+  1. `stash@{0}`: `incident-freeze-before-reapply-20260305-083301`.
+  2. `stash@{1}`: `local-wip-config-db-before-dev-switch-20260303`.
+
+## HISTORICAL SNAPSHOT 2026-03-04 10:29 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. added hard width guardrails for long columns to avoid UI break in full-column mode.
+  2. fixed sort-induced width drift by preserving/reapplying widths after header sort.
+  3. added `Exibir todas colunas (afinidade)` in header context menu.
+- What changed:
+  1. `core/config_manager.py`: introduced reusable `COLUMN_AFFINITY_SCORES` map (desc ranking).
+  2. `gui/simple_width_manager.py`: added `max_pixel_widths` and clamp in `compute_optimal_widths` + `compute_best_fit_width`.
+  3. `gui/ssa/gui_table.py`: width apply now enforces per-column max and honors one-shot recompute skip flag.
+  4. `gui/gui_ssa.py`: added:
+     - `_get_select_all_columns_from_selector`
+     - `_sort_columns_by_affinity_desc`
+     - `_show_all_columns_by_affinity`
+     - `_capture_current_column_widths`
+     - `_restore_column_widths`
+  5. `gui/gui_ssa.py`: `on_header_clicked` now preserves widths around sort render cycle.
+  6. `gui/gui_ssa.py`: header context menu now exposes `Exibir todas colunas (afinidade)`.
+  7. `tests/test_gui_filter_logic.py`: new regressions for affinity action/order and width stability.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or header_context_menu_exposes_show_all_columns_by_affinity_action or show_all_columns_by_affinity_reorders_same_select_all_set or on_header_clicked_preserves_column_widths_after_sort or best_fit_width_respects_predefined_max_for_long_columns or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `7 passed`.
+  5. kluster auto in this slice: clean.
+- Evidence:
+  1. `6899894b` (`HOTFIX_BLOCKER`: date filter display/raw alignment).
+  2. pending commit in current sprint7 slice.
+- Deferred non-blocking:
+  1. optional UI preset entry in `ColumnManagerDialog` for affinity order.
+  2. manual user validation under very narrow viewport with all columns enabled.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 10:01 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. fixed column-filter inconsistency for `data_cadastro` when user types displayed date format.
+  2. removed apparent delayed-apply behavior caused by raw-vs-display date mismatch.
+- What changed:
+  1. `gui/mixins/filter_gui_ssa_mixin.py`: `_apply_column_filters` now matches date filters against:
+     - raw values (`YYYY-MM-DD HH:MM:SS`) and
+     - display projection (`DD/MM/YYYY`) for slash-based input.
+  2. `gui/mixins/filter_gui_ssa_mixin.py`: added `_should_match_date_display_filter(...)`.
+  3. `gui/mixins/filter_gui_ssa_mixin.py`: added `_get_column_filter_date_display_series(...)` with per-DataFrame cache.
+  4. `tests/test_gui_filter_logic.py`: added `test_data_cadastro_column_filter_accepts_display_date_on_first_apply`.
+- Data evidence:
+  1. `data/ssas.db` has `70954` non-null `data_cadastro` rows in ISO datetime format.
+  2. GUI display uses `DD/MM/YYYY`, so previous filter behavior could miss first apply for user-typed display date text.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or column_filter_buttons_flow or column_filter_row_clear_button_clears_value_without_hiding_row or clear_filter_button_state_syncs_across_tabs_without_switch"`: `4 passed`.
+  5. kluster auto in this slice: issue(P4,P4) -> clean -> clean -> clean.
+- Evidence:
+  1. `05c443cf` (`STABILITY_PATCH`: canonical reprogramacoes numeric flow).
+  2. pending commit in current sprint6 slice.
+- Deferred non-blocking:
+  1. run manual validation on other `data_*` columns in both tabs.
+  2. keep DB cleanup deferred to dedicated sprint.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:46 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. finalized canonical numeric handling for `num_reprogramacoes` across sort/filter/advanced-cache.
+  2. preserved sprint4 best-fit calibration and added guard to avoid costly Qt baseline calls in large tables.
+- What changed:
+  1. new helper `gui/ssa/reprogramacoes_numeric.py` centralizes numeric extraction priority:
+     - `total_de_reprogramacoes` first;
+     - fallback numeric parse of `num_reprogramacoes`;
+     - final digit extraction fallback for legacy text.
+  2. `gui/gui_ssa.py`: robust sort path now reuses helper; best-fit baseline probe now runs only when `rowCount <= 500`.
+  3. `gui/ssa/gui_filters_advanced_logic.py`: advanced `num_reprogramacoes` filter now reuses helper.
+  4. `gui/ssa/gui_filters_advanced_ui.py`: advanced value-cache for reprogramacoes now reuses helper.
+  5. tests added:
+     - `tests/test_gui_filters_advanced_logic.py::test_apply_advanced_filters_reprogramacoes_prefers_total_de_reprogramacoes_when_available`
+     - `tests/test_gui_filter_logic.py::test_reprogramacoes_menu_uses_total_de_reprogramacoes_with_legacy_text_values`
+- Data evidence:
+  1. `num_reprogramacoes` has mixed legacy values (`5589` numeric-like + `1099` text rows).
+  2. `1099` text rows align with non-null `total_de_reprogramacoes` and `situacao_reprogramacao='(SPG)'`.
+  3. sorting/filtering no longer drift on mixed legacy text because all paths now use one canonical helper.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/ssa/reprogramacoes_numeric.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_logic.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filters_advanced_logic.py tests/test_gui_filter_logic.py -k "reprogramacoes or on_header_clicked_sorts_num_reprogramacoes_mixed_types or best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action"`: `8 passed`.
+  5. kluster auto in this slice: clean.
+- Evidence:
+  1. `df65682c` (`STABILITY_PATCH`: sprint4 best-fit calibration).
+  2. pending commit in current sprint5 slice.
+- Deferred non-blocking:
+  1. continue display-label curation lane (friendly labels only).
+  2. DB-level cleanup for legacy/redundant fields remains isolated to dedicated sprint.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:27 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. recalibrated best-fit width behavior to avoid exaggerated widths versus real header double-click fit.
+  2. added performance guard in best-fit measurement path (cache + lower sample volume).
+- What changed:
+  1. `gui/simple_width_manager.py`: best-fit now measures sampled real text widths and clamps to Qt baseline.
+  2. `gui/simple_width_manager.py`: `sample_limit` reduced to `800` and repeated measurement cached.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "best_fit_width_guard_ignores_single_extreme_outlier or header_context_menu_exposes_best_fit_visible_action or table_header_uses_merged_default_alias_for_extra_column"`: `3 passed`.
+  5. kluster auto in this slice: issue(P4) -> clean -> clean.
+- Evidence:
+  1. pending commit in current sprint4 slice.
+- Deferred non-blocking:
+  1. immediate follow-up slice for evidence report and policy decision on reprogramacao fields.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 09:11 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. hardened display-label source so table/add-columns no longer depend on partial local maps.
+  2. canonical merge path now enforced at window startup.
+  3. regression added for extra-column alias resolution in table header.
+- What changed:
+  1. `gui/gui_ssa.py`: init now uses `load_display_mappings()` directly.
+  2. `tests/test_gui_filter_logic.py`: added `test_table_header_uses_merged_default_alias_for_extra_column`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "table_header_uses_merged_default_alias_for_extra_column or on_header_clicked_sorts_num_reprogramacoes_mixed_types or header_context_menu_exposes_best_fit_visible_action"`: `3 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence:
+  1. pending commit in current sprint3 label slice.
+- Deferred non-blocking:
+  1. optional curated naming pass for remaining labels (display-only lane).
+  2. db-saneamento sprint still separated by scope contract.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:39 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. best-fit for visible columns added to header context menu.
+  2. best-fit width algorithm centralized in `SimpleWidthManager` with anti-outlier guard.
+  3. existing per-column auto-fit path now reuses centralized best-fit logic.
+  4. focused regressions added for menu action trigger and outlier protection.
+- What changed:
+  1. `gui/simple_width_manager.py`: new `compute_best_fit_width(...)`.
+  2. `gui/gui_ssa.py`: new `best_fit_visible_columns` flow and header menu action.
+  3. `tests/test_gui_filter_logic.py`: two regressions for best-fit action/guard.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/simple_width_manager.py gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "header_context_menu_exposes_best_fit_visible_action or best_fit_width_guard_ignores_single_extreme_outlier or on_header_clicked_sorts_num_reprogramacoes_mixed_types"`: `3 passed`.
+  5. kluster auto in this slice: clarification(P4) -> issue(P3) -> issue(P4) -> clean.
+- Evidence:
+  1. pending commit in current sprint2 slice.
+- Deferred non-blocking:
+  1. next display-label cleanup sprint (friendly naming consistency).
+  2. separate db-saneamento sprint remains pending.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:28 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. fixed runtime sort failure for mixed `num_reprogramacoes` values (`int` + legacy `str`).
+  2. added focused regression for asc/desc header sort behavior on mixed values.
+- What changed:
+  1. `gui/gui_ssa.py`: added `_sort_num_reprogramacoes_robust` and targeted routing in `on_header_clicked`.
+  2. `tests/test_gui_filter_logic.py`: added `test_on_header_clicked_sorts_num_reprogramacoes_mixed_types`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or reprogramacoes_menu_builds_without_responsavel_materialized"`: `2 passed`.
+  5. kluster auto in this slice: clean -> clean.
+- Evidence:
+  1. pending commit in current hotfix slice.
+- Deferred non-blocking:
+  1. sprint2 implementation for reusable `best fit all visible columns` with anti-outlier guard.
+  2. sprint2 display-label cleanup without DB/runtime migration.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 08:14 - authoritative block
+
+- Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. created official GitHub snapshot for previous stable baseline:
+     - tag `v4.29` on commit `bf78666e`
+     - release `SSA Consulta Rapida v4.29`.
+  2. promoted local baseline metadata to `4.30`.
+  3. synchronized active release docs to `4.30`.
+  4. prepared next runtime work package for:
+     - robust sort of `num_reprogramacoes` with mixed legacy values;
+     - reusable best-fit action for all visible columns with anti-outlier guard.
+- What changed:
+  1. `VERSION` updated to `4.30`.
+  2. `config/version.json` updated (`version_short`, `version_long`).
+  3. release/baseline docs updated (`README`, `HISTORICO_RELEASES`, `FILTER_TAB_OPTIMIZATIONS`, migration/handoff).
+- Validation:
+  1. `gh release view v4.29`: published.
+  2. `git tag -l v4.29`: present locally/remotely.
+- Evidence:
+  1. pending commit in current version/doc sync slice.
+- Deferred non-blocking:
+  1. runtime fix for sort warning remains next prioritized slice.
+  2. final stash disposal action still pending explicit user confirmation.
+- Local residue status:
+  1. `config/gui_main_preferences.json` remains muted via `skip-worktree`.
+  2. `stash@{0}` remains pending confirmation.
+
+## HISTORICAL SNAPSHOT 2026-03-04 07:50 - authoritative block
 
 - Active branch: `dev`.
 - Slice delivered:

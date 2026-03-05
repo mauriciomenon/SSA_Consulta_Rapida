@@ -3,6 +3,11 @@ Simple Width Manager - Versão simplificada para integração imediata
 Elimina código frankenstein com implementação funcional mínima.
 """
 
+import logging
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 class SimpleWidthManager:
     """
     Gerenciador simples de larguras de colunas.
@@ -30,6 +35,11 @@ class SimpleWidthManager:
         }
 
         self.expandable_columns = ['descricao_ssa', 'descricao_execucao', 'solicitante']
+        self.max_pixel_widths = {
+            "descricao_ssa": 620,
+            "descricao_execucao": 560,
+            "solicitante": 320,
+        }
 
     def compute_optimal_widths(
         self,
@@ -131,7 +141,79 @@ class SimpleWidthManager:
 
                 fixed_widths[col] += total_extra
 
+        for col, width in list(fixed_widths.items()):
+            max_px = int(self.max_pixel_widths.get(col, 1000))
+            min_px = 24 if col == '#' else 30
+            fixed_widths[col] = max(min_px, min(int(width), max_px))
+
         return fixed_widths
+
+    def capture_current_column_widths(self, table_widget, current_columns) -> dict[str, int]:
+        captured: dict[str, int] = {}
+        if table_widget is None:
+            return captured
+        for idx, col_name in enumerate(list(current_columns or [])):
+            if not isinstance(col_name, str) or not col_name:
+                continue
+            try:
+                width = int(table_widget.columnWidth(idx))
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao capturar largura da coluna '%s' (index=%s): %s",
+                    col_name,
+                    idx,
+                    exc,
+                )
+                width = 0
+            if width > 0:
+                captured[col_name] = width
+        return captured
+
+    def restore_column_widths(
+        self,
+        table_widget,
+        current_columns,
+        widths: dict[str, int],
+        *,
+        saved_widths: dict | None = None,
+        gui_widths: dict | None = None,
+    ) -> dict[str, int]:
+        applied: dict[str, int] = {}
+        if table_widget is None or not isinstance(widths, dict):
+            return applied
+        current_cols = list(current_columns or [])
+        for col_name, width in widths.items():
+            if col_name not in current_cols:
+                continue
+            idx = current_cols.index(col_name)
+            col_max = int(self.max_pixel_widths.get(col_name, 1000))
+            try:
+                width_int = int(width)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao converter largura para coluna '%s': %s",
+                    col_name,
+                    exc,
+                )
+                continue
+            min_px = 24 if col_name == '#' else 30
+            safe_width = max(min_px, min(width_int, col_max))
+            try:
+                table_widget.setColumnWidth(idx, safe_width)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao restaurar largura da coluna '%s' (index=%s): %s",
+                    col_name,
+                    idx,
+                    exc,
+                )
+                continue
+            applied[col_name] = safe_width
+            if isinstance(saved_widths, dict):
+                saved_widths[col_name] = safe_width
+            if isinstance(gui_widths, dict):
+                gui_widths[col_name] = safe_width
+        return applied
 
     def compute_streamlit_width_buckets(
         self,
@@ -161,6 +243,73 @@ class SimpleWidthManager:
             else:
                 buckets[col] = "large"
         return buckets
+
+    def compute_best_fit_width(
+        self,
+        series,
+        header_text: str,
+        col_name: str,
+        measure_text,
+        baseline_px: int | None = None,
+        sample_limit: int = 800,
+    ) -> int:
+        """Compute deterministic best-fit width with anti-outlier guard."""
+        normalized_header = str(header_text or col_name or "").strip()
+        if normalized_header.startswith("[f] "):
+            normalized_header = normalized_header[4:]
+        header_px = int(measure_text(normalized_header)) + 28
+
+        if col_name == "#":
+            return max(26, min(int(header_px), 90))
+
+        if series is None:
+            return max(40, min(int(header_px), 420))
+
+        try:
+            sample_series = pd.Series(series).dropna().astype(str)
+        except Exception:
+            sample_series = pd.Series(dtype="string")
+        if len(sample_series) == 0:
+            return max(40, min(int(header_px), 420))
+
+        if len(sample_series) > int(sample_limit):
+            sample_series = sample_series.sample(n=int(sample_limit), random_state=0)
+
+        normalized = sample_series.map(lambda value: value.replace("\n", " ").replace("\r", " ").strip())
+        measure_cache: dict[str, int] = {}
+
+        def _measure_cached(value: str) -> int:
+            cached = measure_cache.get(value)
+            if cached is None:
+                cached = int(measure_text(value))
+                measure_cache[value] = cached
+            return cached
+
+        widths_px = normalized.map(_measure_cached)
+        widths_px = widths_px[widths_px > 0]
+
+        if len(widths_px) == 0:
+            target_px = int(header_px)
+        else:
+            median_px = int(widths_px.median())
+            p85_px = int(widths_px.quantile(0.85))
+            p92_px = int(widths_px.quantile(0.92))
+            outlier_guard_px = max(int(header_px), int(median_px * 2.4))
+            target_px = max(int(header_px), median_px, p85_px)
+            target_px = min(target_px, p92_px, outlier_guard_px)
+
+        final_px = int(target_px) + 26
+
+        baseline_value = int(baseline_px or 0)
+        if baseline_value > 0:
+            # Keep close to real Qt auto-fit behavior and avoid width explosions.
+            baseline_cap = int(max(int(header_px) + 24, baseline_value * 1.35 + 12))
+            baseline_floor = int(max(int(header_px), baseline_value + 6))
+            final_px = min(final_px, baseline_cap)
+            final_px = max(final_px, baseline_floor)
+
+        max_px = int(self.max_pixel_widths.get(col_name, 420))
+        return max(40, min(max(int(header_px), int(final_px)), max_px))
 
 
 class SimpleCacheManager:

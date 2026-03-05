@@ -1,14 +1,14 @@
-# SSA Consulta Rapida v4.29
+# SSA Consulta Rapida v4.30
 
-Release 4.29 consolida o baseline pre-PR, mantendo as entregas de streamlit e hardening ja integradas, com ajuste de consistencia de tema e legibilidade.
+Release 4.30 define o novo baseline de trabalho apos snapshot/tag oficial de 4.29, abrindo o sprint de saneamento de labels e robustez de ordenacao.
 
-## Release v4.29 (2026-03)
+## Release v4.30 (2026-03)
 
 ### Destaques
 - README revisado com seções obrigatorias (`Instalação`, `Uso`, `Testes`) e alinhamento com a versao atual.
 - Changelog completo (`docs_saida/CHANGELOG_IMPLEMENTACOES.md`) recriado para cobrir entregas de 2025-07/2025-08, incluindo ajustes de GUI e `column_priority.json`.
 - Remocao de arquivos vazios herdados de sessoes de IA para evitar falso-positivo em verificacoes de documentacao.
-- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.29.
+- Metadados de versao (`VERSION` e `config/version.json`) atualizados para 4.30.
 - Regras de tema aplicadas de forma geral para popups/menus/checks e textos de selecao, sem depender de casos especificos por tema.
 - Lock unico de altura para os 3 blocos inferiores (detalhes, filtros avancados, filtros por coluna), com gatilho em init, troca de aba, resize e rebuild de filtros por coluna.
 - Regressao nova: teste para garantir altura sincronizada unica apos resize.
@@ -67,7 +67,7 @@ direnv allow
 .venv/bin/python main.py --gui
 ```
 
-### Documentacao tecnica atual (v4.29)
+### Documentacao tecnica atual (v4.30)
 - Algoritmo do layout dinamico (4 colunas):
   - `docs/FILTER_TAB_OPTIMIZATIONS.md` (secao v4.24 no topo)
 - Regras gerais de GUI em PyQt6:

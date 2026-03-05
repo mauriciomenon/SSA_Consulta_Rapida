@@ -753,6 +753,74 @@ class TestGUIFilterLogic:
         controls_after = self._get_column_filter_controls()
         assert label in controls_after
 
+    def test_data_cadastro_column_filter_accepts_display_date_on_first_apply(self):
+        df = self.base_df.assign(
+            data_cadastro=[
+                "2025-01-01 08:00:00",
+                "2025-01-02 09:00:00",
+                "2025-01-02 10:00:00",
+                "2025-03-01 11:00:00",
+                "",
+            ]
+        ).copy()
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+
+        self.window._activate_column_filter("data_cadastro")
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        label = (
+            self.window._expand_column_alias_for_filter("data_cadastro")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("data_cadastro")
+        )
+        assert label in controls
+
+        edit_widget, apply_btn, _clear_btn, _hide_btn = controls[label]
+        edit_widget.setText("02/01/2025")
+        cast(Any, QTest).mouseClick(apply_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["data_cadastro"] == "02/01/2025"
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == {2, 3}
+
+    def test_data_cadastro_column_filter_negation_matches_display_date(self):
+        df = self.base_df.assign(
+            data_cadastro=[
+                "2025-01-01 08:00:00",
+                "2025-01-02 09:00:00",
+                "2025-01-02 10:00:00",
+                "2025-03-01 11:00:00",
+                "",
+            ]
+        ).copy()
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+
+        self.window._activate_column_filter("data_cadastro")
+        QApplication.processEvents()
+
+        controls = self._get_column_filter_controls()
+        label = (
+            self.window._expand_column_alias_for_filter("data_cadastro")
+            if hasattr(self.window, "_expand_column_alias_for_filter")
+            else self.window._resolve_column_display_name("data_cadastro")
+        )
+        assert label in controls
+
+        edit_widget, apply_btn, _clear_btn, _hide_btn = controls[label]
+        edit_widget.setText("!02/01/2025")
+        cast(Any, QTest).mouseClick(apply_btn, Qt.MouseButton.LeftButton)
+        QApplication.processEvents()
+
+        assert self.window._active_column_filters["data_cadastro"] == "!02/01/2025"
+        assert set(self.window.df_exibido["numero_ssa"].tolist()) == {1, 4, 5}
+
     def test_build_column_mask_blocks_heavy_regex_patterns(self):
         series = pd.Series(["aaaaaaaaaaaa", "bbb"], dtype="string")
         mask = self.window._build_column_mask(series, "~(a+)+$")
@@ -1377,6 +1445,209 @@ class TestGUIFilterLogic:
         snapshot_filters = self.window._last_filter_state.get("active_column_filters") or {}
         assert str(snapshot_filters.get("situacao", "")).strip() == ""
 
+    def test_header_context_menu_exposes_best_fit_visible_action(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Best fit colunas visiveis"):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        calls = {"count": 0}
+        monkeypatch.setattr(self.window, "best_fit_visible_columns", lambda: calls.__setitem__("count", calls["count"] + 1))
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 1  # "#"(0), "numero_ssa"(1)
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+        self.window.show_header_context_menu(pos)
+
+        assert calls["count"] == 1
+
+    def test_header_context_menu_exposes_show_all_columns_by_affinity_action(self, monkeypatch):
+        class _FakeSignal:
+            def __init__(self):
+                self._callbacks = []
+
+            def connect(self, callback):
+                self._callbacks.append(callback)
+
+            def emit(self):
+                for callback in list(self._callbacks):
+                    callback()
+
+        class _FakeAction:
+            def __init__(self, text, _parent=None):
+                self.text = text
+                self.triggered = _FakeSignal()
+
+        class _FakeMenu:
+            def __init__(self, _parent=None):
+                self._actions = []
+
+            def addAction(self, action):
+                self._actions.append(action)
+                return action
+
+            def exec(self, _global_pos):
+                for action in self._actions:
+                    if str(getattr(action, "text", "")).startswith("Exibir todas colunas (afinidade)"):
+                        action.triggered.emit()
+                        return action
+                return None
+
+        calls = {"count": 0}
+        monkeypatch.setattr(
+            self.window,
+            "_show_all_columns_by_affinity",
+            lambda: calls.__setitem__("count", calls["count"] + 1),
+        )
+        monkeypatch.setattr(gui_ssa, "QAction", _FakeAction)
+        monkeypatch.setattr(gui_ssa, "QMenu", _FakeMenu)
+
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        header = self.window.table_widget.horizontalHeader()
+        logical_index = 1
+        pos = QPoint(header.sectionPosition(logical_index) + 2, 5)
+        self.window.show_header_context_menu(pos)
+
+        assert calls["count"] == 1
+
+    def test_show_all_columns_by_affinity_reorders_same_select_all_set(self, monkeypatch):
+        source = ["data_programacao", "descricao_execucao", "numero_ssa"]
+        captured = {}
+        monkeypatch.setattr(self.window, "_get_select_all_columns_from_selector", lambda: source.copy())
+        monkeypatch.setattr(self.window, "on_columns_changed", lambda cols: captured.setdefault("cols", cols))
+
+        self.window._show_all_columns_by_affinity()
+
+        assert set(captured["cols"]) == set(source)
+        assert captured["cols"] == ["numero_ssa", "data_programacao", "descricao_execucao"]
+
+    def test_on_header_clicked_preserves_column_widths_after_sort(self):
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        assert "descricao_ssa" in self.window._current_display_columns
+        descricao_index = self.window._current_display_columns.index("descricao_ssa")
+        sort_index = self.window._current_display_columns.index("numero_ssa")
+
+        self.window.table_widget.setColumnWidth(descricao_index, 333)
+        self.window._saved_gui_column_widths["descricao_ssa"] = 333
+        self.window._gui_column_pixel_widths["descricao_ssa"] = 333
+        QApplication.processEvents()
+
+        self.window.on_header_clicked(sort_index)
+        QApplication.processEvents()
+
+        assert self.window.table_widget.columnWidth(descricao_index) == 333
+
+    def test_best_fit_width_guard_ignores_single_extreme_outlier(self):
+        expanded_df = pd.concat([self.base_df.copy() for _ in range(20)], ignore_index=True)
+        expanded_df["descricao_ssa"] = ["Texto curto"] * len(expanded_df)
+
+        self.window.df_completo = expanded_df.copy()
+        self.window.df_exibido = expanded_df.copy()
+        self.window._df_last_search_filtered = expanded_df.copy()
+        self.window.paginator.set_dataframe(expanded_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        col_idx = self.window._current_display_columns.index("descricao_ssa")
+        base_width = self.window._compute_best_fit_width_for_column(col_idx)
+        assert base_width is not None
+
+        with_outlier = expanded_df.copy()
+        with_outlier.loc[len(with_outlier) - 1, "descricao_ssa"] = "X" * 5000
+        self.window.df_completo = with_outlier.copy()
+        self.window.df_exibido = with_outlier.copy()
+        self.window._df_last_search_filtered = with_outlier.copy()
+        self.window.paginator.set_dataframe(with_outlier.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+        guarded_width = self.window._compute_best_fit_width_for_column(col_idx)
+        assert guarded_width is not None
+
+        assert guarded_width <= base_width + 40
+
+    def test_best_fit_width_respects_predefined_max_for_long_columns(self):
+        series = pd.Series(["X" * 4000] * 50)
+        def _measure(value):
+            return len(str(value)) * 7
+        width = self.window.width_manager.compute_best_fit_width(
+            series=series,
+            header_text="Descricao da SSA",
+            col_name="descricao_ssa",
+            measure_text=_measure,
+            baseline_px=None,
+            sample_limit=200,
+        )
+        assert width <= self.window.width_manager.max_pixel_widths["descricao_ssa"]
+
+    def test_compute_optimal_widths_keeps_hash_column_minimum_24(self):
+        df = pd.DataFrame({"#": [1], "numero_ssa": ["202500001"]})
+        widths = self.window.width_manager.compute_optimal_widths(
+            df=df,
+            available_width=220,
+            column_order=["#", "numero_ssa"],
+        )
+        assert int(widths.get("#", 0)) == 24
+
+    def test_table_header_uses_merged_default_alias_for_extra_column(self, monkeypatch):
+        reduced_map = {"numero_ssa": "Numero SSA", "situacao": "Situacao"}
+        monkeypatch.setattr(self.window, "display_map", reduced_map.copy())
+        monkeypatch.setattr(self.window, "internal_to_display", reduced_map.copy())
+
+        merged = gui_ssa.load_display_mappings()
+        self.window.display_map = merged
+        self.window.internal_to_display = dict(merged)
+
+        df = self.base_df.assign(situacao_reprogramacao=["(SPG)"] * len(self.base_df)).copy()
+        if "situacao_reprogramacao" not in self.window.visible_columns:
+            self.window.visible_columns.append("situacao_reprogramacao")
+        self.window.df_completo = df.copy()
+        self.window.df_exibido = df.copy()
+        self.window._df_last_search_filtered = df.copy()
+        self.window.paginator.set_dataframe(df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        col_idx = self.window._current_display_columns.index("situacao_reprogramacao")
+        header_item = self.window.table_widget.horizontalHeaderItem(col_idx)
+        assert header_item is not None
+        header_text = header_item.text()
+        assert "situacao_reprogramacao" not in header_text.casefold()
+        assert "reprog" in header_text.casefold() or "reprogram" in header_text.casefold()
+
     def test_flush_column_width_preferences_persists_changed_values(self, monkeypatch):
         self.window._saved_gui_column_widths = {"descricao_ssa": 222}
         calls = {"persist": 0}
@@ -1807,6 +2078,31 @@ class TestGUIFilterLogic:
         assert checks, "reprogramacoes checks should be materialized even before responsavel filters"
         selected = self.window._get_checked_values(checks)
         assert "2" in selected
+
+    def test_on_header_clicked_sorts_num_reprogramacoes_mixed_types(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+
+        self.window.on_header_clicked(logical_index)
+        asc_vals = self.window.df_exibido["num_reprogramacoes"].tolist()
+        assert asc_vals[:3] == [0, "Reprogramacao #1", 2]
+        assert asc_vals[-2:] == ["", None]
+
+        self.window.on_header_clicked(logical_index)
+        desc_vals = self.window.df_exibido["num_reprogramacoes"].tolist()
+        assert desc_vals[:3] == [2, "Reprogramacao #1", 0]
+        assert desc_vals[-2:] == ["", None]
 
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
