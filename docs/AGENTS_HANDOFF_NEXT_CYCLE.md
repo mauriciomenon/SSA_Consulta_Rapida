@@ -2,6 +2,26 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 19:26 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Post-SCC diagnostic state:
+  1. full scan executed over `431` xlsx files (lock files excluded).
+  2. ADI and ASE are not always missing `data_cadastro`; both have non-zero non-missing counts.
+  3. mini importacao test validated SCC exception in real importer flow.
+- Key evidence:
+  1. `ADI`: total `208`, missing `155`, non-missing `53` (`74.519%` missing).
+  2. `ASE`: total `179`, missing `124`, non-missing `55` (`69.274%` missing).
+  3. `SCC`: total `3044`, missing `2409`, non-missing `635` (`79.139%` missing).
+  4. full-run missing lane remains `2171`, with confirmed split `1950` SCC + `221` non-SCC.
+  5. `SSAs Pendentes Geral - 02-02-2026_1142AM.xlsx`: ADI/ASE entries are 100% missing in that specific file (`16` ADI, `22` ASE).
+- Domain meaning note:
+  1. no repository-native textual definition for ADI/ASE found; needs product/data owner clarification.
+- Next low-risk candidates (not applied yet in this block):
+  1. bootstrap noise guard: skip `ALTER TABLE` when target table does not exist (remove false `no such table` startup warning).
+  2. observability: include source file in extractor log `Removidos X registros invalidos`.
+
 ## CURRENT TRUTH 2026-03-05 16:43 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
