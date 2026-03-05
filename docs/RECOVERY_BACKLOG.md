@@ -3,6 +3,45 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (diagnostico ADI/ASE + mini importacao de validacao)
+
+Session timestamp:
+1. start: `2026-03-05 18:51:56 -0300`
+2. end: `2026-03-05 19:26:00 -0300`
+
+Executed in this slice (diagnostic only, no runtime edits):
+1. full dataset status scan (excluding lock files `~$*.xlsx`) using extractor pipeline.
+2. targeted mini importacao in temporary DB to validate new `SCC` exception behavior.
+3. verification of ADI/ASE incidence over missing `data_cadastro`.
+
+Evidence summary:
+1. scan scope:
+   - files total: `431`
+   - files ok: `406`
+   - extraction errors: `25` (same family already known: `Derivadas e Relacionadas` and `Pendentes de Aprovacao na Emissao` missing required columns).
+2. global status vs missing `data_cadastro`:
+   - `ADI`: total `208`, missing `155`, non-missing `53` (`74.519%` missing)
+   - `ASE`: total `179`, missing `124`, non-missing `55` (`69.274%` missing)
+   - `SCC`: total `3044`, missing `2409`, non-missing `635` (`79.139%` missing)
+3. conclusion:
+   - NOT all ADI are missing `data_cadastro`.
+   - NOT all ASE are missing `data_cadastro`.
+4. full-run baseline cross-check kept valid:
+   - missing drop lane total remains `2171`.
+   - split confirmed: `1950` SCC + `221` non-SCC (`ADI/ASE`).
+5. file-level note:
+   - `SSAs Pendentes Geral - 02-02-2026_1142AM.xlsx` has `ADI=16` and `ASE=22`, both `100%` missing `data_cadastro` in that file.
+6. mini importacao validation:
+   - temporary run completed `ok=true`, ~`7.101s`.
+   - final DB kept only SCC rows with missing `data_cadastro` (`non-SCC missing = 0`), confirming current patch behavior.
+
+Open interpretation item:
+1. no canonical textual definition for ADI/ASE was found in repository docs/config; meaning remains domain-owned and should be documented by product/data owner.
+
+Risk assessment for next low-risk hardening (deferred):
+1. `LOW`: suppress false startup warning by skipping `ALTER TABLE` when target table does not exist yet (avoid `no such table: ssa_table` noise).
+2. `LOW-MED`: improve observability by including source file name in extractor log `Removidos X registros invalidos`, for direct traceability.
+
 ## Update 2026-03-05 (slice minimo: SCC sem data_cadastro e valido)
 
 Session timestamp:

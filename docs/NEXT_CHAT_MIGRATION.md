@@ -2,6 +2,29 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 19:26 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- New diagnostics delivered after SCC patch:
+  1. full status scan executed on `431` xlsx files (excluding `~$` lock files).
+  2. ADI/ASE are NOT universally missing `data_cadastro`.
+  3. mini importacao test confirmed SCC exception works in runtime path.
+- Status vs missing `data_cadastro` (extractor-level global view):
+  1. `ADI`: total `208`, missing `155`, non-missing `53` (`74.519%` missing).
+  2. `ASE`: total `179`, missing `124`, non-missing `55` (`69.274%` missing).
+  3. `SCC`: total `3044`, missing `2409`, non-missing `635` (`79.139%` missing).
+- Full-run baseline consistency (same lane used in prior impact estimate):
+  1. `missing_data_cadastro` lane remains `2171`.
+  2. split confirmed: `1950` SCC + `221` non-SCC (`ADI/ASE`).
+- File note requested by user:
+  1. `SSAs Pendentes Geral - 02-02-2026_1142AM.xlsx`: `ADI=16` and `ASE=22`, both 100% missing in this file.
+- Meaning gap:
+  1. repository search found no canonical textual definition for `ADI` or `ASE`; classify as domain-definition pending.
+- Low-risk hardening candidates queued:
+  1. avoid false startup warning by skipping `ALTER TABLE` when `ssa_table` does not exist yet.
+  2. add source file context to `Removidos X registros invalidos` log line in extractor.
+
 ## CURRENT TRUTH 2026-03-05 16:43 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
