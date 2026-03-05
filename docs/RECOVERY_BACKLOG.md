@@ -3,6 +3,33 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (slice minimo: ADI/ASE sem data_cadastro)
+
+Session timestamp:
+1. start: `2026-03-05 20:08:35 -0300`
+2. end: `2026-03-05 20:09:06 -0300`
+
+Decision delivered:
+1. `ADI` and `ASE` now join `SCC` as statuses allowed to have missing `data_cadastro` in validation.
+2. no queue/list retry mechanism added; approach kept minimal to preserve throughput and reliability.
+
+Files changed:
+1. `armazenamento/database_validation.py`
+2. `tests/test_database_verification.py`
+
+Behavior impact:
+1. lane `missing_data_cadastro` can drop from `221` residual (after SCC patch) to `0` under this rule.
+2. baseline lane progression:
+   - before exceptions: `2171`
+   - after SCC only: `221`
+   - after SCC+ADI+ASE: `0` (expected for current corpus)
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_status_exceptions_are_allowed or validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed, 9 deselected`.
+
 ## Update 2026-03-05 (cross-file diagnostico ADI/ASE sem data_cadastro)
 
 Session timestamp:

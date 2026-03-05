@@ -2,6 +2,26 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 20:09 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- New runtime decision applied:
+  1. validation now accepts missing `data_cadastro` for statuses `SCC`, `ADI`, and `ASE`.
+  2. no deferred queue/reconciliation list was introduced (minimal path preserved).
+- Files changed:
+  1. `armazenamento/database_validation.py`
+  2. `tests/test_database_verification.py`
+- Focused regression updated:
+  1. `test_validate_missing_data_cadastro_status_exceptions_are_allowed`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_status_exceptions_are_allowed or validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed, 9 deselected`.
+- Expected lane impact:
+  1. `missing_data_cadastro` residual after SCC patch (`221`) becomes `0` with ADI/ASE exception in current observed corpus.
+
 ## CURRENT TRUTH 2026-03-05 19:42 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
