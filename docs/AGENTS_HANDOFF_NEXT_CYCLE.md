@@ -2,7 +2,31 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-05 08:40 - authoritative block
+## CURRENT TRUTH 2026-03-05 09:41 - authoritative block
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- PR #44 review triage delivered:
+  1. fixed critical review items in `a07afd7a`:
+     - date-filter negation bug in display/raw merge path;
+     - hash (`#`) min width regression (24 preserved);
+     - silent exception suppression removed in width manager helpers.
+  2. added regressions:
+     - `test_data_cadastro_column_filter_negation_matches_display_date`
+     - `test_compute_optimal_widths_keeps_hash_column_minimum_24`
+  3. deferred broad/non-blocking comments to backlog lane (no refactor in this PR).
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check gui/mixins/filter_gui_ssa_mixin.py gui/simple_width_manager.py gui/ssa/gui_table.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "data_cadastro_column_filter_accepts_display_date_on_first_apply or data_cadastro_column_filter_negation_matches_display_date or best_fit_width_respects_predefined_max_for_long_columns or compute_optimal_widths_keeps_hash_column_minimum_24 or on_header_clicked_preserves_column_widths_after_sort or header_context_menu_exposes_best_fit_visible_action"`: `6 passed`.
+  5. kluster auto in this slice: clean -> clean -> clean -> clean -> clean.
+- Evidence:
+  1. `a07afd7a` (`HOTFIX_BLOCKER`).
+- Deferred non-blocking:
+  1. architectural suggestions from bot reviews remain tracked in `docs/RECOVERY_BACKLOG.md` (2026-03-05 triage block).
+
+## HISTORICAL SNAPSHOT 2026-03-05 08:40 - authoritative block
 
 - Active branch: `codex/reapply-good-commits-20260305`.
 - Local release baseline: `4.30`.
