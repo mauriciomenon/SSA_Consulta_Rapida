@@ -161,6 +161,23 @@ class TestDataValidation:
         assert len(report['warnings']) > 0
         assert "datas inválidas" in str(report['warnings'])
 
+    def test_validate_missing_data_cadastro_scc_is_allowed(self):
+        """SCC sem data_cadastro nao deve gerar erro critico."""
+        df = pd.DataFrame(
+            {
+                'numero_ssa': [202222569, 202214992, 202500001],
+                'situacao': ['SCC', 'SCC', 'ADI'],
+                'data_cadastro': [None, None, None],
+                'descricao_ssa': ['Cancelada 1', 'Cancelada 2', 'Pendente sem emissao'],
+            }
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report['is_valid'] is False
+        assert "Coluna 'data_cadastro' possui 1 valores ausentes" in report['issues']
+        assert report['invalid_by_column']['data_cadastro'] == [2]
+
 
 class TestDatabaseRepair:
     """Testes para reparo de banco de dados."""

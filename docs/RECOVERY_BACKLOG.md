@@ -3,6 +3,34 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (slice minimo: SCC sem data_cadastro e valido)
+
+Session timestamp:
+1. start: `2026-03-05 16:38:52 -0300`
+2. end: `2026-03-05 17:20:00 -0300`
+
+Decision approved and delivered:
+1. rows with `situacao=SCC` and missing `data_cadastro` are no longer treated as critical missing data for validation/drop.
+2. scope limited to validation layer only; no extraction mapping or schema/bootstrap changes.
+
+Files changed:
+1. `armazenamento/database_validation.py`
+2. `tests/test_database_verification.py`
+
+Evidence from prior diagnostics reused in this decision:
+1. baseline full-run `missing_data_cadastro`: `2171` rows.
+2. `SCC` subset inside those rows: `1950`.
+3. expected reduction if rule is active: `-89.820%` in missing-data drops (`2171 -> 221`).
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database_validation.py tests/test_database_verification.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_database_verification.py -k "validate_missing_data_cadastro_scc_is_allowed or validate_valid_dataframe or validate_invalid_dates"`: `3 passed`.
+
+Deferred non-blocking:
+1. non-SCC missing `data_cadastro` (`ADI`/`ASE`) remains strict and should be reviewed in a separate approved slice.
+
 ## Update 2026-03-05 (diagnostico full rescan zero-db: evidencia operacional)
 
 Session timestamp:
