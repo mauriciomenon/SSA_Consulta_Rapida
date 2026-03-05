@@ -1825,7 +1825,29 @@ class FilterGUISSAMixin:
             if self._should_match_date_display_filter(col, raw_str):
                 display_dates = self._get_column_filter_date_display_series(working_df, col)
                 if display_dates is not None and not display_dates.empty:
-                    col_mask = col_mask | self._build_column_mask(display_dates, raw_str)
+                    tokens = [token.strip() for token in raw_str.split(",") if token.strip()]
+                    include_tokens = [token for token in tokens if not token.startswith("!")]
+                    exclude_tokens = [token for token in tokens if token.startswith("!")]
+
+                    if include_tokens:
+                        include_expr = ", ".join(include_tokens)
+                        include_mask = (
+                            self._build_column_mask(col_series, include_expr)
+                            | self._build_column_mask(display_dates, include_expr)
+                        )
+                    else:
+                        include_mask = pd.Series(True, index=working_df.index)
+
+                    if exclude_tokens:
+                        exclude_expr = ", ".join(exclude_tokens)
+                        exclude_mask = (
+                            self._build_column_mask(col_series, exclude_expr)
+                            & self._build_column_mask(display_dates, exclude_expr)
+                        )
+                    else:
+                        exclude_mask = pd.Series(True, index=working_df.index)
+
+                    col_mask = include_mask & exclude_mask
 
             mask &= col_mask
 
