@@ -3,6 +3,36 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (safe reapply from clean base, d4 excluded)
+
+Session timestamp:
+1. start: `2026-03-05 08:37:14 -0300`
+2. end: `2026-03-05 08:40:47 -0300`
+
+Delivered in this slice:
+1. created clean replay branch from fixed base `bf78666e`.
+2. replayed approved commits only:
+   - `9601ffb8`
+   - `a87c72d7`
+   - `88de4155`
+   - `8400fe42`
+   - `df65682c`
+   - `6899894b`
+   - `956c0f4a`
+3. explicitly excluded `d4c2c5ca` from replay.
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or best_fit or show_all_columns_by_affinity or data_cadastro_column_filter_accepts_display_date_on_first_apply"`: `7 passed`.
+5. kluster auto in replay cycle: clean -> clean -> clean.
+
+Decision and scope:
+1. this replay is `STABILITY_PATCH` + `DOC_SYNC` only.
+2. no DB schema/data mutation in this cycle.
+3. short-term deferred item: evaluate controlled reimplementation of `d4c2c5ca` requirements in separate slice (do not replay raw commit).
+
 ## Update 2026-03-04 (sprint7 stability: width guardrails + sort stability + show-all affinity)
 
 Session timestamp:

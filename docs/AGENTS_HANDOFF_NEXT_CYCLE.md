@@ -2,7 +2,36 @@
 
 This handoff is ready to reuse in the next conversation.
 
-## CURRENT TRUTH 2026-03-04 10:29 - authoritative block
+## CURRENT TRUTH 2026-03-05 08:40 - authoritative block
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- Replay delivered:
+  1. clean branch from `bf78666e`.
+  2. replay applied with approved commits only:
+     - `9601ffb8`
+     - `a87c72d7`
+     - `88de4155`
+     - `8400fe42`
+     - `df65682c`
+     - `6899894b`
+     - `956c0f4a`
+  3. explicit exclusion: `d4c2c5ca` (deferred for controlled reimplementation, no raw replay).
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or best_fit or show_all_columns_by_affinity or data_cadastro_column_filter_accepts_display_date_on_first_apply"`: `7 passed`.
+  5. kluster auto in replay cycle: clean -> clean -> clean.
+- Evidence:
+  1. HEAD replay branch: `5b145b78`.
+- Deferred non-blocking:
+  1. reimplement `d4c2c5ca` intent via requirements-first slice, with explicit diff preview before edit.
+- Local residue status:
+  1. `stash@{0}`: `incident-freeze-before-reapply-20260305-083301`.
+  2. `stash@{1}`: `local-wip-config-db-before-dev-switch-20260303`.
+
+## HISTORICAL SNAPSHOT 2026-03-04 10:29 - authoritative block
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.

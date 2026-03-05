@@ -2,7 +2,27 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
-## CURRENT TRUTH 2026-03-04 10:29 - start from here
+## CURRENT TRUTH 2026-03-05 08:40 - start from here
+
+- Active branch: `codex/reapply-good-commits-20260305`.
+- Local release baseline: `4.30`.
+- Replay status:
+  1. clean replay branch created from `bf78666e`.
+  2. replayed: `9601ffb8`, `a87c72d7`, `88de4155`, `8400fe42`, `df65682c`, `6899894b`, `956c0f4a`.
+  3. excluded by decision: `d4c2c5ca` (kept as short-term deferred reimplementation item).
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  2. `uv run --python 3.13 ruff check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  3. `uv run --python 3.13 ty check core/config_manager.py gui/simple_width_manager.py gui/gui_ssa.py gui/ssa/gui_table.py gui/mixins/filter_gui_ssa_mixin.py tests/test_gui_filter_logic.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or best_fit or show_all_columns_by_affinity or data_cadastro_column_filter_accepts_display_date_on_first_apply"`: `7 passed`.
+  5. kluster auto in replay cycle: clean -> clean -> clean.
+- Evidence commit:
+  1. HEAD replay branch: `5b145b78`.
+- Next cycle:
+  1. evaluate requirements-only reimplementation for `d4c2c5ca` in a new controlled slice.
+  2. keep extraction path exactly as replayed baseline until this decision is approved.
+
+## HISTORICAL SNAPSHOT 2026-03-04 10:29 - start from here
 
 - Active branch: `codex/sprint-colunas-exibicao-db-saneamento`.
 - Local release baseline: `4.30`.
