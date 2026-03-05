@@ -3,6 +3,40 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (diagnostico full rescan zero-db: evidencia operacional)
+
+Session timestamp:
+1. start: `2026-03-05 13:26:54 -0300`
+2. end parcial: `2026-03-05 14:12:23 -0300`
+
+Executed in this slice (status: partial, with blockers):
+1. backup manual do banco atual para `data/db_backups/ssas.db.pre_manual_rescan_20260305_132803.db`.
+2. full rescan forcado executado (log: `logs/full_rescan_20260305_132813.log`), com termino anomalo no shell sem linha final `RESULT`.
+3. passada de retomada (`force_import=False`) executada (log: `logs/rescan_resume_20260305_140405.log`) com retorno `ok=False`.
+4. auditoria completa do DB gerado e comparacao contra backup pre-rescan.
+5. smoke GUI executado com sucesso (`logs/gui_smoke_20260305_140702.log`, exit 0).
+6. relatorio tecnico detalhado gravado em `docs/indicios_importacao.md`.
+
+Evidence summary:
+1. log full rescan: 570 linhas; janela observada ~2104s (35m04s).
+2. `missing_data_cadastro`: 138 arquivos; 2171 linhas removidas.
+3. removidos por "sem numero_ssa e sem descricao": 2393 linhas.
+4. arquivos pulados por missing required column apos normalizacao: 2.
+5. DB atual: `integrity_check=ok`, `73999` linhas, `73999` SSAs distintos, sem duplicatas.
+6. schema drift critico detectado:
+   - backup: 82 colunas com `id`
+   - atual: 73 colunas, `id` ausente, colunas espurias `nan`, `nan_1`, `nan_2`.
+
+Critical findings (BUG_REAL):
+1. risco alto de perda de schema canonico no full rescan (perda de `id` e colunas relacionadas).
+2. regra de descarte por `missing_data_cadastro` remove volume alto de linhas.
+3. caso reproduzivel de skip completo de planilha (`SSAs Pendentes de Aprovacao na Emissao_*`) porque `Emitida Em` vem 100% vazio e a coluna e removida por `dropna(axis=1, how='all')` antes de fallback por colunas alternativas.
+
+Deferred for next approved slice:
+1. `HOTFIX_BLOCKER`: impedir criacao de tabela por `to_sql(... if_exists='replace')` em caminho de full rescan quando tabela ainda nao existe.
+2. `STABILITY_PATCH`: preservar header de colunas criticas (ex.: `Emitida Em`) para permitir fallback de `data_cadastro` sem skip total de arquivo.
+3. `STABILITY_PATCH`: adicionar observabilidade/progresso no full rescan para evitar terminos anomalos sem status final claro.
+
 ## Update 2026-03-05 (sprint importacao grave lane: strict numeric reprogramacoes)
 
 Session timestamp:

@@ -2,6 +2,43 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 14:12 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Diagnostic slice status:
+  1. full rescan do zero foi executado apos backup manual do DB.
+  2. execucao longa (~35m observados) terminou sem status final confiavel no shell.
+  3. passada de retomada rapida (`force_import=False`) retornou `ok=False`.
+  4. GUI smoke passou (`GUI_SMOKE_EXIT=0`).
+- Runtime evidence:
+  1. `logs/full_rescan_20260305_132813.log`: 570 linhas de evidencia.
+  2. perdas por `missing_data_cadastro`: 2171 linhas em 138 arquivos.
+  3. perdas por linha sem SSA e sem descricao: 2393.
+  4. 2 arquivos pulados por `Missing required columns after normalization: ['data_cadastro']`.
+- DB evidence (atual vs backup pre-rescan):
+  1. atual: `73999` linhas, `integrity_check=ok`, sem duplicatas por `numero_ssa`.
+  2. drift de schema critico: atual com 73 colunas e sem `id`; backup com 82 colunas e `id` presente.
+  3. colunas espurias detectadas no atual: `nan`, `nan_1`, `nan_2`.
+- Confirmed BUG_REAL:
+  1. risco alto de perda de schema canonico no caminho de full rescan (`to_sql(... replace)` quando tabela nao existe).
+  2. regra de validacao/data remove volume alto de linhas validas em potencial.
+  3. `dropna(axis=1, how='all')` antes da normalizacao impede fallback de `data_cadastro` quando `Emitida Em` vem 100% vazio.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_database_verification.py tests/test_app_logic_full_rescan_lock.py tests/test_cli_clearall_uses_table_name.py tests/test_database.py`: `34 passed`.
+- Control docs updated:
+  1. `docs/indicios_importacao.md`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Next approved-scope plan candidate:
+  1. `HOTFIX_BLOCKER`: garantir schema canonico antes da primeira escrita no full rescan.
+  2. `STABILITY_PATCH`: evitar skip total de arquivo quando `data_cadastro` esta vazio mas existe data alternativa para fallback.
+  3. `STABILITY_PATCH`: observabilidade de progresso e fechamento deterministico do full rescan.
+
 ## CURRENT TRUTH 2026-03-05 13:15 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

@@ -2,6 +2,38 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 14:12 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Diagnostic status:
+  1. full rescan zero-db foi executado com backup manual previo.
+  2. execucao forcada ficou ativa por ~35m e terminou sem status final confiavel no shell.
+  3. DB final ficou com `integrity_check=ok`, mas com drift de schema (colunas canonicas perdidas).
+- Critical findings:
+  1. schema drift: `id` ausente e perda de 12 colunas canonicas no `ssa_table`.
+  2. colunas espurias `nan`, `nan_1`, `nan_2` no schema atual.
+  3. regra `missing_data_cadastro` removeu 2171 linhas em 138 arquivos nesta rodada.
+  4. dois arquivos `SSAs Pendentes de Aprovacao na Emissao_*` foram pulados por missing `data_cadastro` apos normalizacao.
+- Root-cause evidence:
+  1. caminho de upsert ainda permite `to_sql(... if_exists='replace')` quando tabela nao existe, criando schema pelo DataFrame.
+  2. extrator remove colunas totalmente vazias antes da normalizacao (`dropna(axis=1, how='all')`), impedindo fallback de `data_cadastro` para alguns lotes.
+- Evidence files:
+  1. `docs/indicios_importacao.md`
+  2. `logs/full_rescan_20260305_132813.log`
+  3. `logs/rescan_resume_20260305_140405.log`
+  4. `logs/gui_smoke_20260305_140702.log`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py core/app_logic.py armazenamento/database_upsert_logic.py armazenamento/database_integrity.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_database_verification.py tests/test_app_logic_full_rescan_lock.py tests/test_cli_clearall_uses_table_name.py tests/test_database.py`: `34 passed`.
+  5. GUI smoke: `GUI_SMOKE_EXIT=0`.
+- Next slices (approved plan candidate):
+  1. `HOTFIX_BLOCKER`: forcar schema canonico antes da primeira escrita no full rescan (eliminar criacao por `replace`).
+  2. `STABILITY_PATCH`: preservar coluna critica vazia para permitir fallback de data (evitar skip total de arquivo).
+  3. `STABILITY_PATCH`: adicionar progresso/fechamento deterministico no full rescan para observabilidade operacional.
+
 ## CURRENT TRUTH 2026-03-05 13:15 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
