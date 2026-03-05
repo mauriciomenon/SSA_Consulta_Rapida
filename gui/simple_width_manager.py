@@ -3,7 +3,10 @@ Simple Width Manager - Versão simplificada para integração imediata
 Elimina código frankenstein com implementação funcional mínima.
 """
 
+import logging
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 class SimpleWidthManager:
     """
@@ -140,7 +143,8 @@ class SimpleWidthManager:
 
         for col, width in list(fixed_widths.items()):
             max_px = int(self.max_pixel_widths.get(col, 1000))
-            fixed_widths[col] = max(30, min(int(width), max_px))
+            min_px = 24 if col == '#' else 30
+            fixed_widths[col] = max(min_px, min(int(width), max_px))
 
         return fixed_widths
 
@@ -153,7 +157,13 @@ class SimpleWidthManager:
                 continue
             try:
                 width = int(table_widget.columnWidth(idx))
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao capturar largura da coluna '%s' (index=%s): %s",
+                    col_name,
+                    idx,
+                    exc,
+                )
                 width = 0
             if width > 0:
                 captured[col_name] = width
@@ -177,10 +187,26 @@ class SimpleWidthManager:
                 continue
             idx = current_cols.index(col_name)
             col_max = int(self.max_pixel_widths.get(col_name, 1000))
-            safe_width = max(30, min(int(width), col_max))
+            try:
+                width_int = int(width)
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao converter largura para coluna '%s': %s",
+                    col_name,
+                    exc,
+                )
+                continue
+            min_px = 24 if col_name == '#' else 30
+            safe_width = max(min_px, min(width_int, col_max))
             try:
                 table_widget.setColumnWidth(idx, safe_width)
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao restaurar largura da coluna '%s' (index=%s): %s",
+                    col_name,
+                    idx,
+                    exc,
+                )
                 continue
             applied[col_name] = safe_width
             if isinstance(saved_widths, dict):

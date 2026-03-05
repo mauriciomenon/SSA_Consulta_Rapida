@@ -308,7 +308,8 @@ def display_current_page(window, page_number):
                 max_px = int(max_map.get(col_key, max_px))
             except Exception:
                 max_px = 1000
-        px = max(30, min(int(px), max_px))
+        min_px = 24 if str(col_key) == "#" else 30
+        px = max(min_px, min(int(px), max_px))
 
         window.table_widget.setColumnWidth(i, px)
 
