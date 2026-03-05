@@ -3,6 +3,49 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (cross-file diagnostico ADI/ASE sem data_cadastro)
+
+Session timestamp:
+1. start: `2026-03-05 19:29:06 -0300`
+2. end: `2026-03-05 19:42:55 -0300`
+
+Executed in this slice (diagnostic only, no runtime edit):
+1. cross-file join by `numero_ssa` over all valid extractor outputs.
+2. target set: rows with `situacao in {ADI, ASE}` and missing `data_cadastro`.
+3. comparison lanes:
+   - same SSA in other files (status and data presence),
+   - file date parsed from filename vs SSA prefix year,
+   - file date vs `semana_cadastro` (iso week monday approximation).
+
+Evidence:
+1. scan scope:
+   - files total: `431`
+   - files ok: `406`
+   - extraction errors: `25`
+2. target population:
+   - unique SSAs with ADI/ASE + missing date: `213`
+   - affected rows: `279`
+3. cross-file outcomes:
+   - with data in another occurrence: `158/213` (`74.18%`)
+   - without data in all occurrences: `55/213` (`25.82%`)
+   - with status change to states outside ADI/ASE: `164/213` (`76.99%`)
+   - only ADI/ASE states across occurrences: `49/213` (`23.00%`)
+   - still ADI/ASE but with data somewhere: `7/213` (`3.29%`)
+4. status where data appears (same SSA family):
+   - top states: `STE=864`, `SPG=123`, `AAT=71`, `SEE=69`, `APG=59`
+   - ADI/ASE with data also exist but low (`ADI=8`, `ASE=6`)
+5. date consistency checks:
+   - for all `279` ADI/ASE missing rows: `file_year - ssa_year = 0`
+   - week approximation (`semana_cadastro` -> monday) vs file date:
+     - count `279`, p50 `3` days, p75 `8` days
+     - within 14 days: `254`
+     - within 30 days: `276`
+
+Conclusion:
+1. there is no strict one-to-one rule `ADI/ASE => always no data_cadastro`.
+2. missing date in ADI/ASE is often transient and later replaced by dated records in other files.
+3. behavior is strongly concentrated in same-year and near-week snapshots, consistent with temporal lifecycle snapshots.
+
 ## Update 2026-03-05 (diagnostico ADI/ASE + mini importacao de validacao)
 
 Session timestamp:
