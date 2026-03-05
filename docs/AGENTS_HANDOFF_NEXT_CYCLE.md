@@ -2,6 +2,33 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 19:42 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- New delivered diagnostic:
+  1. cross-file join by `numero_ssa` for ADI/ASE rows missing `data_cadastro`.
+  2. full valid scope: `431` files scanned, `406` parsed, `25` extraction errors.
+- Target population:
+  1. unique SSAs: `213`
+  2. rows: `279`
+- Findings:
+  1. with data in another occurrence: `158/213` (`74.18%`)
+  2. without data in all occurrences: `55/213` (`25.82%`)
+  3. with status change outside ADI/ASE: `164/213` (`76.99%`)
+  4. only ADI/ASE states across observed snapshots: `49/213` (`23.00%`)
+  5. ADI/ASE with data somewhere: `7/213` (`3.29%`)
+- State distribution where data appears:
+  1. dominant with-data statuses: `STE`, `SPG`, `AAT`, `SEE`, `APG`.
+  2. ADI/ASE with data exist but low (`ADI=8`, `ASE=6`).
+- Date consistency:
+  1. all target rows satisfy `file_year == ssa_year` (`279/279`).
+  2. `semana_cadastro` approximation is close to file date:
+     - p50 `3` days, p75 `8` days, `276/279` within 30 days.
+- Decision impact:
+  1. ADI/ASE missing date is not an absolute status rule.
+  2. evidence supports temporal lifecycle interpretation and targeted, low-risk handling by validated exception rules.
+
 ## CURRENT TRUTH 2026-03-05 19:26 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

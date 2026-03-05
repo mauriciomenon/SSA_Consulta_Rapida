@@ -2,6 +2,36 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 19:42 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Cross-file diagnostic completed for ADI/ASE missing `data_cadastro`.
+- Scope:
+  1. files scanned: `431` (excluding lock files), `406` parsed, `25` extraction errors.
+  2. target rows: `situacao in {ADI, ASE}` and missing `data_cadastro`.
+- Result set:
+  1. unique SSAs: `213`
+  2. rows: `279`
+- Cross-file behavior:
+  1. same SSA with data in other occurrence: `158/213` (`74.18%`)
+  2. same SSA with no data in any occurrence: `55/213` (`25.82%`)
+  3. same SSA with status transitions outside ADI/ASE: `164/213` (`76.99%`)
+  4. same SSA only ADI/ASE statuses: `49/213` (`23.00%`)
+  5. ADI/ASE with data present somewhere: `7/213` (`3.29%`)
+- Data-presence states (same SSA family):
+  1. top with-data statuses: `STE`, `SPG`, `AAT`, `SEE`, `APG`.
+  2. ADI/ASE with data exist but low (`ADI=8`, `ASE=6` occurrences).
+- Date clues:
+  1. for all `279` target rows, `file_year - ssa_year = 0`.
+  2. week approximation (`semana_cadastro` monday) vs file date:
+     - p50 `3` days, p75 `8` days
+     - within 14 days: `254/279`
+     - within 30 days: `276/279`
+- Interpretation:
+  1. no strict deterministic relation between ADI/ASE and missing `data_cadastro`.
+  2. pattern behaves like temporal snapshot progression in the same yearly batch.
+
 ## CURRENT TRUTH 2026-03-05 19:26 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
