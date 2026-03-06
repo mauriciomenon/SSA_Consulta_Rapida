@@ -18,6 +18,7 @@ import shutil
 from datetime import datetime
 from typing import Any
 import pandas as pd
+from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
 
 # Lazy imports from database.py to avoid circular dependency (see lines 82, 100, 117, etc.)
 
@@ -28,7 +29,7 @@ MIN_FREE_SPACE_GB_WARN = 0.1
 
 def verify_database_integrity(
     db_path: str,
-    table_name: str = 'ssas',
+    table_name: str = CANONICAL_SSA_TABLE,
 ) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
     report: dict[str, Any] = {
         'is_valid': True,
@@ -157,7 +158,7 @@ def verify_database_integrity(
 def repair_database_if_needed(
     db_path: str,
     schema_file: str = 'schema.sql',
-    table_name: str = 'ssas',
+    table_name: str = CANONICAL_SSA_TABLE,
 ) -> bool:  # noqa: PLR0912
     logger.info("Iniciando verificacao e reparo do banco de dados...")
     try:
@@ -187,11 +188,29 @@ def repair_database_if_needed(
                 from . import database_upsert_logic as _up
                 with get_db_connection(db_path) as conn:
                     try:
-                        df_backup = pd.read_sql_query("SELECT * FROM ssas", conn)
+                        table_candidates = list(dict.fromkeys([table_name, *ALL_SSA_TABLE_NAMES]))
+                        source_table = None
+                        for candidate in table_candidates:
+                            cursor = conn.execute(
+                                "SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name=?",
+                                (candidate,),
+                            )
+                            if cursor.fetchone():
+                                source_table = candidate
+                                break
+                        if source_table is None:
+                            raise ValueError("No compatible SSA table found for repair backup.")
+                        if not is_valid_identifier(source_table):
+                            raise ValueError(f"Invalid SQL identifier: {source_table}")
+                        df_backup = pd.read_sql_query(f"SELECT * FROM {source_table}", conn)
                         if not df_backup.empty:
                             os.remove(db_path)
                             initialize_database(db_path, schema_file)
-                            if _up.insert_dataframe_with_smart_upsert_impl(df_backup, db_path, 'ssas'):
+                            if _up.insert_dataframe_with_smart_upsert_impl(
+                                df_backup,
+                                db_path,
+                                CANONICAL_SSA_TABLE,
+                            ):
                                 logger.info("Dados restaurados com sucesso apos correcao")
                                 repaired = True
                     except Exception as e:  # pragma: no cover

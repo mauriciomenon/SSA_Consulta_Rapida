@@ -27,6 +27,7 @@ from interface.display import pretty_print_details
 from interface.table_printer import pretty_print_df # Versão antiga como fallback
 from interface.enhanced_table_printer import EnhancedTablePrinter
 from interface.cli_enhancement_manager import enhancement_manager
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 from shared.numero_ssa import normalize_strict as normalize_numero_ssa_strict
 from utils.version import get_app_version, get_app_version_long
 
@@ -307,14 +308,14 @@ def _apply_default_filters(df: pd.DataFrame, settings: dict) -> pd.DataFrame:
     parsed = DEFAULT_FILTER_TERMS_CACHE[cache_key]
     return filter_dataframe(df, parsed)
 
-def get_ssa_query(table_name: str = 'ssa_table') -> str:
+def get_ssa_query(table_name: str = CANONICAL_SSA_TABLE) -> str:
     """
     Retorna a query customizada para mapear colunas corretamente.
     Usa os nomes de coluna normalizados da tabela atual.
     """
-    if table_name in {"ssas", "ssa_chamados"}:
-        table_name = "ssa_table"
-    elif table_name != "ssa_table":
+    if table_name in LEGACY_SSA_TABLE_ALIASES:
+        table_name = CANONICAL_SSA_TABLE
+    elif table_name != CANONICAL_SSA_TABLE:
         raise ValueError(f"Unsupported table for CLI query: {table_name!r}")
     return f'''
     SELECT

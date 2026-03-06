@@ -109,6 +109,7 @@ class TestDataValidation:
 
         assert report['is_valid']
         assert report['row_count'] == 0
+        assert report['table_name'] == 'ssa_table'
         assert len(report['warnings']) > 0
         assert "vazio" in str(report['warnings'])
 

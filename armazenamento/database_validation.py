@@ -6,6 +6,7 @@ import logging
 import pandas as pd
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
+from shared.db_names import CANONICAL_SSA_TABLE
 from shared.date_utils import parse_any_date
 from shared.import_contract import (
     ALLOWED_MISSING_DATA_CADASTRO_STATUSES,
@@ -177,7 +178,10 @@ def _validate_text_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
             )
 
 
-def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas') -> dict[str, Any]:
+def validate_dataframe_before_insert(
+    df: pd.DataFrame,
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> dict[str, Any]:
     report: dict[str, Any] = {
         'is_valid': True,
         'issues': [],
