@@ -2,6 +2,35 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 14:09 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Runtime validation delivered:
+  1. full staged rescan completed on the real corpus with `PY_RESULT=True`.
+  2. elapsed runtime: `918.208s` (`real 918.95`).
+  3. report file: `logs/import_run_20260306_135404_209159.json`.
+  4. candidate promotion completed and old primary DB was backed up to `data/ssas.db.full_rescan_backup_20260306_140922`.
+  5. no deterministic failures and no import errors were reported.
+- Final DB metrics:
+  1. rows: `76426`
+  2. distinct `numero_ssa`: `76426`
+  3. columns: `84`
+  4. null `data_cadastro`: `608`
+- Residual runtime risk still open:
+  1. schema drift remains visible through `nan_1` and `nan_2`.
+  2. counts after the real run:
+     - `nan_1`: `12082`
+     - `nan_2`: `11835`
+  3. upsert still logged placeholder-drop warnings for raw `nan` labels during runtime.
+  4. this confirms GUI filtering/column hiding is not the root cause; import/schema cleanup remains a separate runtime slice.
+- Carry-over evidence:
+  1. successful runtime log: `logs/full_rescan_runtime_20260306_135403.log`
+  2. successful JSON report: `logs/import_run_20260306_135404_209159.json`
+  3. preserved aborted candidate from the pre-fix run: `data/ssas.db.full_rescan_candidate_20260306_121612_837677`
+- Next approved slice:
+  1. make reescaneamento non-modal in the GUI without changing layout.
+
 ## CURRENT TRUTH 2026-03-06 13:51 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

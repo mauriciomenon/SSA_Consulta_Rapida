@@ -2,6 +2,30 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 14:09 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Runtime validation completed:
+  1. real full staged rescan finished successfully in `918.206s`.
+  2. report file: `logs/import_run_20260306_135404_209159.json`.
+  3. runtime log: `logs/full_rescan_runtime_20260306_135403.log`.
+  4. `success_count=431`, `error_count=0`, `deterministic_failure_count=0`.
+  5. candidate DB was promoted and not preserved.
+  6. promoted backup path: `data/ssas.db.full_rescan_backup_20260306_140922`.
+- Final DB metrics after promotion:
+  1. rows: `76426`
+  2. distinct `numero_ssa`: `76426`
+  3. columns: `84`
+  4. null `data_cadastro`: `608`
+  5. placeholder columns still present: `nan_1`, `nan_2`
+- Important interpretation:
+  1. the staged full-rescan flow is now runtime-validated on the full corpus.
+  2. extractor blocker from duplicate/`NaN` headers is fixed.
+  3. remaining open runtime risk is schema drift from unlabeled numeric columns, not the candidate promotion flow.
+- Next approved focus:
+  1. remove GUI modal blocking during rescan without changing layout.
+
 ## CURRENT TRUTH 2026-03-06 13:51 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
