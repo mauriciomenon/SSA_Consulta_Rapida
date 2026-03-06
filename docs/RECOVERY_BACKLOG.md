@@ -3,6 +3,38 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: remapear colunas finais sem header apos anomalia)
+
+Session timestamp:
+1. start: `2026-03-06 15:48:57 -0300`
+2. end: `2026-03-06 15:54:02 -0300`
+
+Decision delivered:
+1. the extractor now remaps the concrete malformed pattern `anomalia + 3 unnamed trailing columns` directly to:
+   - `total_tempo_tpe_executada`
+   - `total_tempo_tex_executada`
+   - `total_tempo_tpo_executada`
+2. the rule is structural and no longer depends on the filename.
+3. robust importer path was not changed.
+
+Files changed:
+1. `extracao/extractor.py`
+2. `tests/test_extracao.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `16 passed`.
+5. real-file repro:
+   - `docs_entrada/SSAs Executadas_22-07-2025_0309PM.xlsx`
+   - result: `has_nan_cols=[]`
+   - tail columns: `anomalia`, `total_tempo_tpe_executada`, `total_tempo_tex_executada`, `total_tempo_tpo_executada`, `status_execucao_prazo`
+
+Deferred by scope control:
+1. run a fresh full-corpus rescan to confirm whether any other source still creates `nan_*`.
+2. keep historical-system `.xls` files outside the main DB path until a dedicated legacy storage design is approved.
+
 ## Update 2026-03-06 (slice minimo: blindagem explicita contra .xls legado no pipeline principal)
 
 Session timestamp:

@@ -359,9 +359,45 @@ def extract_data_from_excel(
                 file_path,
             )
 
-        # Normaliza os nomes das colunas e resolve duplicadas
+        # Normaliza os nomes das colunas.
         if column_mappings:
             combined_df.rename(columns=column_mappings, inplace=True)
+
+        if (
+            "anomalia" in combined_df.columns
+            and not {
+                "total_tempo_tpe_executada",
+                "total_tempo_tex_executada",
+                "total_tempo_tpo_executada",
+            }.intersection(set(combined_df.columns))
+        ):
+            anomaly_idx = list(combined_df.columns).index("anomalia")
+            candidate_positions = list(
+                range(anomaly_idx + 1, min(anomaly_idx + 4, len(combined_df.columns)))
+            )
+            if len(candidate_positions) == 3:
+                unnamed_positions: list[int] = []
+                for pos in candidate_positions:
+                    col_name = combined_df.columns[pos]
+                    if isinstance(col_name, str):
+                        normalized_col_name = col_name.strip().lower()
+                        is_unnamed = normalized_col_name in {"", "nan"} or normalized_col_name.startswith("unnamed:")
+                    else:
+                        is_unnamed = bool(pd.isna(col_name))
+                    if is_unnamed:
+                        unnamed_positions.append(pos)
+                if len(unnamed_positions) == 3:
+                    renamed_columns = list(combined_df.columns)
+                    renamed_columns[unnamed_positions[0]] = "total_tempo_tpe_executada"
+                    renamed_columns[unnamed_positions[1]] = "total_tempo_tex_executada"
+                    renamed_columns[unnamed_positions[2]] = "total_tempo_tpo_executada"
+                    combined_df.columns = renamed_columns
+                    logger.info(
+                        "Arquivo '%s' possui colunas finais sem header apos 'anomalia'; remapeadas para totais TPE/TEX/TPO executada.",
+                        file_path,
+                    )
+
+        # Resolve duplicadas apos a normalizacao contextual.
         combined_df = _deduplicate_columns(combined_df)
 
         missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))

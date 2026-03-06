@@ -2,6 +2,34 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 16:02 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. the extractor now remaps the concrete malformed pattern `anomalia + 3 unnamed trailing columns` to:
+     - `total_tempo_tpe_executada`
+     - `total_tempo_tex_executada`
+     - `total_tempo_tpo_executada`
+  2. the rule is structural, not filename-based.
+  3. robust importer path was not changed.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- New regression:
+  1. `test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `16 passed`.
+  5. real-file repro for `docs_entrada/SSAs Executadas_22-07-2025_0309PM.xlsx`:
+     - `has_nan_cols=[]`
+     - tail columns now end with `anomalia`, `total_tempo_tpe_executada`, `total_tempo_tex_executada`, `total_tempo_tpo_executada`, `status_execucao_prazo`
+- Key operational meaning:
+  1. the diagnosed source of `nan_1`/`nan_2` in malformed `SSAs Executadas` exports is now corrected at extraction time.
+  2. the next verification step is a fresh full-corpus rescan to confirm whether any second source of `nan_*` still exists.
+
 ## CURRENT TRUTH 2026-03-06 15:46 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
