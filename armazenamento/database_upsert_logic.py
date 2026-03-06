@@ -24,6 +24,8 @@ from shared.date_utils import parse_any_date
 # Lazy imports from database.py to avoid circular dependency (see line 303)
 
 logger = logging.getLogger(__name__)
+_INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
+_VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
@@ -65,6 +67,125 @@ def _infer_sql_type(series: pd.Series | None) -> str:
     except Exception:  # pragma: no cover
         return "TEXT"
     return "TEXT"
+
+
+def _is_placeholder_column_name(column_name: Any) -> bool:
+    """Return True for empty/placeholder dynamic headers that should be ignored."""
+    if column_name is None:
+        return True
+    if isinstance(column_name, float) and pd.isna(column_name):
+        return True
+    text = str(column_name).strip()
+    if not text:
+        return True
+    lowered = text.lower()
+    if lowered in {"nan", "none", "null"}:
+        return True
+    return lowered.startswith("unnamed:")
+
+
+def _sanitize_dynamic_column_name(
+    column_name: Any,
+    *,
+    existing_columns: set[str],
+    reserved_names: set[str],
+    assigned_names: set[str],
+) -> str | None:
+    """Map dynamic column names to safe SQL identifiers with deterministic reuse."""
+    if _is_placeholder_column_name(column_name):
+        return None
+
+    base = _INVALID_IDENTIFIER_CHARS_RE.sub("_", str(column_name).strip())
+    base = base.strip("_").lower()
+    if not base:
+        return None
+    if base in {"nan", "none", "null"}:
+        return None
+    if base[0].isdigit():
+        base = f"c_{base}"
+
+    if base in existing_columns and base not in reserved_names:
+        assigned_names.add(base)
+        return base
+
+    candidate = base
+    suffix = 1
+    while (
+        candidate in reserved_names
+        or candidate in assigned_names
+        or candidate in existing_columns
+        or _VALID_IDENTIFIER_RE.fullmatch(candidate) is None
+    ):
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+    assigned_names.add(candidate)
+    return candidate
+
+
+def _sync_dynamic_columns_and_schema(
+    *,
+    work: pd.DataFrame,
+    table_name: str,
+    existing_columns: set[str],
+    db_path: str | Any,
+    conn: Any,
+    db_module: Any,
+) -> pd.DataFrame:
+    from .identifier_utils import is_valid_identifier
+
+    rename_map: dict[str, str] = {}
+    drop_columns: list[Any] = []
+    reserved_names = {
+        str(col)
+        for col in work.columns
+        if isinstance(col, str) and is_valid_identifier(col) and not _is_placeholder_column_name(col)
+    }
+    assigned_names: set[str] = set()
+    ordered_columns = sorted(work.columns, key=lambda value: str(value).lower())
+    for col in ordered_columns:
+        if _is_placeholder_column_name(col):
+            drop_columns.append(col)
+            continue
+        if col in existing_columns or is_valid_identifier(col):
+            continue
+        sanitized = _sanitize_dynamic_column_name(
+            col,
+            existing_columns=existing_columns,
+            reserved_names=reserved_names,
+            assigned_names=assigned_names,
+        )
+        if not sanitized:
+            logger.warning(
+                "Coluna dinamica invalida '%s' foi ignorada (nao foi possivel sanitizar identificador).",
+                col,
+            )
+            drop_columns.append(col)
+            continue
+        rename_map[col] = sanitized
+        reserved_names.add(sanitized)
+
+    if drop_columns:
+        logger.warning("Colunas dinamicas placeholder foram descartadas: %s", drop_columns)
+        work = work.drop(columns=drop_columns, errors='ignore')
+
+    if rename_map:
+        logger.warning("Colunas dinamicas foram sanitizadas para SQL seguro: %s", rename_map)
+        work = work.rename(columns=rename_map)
+
+    # Enforce whitelist after dynamic rename/drop to avoid schema drift by env policy.
+    final_work = apply_column_whitelist(work)
+
+    missing_columns = [col for col in final_work.columns if col not in existing_columns]
+    for col in missing_columns:
+        sql_type = _infer_sql_type(final_work[col] if col in final_work.columns else None)
+        logger.info("Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type)
+        if not is_valid_identifier(col):
+            raise ValueError(f"Invalid SQL identifier for column: {col}")
+        if isinstance(db_path, str):
+            db_module.ensure_column_exists(db_path, table_name, col, sql_type)
+        else:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
+    return final_work
 
 
 def _should_update_existing(existing_row: pd.Series, new_row: pd.Series) -> bool:
@@ -205,6 +326,8 @@ def _merge_complement_row(
         old_val = result.get(col)
         if _is_empty_upsert_value(old_val) and not _is_empty_upsert_value(new_val):
             result[col] = new_val
+    if not isinstance(result, pd.Series):
+        raise TypeError("Expected pd.Series from _merge_complement_row")
     return result
 
 
@@ -217,6 +340,8 @@ def _merge_preserve_existing_row(existing_row: pd.Series, new_row: pd.Series) ->
     for col in new_row.index:
         if col not in merged.index:
             merged[col] = new_row[col]
+    if not isinstance(merged, pd.Series):
+        raise TypeError("Expected pd.Series from _merge_preserve_existing_row")
     return merged
 
 
@@ -226,6 +351,9 @@ def _persist_upsert_chunk(
     rows_to_persist: dict[Any, pd.Series],
     delete_keys: set[Any],
 ) -> None:
+    in_transaction = getattr(conn, "in_transaction", None)
+    if in_transaction is not None and not bool(in_transaction):
+        raise RuntimeError("Upsert chunk requires active transaction on connection.")
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
         conn.execute(
@@ -233,7 +361,14 @@ def _persist_upsert_chunk(
             list(delete_keys),
         )
     if rows_to_persist:
-        persist_df = pd.DataFrame([row.copy() for row in rows_to_persist.values()])
+        rows_list: list[pd.Series] = []
+        for row in rows_to_persist.values():
+            if not isinstance(row, pd.Series):
+                raise TypeError("rows_to_persist must contain pd.Series values.")
+            rows_list.append(row.copy())
+        all_columns = sorted({idx for row in rows_list for idx in row.index})
+        normalized_rows = [row.reindex(all_columns) for row in rows_list]
+        persist_df = pd.DataFrame(normalized_rows)
         persist_df.to_sql(table_name, conn, if_exists='append', index=False)
 
 
@@ -244,13 +379,13 @@ def _prepare_upsert_target_row(
     status_rank: dict[str, int],
     description_columns: list[str],
     date_columns: list[str],
-) -> tuple[pd.DataFrame, bool]:
+) -> tuple[pd.Series, bool]:
     if existing_row is None:
-        return row.to_frame().T, True
+        return row.copy(), True
 
     if not complementary_mode:
         merged_row = _merge_preserve_existing_row(existing_row, row)
-        return merged_row.to_frame().T, _should_update_existing(existing_row, row)
+        return merged_row, _should_update_existing(existing_row, row)
 
     merged_series = _merge_complement_row(
         existing_row,
@@ -259,7 +394,7 @@ def _prepare_upsert_target_row(
         description_columns,
         date_columns,
     )
-    return merged_series.to_frame().T, not merged_series.equals(existing_row)
+    return merged_series, not merged_series.equals(existing_row)
 
 
 def _upsert_cache_key(numero: Any) -> str | None:
@@ -273,7 +408,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
     status_rank, description_columns, date_columns = _resolve_upsert_config()
     os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
-    total_inserted = 0
+    total_upserted = 0
     for start in range(0, len(has_ssa), chunk_size):
         chunk = has_ssa.iloc[start:start + chunk_size]
 
@@ -293,7 +428,8 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
                 params=chunk_num_ssa,
             )
             if not existing_chunk.empty and 'numero_ssa' in existing_chunk.columns:
-                for _, existing_row in existing_chunk.iterrows():
+                for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
+                    existing_row = pd.Series(existing_row_tuple, index=existing_chunk.columns)
                     numero_val = existing_row.get('numero_ssa')
                     cache_key = _upsert_cache_key(numero_val)
                     if cache_key is None:
@@ -302,14 +438,15 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
 
         rows_to_persist: dict[str, pd.Series] = {}
         delete_keys: set[Any] = set()
-        for _, row in chunk.iterrows():
+        for row_tuple in chunk.itertuples(index=False, name=None):
+            row = pd.Series(row_tuple, index=chunk.columns)
             numero_ssa = row['numero_ssa']
             cache_key = _upsert_cache_key(numero_ssa)
             if cache_key is None:
                 continue
             existing_row = existing_by_ssa.get(cache_key)
             has_existing = existing_row is not None
-            target_df, should_persist = _prepare_upsert_target_row(
+            target_row, should_persist = _prepare_upsert_target_row(
                 row,
                 existing_row,
                 complementary_mode,
@@ -317,15 +454,17 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
                 description_columns,
                 date_columns,
             )
+            if not isinstance(target_row, pd.Series):
+                raise TypeError("Expected pd.Series from _prepare_upsert_target_row")
             if should_persist:
                 if has_existing and existing_row is not None:
                     delete_keys.add(existing_row.get('numero_ssa'))
-                merged_cache_row = target_df.iloc[0].copy()
+                merged_cache_row = target_row.copy()
                 rows_to_persist[cache_key] = merged_cache_row
                 existing_by_ssa[cache_key] = merged_cache_row
-                total_inserted += 1
+                total_upserted += 1
         _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
-    return total_inserted
+    return total_upserted
 
 
 def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
@@ -401,12 +540,6 @@ def insert_dataframe_with_smart_upsert_impl(
 ) -> bool:
     work = prepare_dataframe_for_upsert(df)
     work = apply_column_whitelist(work)
-    if 'numero_ssa' not in work.columns:
-        has_ssa = pd.DataFrame()
-        no_ssa = work.copy()
-    else:
-        has_ssa = work[work['numero_ssa'].notna()].copy()
-        no_ssa = work[work['numero_ssa'].isna()].copy()
     from . import database as _db_mod  # lazy import evita circularidade
     conn_cm = None
     if hasattr(db_path, 'cursor'):  # conexão externa
@@ -426,32 +559,70 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name = alias
                     break
         table_exists = table_name in existing_tables
+        if not table_exists:
+            logger.warning(
+                "Tabela alvo '%s' ausente. Aplicando bootstrap de schema canonico antes do upsert.",
+                table_name,
+            )
+            if isinstance(db_path, str):
+                _db_mod.initialize_database(db_path, "config/schema.sql")
+            else:
+                cursor.execute("PRAGMA database_list")
+                db_list = cursor.fetchall()
+                main_db_path = None
+                for row in db_list:
+                    if len(row) >= 3 and row[1] == "main" and row[2]:
+                        main_db_path = str(row[2])
+                        break
+                if not main_db_path:
+                    logger.error(
+                        "Nao foi possivel identificar caminho do DB principal para bootstrap de schema."
+                    )
+                    return False
+                _db_mod.initialize_database(main_db_path, "config/schema.sql")
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            existing_tables = {r[0] for r in cursor.fetchall()}
+            if table_name not in existing_tables:
+                for alias in ("ssa_table", "ssas", "ssa_chamados"):
+                    if alias in existing_tables:
+                        table_name = alias
+                        break
+            table_exists = table_name in existing_tables
+            if not table_exists:
+                logger.error(
+                    "Schema canonico aplicado, mas tabela alvo '%s' nao foi encontrada.",
+                    table_name,
+                )
+                return False
         if table_exists:
             from .identifier_utils import is_valid_identifier  # local import to avoid cycles
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
             cursor.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
             existing_columns = {row[1] for row in cursor.fetchall()}
-            missing_columns = [col for col in work.columns if col not in existing_columns]
-            for col in missing_columns:
-                sql_type = _infer_sql_type(work[col] if col in work.columns else None)
-                logger.info("Adicionando coluna ausente '%s' ao schema (tipo %s)", col, sql_type)
-                if not is_valid_identifier(col):
-                    raise ValueError(f"Invalid SQL identifier for column: {col}")
-                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
+            work = _sync_dynamic_columns_and_schema(
+                work=work,
+                table_name=table_name,
+                existing_columns=existing_columns,
+                db_path=db_path,
+                conn=conn,
+                db_module=_db_mod,
+            )
+        if 'numero_ssa' not in work.columns:
+            has_ssa = pd.DataFrame()
+            no_ssa = work.copy()
+        else:
+            has_ssa = work[work['numero_ssa'].notna()].copy()
+            no_ssa = work[work['numero_ssa'].isna()].copy()
+        if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
+            cursor.execute("BEGIN")
         if not no_ssa.empty:
-            mode = 'append' if table_exists else 'replace'
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = min(500, max(1, 999 // len(no_ssa.columns))) if len(no_ssa.columns) > 0 else 500
             logger.debug(f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas")
-            no_ssa.to_sql(table_name, conn, if_exists=mode, index=False, chunksize=chunk_size)
+            no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
-            table_exists = True
         if not has_ssa.empty:
-            if not table_exists:
-                has_ssa.iloc[0:1].to_sql(table_name, conn, if_exists='replace', index=False)
-                table_exists = True
-                logger.info("Tabela criada com primeiro registro (numero_ssa)")
             inserted = _perform_upsert(has_ssa, table_name, conn)
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
         conn.commit()  # type: ignore[attr-defined]

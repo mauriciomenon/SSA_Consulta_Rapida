@@ -1978,3 +1978,29 @@ Historical review-thread entries were removed here to avoid duplicate pending co
   - `interface/cli_enhancement_manager.py`: revisar TOCTOU em lock-file (`exists` + `open` nao atomico).
   - `docs/ARQUITETURA_IMPORTACAO.md`: remover recomendacao incorreta de `pd.read_excel(..., chunksize=...)`.
   - `gui/ssa/gui_table.py`: avaliar remocao de helper morto (`_calculate_max_chars_for_column`) ou reuso explicito.
+
+## Atualizacao 2026-03-05 (slice import schema drift nan columns)
+- Decisao aprovada:
+  - aplicar patch minimo no fluxo de sync de colunas dinamicas para impedir drift de schema.
+  - sem alterar conceito de importacao, sem mudanca de GUI/layout.
+- Alteracoes aplicadas:
+  - `armazenamento/database_upsert_logic.py`
+    - descarte explicito de headers placeholder (`nan`, vazio, `unnamed:*`).
+    - sanitizacao deterministica com reuso de nome canonico existente.
+    - whitelist reaplicada no estado final antes do `ALTER TABLE`.
+    - ordem de processamento de colunas dinamicas tornou-se deterministica.
+  - `tests/test_db_reset_and_upsert.py`
+    - novo teste para garantir que reimport nao cria `nome_paciente_1`.
+    - novo teste para garantir descarte de `nan/nan_1/nan_2`.
+    - novo teste para garantir whitelist apos sanitizacao dinamica.
+- Evidencia tecnica:
+  - `uv run --python 3.13 python -m py_compile ...` -> pass
+  - `uv run --python 3.13 ruff check ...` -> pass
+  - `uv run --python 3.13 ty check ...` -> pass
+  - `timeout 420s uv run --python 3.13 pytest -q ...` -> `39 passed`
+  - reproducao manual local confirmou:
+    - `has_nome_paciente_1=False`
+    - `nan_like_cols=[]`
+- Nao bloqueante deferido:
+  - `opencode run` indisponivel por billing no ambiente atual.
+  - `snyk test --all-projects` sem resultado util por timeout nesta rodada.

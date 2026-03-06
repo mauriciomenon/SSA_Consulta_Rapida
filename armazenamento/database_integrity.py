@@ -48,6 +48,7 @@ def verify_database_integrity(
             # Mensagem com acento para alinhar aos testes e melhorar UX
             report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
             report['needs_creation'] = True
+            report['is_valid'] = False
             return report
         report['database_exists'] = True
         # Tamanho do arquivo

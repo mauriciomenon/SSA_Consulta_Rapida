@@ -1986,3 +1986,24 @@ Relatorio final por slice:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+
+## Atualizacao 2026-03-05 (slice import schema drift)
+- Contexto:
+  - problema confirmado de drift no reimport: colunas dinamicas invalidas podiam gerar sufixos (`nome_paciente_1`) e lixo (`nan`, `nan_1`, `nan_2`).
+- O que foi aplicado:
+  - patch minimo em `armazenamento/database_upsert_logic.py` para:
+    - descartar headers placeholder,
+    - sanitizar com mapeamento deterministico,
+    - reutilizar nome canonico existente quando aplicavel,
+    - aplicar whitelist no estado final antes de sincronizar schema.
+  - testes novos em `tests/test_db_reset_and_upsert.py` cobrindo:
+    - reimport sem criacao de sufixo,
+    - descarte de placeholder,
+    - enforce de whitelist apos sanitizacao.
+- Validacao rodada:
+  - gates tecnicos verdes (`py_compile`, `ruff`, `ty`).
+  - bateria focada verde: `39 passed`.
+  - reproducao manual verde: sem `nome_paciente_1` e sem colunas `nan*`.
+- Observacoes operacionais:
+  - `opencode run` ainda bloqueado por billing no host atual.
+  - `snyk test --all-projects` sem retorno util por timeout.

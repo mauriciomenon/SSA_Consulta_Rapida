@@ -2194,3 +2194,27 @@ Entregavel de cada slice:
 - Corrigido comportamento de largura de popup dos seletores para evitar expansao excessiva.
 - Reforcado import otimizado: deduplicacao por numero_ssa e falha explicita em lookup SQL parcial.
 - Corrigidos comentarios recentes de review (scripts/tests/docs) e removidos emojis em arquivos versionados.
+
+## Atualizacao 2026-03-05 (slice import drift hardening)
+- Sessao:
+  - inicio: 2026-03-05 22:34:16 -0300
+  - fim: 2026-03-05 23:03:04 -0300
+- Branch:
+  - `codex/sprint-importacao-grave-fixes-20260305`
+- Objetivo entregue:
+  - remover regressao de schema drift que criava colunas `nan*` e sufixos indevidos (`nome_paciente_1`) em reimport.
+- Arquivos runtime/teste alterados:
+  - `armazenamento/database_integrity.py`
+  - `armazenamento/database_upsert_logic.py`
+  - `tests/test_database_verification.py`
+  - `tests/test_db_reset_and_upsert.py`
+- Evidencia de validacao:
+  - gates verdes (`py_compile`, `ruff`, `ty`).
+  - bateria ampliada verde: `39 passed`.
+  - reproducao manual verde:
+    - `has_nome_paciente_1=False`
+    - `nan_like_cols=[]`
+- Ferramentas cruzadas:
+  - `bandit`/`semgrep` sem novo blocker especifico do slice.
+  - `trivy` clean para `uv.lock`.
+  - `opencode run` bloqueado por billing no host atual (deferido nao bloqueante).
