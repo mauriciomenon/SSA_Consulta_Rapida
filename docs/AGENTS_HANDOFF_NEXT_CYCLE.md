@@ -2,6 +2,32 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 19:40 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. extractor now supports optional phase snapshots for tests through `_debug_phases`.
+  2. the historical malformed execution-tail scenarios are asserted phase by phase:
+     - raw header
+     - after empty-column prune
+     - after rename
+     - after structural repair
+     - after deduplicate
+  3. runtime extraction behavior is unchanged outside tests.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- Test evidence:
+  1. focused gate run: `19 passed`
+  2. the TEX/TPE/TPO malformed-history tests now assert intermediate pipeline states, not just the final result
+- Explicitly unchanged:
+  1. robust importer path
+  2. DB/upsert behavior
+  3. GUI/runtime flow outside extraction
+- Next recommended slice:
+  1. if another historical export family appears, debug it first by phase before deciding any new remap rule.
+
 ## CURRENT TRUTH 2026-03-06 17:00 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

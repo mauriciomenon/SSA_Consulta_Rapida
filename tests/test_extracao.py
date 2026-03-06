@@ -261,6 +261,7 @@ def test_extract_data_from_excel_drops_nan_header_columns_safely(
 def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals(
     tmp_path, monkeypatch
 ):
+    debug_phases: dict[str, list[str]] = {}
     rows = [
         [None, "Cabecalho visual", None, None, None, None, None],
         [
@@ -289,9 +290,24 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
         },
     )
 
-    extracted = extract_data_from_excel(str(file_path))
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
 
     assert str(extracted["numero_ssa"].iloc[0]) == "202500103"
+    assert debug_phases["header_raw"][-4:] == ["Anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_empty_column_prune"][-4:] == ["Anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_rename"][-4:] == ["anomalia", "nan", "nan", "nan"]
+    assert debug_phases["after_structural_repair"][-4:] == [
+        "anomalia",
+        "total_tempo_tpe_executada",
+        "total_tempo_tex_executada",
+        "total_tempo_tpo_executada",
+    ]
+    assert debug_phases["after_deduplicate"][-4:] == [
+        "anomalia",
+        "total_tempo_tpe_executada",
+        "total_tempo_tex_executada",
+        "total_tempo_tpo_executada",
+    ]
     assert extracted["total_tempo_tpe_executada"].iloc[0] == pytest.approx(1.5)
     assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
     assert extracted["total_tempo_tpo_executada"].iloc[0] == pytest.approx(3.5)
@@ -301,6 +317,7 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
 def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia(
     tmp_path, monkeypatch
 ):
+    debug_phases: dict[str, list[str]] = {}
     rows = [
         [None, "Cabecalho visual", None, None, None, None],
         [
@@ -328,9 +345,14 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia
         },
     )
 
-    extracted = extract_data_from_excel(str(file_path))
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
 
     assert str(extracted["numero_ssa"].iloc[0]) == "202500104"
+    assert debug_phases["header_raw"][-3:] == ["Anomalia", "nan", "nan"]
+    assert debug_phases["after_empty_column_prune"][-2:] == ["Anomalia", "nan"]
+    assert debug_phases["after_rename"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["anomalia", "total_tempo_tex_executada"]
+    assert debug_phases["after_deduplicate"][-2:] == ["anomalia", "total_tempo_tex_executada"]
     assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
     assert "nan" not in extracted.columns
 
@@ -338,6 +360,7 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia
 def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
     tmp_path, monkeypatch
 ):
+    debug_phases: dict[str, list[str]] = {}
     rows = [
         [None, "Cabecalho visual", None, None, None, None],
         [
@@ -365,9 +388,12 @@ def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
         },
     )
 
-    extracted = extract_data_from_excel(str(file_path))
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
 
     assert str(extracted["numero_ssa"].iloc[0]) == "202500105"
+    assert debug_phases["after_rename"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["anomalia", "nan"]
+    assert debug_phases["after_deduplicate"][-2:] == ["anomalia", "nan"]
     assert "total_tempo_tex_executada" not in extracted.columns
     assert "nan" in extracted.columns
 
@@ -375,6 +401,7 @@ def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
 def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped(
     tmp_path, monkeypatch
 ):
+    debug_phases: dict[str, list[str]] = {}
     rows = [
         [None, "Cabecalho visual", None, None, None, None, None, None, None, None],
         [
@@ -411,9 +438,16 @@ def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_
         },
     )
 
-    extracted = extract_data_from_excel(str(file_path))
+    extracted = extract_data_from_excel(str(file_path), _debug_phases=debug_phases)
 
     assert str(extracted["numero_ssa"].iloc[0]) == "202500106"
+    assert "Sistema de Origem" in debug_phases["header_raw"]
+    assert "Anomalia" in debug_phases["header_raw"]
+    assert "Sistema de Origem" not in debug_phases["after_empty_column_prune"]
+    assert "Anomalia" not in debug_phases["after_empty_column_prune"]
+    assert debug_phases["after_rename"][-2:] == ["prazo_limite", "nan"]
+    assert debug_phases["after_structural_repair"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
+    assert debug_phases["after_deduplicate"][-2:] == ["prazo_limite", "total_tempo_tex_executada"]
     assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(4.25)
     assert "nan" not in extracted.columns
 

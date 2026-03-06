@@ -131,6 +131,16 @@ def _normalize_tempo_excedido_value(value) -> str | None:
     return normalized if normalized != 'P' else text
 
 
+def _record_debug_phase_columns(
+    debug_phases: Optional[dict[str, list[str]]],
+    phase_name: str,
+    columns: Any,
+) -> None:
+    if debug_phases is None:
+        return
+    debug_phases[phase_name] = [str(column) for column in list(columns)]
+
+
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converte colunas-chave para tipos de dados padronizados.
@@ -233,6 +243,7 @@ def extract_data_from_excel(
     file_path: str,
     *,
     should_cancel: Optional[Callable[[], bool]] = None,
+    _debug_phases: Optional[dict[str, list[str]]] = None,
 ) -> pd.DataFrame:
     """
     Extrai dados de um único arquivo Excel (.xlsx).
@@ -288,6 +299,11 @@ def extract_data_from_excel(
                     saw_header = True
                     # Define os cabecalhos
                     sheet_df.columns = sheet_df.iloc[header_row_idx]
+                    _record_debug_phase_columns(
+                        _debug_phases,
+                        "header_raw",
+                        sheet_df.columns,
+                    )
                     # Remove linhas anteriores ao cabecalho e o proprio cabecalho
                     sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
                     # Reseta o indice
@@ -313,6 +329,11 @@ def extract_data_from_excel(
                             columns_to_keep.append(col_idx)
                     if len(columns_to_keep) != len(sheet_df.columns):
                         sheet_df = sheet_df.iloc[:, columns_to_keep]
+                    _record_debug_phase_columns(
+                        _debug_phases,
+                        "after_empty_column_prune",
+                        sheet_df.columns,
+                    )
 
                     if not sheet_df.empty:
                         all_sheets_data.append(sheet_df)
@@ -362,6 +383,11 @@ def extract_data_from_excel(
         # Normaliza os nomes das colunas.
         if column_mappings:
             combined_df.rename(columns=column_mappings, inplace=True)
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_rename",
+            combined_df.columns,
+        )
 
         def _is_unnamed_header_value(header_value: Any) -> bool:
             if isinstance(header_value, str):
@@ -440,8 +466,19 @@ def extract_data_from_excel(
                     file_path,
                 )
 
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_structural_repair",
+            combined_df.columns,
+        )
+
         # Resolve duplicadas apos a normalizacao contextual.
         combined_df = _deduplicate_columns(combined_df)
+        _record_debug_phase_columns(
+            _debug_phases,
+            "after_deduplicate",
+            combined_df.columns,
+        )
 
         missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:

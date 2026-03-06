@@ -2,6 +2,36 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 19:40 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. extractor now exposes optional phase snapshots for tests only via `_debug_phases`.
+  2. those snapshots cover the real pipeline transitions used in the historical malformed execution-tail cases:
+     - `header_raw`
+     - `after_empty_column_prune`
+     - `after_rename`
+     - `after_structural_repair`
+     - `after_deduplicate`
+  3. runtime behavior stays unchanged unless a test explicitly passes the debug dict.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- Regression evidence:
+  1. `test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals`
+  2. `test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia`
+  3. `test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex`
+  4. `test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `19 passed`.
+- Key operational meaning:
+  1. the tricky historical cases are now guarded against regressions at the phase level, not only by final extracted columns.
+  2. this reduces the chance of reintroducing offset-based or order-of-operations bugs in the extractor.
+
 ## CURRENT TRUTH 2026-03-06 17:00 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
