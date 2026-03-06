@@ -166,7 +166,14 @@ def repair_database_if_needed(
         if integrity_report['is_valid']:
             logger.info("Banco de dados integro - nenhum reparo necessario")
             return True
-        logger.warning("Problemas detectados no banco: %s", integrity_report['issues'])
+        expected_creation = (
+            integrity_report.get('needs_creation', False)
+            and not integrity_report.get('database_exists', False)
+        )
+        if expected_creation:
+            logger.info("Banco ausente em bootstrap; criacao inicial sera executada.")
+        else:
+            logger.warning("Problemas detectados no banco: %s", integrity_report['issues'])
         repaired = False
         if not integrity_report['database_exists']:
             logger.info("Criando novo banco de dados...")
