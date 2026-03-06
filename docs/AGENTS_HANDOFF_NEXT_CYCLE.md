@@ -2,6 +2,37 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 13:51 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. extractor hardening for the real staged rescan blocker: duplicate header labels are now processed by physical column index, not by raw label lookup.
+  2. `NaN` header labels are skipped safely during the empty-column preservation pass.
+  3. mandatory empty alias preservation remains active.
+  4. robust importer behavior was preserved.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- Test evidence:
+  1. `test_extract_data_from_excel_handles_duplicate_header_labels_without_ambiguity`
+  2. `test_extract_data_from_excel_drops_nan_header_columns_safely`
+  3. focused gate run: `15 passed`
+  4. real-file repro succeeded for the three files that were used to pin the failure.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `15 passed`.
+- Runtime evidence:
+  1. blocked pre-fix rescan log: `logs/full_rescan_runtime_20260306_121612.log`
+  2. observed failure signatures before the fix:
+     - duplicate header `Desde` -> ambiguous truth-value error
+     - repeated `NaN` header -> `KeyError` on `drop(columns=...)`
+- Remaining explicit follow-up:
+  1. rerun the full staged rescan on the full corpus and inspect candidate promotion and final DB metrics.
+  2. only after that, proceed to GUI non-modal rescan hardening without layout changes.
+
 ## CURRENT TRUTH 2026-03-06 10:28 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

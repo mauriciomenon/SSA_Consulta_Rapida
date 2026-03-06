@@ -200,6 +200,64 @@ def test_extract_data_from_excel_preserves_empty_required_alias_until_normalizat
     assert pd.isna(extracted["data_cadastro"].iloc[0])
 
 
+def test_extract_data_from_excel_handles_duplicate_header_labels_without_ambiguity(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None],
+        ["Numero da SSA", "Descricao da SSA", "Emitida Em", "Desde", "Desde"],
+        [202500101, "SSA duplicada", None, "01/02/2025", "02/02/2025"],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "duplicate_headers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Desde": "desde",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500101"
+    assert "data_cadastro" in extracted.columns
+
+
+def test_extract_data_from_excel_drops_nan_header_columns_safely(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None],
+        ["Numero da SSA", "Descricao da SSA", "Emitida Em", float("nan"), float("nan")],
+        [202500102, "SSA com nan", None, None, None],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "nan_headers.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500102"
+    assert "data_cadastro" in extracted.columns
+    assert not any(str(col).startswith("nan") for col in extracted.columns)
+
+
 def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
     fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):

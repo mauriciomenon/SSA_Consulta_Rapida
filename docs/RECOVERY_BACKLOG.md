@@ -3,6 +3,46 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: extrator tradicional tolera header duplicado e NaN no full rescan real)
+
+Session timestamp:
+1. start: `2026-03-06 13:29:39 -0300`
+2. end: `2026-03-06 13:51:22 -0300`
+
+Decision delivered:
+1. the traditional extractor now evaluates fully empty columns by physical column index instead of raw header label lookup.
+2. duplicate header labels no longer trigger ambiguous truth-value errors during the empty-column preservation pass.
+3. `NaN` header labels are skipped safely in that pass and no longer trigger `drop(columns=...)` failures.
+4. the functional rule from the prior slice remains unchanged: aliases that map to mandatory schema fields are still preserved until canonical normalization.
+5. robust importer path remains unchanged.
+
+Files changed:
+1. `extracao/extractor.py`
+2. `tests/test_extracao.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `15 passed`.
+5. real-file repro after fix:
+   - `SSAs Pendentes de Aprovação na Emissão_02-02-2026_1141AM.xlsx`: `rows=38`, `has_data_cadastro=True`
+   - `SSAs Executadas_22-07-2025_0303PM (2).xlsx`: `rows=223`, `has_data_cadastro=True`
+   - `Pendentes de Planejamento_02-02-2026_1142AM.xlsx`: `rows=57`, `has_data_cadastro=True`
+
+Evidence:
+1. blocked real rescan log before the fix: `logs/full_rescan_runtime_20260306_121612.log`
+2. real corpus failures reproduced there:
+   - duplicate header label `Desde` caused `ValueError: The truth value of a Series is ambiguous`
+   - repeated `NaN` headers caused `KeyError: '[np.float64(nan)] not found in axis'`
+3. new regressions:
+   - `test_extract_data_from_excel_handles_duplicate_header_labels_without_ambiguity`
+   - `test_extract_data_from_excel_drops_nan_header_columns_safely`
+
+Deferred by scope control:
+1. rerun the full real-corpus staged rescan after this hotfix is committed.
+2. GUI non-modal rescan remains a separate next slice after the real rescan validation completes.
+
 ## Update 2026-03-06 (slice minimo: full rescan com DB candidato e promocao final)
 
 Session timestamp:

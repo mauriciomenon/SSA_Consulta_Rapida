@@ -2,6 +2,35 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 13:51 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. the traditional extractor now handles duplicate header labels and `NaN` header labels safely during the empty-column preservation pass.
+  2. preservation of mandatory empty aliases remains intact.
+  3. robust importer path was not changed.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- New regression:
+  1. `test_extract_data_from_excel_handles_duplicate_header_labels_without_ambiguity`
+  2. `test_extract_data_from_excel_drops_nan_header_columns_safely`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `15 passed`.
+  5. real-file repro now passes for:
+     - `SSAs Pendentes de Aprovação na Emissão_02-02-2026_1141AM.xlsx`
+     - `SSAs Executadas_22-07-2025_0303PM (2).xlsx`
+     - `Pendentes de Planejamento_02-02-2026_1142AM.xlsx`
+- Key operational meaning:
+  1. the real staged rescan blocker found at `logs/full_rescan_runtime_20260306_121612.log` was in the new extractor preservation block, not in robust.
+  2. duplicate labels such as `Desde` and raw `NaN` headers no longer abort extraction before normalization.
+- Next required step:
+  1. rerun the full real-corpus staged rescan and validate its JSON/log outputs before moving on to GUI non-modal hardening.
+
 ## CURRENT TRUTH 2026-03-06 10:28 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

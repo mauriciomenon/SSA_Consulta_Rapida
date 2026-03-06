@@ -295,18 +295,24 @@ def extract_data_from_excel(
 
                     # Remove colunas completamente vazias, mas preserva aliases
                     # das colunas obrigatorias ate a normalizacao canonica.
-                    empty_columns = [
-                        col for col in sheet_df.columns
-                        if sheet_df[col].isna().all()
-                    ]
-                    columns_to_drop = []
-                    for col in empty_columns:
-                        canonical_name = column_mappings.get(col, col)
-                        if canonical_name in MANDATORY_SCHEMA_COLUMNS:
+                    columns_to_keep: list[int] = []
+                    for col_idx, col_name in enumerate(sheet_df.columns):
+                        column_data = sheet_df.iloc[:, col_idx]
+                        if not column_data.isna().all():
+                            columns_to_keep.append(col_idx)
                             continue
-                        columns_to_drop.append(col)
-                    if columns_to_drop:
-                        sheet_df = sheet_df.drop(columns=columns_to_drop)
+                        if isinstance(col_name, pd.Series):
+                            non_null_labels = col_name.dropna()
+                            if non_null_labels.empty:
+                                continue
+                            col_name = non_null_labels.iloc[0]
+                        if pd.isna(col_name):
+                            continue
+                        canonical_name = column_mappings.get(col_name, col_name)
+                        if canonical_name in MANDATORY_SCHEMA_COLUMNS:
+                            columns_to_keep.append(col_idx)
+                    if len(columns_to_keep) != len(sheet_df.columns):
+                        sheet_df = sheet_df.iloc[:, columns_to_keep]
 
                     if not sheet_df.empty:
                         all_sheets_data.append(sheet_df)
