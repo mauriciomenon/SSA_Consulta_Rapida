@@ -3,6 +3,34 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (runtime validation: full rescan apos remap de colunas sem header)
+
+Session timestamp:
+1. start: `2026-03-06 16:00:09 -0300`
+2. end: `2026-03-06 16:15:00 -0300`
+
+Runtime validation delivered:
+1. full rescan completed successfully after the extractor remap hotfix.
+2. result JSON: `logs/import_run_20260306_160032_646798.json`
+3. runtime log: `logs/full_rescan_runtime_20260306_160032.log`
+4. duration: `868.266s`
+5. processed files: `431`
+6. import errors: `0`
+7. deterministic failures: `0`
+8. ignored legacy `.xls`: `135`
+
+Final DB outcome:
+1. promoted backup path: `data/ssas.db.full_rescan_backup_20260306_161500`
+2. rows: `76426`
+3. distinct `numero_ssa`: `76426`
+4. columns: `82`
+5. null `data_cadastro`: `608`
+6. `nan_1` and `nan_2` no longer exist in `ssa_table`
+
+Residual risk after this run:
+1. runtime still logged raw placeholder discard `['nan']` in some historical `SSAs Executadas_22-07-2025_*` files.
+2. final schema is clean, but those single unlabeled columns may still deserve semantic review to confirm whether any valid data is being discarded.
+
 ## Update 2026-03-06 (slice minimo: remapear colunas finais sem header apos anomalia)
 
 Session timestamp:
