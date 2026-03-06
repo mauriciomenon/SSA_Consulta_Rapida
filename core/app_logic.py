@@ -778,6 +778,7 @@ def _build_import_run_payload(
     derivadas_sync_blocking_error: bool,
     sync_materialized: bool,
     files_to_process: List[str],
+    ignored_legacy_excel_files: List[str],
     integrity_report: Dict[str, Any],
 ) -> Dict[str, Any]:
     return {
@@ -817,12 +818,14 @@ def _build_import_run_payload(
             "db_only_derivadas_sync": bool(db_only_derivadas_sync),
             "derivadas_sync_blocking_error": bool(derivadas_sync_blocking_error),
             "sync_materialized": bool(sync_materialized),
+            "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
         },
         "files": {
             "candidates": [os.path.basename(p) for p in files_to_process],
             "success": [os.path.basename(p) for p in successfully_processed_files],
             "deterministic_failed": [os.path.basename(p) for p in deterministic_failed_files],
             "derivadas_sheet_files": [os.path.basename(p) for p in derivadas_sheet_files],
+            "ignored_legacy_excel": [os.path.basename(p) for p in ignored_legacy_excel_files],
         },
         "errors": [
             {
@@ -913,6 +916,7 @@ def run_importer_logic(
     files_to_process: List[str] = []
     derivadas_sheet_files: List[str] = []
     total_files = 0
+    ignored_legacy_excel_files: List[str] = []
     successfully_processed_files: List[str] = []
     critical_errors: List[tuple[str, str, str]] = []
     deterministic_failed_files: List[str] = []
@@ -952,6 +956,7 @@ def run_importer_logic(
             derivadas_sync_blocking_error=derivadas_sync_blocking_error,
             sync_materialized=sync_materialized,
             files_to_process=files_to_process,
+            ignored_legacy_excel_files=ignored_legacy_excel_files,
             integrity_report=integrity_report,
         )
         report_path = _write_import_run_report(payload)
@@ -1008,6 +1013,13 @@ def run_importer_logic(
         logger.info(" Integridade do banco de dados verificada")
 
         # --- 1. Determinar arquivos a serem processados ---
+        ignored_legacy_excel_files = caching.get_ignored_legacy_excel_files(docs_dir)
+        if ignored_legacy_excel_files:
+            logger.warning(
+                "Pipeline principal ignorou %s arquivo(s) .xls legado(s): %s",
+                len(ignored_legacy_excel_files),
+                ", ".join(os.path.basename(path) for path in ignored_legacy_excel_files[:5]),
+            )
         files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
         derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
         db_only_derivadas_sync = False

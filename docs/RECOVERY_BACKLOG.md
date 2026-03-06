@@ -3,6 +3,39 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: blindagem explicita contra .xls legado no pipeline principal)
+
+Session timestamp:
+1. start: `2026-03-06 15:29:53 -0300`
+2. end: `2026-03-06 15:46:30 -0300`
+
+Decision delivered:
+1. the main runtime still processes only `.xlsx`, but now also records ignored legacy `.xls` files explicitly.
+2. import JSON reports now include:
+   - `counts.ignored_legacy_excel_count`
+   - `files.ignored_legacy_excel`
+3. this is observability and governance hardening only; no legacy `.xls` ingestion was enabled.
+
+Files changed:
+1. `utils/caching.py`
+2. `core/app_logic.py`
+3. `tests/test_caching.py`
+4. `tests/test_import_run_report.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+2. `uv run --python 3.13 ruff check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+3. `uv run --python 3.13 ty check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_import_run_report.py`: `11 passed`.
+
+Evidence:
+1. new regression `test_get_ignored_legacy_excel_files_lists_only_xls`
+2. import report tests now assert ignored legacy `.xls` accounting in the JSON payload
+
+Deferred by scope control:
+1. actual historical-system ingestion remains disabled and out of scope.
+2. routing legacy `.xls` into another DB/table remains a future design slice.
+
 ## Update 2026-03-06 (slice minimo: GUI reescaneamento nao modal, sem mudar layout)
 
 Session timestamp:

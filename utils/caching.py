@@ -72,6 +72,21 @@ def get_all_xlsx_files(directory: str) -> List[str]:
     logger.debug(f"Encontrados {len(xlsx_files)} arquivos .xlsx em '{directory}'.")
     return xlsx_files
 
+
+def get_ignored_legacy_excel_files(directory: str) -> List[str]:
+    """Lista arquivos .xls presentes, mas explicitamente ignorados pelo pipeline principal."""
+    legacy_xls_files: List[str] = []
+    if os.path.exists(directory):
+        for filename in os.listdir(directory):
+            if filename.endswith(".xls"):
+                legacy_xls_files.append(os.path.join(directory, filename))
+    logger.debug(
+        "Encontrados %s arquivo(s) .xls ignorado(s) em '%s'.",
+        len(legacy_xls_files),
+        directory,
+    )
+    return sorted(legacy_xls_files)
+
 def _calculate_hash(file_path: str, block_size: int = 65536) -> str:
     """
     Calcula o hash SHA-256 de um arquivo lendo-o em blocos.

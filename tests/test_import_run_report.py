@@ -86,6 +86,7 @@ def test_run_importer_logic_writes_report_on_no_changes(
 ) -> None:
     docs_dir = tmp_path / "docs_entrada"
     docs_dir.mkdir()
+    (docs_dir / "legado.xls").write_text("legacy", encoding="utf-8")
     data_dir = tmp_path / "data"
 
     _allow_tmp_path(monkeypatch, tmp_path)
@@ -120,6 +121,8 @@ def test_run_importer_logic_writes_report_on_no_changes(
     assert payload["result"] is False
     assert payload["counts"]["total_candidates"] == 0
     assert payload["counts"]["success_count"] == 0
+    assert payload["counts"]["ignored_legacy_excel_count"] == 1
+    assert payload["files"]["ignored_legacy_excel"] == ["legado.xls"]
 
 
 def test_run_importer_logic_writes_report_on_success(
@@ -131,6 +134,7 @@ def test_run_importer_logic_writes_report_on_success(
     data_dir = tmp_path / "data"
     file_ok = docs_dir / "ok.xlsx"
     file_ok.write_text("placeholder", encoding="utf-8")
+    (docs_dir / "legado.xls").write_text("legacy", encoding="utf-8")
 
     _allow_tmp_path(monkeypatch, tmp_path)
     _mock_db_ok(monkeypatch)
@@ -178,7 +182,9 @@ def test_run_importer_logic_writes_report_on_success(
     assert payload["result"] is True
     assert payload["counts"]["total_candidates"] == 1
     assert payload["counts"]["success_count"] == 1
+    assert payload["counts"]["ignored_legacy_excel_count"] == 1
     assert payload["files"]["success"] == ["ok.xlsx"]
+    assert payload["files"]["ignored_legacy_excel"] == ["legado.xls"]
 
 
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(

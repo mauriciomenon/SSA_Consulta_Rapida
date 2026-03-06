@@ -170,3 +170,15 @@ def test_get_files_to_process_requeues_when_stat_unavailable(temp_docs_dir, monk
     assert len(files_to_process) == 2
     filenames = {os.path.basename(path) for path in files_to_process}
     assert filenames == {"relatorio_a.xlsx", "relatorio_b.xlsx"}
+
+
+def test_get_ignored_legacy_excel_files_lists_only_xls(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    (docs_dir / "legado_a.xls").write_text("a", encoding="utf-8")
+    (docs_dir / "legado_b.xls").write_text("b", encoding="utf-8")
+    (docs_dir / "atual.xlsx").write_text("c", encoding="utf-8")
+
+    ignored = caching.get_ignored_legacy_excel_files(str(docs_dir))
+
+    assert [os.path.basename(path) for path in ignored] == ["legado_a.xls", "legado_b.xls"]
