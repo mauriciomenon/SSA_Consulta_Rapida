@@ -2,6 +2,33 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 10:28 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. full rescan now builds and validates a candidate DB first.
+  2. the primary DB is rotated/promoted only at the end of a successful run.
+  3. on failure or mid-run cancellation, the primary DB stays untouched and the candidate DB is preserved.
+  4. robust importer path was not changed.
+- Files changed:
+  1. `core/app_logic.py`
+  2. `tests/test_import_run_report.py`
+- New regression:
+  1. `test_run_importer_logic_full_rescan_failure_preserves_primary_db`
+  2. `test_run_importer_logic_full_rescan_success_promotes_candidate_at_end`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  4. `timeout 240s uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: `6 passed`.
+- Operational meaning:
+  1. full rescan no longer destroys the active DB up front.
+  2. import JSON report now distinguishes `primary_db_path` from `working_db_path` and records candidate promotion details.
+- Still deferred:
+  1. GUI remains modal during rescan.
+  2. optional user confirmation before loading/promoting a new DB is not implemented yet.
+
 ## CURRENT TRUTH 2026-03-06 10:09 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
