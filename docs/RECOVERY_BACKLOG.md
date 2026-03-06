@@ -3,6 +3,30 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: cobertura por fase do extrator)
+
+Session timestamp:
+1. start: `2026-03-06 19:37:53 -0300`
+2. end: `2026-03-06 19:40:49 -0300`
+
+Decision delivered:
+1. extractor now exposes optional phase snapshots for tests only via `_debug_phases`.
+2. no runtime path changed unless the caller explicitly passes the debug dict.
+3. the historical malformed execution-tail cases are now asserted by phase, not only by final output.
+
+Files changed:
+1. `extracao/extractor.py`
+2. `tests/test_extracao.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `19 passed`.
+
+Deferred by scope control:
+1. if deeper extractor observability is needed in the future, keep it test-only unless a production debugging requirement is explicitly approved.
+
 ## Update 2026-03-06 (slice minimo: remap TEX em trailing unnamed do bloco de execucao)
 
 Session timestamp:
