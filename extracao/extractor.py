@@ -12,6 +12,7 @@ import re
 from typing import Optional, Dict, Any, Callable
 import logging
 from shared.column_mappings import load_column_mappings_integrity
+from shared.import_contract import MANDATORY_SCHEMA_COLUMNS
 from utils.robust_importer import import_excel_robust
 
 logger = logging.getLogger(__name__)
@@ -258,6 +259,7 @@ def extract_data_from_excel(
 
         _check_cancel()
         all_sheets_data = []
+        column_mappings = _load_column_mappings()
         with pd.ExcelFile(file_path, engine='openpyxl') as xl_file:
             for sheet_name in xl_file.sheet_names:
                 _check_cancel()
@@ -291,8 +293,20 @@ def extract_data_from_excel(
                     # Reseta o indice
                     sheet_df = sheet_df.reset_index(drop=True)
 
-                    # Remove colunas completamente vazias
-                    sheet_df = sheet_df.dropna(axis=1, how='all')
+                    # Remove colunas completamente vazias, mas preserva aliases
+                    # das colunas obrigatorias ate a normalizacao canonica.
+                    empty_columns = [
+                        col for col in sheet_df.columns
+                        if sheet_df[col].isna().all()
+                    ]
+                    columns_to_drop = []
+                    for col in empty_columns:
+                        canonical_name = column_mappings.get(col, col)
+                        if canonical_name in MANDATORY_SCHEMA_COLUMNS:
+                            continue
+                        columns_to_drop.append(col)
+                    if columns_to_drop:
+                        sheet_df = sheet_df.drop(columns=columns_to_drop)
 
                     if not sheet_df.empty:
                         all_sheets_data.append(sheet_df)
@@ -333,8 +347,6 @@ def extract_data_from_excel(
             )
             return pd.DataFrame()
 
-        # Carrega o mapeamento de colunas
-        column_mappings = _load_column_mappings()
         if not column_mappings:
             logger.warning(
                 "Mapeamento de colunas vazio; mantendo nomes originais para '%s'.",
@@ -346,8 +358,7 @@ def extract_data_from_excel(
             combined_df.rename(columns=column_mappings, inplace=True)
         combined_df = _deduplicate_columns(combined_df)
 
-        required_columns = {"numero_ssa", "descricao_ssa", "data_cadastro"}
-        missing_required = required_columns.difference(set(combined_df.columns))
+        missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:
             raise ExtractionError(
                 f"Missing required columns after normalization: {sorted(missing_required)}",

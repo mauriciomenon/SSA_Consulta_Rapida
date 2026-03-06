@@ -167,6 +167,39 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     assert extracted.empty
 
 
+def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(
+    tmp_path, monkeypatch
+):
+    df = pd.DataFrame(
+        {
+            "Nº SSA": [202500101],
+            "Descrição da SSA": ["SSA sem data no lote"],
+            "Emitida Em": [None],
+            "Local": ["Sala A"],
+            "Coluna Inutil": [None],
+        }
+    )
+    file_path = tmp_path / "empty_required_alias.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Nº SSA": "numero_ssa",
+            "Descrição da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Local": "localizacao",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500101"
+    assert "data_cadastro" in extracted.columns
+    assert pd.isna(extracted["data_cadastro"].iloc[0])
+
+
 def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
     fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):
