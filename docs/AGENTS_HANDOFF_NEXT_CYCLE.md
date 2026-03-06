@@ -2,6 +2,37 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 16:02 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. extractor remap for the concrete malformed pattern `anomalia + 3 unnamed trailing columns`.
+  2. those columns now become:
+     - `total_tempo_tpe_executada`
+     - `total_tempo_tex_executada`
+     - `total_tempo_tpo_executada`
+  3. the rule was generalized from filename-based to structure-based after kluster review.
+  4. robust importer behavior was preserved.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- Test evidence:
+  1. `test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals`
+  2. focused gate run: `16 passed`
+  3. real-file repro on `docs_entrada/SSAs Executadas_22-07-2025_0309PM.xlsx` returned `has_nan_cols=[]`
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `16 passed`.
+- Explicitly unchanged:
+  1. robust import path
+  2. GUI/runtime flow outside extraction
+  3. handling of historical `.xls` files
+- Next recommended verification:
+  1. rerun a fresh full-corpus rescan and inspect whether any `nan_*` source remains after this extractor fix.
+
 ## CURRENT TRUTH 2026-03-06 15:46 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

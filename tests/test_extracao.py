@@ -258,6 +258,46 @@ def test_extract_data_from_excel_drops_nan_header_columns_safely(
     assert not any(str(col).startswith("nan") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo_totals(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+            float("nan"),
+        ],
+        [202500103, "SSA executada", "01/07/2025", "Sem anomalia", 1.5, 2.5, 3.5],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0309PM.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500103"
+    assert extracted["total_tempo_tpe_executada"].iloc[0] == pytest.approx(1.5)
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
+    assert extracted["total_tempo_tpo_executada"].iloc[0] == pytest.approx(3.5)
+    assert not any(str(col).startswith("nan") for col in extracted.columns)
+
+
 def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
     fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):
