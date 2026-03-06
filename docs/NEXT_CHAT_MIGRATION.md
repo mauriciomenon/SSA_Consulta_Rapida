@@ -2,6 +2,29 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 15:46 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. main runtime now records ignored legacy `.xls` files explicitly in the import JSON report.
+  2. no `.xls` ingestion was enabled; the main pipeline still processes only `.xlsx`.
+- Files changed:
+  1. `utils/caching.py`
+  2. `core/app_logic.py`
+  3. `tests/test_caching.py`
+  4. `tests/test_import_run_report.py`
+- New regression:
+  1. `test_get_ignored_legacy_excel_files_lists_only_xls`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  3. `uv run --python 3.13 ty check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_import_run_report.py`: `11 passed`.
+- Key operational meaning:
+  1. legacy `.xls` files are now visible in governance/reporting without contaminating the main DB path.
+  2. next approved focus remains the root-cause cleanup for unlabeled numeric columns that become `nan_1` and `nan_2`.
+
 ## CURRENT TRUTH 2026-03-06 14:20 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

@@ -2,6 +2,35 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 15:46 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. explicit governance hardening for legacy `.xls` files in the main runtime path.
+  2. import JSON payload now records ignored `.xls` files and their count.
+  3. main runtime behavior remains `.xlsx`-only.
+- Files changed:
+  1. `utils/caching.py`
+  2. `core/app_logic.py`
+  3. `tests/test_caching.py`
+  4. `tests/test_import_run_report.py`
+- Test evidence:
+  1. `test_get_ignored_legacy_excel_files_lists_only_xls`
+  2. import report tests assert ignored legacy `.xls` metadata
+  3. focused gate run: `11 passed`
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  2. `uv run --python 3.13 ruff check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  3. `uv run --python 3.13 ty check utils/caching.py core/app_logic.py tests/test_caching.py tests/test_import_run_report.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_import_run_report.py`: `11 passed`.
+- Explicitly unchanged:
+  1. legacy `.xls` files are still outside the main ingestion path
+  2. no alternate DB/table for historical-system files yet
+  3. no GUI/runtime import logic beyond reporting/governance
+- Next approved slice:
+  1. eliminate `nan_1` and `nan_2` at the extractor level for the concrete malformed `.xlsx` pattern already diagnosed.
+
 ## CURRENT TRUTH 2026-03-06 14:20 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
