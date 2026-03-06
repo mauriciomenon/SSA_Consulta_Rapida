@@ -966,6 +966,10 @@ def rescan_data(
         return
 
     progress_dialog = rescan_dialog_cls(window)
+    try:
+        window._active_rescan_dialog = progress_dialog
+    except Exception as exc:
+        logger.debug("Falha ao registrar referencia do dialogo de reescaneamento: %s", exc)
 
     try:
         worker = rescan_worker_cls(main_py_path, project_root, force_import=force_import)
@@ -995,6 +999,27 @@ def rescan_data(
         except Exception as exc:
             logger.debug("Falha ao remover referencias globais do RescanWorker: %s", exc)
 
+    def _release_dialog_ref(*_args) -> None:
+        try:
+            if getattr(window, "_active_rescan_dialog", None) is progress_dialog:
+                window._active_rescan_dialog = None
+        except Exception as exc:
+            logger.debug("Falha ao liberar referencia do dialogo de reescaneamento: %s", exc)
+
+    def _prune_retired_workers_after_finish(*_args) -> None:
+        try:
+            prune_retired_rescan_workers(
+                window,
+                global_workers=global_workers,
+                global_meta=global_meta,
+                max_global_workers=max_global_workers,
+                retired_ttl_sec=retired_ttl_sec,
+                retired_force_wait_ms=retired_force_wait_ms,
+                sip_module=sip_module,
+            )
+        except Exception as exc:
+            logger.debug("Falha ao podar rescan workers apos worker finalizado: %s", exc)
+
     def on_success():
         nonlocal cancelled
         if cancelled:
@@ -1023,7 +1048,10 @@ def rescan_data(
     _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
     _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
     _connect_signal(worker.finished, _release_worker_ref, label="rescan.finished.release")
+    _connect_signal(worker.finished, _prune_retired_workers_after_finish, label="rescan.finished.prune")
     _connect_signal(worker.finished, worker.deleteLater, label="rescan.finished.deleteLater")
+    if hasattr(progress_dialog, "finished"):
+        _connect_signal(progress_dialog.finished, _release_dialog_ref, label="rescan.dialog.finished.release")
 
     def on_cancel_requested():
         nonlocal cancelled
@@ -1040,41 +1068,7 @@ def rescan_data(
     progress_dialog.cancel_requested.connect(on_cancel_requested)
 
     worker.start()
-    progress_dialog.exec()
-
-    still_running = is_rescan_worker_running(worker, sip_module)
-    if not still_running:
-        _release_worker_ref()
-        try:
-            prune_retired_rescan_workers(
-                window,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug("Falha ao podar rescan workers apos dialogo finalizado: %s", exc)
-    if still_running:
-        with _GLOBAL_WORKERS_LOCK:
-            if worker not in global_workers:
-                global_workers.append(worker)
-            global_meta[worker] = perf_counter()
-            if len(global_workers) > max_global_workers:
-                overflow = len(global_workers) - max_global_workers
-                dropped = global_workers[:overflow]
-                global_workers[:] = global_workers[overflow:]
-                for dropped_worker in dropped:
-                    global_meta.pop(dropped_worker, None)
-        prune_retired_rescan_workers(
-            window,
-            global_workers=global_workers,
-            global_meta=global_meta,
-            max_global_workers=max_global_workers,
-            retired_ttl_sec=retired_ttl_sec,
-            retired_force_wait_ms=retired_force_wait_ms,
-            sip_module=sip_module,
-        )
-        logger.warning("RescanWorker ainda esta em execucao apos fechamento do dialogo; mantendo em background.")
+    if hasattr(progress_dialog, "show_non_modal"):
+        progress_dialog.show_non_modal()
+    else:
+        progress_dialog.show()
