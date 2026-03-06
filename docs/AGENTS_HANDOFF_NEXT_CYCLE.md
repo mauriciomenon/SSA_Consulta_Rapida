@@ -2,6 +2,28 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-05 21:31 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. import observability hardening: JSON report generated on every `run_importer_logic` execution.
+  2. output path pattern: `logs/import_run_<timestamp>.json`.
+  3. complexity guard: payload building moved to dedicated helper without behavior change.
+- Files changed:
+  1. `core/app_logic.py`
+  2. `tests/test_import_run_report.py`
+- Test evidence:
+  1. `tests/test_import_run_report.py` validates report emission for:
+     - no-change path (`status=no_changes`)
+     - success path (`status=updated`)
+  2. focused gate run: `3 passed`.
+- Runtime smoke evidence:
+  1. generated report: `logs/import_run_20260305_213050_586834.json`
+  2. observed fields: `status=no_changes`, `counts.total_candidates=0`.
+- Explicitly deferred:
+  1. `1778` continuation rows from `SSAscomReprogramacoes_*` were not changed in this slice and remain queued for dedicated handling.
+
 ## CURRENT TRUTH 2026-03-05 20:27 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
