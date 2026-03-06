@@ -3,6 +3,42 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: extrator preserva alias obrigatorio vazio)
+
+Session timestamp:
+1. start: `2026-03-06 00:28:26 -0300` (branch-cycle diagnostic baseline)
+2. end: `2026-03-06 09:41:48 -0300`
+
+Decision delivered:
+1. the traditional extractor now preserves fully empty columns when they map to mandatory schema fields, instead of dropping them before canonical normalization.
+2. a shared import contract now defines:
+   - mandatory schema columns for extraction,
+   - required validation columns and severities,
+   - allowed statuses for missing `data_cadastro`.
+3. this slice does not change the robust importer path and does not touch upsert/runtime table swap behavior.
+
+Files changed:
+1. `extracao/extractor.py`
+2. `armazenamento/database_validation.py`
+3. `shared/import_contract.py`
+4. `tests/test_extracao.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_database_verification.py`: `26 passed`.
+
+Evidence:
+1. new regression: `test_extract_data_from_excel_preserves_empty_required_alias_until_normalization`.
+2. verified mandatory alias coverage in `config/column_mappings.json` for `numero_ssa`, `descricao_ssa`, and `data_cadastro`.
+3. expected runtime impact: files with header `Emitida Em` present but fully empty no longer fail early with `Missing required columns after normalization: ['data_cadastro']`.
+
+Deferred to next approved slice:
+1. canonical table-name alias cleanup across runtime/tests (`ssas`, `ssa_table`, `ssa_chamados`).
+2. safe staging DB for full rescan so swap happens only after import/validation completion.
+3. broader hardcode reduction for import/upsert policy beyond this minimal contract.
+
 ## Update 2026-03-05 (slice minimo: import_run json automatico)
 
 Session timestamp:

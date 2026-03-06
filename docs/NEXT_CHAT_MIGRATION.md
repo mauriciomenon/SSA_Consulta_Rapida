@@ -2,6 +2,36 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 09:41 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. traditional extractor no longer drops fully empty columns when they canonically map to mandatory schema fields.
+  2. minimal shared contract added for extraction/validation policy:
+     - `MANDATORY_SCHEMA_COLUMNS`
+     - `VALIDATION_REQUIRED_COLUMNS`
+     - `ALLOWED_MISSING_DATA_CADASTRO_STATUSES`
+  3. robust importer path was intentionally not changed in this slice.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `armazenamento/database_validation.py`
+  3. `shared/import_contract.py`
+  4. `tests/test_extracao.py`
+- New regression:
+  1. `test_extract_data_from_excel_preserves_empty_required_alias_until_normalization`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_database_verification.py`: `26 passed`.
+- Key operational meaning:
+  1. files with `Emitida Em` in the header but empty values should now survive extraction and reach validation instead of failing as missing required column.
+  2. runtime still uses the traditional extractor path; robust remains diagnostic/isolation only.
+- Remaining high-risk follow-up:
+  1. unify canonical table name usage across runtime/tests and remove legacy aliases where safe.
+  2. move full-rescan to staged DB creation + final swap after validation/import completes.
+
 ## CURRENT TRUTH 2026-03-05 21:31 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

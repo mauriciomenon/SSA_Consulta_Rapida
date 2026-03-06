@@ -2,6 +2,34 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 09:41 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. extractor hardening: fully empty columns are preserved until canonical normalization if they map to mandatory schema fields.
+  2. import/validation contract centralized in `shared/import_contract.py` for the minimum set used by current runtime logic.
+  3. no change in robust importer behavior, GUI flow, or DB swap timing.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `armazenamento/database_validation.py`
+  3. `shared/import_contract.py`
+  4. `tests/test_extracao.py`
+- Test evidence:
+  1. new regression `test_extract_data_from_excel_preserves_empty_required_alias_until_normalization`.
+  2. focused gate run: `26 passed`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py armazenamento/database_validation.py shared/import_contract.py tests/test_extracao.py tests/test_database_verification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_database_verification.py`: `26 passed`.
+- Operational impact:
+  1. extractor no longer rejects files early when `Emitida Em` exists only as an empty column in the source header.
+  2. validation remains the place that decides whether missing `data_cadastro` is acceptable by status rule.
+- Explicitly deferred:
+  1. table alias cleanup (`ssas`, `ssa_table`, `ssa_chamados`) across runtime/tests.
+  2. staged full-rescan DB build with final swap after validation/import completion.
+
 ## CURRENT TRUTH 2026-03-05 21:31 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

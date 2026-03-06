@@ -7,6 +7,10 @@ import pandas as pd
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
 from shared.date_utils import parse_any_date
+from shared.import_contract import (
+    ALLOWED_MISSING_DATA_CADASTRO_STATUSES,
+    VALIDATION_REQUIRED_COLUMNS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +34,6 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
     # - numero_ssa: warning (linhas sem/invalidas devem gerar aviso, nao invalidar o lote)
     # - data_cadastro: error (critico para ordenacao/relatorios)
     # - situacao: warning (ausencia nao impede insercao)
-    required_columns = [
-        ('numero_ssa', 'warning'),
-        ('data_cadastro', 'error'),
-        ('situacao', 'warning'),
-    ]
     situacao_upper = None
     if 'situacao' in df.columns:
         situacao_upper = (
@@ -43,15 +42,14 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
             .str.strip()
             .str.upper()
         )
-    for column, severity in required_columns:
+    for column, severity in VALIDATION_REQUIRED_COLUMNS:
         if column not in df.columns:
             continue
         series = df[column]
         missing_mask = series.isna() | (series.astype(str).str.strip() == '')
         # Business exception: these statuses can legitimately have no emit date.
         if column == 'data_cadastro' and situacao_upper is not None:
-            allowed_missing_data_statuses = {'SCC', 'ADI', 'ASE'}
-            missing_mask = missing_mask & (~situacao_upper.isin(allowed_missing_data_statuses))
+            missing_mask = missing_mask & (~situacao_upper.isin(ALLOWED_MISSING_DATA_CADASTRO_STATUSES))
         missing_count = int(missing_mask.sum())
         if missing_count == 0:
             continue
