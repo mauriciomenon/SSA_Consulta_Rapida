@@ -2,6 +2,35 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 14:20 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. reescaneamento dialog is now non-modal.
+  2. main window stays usable while the worker runs.
+  3. layout, button set, and user-visible texts were preserved.
+  4. active dialog reference is retained on the window until the dialog finishes.
+- Files changed:
+  1. `gui/widgets/rescan_progress_dialog.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `tests/test_rescan_progress_dialog.py`
+  4. `tests/test_gui_workers_rescan_data.py`
+- New regression:
+  1. `test_rescan_progress_dialog_starts_non_modal`
+  2. `test_rescan_data_shows_progress_dialog_without_blocking`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  3. `uv run --python 3.13 ty check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py`: `13 passed`.
+  5. offscreen GUI smoke reached timeout without traceback.
+- Key operational meaning:
+  1. full rescan no longer monopolizes the GUI event loop through `progress_dialog.exec()`.
+  2. import/runtime logic was not changed in this slice.
+- Remaining high-risk follow-up:
+  1. import/schema drift from unlabeled numeric columns (`nan_1`, `nan_2`) still needs dedicated runtime cleanup.
+
 ## CURRENT TRUTH 2026-03-06 14:09 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

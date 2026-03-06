@@ -2,6 +2,37 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 14:20 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. reescaneamento progress dialog no longer uses modal blocking.
+  2. `rescan_data()` now starts the worker, shows the dialog non-modally, and returns immediately.
+  3. dialog lifecycle is now tracked via `window._active_rescan_dialog`.
+  4. worker cleanup/pruning moved to finish callbacks; runtime import behavior was preserved.
+- Files changed:
+  1. `gui/widgets/rescan_progress_dialog.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `tests/test_rescan_progress_dialog.py`
+  4. `tests/test_gui_workers_rescan_data.py`
+- Test evidence:
+  1. `test_rescan_progress_dialog_starts_non_modal`
+  2. `test_rescan_data_shows_progress_dialog_without_blocking`
+  3. focused GUI gate run: `13 passed`
+  4. offscreen GUI startup smoke stayed alive until timeout with no traceback
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  2. `uv run --python 3.13 ruff check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  3. `uv run --python 3.13 ty check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py`: `13 passed`.
+- Explicitly unchanged:
+  1. dialog layout and text structure
+  2. import/runtime implementation
+  3. post-rescan manual `Carregar Dados` flow
+- Remaining next step:
+  1. dedicated runtime slice for import/schema cleanup around unlabeled numeric columns (`nan_1`, `nan_2`).
+
 ## CURRENT TRUTH 2026-03-06 14:09 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

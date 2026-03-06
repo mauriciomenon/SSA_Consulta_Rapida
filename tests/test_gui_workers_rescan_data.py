@@ -28,6 +28,7 @@ class _StatusLabel:
 class _Window:
     def __init__(self):
         self._active_rescan_worker = None
+        self._active_rescan_dialog = None
         self.status_label = _StatusLabel()
 
 
@@ -35,6 +36,7 @@ class _DialogCancelAndFinish:
     def __init__(self, window):
         self.window = window
         self.cancel_requested = _Signal()
+        self.show_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -48,18 +50,22 @@ class _DialogCancelAndFinish:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
+    def show(self):
+        self.show_called = True
         self.cancel_requested.emit()
         worker = getattr(self.window, "_active_rescan_worker", None)
         if worker is not None:
             worker._running = False
             worker.finished.emit()
-        return 0
+
+    def show_non_modal(self):
+        self.show()
 
 
 class _DialogNoop:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
+        self.show_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -73,13 +79,17 @@ class _DialogNoop:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
-        return 0
+    def show(self):
+        self.show_called = True
+
+    def show_non_modal(self):
+        self.show()
 
 
 class _DialogCancelNoFinish:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
+        self.show_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -93,9 +103,12 @@ class _DialogCancelNoFinish:
     def set_finished(self, *_args, **_kwargs):
         return None
 
-    def exec(self):
+    def show(self):
+        self.show_called = True
         self.cancel_requested.emit()
-        return 0
+
+    def show_non_modal(self):
+        self.show()
 
 
 class _BaseWorker:
@@ -199,7 +212,8 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
     )
 
     assert created_workers
-    assert window._active_rescan_worker is None
+    assert window._active_rescan_worker is created_workers[0]
+    assert window._active_rescan_dialog is not None
     assert global_workers == []
     assert global_meta == {}
 
@@ -265,3 +279,34 @@ def test_rescan_data_sets_cancel_status_even_when_worker_not_running(tmp_path):
     )
 
     assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
+
+
+def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+    created_dialogs = []
+
+    class _DialogTracked(_DialogNoop):
+        def __init__(self, parent):
+            super().__init__(parent)
+            created_dialogs.append(self)
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_BaseWorker,
+        rescan_dialog_cls=_DialogTracked,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert created_dialogs
+    assert created_dialogs[0].show_called is True
+    assert window._active_rescan_dialog is created_dialogs[0]

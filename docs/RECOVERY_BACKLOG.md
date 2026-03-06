@@ -3,6 +3,43 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: GUI reescaneamento nao modal, sem mudar layout)
+
+Session timestamp:
+1. start: `2026-03-06 14:09:22 -0300`
+2. end: `2026-03-06 14:20:07 -0300`
+
+Decision delivered:
+1. the reescaneamento dialog no longer blocks the main window.
+2. the existing dialog layout, texts, buttons, and workflow were preserved.
+3. `rescan_data()` now shows the progress dialog non-modally and returns immediately.
+4. the active dialog reference is retained on the window during the run and released when the dialog finishes.
+5. worker cleanup and retired-worker pruning now happen on worker finish callbacks instead of after `exec()`.
+
+Files changed:
+1. `gui/widgets/rescan_progress_dialog.py`
+2. `gui/ssa/gui_workers.py`
+3. `tests/test_rescan_progress_dialog.py`
+4. `tests/test_gui_workers_rescan_data.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+2. `uv run --python 3.13 ruff check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+3. `uv run --python 3.13 ty check gui/widgets/rescan_progress_dialog.py gui/ssa/gui_workers.py tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_rescan_progress_dialog.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py`: `13 passed`.
+5. GUI smoke:
+   - `timeout 30s env QT_QPA_PLATFORM=offscreen uv run --python 3.13 python main.py --gui`
+   - result: process stayed alive until timeout (`124`) with no Python traceback.
+
+Evidence:
+1. new regression `test_rescan_progress_dialog_starts_non_modal`
+2. new regression `test_rescan_data_shows_progress_dialog_without_blocking`
+3. updated worker-dialog lifecycle coverage in `tests/test_gui_workers_rescan_data.py`
+
+Deferred by scope control:
+1. root-cause cleanup for `nan_1` and `nan_2` remains a separate import/schema slice.
+2. optional auto-load of the new DB after rescan completion remains unchanged.
+
 ## Update 2026-03-06 (doc sync: runtime validation of staged full rescan)
 
 Session timestamp:
