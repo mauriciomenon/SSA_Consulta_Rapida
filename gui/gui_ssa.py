@@ -55,6 +55,7 @@ from core.config_manager import (  # noqa: E402
     COLUMN_AFFINITY_SCORES,
     atomic_write_json_file,
 )
+from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE  # noqa: E402
 from gui.gui_config import (  # noqa: E402
     GUI_MAIN_PREFERENCES,
     REQUIRED_DISPLAY_COLUMNS,
@@ -822,7 +823,7 @@ try:
 except Exception as exc:
     logger.debug("Falha ao configurar constantes de detalhes: %s", exc)
 
-TABLE_NAME = 'ssas'
+TABLE_NAME = CANONICAL_SSA_TABLE
 # --- Funções Auxiliares ---
 
 def load_display_mappings():
@@ -2721,12 +2722,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _resolve_derivadas_table_name(self, db_path: str) -> str:
         candidates: list[str] = []
-        for name in (TABLE_NAME, "ssa_table", "ssas"):
+        for name in (TABLE_NAME, *ALL_SSA_TABLE_NAMES):
             if isinstance(name, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
                 if name not in candidates:
                     candidates.append(name)
         if not candidates:
-            return "ssa_table"
+            return CANONICAL_SSA_TABLE
         try:
             with sqlite3.connect(db_path) as conn:
                 existing = {
@@ -2751,7 +2752,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     return name
         except Exception as exc:
             logger.warning("Falha ao resolver tabela para sync de derivadas: %s", exc)
-        return "ssa_table"
+        return CANONICAL_SSA_TABLE
 
     def update_derivadas_from_sources(self):
         def _has_sheet_parse_evidence(entry: dict) -> bool:
@@ -2914,7 +2915,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     self.status_label.setText(f"Status: Banco alternativo selecionado: {os.path.basename(db_file)}")
                     QMessageBox.information(self, "Sucesso", f"Banco de dados selecionado: {os.path.basename(db_file)}\n\nClique em 'Carregar Dados' para carregar os dados.")
                 else:
-                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela 'ssas'.")
+                    QMessageBox.warning(self, "Erro", "O arquivo selecionado nao contem dados validos na tabela principal de SSAs.")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao abrir o banco de dados: {e}")
         elif db_file:  # Arquivo selecionado mas nao existe

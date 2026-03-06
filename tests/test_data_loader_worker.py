@@ -39,6 +39,21 @@ def test_resolve_target_table_falls_back_to_ssa_table(tmp_path):
     assert worker._resolve_target_table() == "ssa_table"
 
 
+def test_resolve_target_table_accepts_second_legacy_alias(tmp_path):
+    db_path = tmp_path / "test_second_alias.db"
+    with closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("CREATE TABLE ssa_table (numero_ssa TEXT)")
+        conn.commit()
+
+    worker = DataLoaderWorker(str(db_path), "ssa_chamados")
+    assert worker._resolve_target_table() == "ssa_table"
+
+
+def test_resolve_target_table_invalid_identifier_falls_back_to_canonical():
+    worker = DataLoaderWorker(":memory:", 'ssa_table"; DROP TABLE ssa_table; --')
+    assert worker._resolve_target_table() == "ssa_table"
+
+
 def test_run_builds_safe_paginated_query_and_emits_data():
     captured = {}
     emitted = []

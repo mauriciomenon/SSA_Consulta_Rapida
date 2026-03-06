@@ -2,6 +2,39 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 10:09 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. runtime now has shared constants for canonical SSA table naming.
+  2. primary entry points use `ssa_table` explicitly while still accepting `ssas` and `ssa_chamados` as compatibility aliases.
+  3. `DataLoaderWorker` now falls back safely to the canonical table when an invalid identifier is requested.
+  4. robust importer path was not changed.
+- Files changed:
+  1. `shared/db_names.py`
+  2. `interface/cli.py`
+  3. `gui/workers/data_loader_worker.py`
+  4. `gui/gui_ssa.py`
+  5. `armazenamento/database_validation.py`
+  6. `armazenamento/database_integrity.py`
+  7. `armazenamento/database.py`
+  8. `tests/test_cli_get_ssa_query_identifier_guard.py`
+  9. `tests/test_data_loader_worker.py`
+  10. `tests/test_database_verification.py`
+- New regression:
+  1. `test_get_ssa_query_accepts_second_legacy_alias`
+  2. `test_resolve_target_table_accepts_second_legacy_alias`
+  3. `test_resolve_target_table_invalid_identifier_falls_back_to_canonical`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+  2. `uv run --python 3.13 ruff check shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+  3. `uv run --python 3.13 ty check shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: `28 passed`.
+- Deferred by user-approved scope control:
+  1. out-of-scope Kluster findings in CLI/GUI architecture and performance were intentionally not implemented in this slice.
+  2. deeper alias cleanup across the remaining runtime/test corpus is still pending and should stay incremental.
+
 ## CURRENT TRUTH 2026-03-06 09:41 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

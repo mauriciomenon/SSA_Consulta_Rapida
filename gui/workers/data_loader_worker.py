@@ -10,6 +10,7 @@ from contextlib import closing
 import pandas as pd
 from PyQt6.QtCore import QThread, pyqtSignal
 from armazenamento.database import query_db
+from shared.db_names import ALL_SSA_TABLE_NAMES, CANONICAL_SSA_TABLE
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +69,9 @@ class DataLoaderWorker(QThread):
         candidates = []
         if requested:
             candidates.append(requested)
-        if "ssa_table" not in candidates:
-            candidates.append("ssa_table")
+        for name in ALL_SSA_TABLE_NAMES:
+            if name not in candidates:
+                candidates.append(name)
 
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
@@ -83,7 +85,9 @@ class DataLoaderWorker(QThread):
         except Exception as exc:
             logger.debug("Falha ao resolver tabela alvo do DataLoaderWorker: %s", exc)
 
-        return candidates[0] if candidates else "ssa_table"
+        fallback = candidates[0] if candidates else CANONICAL_SSA_TABLE
+        sanitized_fallback = self._sanitize_identifier(fallback)
+        return sanitized_fallback or CANONICAL_SSA_TABLE
 
     def _normalize_order_by(self, order_by: str | None) -> str | None:
         if not order_by:
@@ -113,6 +117,8 @@ class DataLoaderWorker(QThread):
             if self._is_cancelled():
                 return
             target_table = self._resolve_target_table()
+            if not self._sanitize_identifier(target_table):
+                raise ValueError("Tabela alvo invalida para DataLoaderWorker")
             query = f"SELECT * FROM {self._quote_identifier(target_table)}"
 
             order_clause = self._normalize_order_by(self.order_by)

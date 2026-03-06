@@ -3,6 +3,53 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: tabela canonica explicita + guard do DataLoaderWorker)
+
+Session timestamp:
+1. start: `2026-03-06 09:41:48 -0300`
+2. end: `2026-03-06 10:09:56 -0300`
+
+Decision delivered:
+1. canonical SSA table naming is now explicit in shared runtime constants and primary entry points.
+2. legacy aliases `ssas` and `ssa_chamados` remain accepted only as compatibility inputs.
+3. `DataLoaderWorker` now guarantees a non-empty canonical fallback table name even when the requested identifier is invalid.
+4. robust importer path remains unchanged.
+
+Files changed:
+1. `shared/db_names.py`
+2. `interface/cli.py`
+3. `gui/workers/data_loader_worker.py`
+4. `gui/gui_ssa.py`
+5. `armazenamento/database_validation.py`
+6. `armazenamento/database_integrity.py`
+7. `armazenamento/database.py`
+8. `tests/test_cli_get_ssa_query_identifier_guard.py`
+9. `tests/test_data_loader_worker.py`
+10. `tests/test_database_verification.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check shared/db_names.py interface/cli.py gui/workers/data_loader_worker.py gui/gui_ssa.py armazenamento/database_validation.py armazenamento/database_integrity.py armazenamento/database.py tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_cli_get_ssa_query_identifier_guard.py tests/test_data_loader_worker.py tests/test_database_verification.py`: `28 passed`.
+
+Evidence:
+1. new tests:
+   - `test_get_ssa_query_accepts_second_legacy_alias`
+   - `test_resolve_target_table_accepts_second_legacy_alias`
+   - `test_resolve_target_table_invalid_identifier_falls_back_to_canonical`
+2. `DataLoaderWorker` item from Kluster was fixed and re-verified clean.
+
+Deferred by explicit scope decision in this round:
+1. structural Kluster findings outside the approved slice were not implemented:
+   - CLI interactive scan performance
+   - GUI naming cleanup around clear-all filters
+   - logging-system migration
+   - pagination deduplication
+   - circular-import redesign
+   - GUI resize performance refactor
+2. deeper runtime/test cleanup of legacy table aliases outside the touched entry points remains incremental work, not a one-shot refactor.
+
 ## Update 2026-03-06 (slice minimo: extrator preserva alias obrigatorio vazio)
 
 Session timestamp:

@@ -17,6 +17,7 @@ from typing import Any, Literal, cast
 import pandas as pd
 
 # Importacoes refatoradas serao carregadas de forma lazy dentro dos wrappers para evitar ciclos.
+from shared.db_names import CANONICAL_SSA_TABLE, LEGACY_SSA_TABLE_ALIASES
 
 logger = logging.getLogger(__name__)
 from .identifier_utils import is_valid_identifier  # noqa: E402
@@ -352,7 +353,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 def reset_database(
     db_path: str,
     mode: str = 'table',
-    _table_name: str = 'ssas',  # parametro legado nao usado
+    _table_name: str = CANONICAL_SSA_TABLE,  # parametro legado nao usado
     schema_path: str | None = None,
 ) -> bool:
     """Reseta o banco de dados.
@@ -378,7 +379,7 @@ def reset_database(
         return False
 
 
-def ensure_indexes(db_path: str, table_name: str = 'ssas') -> bool:
+def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
     """Garante indices uteis para consultas comuns."""
     try:
         if not is_valid_identifier(table_name):
@@ -425,13 +426,14 @@ def ensure_column_exists(
         physical_table = table_name
         # Redireciona somente se a tabela fisica realmente existir para evitar
         # logs de erro "no such table: ssa_table" em cenarios de teste minimo.
-        if table_name in {'ssas', 'ssa_chamados'}:
+        if table_name in LEGACY_SSA_TABLE_ALIASES:
             with get_db_connection(db_path) as _conn:
                 cur = _conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'"
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (CANONICAL_SSA_TABLE,),
                 )
-                if cur.fetchone():  # ssa_table existe
-                    physical_table = 'ssa_table'
+                if cur.fetchone():
+                    physical_table = CANONICAL_SSA_TABLE
 
         if not is_valid_identifier(physical_table):
             raise ValueError(f"Invalid SQL identifier for table: {physical_table}")
@@ -569,18 +571,26 @@ def normalize_numero_ssa(value) -> str | None:  # retrocompat
 
 # --- Funcoes de Verificacao e Integridade do Banco ---
 
-def verify_database_integrity(db_path: str, table_name: str = 'ssas') -> dict[str, Any]:  # compat wrapper
+def verify_database_integrity(
+    db_path: str,
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> dict[str, Any]:  # compat wrapper
     from . import database_integrity as _int
     return _int.verify_database_integrity(db_path, table_name)
 
 
-def validate_dataframe_before_insert(df: pd.DataFrame, table_name: str = 'ssas') -> dict[str, Any]:  # compat wrapper
+def validate_dataframe_before_insert(
+    df: pd.DataFrame,
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> dict[str, Any]:  # compat wrapper
     from . import database_validation as _val
     return _val.validate_dataframe_before_insert(df, table_name)
 
 
 def repair_database_if_needed(
-    db_path: str, schema_file: str = 'schema.sql', table_name: str = 'ssas'
+    db_path: str,
+    schema_file: str = 'schema.sql',
+    table_name: str = CANONICAL_SSA_TABLE,
 ) -> bool:  # compat wrapper
     from . import database_integrity as _int
     return _int.repair_database_if_needed(db_path, schema_file, table_name)
