@@ -3,6 +3,45 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (doc sync: runtime validation of staged full rescan)
+
+Session timestamp:
+1. start: `2026-03-06 13:53:56 -0300`
+2. end: `2026-03-06 14:09:22 -0300`
+
+Runtime validation delivered:
+1. real full rescan completed successfully with staged candidate DB promotion.
+2. run result: `true`
+3. duration: `918.206s`
+4. candidate DB was promoted and not preserved.
+5. deterministic failures: `0`
+6. import errors: `0`
+
+Evidence:
+1. runtime log: `logs/full_rescan_runtime_20260306_135403.log`
+2. JSON report: `logs/import_run_20260306_135404_209159.json`
+3. promoted backup path: `data/ssas.db.full_rescan_backup_20260306_140922`
+4. final DB metrics:
+   - rows: `76426`
+   - distinct `numero_ssa`: `76426`
+   - columns: `84`
+   - null `data_cadastro`: `608`
+   - non-null `total_de_reprogramacoes`: `3987`
+   - non-null `num_reprogramacoes`: `36603`
+
+Residual risk confirmed by runtime:
+1. schema drift is reduced but not eliminated:
+   - `nan_1`: `12082` non-null values
+   - `nan_2`: `11835` non-null values
+2. `sn_retirado` and `sn_instalado` remain populated and appear intentional; `sn_extra` stayed empty in this run.
+3. placeholder warnings still occurred during upsert (`Colunas dinamicas placeholder foram descartadas: ['nan']`), which means GUI cleanup alone would only hide the symptom, not solve the import/schema source.
+4. an old preserved candidate from the aborted pre-fix run still exists for forensic comparison:
+   - `data/ssas.db.full_rescan_candidate_20260306_121612_837677`
+
+Next follow-up slices:
+1. GUI non-modal reescaneamento can proceed now without changing layout.
+2. import/schema cleanup for unlabeled numeric columns (`nan_1`, `nan_2`) remains a separate high-priority runtime hardening item.
+
 ## Update 2026-03-06 (slice minimo: extrator tradicional tolera header duplicado e NaN no full rescan real)
 
 Session timestamp:
