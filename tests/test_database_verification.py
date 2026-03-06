@@ -33,11 +33,11 @@ class TestDatabaseVerification:  # noqa: D101
         assert "Falha ao garantir coluna" not in caplog.text
 
     def test_verify_nonexistent_database(self):
-        """No modelo atual, banco inexistente é considerado válido para criação."""
+        """Banco inexistente deve ser invalido e marcado para criacao."""
         fake_path = "/path/that/does/not/exist/fake.db"
         report = verify_database_integrity(fake_path)
 
-        assert report['is_valid']  # válido para criação
+        assert report['is_valid'] is False
         assert not report['database_exists']
         assert report.get('needs_creation') is True
         assert len(report['issues']) > 0
@@ -171,8 +171,8 @@ class TestDataValidation:
         assert len(report['warnings']) > 0
         assert "datas inválidas" in str(report['warnings'])
 
-    def test_validate_missing_data_cadastro_status_exceptions_are_allowed(self):
-        """SCC, ADI e ASE sem data_cadastro nao devem gerar erro critico."""
+    def test_validate_missing_data_cadastro_exceptions_keep_non_allowed_invalid(self):
+        """SCC/ADI/ASE sem data sao permitidos, mas status fora da lista seguem invalidos."""
         df = pd.DataFrame(
             {
                 'numero_ssa': [202222569, 202214992, 202500001, 202500002],
@@ -193,7 +193,7 @@ class TestDatabaseRepair:
     """Testes para reparo de banco de dados."""
 
     def test_repair_nonexistent_database(self, tmp_path):
-        """No modelo atual, reparo não cria banco inexistente automaticamente."""
+        """Reparo deve criar banco inexistente usando schema informado."""
         db_path = os.path.join(tmp_path, 'new.db')
         schema_path = os.path.join(tmp_path, 'schema.sql')
 
@@ -208,16 +208,15 @@ class TestDatabaseRepair:
             );
             """)
 
-        # Mesmo com schema disponível, lógica atual considera inexistente como "válido para criação"
         result = repair_database_if_needed(db_path, schema_path, table_name='ssas')
 
         assert result is True
-        assert not os.path.exists(db_path)  # não cria automaticamente
+        assert os.path.exists(db_path)
 
-        # Confirma estado de "needs_creation"
+        # Confirma integridade do banco criado
         report = verify_database_integrity(db_path, table_name='ssas')
-        assert report['is_valid']
-        assert report.get('needs_creation') is True
+        assert report['is_valid'] is True
+        assert report['table_exists'] is True
 
     def test_repair_valid_database(self, tmp_path):
         """Testa reparo de banco já válido."""
