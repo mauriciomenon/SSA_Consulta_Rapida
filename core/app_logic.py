@@ -591,8 +591,13 @@ def _update_cache_for_deterministic_failures(
 
 def _recreate_database_for_full_rescan(db_path: str) -> None:
     """Create a clean DB for full rescan by rotating the previous file."""
+    _rotate_database_for_full_rescan(db_path)
+
+
+def _rotate_database_for_full_rescan(db_path: str) -> Optional[str]:
+    """Rotate the current DB file to a timestamped backup and return the backup path."""
     if not os.path.exists(db_path):
-        return
+        return None
     logger.info("Preparando full rescan: checkpoint WAL e rotacao de banco.")
     last_error: Optional[Exception] = None
     for attempt in range(1, 4):
@@ -652,6 +657,83 @@ def _recreate_database_for_full_rescan(db_path: str) -> None:
         raise DatabaseError(
             f"Falha ao preparar banco limpo para full rescan: {exc}"
         ) from exc
+    return backup_path
+
+
+def _build_full_rescan_candidate_path(db_path: str, run_id: str) -> str:
+    """Build an isolated DB path for a full-rescan candidate run."""
+    return f"{db_path}.full_rescan_candidate_{run_id}"
+
+
+def _cleanup_sqlite_sidecars(db_path: str) -> None:
+    """Remove sqlite sidecars for a detached database file when they exist."""
+    for suffix in ("-wal", "-shm"):
+        sidecar = f"{db_path}{suffix}"
+        if not os.path.exists(sidecar):
+            continue
+        os.remove(sidecar)
+        logger.info("Arquivo auxiliar temporario removido: %s", os.path.basename(sidecar))
+
+
+def _promote_full_rescan_candidate(primary_db_path: str, candidate_db_path: str) -> Optional[str]:
+    """Promote a validated full-rescan candidate DB into the primary path."""
+    if not os.path.exists(candidate_db_path):
+        raise DatabaseError(f"DB candidato ausente para promocao final: {candidate_db_path}")
+
+    logger.info(
+        "Promovendo DB candidato de full rescan para principal: %s",
+        os.path.basename(candidate_db_path),
+    )
+    last_error: Optional[Exception] = None
+    for attempt in range(1, 4):
+        try:
+            with sqlite3.connect(candidate_db_path, timeout=2) as conn:
+                conn.execute("PRAGMA busy_timeout = 2000")
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            last_error = None
+            break
+        except sqlite3.Error as exc:
+            last_error = exc
+            if "locked" in str(exc).lower() and attempt < 3:
+                logger.warning(
+                    "DB candidato bloqueado na promocao final (tentativa %s/3).",
+                    attempt,
+                )
+                time.sleep(0.35 * attempt)
+                continue
+            break
+    if last_error is not None:
+        raise DatabaseError(
+            "Falha ao preparar DB candidato para promocao final. "
+            f"Feche acessos concorrentes e tente novamente: {last_error}"
+        ) from last_error
+
+    candidate_wal_path = f"{candidate_db_path}-wal"
+    if os.path.exists(candidate_wal_path):
+        try:
+            wal_size = int(os.path.getsize(candidate_wal_path))
+        except OSError as exc:
+            raise DatabaseError(
+                f"Falha ao validar estado do WAL do DB candidato: {exc}"
+            ) from exc
+        if wal_size > 0:
+            raise DatabaseError(
+                "WAL ativo detectado no DB candidato antes da promocao final."
+            )
+
+    _cleanup_sqlite_sidecars(candidate_db_path)
+    backup_path = _rotate_database_for_full_rescan(primary_db_path)
+    try:
+        os.replace(candidate_db_path, primary_db_path)
+    except OSError as exc:
+        raise DatabaseError(
+            f"Falha ao promover DB candidato para o caminho principal: {exc}"
+        ) from exc
+    logger.info(
+        "DB candidato promovido com sucesso para o caminho principal: %s",
+        os.path.basename(primary_db_path),
+    )
+    return backup_path
 
 
 def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
@@ -682,7 +764,10 @@ def _build_import_run_payload(
     db_name: str,
     docs_dir: str,
     data_dir: str,
-    db_path: str,
+    primary_db_path: str,
+    working_db_path: str,
+    candidate_db_path: Optional[str],
+    promoted_backup_path: Optional[str],
     cache_file: str,
     total_files: int,
     successfully_processed_files: List[str],
@@ -711,7 +796,16 @@ def _build_import_run_payload(
         "paths": {
             "docs_dir": docs_dir,
             "data_dir": data_dir,
-            "db_path": db_path,
+            "db_path": primary_db_path,
+            "primary_db_path": primary_db_path,
+            "working_db_path": working_db_path,
+            "candidate_db_path": candidate_db_path,
+            "promoted_backup_path": promoted_backup_path,
+            "candidate_preserved": bool(
+                candidate_db_path
+                and os.path.exists(candidate_db_path)
+                and candidate_db_path != primary_db_path
+            ),
             "cache_file": cache_file,
         },
         "counts": {
@@ -809,6 +903,8 @@ def run_importer_logic(
         raise
 
     db_path = str(db_path_obj)
+    primary_db_path = db_path
+    working_db_path = db_path
     cache_file = os.path.join(str(data_dir_path), "file_cache.json")
     docs_dir = str(docs_dir_path)
     data_dir = str(data_dir_path)
@@ -821,6 +917,9 @@ def run_importer_logic(
     critical_errors: List[tuple[str, str, str]] = []
     deterministic_failed_files: List[str] = []
     integrity_report: Dict[str, Any] = {}
+    candidate_db_path: Optional[str] = None
+    promoted_backup_path: Optional[str] = None
+    cancelled_full_rescan = False
     db_only_derivadas_sync = False
     sync_materialized = False
     derivadas_sync_blocking_error = False
@@ -839,7 +938,10 @@ def run_importer_logic(
             db_name=db_name,
             docs_dir=docs_dir,
             data_dir=data_dir,
-            db_path=db_path,
+            primary_db_path=primary_db_path,
+            working_db_path=working_db_path,
+            candidate_db_path=candidate_db_path,
+            promoted_backup_path=promoted_backup_path,
             cache_file=cache_file,
             total_files=total_files,
             successfully_processed_files=successfully_processed_files,
@@ -864,17 +966,22 @@ def run_importer_logic(
         # Criar diretorio de dados se nao existir
         os.makedirs(data_dir, exist_ok=True)
         if force_import:
-            _recreate_database_for_full_rescan(db_path)
+            candidate_db_path = _build_full_rescan_candidate_path(primary_db_path, run_id)
+            working_db_path = candidate_db_path
+            logger.info(
+                "Full rescan configurado para DB candidato isolado: %s",
+                os.path.basename(candidate_db_path),
+            )
 
         # Verificar e reparar banco se necessario
-        if not database.repair_database_if_needed(db_path, table_name=table_name):
+        if not database.repair_database_if_needed(working_db_path, table_name=table_name):
             logger.error(
                 "Falha critica: nao foi possivel garantir integridade do banco de dados"
             )
             raise DatabaseCorruptionError("Banco de dados inacessivel ou corrompido")
 
         # Verificacao adicional de integridade
-        integrity_report = database.verify_database_integrity(db_path, table_name)
+        integrity_report = database.verify_database_integrity(working_db_path, table_name)
         if not integrity_report["is_valid"]:
             # Classificar tipo de erro baseado no relatorio
             issues = integrity_report["issues"]
@@ -936,7 +1043,7 @@ def run_importer_logic(
                 )
             if auto_derivadas_sync_enabled:
                 db_only_derivadas_sync = _needs_db_only_derivadas_sync(
-                    db_path=db_path,
+                    db_path=working_db_path,
                     table_name=table_name,
                     should_cancel=should_cancel,
                 )
@@ -967,6 +1074,8 @@ def run_importer_logic(
             for index, file_path in enumerate(files_to_process):
                 if should_cancel and should_cancel():
                     logger.info("Cancelamento solicitado; interrompendo importacao.")
+                    if candidate_db_path is not None:
+                        cancelled_full_rescan = True
                     break
                 base_name = os.path.basename(file_path)
 
@@ -992,7 +1101,7 @@ def run_importer_logic(
                 try:
                     success, record_count = _import_single_file(
                         file_path,
-                        db_path,
+                        working_db_path,
                         table_name,
                         should_cancel=should_cancel,
                     )
@@ -1022,7 +1131,7 @@ def run_importer_logic(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
                     if database.repair_database_if_needed(
-                        db_path, table_name=table_name
+                        working_db_path, table_name=table_name
                     ):
                         logger.info("Reparo bem-sucedido, continuando processamento...")
                         critical_errors.append(
@@ -1048,7 +1157,7 @@ def run_importer_logic(
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
-                    if database.initialize_database(db_path):
+                    if database.initialize_database(working_db_path):
                         logger.info("Schema recriado, continuando processamento...")
                         critical_errors.append(("schema_repaired", file_path, str(e)))
                         continue
@@ -1069,6 +1178,8 @@ def run_importer_logic(
                     error_code = getattr(e, "error_code", None)
                     if error_code == "OPERATION_CANCELLED" and should_cancel:
                         logger.info("Cancelamento solicitado; interrompendo importacao.")
+                        if candidate_db_path is not None:
+                            cancelled_full_rescan = True
                         break
                     if error_code == "MISSING_REQUIRED_COLUMNS":
                         deterministic_failed_files.append(file_path)
@@ -1111,7 +1222,7 @@ def run_importer_logic(
                 else:
                     try:
                         sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
-                            db_path=db_path,
+                            db_path=working_db_path,
                             table_name=table_name,
                             derivadas_sheet_files=derivadas_sheet_files,
                         )
@@ -1198,12 +1309,59 @@ def run_importer_logic(
                 "blocking_derivadas_sync_error",
             )
 
+        if cancelled_full_rescan:
+            logger.warning(
+                "Full rescan cancelado apos inicio do processamento. "
+                "DB principal foi preservado; DB candidato mantido para evidencia."
+            )
+            return _finalize_and_return(
+                False,
+                "cancelled_partial",
+                "full_rescan_cancelled_before_final_promotion",
+            )
+
         _update_cache_for_deterministic_failures(
             deterministic_failed_files, cache_file
         )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
+            if candidate_db_path is not None:
+                integrity_report = database.verify_database_integrity(
+                    working_db_path,
+                    table_name,
+                )
+                if not integrity_report.get("is_valid", False):
+                    logger.error(
+                        "DB candidato falhou na validacao final antes da promocao: %s",
+                        integrity_report.get("issues", []),
+                    )
+                    critical_errors.append(
+                        (
+                            "candidate_validation",
+                            candidate_db_path,
+                            str(integrity_report.get("issues", [])),
+                        )
+                    )
+                    return _finalize_and_return(
+                        False,
+                        "candidate_invalid",
+                        "candidate_failed_final_integrity",
+                    )
+                try:
+                    promoted_backup_path = _promote_full_rescan_candidate(
+                        primary_db_path,
+                        working_db_path,
+                    )
+                    working_db_path = primary_db_path
+                except DatabaseError as exc:
+                    logger.error("Falha ao promover DB candidato: %s", exc)
+                    critical_errors.append(("promotion", candidate_db_path, str(exc)))
+                    return _finalize_and_return(
+                        False,
+                        "candidate_promotion_failed",
+                        str(exc),
+                    )
             _update_cache_after_import(
                 successfully_processed_files, cache_file, docs_dir
             )
@@ -1214,6 +1372,42 @@ def run_importer_logic(
                 "files_processed_or_cache_updated",
             )
         elif sync_materialized:
+            if candidate_db_path is not None:
+                integrity_report = database.verify_database_integrity(
+                    working_db_path,
+                    table_name,
+                )
+                if not integrity_report.get("is_valid", False):
+                    logger.error(
+                        "DB candidato falhou na validacao final antes da promocao: %s",
+                        integrity_report.get("issues", []),
+                    )
+                    critical_errors.append(
+                        (
+                            "candidate_validation",
+                            candidate_db_path,
+                            str(integrity_report.get("issues", [])),
+                        )
+                    )
+                    return _finalize_and_return(
+                        False,
+                        "candidate_invalid",
+                        "candidate_failed_final_integrity",
+                    )
+                try:
+                    promoted_backup_path = _promote_full_rescan_candidate(
+                        primary_db_path,
+                        working_db_path,
+                    )
+                    working_db_path = primary_db_path
+                except DatabaseError as exc:
+                    logger.error("Falha ao promover DB candidato: %s", exc)
+                    critical_errors.append(("promotion", candidate_db_path, str(exc)))
+                    return _finalize_and_return(
+                        False,
+                        "candidate_promotion_failed",
+                        str(exc),
+                    )
             logger.info("=== Processo de importacao concluiu sync de derivadas materializado (sem novos arquivos em cache) ===")
             return _finalize_and_return(
                 True,

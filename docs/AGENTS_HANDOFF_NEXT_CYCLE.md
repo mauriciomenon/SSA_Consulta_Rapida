@@ -2,6 +2,32 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 10:28 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. full rescan now writes into a candidate DB first and validates it before promotion.
+  2. the primary DB is rotated only after successful completion.
+  3. failure or partial cancellation leaves the primary DB intact and keeps the candidate DB for evidence.
+  4. robust importer behavior was preserved.
+- Files changed:
+  1. `core/app_logic.py`
+  2. `tests/test_import_run_report.py`
+- Test evidence:
+  1. regression confirms failure path preserves the primary DB.
+  2. regression confirms success path promotes the candidate DB only at the end and records the backup path.
+  3. focused gate run: `6 passed`.
+- Validation:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+  4. `timeout 240s uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: `6 passed`.
+- Remaining explicit follow-up:
+  1. GUI is still modal during rescan.
+  2. post-validation user choice to load/promote a newly built DB is still pending.
+  3. real-corpus runtime smoke after these three slices is still recommended as a separate execution step.
+
 ## CURRENT TRUTH 2026-03-06 10:09 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

@@ -3,6 +3,44 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: full rescan com DB candidato e promocao final)
+
+Session timestamp:
+1. start: `2026-03-06 10:09:56 -0300`
+2. end: `2026-03-06 10:28:06 -0300`
+
+Decision delivered:
+1. `force_import=True` no longer rotates the primary DB at the beginning of the run.
+2. full rescan now imports into an isolated candidate DB path first.
+3. the candidate DB is validated before promotion.
+4. the primary DB is rotated and replaced only after successful import completion.
+5. if full rescan fails or is cancelled after processing starts, the primary DB remains untouched and the candidate DB is preserved for evidence.
+
+Files changed:
+1. `core/app_logic.py`
+2. `tests/test_import_run_report.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: pass.
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py`: `6 passed`.
+
+Evidence:
+1. `test_run_importer_logic_full_rescan_failure_preserves_primary_db`
+2. `test_run_importer_logic_full_rescan_success_promotes_candidate_at_end`
+3. import JSON payload now records:
+   - `primary_db_path`
+   - `working_db_path`
+   - `candidate_db_path`
+   - `promoted_backup_path`
+   - `candidate_preserved`
+
+Deferred by scope control:
+1. GUI still uses modal progress dialog during rescan.
+2. user-facing choice to load/promote the new DB after validation is still pending.
+3. broader end-to-end runtime smoke on the real corpus remains a separate follow-up step.
+
 ## Update 2026-03-06 (slice minimo: tabela canonica explicita + guard do DataLoaderWorker)
 
 Session timestamp:
