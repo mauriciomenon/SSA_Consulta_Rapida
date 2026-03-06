@@ -654,6 +654,98 @@ def _recreate_database_for_full_rescan(db_path: str) -> None:
         ) from exc
 
 
+def _write_import_run_report(payload: Dict[str, Any]) -> Optional[str]:
+    """Grava resumo estruturado de uma execucao de importacao em JSON."""
+    try:
+        logs_dir = os.path.join(project_root, "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        run_id = str(payload.get("run_id") or datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
+        report_path = os.path.join(logs_dir, f"import_run_{run_id}.json")
+        with open(report_path, "w", encoding="utf-8") as fp:
+            json.dump(payload, fp, ensure_ascii=False, indent=2, default=str)
+        return report_path
+    except Exception as exc:
+        logger.warning("Falha ao gravar relatorio JSON de importacao: %s", exc)
+        return None
+
+
+def _build_import_run_payload(
+    *,
+    run_id: str,
+    run_started_at: datetime,
+    finished_at: datetime,
+    result: bool,
+    status: str,
+    reason: str,
+    force_import: bool,
+    table_name: str,
+    db_name: str,
+    docs_dir: str,
+    data_dir: str,
+    db_path: str,
+    cache_file: str,
+    total_files: int,
+    successfully_processed_files: List[str],
+    critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: List[str],
+    derivadas_sheet_files: List[str],
+    db_only_derivadas_sync: bool,
+    derivadas_sync_blocking_error: bool,
+    sync_materialized: bool,
+    files_to_process: List[str],
+    integrity_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "started_at": run_started_at.isoformat(timespec="seconds"),
+        "finished_at": finished_at.isoformat(timespec="seconds"),
+        "duration_seconds": round((finished_at - run_started_at).total_seconds(), 3),
+        "result": bool(result),
+        "status": status,
+        "reason": reason,
+        "inputs": {
+            "force_import": bool(force_import),
+            "table_name": table_name,
+            "db_name": db_name,
+        },
+        "paths": {
+            "docs_dir": docs_dir,
+            "data_dir": data_dir,
+            "db_path": db_path,
+            "cache_file": cache_file,
+        },
+        "counts": {
+            "total_candidates": int(total_files),
+            "success_count": len(successfully_processed_files),
+            "error_count": len(critical_errors),
+            "deterministic_failure_count": len(deterministic_failed_files),
+            "derivadas_sheet_count": len(derivadas_sheet_files),
+            "db_only_derivadas_sync": bool(db_only_derivadas_sync),
+            "derivadas_sync_blocking_error": bool(derivadas_sync_blocking_error),
+            "sync_materialized": bool(sync_materialized),
+        },
+        "files": {
+            "candidates": [os.path.basename(p) for p in files_to_process],
+            "success": [os.path.basename(p) for p in successfully_processed_files],
+            "deterministic_failed": [os.path.basename(p) for p in deterministic_failed_files],
+            "derivadas_sheet_files": [os.path.basename(p) for p in derivadas_sheet_files],
+        },
+        "errors": [
+            {
+                "type": error_type,
+                "file": os.path.basename(file_path),
+                "message": message,
+            }
+            for error_type, file_path, message in critical_errors
+        ],
+        "integrity": {
+            "is_valid": integrity_report.get("is_valid"),
+            "issue_count": len(integrity_report.get("issues", [])),
+            "warning_count": len(integrity_report.get("warnings", [])),
+        },
+    }
+
+
 # --- Funcao Principal Refatorada ---
 
 
@@ -720,6 +812,50 @@ def run_importer_logic(
     cache_file = os.path.join(str(data_dir_path), "file_cache.json")
     docs_dir = str(docs_dir_path)
     data_dir = str(data_dir_path)
+    run_started_at = datetime.now()
+    run_id = run_started_at.strftime("%Y%m%d_%H%M%S_%f")
+    files_to_process: List[str] = []
+    derivadas_sheet_files: List[str] = []
+    total_files = 0
+    successfully_processed_files: List[str] = []
+    critical_errors: List[tuple[str, str, str]] = []
+    deterministic_failed_files: List[str] = []
+    integrity_report: Dict[str, Any] = {}
+    db_only_derivadas_sync = False
+    sync_materialized = False
+    derivadas_sync_blocking_error = False
+
+    def _finalize_and_return(result: bool, status: str, reason: str = "") -> bool:
+        finished_at = datetime.now()
+        payload = _build_import_run_payload(
+            run_id=run_id,
+            run_started_at=run_started_at,
+            finished_at=finished_at,
+            result=result,
+            status=status,
+            reason=reason,
+            force_import=force_import,
+            table_name=table_name,
+            db_name=db_name,
+            docs_dir=docs_dir,
+            data_dir=data_dir,
+            db_path=db_path,
+            cache_file=cache_file,
+            total_files=total_files,
+            successfully_processed_files=successfully_processed_files,
+            critical_errors=critical_errors,
+            deterministic_failed_files=deterministic_failed_files,
+            derivadas_sheet_files=derivadas_sheet_files,
+            db_only_derivadas_sync=db_only_derivadas_sync,
+            derivadas_sync_blocking_error=derivadas_sync_blocking_error,
+            sync_materialized=sync_materialized,
+            files_to_process=files_to_process,
+            integrity_report=integrity_report,
+        )
+        report_path = _write_import_run_report(payload)
+        if report_path:
+            logger.info("Resumo JSON da importacao gravado em '%s'", report_path)
+        return result
 
     try:
         # --- 0. Verificar e reparar integridade do banco de dados ---
@@ -758,9 +894,9 @@ def run_importer_logic(
                 raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
         # Log de avisos se houver
-        if integrity_report["warnings"]:
-            for warning in integrity_report["warnings"]:
-                logger.warning(f"Aviso do banco: {warning}")
+            if integrity_report["warnings"]:
+                for warning in integrity_report["warnings"]:
+                    logger.warning(f"Aviso do banco: {warning}")
 
         logger.info(" Integridade do banco de dados verificada")
 
@@ -793,7 +929,11 @@ def run_importer_logic(
             if should_cancel and should_cancel():
                 logger.info("Cancelamento solicitado antes do preflight de derivadas.")
                 _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
-                return False
+                return _finalize_and_return(
+                    False,
+                    "cancelled_preflight",
+                    "cancelled_before_derivadas_preflight",
+                )
             if auto_derivadas_sync_enabled:
                 db_only_derivadas_sync = _needs_db_only_derivadas_sync(
                     db_path=db_path,
@@ -805,7 +945,11 @@ def run_importer_logic(
                     "Nenhum arquivo novo/modificado nem planilha especial de derivadas encontrada."
                 )
                 _emit_progress("finish", {"total": 0, "processed": 0, "errors": []})
-                return False
+                return _finalize_and_return(
+                    False,
+                    "no_changes",
+                    "no_new_or_modified_files",
+                )
             logger.info("Nenhum arquivo novo detectado; executando sync DB-only de derivadas por preflight.")
 
         if derivadas_sheet_files:
@@ -819,10 +963,6 @@ def run_importer_logic(
         )
 
         # --- 2. Processar cada arquivo ---
-        successfully_processed_files = []
-        critical_errors = []
-        deterministic_failed_files = []
-
         try:
             for index, file_path in enumerate(files_to_process):
                 if should_cancel and should_cancel():
@@ -1052,7 +1192,11 @@ def run_importer_logic(
                 "Importacao concluida com falha bloqueante de integridade em derivadas. "
                 "Cache nao sera atualizado nesta execucao."
             )
-            return False
+            return _finalize_and_return(
+                False,
+                "derivadas_sync_error",
+                "blocking_derivadas_sync_error",
+            )
 
         _update_cache_for_deterministic_failures(
             deterministic_failed_files, cache_file
@@ -1064,21 +1208,35 @@ def run_importer_logic(
                 successfully_processed_files, cache_file, docs_dir
             )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
-            return True
+            return _finalize_and_return(
+                True,
+                "updated",
+                "files_processed_or_cache_updated",
+            )
         elif sync_materialized:
             logger.info("=== Processo de importacao concluiu sync de derivadas materializado (sem novos arquivos em cache) ===")
-            return True
+            return _finalize_and_return(
+                True,
+                "derivadas_materialized",
+                "derivadas_sync_materialized_without_cache_update",
+            )
         else:
             logger.info("Nenhum arquivo foi processado com sucesso.")
-            return False
+            return _finalize_and_return(
+                False,
+                "no_success",
+                "no_file_processed_successfully",
+            )
 
     except ImporterError:
         # Re-levanta excecoes personalizadas
+        _finalize_and_return(False, "importer_error", "importer_exception_raised")
         raise
     except Exception as e:
         logger.critical(
             f"Erro inesperado no processo de importacao: {e}", exc_info=True
         )
+        _finalize_and_return(False, "unexpected_exception", str(e))
         raise ImporterError("Erro critico no processo de importacao.") from e
 
 

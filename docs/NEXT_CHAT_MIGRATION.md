@@ -2,6 +2,28 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-05 21:31 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. automatic JSON report generation for every `run_importer_logic` execution.
+  2. helper extraction applied to keep function complexity controlled (`_build_import_run_payload`).
+  3. no runtime business-rule changes in import validation.
+- Files changed:
+  1. `core/app_logic.py`
+  2. `tests/test_import_run_report.py`
+- Report output:
+  1. format: `logs/import_run_<timestamp>.json`
+  2. runtime smoke evidence: `logs/import_run_20260305_213050_586834.json` (`status=no_changes`).
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_run_report.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_run_report.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_run_report.py`: pass.
+  4. `uv run --python 3.13 pytest -q tests/test_import_run_report.py tests/test_import_cache_integrity.py`: `3 passed`.
+- Deferred by user:
+  1. `1778` continuation rows in `SSAscomReprogramacoes_*` remain out of this slice and must be handled in a dedicated next group.
+
 ## CURRENT TRUTH 2026-03-05 20:27 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

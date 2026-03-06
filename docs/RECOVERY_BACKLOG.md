@@ -3,6 +3,34 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-05 (slice minimo: import_run json automatico)
+
+Session timestamp:
+1. start: `2026-03-05 21:27:29 -0300`
+2. end: `2026-03-05 21:31:20 -0300`
+
+Decision delivered:
+1. every `run_importer_logic` execution now emits a structured JSON report in `logs/`.
+2. file naming: `logs/import_run_<timestamp>.json`.
+3. behavior is unchanged for import rules; this is observability only.
+
+Files changed:
+1. `core/app_logic.py`
+2. `tests/test_import_run_report.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_run_report.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_run_report.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_run_report.py`: pass.
+4. `uv run --python 3.13 pytest -q tests/test_import_run_report.py tests/test_import_cache_integrity.py`: `3 passed`.
+
+Evidence:
+1. runtime smoke for no-change path generated: `logs/import_run_20260305_213050_586834.json`.
+2. smoke status: `no_changes`, total candidates `0`.
+
+Deferred by explicit user request:
+1. treatment for `1778` continuation rows from `SSAscomReprogramacoes_*` remains deferred to next action group.
+
 ## Update 2026-03-05 (slice minimo: bootstrap sem falso no-such-table)
 
 Session timestamp:
