@@ -298,6 +298,126 @@ def test_extract_data_from_excel_remaps_executadas_trailing_nan_columns_to_tempo
     assert not any(str(col).startswith("nan") for col in extracted.columns)
 
 
+def test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+        ],
+        [202500104, "SSA executada tex", "01/07/2025", "Sem anomalia", None, 2.5],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0304PM.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500104"
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(2.5)
+    assert "nan" not in extracted.columns
+
+
+def test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Anomalia",
+            float("nan"),
+            float("nan"),
+        ],
+        [202500105, "SSA executada texto", "01/07/2025", "Sem anomalia", None, "texto livre"],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_textual_nan.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500105"
+    assert "total_tempo_tex_executada" not in extracted.columns
+    assert "nan" in extracted.columns
+
+
+def test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped(
+    tmp_path, monkeypatch
+):
+    rows = [
+        [None, "Cabecalho visual", None, None, None, None, None, None, None, None],
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Execucao Parcial",
+            "Responsavel na Execucao",
+            "Descricao Execucao",
+            "Prazo Limite",
+            "Sistema de Origem",
+            "Anomalia",
+            float("nan"),
+        ],
+        [202500106, "SSA tex degradada", "01/07/2025", 1, "Tecnico", "Servico", "Dentro do Prazo", None, None, 4.25],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "SSAs Executadas_22-07-2025_0303PM (2).xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Execucao Parcial": "execucao_parcial",
+            "Responsavel na Execucao": "responsavel_execucao",
+            "Descricao Execucao": "descricao_execucao",
+            "Prazo Limite": "prazo_limite",
+            "Sistema de Origem": "sistema_origem",
+            "Anomalia": "anomalia",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert str(extracted["numero_ssa"].iloc[0]) == "202500106"
+    assert extracted["total_tempo_tex_executada"].iloc[0] == pytest.approx(4.25)
+    assert "nan" not in extracted.columns
+
+
 def test_extract_data_from_excel_respects_cancel_callback_before_io(tmp_path):
     fake_file = tmp_path / "arquivo_que_nao_precisa_existir.xlsx"
     with pytest.raises(ExtractionError, match="operation cancelled"):

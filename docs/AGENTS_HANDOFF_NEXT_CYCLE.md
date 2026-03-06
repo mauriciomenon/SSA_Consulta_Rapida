@@ -2,6 +2,35 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 17:00 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. extractor remap for the second historical malformed execution-tail pattern.
+  2. after empty-column pruning, a single trailing unnamed numeric column is now mapped to `total_tempo_tex_executada`.
+  3. remap remains gated by execution-tail context and numeric payload validation.
+  4. robust importer behavior was preserved.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- Test evidence:
+  1. `test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia`
+  2. `test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex`
+  3. `test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped`
+  4. focused gate run: `19 passed`
+  5. real-file repro for all 6 historical warning sources returned `nan_cols=[]`
+  6. confirmation full rescan log contains `0` occurrences of `Colunas dinamicas placeholder foram descartadas: ['nan']`
+- Runtime confirmation:
+  1. report file: `logs/import_run_20260306_162834_535342.json`
+  2. runtime log: `logs/full_rescan_runtime_20260306_162833.log`
+  3. duration: `1043.059s`
+  4. `success_count=431`, `error_count=0`, `deterministic_failure_count=0`
+  5. final DB columns: `82`
+  6. `nan_*` absent from `ssa_table`
+- Next recommended slice:
+  1. review whether any other legacy execution exports still contain unlabeled fields beyond the two malformed patterns already covered.
+
 ## CURRENT TRUTH 2026-03-06 16:15 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

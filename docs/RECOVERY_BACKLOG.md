@@ -3,6 +3,45 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: remap TEX em trailing unnamed do bloco de execucao)
+
+Session timestamp:
+1. start: `2026-03-06 16:17:08 -0300`
+2. end: `2026-03-06 17:00:15 -0300`
+
+Decision delivered:
+1. the extractor now handles the second historical malformed pattern from `SSAs Executadas_22-07-2025_*`:
+   - after empty-column pruning, a single trailing unnamed numeric column in the execution block is remapped to `total_tempo_tex_executada`
+2. the remap stays guarded by signature checks:
+   - execution-tail columns present
+   - trailing unnamed column only
+   - numeric payload only
+3. robust importer path was not changed.
+
+Files changed:
+1. `extracao/extractor.py`
+2. `tests/test_extracao.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `19 passed`.
+5. real-file extractor repro for the 6 historical files:
+   - all 6 now return `nan_cols=[]`
+   - all 6 now expose `total_tempo_tex_executada`
+6. full rescan confirmation:
+   - JSON: `logs/import_run_20260306_162834_535342.json`
+   - log: `logs/full_rescan_runtime_20260306_162833.log`
+   - duration: `1043.059s`
+   - `success_count=431`, `error_count=0`, `deterministic_failure_count=0`
+   - placeholder warning count for `['nan']`: `0`
+   - final DB columns: `82`
+   - `nan_*` columns absent from `ssa_table`
+
+Deferred by scope control:
+1. if desired, the next semantic review is whether any other historical export family still contains unlabeled execution-tail fields beyond TEX.
+
 ## Update 2026-03-06 (runtime validation: full rescan apos remap de colunas sem header)
 
 Session timestamp:
