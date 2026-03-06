@@ -2,6 +2,42 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 17:00 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Slice delivered:
+  1. extractor now remaps the second historical malformed execution-tail pattern:
+     - after empty-column pruning, `1 trailing unnamed numeric column` in the execution block becomes `total_tempo_tex_executada`
+  2. remap is guarded by structural checks and numeric payload validation.
+  3. robust importer path was not changed.
+- Files changed:
+  1. `extracao/extractor.py`
+  2. `tests/test_extracao.py`
+- New regressions:
+  1. `test_extract_data_from_excel_remaps_single_numeric_tex_column_after_anomalia`
+  2. `test_extract_data_from_excel_does_not_remap_textual_unnamed_column_to_tex`
+  3. `test_extract_data_from_excel_remaps_single_numeric_tex_column_when_anomalia_was_dropped`
+- Validation snapshot:
+  1. `uv run --python 3.13 python -m py_compile extracao/extractor.py tests/test_extracao.py`: pass.
+  2. `uv run --python 3.13 ruff check extracao/extractor.py tests/test_extracao.py`: pass.
+  3. `uv run --python 3.13 ty check extracao/extractor.py tests/test_extracao.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py`: `19 passed`.
+  5. real-file repro for the 6 historical `SSAs Executadas_22-07-2025_*` warning sources:
+     - all now return `nan_cols=[]`
+     - all now expose `total_tempo_tex_executada`
+  6. full rescan confirmation:
+     - `logs/import_run_20260306_162834_535342.json`
+     - `logs/full_rescan_runtime_20260306_162833.log`
+     - placeholder warning count for `['nan']`: `0`
+     - final DB columns: `82`
+     - `nan_*` absent from schema
+- Key operational meaning:
+  1. the runtime is now clean for both historical execution-tail malformed patterns already diagnosed:
+     - 3 trailing unnamed -> `TPE/TEX/TPO`
+     - 1 surviving trailing unnamed numeric -> `TEX`
+  2. schema drift from `nan_*` is closed in the promoted DB and the residual warning for raw `nan` also disappeared in the confirmation rescan.
+
 ## CURRENT TRUTH 2026-03-06 16:15 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

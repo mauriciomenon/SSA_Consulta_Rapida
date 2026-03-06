@@ -363,6 +363,12 @@ def extract_data_from_excel(
         if column_mappings:
             combined_df.rename(columns=column_mappings, inplace=True)
 
+        def _is_unnamed_header_value(header_value: Any) -> bool:
+            if isinstance(header_value, str):
+                normalized_header = header_value.strip().lower()
+                return normalized_header in {"", "nan"} or normalized_header.startswith("unnamed:")
+            return bool(pd.isna(header_value))
+
         if (
             "anomalia" in combined_df.columns
             and not {
@@ -372,30 +378,67 @@ def extract_data_from_excel(
             }.intersection(set(combined_df.columns))
         ):
             anomaly_idx = list(combined_df.columns).index("anomalia")
-            candidate_positions = list(
-                range(anomaly_idx + 1, min(anomaly_idx + 4, len(combined_df.columns)))
-            )
-            if len(candidate_positions) == 3:
-                unnamed_positions: list[int] = []
-                for pos in candidate_positions:
-                    col_name = combined_df.columns[pos]
-                    if isinstance(col_name, str):
-                        normalized_col_name = col_name.strip().lower()
-                        is_unnamed = normalized_col_name in {"", "nan"} or normalized_col_name.startswith("unnamed:")
-                    else:
-                        is_unnamed = bool(pd.isna(col_name))
-                    if is_unnamed:
-                        unnamed_positions.append(pos)
-                if len(unnamed_positions) == 3:
+            trailing_positions = list(range(anomaly_idx + 1, len(combined_df.columns)))
+            trailing_unnamed_positions = [
+                pos for pos in trailing_positions if _is_unnamed_header_value(combined_df.columns[pos])
+            ]
+            if trailing_unnamed_positions == trailing_positions:
+                if len(trailing_unnamed_positions) == 3:
                     renamed_columns = list(combined_df.columns)
-                    renamed_columns[unnamed_positions[0]] = "total_tempo_tpe_executada"
-                    renamed_columns[unnamed_positions[1]] = "total_tempo_tex_executada"
-                    renamed_columns[unnamed_positions[2]] = "total_tempo_tpo_executada"
+                    renamed_columns[trailing_unnamed_positions[0]] = "total_tempo_tpe_executada"
+                    renamed_columns[trailing_unnamed_positions[1]] = "total_tempo_tex_executada"
+                    renamed_columns[trailing_unnamed_positions[2]] = "total_tempo_tpo_executada"
                     combined_df.columns = renamed_columns
                     logger.info(
-                        "Arquivo '%s' possui colunas finais sem header apos 'anomalia'; remapeadas para totais TPE/TEX/TPO executada.",
+                        "Arquivo '%s' possui 3 colunas finais sem header apos 'anomalia'; remapeadas para totais TPE/TEX/TPO executada.",
                         file_path,
                     )
+                elif (
+                    len(trailing_unnamed_positions) == 1
+                    and "total_tempo_tex_executada" not in combined_df.columns
+                ):
+                    tex_pos = trailing_unnamed_positions[0]
+                    tex_series = combined_df.iloc[:, tex_pos]
+                    tex_non_null = tex_series.dropna()
+                    numeric_tex = pd.to_numeric(tex_non_null, errors="coerce")
+                    if not tex_non_null.empty and numeric_tex.notna().all():
+                        renamed_columns = list(combined_df.columns)
+                        renamed_columns[tex_pos] = "total_tempo_tex_executada"
+                        combined_df.columns = renamed_columns
+                        logger.info(
+                            "Arquivo '%s' possui 1 coluna final sem header apos 'anomalia'; remapeada para total_tempo_tex_executada.",
+                            file_path,
+                        )
+
+        trailing_unnamed_positions: list[int] = []
+        for pos in range(len(combined_df.columns) - 1, -1, -1):
+            if _is_unnamed_header_value(combined_df.columns[pos]):
+                trailing_unnamed_positions.append(pos)
+                continue
+            break
+        trailing_unnamed_positions.reverse()
+        if (
+            len(trailing_unnamed_positions) == 1
+            and "total_tempo_tex_executada" not in combined_df.columns
+            and {"execucao_parcial", "responsavel_execucao", "descricao_execucao", "prazo_limite"}.issubset(set(combined_df.columns))
+        ):
+            tex_pos = trailing_unnamed_positions[0]
+            previous_named = combined_df.columns[tex_pos - 1] if tex_pos > 0 else None
+            tex_series = combined_df.iloc[:, tex_pos]
+            tex_non_null = tex_series.dropna()
+            numeric_tex = pd.to_numeric(tex_non_null, errors="coerce")
+            if (
+                previous_named in {"anomalia", "prazo_limite"}
+                and not tex_non_null.empty
+                and numeric_tex.notna().all()
+            ):
+                renamed_columns = list(combined_df.columns)
+                renamed_columns[tex_pos] = "total_tempo_tex_executada"
+                combined_df.columns = renamed_columns
+                logger.info(
+                    "Arquivo '%s' possui 1 coluna trailing sem header no bloco de execucao; remapeada para total_tempo_tex_executada.",
+                    file_path,
+                )
 
         # Resolve duplicadas apos a normalizacao contextual.
         combined_df = _deduplicate_columns(combined_df)
