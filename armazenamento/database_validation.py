@@ -145,16 +145,48 @@ def _validate_duplicate_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if valid_ssa_df.empty:
         return
     duplicated_ssa = valid_ssa_df.duplicated(subset=['numero_ssa'], keep=False)
-    duplicate_count = duplicated_ssa.sum()
-    if duplicate_count > 0:
-        report['warnings'].append(f"{duplicate_count} números SSA duplicados encontrados")
+    duplicate_count = int(duplicated_ssa.sum())
+    if duplicate_count == 0:
+        return
+
+    exact_duplicate_indices: list[int] = []
+    conflicting_duplicate_indices: list[int] = []
+    duplicate_groups = valid_ssa_df.loc[duplicated_ssa].groupby('numero_ssa', sort=False, dropna=False)
+    for _, group in duplicate_groups:
+        if len(group.drop_duplicates()) == 1:
+            exact_duplicate_indices.extend(group.index.tolist())
+        else:
+            conflicting_duplicate_indices.extend(group.index.tolist())
+
+    if exact_duplicate_indices:
+        exact_mask = valid_ssa_df.index.isin(exact_duplicate_indices)
+        exact_count = int(exact_mask.sum())
+        report['warnings'].append(
+            f"{exact_count} numeros SSA duplicados identicos encontrados"
+        )
         report['violations'].append(
             {
-                'rule': 'duplicate_numero_ssa',
+                'rule': 'duplicate_numero_ssa_exact',
                 'column': 'numero_ssa',
                 'severity': 'warning',
-                'count': int(duplicate_count),
-                'sample_ssa': _sample_ssas(valid_ssa_df, duplicated_ssa),
+                'count': exact_count,
+                'sample_ssa': _sample_ssas(valid_ssa_df, exact_mask),
+            }
+        )
+
+    if conflicting_duplicate_indices:
+        conflicting_mask = valid_ssa_df.index.isin(conflicting_duplicate_indices)
+        conflicting_count = int(conflicting_mask.sum())
+        report['warnings'].append(
+            f"{conflicting_count} numeros SSA duplicados conflitantes encontrados"
+        )
+        report['violations'].append(
+            {
+                'rule': 'duplicate_numero_ssa_conflict',
+                'column': 'numero_ssa',
+                'severity': 'warning',
+                'count': conflicting_count,
+                'sample_ssa': _sample_ssas(valid_ssa_df, conflicting_mask),
             }
         )
 

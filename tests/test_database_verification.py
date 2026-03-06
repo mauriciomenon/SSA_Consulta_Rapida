@@ -172,6 +172,38 @@ class TestDataValidation:
         assert len(report['warnings']) > 0
         assert "datas inválidas" in str(report['warnings'])
 
+    def test_validate_duplicate_ssa_exact_rows(self):
+        """Duplicidade literal deve ser classificada separadamente."""
+        df = pd.DataFrame({
+            'numero_ssa': [202205845, 202205845],
+            'situacao': ['STE', 'STE'],
+            'data_cadastro': ['2022-04-13 10:11:15', '2022-04-13 10:11:15'],
+            'descricao_ssa': ['Descricao identica', 'Descricao identica'],
+        })
+
+        report = validate_dataframe_before_insert(df)
+
+        rules = {violation['rule'] for violation in report['violations']}
+        assert 'duplicate_numero_ssa_exact' in rules
+        assert 'duplicate_numero_ssa_conflict' not in rules
+        assert "duplicados identicos" in str(report['warnings'])
+
+    def test_validate_duplicate_ssa_conflicting_rows(self):
+        """Duplicidade com payload diferente deve seguir como conflito."""
+        df = pd.DataFrame({
+            'numero_ssa': [202205845, 202205845],
+            'situacao': ['STE', 'APG'],
+            'data_cadastro': ['2022-04-13 10:11:15', '2022-04-13 10:11:15'],
+            'descricao_ssa': ['Descricao identica', 'Descricao alterada'],
+        })
+
+        report = validate_dataframe_before_insert(df)
+
+        rules = {violation['rule'] for violation in report['violations']}
+        assert 'duplicate_numero_ssa_conflict' in rules
+        assert 'duplicate_numero_ssa_exact' not in rules
+        assert "duplicados conflitantes" in str(report['warnings'])
+
     def test_validate_missing_data_cadastro_exceptions_keep_non_allowed_invalid(self):
         """SCC/ADI/ASE sem data sao permitidos, mas status fora da lista seguem invalidos."""
         df = pd.DataFrame(
@@ -218,6 +250,28 @@ class TestDatabaseRepair:
         report = verify_database_integrity(db_path, table_name='ssas')
         assert report['is_valid'] is True
         assert report['table_exists'] is True
+
+    def test_repair_nonexistent_database_avoids_false_warning(self, tmp_path, caplog):
+        """Banco ausente em bootstrap nao deve logar warning generico de problema."""
+        db_path = os.path.join(tmp_path, 'new_bootstrap.db')
+        schema_path = os.path.join(tmp_path, 'schema.sql')
+
+        with open(schema_path, 'w') as f:
+            f.write("""
+            CREATE TABLE IF NOT EXISTS ssas (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            );
+            """)
+
+        caplog.set_level("INFO")
+        result = repair_database_if_needed(db_path, schema_path, table_name='ssas')
+
+        assert result is True
+        assert "Problemas detectados no banco" not in caplog.text
+        assert "Banco ausente em bootstrap" in caplog.text
 
     def test_repair_valid_database(self, tmp_path):
         """Testa reparo de banco já válido."""

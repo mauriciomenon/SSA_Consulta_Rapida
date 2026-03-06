@@ -3,6 +3,33 @@
 This file tracks post-merge hardening and cleanup for the recovery branch.
 Scope is split by priority to keep delivery safe and incremental.
 
+## Update 2026-03-06 (slice minimo: classificar duplicidade exata e silenciar bootstrap esperado)
+
+Session timestamp:
+1. start: `2026-03-06 19:59:55 -0300`
+2. end: `2026-03-06 20:21:09 -0300`
+
+Decision delivered:
+1. `duplicate_numero_ssa` agora distingue:
+   - duplicidade exata de linha
+   - duplicidade conflitante
+2. bootstrap de DB ausente em `repair_database_if_needed()` deixou de emitir warning generico de problema.
+3. o fluxo funcional de criacao/reparo nao mudou.
+
+Files changed:
+1. `armazenamento/database_validation.py`
+2. `armazenamento/database_integrity.py`
+3. `tests/test_database_verification.py`
+
+Validation:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_database_verification.py`: `16 passed`.
+
+Deferred by scope control:
+1. if desired later, `core.app_logic` logging can be refined to render the new duplicate categories with friendlier text in the runtime log.
+
 ## Update 2026-03-06 (slice minimo: cobertura por fase do extrator)
 
 Session timestamp:

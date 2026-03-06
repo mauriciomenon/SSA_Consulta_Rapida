@@ -2,6 +2,31 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 20:21 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Delivered in this slice:
+  1. duplicate SSA validation now splits exact duplicates from conflicting duplicates.
+  2. missing DB bootstrap in `repair_database_if_needed()` is now logged as expected creation, not generic database trouble.
+  3. import semantics and final DB content were preserved.
+- Files changed:
+  1. `armazenamento/database_validation.py`
+  2. `armazenamento/database_integrity.py`
+  3. `tests/test_database_verification.py`
+- Test evidence:
+  1. focused gate run: `16 passed`
+  2. new coverage includes:
+     - exact duplicate rows
+     - conflicting duplicate rows
+     - bootstrap creation without false warning
+- Explicitly unchanged:
+  1. robust importer path
+  2. extractor behavior
+  3. GUI/runtime flow outside validation/integrity logging
+- Next recommended slice:
+  1. if needed, refine `core.app_logic` runtime wording so the new duplicate categories are rendered with clearer operator-facing messages.
+
 ## CURRENT TRUTH 2026-03-06 19:40 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
