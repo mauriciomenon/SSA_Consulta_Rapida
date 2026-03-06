@@ -2,6 +2,27 @@
 
 Use this file to migrate context to a new chat without losing execution quality.
 
+## CURRENT TRUTH 2026-03-06 16:15 - start from here
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Runtime validation completed after the extractor remap hotfix:
+  1. real full rescan finished successfully in `868.266s`.
+  2. report file: `logs/import_run_20260306_160032_646798.json`.
+  3. runtime log: `logs/full_rescan_runtime_20260306_160032.log`.
+  4. `success_count=431`, `error_count=0`, `deterministic_failure_count=0`.
+  5. ignored legacy `.xls` count remained `135`.
+  6. promoted backup path: `data/ssas.db.full_rescan_backup_20260306_161500`.
+- Final DB metrics after promotion:
+  1. rows: `76426`
+  2. distinct `numero_ssa`: `76426`
+  3. columns: `82`
+  4. null `data_cadastro`: `608`
+  5. `nan_1` and `nan_2` are absent from the final schema
+- Important interpretation:
+  1. the concrete root cause for `nan_1`/`nan_2` is fixed in the promoted DB.
+  2. runtime still logs raw placeholder discard `['nan']` for some historical `SSAs Executadas_22-07-2025_*` exports, so there may still be a separate semantic cleanup slice if those unlabeled single columns carry useful data.
+
 ## CURRENT TRUTH 2026-03-06 16:02 - start from here
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.

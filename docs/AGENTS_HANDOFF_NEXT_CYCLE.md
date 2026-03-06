@@ -2,6 +2,29 @@
 
 This handoff is ready to reuse in the next conversation.
 
+## CURRENT TRUTH 2026-03-06 16:15 - authoritative block
+
+- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
+- Local release baseline: `4.30`.
+- Runtime validation after the extractor remap hotfix:
+  1. full rescan completed successfully on the real corpus.
+  2. elapsed runtime: `868.266s`.
+  3. report file: `logs/import_run_20260306_160032_646798.json`.
+  4. promoted backup path: `data/ssas.db.full_rescan_backup_20260306_161500`.
+  5. `success_count=431`, `error_count=0`, `deterministic_failure_count=0`.
+  6. ignored legacy `.xls`: `135`.
+- Final DB state:
+  1. rows: `76426`
+  2. distinct `numero_ssa`: `76426`
+  3. columns: `82`
+  4. null `data_cadastro`: `608`
+  5. `nan_1` and `nan_2` are absent from `ssa_table`
+- Residual runtime signal:
+  1. some historical `SSAs Executadas_22-07-2025_*` files still log raw placeholder discard `['nan']`.
+  2. schema drift is no longer visible in the promoted DB, but a future semantic review may still be needed to decide whether those single unlabeled columns contain data worth mapping.
+- Next recommended slice:
+  1. inspect the remaining raw `nan` warnings in historical `SSAs Executadas_22-07-2025_*` exports and decide whether they represent valid data or safe discard.
+
 ## CURRENT TRUTH 2026-03-06 16:02 - authoritative block
 
 - Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
