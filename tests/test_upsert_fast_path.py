@@ -180,3 +180,53 @@ def test_perform_upsert_fast_path_handles_multiple_chunks_in_same_transaction() 
     assert processed == 105
     assert count == 105
     assert blob_count == 0
+
+
+def test_insert_dataframe_with_smart_upsert_impl_skips_upsert_when_only_null_rows_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": None,
+                "descricao_ssa": "sem identidade",
+                "data_cadastro": "2026-01-01 00:00:00",
+                "semana_programada": 202601,
+            },
+            {
+                "numero_ssa": "202600010",
+                "descricao_ssa": "SSA 10",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+            },
+            {
+                "numero_ssa": "202600011",
+                "descricao_ssa": "SSA 11",
+                "data_cadastro": "2026-01-03 00:00:00",
+                "semana_programada": 202603,
+            },
+        ]
+    )
+
+    def _unexpected_upsert(*args, **kwargs) -> int:
+        raise AssertionError("_perform_upsert nao deveria ser chamado quando a tabela so tem numero_ssa nulo")
+
+    monkeypatch.setattr(upsert_logic, "_perform_upsert", _unexpected_upsert)
+
+    assert upsert_logic.insert_dataframe_with_smart_upsert_impl(incoming, conn, "ssa_table") is True
+
+    rows = conn.execute(
+        "SELECT numero_ssa, descricao_ssa FROM ssa_table ORDER BY descricao_ssa"
+    ).fetchall()
+    assert rows == [
+        ("202600010", "SSA 10"),
+        ("202600011", "SSA 11"),
+        (None, "sem identidade"),
+    ]
+
+
+def test_quote_identifier_rejects_invalid_name() -> None:
+    with pytest.raises(ValueError):
+        upsert_logic._quote_identifier("ssa-table")

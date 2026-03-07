@@ -123,6 +123,13 @@ def _sanitize_dynamic_column_name(
     return candidate
 
 
+def _quote_identifier(name: str) -> str:
+    safe_name = str(name or "").strip()
+    if _VALID_IDENTIFIER_RE.fullmatch(safe_name) is None:
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return f'"{safe_name}"'
+
+
 def _sync_dynamic_columns_and_schema(
     *,
     work: pd.DataFrame,
@@ -185,7 +192,10 @@ def _sync_dynamic_columns_and_schema(
         if isinstance(db_path, str):
             db_module.ensure_column_exists(db_path, table_name, col, sql_type)
         else:
-            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {sql_type}")  # noqa: S608
+            conn.execute(
+                f"ALTER TABLE {_quote_identifier(table_name)} "
+                f"ADD COLUMN {_quote_identifier(col)} {sql_type}"
+            )
     return final_work
 
 
@@ -365,10 +375,11 @@ def _persist_upsert_chunk(
         except Exception as exc:
             if "within a transaction" not in str(exc).lower():
                 raise
+    quoted_table_name = _quote_identifier(table_name)
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
         conn.execute(
-            f"DELETE FROM {table_name} WHERE numero_ssa IN ({placeholders})",  # noqa: S608
+            f"DELETE FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
             list(delete_keys),
         )
     if rows_to_persist:
@@ -417,12 +428,21 @@ def _upsert_cache_key(numero: Any) -> str | None:
     return str(numero).strip()
 
 
+def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
+    quoted_table_name = _quote_identifier(table_name)
+    cursor = conn.execute(
+        f"SELECT 1 FROM {quoted_table_name} WHERE numero_ssa IS NOT NULL LIMIT 1"
+    )
+    return cursor.fetchone() is not None
+
+
 def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int = 100) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     status_rank, description_columns, date_columns = _resolve_upsert_config()
     os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
     total_upserted = 0
+    quoted_table_name = _quote_identifier(table_name)
     for start in range(0, len(has_ssa), chunk_size):
         chunk = has_ssa.iloc[start:start + chunk_size]
 
@@ -437,7 +457,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         if chunk_num_ssa:
             placeholders = ", ".join(["?"] * len(chunk_num_ssa))
             existing_chunk = pd.read_sql_query(
-                f"SELECT * FROM {table_name} WHERE numero_ssa IN ({placeholders})",  # noqa: S608
+                f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
                 conn,
                 params=chunk_num_ssa,
             )
@@ -539,7 +559,7 @@ def prepare_dataframe_for_upsert(frame: pd.DataFrame) -> pd.DataFrame:
     for c in date_columns:
         if c in work_local.columns:
             try:
-                work_local[c] = [_to_string_date(v) for v in work_local[c]]
+                work_local[c] = work_local[c].map(_to_string_date)
             except Exception:  # pragma: no cover
                 pass
     return work_local
@@ -627,7 +647,7 @@ def insert_dataframe_with_smart_upsert_impl(
             from .identifier_utils import is_valid_identifier  # local import to avoid cycles
             if not is_valid_identifier(table_name):
                 raise ValueError(f"Invalid SQL identifier for table: {table_name}")
-            cursor.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
+            cursor.execute(f"PRAGMA table_info({_quote_identifier(table_name)})")
             existing_columns = {row[1] for row in cursor.fetchall()}
             work = _sync_dynamic_columns_and_schema(
                 work=work,
@@ -656,15 +676,29 @@ def insert_dataframe_with_smart_upsert_impl(
             no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
-            # pandas.to_sql may end the previous transaction. Re-open it for atomic upsert.
-            if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
-                try:
-                    cursor.execute("BEGIN")
-                except Exception as exc:
-                    if "within a transaction" not in str(exc).lower():
-                        raise
-            inserted = _perform_upsert(has_ssa, table_name, conn)
-            logger.info("Processados %s registros com numero_ssa via upsert", inserted)
+            target_has_existing_ssa = _table_has_existing_ssa_rows(conn, table_name)
+            if not target_has_existing_ssa and has_ssa['numero_ssa'].is_unique:
+                chunk_size = (
+                    min(500, max(1, 999 // len(has_ssa.columns)))
+                    if len(has_ssa.columns) > 0
+                    else 500
+                )
+                has_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
+                inserted = len(has_ssa)
+                logger.info(
+                    "Fast-path append de %s registros com numero_ssa unicos em tabela sem SSA previa",
+                    inserted,
+                )
+            else:
+                # pandas.to_sql may end the previous transaction. Re-open it for atomic upsert.
+                if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
+                    try:
+                        cursor.execute("BEGIN")
+                    except Exception as exc:
+                        if "within a transaction" not in str(exc).lower():
+                            raise
+                inserted = _perform_upsert(has_ssa, table_name, conn)
+                logger.info("Processados %s registros com numero_ssa via upsert", inserted)
         conn.commit()  # type: ignore[attr-defined]
         logger.info("Inserção completada com sucesso")
         return True
