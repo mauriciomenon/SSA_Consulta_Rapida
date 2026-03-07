@@ -2,6 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-06 21:03 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. `core.app_logic` agora traduz `duplicate_numero_ssa_exact` para `Duplicidade exata no export`.
+  2. `core.app_logic` agora traduz `duplicate_numero_ssa_conflict` para `Duplicidade conflitante no export`.
+  3. regras nao mapeadas continuam com o formato generico.
+  4. sem mudanca em import, schema ou comportamento do DB.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `tests/test_import_single_error_classification.py`
+- Evidencia de teste:
+  1. focused gate run: `5 passed`
+  2. teste novo cobre:
+     - mensagem amigavel para duplicidade exata
+     - fallback generico para regra nao mapeada
+- Explicitamente inalterado:
+  1. caminho robust
+  2. extrator
+  3. integridade/reparo do banco
+- Proximo slice recomendado:
+  1. investigar os arquivos/lotes que geram remocao alta de registros invalidos, em especial o caso `1778`.
+
 ## CURRENT TRUTH 2026-03-06 20:21 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
