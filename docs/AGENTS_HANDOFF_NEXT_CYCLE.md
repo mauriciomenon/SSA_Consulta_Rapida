@@ -2,6 +2,50 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 13:35 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice do caminho padrao:
+  1. `armazenamento/database.py`
+     - `replace` agora e proibido para `ssa_table`, `ssas` e `ssa_chamados`
+     - schema de SSA continua obrigatoriamente schema-first
+     - rollback explicito e modularizacao interna minima foram aplicados
+  2. `armazenamento/database_upsert_logic.py`
+     - bucket seguro de `chunk_size` no merge real:
+       - `<=1000` linhas -> `100`
+       - `>1000` linhas -> `250`
+     - short-circuit em `_prepare_upsert_target_row()` evita persistencia quando:
+       - a linha nova e mais antiga
+       - o merge nao muda nada
+- Evidencia quantitativa:
+  1. benchmark correto e sobre tabela ja populada
+  2. no arquivo `Todas as SSAs - 18-08-2022_1144AM.xlsx`:
+     - `100` -> `95.3781s`
+     - `250` -> `75.8729s`
+     - `500` -> `95.1726s`
+  3. depois do short-circuit:
+     - `resolved_chunk_size=250`
+     - `seconds=44.9060`
+     - `processed=0`
+     - `rows_after=18513`
+- Gates focados:
+  1. `py_compile`: pass
+  2. `ruff`: pass
+  3. `ty`: pass
+  4. `pytest tests/test_database.py tests/test_upsert_fast_path.py`: `22 passed`
+- Estado do rescan:
+  1. um full rescan real foi iniciado com a heuristica intermediaria errada (`500`) e cancelado depois que a regressao ficou evidente
+  2. a causa foi corrigida no mesmo sprint
+  3. o rerun completo do full rescan com o estado final ainda esta pendente
+- Arquivos locais fora de escopo, nao comitar:
+  1. `data/ssas.db`
+  2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+  3. `tests/test_db_reset_and_upsert.py`
+  4. `data/db_backups/`
+  5. `data/tmp_import_sample/`
+  6. `shared/semantic_duplicate_resolution.py`
+
 ## CURRENT TRUTH 2026-03-07 00:39 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

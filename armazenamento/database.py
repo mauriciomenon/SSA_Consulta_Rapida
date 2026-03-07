@@ -215,6 +215,80 @@ def query_db(
 IfExistsPolicy = Literal['fail', 'replace', 'append']
 
 
+def _is_ssa_target_alias(name: str) -> bool:
+    return name in {CANONICAL_SSA_TABLE, *LEGACY_SSA_TABLE_ALIASES}
+
+
+def _validate_insert_policy(table_name: str, if_exists: IfExistsPolicy) -> None:
+    if if_exists == 'replace' and _is_ssa_target_alias(table_name):
+        raise ValueError(
+            "if_exists='replace' e proibido para a tabela canonica de SSA; "
+            "use reset/schema-first antes da insercao"
+        )
+
+
+def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool) -> pd.DataFrame:
+    if df.empty:
+        if legacy_mode:
+            raise ValueError("DataFrame vazio fornecido (modo legado)")
+        logger.warning("DataFrame vazio fornecido para insercao (modo novo). Nada a fazer.")
+        return df.copy()
+
+    work_df = df.copy()
+    try:
+        from .database_upsert_logic import apply_column_whitelist as _apply_wl
+        work_df = _apply_wl(work_df)
+    except Exception:  # pragma: no cover
+        pass
+
+    if 'numero_ssa' in work_df.columns:
+        work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_value)
+        work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
+
+    if work_df.empty and legacy_mode:
+        raise ValueError("DataFrame sem linhas validas apos normalizacao")
+
+    return work_df
+
+
+def _calculate_simple_insert_batch_size(column_count: int) -> int:
+    return min(500, max(1, 999 // column_count)) if column_count > 0 else 500
+
+
+def _execute_simple_insert(
+    conn: _sqlite3_typehint.Connection,
+    work_df: pd.DataFrame,
+    final_table: str,
+    if_exists: IfExistsPolicy,
+    *,
+    mode_label: str,
+) -> bool:
+    batch_size = _calculate_simple_insert_batch_size(len(work_df.columns))
+    logger.debug("Batch size calculado (%s): %s linhas para %s colunas", mode_label, batch_size, len(work_df.columns))
+    work_df.reset_index(drop=True, inplace=True)
+
+    if 'numero_ssa' in work_df.columns:
+        ssa_count = work_df['numero_ssa'].notna().sum()
+        logger.info("Registros com SSA (%s): %s/%s", mode_label, ssa_count, len(work_df))
+
+    insert_start = time.time()
+    work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
+    insert_time = time.time() - insert_start
+
+    conn.commit()
+    commit_time = time.time() - insert_start - insert_time
+    total_time = time.time() - insert_start
+    logger.info(
+        "Desempenho insercao %s: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
+        mode_label,
+        insert_time,
+        commit_time,
+        total_time,
+        (len(work_df) / total_time) if total_time else 0.0,
+    )
+    return True
+
+
 def _quote_identifier(name: str) -> str:
     safe_name = str(name or "").strip()
     if not is_valid_identifier(safe_name):
@@ -275,6 +349,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
 
     Regras adicionais:
       * Se ``table_name`` for uma VIEW legada ("ssas" / "ssa_chamados") redireciona para tabela fisica ``ssa_table`` se existir
+      * ``if_exists='replace'`` e proibido para ``ssa_table`` e aliases legados; schema de SSA nasce via schema canonico, nunca por DataFrame
       * Filtra (descarta) linhas cujo numero_ssa normalizado resulte em None
       * DataFrame vazio:
           - modo legado: levanta ValueError (test_dataframe_validation_rejects_empty)
@@ -309,28 +384,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         if_exists = kwargs.get('if_exists', 'append')
         legacy_mode = True
 
-    # Normalizacao / validacao DataFrame
-    if df.empty:
-        if legacy_mode:
-            raise ValueError("DataFrame vazio fornecido (modo legado)")
-        logger.warning("DataFrame vazio fornecido para insercao (modo novo). Nada a fazer.")
+    work_df = _prepare_dataframe_for_simple_insert(df, legacy_mode=legacy_mode)
+    if work_df.empty:
         return True
 
-    work_df = df.copy()
-    # Aplicacao de whitelist unificada (evita duplicacao com smart upsert)
-    try:
-        from .database_upsert_logic import apply_column_whitelist as _apply_wl
-        work_df = _apply_wl(work_df)
-    except Exception:  # pragma: no cover
-        pass
-    if 'numero_ssa' in work_df.columns:
-        work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_value)
-        # Descarta linhas sem numero_ssa valido (regra implicita dos testes de importacao)
-        work_df = work_df[work_df['numero_ssa'].notna()].reset_index(drop=True)
-
-    # Apos normalizacao, se ficar vazio em modo legado, tambem gera ValueError
-    if work_df.empty and legacy_mode:
-        raise ValueError("DataFrame sem linhas validas apos normalizacao")
+    active_conn: _sqlite3_typehint.Connection | None = legacy_conn
 
     try:
         if not legacy_mode:
@@ -339,6 +397,7 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             logger.info("Iniciando insercao padrao: %s registros em '%s'", len(work_df), table_name)
 
             with get_db_connection(db_path) as conn:  # type: ignore[arg-type]
+                active_conn = conn
                 cur = conn.cursor()
                 cur.execute("PRAGMA journal_mode")
                 journal_mode = cur.fetchone()[0]
@@ -347,24 +406,16 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
                 logger.info("Configuracoes SQLite: journal_mode=%s, cache_size=%s", journal_mode, cache_size)
 
                 final_table = _resolve_target_table(conn, table_name)
-                batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
-                logger.debug("Batch size calculado: %s linhas para %s colunas", batch_size, len(work_df.columns))
-                work_df.reset_index(drop=True, inplace=True)
-
-                if 'numero_ssa' in work_df.columns:
-                    ssa_count = work_df['numero_ssa'].notna().sum()
-                    logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
-
-                insert_start = time.time()
-                work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
-                insert_time = time.time() - insert_start
-
-                conn.commit()
-                commit_time = time.time() - insert_start - insert_time
-
+                _validate_insert_policy(final_table, if_exists)
+                _execute_simple_insert(
+                    conn,
+                    work_df,
+                    final_table,
+                    if_exists,
+                    mode_label='padrao',
+                )
                 total_time = time.time() - start_time
-                logger.info("Desempenho insercao padrao: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
-                            insert_time, commit_time, total_time, (len(work_df) / total_time) if total_time else 0.0)
+                logger.debug("Tempo total com setup (%s): %.2fs", final_table, total_time)
 
             logger.info("%s linhas inseridas (modo padrao) em '%s'", len(work_df), table_name)
             return True
@@ -376,35 +427,27 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             raise RuntimeError("Conexao legado ausente em insert_dataframe_to_db")
 
         final_table = _resolve_target_table(legacy_conn, table_name)
-        batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
-        work_df.reset_index(drop=True, inplace=True)
-
-        if 'numero_ssa' in work_df.columns:
-            ssa_count = work_df['numero_ssa'].notna().sum()
-            logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
-
-        insert_start = time.time()
-        work_df.to_sql(
-            final_table,
+        _validate_insert_policy(final_table, if_exists)
+        _execute_simple_insert(
             legacy_conn,
-            if_exists=if_exists,
-            index=False,
-            chunksize=batch_size,
+            work_df,
+            final_table,
+            if_exists,
+            mode_label='legado',
         )
-        insert_time = time.time() - insert_start
-
-        legacy_conn.commit()
-        commit_time = time.time() - insert_start - insert_time
-
         total_time = time.time() - start_time
-        logger.info("Desempenho insercao legado: insercao=%.2fs, commit=%.2fs, total=%.2fs, throughput=%.1f registros/s",
-                    insert_time, commit_time, total_time, (len(work_df) / total_time) if total_time else 0.0)
+        logger.debug("Tempo total com setup (%s): %.2fs", final_table, total_time)
 
         logger.info("%s linhas inseridas (modo legado) em '%s'", len(work_df), final_table)
         return True
     except ValueError:
         raise
     except Exception as e:  # pragma: no cover
+        if active_conn is not None:
+            try:
+                active_conn.rollback()
+            except Exception:
+                logger.exception("Falha ao executar rollback explicito em insert_dataframe_to_db")
         logger.error(f"Falha ao inserir dados na tabela '{table_name}': {e}")
         return False
 

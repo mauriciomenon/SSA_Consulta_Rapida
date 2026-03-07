@@ -409,8 +409,12 @@ def _prepare_upsert_target_row(
         return row.copy(), True
 
     if not complementary_mode:
+        if not _should_update_existing(existing_row, row):
+            return existing_row.copy(), False
         merged_row = _merge_preserve_existing_row(existing_row, row)
-        return merged_row, _should_update_existing(existing_row, row)
+        if merged_row.equals(existing_row):
+            return existing_row.copy(), False
+        return merged_row, True
 
     merged_series = _merge_complement_row(
         existing_row,
@@ -436,15 +440,27 @@ def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
     return cursor.fetchone() is not None
 
 
-def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int = 100) -> int:
+def _resolve_upsert_chunk_size(row_count: int) -> int:
+    if row_count <= 1000:
+        return 100
+    return 250
+
+
+def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
     status_rank, description_columns, date_columns = _resolve_upsert_config()
     os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
+    effective_chunk_size = chunk_size if chunk_size is not None else _resolve_upsert_chunk_size(len(has_ssa))
     total_upserted = 0
     quoted_table_name = _quote_identifier(table_name)
-    for start in range(0, len(has_ssa), chunk_size):
-        chunk = has_ssa.iloc[start:start + chunk_size]
+    logger.debug(
+        "Chunk size do upsert: %s para %s registros com numero_ssa",
+        effective_chunk_size,
+        len(has_ssa),
+    )
+    for start in range(0, len(has_ssa), effective_chunk_size):
+        chunk = has_ssa.iloc[start:start + effective_chunk_size]
 
         chunk_num_ssa: list[Any] = (
             chunk['numero_ssa']
