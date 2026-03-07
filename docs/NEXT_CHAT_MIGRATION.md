@@ -48,6 +48,31 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. atacar performance do upsert com benchmark controlado
   2. ou atacar cleanup especifico do caminho robust (`sn`, `sn_1`, `desde.1`, `ate.1`) se o objetivo for maturar esse caminho
 
+## CURRENT TRUTH 2026-03-07 10:21 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue no robust:
+  1. `utils/robust_importer.py` agora nunca preserva duplicatas pontuadas como nome final de coluna.
+  2. duplicatas semanticas conhecidas continuam indo para canones dedicados:
+     - `SN` -> `sn_retirado`, `sn_instalado`, `sn_extra`
+     - `desde/ate` -> sufixos com underscore
+     - `Numero da SSA.1/.2`, `Setor Emissor.1/.2`, `Setor Executor.1/.2`, `Situacao.1/.2` -> colunas relacionadas canonicas
+  3. duplicata pontuada desconhecida no robust agora vira sufixo com underscore, nunca com ponto.
+- Evidencia tecnica:
+  1. `uv run --python 3.13 pytest -q tests/test_robust_importer.py tests/test_real_spreadsheet_import.py tests/test_import_novas_colunas.py` -> `15 passed`
+  2. scan real do corpus robust:
+     - `TOTAL 431`
+     - `BAD_COUNT 0`
+     - nenhum `.1/.2`
+     - nenhum `sn` ou `sn_1`
+- Decisao de escopo:
+  1. o helper compartilhado experimental `shared/semantic_duplicate_resolution.py` nao foi ligado ao runtime neste slice
+  2. o caminho fechado foi o patch local de menor risco no robust
+- Proximo foco recomendado:
+  1. rerodar a comparacao direta padrao vs robust para medir o robust limpo contra o padrao atual
+  2. ou voltar ao principal gargalo, que segue no merge/upsert
+
 ## CURRENT TRUTH 2026-03-06 22:02 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

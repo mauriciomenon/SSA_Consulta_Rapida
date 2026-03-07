@@ -58,6 +58,42 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
      - cleanup especifico do robust
   2. nao reabrir parser exotico de filtros sem nova aprovacao funcional
 
+## CURRENT TRUTH 2026-03-07 10:21 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. `utils/robust_importer.py` deixou de aceitar nomes de coluna com sufixo pontuado na saida final.
+  2. duplicatas conhecidas do robust agora fecham assim:
+     - `SN`, `SN.1` -> `sn_retirado`, `sn_instalado`
+     - `Desde.1`, `Ate.1` -> `desde_1`, `ate_1`
+     - `Numero da SSA.1/.2`, `Setor Emissor.1/.2`, `Setor Executor.1/.2`, `Situacao.1/.2` -> colunas relacionadas canonicas
+  3. duplicata pontuada desconhecida passa a virar sufixo com underscore, nunca `.1/.2`
+- Evidencia:
+  1. gates focados:
+     - `py_compile`: pass
+     - `ruff`: pass
+     - `ty`: pass
+     - `pytest`: `15 passed`
+  2. scan robust em corpus completo:
+     - `431` arquivos `.xlsx`
+     - `BAD_COUNT 0`
+     - nenhum `.1/.2`
+     - nenhum `sn` ou `sn_1`
+- Decisao operacional:
+  1. o helper compartilhado experimental nao foi ligado ao runtime
+  2. o patch local do robust foi mantido por menor risco e por cumprir o criterio funcional completo
+- Estado local fora de escopo, nao comitar:
+  1. `data/ssas.db`
+  2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+  3. `tests/test_db_reset_and_upsert.py`
+  4. `data/db_backups/`
+  5. `data/tmp_import_sample/`
+  6. `shared/semantic_duplicate_resolution.py`
+- Proximo passo recomendado:
+  1. rerodar comparacao direta padrao vs robust com o robust limpo
+  2. ou voltar ao gargalo principal do projeto, que continua no merge/upsert
+
 ## CURRENT TRUTH 2026-03-06 22:02 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
