@@ -28,6 +28,7 @@ from utils import caching  # noqa: E402
 from extracao import extractor  # noqa: E402
 from armazenamento import database  # noqa: E402
 from armazenamento.derivadas_sync import scan_derivadas_consistency, sync_derivadas  # noqa: E402
+from shared.db_names import CANONICAL_SSA_TABLE  # noqa: E402
 from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E402
 
 # Configura logger especifico para este modulo
@@ -1635,9 +1636,11 @@ def parse_search_terms(
     APLICA ALIASES: Termos são normalizados usando config/filter_aliases.json
     para consistência entre GUI e CLI.
 
-    SIMPLIFIED: No logical operators (OU/OR/AND/E) - ONLY commas separate terms.
-    - General search: all terms are required (AND logic implicit, all group=0)
-    - Column filters: any term matches (OR logic handled in column filter code)
+    SIMPLIFIED RAW STRING CONTRACT:
+    - Raw strings do not parse logical operators such as OU/OR/AND/E.
+    - General search applies implicit AND between terms (all raw terms stay in group=0).
+    - Each term may match any searched field; grouped OR is only preserved when the
+      caller provides pre-parsed dict terms with explicit group metadata.
 
     Modos aceitos por termo:
     - contem (padrao): foo
@@ -1717,6 +1720,11 @@ def filter_dataframe(
 
     Modos por termo: contem (padrao), comeca (^), termina ($), igual (=), regex (~),
     com suporte a negativos (! ou -).
+
+    Contrato atual:
+    - termos brutos (str) seguem o parser simplificado atual: AND implicito entre termos
+    - cada termo e satisfeito quando qualquer campo pesquisavel da linha corresponder
+    - termos ja parseados (dict) ainda podem carregar grupos legados para OR entre grupos
     """
     if df is None or df.empty or not search_terms:
         return df
@@ -1750,18 +1758,42 @@ def filter_dataframe(
         logger.warning("Nenhuma coluna de busca valida encontrada")
         return df
 
-    base_str_df = (
-        df[available_search_cols]
-        .select_dtypes(include=["object", "string"])
-        .fillna("")
-        .astype(str)
-    )
-    if base_str_df.shape[1] == 0:
+    search_cache_key = "_filter_search_cache"
+    search_cache_token = (id(getattr(df, "_mgr", None)), tuple(available_search_cols))
+    cached_search_data = df.attrs.get(search_cache_key)
+
+    if (
+        isinstance(cached_search_data, dict)
+        and cached_search_data.get("token") == search_cache_token
+    ):
+        base_lower_df = cached_search_data["base_lower_df"]
+        row_search_text = cached_search_data["row_search_text"]
+    else:
+        base_str_df = (
+            df[available_search_cols]
+            .select_dtypes(include=["object", "string"])
+            .fillna("")
+            .astype(str)
+        )
+        if base_str_df.shape[1] == 0:
+            # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
+            return df.iloc[0:0]
+        base_lower_df = base_str_df.apply(lambda col: col.str.casefold())
+        row_search_text = base_lower_df.agg("\n".join, axis=1)
+        df.attrs[search_cache_key] = {
+            "token": search_cache_token,
+            "base_lower_df": base_lower_df,
+            "row_search_text": row_search_text,
+        }
+
+    if base_lower_df.shape[1] == 0:
         # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
         return df.iloc[0:0]
 
     logger.debug(
-        f" Buscando em {len(base_str_df.columns)} colunas: {list(base_str_df.columns)}"
+        "Buscando em %s colunas: %s",
+        len(base_lower_df.columns),
+        list(base_lower_df.columns),
     )
 
     # Permite tanto termos brutos (str) quanto parseados (dict)
@@ -1770,15 +1802,7 @@ def filter_dataframe(
     else:
         terms = parse_search_terms(search_terms)
 
-    # Agrupa termos por disjuncao (OR). Cada grupo e uma conjuncao interna (AND).
-    grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
-    for term in terms:
-        group_idx = term.get("group")
-        if group_idx is None:
-            group_idx = 0
-        grouped_terms.setdefault(int(group_idx), []).append(term)
-
-    if not grouped_terms:
+    if not terms:
         return df
 
     # Cache de patterns: pre-compila patterns para evitar re.escape repetido
@@ -1810,9 +1834,11 @@ def filter_dataframe(
         pattern, use_regex = pattern_cache.get(cache_key, (value, False))
 
         def _contains(pattern: str, *, regex: bool) -> pd.Series:
-            return base_str_df.apply(
-                lambda col: col.str.contains(pattern, case=False, na=False, regex=regex)
-            ).any(axis=1)
+            if regex:
+                return row_search_text.str.contains(pattern, case=False, na=False, regex=True)
+
+            lowered = str(pattern).casefold()
+            return row_search_text.str.contains(lowered, regex=False, na=False)
 
         if mode == "regex":
             try:
@@ -1820,13 +1846,28 @@ def filter_dataframe(
             except re.error:
                 return _contains(pattern, regex=False)
 
+        lowered = str(value).casefold()
+        if mode == "prefix":
+            # Raw-term contract: one term matches when any searched field matches.
+            return base_lower_df.apply(
+                lambda col: col.str.startswith(lowered, na=False)
+            ).any(axis=1)
+        if mode == "suffix":
+            return base_lower_df.apply(
+                lambda col: col.str.endswith(lowered, na=False)
+            ).any(axis=1)
+        if mode == "exact":
+            return base_lower_df.eq(lowered).any(axis=1)
+
         return _contains(pattern, regex=use_regex)
 
-    final_mask = pd.Series(False, index=df.index)
+    grouped_terms: Dict[int, List[Dict[str, Any]]] = {}
+    for term in terms:
+        group_idx = term.get("group", 0)
+        grouped_terms.setdefault(int(group_idx), []).append(term)
 
+    final_mask = pd.Series(False, index=df.index)
     for group_terms in grouped_terms.values():
-        if not group_terms:
-            continue
         group_mask = pd.Series(True, index=df.index)
         positives = [t for t in group_terms if not t.get("negative")]
         negatives = [t for t in group_terms if t.get("negative")]
@@ -1841,7 +1882,7 @@ def filter_dataframe(
 
     if final_mask.any():
         return df[final_mask]
-    return df.iloc[0:0] if grouped_terms else df
+    return df.iloc[0:0]
 
 
 def import_files_to_database(
@@ -1921,10 +1962,11 @@ def get_filtered_data(
         return pd.DataFrame()
 
     try:
-        # Conectar ao banco e obter dados
-        with database.get_db_connection(str(safe_db_path)) as conn:
-            query = "SELECT * FROM ssas"
-            df = pd.read_sql_query(query, conn)
+        df = database.query_db(
+            str(safe_db_path),
+            CANONICAL_SSA_TABLE,
+            raise_on_error=True,
+        )
 
         # Aplicar filtros se fornecidos
         if filters:
