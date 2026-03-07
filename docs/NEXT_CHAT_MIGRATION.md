@@ -2,6 +2,28 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-06 21:03 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue:
+  1. `core.app_logic` agora traduz as duas novas categorias de duplicidade no log:
+     - `Duplicidade exata no export`
+     - `Duplicidade conflitante no export`
+  2. regras sem mapeamento especifico continuam no formato generico.
+  3. nao houve mudanca em import, schema ou resultado final do DB.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `tests/test_import_single_error_classification.py`
+- Snapshot de validacao:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_import_single_error_classification.py`: `5 passed`.
+- Significado operacional:
+  1. o operador agora consegue diferenciar duplicidade exata de conflito real sem ler o nome interno da regra.
+  2. proximo foco aprovado continua sendo a investigacao dos registros invalidos removidos no extrator.
+
 ## CURRENT TRUTH 2026-03-06 20:21 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

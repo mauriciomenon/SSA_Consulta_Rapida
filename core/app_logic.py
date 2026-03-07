@@ -198,13 +198,21 @@ def _import_single_file(
                 df, table_name
             )
 
+            validation_rule_labels = {
+                "duplicate_numero_ssa_exact": "Duplicidade exata no export",
+                "duplicate_numero_ssa_conflict": "Duplicidade conflitante no export",
+            }
             for violation in validation_report.get("violations", []):
                 rule = violation.get("rule")
                 count = violation.get("count")
                 severity = violation.get("severity", "warning")
                 sample = violation.get("sample_ssa") or []
                 sample_txt = f" (ex.: {', '.join(sample)})" if sample else ""
-                message = f"Regra {rule} atingiu {count} linha(s){sample_txt}"
+                rule_label = validation_rule_labels.get(rule)
+                if rule_label is None:
+                    message = f"Regra {rule} atingiu {count} linha(s){sample_txt}"
+                else:
+                    message = f"{rule_label} atingiu {count} linha(s){sample_txt}"
                 if severity == "error":
                     logger.error(
                         "Validacao - %s: %s", os.path.basename(file_path), message

@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-06 (slice minimo: mensagem de log para duplicidade exata/conflitante)
+
+Session timestamp:
+1. start: `2026-03-06 21:03:07 -0300`
+2. end: `2026-03-06 21:07:25 -0300`
+
+Decisao entregue:
+1. o runtime de validacao em `_import_single_file()` agora traduz:
+   - `duplicate_numero_ssa_exact` -> `Duplicidade exata no export`
+   - `duplicate_numero_ssa_conflict` -> `Duplicidade conflitante no export`
+2. regras nao mapeadas continuam no formato generico `Regra ...`.
+3. nao houve mudanca de import, schema ou resultado final do banco.
+
+Arquivos alterados:
+1. `core/app_logic.py`
+2. `tests/test_import_single_error_classification.py`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_single_error_classification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_import_single_error_classification.py`: `5 passed`.
+
+Deferido por controle de escopo:
+1. validacao detalhada dos registros invalidos por arquivo/lote segue para o proximo slice.
+
 ## Update 2026-03-06 (slice minimo: classificar duplicidade exata e silenciar bootstrap esperado)
 
 Session timestamp:
@@ -32,7 +58,7 @@ Validacao:
 4. `timeout 180s uv run --python 3.13 pytest -q tests/test_database_verification.py`: `16 passed`.
 
 Deferido por controle de escopo:
-1. if desired later, `core.app_logic` logging can be refined to render the new duplicate categories with friendlier text in the runtime log.
+1. investigacao do lote com `1778` registros invalidos segue para o proximo grupo de acoes.
 
 ## Update 2026-03-06 (slice minimo: cobertura por fase do extrator)
 
