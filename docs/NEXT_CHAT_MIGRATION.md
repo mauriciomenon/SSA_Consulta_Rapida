@@ -2,6 +2,52 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 00:39 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Fechamento tecnico do sprint:
+  1. `core.app_logic.py` fechou o ajuste local do cache de busca e do matching `prefix/suffix/exact` com separador de campo, sem warnings de regex e com `20 passed` nos testes focados.
+  2. a reclamacao ampla do kluster sobre `rule_13/rule_23` ficou como decisao intencional:
+     - nao reintroduzir parser exotico `OR/OU`
+     - filtros de coluna da GUI continuam com OR no fluxo proprio de mixin/worker, nao pelo parser geral
+- Comparacao direta padrao vs robust no corpus completo, em ambiente isolado:
+  1. artefato consolidado: `LocalTemp/compare_standard_vs_robust_20260306_234004/comparison_summary.json`
+  2. padrao:
+     - report: `logs/import_run_20260306_234004_171299.json`
+     - elapsed: `1707.121s`
+     - agregados:
+       - `extracao=157.886s`
+       - `validacao=221.986s`
+       - `insercao=1314.608s`
+     - DB final: `76426` linhas, `82` colunas, sem `nan_*`, sem `BLOB` em `semana_programada`
+  3. robust:
+     - report: `logs/import_run_20260307_000831_376554.json`
+     - elapsed: `1812.105s`
+     - agregados:
+       - `extracao=530.664s`
+       - `validacao=160.659s`
+       - `insercao=1111.881s`
+     - DB final: `76426` linhas, `84` colunas, sem `nan_*`, mas com `sn` e `sn_1`
+  4. delta:
+     - padrao foi `6.15%` mais rapido no total
+     - robust foi `236.106%` mais lento em extracao
+     - robust foi `27.627%` mais rapido em validacao
+     - robust foi `15.421%` mais rapido em insercao
+  5. diferenca de linhas:
+     - robust extraiu `2` linhas a menos
+     - so em duplicatas exatas de:
+       - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`
+       - `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+     - DB final permaneceu identico em linhas e `numero_ssa` distintos
+- Leitura operacional:
+  1. o gargalo dominante ainda e o merge/upsert
+  2. o robust nao vence no fim-a-fim neste estado do branch
+  3. o robust ainda carrega debt proprio de schema/cabecalho, visivel em `sn`, `sn_1` e nos warnings repetidos de sanitizacao de colunas dinamicas
+- Proximo foco recomendado:
+  1. atacar performance do upsert com benchmark controlado
+  2. ou atacar cleanup especifico do caminho robust (`sn`, `sn_1`, `desde.1`, `ate.1`) se o objetivo for maturar esse caminho
+
 ## CURRENT TRUTH 2026-03-06 22:02 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

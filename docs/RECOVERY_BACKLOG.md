@@ -3,6 +3,66 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-07 (fechamento do sprint: comparacao padrao vs robust e ajuste final de filtro)
+
+Session timestamp:
+1. start: `2026-03-06 23:37:50 -0300`
+2. end: `2026-03-07 00:39:00 -0300`
+
+Decisao entregue:
+1. `core.app_logic.py` fechou o ajuste final do cache de busca e do matching `prefix/suffix/exact` com separador de campo, removendo warnings de regex sem alterar a semantica aprovada.
+2. o conflito do kluster sobre `rule_13/rule_23` foi mantido como decisao intencional:
+   - nao reintroduzir parser exotico `OR/OU` na busca geral
+   - filtros de coluna continuam com comportamento de OR no fluxo proprio da GUI/worker
+3. foi rodada comparacao direta padrao vs robust em ambiente isolado, no corpus completo, usando o mesmo `run_importer_logic()` e trocando apenas a funcao de extracao no modo robust.
+
+Arquivos alterados:
+1. `core/app_logic.py`
+2. `docs/RECOVERY_BACKLOG.md`
+3. `docs/NEXT_CHAT_MIGRATION.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
+Validacao do ajuste local:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_filter_modes.py tests/test_filter_regression.py tests/test_import_single_error_classification.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_filter_modes.py tests/test_filter_regression.py tests/test_import_single_error_classification.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_filter_contract.py tests/test_filter_modes.py tests/test_filter_regression.py tests/test_import_single_error_classification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_app_logic_filter_contract.py tests/test_filter_modes.py tests/test_filter_regression.py tests/test_import_single_error_classification.py`: `20 passed`.
+
+Comparacao direta padrao vs robust:
+1. artefato consolidado: `LocalTemp/compare_standard_vs_robust_20260306_234004/comparison_summary.json`
+2. padrao:
+   - report: `logs/import_run_20260306_234004_171299.json`
+   - elapsed: `1707.121s`
+   - `431/431` arquivos com sucesso
+   - DB final: `76426` linhas, `82` colunas, sem `nan_*`, sem `BLOB` em `semana_programada`
+3. robust:
+   - report: `logs/import_run_20260307_000831_376554.json`
+   - elapsed: `1812.105s`
+   - `431/431` arquivos com sucesso
+   - DB final: `76426` linhas, `84` colunas, sem `nan_*`, mas com colunas extras `sn` e `sn_1`
+4. delta fim-a-fim:
+   - robust ficou `104.984s` mais lento
+   - padrao foi `6.15%` mais rapido no total
+5. delta por fase:
+   - extracao: robust `236.106%` mais lento (`530.664s` vs `157.886s`)
+   - validacao: robust `27.627%` mais rapido (`160.659s` vs `221.986s`)
+   - insercao: robust `15.421%` mais rapido (`1111.881s` vs `1314.608s`)
+6. diferenca de contagem:
+   - robust extraiu `2` linhas a menos no total
+   - divergencia restrita a duplicatas exatas em:
+     - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`
+     - `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+   - DB final permaneceu identico em linhas e `numero_ssa` distintos
+
+Conclusao operacional:
+1. com o estado atual do branch, o gargalo dominante continua no merge/upsert.
+2. o robust nao e o melhor caminho fim-a-fim hoje, apesar de ganhar em `validacao` e `insercao`.
+3. o robust ainda carrega debt proprio de schema/cabecalho, evidenciado por `sn`, `sn_1` e repeticao de warnings de sanitizacao de colunas dinamicas.
+
+Deferido por controle de escopo:
+1. revisar por que o robust ainda produz `sn` e `sn_1`.
+2. decidir se o proximo ciclo ataca performance do upsert ou cleanup especifico do caminho robust.
+
 ## Update 2026-03-06 (slice minimo: mensagens de log operacionais no import)
 
 Session timestamp:

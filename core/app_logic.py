@@ -13,6 +13,7 @@ import logging
 import json
 import sqlite3
 import time
+import uuid
 from datetime import datetime
 import pandas as pd
 import re
@@ -33,6 +34,7 @@ from utils.path_safety import PathSafetyError, ensure_path_is_allowed  # noqa: E
 
 # Configura logger especifico para este modulo
 logger = logging.getLogger(__name__)
+FILTER_FIELD_SEPARATOR = "\x1f"
 
 # --- Excecoes Personalizadas ---
 
@@ -1759,7 +1761,8 @@ def filter_dataframe(
         return df
 
     search_cache_key = "_filter_search_cache"
-    search_cache_token = (id(getattr(df, "_mgr", None)), tuple(available_search_cols))
+    data_token = df.attrs.setdefault("_filter_search_token", uuid.uuid4().hex)
+    search_cache_token = (data_token, tuple(available_search_cols), len(df.index))
     cached_search_data = df.attrs.get(search_cache_key)
 
     if (
@@ -1778,8 +1781,10 @@ def filter_dataframe(
         if base_str_df.shape[1] == 0:
             # Sem colunas de texto, nao ha onde buscar: retorna DataFrame vazio
             return df.iloc[0:0]
-        base_lower_df = base_str_df.apply(lambda col: col.str.casefold())
-        row_search_text = base_lower_df.agg("\n".join, axis=1)
+        base_lower_df = base_str_df.apply(
+            lambda col: col.str.casefold().str.replace(FILTER_FIELD_SEPARATOR, " ", regex=False)
+        )
+        row_search_text = base_lower_df.agg(FILTER_FIELD_SEPARATOR.join, axis=1)
         df.attrs[search_cache_key] = {
             "token": search_cache_token,
             "base_lower_df": base_lower_df,
@@ -1848,16 +1853,18 @@ def filter_dataframe(
 
         lowered = str(value).casefold()
         if mode == "prefix":
-            # Raw-term contract: one term matches when any searched field matches.
-            return base_lower_df.apply(
-                lambda col: col.str.startswith(lowered, na=False)
-            ).any(axis=1)
+            field_pattern = rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)}){re.escape(lowered)}"
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
         if mode == "suffix":
-            return base_lower_df.apply(
-                lambda col: col.str.endswith(lowered, na=False)
-            ).any(axis=1)
+            field_pattern = rf"{re.escape(lowered)}(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
         if mode == "exact":
-            return base_lower_df.eq(lowered).any(axis=1)
+            field_pattern = (
+                rf"(?:^|{re.escape(FILTER_FIELD_SEPARATOR)})"
+                rf"{re.escape(lowered)}"
+                rf"(?:$|{re.escape(FILTER_FIELD_SEPARATOR)})"
+            )
+            return row_search_text.str.contains(field_pattern, na=False, regex=True)
 
         return _contains(pattern, regex=use_regex)
 

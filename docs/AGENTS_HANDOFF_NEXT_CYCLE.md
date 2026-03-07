@@ -2,6 +2,62 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 00:39 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Fechamento do sprint:
+  1. `core.app_logic.py` fechou o ajuste do cache de busca e do matching `prefix/suffix/exact` com separador de campo, sem warnings de regex.
+  2. gates focados do ajuste final:
+     - `py_compile`: pass
+     - `ruff`: pass
+     - `ty`: pass
+     - `pytest`: `20 passed`
+  3. conflito do kluster em `rule_13/rule_23` ficou intencionalmente NAO implementado:
+     - busca geral continua sem parser exotico `OR/OU`
+     - filtros de coluna seguem com OR no fluxo proprio da GUI/worker
+- Comparacao padrao vs robust, corpus completo, ambiente isolado:
+  1. artefato consolidado:
+     - `LocalTemp/compare_standard_vs_robust_20260306_234004/comparison_summary.json`
+  2. padrao:
+     - report: `logs/import_run_20260306_234004_171299.json`
+     - elapsed: `1707.121s`
+     - `extracao=157.886s`
+     - `validacao=221.986s`
+     - `insercao=1314.608s`
+     - DB final: `76426` linhas, `82` colunas, sem `nan_*`, sem `BLOB` em `semana_programada`
+  3. robust:
+     - report: `logs/import_run_20260307_000831_376554.json`
+     - elapsed: `1812.105s`
+     - `extracao=530.664s`
+     - `validacao=160.659s`
+     - `insercao=1111.881s`
+     - DB final: `76426` linhas, `84` colunas, sem `nan_*`, mas com `sn` e `sn_1`
+  4. conclusao comparativa:
+     - padrao foi `6.15%` mais rapido no total
+     - robust foi `236.106%` mais lento em extracao
+     - robust foi `27.627%` mais rapido em validacao
+     - robust foi `15.421%` mais rapido em insercao
+     - robust extraiu `2` linhas a menos, restritas a duplicatas exatas em:
+       - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`
+       - `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+     - DB final permaneceu identico em linhas e `numero_ssa` distintos
+- Leitura tecnica para o proximo ciclo:
+  1. o gargalo dominante segue no merge/upsert
+  2. o robust nao e o melhor caminho fim-a-fim no estado atual
+  3. o robust ainda tem debt proprio de schema/cabecalho, refletido em `sn`, `sn_1` e em warnings de sanitizacao de `desde.1`/`ate.1`
+- Estado local fora de escopo, nao comitar:
+  1. `data/ssas.db`
+  2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+  3. `tests/test_db_reset_and_upsert.py`
+  4. `data/db_backups/`
+  5. `data/tmp_import_sample/`
+- Proximo passo recomendado:
+  1. escolher explicitamente entre:
+     - performance do upsert
+     - cleanup especifico do robust
+  2. nao reabrir parser exotico de filtros sem nova aprovacao funcional
+
 ## CURRENT TRUTH 2026-03-06 22:02 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
