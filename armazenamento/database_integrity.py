@@ -27,11 +27,35 @@ logger = logging.getLogger(__name__)
 MIN_FREE_SPACE_GB_WARN = 0.1
 
 
+def _quote_identifier(name: str) -> str:
+    safe_name = str(name or "").strip()
+    if not is_valid_identifier(safe_name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return '"' + safe_name.replace('"', '""') + '"'
+
+
+def _resolve_report_table_name(conn, requested_table_name: str) -> str:
+    safe_table_name = str(requested_table_name or "").strip()
+    if not is_valid_identifier(safe_table_name):
+        raise ValueError(f"Invalid SQL identifier: {requested_table_name!r}")
+
+    table_candidates = list(dict.fromkeys([safe_table_name, CANONICAL_SSA_TABLE, *ALL_SSA_TABLE_NAMES]))
+    for candidate in table_candidates:
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name=?",
+            (candidate,),
+        )
+        if cursor.fetchone():
+            return candidate
+    return safe_table_name
+
+
 def verify_database_integrity(
     db_path: str,
     table_name: str = CANONICAL_SSA_TABLE,
 ) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
     report: dict[str, Any] = {
+        'table_name': str(table_name or "").strip() or CANONICAL_SSA_TABLE,
         'is_valid': True,
         'issues': [],
         'warnings': [],
@@ -43,11 +67,15 @@ def verify_database_integrity(
         'disk_space_sufficient': False,
         'file_permissions_ok': False,
         'needs_creation': False,
+        'missing_optional_columns': [],
     }
     try:
+        if not is_valid_identifier(report['table_name']):
+            report['issues'].append(f"Invalid SQL identifier: {table_name!r}")
+            report['is_valid'] = False
+            return report
         if not os.path.exists(db_path):
-            # Mensagem com acento para alinhar aos testes e melhorar UX
-            report['issues'].append(f"Arquivo do banco de dados não encontrado: {db_path}")
+            report['issues'].append(f"Arquivo do banco de dados nao encontrado: {db_path}")
             report['needs_creation'] = True
             report['is_valid'] = False
             return report
@@ -75,11 +103,13 @@ def verify_database_integrity(
         # Espaco em disco
         try:
             db_dir = os.path.dirname(db_path) or '.'
-            statvfs = os.statvfs(db_dir) if hasattr(os, 'statvfs') else None
-            if statvfs:
-                free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024 ** 3)
-            else:
+            try:
                 free_space_gb = shutil.disk_usage(db_dir).free / (1024 ** 3)
+            except Exception:
+                statvfs = os.statvfs(db_dir) if hasattr(os, 'statvfs') else None
+                if statvfs is None:
+                    raise
+                free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024 ** 3)
             if free_space_gb >= MIN_FREE_SPACE_GB_WARN:
                 report['disk_space_sufficient'] = True
             else:
@@ -102,52 +132,40 @@ def verify_database_integrity(
                     return report
                 report['database_accessible'] = True
                 report['data_consistent'] = True
-        except Exception as e:
-            report['issues'].append(f"Banco de dados nao acessivel: {e}")
-            report['is_valid'] = False
-            return report
-        # Tabela existe?
-        try:
-            from .database import get_db_connection  # lazy
-            with get_db_connection(db_path) as conn:
+                resolved_table_name = _resolve_report_table_name(conn, report['table_name'])
+                report['table_name'] = resolved_table_name
                 cursor = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (table_name,),
+                    (resolved_table_name,),
                 )
                 if cursor.fetchone():
                     report['table_exists'] = True
                 else:
-                    report['issues'].append(f"Tabela '{table_name}' nao encontrada")
+                    report['issues'].append(f"Tabela '{resolved_table_name}' nao encontrada")
                     report['is_valid'] = False
-        except Exception as e:
-            report['issues'].append(f"Erro ao verificar tabela: {e}")
-            report['is_valid'] = False
-        if report['table_exists']:
-            try:
-                required_columns = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
-                from .database import get_db_connection  # lazy
-                with get_db_connection(db_path) as conn:
-                    if not is_valid_identifier(table_name):
-                        raise ValueError(f"Invalid SQL identifier: {table_name}")
-                    cursor = conn.execute(f"PRAGMA table_info({table_name})")  # noqa: S608
+
+                if report['table_exists']:
+                    quoted_table_name = _quote_identifier(resolved_table_name)
+                    required_columns = ['numero_ssa', 'situacao', 'data_cadastro', 'descricao_ssa']
+                    cursor = conn.execute(f"PRAGMA table_info({quoted_table_name})")
                     existing_columns = [row[1] for row in cursor.fetchall()]
-                if 'arquivo_origem' not in existing_columns:
-                    try:
-                        from .database import ensure_column_exists  # lazy
-                        if ensure_column_exists(db_path, table_name, 'arquivo_origem', 'TEXT'):
-                            existing_columns.append('arquivo_origem')
-                    except Exception:
-                        report['warnings'].append("Coluna 'arquivo_origem' ausente; nao foi possivel adiciona-la automaticamente.")
-                missing = [c for c in required_columns if c not in existing_columns]
-                if missing:
-                    report['issues'].append(f"Colunas obrigatorias ausentes: {missing}")
-                    report['is_valid'] = False
-                else:
-                    report['schema_valid'] = True
-            except Exception as e:
-                report['issues'].append(f"Erro ao verificar schema: {e}")
-                report['is_valid'] = False
-        status_text = " Valido" if report['is_valid'] else " Problemas encontrados"
+                    if 'arquivo_origem' not in existing_columns:
+                        report['missing_optional_columns'].append('arquivo_origem')
+                        report['warnings'].append(
+                            "Coluna 'arquivo_origem' ausente; reparo explicito pode adiciona-la."
+                        )
+
+                    missing = [c for c in required_columns if c not in existing_columns]
+                    if missing:
+                        report['issues'].append(f"Colunas obrigatorias ausentes: {missing}")
+                        report['is_valid'] = False
+                    else:
+                        report['schema_valid'] = True
+        except Exception as e:
+            report['issues'].append(f"Banco de dados nao acessivel: {e}")
+            report['is_valid'] = False
+            return report
+        status_text = "Valido" if report['is_valid'] else "Problemas encontrados"
         logger.info("Verificacao de integridade concluida. Status: %s", status_text)
     except Exception as e:  # pragma: no cover
         report['issues'].append(f"Erro inesperado na verificacao: {e}")
@@ -163,9 +181,15 @@ def repair_database_if_needed(
     logger.info("Iniciando verificacao e reparo do banco de dados...")
     try:
         integrity_report = verify_database_integrity(db_path, table_name)
-        if integrity_report['is_valid']:
+        missing_optional_columns = integrity_report.get('missing_optional_columns', [])
+        if integrity_report['is_valid'] and not missing_optional_columns:
             logger.info("Banco de dados integro - nenhum reparo necessario")
             return True
+        if integrity_report['is_valid'] and missing_optional_columns:
+            logger.info(
+                "Banco integro com colunas opcionais pendentes de reparo: %s",
+                missing_optional_columns,
+            )
         expected_creation = (
             integrity_report.get('needs_creation', False)
             and not integrity_report.get('database_exists', False)
@@ -185,6 +209,13 @@ def repair_database_if_needed(
             from .database import initialize_database  # lazy
             initialize_database(db_path, schema_file)
             repaired = True
+        elif (
+            integrity_report['table_exists']
+            and 'arquivo_origem' in missing_optional_columns
+        ):
+            from .database import ensure_column_exists  # lazy
+            if ensure_column_exists(db_path, integrity_report['table_name'], 'arquivo_origem', 'TEXT'):
+                repaired = True
         elif not integrity_report['data_consistent']:
             logger.warning("Detectada corrupcao no banco - tentando backup/restore...")
             backup_path = f"{db_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
