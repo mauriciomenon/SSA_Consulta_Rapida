@@ -2,6 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-06 22:02 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. `core.app_logic` agora emite logs menos genericos para validacao, sucesso de import e skip por extracao vazia.
+  2. regras sem label dedicado agora aparecem como `Violacao de validacao [...]`, em vez de `Regra ...`.
+  3. `extracao.extractor` agora inclui o nome do arquivo e as contagens nos warnings de `sem numero de SSA`, `sem semana de cadastro` e no resumo final.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `extracao/extractor.py`
+  3. `tests/test_extracao.py`
+  4. `tests/test_import_single_error_classification.py`
+- Evidencia de teste:
+  1. focused gate run: `25 passed`
+  2. cobertura nova/alinhada inclui:
+     - fallback amigavel para regra desconhecida
+     - log do extrator com nome do arquivo
+     - resumo final do extrator com contagens
+- Explicitamente inalterado:
+  1. semantica de import
+  2. schema
+  3. upsert
+  4. caminho robust
+- Proximo passo recomendado:
+  1. rodar kluster amplo nos arquivos de importacao e operacao de DB, como pedido pelo usuario, e tratar apenas issues reais de maior risco.
+
 ## CURRENT TRUTH 2026-03-06 21:52 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

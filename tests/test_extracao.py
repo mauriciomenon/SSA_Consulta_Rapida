@@ -167,7 +167,11 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     assert extracted.empty
 
 
-def test_extract_data_from_excel_classifies_invalid_identity_rows(tmp_path, monkeypatch):
+def test_extract_data_from_excel_classifies_invalid_identity_rows(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
     rows = [
         [
             "Numero da SSA",
@@ -195,6 +199,7 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(tmp_path, monk
         },
     )
 
+    caplog.set_level("INFO")
     extracted = extract_data_from_excel(str(file_path))
 
     assert len(extracted) == 1
@@ -205,6 +210,8 @@ def test_extract_data_from_excel_classifies_invalid_identity_rows(tmp_path, monk
     assert "data_cadastro" in summary["payload_columns_sample"]
     assert "responsavel_execucao" in summary["payload_columns_sample"]
     assert extracted.attrs["row_count_before_invalid_filter"] == 3
+    assert "Extracao - invalid_identity_rows.xlsx: removidos 2 registros invalidos sem identidade" in caplog.text
+    assert "Extracao concluida para 'invalid_identity_rows.xlsx': 1 linhas validas, 2 invalidos sem identidade" in caplog.text
 
 
 def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(

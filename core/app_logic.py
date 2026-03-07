@@ -239,11 +239,12 @@ def _import_single_file(
                 severity = violation.get("severity", "warning")
                 sample = violation.get("sample_ssa") or []
                 sample_txt = f" (ex.: {', '.join(sample)})" if sample else ""
-                rule_label = validation_rule_labels.get(rule)
-                if rule_label is None:
-                    message = f"Regra {rule} atingiu {count} linha(s){sample_txt}"
-                else:
-                    message = f"{rule_label} atingiu {count} linha(s){sample_txt}"
+                rule_txt = str(rule or "regra_desconhecida").replace("_", " ")
+                rule_label = validation_rule_labels.get(
+                    rule,
+                    f"Violacao de validacao [{rule_txt}]",
+                )
+                message = f"{rule_label} atingiu {count} linha(s){sample_txt}"
                 if severity == "error":
                     logger.error(
                         "Validacao - %s: %s", os.path.basename(file_path), message
@@ -290,19 +291,20 @@ def _import_single_file(
             # Se ha problemas criticos, pode escolher entre falhar ou continuar
             if not validation_report["is_valid"]:
                 critical_issues = validation_report["issues"]
+                critical_summary = "; ".join(str(issue) for issue in critical_issues[:5])
                 logger.error(
-                    f"Dados com problemas criticos em '{file_path}': {critical_issues}"
+                    "Validacao critica em '%s': %s",
+                    os.path.basename(file_path),
+                    critical_summary or "sem detalhe",
                 )
-
-                # Para problemas criticos de validacao, pode escolher:
-                # Opcao 1: Falhar imediatamente
-                # raise DataValidationError(f"Dados invalidos: {critical_issues}")
-
-                # Opcao 2: Tentar inserir mesmo assim (atual)
-                logger.warning("Tentando insercao apesar dos problemas criticos...")
+                logger.warning(
+                    "Validacao critica em '%s': seguindo com insercao por politica atual.",
+                    os.path.basename(file_path),
+                )
             else:
                 logger.info(
-                    " Dados validados: %s linhas prontas para insercao",
+                    "Validacao concluida para '%s': %s linhas prontas para insercao",
+                    os.path.basename(file_path),
                     len(df),
                 )
 
@@ -341,16 +343,24 @@ def _import_single_file(
                     metrics["counts"].get("rows_ready_for_insert", 0),
                 )
                 logger.info(
-                    f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas)."
+                    "Importacao finalizada para '%s': inseridas=%s, removidas_validacao=%s, invalidos_sem_identidade=%s",
+                    os.path.basename(file_path),
+                    record_count,
+                    metrics["counts"].get("rows_removed_required_validation", 0),
+                    metrics["counts"].get("rows_removed_invalid_identity", 0),
                 )
                 return True, record_count
             else:
                 logger.error(
-                    f"Falha ao inserir dados de '{file_path}' no banco de dados."
+                    "Falha ao inserir dados validados de '%s' no banco de dados.",
+                    os.path.basename(file_path),
                 )
                 raise DatabaseError(f"Erro ao inserir dados do arquivo {file_path}")
         else:
-            logger.warning(f"Nenhum dado valido extraido de '{file_path}'. Pulando.")
+            logger.warning(
+                "Arquivo '%s' sem linhas validas apos extracao; importacao ignorada.",
+                os.path.basename(file_path),
+            )
             return True, 0  # Nao e um erro critico, apenas nao ha dados
     except extractor.ExtractionError as e:
         # Normalize extractor error type into core.app_logic.ExtractionError
