@@ -135,4 +135,4 @@ def test_import_single_file_logs_friendly_duplicate_labels(
     assert ok is True
     assert count == 1
     assert "Duplicidade exata no export atingiu 2 linha(s)" in caplog.text
-    assert "Regra outra_regra atingiu 1 linha(s)" in caplog.text
+    assert "Violacao de validacao [outra regra] atingiu 1 linha(s)" in caplog.text

@@ -2,6 +2,28 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-06 22:02 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue:
+  1. logs de validacao agora usam mensagem amigavel tambem para regras sem label dedicado: `Violacao de validacao [...]`.
+  2. `core.app_logic` agora resume validacao critica, sucesso de import e skip por extracao vazia com texto operacional claro e nome do arquivo.
+  3. `extracao.extractor` agora inclui o nome do arquivo nos warnings de `sem numero de SSA`, `sem semana de cadastro` e no resumo final da extracao.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `extracao/extractor.py`
+  3. `tests/test_extracao.py`
+  4. `tests/test_import_single_error_classification.py`
+- Snapshot de validacao:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_import_single_error_classification.py`: `25 passed`.
+- Significado operacional:
+  1. o log de import fica mais legivel para operador sem precisar conhecer nome interno de regra.
+  2. a proxima rodada ampla do kluster em importacao/DB ja parte de mensagens menos opacas.
+
 ## CURRENT TRUTH 2026-03-06 21:52 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

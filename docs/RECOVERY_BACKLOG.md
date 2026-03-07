@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-06 (slice minimo: mensagens de log operacionais no import)
+
+Session timestamp:
+1. start: `2026-03-06 22:02:55 -0300`
+2. end: `2026-03-06 22:17:44 -0300`
+
+Decisao entregue:
+1. logs de validacao em `core.app_logic` deixaram de usar texto generico para regras sem label dedicado e agora exibem `Violacao de validacao [...]`.
+2. mensagens de validacao critica, conclusao de import e skip por extracao vazia ficaram explicitas e com contexto do arquivo.
+3. warnings do extrator para `sem numero de SSA`, `sem semana de cadastro` e resumo final agora carregam o nome do arquivo e contagens operacionais.
+
+Arquivos alterados:
+1. `core/app_logic.py`
+2. `extracao/extractor.py`
+3. `tests/test_extracao.py`
+4. `tests/test_import_single_error_classification.py`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_single_error_classification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_import_single_error_classification.py`: `25 passed`.
+
+Deferido por controle de escopo:
+1. qualquer mudanca adicional de semantica de import, schema ou tratamento de invalidos continua fora deste slice.
+
 ## Update 2026-03-06 (slice minimo: observabilidade por arquivo e classificacao de invalidos)
 
 Session timestamp:

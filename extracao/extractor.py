@@ -608,7 +608,8 @@ def extract_data_from_excel(
             payload_cols = invalid_summary.get("payload_columns_sample") or []
             payload_txt = f" (colunas: {', '.join(payload_cols)})" if payload_cols else ""
             logger.warning(
-                "Removidos %s registros invalidos sem identidade: %s vazios, %s com payload%s",
+                "Extracao - %s: removidos %s registros invalidos sem identidade: %s vazios, %s com payload%s",
+                base_name,
                 invalid_count,
                 invalid_summary.get("empty_removed", 0),
                 invalid_summary.get("payload_removed", 0),
@@ -619,14 +620,27 @@ def extract_data_from_excel(
         if 'numero_ssa' in combined_df.columns:
             empty_ssa = combined_df['numero_ssa'].isna() | (combined_df['numero_ssa'] == '')
             if empty_ssa.sum() > 0:
-                logger.warning(f"{empty_ssa.sum()} registros sem número de SSA (mantidos com descrição válida)")
+                logger.warning(
+                    "Extracao - %s: %s registros sem numero de SSA (mantidos por descricao valida)",
+                    base_name,
+                    int(empty_ssa.sum()),
+                )
 
         if 'semana_cadastro' in combined_df.columns:
             empty_week = combined_df['semana_cadastro'].isna() | (combined_df['semana_cadastro'] == '') | (combined_df['semana_cadastro'] == '-')
             if empty_week.sum() > 0:
-                logger.warning(f"{empty_week.sum()} registros sem semana de cadastro")
+                logger.warning(
+                    "Extracao - %s: %s registros sem semana de cadastro",
+                    base_name,
+                    int(empty_week.sum()),
+                )
 
-        logger.info(f"Extração concluída com sucesso. {len(combined_df)} linhas válidas extraídas.")
+        logger.info(
+            "Extracao concluida para '%s': %s linhas validas, %s invalidos sem identidade",
+            base_name,
+            len(combined_df),
+            int(invalid_summary.get("total_removed", 0)),
+        )
         return combined_df
 
     except ExtractionError:
