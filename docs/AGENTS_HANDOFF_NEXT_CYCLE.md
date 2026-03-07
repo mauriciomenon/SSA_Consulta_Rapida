@@ -37,7 +37,21 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Estado do rescan:
   1. um full rescan real foi iniciado com a heuristica intermediaria errada (`500`) e cancelado depois que a regressao ficou evidente
   2. a causa foi corrigida no mesmo sprint
-  3. o rerun completo do full rescan com o estado final ainda esta pendente
+  3. o rerun completo final do full rescan foi executado com sucesso:
+     - report: `logs/import_run_20260307_135928_727735.json`
+     - log: `logs/full_rescan_runtime_20260307_135927.log`
+     - `result=True`
+     - `duration_seconds=930.885`
+     - DB final: `76426` linhas, `76426` SSAs distintas, `82` colunas, `0` `BLOB` em `semana_programada`
+  4. delta agregado contra a baseline anterior:
+     - `1161.133s` -> `930.885s`
+     - ganho total: `-19.83%`
+  5. principais ganhos confirmados:
+     - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`: `36.294s` -> `16.774s`
+     - `Todas as SSAs - 18-08-2022_1144AM.xlsx`: `19.083s` -> `12.348s`
+  6. regressao localizada a manter no radar:
+     - `Consulta SSA - 02-03-2026_0540PM.xlsx`: `10.050s` -> `32.887s`
+     - `SSAscomReprogramações_07-01-2026_0225PM.xlsx`: `10.537s` -> `17.922s`
 - Arquivos locais fora de escopo, nao comitar:
   1. `data/ssas.db`
   2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`

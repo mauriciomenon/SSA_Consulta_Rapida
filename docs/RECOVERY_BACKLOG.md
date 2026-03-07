@@ -46,7 +46,22 @@ Validacao local:
 
 Observacao operacional:
 1. um full rescan real foi iniciado com a heuristica intermediaria errada (`500`) e cancelado apos evidenciar regressao forte no merge real.
-2. a causa foi diagnosticada e corrigida no mesmo sprint; o rerun integral do rescan ainda permanece pendente apos o ajuste final do short-circuit.
+2. a causa foi diagnosticada e corrigida no mesmo sprint.
+3. rerun completo final executado com sucesso:
+   - report: `logs/import_run_20260307_135928_727735.json`
+   - log: `logs/full_rescan_runtime_20260307_135927.log`
+   - `result=True`
+   - `duration_seconds=930.885`
+   - DB final: `76426` linhas, `76426` SSAs distintas, `82` colunas, `0` `BLOB` em `semana_programada`
+4. delta agregado contra a baseline anterior (`logs/import_run_20260307_102956_247952.json`):
+   - tempo total: `1161.133s` -> `930.885s`
+   - ganho: `-230.248s` (`-19.83%`)
+5. delta por arquivos pesados:
+   - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`: `36.294s` -> `16.774s` (`-53.78%`)
+   - `Todas as SSAs - 18-08-2022_1144AM.xlsx`: `19.083s` -> `12.348s` (`-35.29%`)
+6. regressao localizada a investigar no proximo ciclo:
+   - `Consulta SSA - 02-03-2026_0540PM.xlsx`: `10.050s` -> `32.887s` (`+227.23%`)
+   - `SSAscomReprogramações_07-01-2026_0225PM.xlsx`: `10.537s` -> `17.922s` (`+70.09%`)
 
 ## Update 2026-03-07 (fechamento do sprint: comparacao padrao vs robust e ajuste final de filtro)
 

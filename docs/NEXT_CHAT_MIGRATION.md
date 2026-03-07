@@ -37,7 +37,21 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 - Importante:
   1. houve um full rescan real iniciado com a heuristica intermediaria errada (`500`) e ele foi cancelado apos evidenciar regressao forte no merge real
   2. essa regressao ja foi diagnosticada e corrigida
-  3. ainda falta rerodar o full rescan real com o estado final do sprint para medir o ganho agregado no corpus inteiro
+  3. o rerun final do full rescan ja foi executado com sucesso:
+     - report: `logs/import_run_20260307_135928_727735.json`
+     - log: `logs/full_rescan_runtime_20260307_135927.log`
+     - `result=True`
+     - `duration_seconds=930.885`
+     - DB final: `76426` linhas, `76426` SSAs distintas, `82` colunas, `0` `BLOB` em `semana_programada`
+  4. delta agregado contra a baseline anterior (`logs/import_run_20260307_102956_247952.json`):
+     - tempo total: `1161.133s` -> `930.885s`
+     - ganho: `-19.83%`
+  5. melhoria pesada confirmada:
+     - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`: `36.294s` -> `16.774s`
+     - `Todas as SSAs - 18-08-2022_1144AM.xlsx`: `19.083s` -> `12.348s`
+  6. regressao localizada ainda aberta:
+     - `Consulta SSA - 02-03-2026_0540PM.xlsx`: `10.050s` -> `32.887s`
+     - `SSAscomReprogramações_07-01-2026_0225PM.xlsx`: `10.537s` -> `17.922s`
 - Estado local fora de escopo, nao comitar:
   1. `data/ssas.db`
   2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
