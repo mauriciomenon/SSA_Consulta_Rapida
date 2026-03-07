@@ -1,31 +1,35 @@
 # AGENTS Handoff For Next Cycle
 
-This handoff is ready to reuse in the next conversation.
+Este handoff esta pronto para reutilizacao no proximo ciclo.
 
 ## CURRENT TRUTH 2026-03-06 20:21 - authoritative block
 
-- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
-- Local release baseline: `4.30`.
-- Delivered in this slice:
-  1. duplicate SSA validation now splits exact duplicates from conflicting duplicates.
-  2. missing DB bootstrap in `repair_database_if_needed()` is now logged as expected creation, not generic database trouble.
-  3. import semantics and final DB content were preserved.
-- Files changed:
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. a validacao de SSA duplicada agora separa duplicidade exata de duplicidade conflitante.
+  2. bootstrap de DB ausente em `repair_database_if_needed()` agora aparece como criacao esperada, e nao como problema generico de banco.
+  3. semantica de import e conteudo final do DB foram preservados.
+  4. licao de processo registrada:
+     - nao assumir etapa como concluida sem confirmacao explicita
+     - nao iniciar slice secundario sem aprovacao explicita
+     - manter PT-BR ASCII nos blocos ativos
+- Arquivos alterados:
   1. `armazenamento/database_validation.py`
   2. `armazenamento/database_integrity.py`
   3. `tests/test_database_verification.py`
-- Test evidence:
+- Evidencia de teste:
   1. focused gate run: `16 passed`
-  2. new coverage includes:
-     - exact duplicate rows
-     - conflicting duplicate rows
-     - bootstrap creation without false warning
-- Explicitly unchanged:
-  1. robust importer path
-  2. extractor behavior
-  3. GUI/runtime flow outside validation/integrity logging
-- Next recommended slice:
-  1. if needed, refine `core.app_logic` runtime wording so the new duplicate categories are rendered with clearer operator-facing messages.
+  2. nova cobertura inclui:
+     - linhas duplicadas exatas
+     - linhas duplicadas conflitantes
+     - criacao inicial sem warning falso
+- Explicitamente inalterado:
+  1. caminho robust
+  2. comportamento do extrator
+  3. fluxo GUI/runtime fora da validacao e do log de integridade
+- Proximo slice recomendado:
+  1. se preciso, refinar o texto exibido por `core.app_logic` para as novas categorias de duplicidade.
 
 ## CURRENT TRUTH 2026-03-06 19:40 - authoritative block
 

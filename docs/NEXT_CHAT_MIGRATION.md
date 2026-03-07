@@ -1,27 +1,31 @@
 # Next Chat Migration Guide
 
-Use this file to migrate context to a new chat without losing execution quality.
+Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
 ## CURRENT TRUTH 2026-03-06 20:21 - start from here
 
-- Active branch: `codex/sprint-importacao-grave-fixes-20260305`.
-- Local release baseline: `4.30`.
-- Slice delivered:
-  1. dataframe validation now distinguishes `duplicate_numero_ssa_exact` from `duplicate_numero_ssa_conflict`.
-  2. bootstrap creation for a missing DB in `repair_database_if_needed()` no longer logs `Problemas detectados no banco` for the expected create-from-zero path.
-  3. import behavior and final DB outcome remain unchanged.
-- Files changed:
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue:
+  1. a validacao do dataframe agora distingue `duplicate_numero_ssa_exact` de `duplicate_numero_ssa_conflict`.
+  2. a criacao inicial de DB ausente em `repair_database_if_needed()` nao loga mais `Problemas detectados no banco` no caminho esperado de create-from-zero.
+  3. o comportamento de import e o resultado final do DB permaneceram iguais.
+  4. licao de processo registrada:
+     - nao assumir etapa como concluida sem confirmacao explicita
+     - nao iniciar slice secundario sem aprovacao explicita
+     - manter PT-BR ASCII nos blocos ativos
+- Arquivos alterados:
   1. `armazenamento/database_validation.py`
   2. `armazenamento/database_integrity.py`
   3. `tests/test_database_verification.py`
-- Validation snapshot:
+- Snapshot de validacao:
   1. `uv run --python 3.13 python -m py_compile armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
   2. `uv run --python 3.13 ruff check armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
   3. `uv run --python 3.13 ty check armazenamento/database_validation.py armazenamento/database_integrity.py tests/test_database_verification.py`: pass.
   4. `timeout 180s uv run --python 3.13 pytest -q tests/test_database_verification.py`: `16 passed`.
-- Key operational meaning:
-  1. exact duplicate exports no longer look the same as conflicting duplicate payloads.
-  2. the candidate DB bootstrap path no longer emits a false database-problem warning during normal full-rescan startup.
+- Significado operacional:
+  1. export duplicado exato nao parece mais conflito de payload.
+  2. bootstrap do DB candidato nao parece mais problema real de integridade no startup normal do full rescan.
 
 ## CURRENT TRUTH 2026-03-06 19:40 - start from here
 
