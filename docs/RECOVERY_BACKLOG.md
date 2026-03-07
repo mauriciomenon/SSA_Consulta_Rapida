@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-06 (slice minimo: fast path seguro no upsert de banco vazio)
+
+Session timestamp:
+1. start: `2026-03-06 21:10:49 -0300`
+2. end: `2026-03-06 21:19:55 -0300`
+
+Decisao entregue:
+1. `_perform_upsert()` agora usa fast path de append direto quando o chunk tem `numero_ssa` unicos e nao existe nenhum desses SSAs no banco.
+2. `_persist_upsert_chunk()` agora converte `numpy scalar` para escalar Python antes do `to_sql`, evitando serializacao indevida como `BLOB`.
+3. o fast path reabre transacao quando `to_sql` encerra o contexto, alinhado com o bloco `no_ssa`.
+
+Arquivos alterados:
+1. `armazenamento/database_upsert_logic.py`
+2. `tests/test_upsert_fast_path.py`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_upsert_fast_path.py`: `5 passed`.
+
+Prova pratica:
+1. lote real: `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+2. `processed_fast=18513`, `rows_fast=18512`
+3. `processed_legacy=18513`, `rows_legacy=18512`
+4. `blob_fast=0`, `blob_legacy=0`
+5. `time_fast=1.476s`, `time_legacy=3.902s`, `speedup=2.644x`
+
+Deferido por controle de escopo:
+1. rerun completo do full rescan para medir ganho agregado no corpus inteiro fica para o proximo passo.
+
 ## Update 2026-03-06 (slice minimo: mensagem de log para duplicidade exata/conflitante)
 
 Session timestamp:

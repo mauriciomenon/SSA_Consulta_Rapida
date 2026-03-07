@@ -2,6 +2,38 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-06 21:10 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. `_perform_upsert()` ganhou fast path para chunks com `numero_ssa` unicos e ausentes no banco.
+  2. `_persist_upsert_chunk()` agora converte `numpy scalar` para escalar Python antes do `to_sql`.
+  3. o fast path reabre a transacao quando necessario para manter o fluxo multi-chunk estavel.
+- Arquivos alterados:
+  1. `armazenamento/database_upsert_logic.py`
+  2. `tests/test_upsert_fast_path.py`
+- Evidencia de teste:
+  1. focused gate run: `5 passed`
+  2. cobertura nova inclui:
+     - fast path em chunk unico sobre alvo vazio
+     - fallback com duplicata no chunk
+     - fallback com SSA ja existente
+     - fluxo misto `no_ssa + has_ssa`
+     - fast path multi-chunk com transacao aberta
+- Evidencia de performance:
+  1. lote real `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+  2. `time_fast=1.476s`
+  3. `time_legacy=3.902s`
+  4. `speedup=2.644x`
+  5. `blob_fast=0`, `blob_legacy=0`
+- Explicitamente inalterado:
+  1. GUI
+  2. caminho robust
+  3. extrator
+- Proximo slice recomendado:
+  1. medir o ganho agregado em um full rescan real e so depois voltar para a mensagem de log e investigacao dos invalidos.
+
 ## CURRENT TRUTH 2026-03-06 21:03 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
