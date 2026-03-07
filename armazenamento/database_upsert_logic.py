@@ -12,10 +12,11 @@ DO NOT add top-level imports from database.py - use lazy imports only.
 # Last modified: 2025-10-29T11:00:00 (circular import documentation)
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 import os
 import pandas as pd
 import logging
+import numpy as np
 import re
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
@@ -351,9 +352,19 @@ def _persist_upsert_chunk(
     rows_to_persist: dict[Any, pd.Series],
     delete_keys: set[Any],
 ) -> None:
+    def _coerce_sqlite_scalar(value: Any) -> Any:
+        if isinstance(value, np.generic) and np.isscalar(value):
+            scalar_value = cast(np.generic, value)
+            return scalar_value.item()
+        return value
+
     in_transaction = getattr(conn, "in_transaction", None)
     if in_transaction is not None and not bool(in_transaction):
-        raise RuntimeError("Upsert chunk requires active transaction on connection.")
+        try:
+            conn.execute("BEGIN")
+        except Exception as exc:
+            if "within a transaction" not in str(exc).lower():
+                raise
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
         conn.execute(
@@ -369,6 +380,9 @@ def _persist_upsert_chunk(
         all_columns = sorted({idx for row in rows_list for idx in row.index})
         normalized_rows = [row.reindex(all_columns) for row in rows_list]
         persist_df = pd.DataFrame(normalized_rows)
+        for col in persist_df.columns:
+            if persist_df[col].dtype == object:
+                persist_df[col] = persist_df[col].map(_coerce_sqlite_scalar)
         persist_df.to_sql(table_name, conn, if_exists='append', index=False)
 
 
@@ -435,6 +449,21 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
                     if cache_key is None:
                         continue
                     existing_by_ssa[cache_key] = existing_row
+
+        if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
+            chunk.to_sql(table_name, conn, if_exists='append', index=False)
+            total_upserted += len(chunk)
+            logger.info(
+                "Fast-path append de %s registros com numero_ssa unicos e ausentes no banco",
+                len(chunk),
+            )
+            if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
+                try:
+                    conn.execute("BEGIN")
+                except Exception as exc:
+                    if "within a transaction" not in str(exc).lower():
+                        raise
+            continue
 
         rows_to_persist: dict[str, pd.Series] = {}
         delete_keys: set[Any] = set()
@@ -615,7 +644,11 @@ def insert_dataframe_with_smart_upsert_impl(
             has_ssa = work[work['numero_ssa'].notna()].copy()
             no_ssa = work[work['numero_ssa'].isna()].copy()
         if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
-            cursor.execute("BEGIN")
+            try:
+                cursor.execute("BEGIN")
+            except Exception as exc:
+                if "within a transaction" not in str(exc).lower():
+                    raise
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = min(500, max(1, 999 // len(no_ssa.columns))) if len(no_ssa.columns) > 0 else 500
@@ -623,6 +656,13 @@ def insert_dataframe_with_smart_upsert_impl(
             no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
+            # pandas.to_sql may end the previous transaction. Re-open it for atomic upsert.
+            if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
+                try:
+                    cursor.execute("BEGIN")
+                except Exception as exc:
+                    if "within a transaction" not in str(exc).lower():
+                        raise
             inserted = _perform_upsert(has_ssa, table_name, conn)
             logger.info("Processados %s registros com numero_ssa via upsert", inserted)
         conn.commit()  # type: ignore[attr-defined]

@@ -2,6 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-06 21:10 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue:
+  1. `armazenamento.database_upsert_logic` agora usa fast path de append direto para chunks com `numero_ssa` unicos e ausentes no banco.
+  2. o mesmo modulo agora converte `numpy scalar` para escalar Python antes do `to_sql` no fallback, evitando persistencia como `BLOB`.
+  3. o fast path reabre transacao quando `to_sql` encerra o contexto, mantendo o loop multi-chunk estavel.
+- Arquivos alterados:
+  1. `armazenamento/database_upsert_logic.py`
+  2. `tests/test_upsert_fast_path.py`
+- Snapshot de validacao:
+  1. `uv run --python 3.13 python -m py_compile armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+  2. `uv run --python 3.13 ruff check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+  3. `uv run --python 3.13 ty check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_upsert_fast_path.py`: `5 passed`.
+- Prova pratica:
+  1. lote real usado: `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+  2. `time_fast=1.476s`
+  3. `time_legacy=3.902s`
+  4. `speedup=2.644x`
+  5. `rows_fast=18512`, `rows_legacy=18512`
+  6. `blob_fast=0`, `blob_legacy=0`
+- Significado operacional:
+  1. ganho real agora esta no hot path do upsert, nao no extrator.
+  2. o slice elimina a serializacao incorreta observada em `semana_programada` no caminho medido.
+
 ## CURRENT TRUTH 2026-03-06 21:03 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
