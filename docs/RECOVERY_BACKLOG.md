@@ -63,6 +63,39 @@ Deferido por controle de escopo:
 1. revisar por que o robust ainda produz `sn` e `sn_1`.
 2. decidir se o proximo ciclo ataca performance do upsert ou cleanup especifico do caminho robust.
 
+## Update 2026-03-07 (slice minimo: cleanup local do robust sem aceitar `.1/.2`)
+
+Session timestamp:
+1. start: `2026-03-07 10:08:22 -0300`
+2. end: `2026-03-07 10:26:42 -0300`
+
+Decisao entregue:
+1. `utils/robust_importer.py` passou a reescrever qualquer duplicata pontuada remanescente sem preservar ponto no nome final:
+   - duplicata semantica conhecida continua indo para canones dedicados
+   - duplicata pontuada desconhecida agora vira sufixo com underscore
+2. o helper compartilhado experimental nao foi ligado ao runtime neste slice; o caminho adotado foi o patch local de menor risco no robust.
+3. o criterio funcional do usuario foi validado no corpus inteiro do robust:
+   - `TOTAL 431`
+   - `BAD_COUNT 0`
+   - nenhum `.1/.2`
+   - nenhum `sn` ou `sn_1`
+
+Arquivos alterados:
+1. `utils/robust_importer.py`
+2. `tests/test_robust_importer.py`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile utils/robust_importer.py tests/test_robust_importer.py`: pass.
+2. `uv run --python 3.13 ruff check utils/robust_importer.py tests/test_robust_importer.py`: pass.
+3. `uv run --python 3.13 ty check utils/robust_importer.py tests/test_robust_importer.py`: pass.
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_robust_importer.py tests/test_real_spreadsheet_import.py tests/test_import_novas_colunas.py`: `15 passed`.
+5. varredura real do corpus robust:
+   - `431` arquivos `.xlsx`
+   - `BAD_COUNT 0`
+
+Deferido por controle de escopo:
+1. qualquer centralizacao posterior da resolucao semantica em modulo compartilhado fica para outro ciclo, somente se houver ganho concreto alem do patch local atual.
+
 ## Update 2026-03-06 (slice minimo: mensagens de log operacionais no import)
 
 Session timestamp:

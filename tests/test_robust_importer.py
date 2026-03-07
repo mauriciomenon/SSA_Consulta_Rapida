@@ -104,6 +104,124 @@ def test_dedup_keeps_latest_date(tmp_path):
     assert stats['duplicate_rows_dropped'] == 2
 
 
+def test_semantic_duplicate_columns_are_resolved_before_upsert(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Nº SSA": ["202500100"],
+            "SN": ["RET-001"],
+            "SN.1": ["INS-001"],
+            "Desde": ["01/09/2025"],
+            "Desde.1": ["02/09/2025"],
+            "Até": ["03/09/2025"],
+            "Até.1": ["04/09/2025"],
+            "Emitida Em": ["01/09/2025"],
+        }
+    )
+
+    out_df, _stats = _roundtrip_import(df, tmp_path)
+
+    assert "sn_retirado" in out_df.columns
+    assert "sn_instalado" in out_df.columns
+    assert "desde" in out_df.columns
+    assert "desde_1" in out_df.columns
+    assert "ate" in out_df.columns
+    assert "ate_1" in out_df.columns
+    assert "sn" not in out_df.columns
+    assert "sn_1" not in out_df.columns
+    assert "desde.1" not in out_df.columns
+    assert "ate.1" not in out_df.columns
+    assert out_df.loc[0, "sn_retirado"] == "RET-001"
+    assert out_df.loc[0, "sn_instalado"] == "INS-001"
+
+
+def test_dotted_semantic_suffix_without_base_maps_to_known_slot(tmp_path):
+    df = pd.DataFrame(
+        {
+            "Nº SSA": ["202500101"],
+            "SN.1": ["INS-ONLY"],
+            "Emitida Em": ["01/09/2025"],
+        }
+    )
+
+    out_df, _stats = _roundtrip_import(df, tmp_path)
+
+    assert "sn_instalado" in out_df.columns
+    assert "sn_1" not in out_df.columns
+    assert out_df.loc[0, "sn_instalado"] == "INS-ONLY"
+
+
+def test_related_dotted_aliases_map_to_related_canonical_columns(tmp_path):
+    df = pd.DataFrame(
+        [
+            [
+                "202500102",
+                "MEL1",
+                "IEE1",
+                "SPG",
+                "202500103",
+                "MEL2",
+                "IEE2",
+                "STE",
+                "202500104",
+                "MEL3",
+                "IEE3",
+                "SPM",
+                "01/09/2025",
+            ]
+        ],
+        columns=[
+            "N\u00famero da SSA",
+            "Setor Emissor",
+            "Setor Executor",
+            "Situacao",
+            "N\u00famero da SSA.1",
+            "Setor Emissor.1",
+            "Setor Executor.1",
+            "Situacao.1",
+            "N\u00famero da SSA.2",
+            "Setor Emissor.2",
+            "Setor Executor.2",
+            "Situacao.2",
+            "Emitida Em",
+        ],
+    )
+
+    out_df, _stats = _roundtrip_import(df, tmp_path)
+
+    for col in out_df.columns:
+        assert "." not in col
+    assert "numero_ssa_relacionada_1" in out_df.columns
+    assert "numero_ssa_relacionada_2" in out_df.columns
+    assert "setor_emissor_relacionado_1" in out_df.columns
+    assert "setor_emissor_relacionado_2" in out_df.columns
+    assert "setor_executor_relacionado_1" in out_df.columns
+    assert "setor_executor_relacionado_2" in out_df.columns
+    assert "situacao_relacionada_1" in out_df.columns
+    assert "situacao_relacionada_2" in out_df.columns
+    assert str(out_df.loc[0, "numero_ssa_relacionada_1"]) == "202500103"
+    assert str(out_df.loc[0, "numero_ssa_relacionada_2"]) == "202500104"
+
+
+def test_unknown_dotted_columns_never_keep_dot_suffixes(tmp_path):
+    df = pd.DataFrame(
+        {
+            "N\u00ba SSA": ["202500105"],
+            "Campo Novo.1": ["A"],
+            "Campo Novo.2": ["B"],
+            "Emitida Em": ["01/09/2025"],
+        }
+    )
+
+    out_df, _stats = _roundtrip_import(df, tmp_path)
+
+    for col in out_df.columns:
+        assert "." not in col
+    assert "campo novo_1" in out_df.columns
+    assert "campo novo_2" in out_df.columns
+    assert out_df.loc[0, "campo novo_1"] == "A"
+    assert out_df.loc[0, "campo novo_2"] == "B"
+
+
 @pytest.mark.parametrize("bad_value", [None, "", "  "])
 def test_blank_numero_ssa_removed(tmp_path, bad_value):
     df = pd.DataFrame(
