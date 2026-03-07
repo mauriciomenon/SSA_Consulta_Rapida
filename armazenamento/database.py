@@ -33,6 +33,7 @@ MAX_TEXT_LEN = 1000
 # --- Optimized Mode Dispatch ---
 # Flag global para controlar modo otimizado (substituiu monkey-patching)
 _use_optimized_mode = False
+_resolved_table_cache: dict[tuple[str, str], str] = {}
 
 def set_optimized_mode(enabled: bool) -> None:
     """
@@ -48,6 +49,17 @@ def set_optimized_mode(enabled: bool) -> None:
     global _use_optimized_mode
     _use_optimized_mode = enabled
     logger.info(f"Modo otimizado {'ativado' if enabled else 'desativado'}")
+
+
+def _clear_resolved_table_cache(db_path: str | None = None) -> None:
+    if db_path is None:
+        _resolved_table_cache.clear()
+        return
+
+    normalized_path = os.path.abspath(db_path)
+    stale_keys = [key for key in _resolved_table_cache if key[0] == normalized_path]
+    for key in stale_keys:
+        _resolved_table_cache.pop(key, None)
 
 # --- Gerenciamento de Conexao ---
 
@@ -142,11 +154,13 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
         conn = db_path
         conn.executescript(schema_sql)
         conn.commit()
+        _clear_resolved_table_cache()
         return True
 
     with get_db_connection(db_path) as conn:  # caminho normal (string)
         conn.executescript(schema_sql)
         conn.commit()
+    _clear_resolved_table_cache(str(db_path))
 
     logger.info("Banco de dados inicializado com sucesso.")
     return True
@@ -171,25 +185,25 @@ def query_db(
     Returns:
         pd.DataFrame: Resultado da consulta.
     """
-    if not query:
-        safe_table_name = str(table_name or "").strip()
-        if not is_valid_identifier(safe_table_name):
-            error_msg = f"Nome de tabela invalido para query_db: {table_name!r}"
-            logger.error(error_msg)
-            if raise_on_error:
-                raise ValueError(error_msg)
-            return pd.DataFrame()
-        query = f'SELECT * FROM "{safe_table_name}"'
-
-    logger.debug(f"Executando consulta: {query} com params: {params}")
     try:
         with get_db_connection(db_path) as conn:
+            effective_query = query
+            if not effective_query:
+                resolved_table = _resolve_target_table(conn, table_name)
+                effective_query = f"SELECT * FROM {_quote_identifier(resolved_table)}"
+
+            logger.debug("Executando consulta: %s com params: %s", effective_query, params)
             # pd.read_sql_query e otimo para SELECTs
-            df = pd.read_sql_query(query, conn, params=cast(Any, params))
+            df = pd.read_sql_query(effective_query, conn, params=cast(Any, params))
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
     except (sqlite3.Error, pd.errors.DatabaseError) as e:
-        logger.exception("Erro ao executar consulta '%s' com params=%s: %s", query, params, e)
+        logger.exception(
+            "Erro ao executar consulta '%s' com params=%s: %s",
+            query or table_name,
+            params,
+            e,
+        )
         if raise_on_error:
             raise
         logger.warning(
@@ -199,6 +213,55 @@ def query_db(
         return pd.DataFrame()
 
 IfExistsPolicy = Literal['fail', 'replace', 'append']
+
+
+def _quote_identifier(name: str) -> str:
+    safe_name = str(name or "").strip()
+    if not is_valid_identifier(safe_name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return f'"{safe_name}"'
+
+
+def _get_connection_db_path(conn: _sqlite3_typehint.Connection) -> str:
+    row = conn.execute("PRAGMA database_list").fetchone()
+    if row and len(row) >= 3 and row[2]:
+        return os.path.abspath(str(row[2]))
+    return ":memory:"
+
+
+def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -> str:
+    safe_table_name = str(table_name or "").strip()
+    if not is_valid_identifier(safe_table_name):
+        raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
+
+    cache_key = (_get_connection_db_path(conn), safe_table_name)
+    cached_table_name = _resolved_table_cache.get(cache_key)
+    if cached_table_name:
+        return cached_table_name
+
+    if safe_table_name in LEGACY_SSA_TABLE_ALIASES:
+        canonical_row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (CANONICAL_SSA_TABLE,),
+        ).fetchone()
+        if canonical_row:
+            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
+            return CANONICAL_SSA_TABLE
+
+    row = conn.execute(
+        "SELECT name, type FROM sqlite_master WHERE name=?",
+        (safe_table_name,),
+    ).fetchone()
+    if row and row[1] == 'view':
+        canonical_row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (CANONICAL_SSA_TABLE,),
+        ).fetchone()
+        if canonical_row:
+            _resolved_table_cache[cache_key] = CANONICAL_SSA_TABLE
+            return CANONICAL_SSA_TABLE
+    _resolved_table_cache[cache_key] = safe_table_name
+    return safe_table_name
 
 def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     """Insere um DataFrame em uma tabela do banco (modo simples).
@@ -230,10 +293,11 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         table_name: str = args[2]
         if_exists: IfExistsPolicy = kwargs.get('if_exists', 'append')
         legacy_mode = False
+        legacy_conn: _sqlite3_typehint.Connection | None = None
     else:
         # Legado: (conn, df [, table])
-        conn = args[0]
-        if not isinstance(conn, _sqlite3_typehint.Connection):  # pragma: no cover
+        legacy_conn = args[0]
+        if not isinstance(legacy_conn, _sqlite3_typehint.Connection):  # pragma: no cover
             raise TypeError("Primeiro argumento legado deve ser conexao sqlite3")
         if len(args) < 2:
             raise TypeError("Uso legado requer (conn, df [, table_name])")
@@ -267,20 +331,6 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
     # Apos normalizacao, se ficar vazio em modo legado, tambem gera ValueError
     if work_df.empty and legacy_mode:
         raise ValueError("DataFrame sem linhas validas apos normalizacao")
-
-    # Redireciona view -> tabela fisica se necessario
-    def _resolve_target_table(c: _sqlite3_typehint.Connection, name: str) -> str:
-        try:
-            cur = c.execute("SELECT name, type FROM sqlite_master WHERE name=?", (name,))
-            row = cur.fetchone()
-            if row and row[1] == 'view':
-                # Preferir ssa_table se existir
-                cur2 = c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ssa_table'")
-                if cur2.fetchone():
-                    return 'ssa_table'
-            return name
-        except Exception:  # pragma: no cover
-            return name
 
     try:
         if not legacy_mode:
@@ -322,7 +372,10 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
         start_time = time.time()
         logger.info("Iniciando insercao legado: %s registros em '%s'", len(work_df), table_name)
 
-        final_table = _resolve_target_table(conn, table_name)
+        if legacy_conn is None:  # pragma: no cover
+            raise RuntimeError("Conexao legado ausente em insert_dataframe_to_db")
+
+        final_table = _resolve_target_table(legacy_conn, table_name)
         batch_size = min(500, max(1, 999 // len(work_df.columns))) if len(work_df.columns) > 0 else 500
         work_df.reset_index(drop=True, inplace=True)
 
@@ -331,10 +384,16 @@ def insert_dataframe_to_db(*args, **kwargs) -> bool:  # noqa: C901, PLR0912
             logger.info("Registros com SSA: %s/%s", ssa_count, len(work_df))
 
         insert_start = time.time()
-        work_df.to_sql(final_table, conn, if_exists=if_exists, index=False, chunksize=batch_size)
+        work_df.to_sql(
+            final_table,
+            legacy_conn,
+            if_exists=if_exists,
+            index=False,
+            chunksize=batch_size,
+        )
         insert_time = time.time() - insert_start
 
-        conn.commit()
+        legacy_conn.commit()
         commit_time = time.time() - insert_start - insert_time
 
         total_time = time.time() - start_time
@@ -365,12 +424,14 @@ def reset_database(
         if mode == 'file':
             if os.path.exists(db_path):
                 os.remove(db_path)
+            _clear_resolved_table_cache(db_path)
             return True
         if mode == 'table':
             # Reaplica o schema
             if schema_path is None:
                 schema_path = schema_file  # usa padrao e resolucao em initialize_database
             initialize_database(db_path, schema_path)
+            _clear_resolved_table_cache(db_path)
             return True
         logger.error(f"Modo de reset desconhecido: {mode}")
         return False
@@ -382,21 +443,21 @@ def reset_database(
 def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
     """Garante indices uteis para consultas comuns."""
     try:
-        if not is_valid_identifier(table_name):
-            raise ValueError(f"Invalid SQL identifier for table: {table_name}")
         with get_db_connection(db_path) as conn:
             cur = conn.cursor()
+            resolved_table = _resolve_target_table(conn, table_name)
+            quoted_table = _quote_identifier(resolved_table)
             # Descobre colunas existentes para evitar erros ao criar indices
-            cur.execute(f"PRAGMA table_info({table_name})")
+            cur.execute(f"PRAGMA table_info({quoted_table})")
             cols_info = cur.fetchall() or []
             existing_cols = {row[1] for row in cols_info}  # nome da coluna na posicao 1
 
             # Indices candidatos e suas colunas
             candidate_indexes = [
-                (f"idx_{table_name}_numero_ssa", "numero_ssa"),
-                (f"idx_{table_name}_setor_executor", "setor_executor"),
-                (f"idx_{table_name}_semana_cadastro", "semana_cadastro"),
-                (f"idx_{table_name}_situacao", "situacao"),
+                (f"idx_{resolved_table}_numero_ssa", "numero_ssa"),
+                (f"idx_{resolved_table}_setor_executor", "setor_executor"),
+                (f"idx_{resolved_table}_semana_cadastro", "semana_cadastro"),
+                (f"idx_{resolved_table}_situacao", "situacao"),
             ]
 
             for idx_name, col in candidate_indexes:
@@ -407,7 +468,10 @@ def ensure_indexes(db_path: str, table_name: str = CANONICAL_SSA_TABLE) -> bool:
                     logger.warning("Ignorando nome de indice invalido: %s", idx_name)
                     continue
                 if col in existing_cols:
-                    cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({col})")
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS {_quote_identifier(idx_name)} "
+                        f"ON {quoted_table} ({_quote_identifier(col)})"
+                    )
             conn.commit()
         return True
     except Exception as e:
@@ -423,24 +487,10 @@ def ensure_column_exists(
 ) -> bool:
     """Garante que uma coluna exista na tabela fisica alvo."""
     try:
-        physical_table = table_name
-        # Redireciona somente se a tabela fisica realmente existir para evitar
-        # logs de erro "no such table: ssa_table" em cenarios de teste minimo.
-        if table_name in LEGACY_SSA_TABLE_ALIASES:
-            with get_db_connection(db_path) as _conn:
-                cur = _conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                    (CANONICAL_SSA_TABLE,),
-                )
-                if cur.fetchone():
-                    physical_table = CANONICAL_SSA_TABLE
-
-        if not is_valid_identifier(physical_table):
-            raise ValueError(f"Invalid SQL identifier for table: {physical_table}")
-        if not is_valid_identifier(column_name):
-            raise ValueError(f"Invalid SQL identifier for column: {column_name}")
-
         with get_db_connection(db_path) as conn:
+            physical_table = _resolve_target_table(conn, table_name)
+            quoted_table = _quote_identifier(physical_table)
+            quoted_column = _quote_identifier(column_name)
             table_exists_row = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                 (physical_table,),
@@ -454,14 +504,15 @@ def ensure_column_exists(
                 )
                 return False
 
-            cursor = conn.execute(f"PRAGMA table_info({physical_table})")  # noqa: S608
+            cursor = conn.execute(f"PRAGMA table_info({quoted_table})")
             existing_columns = {row[1] for row in cursor.fetchall()}
             if column_name in existing_columns:
                 return False
             conn.execute(
-                f"ALTER TABLE {physical_table} ADD COLUMN {column_name} {column_definition}"
+                f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {column_definition}"
             )
             conn.commit()
+            _clear_resolved_table_cache(db_path)
             logger.info(
                 "Coluna '%s' adicionada a tabela '%s' com definicao %s",
                 column_name,
@@ -495,8 +546,8 @@ from . import database_upsert_logic as _up  # noqa: E402  # import unico para us
 def insert_dataframe_with_smart_upsert(
     df: pd.DataFrame | _sqlite3_typehint.Connection,
     db_path: str | pd.DataFrame | None = None,
-    table_name: str = 'ssas',
-) -> bool:  # noqa: PLR0912, PLR0915, PLR0915, PLR0913, PLR0914
+    table_name: str = CANONICAL_SSA_TABLE,
+) -> bool:  # noqa: PLR0912, PLR0914, PLR0915
     """Insere DataFrame com logica de upsert (por ``numero_ssa``) em baixo
     nivel. Esta versao foi refatorada para reduzir complexidade mantendo a
     mesma semantica relevante:

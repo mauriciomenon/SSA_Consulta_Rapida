@@ -5,6 +5,7 @@ Testes para as novas funcionalidades de verificação e integridade do banco de 
 """
 
 import os
+import sqlite3
 
 import pandas as pd
 import pytest
@@ -12,6 +13,7 @@ import pytest
 from armazenamento.database import (
     ensure_column_exists,
     initialize_database,
+    query_db,
     repair_database_if_needed,
     validate_dataframe_before_insert,
     verify_database_integrity,
@@ -41,7 +43,7 @@ class TestDatabaseVerification:  # noqa: D101
         assert not report['database_exists']
         assert report.get('needs_creation') is True
         assert len(report['issues']) > 0
-        assert "não encontrado" in str(report['issues'])
+        assert "nao encontrado" in str(report['issues'])
 
     def test_verify_valid_database(self, tmp_path):
         """Testa verificação de banco válido."""
@@ -71,6 +73,29 @@ class TestDatabaseVerification:  # noqa: D101
         assert report['database_accessible']
         assert report['table_exists']
         assert report['schema_valid']
+
+    def test_verify_alias_table_resolves_to_canonical_table(self, tmp_path):
+        """Alias legado deve resolver para a tabela canonica quando ela existe."""
+        db_path = os.path.join(tmp_path, 'canonical_alias.db')
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        report = verify_database_integrity(db_path, table_name='ssas')
+
+        assert report['is_valid'] is True
+        assert report['table_name'] == 'ssa_table'
+        assert report['table_exists'] is True
 
     def test_verify_corrupted_database(self, tmp_path):
         """Testa verificação de banco corrompido."""
@@ -250,6 +275,32 @@ class TestDatabaseRepair:
         report = verify_database_integrity(db_path, table_name='ssas')
         assert report['is_valid'] is True
         assert report['table_exists'] is True
+
+    def test_repair_adds_arquivo_origem_when_schema_is_otherwise_valid(self, tmp_path):
+        """Reparo deve adicionar coluna auxiliar ausente fora da verificacao."""
+        db_path = os.path.join(tmp_path, 'repair_missing_column.db')
+        schema_path = os.path.join(tmp_path, 'schema.sql')
+
+        with open(schema_path, 'w') as f:
+            f.write("""
+            CREATE TABLE IF NOT EXISTS ssa_table (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            );
+            """)
+
+        initialize_database(db_path, schema_path)
+
+        report_before = verify_database_integrity(db_path, table_name='ssa_table')
+        assert "arquivo_origem" not in query_db(db_path, 'ssa_table').columns
+        assert any("arquivo_origem" in warning for warning in report_before['warnings'])
+
+        result = repair_database_if_needed(db_path, schema_path, table_name='ssa_table')
+
+        assert result is True
+        assert "arquivo_origem" in query_db(db_path, 'ssa_table').columns
 
     def test_repair_nonexistent_database_avoids_false_warning(self, tmp_path, caplog):
         """Banco ausente em bootstrap nao deve logar warning generico de problema."""
