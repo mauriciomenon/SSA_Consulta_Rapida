@@ -3,6 +3,35 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-06 (slice minimo: observabilidade por arquivo e classificacao de invalidos)
+
+Session timestamp:
+1. start: `2026-03-06 21:52:12 -0300`
+2. end: `2026-03-06 21:58:35 -0300`
+
+Decisao entregue:
+1. `_import_single_file()` agora coleta tempos por arquivo em `extracao`, `validacao` e `insercao`, alem de contadores de linhas extraidas, removidas e prontas para inserir.
+2. `run_importer_logic()` agora persiste `file_reports` no `import_run_*.json`, com totais agregados do slice.
+3. o extrator agora classifica invalidos sem identidade em dois grupos:
+   - vazios
+   - com payload
+4. a classificacao considera tambem linhas totalmente vazias removidas cedo e ignora whitespace puro ao decidir se ha payload.
+
+Arquivos alterados:
+1. `core/app_logic.py`
+2. `extracao/extractor.py`
+3. `tests/test_extracao.py`
+4. `tests/test_import_run_report.py`
+
+Validacao:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: `30 passed`.
+
+Deferido por controle de escopo:
+1. medir o ganho agregado do patch de upsert em full rescan completo fica para o proximo passo, com nova aprovacao explicita.
+
 ## Update 2026-03-06 (slice minimo: fast path seguro no upsert de banco vazio)
 
 Session timestamp:

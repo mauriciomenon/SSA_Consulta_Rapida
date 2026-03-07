@@ -187,6 +187,117 @@ def test_run_importer_logic_writes_report_on_success(
     assert payload["files"]["ignored_legacy_excel"] == ["legado.xls"]
 
 
+def test_run_importer_logic_report_includes_file_phase_metrics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    file_ok = docs_dir / "ok.xlsx"
+    file_ok.write_text("placeholder", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _mock_db_ok(monkeypatch)
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *args, **kwargs: [str(file_ok)],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+
+    def _fake_import_single_file(file_path: str, db_path: str, *args, **kwargs) -> tuple[bool, int]:
+        metrics_out = kwargs.get("_metrics_out")
+        if isinstance(metrics_out, dict):
+            metrics_out.update(
+                {
+                    "file": "ok.xlsx",
+                    "status": "success",
+                    "durations": {
+                        "extraction_seconds": 0.123,
+                        "validation_seconds": 0.045,
+                        "insert_seconds": 0.067,
+                    },
+                    "counts": {
+                        "rows_extracted": 10,
+                        "rows_before_invalid_filter": 12,
+                        "rows_removed_invalid_identity": 2,
+                        "rows_removed_required_validation": 1,
+                        "rows_ready_for_insert": 7,
+                        "rows_inserted": 7,
+                    },
+                    "invalid_identity_tracked": True,
+                    "invalid_identity": {
+                        "total_removed": 2,
+                        "empty_removed": 1,
+                        "payload_removed": 1,
+                        "payload_columns_sample": ["data_cadastro", "responsavel_execucao"],
+                    },
+                }
+            )
+        return True, 7
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import_single_file)
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_after_import",
+        lambda *args, **kwargs: None,
+    )
+
+    captured: dict[str, Any] = {}
+
+    def _fake_write(payload: dict) -> str:
+        captured["payload"] = payload
+        return str(tmp_path / "import_run_fake_metrics.json")
+
+    monkeypatch.setattr(app_logic, "_write_import_run_report", _fake_write)
+
+    updated = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is True
+    payload = cast(dict[str, Any], captured["payload"])
+    assert payload["counts"]["rows_extracted_total"] == 10
+    assert payload["counts"]["rows_removed_invalid_identity_total"] == 2
+    assert payload["counts"]["rows_ready_for_insert_total"] == 7
+    assert payload["counts"]["rows_inserted_total"] == 7
+    assert payload["file_reports"] == [
+        {
+            "file": "ok.xlsx",
+            "status": "success",
+            "durations": {
+                "extraction_seconds": 0.123,
+                "validation_seconds": 0.045,
+                "insert_seconds": 0.067,
+            },
+            "counts": {
+                "rows_extracted": 10,
+                "rows_before_invalid_filter": 12,
+                "rows_removed_invalid_identity": 2,
+                "rows_removed_required_validation": 1,
+                "rows_ready_for_insert": 7,
+                "rows_inserted": 7,
+            },
+            "invalid_identity_tracked": True,
+            "invalid_identity": {
+                "total_removed": 2,
+                "empty_removed": 1,
+                "payload_removed": 1,
+                "payload_columns_sample": ["data_cadastro", "responsavel_execucao"],
+            },
+        }
+    ]
+
+
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

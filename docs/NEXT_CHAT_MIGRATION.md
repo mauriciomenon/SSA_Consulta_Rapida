@@ -2,6 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-06 21:52 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue:
+  1. `core.app_logic` agora coleta tempos por arquivo em `extracao`, `validacao` e `insercao` sem alterar a semantica do import.
+  2. `run_importer_logic` agora grava `file_reports` em `import_run_*.json`, com totais agregados de linhas extraidas, removidas por invalidos sem identidade, prontas para inserir e inseridas.
+  3. `extracao.extractor` agora classifica invalidos sem identidade em `vazios` e `com payload`, incluindo linhas totalmente vazias removidas cedo.
+  4. o classificador de payload agora ignora whitespace puro para nao inflar falsamente o grupo `com payload`.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `extracao/extractor.py`
+  3. `tests/test_extracao.py`
+  4. `tests/test_import_run_report.py`
+- Snapshot de validacao:
+  1. `uv run --python 3.13 python -m py_compile core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+  2. `uv run --python 3.13 ruff check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+  3. `uv run --python 3.13 ty check core/app_logic.py extracao/extractor.py tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: pass.
+  4. `timeout 180s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_import_run_report.py tests/test_import_single_error_classification.py`: `30 passed`.
+- Significado operacional:
+  1. o proximo full rescan vai sair com evidencia por arquivo/fase, em vez de log agregado opaco.
+  2. a triagem dos invalidos agora distingue ruido vazio de payload real sem identidade, sem mudar a regra de descarte.
+
 ## CURRENT TRUTH 2026-03-06 21:10 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
