@@ -167,6 +167,46 @@ def test_extract_data_from_excel_header_without_rows_returns_empty_dataframe(tmp
     assert extracted.empty
 
 
+def test_extract_data_from_excel_classifies_invalid_identity_rows(tmp_path, monkeypatch):
+    rows = [
+        [
+            "Numero da SSA",
+            "Descricao da SSA",
+            "Emitida Em",
+            "Responsavel na Execucao",
+            "Observacao",
+        ],
+        [202500101, "SSA valida", "01/07/2025", "TEC 1", None],
+        [None, None, "02/07/2025", "TEC 2", None],
+        [None, None, None, None, "   "],
+    ]
+    df = pd.DataFrame(rows)
+    file_path = tmp_path / "invalid_identity_rows.xlsx"
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, header=False)
+
+    monkeypatch.setattr(
+        "extracao.extractor._load_column_mappings",
+        lambda: {
+            "Numero da SSA": "numero_ssa",
+            "Descricao da SSA": "descricao_ssa",
+            "Emitida Em": "data_cadastro",
+            "Responsavel na Execucao": "responsavel_execucao",
+        },
+    )
+
+    extracted = extract_data_from_excel(str(file_path))
+
+    assert len(extracted) == 1
+    summary = extracted.attrs["invalid_row_summary"]
+    assert summary["total_removed"] == 2
+    assert summary["empty_removed"] == 1
+    assert summary["payload_removed"] == 1
+    assert "data_cadastro" in summary["payload_columns_sample"]
+    assert "responsavel_execucao" in summary["payload_columns_sample"]
+    assert extracted.attrs["row_count_before_invalid_filter"] == 3
+
+
 def test_extract_data_from_excel_preserves_empty_required_alias_until_normalization(
     tmp_path, monkeypatch
 ):

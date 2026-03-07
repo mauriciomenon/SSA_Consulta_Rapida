@@ -141,6 +141,47 @@ def _record_debug_phase_columns(
     debug_phases[phase_name] = [str(column) for column in list(columns)]
 
 
+def _summarize_invalid_identity_rows(
+    frame: pd.DataFrame,
+    invalid_mask: pd.Series,
+) -> dict[str, Any]:
+    invalid_rows = frame.loc[invalid_mask].copy()
+    if invalid_rows.empty:
+        return {
+            "total_removed": 0,
+            "empty_removed": 0,
+            "payload_removed": 0,
+            "payload_columns_sample": [],
+        }
+
+    payload_columns = [col for col in invalid_rows.columns if col not in {"numero_ssa", "descricao_ssa"}]
+    if payload_columns:
+        payload_frame = invalid_rows[payload_columns].copy()
+        for col in payload_columns:
+            if pd.api.types.is_object_dtype(payload_frame[col]) or pd.api.types.is_string_dtype(
+                payload_frame[col]
+            ):
+                stripped = payload_frame[col].astype("string").str.strip()
+                payload_frame[col] = payload_frame[col].mask(stripped.eq(""), pd.NA)
+        payload_presence = payload_frame.notna().any(axis=1)
+    else:
+        payload_presence = pd.Series(False, index=invalid_rows.index, dtype=bool)
+
+    payload_removed = int(payload_presence.sum())
+    empty_removed = int((~payload_presence).sum())
+    payload_columns_sample = [
+        str(col)
+        for col in payload_columns
+        if payload_frame[col].notna().any()
+    ][:8]
+    return {
+        "total_removed": int(len(invalid_rows)),
+        "empty_removed": empty_removed,
+        "payload_removed": payload_removed,
+        "payload_columns_sample": payload_columns_sample,
+    }
+
+
 def _normalize_datatypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     Converte colunas-chave para tipos de dados padronizados.
@@ -364,6 +405,7 @@ def extract_data_from_excel(
         initial_len = len(combined_df)
         combined_df.dropna(how='all', inplace=True)
         final_len = len(combined_df)
+        early_empty_removed = initial_len - final_len
         if initial_len != final_len:
             logger.debug(f"Removidas {initial_len - final_len} linhas completamente vazias.")
 
@@ -550,12 +592,28 @@ def extract_data_from_excel(
             (descricao_series.notna() & (descricao_series != ''))
         )
 
+        invalid_summary = _summarize_invalid_identity_rows(combined_df, ~valid_mask)
+        if early_empty_removed > 0:
+            invalid_summary["empty_removed"] += early_empty_removed
+            invalid_summary["total_removed"] += early_empty_removed
+            invalid_summary["empty_removed_pre_identity_filter"] = early_empty_removed
         combined_df = combined_df[valid_mask].copy().reset_index(drop=True)
-        after_validation = len(combined_df)
+        combined_df.attrs["invalid_row_summary"] = invalid_summary
+        combined_df.attrs["row_count_before_invalid_filter"] = (
+            before_validation + early_empty_removed
+        )
 
-        if before_validation > after_validation:
-            invalid_count = before_validation - after_validation
-            logger.warning(f"Removidos {invalid_count} registros inválidos (sem número SSA nem descrição)")
+        if invalid_summary.get("total_removed", 0) > 0:
+            invalid_count = int(invalid_summary.get("total_removed", 0))
+            payload_cols = invalid_summary.get("payload_columns_sample") or []
+            payload_txt = f" (colunas: {', '.join(payload_cols)})" if payload_cols else ""
+            logger.warning(
+                "Removidos %s registros invalidos sem identidade: %s vazios, %s com payload%s",
+                invalid_count,
+                invalid_summary.get("empty_removed", 0),
+                invalid_summary.get("payload_removed", 0),
+                payload_txt,
+            )
 
         # Validar campos críticos e avisar sobre problemas
         if 'numero_ssa' in combined_df.columns:

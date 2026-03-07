@@ -2,6 +2,34 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-06 21:52 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Entregue neste slice:
+  1. `_import_single_file()` agora mede e devolve tempos por arquivo em `extracao`, `validacao` e `insercao`.
+  2. `run_importer_logic()` agora grava `file_reports` no `import_run_*.json`, junto com totais agregados do slice.
+  3. o extrator agora separa invalidos sem identidade entre `vazios` e `com payload`.
+  4. linhas totalmente vazias removidas cedo tambem entram no resumo, e whitespace puro nao conta mais como payload.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `extracao/extractor.py`
+  3. `tests/test_extracao.py`
+  4. `tests/test_import_run_report.py`
+- Evidencia de teste:
+  1. focused gate run: `30 passed`
+  2. cobertura nova inclui:
+     - resumo de invalidos por arquivo
+     - persistencia de `file_reports` no report JSON
+     - contagem correta de `vazios` versus `payload`
+- Explicitamente inalterado:
+  1. GUI
+  2. caminho robust
+  3. schema e regra de descarte
+  4. `armazenamento/database_upsert_logic.py`
+- Proximo slice recomendado:
+  1. pedir aprovacao explicita para rodar o full rescan real e medir o ganho agregado do hot path de upsert com os novos `file_reports`.
+
 ## CURRENT TRUTH 2026-03-06 21:10 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.

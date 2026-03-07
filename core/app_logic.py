@@ -164,6 +164,7 @@ def _import_single_file(
     db_path: str,
     table_name: str,
     should_cancel: Optional[Callable[[], bool]] = None,
+    _metrics_out: Optional[Dict[str, Any]] = None,
 ) -> tuple[bool, int]:
     """
     Importa um unico arquivo Excel para o banco de dados.
@@ -182,18 +183,48 @@ def _import_single_file(
         DatabaseError: Se houver falha na insercao no DB.
     """
     logger.info(f"Iniciando importacao de '{file_path}'...")
+    metrics: Dict[str, Any] = {"file": os.path.basename(file_path)}
     try:
+        extraction_started = time.perf_counter()
         df = extractor.extract_data_from_excel(file_path, should_cancel=should_cancel)
-        if should_cancel and should_cancel():
-            raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
+        extraction_duration = time.perf_counter() - extraction_started
         if df is None:
             raise ExtractionError(f"Extractor retornou None para '{file_path}'")
+        invalid_row_summary_raw = df.attrs.get("invalid_row_summary")
+        invalid_row_summary = (
+            dict(invalid_row_summary_raw)
+            if isinstance(invalid_row_summary_raw, dict)
+            else {}
+        )
+        row_count_before_invalid_filter_raw = df.attrs.get(
+            "row_count_before_invalid_filter"
+        )
+        row_count_before_invalid_filter = (
+            int(row_count_before_invalid_filter_raw)
+            if isinstance(row_count_before_invalid_filter_raw, int)
+            else int(len(df))
+        )
+        metrics["durations"] = {"extraction_seconds": round(extraction_duration, 3)}
+        metrics["counts"] = {
+            "rows_extracted": int(len(df)),
+            "rows_before_invalid_filter": row_count_before_invalid_filter,
+            "rows_removed_invalid_identity": int(
+                invalid_row_summary.get("total_removed", 0)
+            ),
+            "rows_ready_for_insert": int(len(df)),
+            "rows_inserted": 0,
+        }
+        metrics["invalid_identity"] = invalid_row_summary
+        metrics["invalid_identity_tracked"] = bool(invalid_row_summary)
+        if should_cancel and should_cancel():
+            raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
         if not df.empty:
             df = df.copy()
             if should_cancel and should_cancel():
                 raise ExtractionError("operation cancelled", error_code="OPERATION_CANCELLED")
             # NOVA: Validar dados antes da insercao
             logger.info(f"Validando dados extraidos de '{file_path}'...")
+            validation_started = time.perf_counter()
             validation_report = database.validate_dataframe_before_insert(
                 df, table_name
             )
@@ -243,6 +274,11 @@ def _import_single_file(
                     ", ".join(sample_ssas),
                 )
                 df.drop(index=list(rows_to_drop), inplace=True)
+            metrics["durations"]["validation_seconds"] = round(
+                time.perf_counter() - validation_started, 3
+            )
+            metrics["counts"]["rows_ready_for_insert"] = int(len(df))
+            metrics["counts"]["rows_removed_required_validation"] = int(len(rows_to_drop))
 
             if df.empty:
                 logger.error(
@@ -281,6 +317,7 @@ def _import_single_file(
 
             # Conta registros antes de inserir
             record_count = len(df)
+            insertion_started = time.perf_counter()
 
             # CORRECAO CRITICA: Usar smart_upsert para evitar duplicatas
             if should_cancel and should_cancel():
@@ -288,7 +325,21 @@ def _import_single_file(
             success = database.insert_dataframe_with_smart_upsert(
                 df, db_path, table_name
             )
+            metrics["durations"]["insert_seconds"] = round(
+                time.perf_counter() - insertion_started, 3
+            )
+            metrics["counts"]["rows_inserted"] = int(record_count if success else 0)
             if success:
+                logger.info(
+                    "Resumo do arquivo '%s': extracao=%ss, validacao=%ss, insercao=%ss, linhas=%s, invalidos_sem_identidade=%s, prontas=%s",
+                    os.path.basename(file_path),
+                    metrics["durations"].get("extraction_seconds", 0),
+                    metrics["durations"].get("validation_seconds", 0),
+                    metrics["durations"].get("insert_seconds", 0),
+                    metrics["counts"].get("rows_extracted", 0),
+                    metrics["counts"].get("rows_removed_invalid_identity", 0),
+                    metrics["counts"].get("rows_ready_for_insert", 0),
+                )
                 logger.info(
                     f"Importacao de '{file_path}' concluida com sucesso (sem duplicatas)."
                 )
@@ -323,6 +374,10 @@ def _import_single_file(
             e,
         )
         raise ExtractionError(f"{error_type} ao importar {file_path}: {e}") from e
+    finally:
+        if _metrics_out is not None:
+            _metrics_out.clear()
+            _metrics_out.update(metrics)
 
 
 def _is_derivadas_sheet_file(file_path: str) -> bool:
@@ -788,7 +843,22 @@ def _build_import_run_payload(
     files_to_process: List[str],
     ignored_legacy_excel_files: List[str],
     integrity_report: Dict[str, Any],
+    file_reports: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    total_rows_extracted = 0
+    total_rows_removed_invalid_identity = 0
+    total_rows_ready_for_insert = 0
+    total_rows_inserted = 0
+    for entry in file_reports:
+        counts = entry.get("counts") or {}
+        total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
+        total_rows_removed_invalid_identity += int(
+            counts.get("rows_removed_invalid_identity", 0) or 0
+        )
+        total_rows_ready_for_insert += int(
+            counts.get("rows_ready_for_insert", 0) or 0
+        )
+        total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
     return {
         "run_id": run_id,
         "started_at": run_started_at.isoformat(timespec="seconds"),
@@ -827,6 +897,10 @@ def _build_import_run_payload(
             "derivadas_sync_blocking_error": bool(derivadas_sync_blocking_error),
             "sync_materialized": bool(sync_materialized),
             "ignored_legacy_excel_count": len(ignored_legacy_excel_files),
+            "rows_extracted_total": total_rows_extracted,
+            "rows_removed_invalid_identity_total": total_rows_removed_invalid_identity,
+            "rows_ready_for_insert_total": total_rows_ready_for_insert,
+            "rows_inserted_total": total_rows_inserted,
         },
         "files": {
             "candidates": [os.path.basename(p) for p in files_to_process],
@@ -848,6 +922,7 @@ def _build_import_run_payload(
             "issue_count": len(integrity_report.get("issues", [])),
             "warning_count": len(integrity_report.get("warnings", [])),
         },
+        "file_reports": file_reports,
     }
 
 
@@ -935,6 +1010,7 @@ def run_importer_logic(
     db_only_derivadas_sync = False
     sync_materialized = False
     derivadas_sync_blocking_error = False
+    file_reports: List[Dict[str, Any]] = []
 
     def _finalize_and_return(result: bool, status: str, reason: str = "") -> bool:
         finished_at = datetime.now()
@@ -966,6 +1042,7 @@ def run_importer_logic(
             files_to_process=files_to_process,
             ignored_legacy_excel_files=ignored_legacy_excel_files,
             integrity_report=integrity_report,
+            file_reports=file_reports,
         )
         report_path = _write_import_run_report(payload)
         if report_path:
@@ -1119,12 +1196,17 @@ def run_importer_logic(
                     )
                     continue
                 try:
+                    file_metrics: Dict[str, Any] = {}
                     success, record_count = _import_single_file(
                         file_path,
                         working_db_path,
                         table_name,
                         should_cancel=should_cancel,
+                        _metrics_out=file_metrics,
                     )
+                    if file_metrics:
+                        file_metrics["status"] = "success" if success else "no_rows"
+                        file_reports.append(file_metrics)
                     if success:
                         successfully_processed_files.append(file_path)
                         # Notify file success
@@ -1140,6 +1222,7 @@ def run_importer_logic(
                         "Interrompendo processamento devido a falha de conexao"
                     )
                     critical_errors.append(("connection", file_path, str(e)))
+                    file_reports.append({"file": base_name, "status": "connection_error", "error": str(e)})
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
@@ -1150,6 +1233,7 @@ def run_importer_logic(
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
+                    file_reports.append({"file": base_name, "status": "corruption_error", "error": str(e)})
                     if database.repair_database_if_needed(
                         working_db_path, table_name=table_name
                     ):
@@ -1167,6 +1251,7 @@ def run_importer_logic(
                         f"Espaco em disco insuficiente ao processar '{file_path}': {e}"
                     )
                     critical_errors.append(("space", file_path, str(e)))
+                    file_reports.append({"file": base_name, "status": "space_error", "error": str(e)})
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
@@ -1177,6 +1262,7 @@ def run_importer_logic(
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
+                    file_reports.append({"file": base_name, "status": "schema_error", "error": str(e)})
                     if database.initialize_database(working_db_path):
                         logger.info("Schema recriado, continuando processamento...")
                         critical_errors.append(("schema_repaired", file_path, str(e)))
@@ -1190,6 +1276,7 @@ def run_importer_logic(
                         f"Dados invalidos em '{file_path}': {e}. Pulando arquivo..."
                     )
                     critical_errors.append(("validation", file_path, str(e)))
+                    file_reports.append({"file": base_name, "status": "validation_error", "error": str(e)})
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
@@ -1207,6 +1294,14 @@ def run_importer_logic(
                         f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
                     )
                     critical_errors.append(("extraction", file_path, str(e)))
+                    file_reports.append(
+                        {
+                            "file": base_name,
+                            "status": "extraction_error",
+                            "error": str(e),
+                            "error_code": error_code,
+                        }
+                    )
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
@@ -1216,6 +1311,7 @@ def run_importer_logic(
                         f"Erro de banco ao processar '{file_path}': {e}. Continuando..."
                     )
                     critical_errors.append(("database_generic", file_path, str(e)))
+                    file_reports.append({"file": base_name, "status": "database_error", "error": str(e)})
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
@@ -1225,6 +1321,7 @@ def run_importer_logic(
                         f"Erro inesperado ao processar '{file_path}': {e}. Continuando..."
                     )
                     critical_errors.append(("unexpected", file_path, str(e)))
+                    file_reports.append({"file": base_name, "status": "unexpected_error", "error": str(e)})
                     _emit_progress(
                         "file_error", {"filename": base_name, "error": str(e)}
                     )
