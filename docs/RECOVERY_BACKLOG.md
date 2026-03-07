@@ -3,6 +3,51 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-07 (slice: hardening do helper generico e tuning do merge real)
+
+Session timestamp:
+1. start: `2026-03-07 11:45:49 -0300`
+2. parcial consolidado: `2026-03-07 13:35:00 -0300`
+
+Decisao entregue:
+1. `armazenamento/database.py` foi endurecido para impedir `if_exists='replace'` em `ssa_table` e aliases legados:
+   - schema de SSA continua nascendo por schema canonico
+   - `replace` permanece permitido apenas para tabelas genericas nao-SSA
+2. o helper generico recebeu rollback explicito em falha e modularizacao interna minima, sem mudar a API publica.
+3. o benchmark correto do merge real mostrou que:
+   - medir `_perform_upsert()` em tabela vazia era enganoso
+   - o cenario certo e tabela ja populada
+4. no merge real do arquivo `Todas as SSAs - 18-08-2022_1144AM.xlsx`:
+   - `chunk_size=100` -> `95.3781s`
+   - `chunk_size=250` -> `75.8729s`
+   - `chunk_size=500` -> `95.1726s`
+5. a heuristica de upsert foi corrigida para bucket seguro:
+   - ate `1000` linhas -> `100`
+   - acima de `1000` -> `250`
+6. `_prepare_upsert_target_row()` agora faz short-circuit em modo normal quando:
+   - a linha nova e mais antiga e nao deve substituir
+   - o merge resulta exatamente igual ao registro existente
+7. evidencia do short-circuit no mesmo arquivo de `18.5k` linhas sobre tabela ja populada:
+   - antes do short-circuit com bucket `250`: `75.8729s`
+   - depois: `44.9060s`
+   - `processed=0`, `rows_after=18513`
+
+Arquivos alterados:
+1. `armazenamento/database.py`
+2. `armazenamento/database_upsert_logic.py`
+3. `tests/test_database.py`
+4. `tests/test_upsert_fast_path.py`
+
+Validacao local:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_database.py tests/test_upsert_fast_path.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_database.py tests/test_upsert_fast_path.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_database.py tests/test_upsert_fast_path.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_database.py tests/test_upsert_fast_path.py`: `22 passed`.
+
+Observacao operacional:
+1. um full rescan real foi iniciado com a heuristica intermediaria errada (`500`) e cancelado apos evidenciar regressao forte no merge real.
+2. a causa foi diagnosticada e corrigida no mesmo sprint; o rerun integral do rescan ainda permanece pendente apos o ajuste final do short-circuit.
+
 ## Update 2026-03-07 (fechamento do sprint: comparacao padrao vs robust e ajuste final de filtro)
 
 Session timestamp:

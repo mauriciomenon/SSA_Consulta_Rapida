@@ -230,3 +230,73 @@ def test_insert_dataframe_with_smart_upsert_impl_skips_upsert_when_only_null_row
 def test_quote_identifier_rejects_invalid_name() -> None:
     with pytest.raises(ValueError):
         upsert_logic._quote_identifier("ssa-table")
+
+
+@pytest.mark.parametrize(
+    ("row_count", "expected_chunk_size"),
+    [
+        (1000, 100),
+        (1001, 250),
+        (5000, 250),
+        (5001, 250),
+    ],
+)
+def test_resolve_upsert_chunk_size_uses_safe_buckets(row_count: int, expected_chunk_size: int) -> None:
+    assert upsert_logic._resolve_upsert_chunk_size(row_count) == expected_chunk_size
+
+
+def test_prepare_upsert_target_row_skips_identical_existing_row() -> None:
+    existing = pd.Series(
+        {
+            "numero_ssa": "202500001",
+            "descricao_ssa": "SSA identica",
+            "data_cadastro": "2025-01-01 10:00:00",
+            "semana_programada": 202501,
+        }
+    )
+    incoming = existing.copy()
+    status_rank, description_columns, date_columns = upsert_logic._resolve_upsert_config()
+
+    target, should_persist = upsert_logic._prepare_upsert_target_row(
+        incoming,
+        existing,
+        False,
+        status_rank,
+        description_columns,
+        date_columns,
+    )
+
+    assert should_persist is False
+    assert target.equals(existing)
+
+
+def test_prepare_upsert_target_row_skips_older_incoming_row() -> None:
+    existing = pd.Series(
+        {
+            "numero_ssa": "202500001",
+            "descricao_ssa": "SSA nova",
+            "data_cadastro": "2025-01-02 10:00:00",
+            "semana_programada": 202502,
+        }
+    )
+    incoming = pd.Series(
+        {
+            "numero_ssa": "202500001",
+            "descricao_ssa": "SSA antiga",
+            "data_cadastro": "2025-01-01 10:00:00",
+            "semana_programada": 202501,
+        }
+    )
+    status_rank, description_columns, date_columns = upsert_logic._resolve_upsert_config()
+
+    target, should_persist = upsert_logic._prepare_upsert_target_row(
+        incoming,
+        existing,
+        False,
+        status_rank,
+        description_columns,
+        date_columns,
+    )
+
+    assert should_persist is False
+    assert target.equals(existing)

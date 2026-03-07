@@ -2,6 +2,50 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 13:35 - start from here
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Baseline local de release: `4.30`.
+- Slice entregue no caminho padrao de DB/import:
+  1. `armazenamento/database.py`
+     - proibiu `if_exists='replace'` para `ssa_table`, `ssas` e `ssa_chamados`
+     - manteve `replace` apenas para tabelas genericas nao-SSA
+     - ganhou rollback explicito em falha e modularizacao interna minima sem trocar a API publica
+  2. `armazenamento/database_upsert_logic.py`
+     - bucket de `chunk_size` do upsert agora:
+       - ate `1000` linhas -> `100`
+       - acima de `1000` -> `250`
+     - `_prepare_upsert_target_row()` agora corta no-op cedo:
+       - linha mais antiga nao substitui
+       - merge identico nao gera `DELETE + append`
+- Evidencia quantitativa mais importante:
+  1. o benchmark correto do merge real e sobre tabela ja populada, nao tabela vazia
+  2. no arquivo `Todas as SSAs - 18-08-2022_1144AM.xlsx`:
+     - `chunk_size=100` -> `95.3781s`
+     - `chunk_size=250` -> `75.8729s`
+     - `chunk_size=500` -> `95.1726s`
+  3. depois do short-circuit:
+     - `resolved_chunk_size=250`
+     - `seconds=44.9060`
+     - `processed=0`
+     - `rows_after=18513`
+- Gates focados do slice:
+  1. `py_compile`: pass
+  2. `ruff`: pass
+  3. `ty`: pass
+  4. `pytest tests/test_database.py tests/test_upsert_fast_path.py`: `22 passed`
+- Importante:
+  1. houve um full rescan real iniciado com a heuristica intermediaria errada (`500`) e ele foi cancelado apos evidenciar regressao forte no merge real
+  2. essa regressao ja foi diagnosticada e corrigida
+  3. ainda falta rerodar o full rescan real com o estado final do sprint para medir o ganho agregado no corpus inteiro
+- Estado local fora de escopo, nao comitar:
+  1. `data/ssas.db`
+  2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+  3. `tests/test_db_reset_and_upsert.py`
+  4. `data/db_backups/`
+  5. `data/tmp_import_sample/`
+  6. `shared/semantic_duplicate_resolution.py`
+
 ## CURRENT TRUTH 2026-03-07 00:39 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
