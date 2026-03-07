@@ -25,9 +25,11 @@ def _sample_ssas(df: pd.DataFrame, mask: Any) -> list[str]:
 
 
 def _append_unique_invalid_rows(report: dict[str, Any], indices: list[Any]) -> None:
+    seen_rows = report.setdefault('_invalid_row_seen', set())
     for idx in indices:
-        if idx not in report['invalid_rows']:
+        if idx not in seen_rows:
             report['invalid_rows'].append(idx)
+            seen_rows.add(idx)
 
 
 def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
@@ -73,9 +75,8 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
 def _validate_numero_ssa(df: pd.DataFrame, report: dict[str, Any]) -> None:
     if 'numero_ssa' not in df.columns:
         return
-    invalid_ssa_mask = df['numero_ssa'].apply(
-        lambda x: _normalize_numero_ssa_value(x) is None if pd.notna(x) else True
-    )
+    normalized_ssa = df['numero_ssa'].map(_normalize_numero_ssa_value)
+    invalid_ssa_mask = normalized_ssa.isna()
     invalid_count = int(invalid_ssa_mask.sum())
     if invalid_count == 0:
         return
@@ -118,7 +119,7 @@ def _validate_date_columns(df: pd.DataFrame, report: dict[str, Any]) -> None:
     for col in date_cols:
         try:
             series = df[col]
-            parsed_text = series.apply(parse_any_date)
+            parsed_text = series.map(parse_any_date)
             parsed = pd.to_datetime(parsed_text, errors='coerce', format="%Y-%m-%d %H:%M:%S")
             invalid_mask = parsed.isna() & series.notna() & (series != '')
             invalid_dates = invalid_mask.sum()
@@ -220,6 +221,7 @@ def validate_dataframe_before_insert(
         'warnings': [],
         'row_count': len(df),
         'invalid_rows': [],
+        '_invalid_row_seen': set(),
         'fixed_rows': 0,
         'table_name': table_name,
         'violations': [],
@@ -242,7 +244,9 @@ def validate_dataframe_before_insert(
             len(report['issues']),
             len(report['warnings']),
         )
+        report.pop('_invalid_row_seen', None)
     except Exception as e:  # pragma: no cover
+        report.pop('_invalid_row_seen', None)
         report['issues'].append(f"Erro na validação: {e}")
         report['is_valid'] = False
         logger.error("Erro na validação do DataFrame: %s", e)
