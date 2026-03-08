@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 00:50 - regressao de testes apos mudanca de assinatura e cobertura de move
+
+Session timestamp:
+1. start: `2026-03-08 00:50:58 -0300`
+2. end: `2026-03-08 00:53:36 -0300`
+
+Diagnostico com evidencia:
+1. `tests/test_import_deterministic_failure_cache.py` quebrou em runtime de teste:
+   - mocks de `_update_cache_for_deterministic_failures` com assinatura antiga (`2` args)
+   - runtime atual chama `3` args (`failed_files, cache_file, docs_dir`)
+   - evidencia: `2 failed` no pacote focado.
+
+Correcao aplicada:
+1. ajuste minimo nos dois mocks do arquivo para assinatura de `3` args.
+2. novo teste de integracao em `tests/test_import_run_report.py`:
+   - valida que `run_importer_logic` move arquivo com linhas para `processadas/`
+   - valida que `record_count==0` vai para `processadas/nosurvivor/`
+   - valida que cache recebe os caminhos finais movidos.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile tests/test_import_deterministic_failure_cache.py tests/test_import_run_report.py` -> pass
+2. `uv run --python 3.13 ruff check tests/test_import_deterministic_failure_cache.py tests/test_import_run_report.py` -> pass
+3. `uv run --python 3.13 ty check tests/test_import_deterministic_failure_cache.py tests/test_import_run_report.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_import_deterministic_failure_cache.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py` -> `11 passed`
+5. kluster (chat_id `x6pbpykege`): clean
+
 ## Update 2026-03-08 00:37 - import_settings explicitos no config padrao
 
 Session timestamp:

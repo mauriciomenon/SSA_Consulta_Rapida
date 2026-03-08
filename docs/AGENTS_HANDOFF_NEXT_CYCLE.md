@@ -2,6 +2,20 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 00:50 - authoritative block
+
+- Correcao de regressao em testes:
+  1. assinatura de `_update_cache_for_deterministic_failures` foi ampliada para 3 args no runtime.
+  2. mocks antigos em `tests/test_import_deterministic_failure_cache.py` foram alinhados.
+- Nova cobertura funcional adicionada:
+  1. `tests/test_import_run_report.py` ganhou teste de move pos-importacao com flag:
+     - arquivo com linhas -> `processadas/`
+     - arquivo sem sobreviventes -> `processadas/nosurvivor/`
+     - cache atualizado com caminhos finais.
+- Evidencia:
+  1. pacote focado: `11 passed`
+  2. kluster clean para os arquivos tocados.
+
 ## CURRENT TRUTH 2026-03-08 00:37 - authoritative block
 
 - Slice de config padrao concluido:
