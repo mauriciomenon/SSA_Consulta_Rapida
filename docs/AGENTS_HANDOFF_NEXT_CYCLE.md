@@ -2,6 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 17:56 - authoritative block
+
+- Fechamento dos pendentes de organizacao de importacao concluido:
+  1. politica de short-circuit por config (`upsert_short_circuit_policy`)
+  2. resolucao de alias de tabela consolidada no resolvedor unico de `database.py`
+  3. regra final de subpastas em full rescan aplicada por enforcement
+- Enforcement em full rescan (`force_import=true`):
+  1. `include_processadas=false`
+  2. `ignore_nosurvivor=true`
+  3. `move_processed_after_import=false`
+- Regras finais de subpasta:
+  1. full rescan: ignora `processadas/` e `processadas/nosurvivor/`
+  2. incremental/controlado: permite mover para `processadas/` e `nosurvivor/`
+- Evidencia tecnica:
+  1. `pytest -q tests/test_default_settings_import_settings.py tests/test_import_run_report.py tests/test_upsert_fast_path.py tests/test_database_upsert_canonical_write.py` -> `33 passed`
+  2. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+- Arquivos-chave alterados:
+  1. `config/default_settings.json`
+  2. `core/app_logic.py`
+  3. `armazenamento/database.py`
+  4. `armazenamento/database_upsert_logic.py`
+  5. `tests/test_default_settings_import_settings.py`
+  6. `tests/test_import_run_report.py`
+
 ## CURRENT TRUTH 2026-03-08 17:39 - authoritative block
 
 - Comparativo final A/B consolidado e pronto para decisao operacional:

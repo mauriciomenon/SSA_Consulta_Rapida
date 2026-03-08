@@ -18,5 +18,6 @@ def test_default_settings_declares_import_settings_contract() -> None:
         "nosurvivor_subdir",
         "move_processed_after_import",
         "route_zero_survivor_to_nosurvivor",
+        "upsert_short_circuit_policy",
     }
     assert expected_keys.issubset(import_settings.keys())

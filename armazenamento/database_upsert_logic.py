@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 import os
+import sqlite3 as _sqlite3_typehint
 import pandas as pd
 import logging
 import numpy as np
@@ -28,6 +29,7 @@ import re
 
 from .numero_ssa_utils import _normalize_numero_ssa_value
 from shared.date_utils import parse_any_date
+from shared.db_names import CANONICAL_SSA_TABLE
 
 # Lazy imports from database.py to avoid circular dependency (see line 303)
 
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
+_RUNTIME_SHORT_CIRCUIT_POLICY: str | None = None
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
@@ -286,7 +289,12 @@ def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
 
 
 def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
-    policy = (policy_override or os.environ.get("SSA_UPSERT_SHORT_CIRCUIT_POLICY", "consulta_only")).strip().lower()
+    runtime_policy = _RUNTIME_SHORT_CIRCUIT_POLICY
+    policy = (
+        policy_override
+        or runtime_policy
+        or os.environ.get("SSA_UPSERT_SHORT_CIRCUIT_POLICY", "consulta_only")
+    ).strip().lower()
     if not policy:
         return "consulta_only"
     if policy not in _VALID_UPSERT_POLICIES:
@@ -296,6 +304,26 @@ def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
         )
         return "consulta_only"
     return policy
+
+
+def set_runtime_short_circuit_policy(policy: str | None) -> None:
+    """Configura politica de short-circuit para o processo atual."""
+    global _RUNTIME_SHORT_CIRCUIT_POLICY
+    if policy is None:
+        _RUNTIME_SHORT_CIRCUIT_POLICY = None
+        return
+    normalized = str(policy).strip().lower()
+    if not normalized:
+        _RUNTIME_SHORT_CIRCUIT_POLICY = None
+        return
+    if normalized not in _VALID_UPSERT_POLICIES:
+        logger.warning(
+            "Politica de short-circuit invalida '%s'; usando consulta_only",
+            policy,
+        )
+        _RUNTIME_SHORT_CIRCUIT_POLICY = "consulta_only"
+        return
+    _RUNTIME_SHORT_CIRCUIT_POLICY = normalized
 
 
 def _is_empty_upsert_value(val: Any) -> bool:
@@ -820,11 +848,9 @@ def insert_dataframe_with_smart_upsert_impl(
         cursor = conn.cursor()  # type: ignore[attr-defined]
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         existing_tables = {r[0] for r in cursor.fetchall()}
-        if table_name not in existing_tables:
-            for alias in ("ssa_table", "ssas", "ssa_chamados"):
-                if alias in existing_tables:
-                    table_name = alias
-                    break
+        table_name = _db_mod._resolve_target_table(
+            cast(_sqlite3_typehint.Connection, conn), table_name
+        )
         table_exists = table_name in existing_tables
         if not table_exists:
             logger.warning(
@@ -849,11 +875,9 @@ def insert_dataframe_with_smart_upsert_impl(
                 _db_mod.initialize_database(main_db_path, "config/schema.sql")
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             existing_tables = {r[0] for r in cursor.fetchall()}
-            if table_name not in existing_tables:
-                for alias in ("ssa_table", "ssas", "ssa_chamados"):
-                    if alias in existing_tables:
-                        table_name = alias
-                        break
+            table_name = _db_mod._resolve_target_table(
+                cast(_sqlite3_typehint.Connection, conn), table_name
+            )
             table_exists = table_name in existing_tables
             if not table_exists:
                 logger.error(
@@ -861,6 +885,11 @@ def insert_dataframe_with_smart_upsert_impl(
                     table_name,
                 )
                 return False
+        if table_name != CANONICAL_SSA_TABLE:
+            logger.warning(
+                "Upsert com tabela nao canonica resolvida para '%s'.",
+                table_name,
+            )
         if table_exists:
             from .identifier_utils import is_valid_identifier  # local import to avoid cycles
             if not is_valid_identifier(table_name):

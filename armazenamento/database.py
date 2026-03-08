@@ -586,6 +586,11 @@ from . import database_upsert_logic as _up  # noqa: E402  # import unico para us
 
 
 
+def configure_upsert_short_circuit_policy(policy: str | None) -> None:
+    """Configura politica de short-circuit usada no upsert do processo atual."""
+    _up.set_runtime_short_circuit_policy(policy)
+
+
 def insert_dataframe_with_smart_upsert(
     df: pd.DataFrame | _sqlite3_typehint.Connection,
     db_path: str | pd.DataFrame | None = None,

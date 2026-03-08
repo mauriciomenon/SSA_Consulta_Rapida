@@ -3,6 +3,49 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 17:56 - fechamento dos pendentes de organizacao de importacao
+
+Session timestamp:
+1. start: `2026-03-08 17:37:15 -0300`
+2. end: `2026-03-08 17:55:42 -0300`
+
+Objetivo do slice:
+1. fechar os pendentes de curto prazo sem refatoracao ampla:
+   - politica de short-circuit via config,
+   - consolidacao de alias de tabela no upsert,
+   - regra final de subpastas para full rescan.
+
+Mudancas aplicadas:
+1. `config/default_settings.json`
+   - nova chave: `import_settings.upsert_short_circuit_policy` (default `consulta_only`).
+2. `core/app_logic.py`
+   - aplica politica de upsert do settings no runtime (`database.configure_upsert_short_circuit_policy`).
+   - em `force_import=true`, aplica enforcement de politica:
+     - `include_processadas=false`
+     - `ignore_nosurvivor=true`
+     - `move_processed_after_import=false`
+3. `armazenamento/database.py`
+   - wrapper novo `configure_upsert_short_circuit_policy`.
+4. `armazenamento/database_upsert_logic.py`
+   - suporte a politica runtime (nao apenas env var).
+   - resolucao de tabela passou a usar resolvedor unico de `database.py` (remove loops duplicados de alias).
+
+Regra final de subpastas (estado atual):
+1. full rescan:
+   - nao varre `processadas/`
+   - ignora `processadas/nosurvivor/`
+   - nao move arquivos ao final
+2. incremental/controlado:
+   - pode mover para `processadas/`
+   - zero-survivor pode ir para `processadas/nosurvivor/`
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_import_run_report.py tests/test_default_settings_import_settings.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_import_run_report.py tests/test_default_settings_import_settings.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py armazenamento/database.py armazenamento/database_upsert_logic.py tests/test_import_run_report.py tests/test_default_settings_import_settings.py` -> pass
+4. `timeout 360s uv run --python 3.13 pytest -q tests/test_default_settings_import_settings.py tests/test_import_run_report.py tests/test_upsert_fast_path.py tests/test_database_upsert_canonical_write.py` -> `33 passed`
+5. `timeout 240s uv run --python 3.13 pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+
 ## Update 2026-03-08 17:39 - comparativo final A/B consolidado
 
 Objetivo do slice:
