@@ -2,6 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 17:18 - start from here
+
+- Benchmark full A/B reverso concluido com evidencia:
+  1. `logs/full_ab_move_policy_reverse_summary_20260308_171101.json`
+  2. no par reverso (`off_first` -> `on_second`), `move_on` ficou mais lento:
+     - duracao: `+15.67%`
+     - `sum_insert`: `+16.37%`
+- Benchmark full anterior (par normal) continua valido e aponta mesmo sinal:
+  1. `logs/full_ab_move_policy_summary_20260308_154314.json`
+  2. `move_on` mais lento:
+     - duracao: `+35.36%`
+     - `sum_insert`: `+36.08%`
+- Conclusao de operacao:
+  1. para full rescan pesado, manter `move_processed_after_import=false`.
+  2. manter `move` para fluxo incremental/controlado.
+- Instrumentacao nova entregue em runtime (sem mudar comportamento):
+  1. `core/app_logic.py` agora grava no `import_run_*.json`:
+     - `durations.sum_file_extraction_seconds`
+     - `durations.sum_file_validation_seconds`
+     - `durations.sum_file_insert_seconds`
+     - `durations.run_file_processing_seconds`
+     - `durations.run_postprocess_move_seconds`
+     - `durations.run_success_cache_update_seconds`
+     - `durations.run_deterministic_cache_update_seconds`
+  2. cobertura adicionada em `tests/test_import_run_report.py`.
+- Validacao da rodada:
+  1. py_compile + ruff + ty dos arquivos tocados: pass
+  2. `pytest -q tests/test_import_run_report.py`: `6 passed`
+  3. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py`: `4 passed`
+
 ## CURRENT TRUTH 2026-03-08 12:44 - start from here
 
 - Full rescan real com move pos-processamento ligado foi executado e concluido.

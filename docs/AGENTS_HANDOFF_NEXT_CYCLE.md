@@ -2,6 +2,36 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 17:18 - authoritative block
+
+- Rodada full A/B reversa entregue (caminho rapido so `.xlsx`):
+  1. `logs/full_ab_move_policy_reverse_summary_20260308_171101.json`
+  2. `off_first`: `1391.946s`, `sum_insert=1097.499s`
+  3. `on_second`: `1610.010s`, `sum_insert=1277.147s`
+  4. impacto `move_on` vs `move_off`: `+15.67%` (duracao), `+16.37%` (`sum_insert`)
+- Rodada full anterior (espelho com `.xls`) manteve mesmo sentido:
+  1. `logs/full_ab_move_policy_summary_20260308_154314.json`
+  2. impacto `move_on` vs `move_off`: `+35.36%` (duracao), `+36.08%` (`sum_insert`)
+- Decisao operacional atual:
+  1. full rescan pesado: manter `move_processed_after_import=false`
+  2. incremental/controlado: `move` pode continuar habilitado
+- Patch minimo de observabilidade entregue no runtime:
+  1. `core/app_logic.py`: novo bloco `durations` no report `import_run_*.json`
+  2. campos novos:
+     - `sum_file_extraction_seconds`
+     - `sum_file_validation_seconds`
+     - `sum_file_insert_seconds`
+     - `run_file_processing_seconds`
+     - `run_postprocess_move_seconds`
+     - `run_success_cache_update_seconds`
+     - `run_deterministic_cache_update_seconds`
+  3. teste atualizado:
+     - `tests/test_import_run_report.py`
+- Gates da entrega:
+  1. py_compile + ruff + ty -> pass
+  2. `pytest -q tests/test_import_run_report.py` -> `6 passed`
+  3. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+
 ## CURRENT TRUTH 2026-03-08 12:44 - authoritative block
 
 - Full rescan real com move pos-processamento ligado foi concluido com sucesso funcional.
