@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 17:39 - authoritative block
+
+- Comparativo final A/B consolidado e pronto para decisao operacional:
+  1. `logs/move_policy_comparison_20260308_172923.csv`
+  2. `logs/move_policy_family_insert_20260308_172923.csv`
+  3. `logs/move_policy_comparison_20260308_172923.svg`
+- Resultado consolidado:
+  1. par com `.xls`: `move_on` pior em `+35.36%` (duracao) e `+36.08%` (`sum_insert`).
+  2. par so `.xlsx`: `move_on` pior em `+15.67%` (duracao) e `+16.37%` (`sum_insert`).
+  3. no par `.xlsx`, todas as familias ficaram piores com `move_on`; maiores deltas:
+     - `Consulta SSA`: `+76.350s`
+     - `Todas as SSAs`: `+62.529s`
+     - `SSAs Executadas`: `+33.565s`
+- Regra operacional final deste ciclo:
+  1. full rescan: manter `move_processed_after_import=false`.
+  2. incremental/controlado: `move` continua opcional.
+  3. enforcement em runtime ja aplicado em `core/app_logic.py`.
+- Teste de regra:
+  1. `tests/test_import_run_report.py::test_run_importer_logic_full_rescan_disables_postprocess_move`
+  2. pacote focado mais recente: `7 passed`.
+
 ## CURRENT TRUTH 2026-03-08 17:18 - authoritative block
 
 - Rodada full A/B reversa entregue (caminho rapido so `.xlsx`):

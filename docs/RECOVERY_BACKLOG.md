@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 17:39 - comparativo final A/B consolidado
+
+Objetivo do slice:
+1. consolidar em tabela unica os resultados das duas rodadas A/B.
+2. registrar diretriz operacional final para full rescan.
+
+Tabela consolidada (dados reais):
+
+| scenario | move_enabled | duration_s | extract_s | validate_s | insert_s | moved_xlsx | root_xlsx_left |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| pair_with_xls / on_first | true | 2089.784 | 169.827 | 248.129 | 1660.315 | 409 | 22 |
+| pair_with_xls / off_second | false | 1543.888 | 129.326 | 163.671 | 1220.099 | 0 | 431 |
+| pair_xlsx_only / off_first | false | 1391.946 | 124.522 | 158.853 | 1097.499 | 0 | 431 |
+| pair_xlsx_only / on_second | true | 1610.010 | 139.968 | 181.384 | 1277.147 | 409 | 22 |
+
+Leitura consolidada:
+1. efeito de `move_on` em full rescan ficou consistente nas duas rodadas:
+   - par com `.xls`: `+35.36%` em duracao, `+36.08%` em `sum_insert`.
+   - par so `.xlsx`: `+15.67%` em duracao, `+16.37%` em `sum_insert`.
+2. no par `.xlsx` (mais limpo), `move_on` foi pior em todas as familias de `insert_seconds`:
+   - `Consulta SSA`: `+76.350s`
+   - `Todas as SSAs`: `+62.529s`
+   - `SSAs Executadas`: `+33.565s`
+3. decisao operacional consolidada:
+   - full rescan: manter `move_processed_after_import=false`.
+   - incremental/controlado: `move` pode seguir habilitado.
+
+Artefatos de evidencia:
+1. `logs/full_ab_move_policy_summary_20260308_154314.json`
+2. `logs/full_ab_move_policy_reverse_summary_20260308_171101.json`
+3. `logs/move_policy_comparison_20260308_172923.csv`
+4. `logs/move_policy_family_insert_20260308_172923.csv`
+5. `logs/move_policy_comparison_20260308_172923.svg`
+
 ## Update 2026-03-08 17:18 - instrumentacao de fases e full A/B reverso
 
 Session timestamp:

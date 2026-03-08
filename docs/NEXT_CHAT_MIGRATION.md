@@ -2,6 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 17:39 - start from here
+
+- Comparativo final A/B consolidado (duas rodadas):
+  1. tabela base: `logs/move_policy_comparison_20260308_172923.csv`
+  2. familias por insert: `logs/move_policy_family_insert_20260308_172923.csv`
+  3. visual: `logs/move_policy_comparison_20260308_172923.svg`
+- Leitura de desempenho:
+  1. par com `.xls` (`on_first` vs `off_second`):
+     - `move_on` pior em `+35.36%` (duracao)
+     - `move_on` pior em `+36.08%` (`sum_insert`)
+  2. par so `.xlsx` (`off_first` vs `on_second`):
+     - `move_on` pior em `+15.67%` (duracao)
+     - `move_on` pior em `+16.37%` (`sum_insert`)
+  3. no par `.xlsx`, `move_on` piorou todas as familias (destaque: `Consulta SSA`, `Todas as SSAs`, `SSAs Executadas`).
+- Diretriz operacional ativa:
+  1. full rescan pesado: `move_processed_after_import=false`.
+  2. incremental/controlado: `move` permitido.
+  3. runtime reforca isso: `force_import=true` desativa `move` com warning.
+- Runtime/teste associados a esta diretriz:
+  1. `core/app_logic.py`: warning + desativacao de move no full rescan.
+  2. `tests/test_import_run_report.py`: cobertura dedicada da regra.
+  3. validacao focada mais recente: `pytest -q tests/test_import_run_report.py` -> `7 passed`.
+
 ## CURRENT TRUTH 2026-03-08 17:18 - start from here
 
 - Benchmark full A/B reverso concluido com evidencia:
