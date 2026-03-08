@@ -3,6 +3,112 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-07 (A/B policy de short-circuit no upsert em full rescan real)
+
+Session timestamp:
+1. start: `2026-03-07 21:37:13 -0300`
+2. end: `2026-03-07 22:02:16 -0300`
+
+Decisao entregue:
+1. executado benchmark real com isolamento de banco em 3 runs com mesma base de entrada (`431` arquivos):
+   - `SSA_UPSERT_SHORT_CIRCUIT_POLICY=consulta_only`
+   - `SSA_UPSERT_SHORT_CIRCUIT_POLICY=no_short`
+   - `SSA_UPSERT_SHORT_CIRCUIT_POLICY=all_short`
+2. resultados de duracao:
+   - `consulta_only`: `354.675s`
+   - `no_short`: `479.403s` (`+35.17%`)
+   - `all_short`: `654.330s` (`+84.49%`)
+3. resultado funcional consolidado nas 3 politicas:
+   - `431/431` arquivos processados com sucesso
+   - sem erro e sem falha deterministica
+   - `rows_extracted_total=497162`
+   - `rows_removed_invalid_identity_total=2763`
+   - `rows_inserted_total=497162`
+4. integridade do DB final idêntica entre os 3 modos:
+   - `76426` linhas e `76426` numero_ssa distintos
+   - `82` colunas finais
+   - `663` nulos em `data_cadastro`
+   - sem colunas `nan*`
+5. top arquivos com maior `rows_removed_invalid_identity` (igual entre os cenarios):
+   - `SSAscomReprogramacoes_07-01-2026_0225PM.xlsx: 1778`
+   - `SSAs Pendentes com Execução Parcial_02-02-2026_1141AM.xlsx: 323`
+   - `SSAs Pendentes com Execução Parcial_10-09-2025_0317PM.xlsx: 261`
+   - `SSAscomReprogramações_07-01-2026_0226PM.xlsx: 30`
+6. decisão de risco:
+   - manter `consulta_only` como default no fluxo de rescan
+   - **NÃO** adotar `all_short` nem `no_short` como default por impacto de tempo negativo comprovado
+7. arquivos de evidência:
+   - `logs/import_run_20260307_213713_316719.json`
+   - `logs/import_run_20260307_214318_967821.json`
+   - `logs/import_run_20260307_215122_180024.json`
+8. status do slice:
+   - concluido
+
+Acoes deferidas (nao bloqueantes):
+1. manter monitoramento de comportamento dessa politica em novos lotes de entrada com `ssas.db` legado.
+2. revalidar impacto de `no_short/all_short` apenas se surgirem cenarios com alteracao massiva de arquivos muito pequenos, pois neste corpus real eles pioraram.
+
+## Update 2026-03-07 (slice: short-circuit policy switch no upsert)
+
+Session timestamp:
+1. start: `2026-03-07 21:35:00 -0300`
+
+Decisao entregue:
+1. implementada policy de controle para `_should_enable_exact_overlap_short_circuit` em `armazenamento/database_upsert_logic.py`:
+   - `consulta_only` (padrao, comportamento atual preservado)
+   - `no_short` (desabilita o short-circuit)
+   - `all_short` (ativa para lote single-file)
+2. atualizados `tests/test_upsert_fast_path.py` para cobrir policy default/invalid/no_short/all_short.
+3. o slice de hoje **nao muda semantica de import**; prepara terreno para benchmark A/B sem risco.
+
+Arquivos alterados:
+1. `armazenamento/database_upsert_logic.py`
+2. `tests/test_upsert_fast_path.py`
+3. `docs/ARCH_DB_UPSERT.md`
+4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+5. `docs/NEXT_CHAT_MIGRATION.md`
+
+Validacao local:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+2. `uv run --python 3.13 ruff check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+3. `uv run --python 3.13 ty check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py`: pass.
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_upsert_fast_path.py`: `20 passed`.
+
+## Update 2026-03-07 (slice: documentacao estrutural e licao de processo)
+
+Session timestamp:
+1. start: `2026-03-07 19:22:00 -0300`
+
+Licao de processo registrada:
+1. houve falha de planejamento no sub-bloco de tuning fino do upsert:
+   - leitura estrutural insuficiente antes de novos micro-ajustes
+   - dependencia excessiva de sinais curtos de kluster/gates sem mapa global atualizado
+   - iteracao em patch local sem documentacao arquitetural suficiente
+2. a correcao de processo aprovada e:
+   - manter docs estruturais por dominio
+   - manter headers curtos nos modulos centrais
+   - registrar experimentos locais bloqueados nos docs de controle, nao so no chat
+
+Estado do experimento local bloqueado:
+1. patch local nao commitado em `armazenamento/database_upsert_logic.py` tentou reduzir custo de no-op overlap em `Consulta SSA`.
+2. resultado:
+   - melhora forte em `Consulta SSA - 02-03-2026_0540PM.xlsx`
+   - melhora em `SSAscomReprogramacoes_07-01-2026_0225PM.xlsx`
+   - regressao inaceitavel em `Todas as SSAs - 18-08-2022_1144AM.xlsx` e `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`
+3. decisao:
+   - nao commitar esse patch
+   - documentar arquitetura e responsabilidades antes de nova tentativa
+
+Artefatos novos deste slice:
+1. `docs/ARCHITECTURE_OVERVIEW.md`
+2. `docs/ARCH_IMPORT_PIPELINE.md`
+3. `docs/ARCH_DB_UPSERT.md`
+4. `docs/ARCH_VALIDATION_AND_INTEGRITY.md`
+5. `docs/ARCH_GUI_LOAD_AND_FILTER.md`
+
+Pendencia aberta:
+1. retomar tuning do upsert so depois da leitura estrutural desses docs e de novo plano aprovado.
+
 ## Update 2026-03-07 (slice: hardening do helper generico e tuning do merge real)
 
 Session timestamp:

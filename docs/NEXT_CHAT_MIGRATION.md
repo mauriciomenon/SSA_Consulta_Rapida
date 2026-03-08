@@ -2,6 +2,44 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 22:02 - start from here
+
+- Resultado de benchmark A/B desta rodada final:
+  1. `SSA_UPSERT_SHORT_CIRCUIT_POLICY=consulta_only` manteve-se como melhor default
+  2. tempos em banco candidato com 431 arquivos reais:
+     - consulta_only: `354.675s`
+     - no_short: `479.403s`
+     - all_short: `654.330s`
+  3. decisoes de risco e escala:
+     - manter `consulta_only` como politica padrão
+     - **nao adotar** `no_short` e `all_short` como default
+  4. evidencia objetivo:
+     - `logs/import_run_20260307_213713_316719.json`
+     - `logs/import_run_20260307_214318_967821.json`
+     - `logs/import_run_20260307_215122_180024.json`
+     - `data/ablation_consulta_only/ssas.db`
+     - `data/ablation_no_short/ssas.db`
+     - `data/ablation_all_short/ssas.db`
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+ - Antes de avaliar performance no upsert, ler:
+   1. `docs/ARCHITECTURE_OVERVIEW.md`
+   2. `docs/ARCH_IMPORT_PIPELINE.md`
+   3. `docs/ARCH_DB_UPSERT.md`
+   4. `docs/ARCH_VALIDATION_AND_INTEGRITY.md`
+   5. `docs/ARCH_GUI_LOAD_AND_FILTER.md`
+ - Estado atual do upsert:
+   1. foi implementada policy por variavel para short-circuit de overlap exato em `_perform_upsert()`
+   2. policy ativa em operação e validada por teste unitario: default `consulta_only`
+   3. novas options: `no_short` e `all_short` para A/B controlado
+ - Residuos fora de escopo continuam fora do commit:
+   1. `data/ssas.db`
+   2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+   3. `tests/test_db_reset_and_upsert.py`
+   4. `data/db_backups/`
+   5. `data/tmp_import_sample/`
+   6. `shared/semantic_duplicate_resolution.py`
+
 ## CURRENT TRUTH 2026-03-07 13:35 - start from here
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
