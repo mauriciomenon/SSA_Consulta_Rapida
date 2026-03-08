@@ -103,6 +103,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def open_settings_file_with_backup(self) -> None:
             return None
 
+        def reset_settings_to_defaults(self) -> None:
+            return None
+
         def toggle_theme_menu(self) -> None:
             return None
 
@@ -122,7 +125,7 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert len(window._menu_bar.menus["Arquivo"].actions) == 14
     assert len(window._menu_bar.menus["Importacao"].actions) == 6
     assert len(window._menu_bar.menus["Database"].actions) == 1
-    assert len(window._menu_bar.menus["Opcoes"].actions) == 3
+    assert len(window._menu_bar.menus["Opcoes"].actions) == 4
     assert "Avancado" in window._menu_bar.menus["Database"].submenus
     assert len(window._menu_bar.menus["Database"].submenus["Avancado"].actions) == 1
 
@@ -193,7 +196,45 @@ def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Pa
     assert result["opened"] is True
     assert result["backup_created"] is True
     assert len(backups) == 1
-    assert "backup failsafe" in window.status_label.text
+    assert "editor externo" in window.status_label.text
+
+
+def test_reset_settings_to_defaults_overwrites_user_file(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config_runtime"
+    config_dir.mkdir()
+    default_settings = {
+        "user_preferences": {"theme": "gruvbox", "page_size": 100},
+        "default_filters": [],
+    }
+    (config_dir / "default_settings.json").write_text(
+        json.dumps(default_settings),
+        encoding="utf-8",
+    )
+    (config_dir / "settings.json").write_text(
+        json.dumps({"user_preferences": {"theme": "old"}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("SSA_CONFIG_DIR", str(config_dir))
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+        def _resolve_settings_file_path(self) -> str:
+            return str(config_dir / "settings.json")
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.reset_settings_to_defaults(cast(Any, window))
+
+    with open(config_dir / "settings.json", "r", encoding="utf-8") as handle:
+        restored = json.load(handle)
+
+    backups = list(config_dir.glob("settings.json.bak_*"))
+    assert result["ok"] is True
+    assert restored == default_settings
+    assert len(backups) == 1
+    assert "padrao restauradas" in window.status_label.text
 
 
 def test_consolidate_input_files_moves_by_last_report(monkeypatch, tmp_path: Path) -> None:

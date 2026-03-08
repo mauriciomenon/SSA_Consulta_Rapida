@@ -2,6 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 20:29 - authoritative block
+
+- `Opcoes` ajustado para evitar ambiguidade:
+  1. `Abrir arquivo de opcoes (editor externo)` abre o arquivo principal.
+  2. backup e criado automaticamente antes da abertura.
+- Novo controle de rollback funcional:
+  1. `Restaurar opcoes padrao` com confirmacao.
+  2. cria backup do `settings.json` atual e grava defaults.
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `19 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 20:10 - authoritative block
 
 - Refino final de navegacao:

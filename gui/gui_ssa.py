@@ -2767,9 +2767,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
         db_avancado_menu.addAction(vacuum_analyze_action)
 
-        open_settings_action = QAction("Abrir opcoes (backup failsafe)", self)
+        open_settings_action = QAction("Abrir arquivo de opcoes (editor externo)", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
         cast(Any, opcoes_menu).addAction(open_settings_action)
+
+        reset_settings_action = QAction("Restaurar opcoes padrao", self)
+        reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
+        cast(Any, opcoes_menu).addAction(reset_settings_action)
 
         theme_action = QAction("Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
@@ -2920,9 +2924,79 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         if hasattr(self, "status_label"):
             self.status_label.setText(
-                "Status: Opcoes abertas para edicao (backup failsafe criado)."
+                "Status: Opcoes abertas no editor externo (arquivo principal)."
             )
         return {"opened": opened, "backup_created": True, "settings_path": settings_path}
+
+    def reset_settings_to_defaults(self):
+        """Restaura settings.json para os valores padrao com backup previo."""
+        settings_path = self._resolve_settings_file_path()
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+
+        try:
+            from core import config_manager
+
+            resolver = getattr(config_manager, "_resolve_config_path", None)
+            if callable(resolver):
+                default_settings_path = str(resolver(config_manager.DEFAULT_SETTINGS_FILE))
+            else:
+                default_settings_path = os.path.join(project_root, "config", "default_settings.json")
+            if not os.path.exists(default_settings_path):
+                config_manager.ensure_default_settings(fail_fast=False)
+            with open(default_settings_path, "r", encoding="utf-8") as handle:
+                default_settings = json.load(handle)
+        except Exception as exc:
+            logger.warning("Falha ao carregar defaults de opcoes: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao carregar opcoes padrao: {exc}")
+            return {"ok": False, "reason": "load_default_failed"}
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Confirmar restauracao",
+                "Restaurar opcoes padrao agora? Isso sobrescreve settings.json.",
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.No,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return {"ok": False, "cancelled": True}
+
+        backup_created = False
+        backup_path = ""
+        try:
+            if os.path.exists(settings_path):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = f"{settings_path}.bak_{timestamp}"
+                shutil.copy2(settings_path, backup_path)
+                backup_created = True
+        except Exception as exc:
+            logger.warning("Falha ao criar backup antes do reset de opcoes: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao criar backup de opcoes: {exc}")
+            return {"ok": False, "reason": "backup_failed"}
+
+        try:
+            from core.config_manager import save_settings
+
+            save_settings(default_settings)
+        except Exception as exc:
+            logger.warning("Falha ao restaurar opcoes padrao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao restaurar opcoes: {exc}")
+            return {"ok": False, "reason": "save_failed"}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Opcoes padrao restauradas com sucesso.")
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(self, "Sucesso", "Opcoes padrao restauradas.")
+        return {
+            "ok": True,
+            "settings_path": settings_path,
+            "backup_created": backup_created,
+            "backup_path": backup_path,
+        }
 
     def _resolve_latest_project_import_report(self, docs_path: str) -> dict[str, Any] | None:
         logs_dir = os.path.join(project_root, "logs")
