@@ -8,7 +8,7 @@ import json
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from utils.caching import get_files_to_process, _calculate_hash  # noqa: E402
+from utils.caching import get_files_to_process, _calculate_hash, get_all_xlsx_files  # noqa: E402
 import utils.caching as caching  # noqa: E402
 
 # --- Fixture: Preparando o Ambiente de Teste ---
@@ -182,3 +182,83 @@ def test_get_ignored_legacy_excel_files_lists_only_xls(tmp_path):
     ignored = caching.get_ignored_legacy_excel_files(str(docs_dir))
 
     assert [os.path.basename(path) for path in ignored] == ["legado_a.xls", "legado_b.xls"]
+
+
+def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    processadas = docs_dir / "processadas"
+    processadas.mkdir()
+    nosurvivor = processadas / "nosurvivor"
+    nosurvivor.mkdir()
+    other = processadas / "lote_a"
+    other.mkdir()
+
+    (docs_dir / "raiz.xlsx").write_text("a", encoding="utf-8")
+    (processadas / "proc_root.xlsx").write_text("b", encoding="utf-8")
+    (other / "proc_child.xlsx").write_text("c", encoding="utf-8")
+    (nosurvivor / "ignorar.xlsx").write_text("d", encoding="utf-8")
+
+    root_only = get_all_xlsx_files(str(docs_dir))
+    assert [os.path.basename(path) for path in root_only] == ["raiz.xlsx"]
+
+    with_processadas = get_all_xlsx_files(
+        str(docs_dir),
+        include_processadas=True,
+        ignore_subdirs=["nosurvivor"],
+    )
+    names = sorted(os.path.basename(path) for path in with_processadas)
+    assert names == ["proc_child.xlsx", "proc_root.xlsx", "raiz.xlsx"]
+
+
+def test_update_cache_for_files_uses_relative_keys_when_docs_dir_provided(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    processadas = docs_dir / "processadas"
+    processadas.mkdir()
+    root_file = docs_dir / "dup.xlsx"
+    proc_file = processadas / "dup.xlsx"
+    root_file.write_text("root", encoding="utf-8")
+    proc_file.write_text("proc", encoding="utf-8")
+
+    cache_file = tmp_path / "file_cache.json"
+    caching.update_cache_for_files(
+        [str(root_file), str(proc_file)],
+        str(cache_file),
+        docs_dir=str(docs_dir),
+    )
+    data = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert "dup.xlsx" in data
+    assert "processadas/dup.xlsx" in data
+    assert data["dup.xlsx"]["sha256"] != data["processadas/dup.xlsx"]["sha256"]
+
+
+def test_get_files_to_process_accepts_relative_cache_keys_for_processadas(tmp_path):
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    processadas = docs_dir / "processadas"
+    processadas.mkdir()
+    root_file = docs_dir / "dup.xlsx"
+    proc_file = processadas / "dup.xlsx"
+    root_file.write_text("root", encoding="utf-8")
+    proc_file.write_text("proc", encoding="utf-8")
+
+    cache_data = {
+        "dup.xlsx": {
+            "sha256": caching._calculate_hash(str(root_file)),
+            "size": os.stat(root_file).st_size,
+            "mtime_ns": os.stat(root_file).st_mtime_ns,
+        },
+        "processadas/dup.xlsx": {
+            "sha256": caching._calculate_hash(str(proc_file)),
+            "size": os.stat(proc_file).st_size,
+            "mtime_ns": os.stat(proc_file).st_mtime_ns,
+        },
+    }
+    files = caching.get_files_to_process(
+        str(docs_dir),
+        cache_data,
+        include_processadas=True,
+        ignore_subdirs=["nosurvivor"],
+    )
+    assert files == []

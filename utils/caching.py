@@ -10,6 +10,7 @@ import json
 import hashlib
 import logging
 import tempfile
+from pathlib import Path
 from typing import List, Dict, Union, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -28,8 +29,10 @@ def _atomic_write_json(cache: Dict[str, Any], cache_file: str) -> None:
     tmp_path = None
     try:
         fd, tmp_path = tempfile.mkstemp(prefix=f".{base_name}.tmp.", dir=target_dir)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            fd = None  # ownership transferred to file object
+        # Close raw descriptor before reopen to avoid leaks on fdopen/open errors.
+        os.close(fd)
+        fd = None
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=4)
             f.flush()
             try:
@@ -62,14 +65,59 @@ def _safe_file_stat(file_path: str) -> Optional[Tuple[int, int]]:
     mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
     return int(st.st_size), int(mtime_ns)
 
-def get_all_xlsx_files(directory: str) -> List[str]:
-    """Obtem todos os arquivos .xlsx em um diretorio."""
-    xlsx_files = []
-    if os.path.exists(directory):
-        for filename in os.listdir(directory):
-            if filename.endswith('.xlsx'):
-                xlsx_files.append(os.path.join(directory, filename))
-    logger.debug(f"Encontrados {len(xlsx_files)} arquivos .xlsx em '{directory}'.")
+def _cache_key_for_file(file_path: str, docs_dir: str) -> str:
+    """Return a stable cache key using the relative path inside docs_dir."""
+    try:
+        rel_path = Path(file_path).resolve().relative_to(Path(docs_dir).resolve())
+        return rel_path.as_posix()
+    except Exception:
+        return os.path.basename(file_path)
+
+
+def get_all_xlsx_files(
+    directory: str,
+    *,
+    include_processadas: bool = False,
+    processadas_subdir: str = "processadas",
+    ignore_subdirs: Optional[List[str]] = None,
+) -> List[str]:
+    """Obtem arquivos .xlsx no diretorio raiz e, opcionalmente, em processadas."""
+    xlsx_files: list[str] = []
+    if not os.path.exists(directory):
+        logger.debug("Diretorio '%s' nao existe para descoberta de .xlsx.", directory)
+        return xlsx_files
+
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        if os.path.isfile(file_path) and filename.endswith(".xlsx"):
+            xlsx_files.append(file_path)
+
+    if include_processadas:
+        processadas_dir = os.path.join(directory, processadas_subdir)
+        ignored = {
+            name.strip().casefold()
+            for name in (ignore_subdirs or [])
+            if name and name.strip()
+        }
+        if os.path.isdir(processadas_dir):
+            for root, dirnames, filenames in os.walk(processadas_dir):
+                if dirnames:
+                    dirnames[:] = [
+                        dirname for dirname in dirnames
+                        if dirname.strip().casefold() not in ignored
+                    ]
+                for filename in filenames:
+                    if filename.endswith(".xlsx"):
+                        xlsx_files.append(os.path.join(root, filename))
+
+    # Deterministic ordering for stable runs and tests.
+    xlsx_files = sorted({os.path.abspath(path) for path in xlsx_files})
+    logger.debug(
+        "Encontrados %s arquivo(s) .xlsx em '%s' (include_processadas=%s).",
+        len(xlsx_files),
+        directory,
+        include_processadas,
+    )
     return xlsx_files
 
 
@@ -136,7 +184,14 @@ def save_cache(cache: Dict[str, Any], cache_file: str):
         # Ainda assim, logamos o erro para diagnostico.
         logger.exception("Erro ao salvar cache em '%s': %s", cache_file, e)
 
-def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]]) -> List[str]:
+def get_files_to_process(
+    docs_dir: str,
+    cache_or_path: Union[str, Dict[str, Any]],
+    *,
+    include_processadas: bool = False,
+    processadas_subdir: str = "processadas",
+    ignore_subdirs: Optional[List[str]] = None,
+) -> List[str]:
     """
     Compara hashes atuais com o cache para determinar arquivos modificados/novos.
 
@@ -156,11 +211,17 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
     updated_cache: Dict[str, Any] = dict(current_cache)
     cache_updated = False
 
-    all_xlsx_files = get_all_xlsx_files(docs_dir)
+    all_xlsx_files = get_all_xlsx_files(
+        docs_dir,
+        include_processadas=include_processadas,
+        processadas_subdir=processadas_subdir,
+        ignore_subdirs=ignore_subdirs,
+    )
 
     files_to_process = []
     for file_path in all_xlsx_files:
         filename = os.path.basename(file_path)
+        file_cache_key = _cache_key_for_file(file_path, docs_dir)
         stat_sig = _safe_file_stat(file_path)
         if stat_sig is None:
             logger.warning(
@@ -171,7 +232,9 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
             continue
         size, mtime_ns = stat_sig
 
-        cached_entry = current_cache.get(filename)
+        cached_entry = current_cache.get(file_cache_key)
+        if cached_entry is None and file_cache_key != filename:
+            cached_entry = current_cache.get(filename)
         if cached_entry is None:
             files_to_process.append(file_path)
             continue
@@ -222,8 +285,8 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
 
         # Hash matches: refresh cache entry with metadata for future fast paths.
         new_entry = {"sha256": current_hash, "size": size, "mtime_ns": mtime_ns}
-        if updated_cache.get(filename) != new_entry:
-            updated_cache[filename] = new_entry
+        if updated_cache.get(file_cache_key) != new_entry:
+            updated_cache[file_cache_key] = new_entry
             cache_updated = True
 
     logger.info(f"{len(files_to_process)} arquivo(s) identificado(s) para processamento (novos ou modificados).")
@@ -234,7 +297,7 @@ def get_files_to_process(docs_dir: str, cache_or_path: Union[str, Dict[str, Any]
         save_cache(updated_cache, cache_file_path)
     return files_to_process
 
-def update_cache_for_files(file_paths: List[str], cache_file: str):
+def update_cache_for_files(file_paths: List[str], cache_file: str, docs_dir: Optional[str] = None):
     """
     Atualiza o cache com os hashes dos arquivos processados com sucesso.
 
@@ -248,13 +311,14 @@ def update_cache_for_files(file_paths: List[str], cache_file: str):
     updated = False
     for file_path in file_paths:
         filename = os.path.basename(file_path)
+        file_cache_key = _cache_key_for_file(file_path, docs_dir) if docs_dir else filename
         stat_sig = _safe_file_stat(file_path)
         if stat_sig is None:
             continue
         size, mtime_ns = stat_sig
         file_hash = _calculate_hash(file_path)
         if file_hash: # Só atualiza se o hash foi calculado com sucesso
-            current_cache[filename] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
+            current_cache[file_cache_key] = {"sha256": file_hash, "size": size, "mtime_ns": mtime_ns}
             updated = True
         else:
             logger.warning(f"Não foi possível atualizar o cache para {file_path} (hash falhou).")
