@@ -2,6 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 18:32 - authoritative block
+
+- Baseline local de documentacao: `4.31`.
+- GUI menu concluido em 2 slices sem mexer na toolbar:
+  1. agrupamento de operacoes em `Arquivo` e `DB`
+  2. entrega final desta rodada no menu `DB`:
+     - `Consolidar arquivos de entrada`
+     - `Abrir opcoes (backup failsafe)`
+- Failsafe de opcoes:
+  1. `open_settings_file_with_backup` cria backup timestampado antes de abrir.
+- Consolidacao dedicada:
+  1. `consolidate_input_files` usa o ultimo `import_run_*.json` com `file_reports` do projeto.
+  2. move para:
+     - `processadas/` quando `rows_inserted > 0`
+     - `processadas/nosurvivor/` quando `rows_inserted <= 0`
+  3. sem evidencia no report -> arquivo fica pendente em `docs_entrada`.
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `11 passed`
+- Arquivos alterados na rodada:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+
 ## CURRENT TRUTH 2026-03-08 18:19 - authoritative block
 
 - Baseline local de documentacao: `4.31`.

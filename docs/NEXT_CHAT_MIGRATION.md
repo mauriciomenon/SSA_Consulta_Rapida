@@ -2,6 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 18:32 - start from here
+
+- Baseline local de documentacao: `4.31`.
+- GUI menu concluido (slice 2/2):
+  1. menu `DB` agora inclui:
+     - `Consolidar arquivos de entrada`
+     - `Abrir opcoes (backup failsafe)`
+  2. sem mudanca de layout/posicao da toolbar.
+- Failsafe de opcoes entregue:
+  1. `open_settings_file_with_backup` cria backup timestampado antes de abrir.
+- Consolidacao dedicada entregue:
+  1. `consolidate_input_files` usa ultimo `import_run_*.json` com `file_reports`.
+  2. roteia para `processadas/` ou `processadas/nosurvivor/` por `rows_inserted`.
+  3. arquivos sem evidencia no report ficam em `docs_entrada` (`pending`).
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `11 passed`
+
 ## CURRENT TRUTH 2026-03-08 18:19 - start from here
 
 - Baseline local de documentacao: `4.31`.
