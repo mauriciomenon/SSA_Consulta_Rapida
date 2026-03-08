@@ -2,6 +2,52 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 22:02 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Decisao final desta rodada de upsert policy:
+  1. benchmark real de full rescan final com 431 arquivos foi executado em `data/ablation_*`.
+  2. `SSA_UPSERT_SHORT_CIRCUIT_POLICY=consulta_only` ficou como default por menor tempo total.
+  3. `no_short` teve `+35.17%` de custo, `all_short` teve `+84.49%` de custo neste corpus.
+  4. sem impacto funcional no resultado final do DB para estes cenários.
+- Evidencia consolidada:
+  1. logs de import: `logs/import_run_20260307_213713_316719.json`, `logs/import_run_20260307_214318_967821.json`, `logs/import_run_20260307_215122_180024.json`
+  2. DB de ablação: `data/ablation_consulta_only/ssas.db`, `data/ablation_no_short/ssas.db`, `data/ablation_all_short/ssas.db`
+- Estado do rescan nesta rodada:
+  1. `files_processed=431` sem erros, `rows_extracted_total=497162`
+  2. `rows_removed_invalid_identity_total=2763`
+  3. DB final por cenário: `76426` linhas, `76426` numero_ssa distintos, `82` colunas.
+  4. arquivo com maior invalid identity: `SSAscomReprogramações_07-01-2026_0225PM.xlsx` (`1778`).
+- Proximo passo recomendado:
+  1. seguir com o padrão atual sem tocar no robust no slice corrente.
+  2. manter observabilidade ativa do benchmark por arquivo nos próximos lotes de entrada.
+- Riscos não bloqueantes:
+  1. revisar se em novos cenários de entrada a politica all_short pode ser útil em modo consult mode controlado.
+  2. manter atenção a novos warnings de schema antes de expandir `short_circuit` para tudo.
+
+## CURRENT TRUTH 2026-03-07 21:35 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Regras vigentes antes de novo tuning no upsert:
+  1. ler os docs de arquitetura na lista abaixo e manter o contrato de risco baixo
+  2. manter default atual sem alterar comportamento sem benchmark
+  3. validar A/B com evidência real antes de expandir escopo
+- Estado do experimento de no-op overlap:
+  1. o patch novo em `database_upsert_logic.py` foi integrado com policy de operação:
+     - `SSA_UPSERT_SHORT_CIRCUIT_POLICY=no_short|consulta_only|all_short`
+  2. default continua `consulta_only`
+  3. os testes focados foram atualizados e aprovados (`20 passed`)
+- Decisao operacional:
+  1. rodar comparação controlada consulta/no_short/all_short em amostras reais antes de qualquer ajuste de default
+  2. manter arquivos residuais fora de commit (`data/ssas.db`, `docs_entrada/...`, etc.)
+- Residuos locais fora de escopo, nao comitar:
+  1. `data/ssas.db`
+  2. `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`
+  3. `tests/test_db_reset_and_upsert.py`
+  4. `data/db_backups/`
+  5. `data/tmp_import_sample/`
+  6. `shared/semantic_duplicate_resolution.py`
+
 ## CURRENT TRUTH 2026-03-07 13:35 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
