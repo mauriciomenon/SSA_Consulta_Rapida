@@ -298,6 +298,88 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
     ]
 
 
+def test_run_importer_logic_moves_processed_files_and_updates_cache_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    docs_dir.mkdir()
+    data_dir = tmp_path / "data"
+    file_ok = docs_dir / "ok.xlsx"
+    file_empty = docs_dir / "empty.xlsx"
+    file_ok.write_text("placeholder-ok", encoding="utf-8")
+    file_empty.write_text("placeholder-empty", encoding="utf-8")
+
+    _allow_tmp_path(monkeypatch, tmp_path)
+    _mock_db_ok(monkeypatch)
+    monkeypatch.setattr(
+        app_logic,
+        "_load_import_discovery_settings",
+        lambda: {
+            "include_processadas": False,
+            "processadas_subdir": "processadas",
+            "ignore_subdirs": ["nosurvivor"],
+            "nosurvivor_subdir": "nosurvivor",
+            "move_processed_after_import": True,
+            "route_zero_survivor_to_nosurvivor": True,
+        },
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_get_files_to_process",
+        lambda *args, **kwargs: [str(file_ok), str(file_empty)],
+    )
+    monkeypatch.setattr(
+        app_logic,
+        "_discover_derivadas_sheet_files",
+        lambda *args, **kwargs: [],
+    )
+
+    def _fake_import_single_file(file_path: str, db_path: str, *args, **kwargs) -> tuple[bool, int]:
+        if Path(file_path).name == "empty.xlsx":
+            return True, 0
+        return True, 5
+
+    monkeypatch.setattr(app_logic, "_import_single_file", _fake_import_single_file)
+    monkeypatch.setattr(
+        app_logic,
+        "_update_cache_for_deterministic_failures",
+        lambda failed_files, cache_file, docs_dir: None,
+    )
+
+    captured_cache: dict[str, Any] = {}
+
+    def _capture_cache_paths(processed_files: list[str], cache_file: str, docs_dir: str) -> None:
+        captured_cache["paths"] = list(processed_files)
+        captured_cache["cache_file"] = cache_file
+        captured_cache["docs_dir"] = docs_dir
+
+    monkeypatch.setattr(app_logic, "_update_cache_after_import", _capture_cache_paths)
+
+    updated = app_logic.run_importer_logic(
+        docs_dir=str(docs_dir),
+        data_dir=str(data_dir),
+        db_name="test.db",
+        table_name="ssa_table",
+        force_import=False,
+    )
+
+    assert updated is True
+    moved_ok = docs_dir / "processadas" / "ok.xlsx"
+    moved_empty = docs_dir / "processadas" / "nosurvivor" / "empty.xlsx"
+    assert moved_ok.exists()
+    assert moved_empty.exists()
+    assert not file_ok.exists()
+    assert not file_empty.exists()
+    assert "paths" in captured_cache
+    assert sorted(Path(p).name for p in cast(list[str], captured_cache["paths"])) == [
+        "empty.xlsx",
+        "ok.xlsx",
+    ]
+    assert str(moved_ok) in cast(list[str], captured_cache["paths"])
+    assert str(moved_empty) in cast(list[str], captured_cache["paths"])
+
+
 def test_run_importer_logic_full_rescan_failure_preserves_primary_db(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

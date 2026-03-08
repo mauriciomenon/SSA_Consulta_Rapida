@@ -2,6 +2,21 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 00:50 - start from here
+
+- Regressao de testes fechada apos mudanca de assinatura em `core/app_logic.py`:
+  1. `tests/test_import_deterministic_failure_cache.py` tinha mocks com 2 args para `_update_cache_for_deterministic_failures`.
+  2. runtime atual usa 3 args; mocks foram atualizados.
+- Nova cobertura de fluxo pos-importacao:
+  1. `tests/test_import_run_report.py` agora valida move de arquivos para:
+     - `processadas/` (`record_count > 0`)
+     - `processadas/nosurvivor/` (`record_count == 0`)
+  2. teste tambem garante que `_update_cache_after_import` recebe caminhos finais movidos.
+- Evidencia da rodada:
+  1. `pytest -q tests/test_import_deterministic_failure_cache.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py` -> `11 passed`
+  2. py_compile + ruff + ty dos testes alterados -> pass
+  3. kluster clean.
+
 ## CURRENT TRUTH 2026-03-08 00:37 - start from here
 
 - Config padrao agora declara `import_settings` explicitamente em `config/default_settings.json`.
