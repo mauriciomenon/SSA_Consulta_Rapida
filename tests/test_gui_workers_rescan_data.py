@@ -310,3 +310,73 @@ def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
     assert created_dialogs
     assert created_dialogs[0].show_called is True
     assert window._active_rescan_dialog is created_dialogs[0]
+
+
+def test_rescan_data_diff_mode_skips_prompt_and_sets_force_import_false(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    class _MessageBoxShouldNotBeUsed:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("Prompt nao deveria ser exibido em rescan_mode=diff")
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=_MessageBoxShouldNotBeUsed,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="diff",
+    )
+
+    assert captured_modes == [False]
+
+
+def test_rescan_data_full_mode_skips_prompt_and_sets_force_import_true(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    class _MessageBoxShouldNotBeUsed:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("Prompt nao deveria ser exibido em rescan_mode=full")
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=_MessageBoxShouldNotBeUsed,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="full",
+    )
+
+    assert captured_modes == [True]

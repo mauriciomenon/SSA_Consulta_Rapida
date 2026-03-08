@@ -2692,9 +2692,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         load_other_db_action.triggered.connect(self.load_other_database)
         cast(Any, db_menu).addAction(load_other_db_action)
 
-        rescan_action = QAction("Reescanear (Diff/Full)", self)
-        rescan_action.triggered.connect(self.rescan_data)
-        cast(Any, db_menu).addAction(rescan_action)
+        rescan_diff_action = QAction("Reescanear Diff (hash)", self)
+        rescan_diff_action.triggered.connect(self.rescan_diff_data)
+        cast(Any, db_menu).addAction(rescan_diff_action)
+
+        rescan_full_action = QAction("Reescanear Full (zera e reprocessa)", self)
+        rescan_full_action.triggered.connect(self.rescan_full_data)
+        cast(Any, db_menu).addAction(rescan_full_action)
 
         derivadas_action = QAction("Atualizar derivadas", self)
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)
@@ -2997,6 +3001,47 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
             retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
             sip_module=sip,
+            rescan_mode="prompt",
+        )
+
+    def rescan_diff_data(self):
+        """Reprocessa somente arquivos alterados por hash (modo diff)."""
+        from gui.workers import RescanWorker
+        from gui.widgets import RescanProgressDialog
+
+        return ssa_gui_workers.rescan_data(
+            self,
+            project_root=project_root,
+            rescan_worker_cls=RescanWorker,
+            rescan_dialog_cls=RescanProgressDialog,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+            rescan_mode="diff",
+        )
+
+    def rescan_full_data(self):
+        """Reprocessa tudo recriando DB candidato (modo full)."""
+        from gui.workers import RescanWorker
+        from gui.widgets import RescanProgressDialog
+
+        return ssa_gui_workers.rescan_data(
+            self,
+            project_root=project_root,
+            rescan_worker_cls=RescanWorker,
+            rescan_dialog_cls=RescanProgressDialog,
+            qmessagebox=QMessageBox,
+            global_workers=GLOBAL_RETIRED_RESCAN_WORKERS,
+            global_meta=GLOBAL_RETIRED_RESCAN_META,
+            max_global_workers=MAX_GLOBAL_RETIRED_RESCAN_WORKERS,
+            retired_ttl_sec=RETIRED_WORKER_TTL_SEC,
+            retired_force_wait_ms=RETIRED_WORKER_FORCE_WAIT_MS,
+            sip_module=sip,
+            rescan_mode="full",
         )
 
     def open_docs_folder(self):

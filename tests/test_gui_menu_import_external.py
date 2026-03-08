@@ -75,6 +75,12 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
         def rescan_data(self) -> None:
             return None
 
+        def rescan_diff_data(self) -> None:
+            return None
+
+        def rescan_full_data(self) -> None:
+            return None
+
         def update_derivadas_from_sources(self) -> None:
             return None
 
@@ -93,7 +99,7 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
     assert "Arquivo" in window._menu_bar.menus
     assert "DB" in window._menu_bar.menus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 4
-    assert len(window._menu_bar.menus["DB"].actions) == 7
+    assert len(window._menu_bar.menus["DB"].actions) == 8
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(

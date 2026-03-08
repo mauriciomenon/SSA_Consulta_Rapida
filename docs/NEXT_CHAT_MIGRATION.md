@@ -2,6 +2,20 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 18:36 - start from here
+
+- Baseline local de documentacao: `4.31`.
+- Reescaneamento agora explicito no menu `DB`:
+  1. `Reescanear Diff (hash)` -> sem prompt, `force_import=false`
+  2. `Reescanear Full (zera e reprocessa)` -> sem prompt, `force_import=true`
+- Compatibilidade mantida:
+  1. botao/acao antiga `rescan_data` segue com `prompt` (escolha de modo).
+- Implementacao tecnica:
+  1. `gui/ssa/gui_workers.py`: `rescan_data(..., rescan_mode=\"prompt|diff|full\")`
+  2. `gui/gui_ssa.py`: `rescan_diff_data` e `rescan_full_data`
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py tests/test_open_docs_folder_nonblocking.py` -> `13 passed`
+
 ## CURRENT TRUTH 2026-03-08 18:32 - start from here
 
 - Baseline local de documentacao: `4.31`.
