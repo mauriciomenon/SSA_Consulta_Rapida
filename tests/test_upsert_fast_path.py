@@ -300,3 +300,172 @@ def test_prepare_upsert_target_row_skips_older_incoming_row() -> None:
 
     assert should_persist is False
     assert target.equals(existing)
+
+
+def test_perform_upsert_skips_exact_overlap_without_persist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    conn.execute("ALTER TABLE ssa_table ADD COLUMN arquivo_origem TEXT")
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem) VALUES (?, ?, ?, ?, ?)",
+        ("1001", "SSA identica", "2025-01-01 10:00:00", 202501, "Consulta SSA - 02-03-2026_0540PM.xlsx"),
+    )
+    conn.commit()
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "1001",
+                "descricao_ssa": "SSA identica",
+                "data_cadastro": "2025-01-01 10:00:00",
+                "semana_programada": 202501,
+                "arquivo_origem": "Consulta SSA - 02-03-2026_0540PM.xlsx",
+            }
+        ]
+    )
+
+    def _unexpected_persist(*args, **kwargs) -> None:
+        raise AssertionError("_persist_upsert_chunk nao deveria ser chamado para overlap identico")
+
+    monkeypatch.setattr(upsert_logic, "_persist_upsert_chunk", _unexpected_persist)
+
+    processed = upsert_logic._perform_upsert(incoming, "ssa_table", conn, chunk_size=100)
+
+    row = conn.execute(
+        "SELECT numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem FROM ssa_table"
+    ).fetchone()
+    assert processed == 0
+    assert row == ("1001", "SSA identica", "2025-01-01 10:00:00", 202501, "Consulta SSA - 02-03-2026_0540PM.xlsx")
+
+
+def test_perform_upsert_skips_exact_overlap_with_pd_na_without_persist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    conn.execute("ALTER TABLE ssa_table ADD COLUMN arquivo_origem TEXT")
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem) VALUES (?, ?, ?, ?, ?)",
+        ("1002", "SSA com nulo", "2025-01-01 10:00:00", None, "Consulta SSA - 02-03-2026_0540PM.xlsx"),
+    )
+    conn.commit()
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "1002",
+                "descricao_ssa": "SSA com nulo",
+                "data_cadastro": "2025-01-01 10:00:00",
+                "semana_programada": pd.NA,
+                "arquivo_origem": "Consulta SSA - 02-03-2026_0540PM.xlsx",
+            }
+        ]
+    )
+
+    def _unexpected_persist(*args, **kwargs) -> None:
+        raise AssertionError("_persist_upsert_chunk nao deveria ser chamado para overlap identico com nulo")
+
+    monkeypatch.setattr(upsert_logic, "_persist_upsert_chunk", _unexpected_persist)
+
+    processed = upsert_logic._perform_upsert(incoming, "ssa_table", conn, chunk_size=100)
+
+    row = conn.execute(
+        "SELECT numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem FROM ssa_table"
+    ).fetchone()
+    assert processed == 0
+    assert row == ("1002", "SSA com nulo", "2025-01-01 10:00:00", None, "Consulta SSA - 02-03-2026_0540PM.xlsx")
+
+
+def test_should_enable_exact_overlap_short_circuit_only_for_consulta_ssa() -> None:
+    consulta_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Consulta SSA - 02-03-2026_0540PM.xlsx"}]
+    )
+    todas_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx"}]
+    )
+    mixed_chunk = pd.DataFrame(
+        [
+            {"numero_ssa": "1", "arquivo_origem": "Consulta SSA - 02-03-2026_0540PM.xlsx"},
+            {"numero_ssa": "2", "arquivo_origem": "Consulta SSA - 03-03-2026_0540PM.xlsx"},
+        ]
+    )
+
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(consulta_chunk) is True
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(todas_chunk) is False
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(mixed_chunk) is False
+
+
+def test_resolve_short_circuit_policy_defaults_to_consulta_only() -> None:
+    assert upsert_logic._resolve_short_circuit_policy() == "consulta_only"
+
+
+def test_should_enable_exact_overlap_short_circuit_with_no_short_policy() -> None:
+    todas_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx"}]
+    )
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        todas_chunk,
+        policy="no_short",
+    ) is False
+    assert upsert_logic._resolve_short_circuit_policy("no_short") == "no_short"
+
+
+def test_should_enable_exact_overlap_short_circuit_with_all_short_policy() -> None:
+    all_short_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx"}]
+    )
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        all_short_chunk,
+        policy="all_short",
+    ) is True
+    assert upsert_logic._resolve_short_circuit_policy("all_short") == "all_short"
+
+
+def test_short_circuit_policy_modes_are_disjoint() -> None:
+    consulta_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Consulta SSA - 02-03-2026_0540PM.xlsx"}]
+    )
+    todas_chunk = pd.DataFrame(
+        [{"numero_ssa": "1", "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx"}]
+    )
+    mixed_chunk = pd.DataFrame(
+        [
+            {"numero_ssa": "1", "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx"},
+            {"numero_ssa": "2", "arquivo_origem": "Todas as SSAs - 19-08-2022_1032PM.xlsx"},
+        ]
+    )
+
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        consulta_chunk,
+        policy="consulta_only",
+    ) is True
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        consulta_chunk,
+        policy="no_short",
+    ) is False
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        consulta_chunk,
+        policy="all_short",
+    ) is True
+
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        todas_chunk,
+        policy="consulta_only",
+    ) is False
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        todas_chunk,
+        policy="no_short",
+    ) is False
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        todas_chunk,
+        policy="all_short",
+    ) is True
+
+    assert upsert_logic._should_enable_exact_overlap_short_circuit(
+        mixed_chunk,
+        policy="all_short",
+    ) is False
+
+
+def test_resolve_short_circuit_policy_invalid_falls_back_to_consulta_only() -> None:
+    assert upsert_logic._resolve_short_circuit_policy("invalida") == "consulta_only"
