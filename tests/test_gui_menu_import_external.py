@@ -87,6 +87,12 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
         def consolidate_input_files(self) -> None:
             return None
 
+        def open_processadas_folder(self) -> None:
+            return None
+
+        def open_nosurvivor_folder(self) -> None:
+            return None
+
         def open_settings_file_with_backup(self) -> None:
             return None
 
@@ -99,7 +105,7 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
     assert "Arquivo" in window._menu_bar.menus
     assert "DB" in window._menu_bar.menus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 4
-    assert len(window._menu_bar.menus["DB"].actions) == 8
+    assert len(window._menu_bar.menus["DB"].actions) == 10
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
@@ -219,3 +225,43 @@ def test_consolidate_input_files_moves_by_last_report(monkeypatch, tmp_path: Pat
     assert (docs_dir / "processadas" / "ok.xlsx").exists()
     assert (docs_dir / "processadas" / "nosurvivor" / "zero.xlsx").exists()
     assert (docs_dir / "pending.xlsx").exists()
+
+
+def test_open_processadas_folder_routes_to_helper(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+
+    def _fake_open_folder(self: Any, folder_path: str, folder_label: str) -> None:
+        captured["folder_path"] = folder_path
+        captured["folder_label"] = folder_label
+
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow,
+        "_open_folder_non_blocking",
+        _fake_open_folder,
+    )
+    gui_ssa.SSAMainWindow.open_processadas_folder(cast(Any, object()))
+
+    assert captured["folder_path"] == str(tmp_path / "docs_entrada" / "processadas")
+    assert captured["folder_label"] == "docs_entrada/processadas"
+
+
+def test_open_nosurvivor_folder_routes_to_helper(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+
+    def _fake_open_folder(self: Any, folder_path: str, folder_label: str) -> None:
+        captured["folder_path"] = folder_path
+        captured["folder_label"] = folder_label
+
+    monkeypatch.setattr(
+        gui_ssa.SSAMainWindow,
+        "_open_folder_non_blocking",
+        _fake_open_folder,
+    )
+    gui_ssa.SSAMainWindow.open_nosurvivor_folder(cast(Any, object()))
+
+    assert captured["folder_path"] == str(
+        tmp_path / "docs_entrada" / "processadas" / "nosurvivor"
+    )
+    assert captured["folder_label"] == "docs_entrada/processadas/nosurvivor"
