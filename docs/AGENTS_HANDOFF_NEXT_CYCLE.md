@@ -2,6 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 19:02 - authoritative block
+
+- Baseline local de documentacao: `4.31`.
+- Menu `DB` agora inclui atalhos de pasta para consolidacao:
+  1. `Abrir pasta processadas`
+  2. `Abrir pasta processadas/nosurvivor`
+- Implementacao:
+  1. `gui/gui_ssa.py`
+     - novos handlers:
+       - `open_processadas_folder`
+       - `open_nosurvivor_folder`
+     - helper comum `_open_folder_non_blocking(folder_path, folder_label)`
+     - `open_docs_folder` consolidado para o mesmo helper.
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `15 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 18:36 - authoritative block
 
 - Baseline local de documentacao: `4.31`.

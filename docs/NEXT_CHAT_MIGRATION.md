@@ -2,6 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 19:02 - start from here
+
+- Baseline local de documentacao: `4.31`.
+- Menu `DB` ganhou atalhos operacionais de pasta:
+  1. `Abrir pasta processadas`
+  2. `Abrir pasta processadas/nosurvivor`
+- Implementacao:
+  1. `gui/gui_ssa.py` adicionou:
+     - `open_processadas_folder`
+     - `open_nosurvivor_folder`
+     - helper `_open_folder_non_blocking(folder_path, folder_label)`
+  2. `open_docs_folder` agora usa o mesmo helper (comportamento mantido).
+- Cobertura de regressao:
+  1. `tests/test_gui_menu_import_external.py`:
+     - menu `DB` agora com `10` acoes
+     - testes de roteamento para os 2 atalhos novos
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `15 passed`
+
 ## CURRENT TRUTH 2026-03-08 18:36 - start from here
 
 - Baseline local de documentacao: `4.31`.

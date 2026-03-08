@@ -2708,6 +2708,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         consolidate_action.triggered.connect(self.consolidate_input_files)
         cast(Any, db_menu).addAction(consolidate_action)
 
+        open_processadas_action = QAction("Abrir pasta processadas", self)
+        open_processadas_action.triggered.connect(self.open_processadas_folder)
+        cast(Any, db_menu).addAction(open_processadas_action)
+
+        open_nosurvivor_action = QAction("Abrir pasta processadas/nosurvivor", self)
+        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
+        cast(Any, db_menu).addAction(open_nosurvivor_action)
+
         open_settings_action = QAction("Abrir opcoes (backup failsafe)", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
         cast(Any, db_menu).addAction(open_settings_action)
@@ -3046,20 +3054,49 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def open_docs_folder(self):
         """Abre a pasta docs_entrada no explorador de arquivos (nao bloqueante)."""
-        docs_path = os.path.join(project_root, 'docs_entrada')
+        docs_path = os.path.join(project_root, "docs_entrada")
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=docs_path,
+            folder_label="docs_entrada",
+        )
 
-        if os.path.exists(docs_path):
+    def open_processadas_folder(self):
+        """Abre docs_entrada/processadas no explorador de arquivos."""
+        folder_path = os.path.join(project_root, "docs_entrada", "processadas")
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=folder_path,
+            folder_label="docs_entrada/processadas",
+        )
+
+    def open_nosurvivor_folder(self):
+        """Abre docs_entrada/processadas/nosurvivor no explorador de arquivos."""
+        folder_path = os.path.join(
+            project_root,
+            "docs_entrada",
+            "processadas",
+            "nosurvivor",
+        )
+        SSAMainWindow._open_folder_non_blocking(
+            cast(Any, self),
+            folder_path=folder_path,
+            folder_label="docs_entrada/processadas/nosurvivor",
+        )
+
+    def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
+        if os.path.exists(folder_path):
             try:
-                # Prefer Qt abstraction to avoid blocking UI (subprocess.run) and to keep cross-platform.
+                # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
                 if QT_AVAILABLE:
-                    url = QUrl.fromLocalFile(docs_path)
+                    url = QUrl.fromLocalFile(folder_path)
                     ok = QDesktopServices.openUrl(url)
                     if ok:
                         return
                     raise RuntimeError("QDesktopServices.openUrl returned False")
-                raise RuntimeError("Qt nao disponivel para abrir pastas")
-            except Exception as e:
-                logger.warning("Falha ao abrir pasta docs_entrada via Qt: %s", e)
+                raise RuntimeError("Qt not available to open folders")
+            except Exception as open_exc:
+                logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
                 try:
                     # Best-effort fallback, non-blocking.
                     if sys.platform.startswith("win"):
@@ -3071,18 +3108,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     resolved = shutil.which(cmd)
                     if not resolved:
                         raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
-                    subprocess.Popen([resolved, docs_path])
+                    subprocess.Popen([resolved, folder_path])
                     return
                 except Exception as fallback_exc:
                     logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
-                    # Avoid modal dialogs during automated tests (can deadlock pytest runner).
                     if os.environ.get("PYTEST_CURRENT_TEST"):
                         return
                     QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
         else:
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
-            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {folder_path}")
 
     def _list_special_derivadas_sheets(self) -> list[str]:
         docs_path = os.path.join(project_root, "docs_entrada")

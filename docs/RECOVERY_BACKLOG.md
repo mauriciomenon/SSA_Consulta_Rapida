@@ -3,6 +3,35 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 19:02 - atalhos de pasta processadas no menu DB
+
+Session timestamp:
+1. start: `2026-03-08 18:59:29 -0300`
+2. end: `2026-03-08 19:02:26 -0300`
+
+Objetivo do slice:
+1. expor atalhos operacionais para abrir pastas de consolidacao sem alterar layout.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menu `DB` ganhou:
+     - `Abrir pasta processadas`
+     - `Abrir pasta processadas/nosurvivor`
+   - novo helper reutilizavel `_open_folder_non_blocking(folder_path, folder_label)`.
+   - `open_docs_folder` passou a reutilizar o mesmo helper (sem mudanca funcional).
+   - novos handlers:
+     - `open_processadas_folder`
+     - `open_nosurvivor_folder`
+2. `tests/test_gui_menu_import_external.py`
+   - contagem de acoes do menu `DB` atualizada para `10`.
+   - novos testes cobrindo roteamento dos 2 atalhos para o helper de abertura.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `15 passed`
+
 ## Update 2026-03-08 18:36 - GUI rescan explicito (Diff/Full) sem prompt
 
 Session timestamp:
