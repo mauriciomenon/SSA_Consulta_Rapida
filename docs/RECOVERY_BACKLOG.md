@@ -3,7 +3,54 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
-## Update 2026-03-08 11:52 - mini importacao runtime com move pos-processamento
+## Update 2026-03-08 12:44 - full rescan real com move pos-processamento ligado
+
+Session timestamp:
+1. start: `2026-03-08 11:52:23 -0300`
+2. end: `2026-03-08 12:44:05 -0300`
+
+Objetivo do slice:
+1. executar full rescan completo com `move_processed_after_import=true` e comparar com baseline anterior.
+
+Evidencia gerada:
+1. report do run:
+   - `logs/import_run_20260308_115621_528621.json`
+2. resumo consolidado da rodada:
+   - `logs/move_policy_full_rescan_summary_20260308_115621.json`
+3. baseline comparado:
+   - `logs/import_run_20260307_213713_316719.json`
+
+Resultado funcional:
+1. `total_candidates=431`
+2. `success_count=431`
+3. `error_count=0`
+4. `rows_inserted_total=497162`
+5. `rows_removed_invalid_identity_total=2763`
+6. comportamento de move/caching permaneceu consistente.
+
+Resultado de performance (comparativo):
+1. baseline: `354.675s`
+2. novo run com move ligado: `2791.239s`
+3. delta: degradacao de aproximadamente `+687%` no tempo total.
+4. degradacao apareceu em todas as familias (insert_seconds):
+   - `Consulta SSA`: `102.823s -> 897.742s`
+   - `Todas as SSAs`: `25.631s -> 367.059s`
+   - `SSAs Executadas`: `56.000s -> 758.644s`
+   - `SSAs Pendentes`: `7.526s -> 82.346s`
+   - `SSAscomReprogramacoes`: `2.253s -> 38.676s`
+   - `Outros`: `6.451s -> 80.111s`
+
+Decisao operacional recomendada:
+1. manter `move_processed_after_import=false` para full rescan pesado ate isolar causa da degradacao.
+2. usar move pos-processamento apenas em importacoes controladas/incrementais por enquanto.
+3. abrir slice tecnico especifico para diagnostico de impacto no hot path do upsert durante full rescan com move ligado.
+
+Higiene:
+1. diretorio pesado temporario removido:
+   - `data/full_rescan_move_policy_20260308_115621`
+2. apenas JSONs de evidencia foram mantidos em `logs/`.
+
+## Update 2026-03-08 11:54 - mini importacao runtime com move pos-processamento
 
 Session timestamp:
 1. start: `2026-03-08 11:52:23 -0300`
