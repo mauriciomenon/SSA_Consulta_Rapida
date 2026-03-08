@@ -2,6 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 22:59 - start from here
+
+- Sentinela A/B final do hot path (4 arquivos criticos, DB isolado por politica):
+  1. `consulta_only`: `40.064s`
+  2. `no_short`: `40.590s` (`+1.31%`)
+  3. `all_short`: `41.644s` (`+3.95%`)
+  4. decisao: manter `consulta_only` como policy padrao.
+- Evidencia preservada em logs:
+  1. `logs/import_run_20260307_224052_346788.json`
+  2. `logs/import_run_20260307_224225_365396.json`
+  3. `logs/import_run_20260307_224305_447338.json`
+  4. `logs/import_run_20260307_224346_053142.json`
+- Limpeza local executada:
+  1. removidos 4 diretorios `data/sentinel_*` criados nesta rodada.
+  2. nao houve alteracao de runtime/codigo neste sub-slice.
+- Residuos locais ainda fora de escopo (nao subir):
+  1. `data/ablation_all_short/` (~106M)
+  2. `data/ablation_consulta_only/` (~106M)
+  3. `data/ablation_no_short/` (~106M)
+  4. tracked modified antigos: `armazenamento/database.py`, `armazenamento/database_integrity.py`, `armazenamento/database_validation.py`, `core/app_logic.py`, `data/ssas.db`, `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`, `extracao/extractor.py`, `tests/test_db_reset_and_upsert.py`.
+
 ## CURRENT TRUTH 2026-03-07 22:23 - start from here
 
 - Slice fechado no hot path de upsert sem tocar robust:
