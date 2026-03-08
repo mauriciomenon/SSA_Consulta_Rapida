@@ -3,6 +3,47 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 19:56 - hardening de menus e abertura de pastas
+
+Session timestamp:
+1. start: `2026-03-08 19:53:36 -0300`
+2. end: `2026-03-08 19:56:37 -0300`
+
+Objetivo do slice:
+1. melhorar menu `Arquivo` como fluxo diario sem remover itens dos menus de origem.
+2. aumentar usabilidade do menu `Database`.
+3. corrigir acao `Tema` quando acionada pelo menu.
+4. endurecer abertura de pasta com prompt de criacao quando ausente.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menu `DB` renomeado para `Database`.
+   - `Arquivo` passou a concentrar atalhos do fluxo diario (com duplicacao segura):
+     - carregar dados/outro DB
+     - reescaneamento diff/perguntar/completo
+     - atualizar derivadas
+     - consolidar arquivos
+     - exportar
+     - abrir pastas
+     - tema/ajuda
+     - sair
+   - menus de origem (`Importacao`, `Database`, `Opcoes`) foram mantidos.
+   - `_open_folder_non_blocking` agora:
+     - pergunta se deseja criar pasta quando nao existe
+     - cria pasta sob confirmacao
+     - depois abre pasta com Qt/fallback.
+2. `gui/ssa/gui_theme.py`
+   - `toggle_theme_menu` ganhou fallback para abrir menu no cursor quando acionado por menu action.
+3. testes:
+   - `tests/test_gui_menu_import_external.py` atualizado para nova estrutura de menus.
+   - `tests/test_open_docs_folder_nonblocking.py` ganhou cobertura de criacao de pasta via prompt.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+
 ## Update 2026-03-08 19:32 - release runtime 4.31 e equivalencia de menu
 
 Session timestamp:

@@ -2665,7 +2665,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         arquivo_menu = menu_bar.addMenu("Arquivo")
         importacao_menu = menu_bar.addMenu("Importacao")
-        db_menu = menu_bar.addMenu("DB")
+        db_menu = menu_bar.addMenu("Database")
         opcoes_menu = menu_bar.addMenu("Opcoes")
         db_avancado_menu: Any
         if hasattr(db_menu, "addMenu"):
@@ -2677,13 +2677,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         import_action.triggered.connect(self.import_external_excel_files)
         cast(Any, arquivo_menu).addAction(import_action)
 
+        load_action = QAction("Carregar dados", self)
+        load_action.triggered.connect(self.load_data)
+        cast(Any, arquivo_menu).addAction(load_action)
+
+        load_other_db_action = QAction("Carregar outro DB...", self)
+        load_other_db_action.triggered.connect(self.load_other_database)
+        cast(Any, arquivo_menu).addAction(load_other_db_action)
+
         rescan_diff_action = QAction("Reescaneamento diff", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
         cast(Any, arquivo_menu).addAction(rescan_diff_action)
 
-        load_action = QAction("Carregar dados", self)
-        load_action.triggered.connect(self.load_data)
-        cast(Any, arquivo_menu).addAction(load_action)
+        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
+        rescan_prompt_action.triggered.connect(self.rescan_data)
+        cast(Any, arquivo_menu).addAction(rescan_prompt_action)
+
+        rescan_full_action = QAction("Reescaneamento completo", self)
+        rescan_full_action.triggered.connect(self.rescan_full_data)
+        cast(Any, arquivo_menu).addAction(rescan_full_action)
+
+        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
+        cast(Any, arquivo_menu).addAction(derivadas_action)
+
+        consolidate_action = QAction("Consolidar arquivos de entrada", self)
+        consolidate_action.triggered.connect(self.consolidate_input_files)
+        cast(Any, arquivo_menu).addAction(consolidate_action)
 
         export_action = QAction("Exportar lista atual (txt)", self)
         export_action.triggered.connect(self._export_current_list_txt)
@@ -2700,6 +2720,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         open_nosurvivor_action = QAction("Abrir pasta sem sobreviventes", self)
         open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
         cast(Any, arquivo_menu).addAction(open_nosurvivor_action)
+
+        theme_action_arquivo = QAction("Tema", self)
+        theme_action_arquivo.triggered.connect(self.toggle_theme_menu)
+        cast(Any, arquivo_menu).addAction(theme_action_arquivo)
+
+        help_action_arquivo = QAction("Ajuda", self)
+        help_action_arquivo.triggered.connect(self.show_filter_help)
+        cast(Any, arquivo_menu).addAction(help_action_arquivo)
 
         cast(Any, arquivo_menu).addSeparator()
 
@@ -3140,40 +3168,59 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return {"ok": False, "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
-        if os.path.exists(folder_path):
-            try:
-                # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
-                if QT_AVAILABLE:
-                    url = QUrl.fromLocalFile(folder_path)
-                    ok = QDesktopServices.openUrl(url)
-                    if ok:
-                        return
-                    raise RuntimeError("QDesktopServices.openUrl returned False")
-                raise RuntimeError("Qt not available to open folders")
-            except Exception as open_exc:
-                logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
-                try:
-                    # Best-effort fallback, non-blocking.
-                    if sys.platform.startswith("win"):
-                        cmd = "explorer"
-                    elif sys.platform == "darwin":
-                        cmd = "open"
-                    else:
-                        cmd = "xdg-open"
-                    resolved = shutil.which(cmd)
-                    if not resolved:
-                        raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
-                    subprocess.Popen([resolved, folder_path])
-                    return
-                except Exception as fallback_exc:
-                    logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
-                    if os.environ.get("PYTEST_CURRENT_TEST"):
-                        return
-                    QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
-        else:
+        if not os.path.exists(folder_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
-            QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {folder_path}")
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Pasta nao encontrada",
+                (
+                    f"A pasta '{folder_label}' nao existe.\n\n"
+                    "Deseja criar agora?\n"
+                    f"{folder_path}"
+                ),
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.Yes,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return
+            try:
+                os.makedirs(folder_path, exist_ok=True)
+            except Exception as create_exc:
+                logger.warning("Falha ao criar pasta %s: %s", folder_path, create_exc)
+                qmessagebox.warning(self, "Erro", f"Falha ao criar pasta: {create_exc}")
+                return
+
+        try:
+            # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
+            if QT_AVAILABLE:
+                url = QUrl.fromLocalFile(folder_path)
+                ok = QDesktopServices.openUrl(url)
+                if ok:
+                    return
+                raise RuntimeError("QDesktopServices.openUrl returned False")
+            raise RuntimeError("Qt not available to open folders")
+        except Exception as open_exc:
+            logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
+            try:
+                # Best-effort fallback, non-blocking.
+                if sys.platform.startswith("win"):
+                    cmd = "explorer"
+                elif sys.platform == "darwin":
+                    cmd = "open"
+                else:
+                    cmd = "xdg-open"
+                resolved = shutil.which(cmd)
+                if not resolved:
+                    raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
+                subprocess.Popen([resolved, folder_path])
+                return
+            except Exception as fallback_exc:
+                logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)
+                if os.environ.get("PYTEST_CURRENT_TEST"):
+                    return
+                QMessageBox.warning(self, "Erro", f"Erro ao abrir pasta: {fallback_exc}")
 
     def _list_special_derivadas_sheets(self) -> list[str]:
         docs_path = os.path.join(project_root, "docs_entrada")

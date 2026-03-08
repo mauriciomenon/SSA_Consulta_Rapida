@@ -117,14 +117,14 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     gui_ssa.SSAMainWindow._setup_app_menus(cast(Any, window))
     assert "Arquivo" in window._menu_bar.menus
     assert "Importacao" in window._menu_bar.menus
-    assert "DB" in window._menu_bar.menus
+    assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 8
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 15
     assert len(window._menu_bar.menus["Importacao"].actions) == 4
-    assert len(window._menu_bar.menus["DB"].actions) == 1
+    assert len(window._menu_bar.menus["Database"].actions) == 1
     assert len(window._menu_bar.menus["Opcoes"].actions) == 3
-    assert "Avancado" in window._menu_bar.menus["DB"].submenus
-    assert len(window._menu_bar.menus["DB"].submenus["Avancado"].actions) == 1
+    assert "Avancado" in window._menu_bar.menus["Database"].submenus
+    assert len(window._menu_bar.menus["Database"].submenus["Avancado"].actions) == 1
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
