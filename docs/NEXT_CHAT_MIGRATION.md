@@ -2,6 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 11:52 - start from here
+
+- Validacao runtime de `move_processed_after_import` concluida sem alterar codigo:
+  1. mini importacao com 2 arquivos controlados (1 valido + 1 sem sobreviventes).
+  2. run report: `logs/import_run_20260308_115306_645961.json`.
+  3. resultado confirmado:
+     - `ok.xlsx` -> `processadas/ok.xlsx`
+     - `empty.xlsx` -> `processadas/nosurvivor/empty.xlsx`
+     - cache com chaves finais movidas
+     - DB final do mini teste com `1` linha
+- Contagens do report:
+  1. `total_candidates=2`
+  2. `success_count=2`
+  3. `rows_removed_invalid_identity_total=1`
+  4. `rows_inserted_total=1`
+- Higiene:
+  1. diretorio temporario do teste foi removido apos validacao.
+  2. nenhum arquivo de codigo alterado neste slice.
+
 ## CURRENT TRUTH 2026-03-08 00:50 - start from here
 
 - Regressao de testes fechada apos mudanca de assinatura em `core/app_logic.py`:

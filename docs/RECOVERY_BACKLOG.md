@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 11:52 - mini importacao runtime com move pos-processamento
+
+Session timestamp:
+1. start: `2026-03-08 11:52:23 -0300`
+2. end: `2026-03-08 11:54:18 -0300`
+
+Objetivo do slice:
+1. validar runtime real do fluxo `move_processed_after_import` sem editar codigo.
+
+Evidencia de execucao:
+1. mini corpus controlado com 2 arquivos:
+   - `ok.xlsx` (1 linha valida)
+   - `empty.xlsx` (linha sem identidade, removida na extracao)
+2. run executado com move habilitado apenas para a sessao (monkeypatch de runtime de settings), sem alterar config do projeto.
+3. resultado:
+   - `updated=True`
+   - `ok.xlsx` movido para `processadas/ok.xlsx`
+   - `empty.xlsx` movido para `processadas/nosurvivor/empty.xlsx`
+   - cache gerado com chaves finais:
+     - `processadas/ok.xlsx`
+     - `processadas/nosurvivor/empty.xlsx`
+   - DB final `mini.db`: `1` linha
+4. relatorio JSON:
+   - `logs/import_run_20260308_115306_645961.json`
+   - contagens:
+     - `total_candidates=2`
+     - `success_count=2`
+     - `rows_extracted_total=1`
+     - `rows_removed_invalid_identity_total=1`
+     - `rows_inserted_total=1`
+5. limpeza pos-validacao:
+   - removido diretorio temporario `data/tmp_runtime_move_validation_20260308_115306`
+
+Status:
+1. fluxo validado com sucesso.
+2. nenhum ajuste de codigo necessario neste slice.
+
 ## Update 2026-03-08 00:50 - regressao de testes apos mudanca de assinatura e cobertura de move
 
 Session timestamp:

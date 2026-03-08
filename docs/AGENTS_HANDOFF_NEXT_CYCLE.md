@@ -2,6 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 11:52 - authoritative block
+
+- Mini validacao runtime do move pos-importacao executada:
+  1. sem mudanca de codigo.
+  2. evidencias no report `logs/import_run_20260308_115306_645961.json`.
+- Resultado operacional confirmado:
+  1. arquivo com sobreviventes -> `processadas/`.
+  2. arquivo sem sobreviventes -> `processadas/nosurvivor/`.
+  3. cache atualizado com caminho final movido.
+- Quantitativo da rodada:
+  1. candidatos: `2`
+  2. sucesso: `2`
+  3. removidos por identidade: `1`
+  4. inseridos: `1`
+- Observacao:
+  1. o teste foi feito em area temporaria e removido ao final, sem residuos de runtime.
+
 ## CURRENT TRUTH 2026-03-08 00:50 - authoritative block
 
 - Correcao de regressao em testes:
