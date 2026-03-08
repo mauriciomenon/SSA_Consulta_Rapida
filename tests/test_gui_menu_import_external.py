@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, cast
 
@@ -77,6 +78,12 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
         def update_derivadas_from_sources(self) -> None:
             return None
 
+        def consolidate_input_files(self) -> None:
+            return None
+
+        def open_settings_file_with_backup(self) -> None:
+            return None
+
         def toggle_theme_menu(self) -> None:
             return None
 
@@ -86,7 +93,7 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
     assert "Arquivo" in window._menu_bar.menus
     assert "DB" in window._menu_bar.menus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 4
-    assert len(window._menu_bar.menus["DB"].actions) == 5
+    assert len(window._menu_bar.menus["DB"].actions) == 7
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
@@ -126,3 +133,83 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert (docs_dir / "entrada__1.xlsx").exists()
     assert (docs_dir / "outra.xls").exists()
     assert "Importacao externa concluida" in window.status_label.text
+
+
+def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Path) -> None:
+    settings_dir = tmp_path / "config"
+    settings_dir.mkdir()
+    settings_path = settings_dir / "settings.json"
+    settings_path.write_text('{"x":1}', encoding="utf-8")
+
+    monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", True)
+    monkeypatch.setattr(
+        gui_ssa,
+        "QDesktopServices",
+        type("DummyDesktopServices", (), {"openUrl": staticmethod(lambda *args, **kwargs: True)}),
+    )
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+        def _resolve_settings_file_path(self) -> str:
+            return str(settings_path)
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.open_settings_file_with_backup(cast(Any, window))
+
+    backups = list(settings_dir.glob("settings.json.bak_*"))
+    assert result["opened"] is True
+    assert result["backup_created"] is True
+    assert len(backups) == 1
+    assert "backup failsafe" in window.status_label.text
+
+
+def test_consolidate_input_files_moves_by_last_report(monkeypatch, tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    logs_dir = tmp_path / "logs"
+    docs_dir.mkdir()
+    logs_dir.mkdir()
+
+    (docs_dir / "ok.xlsx").write_text("ok", encoding="utf-8")
+    (docs_dir / "zero.xlsx").write_text("zero", encoding="utf-8")
+    (docs_dir / "pending.xlsx").write_text("pending", encoding="utf-8")
+
+    payload = {
+        "paths": {"docs_dir": str(docs_dir)},
+        "file_reports": [
+            {"file": "ok.xlsx", "counts": {"rows_inserted": 5}},
+            {"file": "zero.xlsx", "counts": {"rows_inserted": 0}},
+        ],
+    }
+    (logs_dir / "import_run_20260308_000001_000001.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+        def _resolve_latest_project_import_report(self, docs_path: str):
+            return gui_ssa.SSAMainWindow._resolve_latest_project_import_report(
+                cast(Any, self), docs_path
+            )
+
+        def _build_unique_destination_path(self, destination_path: str) -> str:
+            return gui_ssa.SSAMainWindow._build_unique_destination_path(
+                cast(Any, self), destination_path
+            )
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
+
+    assert result["moved"] == 2
+    assert result["nosurvivor"] == 1
+    assert result["pending"] == 1
+    assert (docs_dir / "processadas" / "ok.xlsx").exists()
+    assert (docs_dir / "processadas" / "nosurvivor" / "zero.xlsx").exists()
+    assert (docs_dir / "pending.xlsx").exists()

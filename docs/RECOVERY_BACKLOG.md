@@ -3,6 +3,44 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 18:32 - GUI menu (slice 2/2): consolidacao + opcoes com failsafe
+
+Session timestamp:
+1. start: `2026-03-08 18:30:46 -0300`
+2. end: `2026-03-08 18:32:58 -0300`
+
+Objetivo do slice:
+1. concluir o agrupamento operacional no menu da GUI.
+2. entregar acao de opcoes com backup failsafe.
+3. entregar acao dedicada de consolidacao de arquivos de entrada.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menu `DB` ganhou:
+     - `Consolidar arquivos de entrada`
+     - `Abrir opcoes (backup failsafe)`
+   - metodo `open_settings_file_with_backup`:
+     - resolve `settings.json`
+     - cria backup timestampado (`settings.json.bak_YYYYmmdd_HHMMSS`)
+     - abre arquivo para edicao (Qt/fallback do sistema)
+   - metodo `consolidate_input_files`:
+     - usa ultimo `import_run_*.json` do projeto com `file_reports`
+     - move arquivos de `docs_entrada` para:
+       - `processadas/` (quando `rows_inserted > 0`)
+       - `processadas/nosurvivor/` (quando `rows_inserted <= 0`)
+     - arquivos sem evidencia no ultimo report ficam em `docs_entrada` como `pending`
+2. `tests/test_gui_menu_import_external.py`
+   - cobertura nova para:
+     - backup failsafe ao abrir opcoes
+     - consolidacao por ultimo report
+   - ajuste da contagem de acoes no menu `DB` (7 acoes).
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 420s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `11 passed`
+
 ## Update 2026-03-08 18:19 - baseline docs 4.31 + GUI menu (slice 1/2)
 
 Session timestamp:

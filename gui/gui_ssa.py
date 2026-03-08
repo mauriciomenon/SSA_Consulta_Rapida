@@ -26,6 +26,7 @@ import re
 import logging
 import copy
 import sqlite3
+from datetime import datetime
 from collections import OrderedDict
 from time import perf_counter
 from typing import Any, cast
@@ -2699,6 +2700,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)
         cast(Any, db_menu).addAction(derivadas_action)
 
+        consolidate_action = QAction("Consolidar arquivos de entrada", self)
+        consolidate_action.triggered.connect(self.consolidate_input_files)
+        cast(Any, db_menu).addAction(consolidate_action)
+
+        open_settings_action = QAction("Abrir opcoes (backup failsafe)", self)
+        open_settings_action.triggered.connect(self.open_settings_file_with_backup)
+        cast(Any, db_menu).addAction(open_settings_action)
+
         theme_action = QAction("Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
         cast(Any, db_menu).addAction(theme_action)
@@ -2779,6 +2788,197 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             )
 
         return {"copied": copied, "skipped": skipped, "failed": failed}
+
+    def _resolve_settings_file_path(self) -> str:
+        try:
+            from core import config_manager
+
+            resolver = getattr(config_manager, "_resolve_config_path", None)
+            if callable(resolver):
+                return str(resolver(config_manager.USER_SETTINGS_FILE))
+        except Exception as exc:
+            logger.debug("Falha ao resolver settings path via config_manager: %s", exc)
+        return os.path.join(project_root, "config", "settings.json")
+
+    def _build_unique_destination_path(self, destination_path: str) -> str:
+        if not os.path.exists(destination_path):
+            return destination_path
+        base, ext = os.path.splitext(destination_path)
+        idx = 1
+        while True:
+            candidate = f"{base}__{idx}{ext}"
+            if not os.path.exists(candidate):
+                return candidate
+            idx += 1
+
+    def open_settings_file_with_backup(self):
+        """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
+        settings_path = self._resolve_settings_file_path()
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+
+        try:
+            if not os.path.exists(settings_path):
+                from core.config_manager import load_settings, save_settings
+
+                save_settings(load_settings())
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"{settings_path}.bak_{timestamp}"
+            shutil.copy2(settings_path, backup_path)
+        except Exception as exc:
+            logger.warning("Falha ao preparar backup de settings: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    f"Falha ao preparar backup de opcoes: {exc}",
+                )
+            return {"opened": False, "backup_created": False, "settings_path": settings_path}
+
+        opened = False
+        try:
+            if QT_AVAILABLE:
+                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(settings_path)))
+            if not opened:
+                cmd = "open" if sys.platform == "darwin" else ("explorer" if sys.platform.startswith("win") else "xdg-open")
+                resolved = shutil.which(cmd)
+                if not resolved:
+                    raise RuntimeError(f"Comando indisponivel para abrir arquivo: {cmd}")
+                subprocess.Popen([resolved, settings_path])
+                opened = True
+        except Exception as exc:
+            logger.warning("Falha ao abrir settings para edicao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao abrir opcoes: {exc}")
+            return {"opened": False, "backup_created": True, "settings_path": settings_path}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText(
+                "Status: Opcoes abertas para edicao (backup failsafe criado)."
+            )
+        return {"opened": opened, "backup_created": True, "settings_path": settings_path}
+
+    def _resolve_latest_project_import_report(self, docs_path: str) -> dict[str, Any] | None:
+        logs_dir = os.path.join(project_root, "logs")
+        if not os.path.isdir(logs_dir):
+            return None
+        report_paths = sorted(
+            (
+                os.path.join(logs_dir, name)
+                for name in os.listdir(logs_dir)
+                if name.startswith("import_run_") and name.endswith(".json")
+            ),
+            key=os.path.getmtime,
+            reverse=True,
+        )
+        docs_abs = os.path.abspath(docs_path)
+        for report_path in report_paths:
+            try:
+                with open(report_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+            except Exception:
+                continue
+            payload_docs = str((payload.get("paths") or {}).get("docs_dir") or "")
+            if os.path.abspath(payload_docs) != docs_abs:
+                continue
+            file_reports = payload.get("file_reports") or []
+            if isinstance(file_reports, list) and file_reports:
+                payload["_report_path"] = report_path
+                return payload
+        return None
+
+    def consolidate_input_files(self):
+        """Consolida arquivos de docs_entrada para processadas usando o ultimo report."""
+        docs_path = os.path.join(project_root, "docs_entrada")
+        if not os.path.isdir(docs_path):
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Pasta nao encontrada: {docs_path}")
+            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
+
+        report = self._resolve_latest_project_import_report(docs_path)
+        if report is None:
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.information(
+                    self,
+                    "Consolidacao",
+                    "Nenhum import_run com file_reports para docs_entrada foi encontrado.",
+                )
+            return {"moved": 0, "nosurvivor": 0, "pending": 0, "failed": 0}
+
+        processadas_dir = os.path.join(docs_path, "processadas")
+        nosurvivor_dir = os.path.join(processadas_dir, "nosurvivor")
+        os.makedirs(processadas_dir, exist_ok=True)
+        os.makedirs(nosurvivor_dir, exist_ok=True)
+
+        file_rows: dict[str, int] = {}
+        for entry in report.get("file_reports", []):
+            if not isinstance(entry, dict):
+                continue
+            file_name = str(entry.get("file") or "").strip()
+            if not file_name:
+                continue
+            counts = entry.get("counts") or {}
+            rows_inserted = int((counts.get("rows_inserted", 0) or 0))
+            file_rows[file_name] = rows_inserted
+
+        moved = 0
+        moved_nosurvivor = 0
+        pending = 0
+        failed = 0
+        for base_name in os.listdir(docs_path):
+            source_path = os.path.join(docs_path, base_name)
+            if not os.path.isfile(source_path):
+                continue
+            lowered = base_name.casefold()
+            if not (lowered.endswith(".xlsx") or lowered.endswith(".xls")):
+                continue
+            if base_name not in file_rows:
+                pending += 1
+                continue
+
+            rows_inserted = file_rows.get(base_name, 0)
+            target_dir = processadas_dir if rows_inserted > 0 else nosurvivor_dir
+            if rows_inserted <= 0:
+                moved_nosurvivor += 1
+            destination = self._build_unique_destination_path(
+                os.path.join(target_dir, base_name)
+            )
+            try:
+                shutil.move(source_path, destination)
+                moved += 1
+            except Exception as exc:
+                logger.warning(
+                    "Falha ao mover arquivo na consolidacao '%s': %s",
+                    source_path,
+                    exc,
+                )
+                failed += 1
+
+        summary = (
+            f"Status: Consolidacao concluida - movidos={moved}, "
+            f"nosurvivor={moved_nosurvivor}, pendentes={pending}, falhas={failed}."
+        )
+        if hasattr(self, "status_label"):
+            self.status_label.setText(summary)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(
+                self,
+                "Consolidacao de arquivos",
+                (
+                    "Consolidacao concluida.\n\n"
+                    f"Movidos: {moved}\n"
+                    f"Para nosurvivor: {moved_nosurvivor}\n"
+                    f"Pendentes sem evidencia no ultimo report: {pending}\n"
+                    f"Falhas: {failed}\n\n"
+                    f"Report usado: {report.get('_report_path', 'n/a')}"
+                ),
+            )
+        return {
+            "moved": moved,
+            "nosurvivor": moved_nosurvivor,
+            "pending": pending,
+            "failed": failed,
+            "report_path": str(report.get("_report_path", "")),
+        }
 
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""
