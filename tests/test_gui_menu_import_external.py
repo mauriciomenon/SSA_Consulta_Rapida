@@ -119,8 +119,8 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Importacao" in window._menu_bar.menus
     assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 15
-    assert len(window._menu_bar.menus["Importacao"].actions) == 4
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 14
+    assert len(window._menu_bar.menus["Importacao"].actions) == 6
     assert len(window._menu_bar.menus["Database"].actions) == 1
     assert len(window._menu_bar.menus["Opcoes"].actions) == 3
     assert "Avancado" in window._menu_bar.menus["Database"].submenus

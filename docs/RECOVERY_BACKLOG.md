@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 20:10 - refino de menu diario e redundancia controlada
+
+Session timestamp:
+1. start: `2026-03-08 19:53:36 -0300`
+2. end: `2026-03-08 20:10:10 -0300`
+
+Objetivo do slice:
+1. refinar `Arquivo` como fluxo diario com ordem previsivel.
+2. manter as mesmas operacoes nos menus de origem (sem remover).
+3. manter hardening de pasta inexistente e tema via menu.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - `Arquivo` reorganizado em ordem de uso diario + separadores.
+   - `Importacao` passou a conter tambem:
+     - importar externo
+     - reescaneamento diff
+   - `Database` e `Opcoes` mantidos como menus especializados.
+2. `tests/test_gui_menu_import_external.py`
+   - contagens ajustadas para nova distribuicao de acoes.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_theme.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+
 ## Update 2026-03-08 19:56 - hardening de menus e abertura de pastas
 
 Session timestamp:
