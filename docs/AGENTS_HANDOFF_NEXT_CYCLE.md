@@ -2,6 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 22:59 - authoritative block
+
+- Estado consolidado do tuning de upsert:
+  1. default operacional permanece `consulta_only`.
+  2. replay sentinela recente (4 arquivos) confirmou:
+     - `consulta_only`: `40.064s`
+     - `no_short`: `40.590s`
+     - `all_short`: `41.644s`
+  3. nenhum erro funcional no sentinela (`files_processed=4`, `error_count=0`).
+- Evidencia:
+  1. `logs/import_run_20260307_224225_365396.json`
+  2. `logs/import_run_20260307_224305_447338.json`
+  3. `logs/import_run_20260307_224346_053142.json`
+- Higiene local desta rodada:
+  1. removidos os 4 diretorios `data/sentinel_*` criados no diagnostico.
+  2. mantidos os logs `import_run_*.json` para rastreabilidade.
+- Residuo local ainda aberto:
+  1. `data/ablation_all_short/`, `data/ablation_consulta_only/`, `data/ablation_no_short/` (grandes, nao subir).
+  2. tracked modified antigos fora deste slice: `armazenamento/database.py`, `armazenamento/database_integrity.py`, `armazenamento/database_validation.py`, `core/app_logic.py`, `data/ssas.db`, `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`, `extracao/extractor.py`, `tests/test_db_reset_and_upsert.py`.
+
 ## CURRENT TRUTH 2026-03-07 22:23 - authoritative block
 
 - Slice de performance minima no upsert concluido:

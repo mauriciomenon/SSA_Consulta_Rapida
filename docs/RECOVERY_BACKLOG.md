@@ -3,6 +3,47 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-07 22:59 - sentinela A/B e limpeza de artefatos pesados
+
+Session timestamp:
+1. start: `2026-03-07 22:34:15 -0300`
+2. end: `2026-03-07 22:59:29 -0300`
+
+Decisao entregue:
+1. replay sentinela executado em ambiente isolado com 4 arquivos criticos:
+   - `Consulta SSA - 02-03-2026_0540PM.xlsx`
+   - `SSAscomReprogramacoes_07-01-2026_0225PM.xlsx`
+   - `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`
+   - `Todas as SSAs - 18-08-2022_1144AM.xlsx`
+2. comparacao de politicas no mesmo corpus:
+   - `consulta_only`: `40.064s` (melhor)
+   - `no_short`: `40.590s` (`+1.31%`)
+   - `all_short`: `41.644s` (`+3.95%`)
+3. sem erro funcional no sentinela:
+   - `files_processed=4`
+   - `error_count=0`
+4. limpeza local concluida para evitar lixo pesado no repo:
+   - removidos: `data/sentinel_replay_20260307_224052`
+   - removidos: `data/sentinel_ab_consulta_only_20260307_224225`
+   - removidos: `data/sentinel_ab_no_short_20260307_224225`
+   - removidos: `data/sentinel_ab_all_short_20260307_224225`
+5. logs de evidencia preservados:
+   - `logs/import_run_20260307_224052_346788.json`
+   - `logs/import_run_20260307_224225_365396.json`
+   - `logs/import_run_20260307_224305_447338.json`
+   - `logs/import_run_20260307_224346_053142.json`
+
+Residual local auditado:
+1. tracked modified (pre-existente, fora deste slice): `armazenamento/database.py`, `armazenamento/database_integrity.py`, `armazenamento/database_validation.py`, `core/app_logic.py`, `data/ssas.db`, `docs_entrada/Copia de SSAPendSectorEjecutorConsulta_26-02-2021.xls`, `extracao/extractor.py`, `tests/test_db_reset_and_upsert.py`.
+2. untracked pesados de benchmark anterior (nao subir para GH):
+   - `data/ablation_all_short/` (~106M)
+   - `data/ablation_consulta_only/` (~106M)
+   - `data/ablation_no_short/` (~106M)
+3. untracked de documentacao/apoio: `docs/ARCH_*.md`, `shared/semantic_duplicate_resolution.py`.
+
+Status:
+1. concluido
+
 ## Update 2026-03-07 22:23 - upsert lazy cache no ramo sem short-circuit
 
 Session timestamp:
