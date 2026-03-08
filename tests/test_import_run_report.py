@@ -270,6 +270,13 @@ def test_run_importer_logic_report_includes_file_phase_metrics(
     assert payload["counts"]["rows_removed_invalid_identity_total"] == 2
     assert payload["counts"]["rows_ready_for_insert_total"] == 7
     assert payload["counts"]["rows_inserted_total"] == 7
+    assert payload["durations"]["sum_file_extraction_seconds"] == 0.123
+    assert payload["durations"]["sum_file_validation_seconds"] == 0.045
+    assert payload["durations"]["sum_file_insert_seconds"] == 0.067
+    assert "run_file_processing_seconds" in payload["durations"]
+    assert "run_success_cache_update_seconds" in payload["durations"]
+    assert "run_postprocess_move_seconds" in payload["durations"]
+    assert "run_deterministic_cache_update_seconds" in payload["durations"]
     assert payload["file_reports"] == [
         {
             "file": "ok.xlsx",

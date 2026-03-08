@@ -3,6 +3,49 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 17:18 - instrumentacao de fases e full A/B reverso
+
+Session timestamp:
+1. start: `2026-03-08 16:20:19 -0300`
+2. end: `2026-03-08 17:18:45 -0300`
+
+Objetivo do slice:
+1. medir com evidencia o impacto real de `move_processed_after_import` no full rescan.
+2. separar no report JSON o tempo de fase de arquivo (extracao/validacao/upsert) vs pos-processamento (move/cache).
+
+Evidencia de benchmark full:
+1. par full anterior (on primeiro, com espelho incluindo `.xls`):
+   - `logs/full_ab_move_policy_summary_20260308_154314.json`
+   - resultado: `on` mais lento que `off` em `+35.36%` (duracao) e `+36.08%` (`sum_insert`).
+2. par full reverso (off primeiro, espelho rapido so `.xlsx`):
+   - `logs/full_ab_move_policy_reverse_summary_20260308_171101.json`
+   - resultado: `on` mais lento que `off` em `+15.67%` (duracao) e `+16.37%` (`sum_insert`).
+
+Leitura consolidada:
+1. o impacto negativo de `move_processed_after_import` em full rescan foi confirmado por dois pares full.
+2. o efeito nao e mais tratado como `+687%`; o intervalo observado agora ficou entre ~`+16%` e ~`+36%` conforme cenario.
+3. maior pressao segue no hot path de upsert (campo `sum_insert`).
+
+Correcao entregue no runtime (patch minimo):
+1. arquivo alterado: `core/app_logic.py`.
+2. arquivo de teste alterado: `tests/test_import_run_report.py`.
+3. novo bloco `durations` no `import_run_*.json` com:
+   - `sum_file_extraction_seconds`
+   - `sum_file_validation_seconds`
+   - `sum_file_insert_seconds`
+   - `run_file_processing_seconds`
+   - `run_postprocess_move_seconds`
+   - `run_success_cache_update_seconds`
+   - `run_deterministic_cache_update_seconds`
+4. comportamento funcional de importacao nao foi alterado.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_run_report.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_import_run_report.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_run_report.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_import_run_report.py` -> `6 passed`
+5. `timeout 300s uv run --python 3.13 pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+
 ## Update 2026-03-08 12:44 - full rescan real com move pos-processamento ligado
 
 Session timestamp:

@@ -1045,13 +1045,18 @@ def _build_import_run_payload(
     ignored_legacy_excel_files: List[str],
     integrity_report: Dict[str, Any],
     file_reports: List[Dict[str, Any]],
+    phase_durations: Dict[str, float],
 ) -> Dict[str, Any]:
     total_rows_extracted = 0
     total_rows_removed_invalid_identity = 0
     total_rows_ready_for_insert = 0
     total_rows_inserted = 0
+    total_extraction_seconds = 0.0
+    total_validation_seconds = 0.0
+    total_insert_seconds = 0.0
     for entry in file_reports:
         counts = entry.get("counts") or {}
+        durations = entry.get("durations") or {}
         total_rows_extracted += int(counts.get("rows_extracted", 0) or 0)
         total_rows_removed_invalid_identity += int(
             counts.get("rows_removed_invalid_identity", 0) or 0
@@ -1060,11 +1065,26 @@ def _build_import_run_payload(
             counts.get("rows_ready_for_insert", 0) or 0
         )
         total_rows_inserted += int(counts.get("rows_inserted", 0) or 0)
+        total_extraction_seconds += float(durations.get("extraction_seconds", 0) or 0)
+        total_validation_seconds += float(durations.get("validation_seconds", 0) or 0)
+        total_insert_seconds += float(durations.get("insert_seconds", 0) or 0)
+    normalized_phase_durations: Dict[str, float] = {}
+    for key, value in phase_durations.items():
+        try:
+            normalized_phase_durations[key] = round(float(value), 3)
+        except (TypeError, ValueError):
+            continue
     return {
         "run_id": run_id,
         "started_at": run_started_at.isoformat(timespec="seconds"),
         "finished_at": finished_at.isoformat(timespec="seconds"),
         "duration_seconds": round((finished_at - run_started_at).total_seconds(), 3),
+        "durations": {
+            "sum_file_extraction_seconds": round(total_extraction_seconds, 3),
+            "sum_file_validation_seconds": round(total_validation_seconds, 3),
+            "sum_file_insert_seconds": round(total_insert_seconds, 3),
+            **normalized_phase_durations,
+        },
         "result": bool(result),
         "status": status,
         "reason": reason,
@@ -1213,6 +1233,12 @@ def run_importer_logic(
     sync_materialized = False
     derivadas_sync_blocking_error = False
     file_reports: List[Dict[str, Any]] = []
+    phase_durations: Dict[str, float] = {
+        "run_file_processing_seconds": 0.0,
+        "run_postprocess_move_seconds": 0.0,
+        "run_success_cache_update_seconds": 0.0,
+        "run_deterministic_cache_update_seconds": 0.0,
+    }
 
     def _finalize_and_return(result: bool, status: str, reason: str = "") -> bool:
         finished_at = datetime.now()
@@ -1245,6 +1271,7 @@ def run_importer_logic(
             ignored_legacy_excel_files=ignored_legacy_excel_files,
             integrity_report=integrity_report,
             file_reports=file_reports,
+            phase_durations=phase_durations,
         )
         report_path = _write_import_run_report(payload)
         if report_path:
@@ -1385,6 +1412,7 @@ def run_importer_logic(
         )
 
         # --- 2. Processar cada arquivo ---
+        file_processing_started = time.perf_counter()
         try:
             for index, file_path in enumerate(files_to_process):
                 if should_cancel and should_cancel():
@@ -1617,6 +1645,9 @@ def run_importer_logic(
                             {"filename": "SSAs Derivadas e Relacionadas", "error": str(e)},
                         )
         finally:
+            phase_durations["run_file_processing_seconds"] = (
+                time.perf_counter() - file_processing_started
+            )
             _emit_progress(
                 "finish",
                 {
@@ -1658,8 +1689,12 @@ def run_importer_logic(
                 "full_rescan_cancelled_before_final_promotion",
             )
 
+        deterministic_cache_started = time.perf_counter()
         _update_cache_for_deterministic_failures(
             deterministic_failed_files, cache_file, docs_dir
+        )
+        phase_durations["run_deterministic_cache_update_seconds"] = (
+            time.perf_counter() - deterministic_cache_started
         )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
@@ -1702,6 +1737,7 @@ def run_importer_logic(
                         str(exc),
                     )
             if move_processed_after_import and successful_regular_files_with_records:
+                move_started = time.perf_counter()
                 moved_paths = _apply_postprocess_file_moves(
                     successful_files_with_records=successful_regular_files_with_records,
                     docs_dir=docs_dir,
@@ -1711,11 +1747,18 @@ def run_importer_logic(
                         discovery_settings["route_zero_survivor_to_nosurvivor"]
                     ),
                 )
+                phase_durations["run_postprocess_move_seconds"] = (
+                    time.perf_counter() - move_started
+                )
                 cache_success_paths = [
                     moved_paths.get(path, path) for path in cache_success_paths
                 ]
+            cache_update_started = time.perf_counter()
             _update_cache_after_import(
                 cache_success_paths, cache_file, docs_dir
+            )
+            phase_durations["run_success_cache_update_seconds"] = (
+                time.perf_counter() - cache_update_started
             )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
             return _finalize_and_return(
