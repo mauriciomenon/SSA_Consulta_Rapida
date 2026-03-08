@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-07 22:23 - upsert lazy cache no ramo sem short-circuit
+
+Session timestamp:
+1. start: `2026-03-07 22:20:48 -0300`
+2. end: `2026-03-07 22:23:00 -0300`
+
+Decisao entregue:
+1. em `armazenamento/database_upsert_logic.py`, o cache de linhas existentes passou a ser lazy tambem no ramo sem short-circuit.
+2. removido custo inutil de montar tuple de comparacao por linha quando `enable_exact_overlap_short_circuit` esta desligado.
+3. `_perform_upsert` teve decomposicao minima (helper `_collect_chunk_upsert_delta`) para reduzir complexidade sem mudar semantica.
+4. contrato do helper foi documentado no codigo para manter foco (somente delta em memoria, sem IO/schema).
+5. sem mudanca de semantica de merge/upsert; apenas reducao de trabalho interno no hot path.
+
+Teste de regressao adicionado:
+1. `tests/test_upsert_fast_path.py`:
+   - `test_perform_upsert_non_short_policy_uses_lazy_existing_cache`
+   - garante que o ramo nao chama `_build_existing_series_cache` no modo normal.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py` -> pass
+2. `uv run --python 3.13 ruff check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py` -> pass
+3. `uv run --python 3.13 ty check armazenamento/database_upsert_logic.py tests/test_upsert_fast_path.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_upsert_fast_path.py` -> `22 passed`
+5. kluster:
+   - rodada 1: 1 item P4 (complexidade em `_perform_upsert`)
+   - rodada 2 apos fix: clean
+
+Status:
+1. concluido
+
 ## Update 2026-03-07 (A/B policy de short-circuit no upsert em full rescan real)
 
 ## Update 2026-03-07 22:14 - slice de contrato upsert/robust separado

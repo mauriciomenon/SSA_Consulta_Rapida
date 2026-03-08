@@ -10,6 +10,13 @@ we use lazy imports (inside functions) when we need to import from database.py.
 DO NOT add top-level imports from database.py - use lazy imports only.
 """
 # Last modified: 2025-10-29T11:00:00 (circular import documentation)
+
+# Module contract:
+# - Owns schema sync for dynamic columns and the hot path for merge/upsert.
+# - Any performance tuning here must be validated with sentinels and full rescan.
+# - Keep `ssa_table` schema-first; do not derive canonical schema from DataFrames.
+# - Related modules: armazenamento.database, armazenamento.database_validation.
+
 from __future__ import annotations
 
 from typing import Any, cast
@@ -27,6 +34,7 @@ from shared.date_utils import parse_any_date
 logger = logging.getLogger(__name__)
 _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
@@ -277,6 +285,19 @@ def _resolve_upsert_config() -> tuple[dict[str, int], list[str], list[str]]:
     return status_rank, description_columns, date_columns
 
 
+def _resolve_short_circuit_policy(policy_override: str | None = None) -> str:
+    policy = (policy_override or os.environ.get("SSA_UPSERT_SHORT_CIRCUIT_POLICY", "consulta_only")).strip().lower()
+    if not policy:
+        return "consulta_only"
+    if policy not in _VALID_UPSERT_POLICIES:
+        logger.warning(
+            "Politica de short-circuit invalida %s, usando consulta_only",
+            policy,
+        )
+        return "consulta_only"
+    return policy
+
+
 def _is_empty_upsert_value(val: Any) -> bool:
     if val is None:
         return True
@@ -432,6 +453,30 @@ def _upsert_cache_key(numero: Any) -> str | None:
     return str(numero).strip()
 
 
+def _values_equal_for_exact_overlap(left: Any, right: Any) -> bool:
+    if pd.isna(left):
+        left = None
+    elif isinstance(left, np.generic):
+        left = left.item()
+    if pd.isna(right):
+        right = None
+    elif isinstance(right, np.generic):
+        right = right.item()
+    return left == right
+
+
+def _tuples_match_for_exact_overlap(
+    left: tuple[Any, ...] | None,
+    right: tuple[Any, ...],
+) -> bool:
+    if left is None or len(left) != len(right):
+        return False
+    return all(
+        _values_equal_for_exact_overlap(left_value, right_value)
+        for left_value, right_value in zip(left, right, strict=False)
+    )
+
+
 def _table_has_existing_ssa_rows(conn: Any, table_name: str) -> bool:
     quoted_table_name = _quote_identifier(table_name)
     cursor = conn.execute(
@@ -446,8 +491,178 @@ def _resolve_upsert_chunk_size(row_count: int) -> int:
     return 250
 
 
+def _should_enable_exact_overlap_short_circuit(
+    chunk: pd.DataFrame,
+    *,
+    policy: str | None = None,
+) -> bool:
+    resolved_policy = _resolve_short_circuit_policy(policy)
+    if resolved_policy == "no_short":
+        return False
+    if resolved_policy == "all_short":
+        if "arquivo_origem" not in chunk.columns:
+            return False
+        source_values = [
+            str(value).strip().casefold()
+            for value in chunk["arquivo_origem"].dropna().unique().tolist()
+            if str(value).strip()
+        ]
+        return len(source_values) == 1
+
+    if 'arquivo_origem' not in chunk.columns:
+        return False
+    source_values = [
+        str(value).strip().casefold()
+        for value in chunk['arquivo_origem'].dropna().unique().tolist()
+        if str(value).strip()
+    ]
+    return len(source_values) == 1 and source_values[0].startswith('consulta ssa')
+
+
+def _load_existing_chunk_caches(
+    conn: Any,
+    quoted_table_name: str,
+    chunk_num_ssa: list[Any],
+    chunk_columns: list[str],
+    numero_ssa_idx: int,
+    *,
+    enable_exact_overlap_short_circuit: bool,
+) -> tuple[pd.DataFrame, dict[str, tuple[Any, ...]], dict[str, tuple[Any, ...]]]:
+    if not chunk_num_ssa:
+        return pd.DataFrame(), {}, {}
+    placeholders = ", ".join(["?"] * len(chunk_num_ssa))
+    existing_chunk = pd.read_sql_query(
+        f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
+        conn,
+        params=chunk_num_ssa,
+    )
+    if existing_chunk.empty or 'numero_ssa' not in existing_chunk.columns:
+        return existing_chunk, {}, {}
+    existing_raw_by_ssa: dict[str, tuple[Any, ...]] = {}
+    existing_chunk_tuple_by_ssa: dict[str, tuple[Any, ...]] = {}
+    existing_numero_ssa_idx = existing_chunk.columns.get_loc("numero_ssa")
+    if not enable_exact_overlap_short_circuit:
+        for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
+            numero_val = existing_row_tuple[existing_numero_ssa_idx]
+            cache_key = _upsert_cache_key(numero_val)
+            if cache_key is None:
+                continue
+            existing_raw_by_ssa[cache_key] = tuple(existing_row_tuple)
+        return existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa
+    existing_chunk_for_compare = existing_chunk.reindex(columns=chunk_columns)
+    compare_rows = existing_chunk_for_compare.itertuples(index=False, name=None)
+    existing_row_pairs = zip(existing_chunk.itertuples(index=False, name=None), compare_rows, strict=False)
+    for existing_row_tuple, compare_tuple in existing_row_pairs:
+        numero_val = compare_tuple[numero_ssa_idx]
+        cache_key = _upsert_cache_key(numero_val)
+        if cache_key is None:
+            continue
+        existing_raw_by_ssa[cache_key] = tuple(existing_row_tuple)
+        existing_chunk_tuple_by_ssa[cache_key] = tuple(compare_tuple)
+    return existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa
+
+
+def _load_existing_row_series(
+    cache_key: str,
+    existing_by_ssa: dict[str, pd.Series],
+    existing_raw_by_ssa: dict[str, tuple[Any, ...]],
+    existing_columns: pd.Index,
+) -> pd.Series | None:
+    existing_row = existing_by_ssa.get(cache_key)
+    if existing_row is not None:
+        return existing_row
+    existing_raw = existing_raw_by_ssa.get(cache_key)
+    if existing_raw is None:
+        return None
+    existing_row = pd.Series(existing_raw, index=existing_columns)
+    existing_by_ssa[cache_key] = existing_row
+    return existing_row
+
+
+def _build_existing_series_cache(existing_chunk: pd.DataFrame) -> dict[str, pd.Series]:
+    if existing_chunk.empty or 'numero_ssa' not in existing_chunk.columns:
+        return {}
+    existing_by_ssa: dict[str, pd.Series] = {}
+    for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
+        existing_row = pd.Series(existing_row_tuple, index=existing_chunk.columns)
+        numero_val = existing_row.get('numero_ssa')
+        cache_key = _upsert_cache_key(numero_val)
+        if cache_key is None:
+            continue
+        existing_by_ssa[cache_key] = existing_row
+    return existing_by_ssa
+
+
+def _collect_chunk_upsert_delta(
+    chunk: pd.DataFrame,
+    *,
+    numero_ssa_idx: int,
+    chunk_columns: list[str],
+    existing_columns: pd.Index,
+    existing_by_ssa: dict[str, pd.Series],
+    existing_raw_by_ssa: dict[str, tuple[Any, ...]],
+    existing_chunk_tuple_by_ssa: dict[str, tuple[Any, ...]],
+    enable_exact_overlap_short_circuit: bool,
+    complementary_mode: bool,
+    status_rank: dict[str, int],
+    description_columns: list[str],
+    date_columns: list[str],
+) -> tuple[dict[str, pd.Series], set[Any], int]:
+    """Calcula delta de persistencia para um chunk sem executar IO no banco.
+
+    Contrato:
+    - decide somente comparacao/merge por linha;
+    - atualiza caches em memoria do chunk atual;
+    - nao faz DELETE/INSERT, nao abre transacao e nao valida schema.
+    """
+    rows_to_persist: dict[str, pd.Series] = {}
+    delete_keys: set[Any] = set()
+    changed_rows = 0
+    for row_tuple in chunk.itertuples(index=False, name=None):
+        numero_ssa = row_tuple[numero_ssa_idx]
+        cache_key = _upsert_cache_key(numero_ssa)
+        if cache_key is None:
+            continue
+        if enable_exact_overlap_short_circuit and _tuples_match_for_exact_overlap(
+            existing_chunk_tuple_by_ssa.get(cache_key),
+            tuple(row_tuple),
+        ):
+            continue
+        existing_row = _load_existing_row_series(
+            cache_key,
+            existing_by_ssa,
+            existing_raw_by_ssa,
+            existing_columns,
+        )
+        row = pd.Series(row_tuple, index=chunk_columns)
+        has_existing = existing_row is not None
+        target_row, should_persist = _prepare_upsert_target_row(
+            row,
+            existing_row,
+            complementary_mode,
+            status_rank,
+            description_columns,
+            date_columns,
+        )
+        if not isinstance(target_row, pd.Series):
+            raise TypeError("Expected pd.Series from _prepare_upsert_target_row")
+        if should_persist:
+            if has_existing and existing_row is not None:
+                delete_keys.add(existing_row.get('numero_ssa'))
+            merged_cache_row = target_row.copy()
+            rows_to_persist[cache_key] = merged_cache_row
+            existing_by_ssa[cache_key] = merged_cache_row
+            if enable_exact_overlap_short_circuit:
+                existing_chunk_tuple_by_ssa[cache_key] = tuple(
+                    merged_cache_row.reindex(chunk_columns, fill_value=None).tolist()
+                )
+            changed_rows += 1
+    return rows_to_persist, delete_keys, changed_rows
+
+
 def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size: int | None = None) -> int:
     complementary_mode = os.environ.get("SSA_ENABLE_COMPLEMENTARY") == "1"
+    effective_policy = _resolve_short_circuit_policy()
     status_rank, description_columns, date_columns = _resolve_upsert_config()
     os.environ.get("SSA_TERMINAL_STATUSES")  # leitura única (telemetria futura)
 
@@ -461,6 +676,12 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
     )
     for start in range(0, len(has_ssa), effective_chunk_size):
         chunk = has_ssa.iloc[start:start + effective_chunk_size]
+        chunk_columns = list(chunk.columns)
+        numero_ssa_idx = chunk.columns.get_loc('numero_ssa')
+        enable_exact_overlap_short_circuit = _should_enable_exact_overlap_short_circuit(
+            chunk,
+            policy=effective_policy,
+        )
 
         chunk_num_ssa: list[Any] = (
             chunk['numero_ssa']
@@ -470,22 +691,14 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         )
 
         existing_by_ssa: dict[str, pd.Series] = {}
-        if chunk_num_ssa:
-            placeholders = ", ".join(["?"] * len(chunk_num_ssa))
-            existing_chunk = pd.read_sql_query(
-                f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
-                conn,
-                params=chunk_num_ssa,
-            )
-            if not existing_chunk.empty and 'numero_ssa' in existing_chunk.columns:
-                for existing_row_tuple in existing_chunk.itertuples(index=False, name=None):
-                    existing_row = pd.Series(existing_row_tuple, index=existing_chunk.columns)
-                    numero_val = existing_row.get('numero_ssa')
-                    cache_key = _upsert_cache_key(numero_val)
-                    if cache_key is None:
-                        continue
-                    existing_by_ssa[cache_key] = existing_row
-
+        existing_chunk, existing_raw_by_ssa, existing_chunk_tuple_by_ssa = _load_existing_chunk_caches(
+            conn,
+            quoted_table_name,
+            chunk_num_ssa,
+            chunk_columns,
+            numero_ssa_idx,
+            enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
+        )
         if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
             chunk.to_sql(table_name, conn, if_exists='append', index=False)
             total_upserted += len(chunk)
@@ -501,34 +714,23 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
                         raise
             continue
 
-        rows_to_persist: dict[str, pd.Series] = {}
-        delete_keys: set[Any] = set()
-        for row_tuple in chunk.itertuples(index=False, name=None):
-            row = pd.Series(row_tuple, index=chunk.columns)
-            numero_ssa = row['numero_ssa']
-            cache_key = _upsert_cache_key(numero_ssa)
-            if cache_key is None:
-                continue
-            existing_row = existing_by_ssa.get(cache_key)
-            has_existing = existing_row is not None
-            target_row, should_persist = _prepare_upsert_target_row(
-                row,
-                existing_row,
-                complementary_mode,
-                status_rank,
-                description_columns,
-                date_columns,
-            )
-            if not isinstance(target_row, pd.Series):
-                raise TypeError("Expected pd.Series from _prepare_upsert_target_row")
-            if should_persist:
-                if has_existing and existing_row is not None:
-                    delete_keys.add(existing_row.get('numero_ssa'))
-                merged_cache_row = target_row.copy()
-                rows_to_persist[cache_key] = merged_cache_row
-                existing_by_ssa[cache_key] = merged_cache_row
-                total_upserted += 1
-        _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
+        rows_to_persist, delete_keys, changed_rows = _collect_chunk_upsert_delta(
+            chunk,
+            numero_ssa_idx=numero_ssa_idx,
+            chunk_columns=chunk_columns,
+            existing_columns=existing_chunk.columns,
+            existing_by_ssa=existing_by_ssa,
+            existing_raw_by_ssa=existing_raw_by_ssa,
+            existing_chunk_tuple_by_ssa=existing_chunk_tuple_by_ssa,
+            enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
+            complementary_mode=complementary_mode,
+            status_rank=status_rank,
+            description_columns=description_columns,
+            date_columns=date_columns,
+        )
+        total_upserted += changed_rows
+        if rows_to_persist or delete_keys:
+            _persist_upsert_chunk(conn, table_name, rows_to_persist, delete_keys)
     return total_upserted
 
 

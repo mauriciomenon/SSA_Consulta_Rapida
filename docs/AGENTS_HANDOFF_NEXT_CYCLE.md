@@ -2,6 +2,22 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 22:23 - authoritative block
+
+- Slice de performance minima no upsert concluido:
+  1. cache lazy habilitado no ramo sem short-circuit em `armazenamento/database_upsert_logic.py`.
+  2. remocao de trabalho inutil de tuple de comparacao no ramo normal.
+  3. decomposicao minima de `_perform_upsert` em helper local `_collect_chunk_upsert_delta`.
+  4. sem alteracao funcional de merge, sem tocar robust.
+- Evidencia de teste:
+  1. `tests/test_upsert_fast_path.py::test_perform_upsert_non_short_policy_uses_lazy_existing_cache`
+  2. `pytest -q tests/test_upsert_fast_path.py` -> `22 passed`
+- Gates:
+  1. py_compile/ruff/ty dos arquivos tocados: pass.
+  2. kluster: `1 P4 -> clean`.
+- Proximo passo natural:
+  1. medir impacto no replay sentinela de import por arquivo para quantificar ganho real no corpus.
+
 ## CURRENT TRUTH 2026-03-07 22:14 - authoritative block
 
 - Confirmacao de separacao de contrato no slice atual:
