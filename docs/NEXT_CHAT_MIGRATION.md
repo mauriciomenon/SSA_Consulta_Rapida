@@ -2,6 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 00:37 - start from here
+
+- Config padrao agora declara `import_settings` explicitamente em `config/default_settings.json`.
+- Chaves formalizadas:
+  1. `include_processadas_in_full_rescan`
+  2. `processadas_subdir`
+  3. `ignore_nosurvivor_in_full_rescan`
+  4. `nosurvivor_subdir`
+  5. `move_processed_after_import`
+  6. `route_zero_survivor_to_nosurvivor`
+- Backup local de seguranca feito antes da mudanca:
+  1. `config/default_settings.json.bak_20260308_003720`
+- Regressao coberta:
+  1. `tests/test_default_settings_import_settings.py`
+  2. pacote focado da rodada: `13 passed`
+- Sem mudanca de runtime neste slice:
+  1. apenas explicitacao no config padrao e teste de contrato.
+
 ## CURRENT TRUTH 2026-03-08 00:29 - start from here
 
 - Slice de pos-processamento de arquivo entregue no runtime padrao:
