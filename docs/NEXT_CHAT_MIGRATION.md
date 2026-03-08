@@ -2,6 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 19:23 - start from here
+
+- Baseline local de documentacao: `4.31`.
+- Menus da GUI reorganizados por atividade:
+  1. `Arquivo`
+  2. `Importacao`
+  3. `DB`
+  4. `Opcoes`
+- Ajustes de nomenclatura aprovados:
+  1. `Abrir pasta de entrada` (sem `docs_entrada` no texto)
+  2. `Abrir pasta processadas`
+  3. `Abrir pasta sem sobreviventes`
+  4. `Reescaneamento completo`
+- Operacao avancada isolada:
+  1. `DB > Avancado > Executar VACUUM/ANALYZE`
+  2. handler novo: `run_vacuum_analyze` (manual)
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+
 ## CURRENT TRUTH 2026-03-08 19:02 - start from here
 
 - Baseline local de documentacao: `4.31`.

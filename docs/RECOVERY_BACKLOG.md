@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 19:23 - reorganizacao de menus por atividade
+
+Session timestamp:
+1. start: `2026-03-08 19:19:55 -0300`
+2. end: `2026-03-08 19:23:20 -0300`
+
+Objetivo do slice:
+1. organizar menus da GUI por tipo de atividade com rotulos curtos.
+2. remover termos tecnicos com underscore da navegacao.
+3. mover manutencao pesada de DB para submenu avancado.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menus agora separados em:
+     - `Arquivo`
+     - `Importacao`
+     - `DB`
+     - `Opcoes`
+   - `DB` recebeu submenu `Avancado` com:
+     - `Executar VACUUM/ANALYZE`
+   - renomes de rotulos:
+     - `Abrir pasta de entrada`
+     - `Abrir pasta processadas`
+     - `Abrir pasta sem sobreviventes`
+     - `Reescaneamento completo`
+   - novo handler manual:
+     - `run_vacuum_analyze`
+2. `tests/test_gui_menu_import_external.py`
+   - cobertura atualizada para estrutura nova de menus/submenu.
+   - novos testes para `run_vacuum_analyze` (sucesso e DB ausente).
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+
 ## Update 2026-03-08 19:02 - atalhos de pasta processadas no menu DB
 
 Session timestamp:

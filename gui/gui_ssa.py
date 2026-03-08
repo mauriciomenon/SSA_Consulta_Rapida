@@ -1056,7 +1056,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
         self.explorer_button = QPushButton("Abrir Pasta")
-        self.explorer_button.setToolTip("Abrir pasta docs_entrada no Windows Explorer")
+        self.explorer_button.setToolTip("Abrir pasta de entrada no explorador de arquivos")
         self.explorer_button.clicked.connect(self.open_docs_folder)
         toolbar_layout.addWidget(cast(Any, self.explorer_button))
         self.update_derivadas_button = QPushButton("Atualizar Derivadas")
@@ -2664,19 +2664,42 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
 
         arquivo_menu = menu_bar.addMenu("Arquivo")
+        importacao_menu = menu_bar.addMenu("Importacao")
         db_menu = menu_bar.addMenu("DB")
+        opcoes_menu = menu_bar.addMenu("Opcoes")
+        db_avancado_menu: Any
+        if hasattr(db_menu, "addMenu"):
+            db_avancado_menu = cast(Any, db_menu).addMenu("Avancado")
+        else:
+            db_avancado_menu = db_menu
 
         import_action = QAction("Importar XLS/XLSX externo...", self)
         import_action.triggered.connect(self.import_external_excel_files)
         cast(Any, arquivo_menu).addAction(import_action)
 
-        open_docs_action = QAction("Abrir pasta docs_entrada", self)
-        open_docs_action.triggered.connect(self.open_docs_folder)
-        cast(Any, arquivo_menu).addAction(open_docs_action)
+        rescan_diff_action = QAction("Reescaneamento diff", self)
+        rescan_diff_action.triggered.connect(self.rescan_diff_data)
+        cast(Any, arquivo_menu).addAction(rescan_diff_action)
+
+        load_action = QAction("Carregar dados", self)
+        load_action.triggered.connect(self.load_data)
+        cast(Any, arquivo_menu).addAction(load_action)
 
         export_action = QAction("Exportar lista atual (txt)", self)
         export_action.triggered.connect(self._export_current_list_txt)
         cast(Any, arquivo_menu).addAction(export_action)
+
+        open_docs_action = QAction("Abrir pasta de entrada", self)
+        open_docs_action.triggered.connect(self.open_docs_folder)
+        cast(Any, arquivo_menu).addAction(open_docs_action)
+
+        open_processadas_action = QAction("Abrir pasta processadas", self)
+        open_processadas_action.triggered.connect(self.open_processadas_folder)
+        cast(Any, arquivo_menu).addAction(open_processadas_action)
+
+        open_nosurvivor_action = QAction("Abrir pasta sem sobreviventes", self)
+        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
+        cast(Any, arquivo_menu).addAction(open_nosurvivor_action)
 
         cast(Any, arquivo_menu).addSeparator()
 
@@ -2684,45 +2707,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         close_action.triggered.connect(self.close)
         cast(Any, arquivo_menu).addAction(close_action)
 
-        load_action = QAction("Carregar dados", self)
-        load_action.triggered.connect(self.load_data)
-        cast(Any, db_menu).addAction(load_action)
+        rescan_full_action = QAction("Reescaneamento completo", self)
+        rescan_full_action.triggered.connect(self.rescan_full_data)
+        cast(Any, importacao_menu).addAction(rescan_full_action)
+
+        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
+        cast(Any, importacao_menu).addAction(derivadas_action)
+
+        consolidate_action = QAction("Consolidar arquivos de entrada", self)
+        consolidate_action.triggered.connect(self.consolidate_input_files)
+        cast(Any, importacao_menu).addAction(consolidate_action)
 
         load_other_db_action = QAction("Carregar outro DB...", self)
         load_other_db_action.triggered.connect(self.load_other_database)
         cast(Any, db_menu).addAction(load_other_db_action)
 
-        rescan_diff_action = QAction("Reescanear Diff (hash)", self)
-        rescan_diff_action.triggered.connect(self.rescan_diff_data)
-        cast(Any, db_menu).addAction(rescan_diff_action)
-
-        rescan_full_action = QAction("Reescanear Full (zera e reprocessa)", self)
-        rescan_full_action.triggered.connect(self.rescan_full_data)
-        cast(Any, db_menu).addAction(rescan_full_action)
-
-        derivadas_action = QAction("Atualizar derivadas", self)
-        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
-        cast(Any, db_menu).addAction(derivadas_action)
-
-        consolidate_action = QAction("Consolidar arquivos de entrada", self)
-        consolidate_action.triggered.connect(self.consolidate_input_files)
-        cast(Any, db_menu).addAction(consolidate_action)
-
-        open_processadas_action = QAction("Abrir pasta processadas", self)
-        open_processadas_action.triggered.connect(self.open_processadas_folder)
-        cast(Any, db_menu).addAction(open_processadas_action)
-
-        open_nosurvivor_action = QAction("Abrir pasta processadas/nosurvivor", self)
-        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
-        cast(Any, db_menu).addAction(open_nosurvivor_action)
+        vacuum_analyze_action = QAction("Executar VACUUM/ANALYZE", self)
+        vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
+        db_avancado_menu.addAction(vacuum_analyze_action)
 
         open_settings_action = QAction("Abrir opcoes (backup failsafe)", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
-        cast(Any, db_menu).addAction(open_settings_action)
+        cast(Any, opcoes_menu).addAction(open_settings_action)
 
         theme_action = QAction("Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
-        cast(Any, db_menu).addAction(theme_action)
+        cast(Any, opcoes_menu).addAction(theme_action)
 
     def import_external_excel_files(self):
         """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
@@ -3058,7 +3069,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         SSAMainWindow._open_folder_non_blocking(
             cast(Any, self),
             folder_path=docs_path,
-            folder_label="docs_entrada",
+            folder_label="pasta de entrada",
         )
 
     def open_processadas_folder(self):
@@ -3067,7 +3078,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         SSAMainWindow._open_folder_non_blocking(
             cast(Any, self),
             folder_path=folder_path,
-            folder_label="docs_entrada/processadas",
+            folder_label="pasta processadas",
         )
 
     def open_nosurvivor_folder(self):
@@ -3081,8 +3092,44 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         SSAMainWindow._open_folder_non_blocking(
             cast(Any, self),
             folder_path=folder_path,
-            folder_label="docs_entrada/processadas/nosurvivor",
+            folder_label="pasta sem sobreviventes",
         )
+
+    def run_vacuum_analyze(self):
+        """Executa VACUUM/ANALYZE manualmente no banco principal."""
+        db_path = DB_PATH
+        if not db_path or not os.path.exists(db_path):
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return {"ok": False, "reason": "missing_db"}
+            QMessageBox.warning(self, "Erro", f"Banco nao encontrado: {db_path}")
+            return {"ok": False, "reason": "missing_db"}
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            qmessagebox = cast(Any, QMessageBox)
+            answer = qmessagebox.question(
+                self,
+                "Confirmar",
+                "Executar VACUUM/ANALYZE no banco atual?",
+                qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
+                qmessagebox.StandardButton.No,
+            )
+            if answer != qmessagebox.StandardButton.Yes:
+                return {"ok": False, "cancelled": True}
+
+        try:
+            with sqlite3.connect(db_path, timeout=30.0) as conn:
+                conn.execute("VACUUM")
+                conn.execute("ANALYZE")
+            if hasattr(self, "status_label"):
+                self.status_label.setText("VACUUM/ANALYZE concluido com sucesso.")
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.information(self, "Sucesso", "VACUUM/ANALYZE concluido.")
+            return {"ok": True, "db_path": db_path}
+        except Exception as exc:
+            logger.error("Falha ao executar VACUUM/ANALYZE: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha no VACUUM/ANALYZE: {exc}")
+            return {"ok": False, "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
         if os.path.exists(folder_path):

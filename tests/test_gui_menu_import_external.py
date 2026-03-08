@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ class _DummyLabel:
 class _DummyMenu:
     def __init__(self) -> None:
         self.actions: list[Any] = []
+        self.submenus: dict[str, _DummyMenu] = {}
 
     def addAction(self, action: Any) -> Any:
         self.actions.append(action)
@@ -25,6 +27,11 @@ class _DummyMenu:
 
     def addSeparator(self) -> None:
         return None
+
+    def addMenu(self, name: str) -> "_DummyMenu":
+        menu = _DummyMenu()
+        self.submenus[name] = menu
+        return menu
 
 
 class _DummyMenuBar:
@@ -37,7 +44,7 @@ class _DummyMenuBar:
         return menu
 
 
-def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
+def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     class _FakeSignal:
         def connect(self, *_args, **_kwargs) -> None:
             return None
@@ -72,9 +79,6 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
         def load_other_database(self) -> None:
             return None
 
-        def rescan_data(self) -> None:
-            return None
-
         def rescan_diff_data(self) -> None:
             return None
 
@@ -99,13 +103,22 @@ def test_setup_app_menus_registers_arquivo_and_db_actions(monkeypatch) -> None:
         def toggle_theme_menu(self) -> None:
             return None
 
+        def run_vacuum_analyze(self) -> None:
+            return None
+
     window = _Window()
     monkeypatch.setattr(gui_ssa, "QAction", cast(Any, _FakeAction))
     gui_ssa.SSAMainWindow._setup_app_menus(cast(Any, window))
     assert "Arquivo" in window._menu_bar.menus
+    assert "Importacao" in window._menu_bar.menus
     assert "DB" in window._menu_bar.menus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 4
-    assert len(window._menu_bar.menus["DB"].actions) == 10
+    assert "Opcoes" in window._menu_bar.menus
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 8
+    assert len(window._menu_bar.menus["Importacao"].actions) == 3
+    assert len(window._menu_bar.menus["DB"].actions) == 1
+    assert len(window._menu_bar.menus["Opcoes"].actions) == 2
+    assert "Avancado" in window._menu_bar.menus["DB"].submenus
+    assert len(window._menu_bar.menus["DB"].submenus["Avancado"].actions) == 1
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(
@@ -243,7 +256,7 @@ def test_open_processadas_folder_routes_to_helper(monkeypatch, tmp_path: Path) -
     gui_ssa.SSAMainWindow.open_processadas_folder(cast(Any, object()))
 
     assert captured["folder_path"] == str(tmp_path / "docs_entrada" / "processadas")
-    assert captured["folder_label"] == "docs_entrada/processadas"
+    assert captured["folder_label"] == "pasta processadas"
 
 
 def test_open_nosurvivor_folder_routes_to_helper(monkeypatch, tmp_path: Path) -> None:
@@ -264,4 +277,34 @@ def test_open_nosurvivor_folder_routes_to_helper(monkeypatch, tmp_path: Path) ->
     assert captured["folder_path"] == str(
         tmp_path / "docs_entrada" / "processadas" / "nosurvivor"
     )
-    assert captured["folder_label"] == "docs_entrada/processadas/nosurvivor"
+    assert captured["folder_label"] == "pasta sem sobreviventes"
+
+
+def test_run_vacuum_analyze_success_updates_status(monkeypatch, tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE t(a INTEGER)")
+        conn.execute("INSERT INTO t(a) VALUES (1)")
+
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, window))
+
+    assert result["ok"] is True
+    assert "VACUUM/ANALYZE concluido" in window.status_label.text
+
+
+def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
+    missing_path = tmp_path / "data" / "missing.db"
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(missing_path))
+
+    result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, object()))
+    assert result["ok"] is False
+    assert result["reason"] == "missing_db"
