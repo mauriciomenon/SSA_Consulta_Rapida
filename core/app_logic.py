@@ -708,6 +708,7 @@ def _update_cache_for_deterministic_failures(
 
 def _load_import_discovery_settings() -> Dict[str, Any]:
     """Load import discovery flags from settings.json with safe defaults."""
+    allowed_upsert_policies = {"consulta_only", "no_short", "all_short"}
     defaults: Dict[str, Any] = {
         "include_processadas": False,
         "processadas_subdir": "processadas",
@@ -715,6 +716,7 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         "nosurvivor_subdir": "nosurvivor",
         "move_processed_after_import": False,
         "route_zero_survivor_to_nosurvivor": True,
+        "upsert_short_circuit_policy": "consulta_only",
     }
     try:
         from core.config_manager import load_settings  # lazy import to avoid startup coupling
@@ -739,6 +741,15 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         route_zero_survivor_to_nosurvivor = bool(
             import_settings.get("route_zero_survivor_to_nosurvivor", True)
         )
+        upsert_short_circuit_policy = str(
+            import_settings.get("upsert_short_circuit_policy", "consulta_only")
+        ).strip().lower() or "consulta_only"
+        if upsert_short_circuit_policy not in allowed_upsert_policies:
+            logger.warning(
+                "Politica de short-circuit invalida em import_settings: %s. Usando consulta_only.",
+                upsert_short_circuit_policy,
+            )
+            upsert_short_circuit_policy = "consulta_only"
         ignore_subdirs = [nosurvivor_subdir] if ignore_nosurvivor else []
         return {
             "include_processadas": include_processadas,
@@ -747,6 +758,7 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
             "nosurvivor_subdir": nosurvivor_subdir,
             "move_processed_after_import": move_processed_after_import,
             "route_zero_survivor_to_nosurvivor": route_zero_survivor_to_nosurvivor,
+            "upsert_short_circuit_policy": upsert_short_circuit_policy,
         }
     except Exception as exc:
         logger.warning(
@@ -1335,27 +1347,46 @@ def run_importer_logic(
                 ", ".join(os.path.basename(path) for path in ignored_legacy_excel_files[:5]),
             )
         discovery_settings = _load_import_discovery_settings()
+        upsert_policy = str(
+            discovery_settings.get("upsert_short_circuit_policy", "consulta_only")
+        )
+        database.configure_upsert_short_circuit_policy(upsert_policy)
+
+        include_processadas = bool(discovery_settings.get("include_processadas", False))
+        ignore_subdirs = list(discovery_settings.get("ignore_subdirs", []))
         move_processed_after_import = bool(
             discovery_settings.get("move_processed_after_import", False)
         )
-        if force_import and move_processed_after_import:
-            logger.warning(
-                "Politica ativa: move_processed_after_import foi desativado em full rescan."
-            )
-            move_processed_after_import = False
+        if force_import:
+            if include_processadas:
+                logger.warning(
+                    "Politica ativa: include_processadas_in_full_rescan foi desativado no full rescan."
+                )
+                include_processadas = False
+            nosurvivor_subdir = str(discovery_settings.get("nosurvivor_subdir", "nosurvivor"))
+            if nosurvivor_subdir not in ignore_subdirs:
+                logger.warning(
+                    "Politica ativa: ignore_nosurvivor_in_full_rescan foi forcado no full rescan."
+                )
+                ignore_subdirs = [nosurvivor_subdir, *ignore_subdirs]
+            if move_processed_after_import:
+                logger.warning(
+                    "Politica ativa: move_processed_after_import foi desativado em full rescan."
+                )
+                move_processed_after_import = False
         files_to_process = _get_files_to_process(
             docs_dir,
             cache_file,
             force_import,
-            include_processadas=bool(discovery_settings["include_processadas"]),
+            include_processadas=include_processadas,
             processadas_subdir=str(discovery_settings["processadas_subdir"]),
-            ignore_subdirs=list(discovery_settings["ignore_subdirs"]),
+            ignore_subdirs=ignore_subdirs,
         )
         derivadas_sheet_files = _discover_derivadas_sheet_files(
             docs_dir,
-            include_processadas=bool(discovery_settings["include_processadas"]),
+            include_processadas=include_processadas,
             processadas_subdir=str(discovery_settings["processadas_subdir"]),
-            ignore_subdirs=list(discovery_settings["ignore_subdirs"]),
+            ignore_subdirs=ignore_subdirs,
         )
         db_only_derivadas_sync = False
         auto_derivadas_sync_enabled = bool(force_import)

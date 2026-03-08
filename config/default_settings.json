@@ -21,6 +21,7 @@
     "ignore_nosurvivor_in_full_rescan": true,
     "nosurvivor_subdir": "nosurvivor",
     "move_processed_after_import": false,
-    "route_zero_survivor_to_nosurvivor": true
+    "route_zero_survivor_to_nosurvivor": true,
+    "upsert_short_circuit_policy": "consulta_only"
   }
 }

@@ -2,6 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 17:56 - start from here
+
+- Pendentes de organizacao de importacao foram fechados neste ciclo.
+- Politica de short-circuit agora vem de config:
+  1. `config/default_settings.json` -> `import_settings.upsert_short_circuit_policy`
+  2. valores aceitos: `consulta_only`, `no_short`, `all_short`
+  3. invalido cai para `consulta_only`
+- Full rescan agora aplica enforcement de subpastas/politica no runtime:
+  1. `include_processadas=false`
+  2. `ignore_nosurvivor=true`
+  3. `move_processed_after_import=false`
+- Consolidacao de alias de tabela no upsert:
+  1. `database_upsert_logic` agora usa o resolvedor unico de `database.py`
+  2. remove duplicacao de loops locais com `ssa_table/ssas/ssa_chamados`
+- Regras operacionais finais de subpasta:
+  1. full rescan ignora `processadas/` e `nosurvivor/`
+  2. incremental/controlado pode mover para `processadas/` e `processadas/nosurvivor/`
+- Validacao focada desta rodada:
+  1. `pytest -q tests/test_default_settings_import_settings.py tests/test_import_run_report.py tests/test_upsert_fast_path.py tests/test_database_upsert_canonical_write.py` -> `33 passed`
+  2. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+
 ## CURRENT TRUTH 2026-03-08 17:39 - start from here
 
 - Comparativo final A/B consolidado (duas rodadas):
