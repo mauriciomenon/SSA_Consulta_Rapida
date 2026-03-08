@@ -2,6 +2,20 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 20:29 - start from here
+
+- Menu de opcoes clarificado:
+  1. `Abrir arquivo de opcoes (editor externo)` abre `settings.json` principal.
+  2. backup continua sendo criado antes de abrir.
+- Nova acao de seguranca operacional:
+  1. `Restaurar opcoes padrao`
+  2. fluxo: carrega defaults -> confirma -> backup -> grava em `settings.json`.
+- Resultado:
+  1. nao ha mais ambiguidade sobre editar backup vs arquivo principal.
+  2. restauracao padrao virou acao explicita ao lado da abertura de arquivo.
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `19 passed`
+
 ## CURRENT TRUTH 2026-03-08 20:10 - start from here
 
 - `Arquivo` foi refinado como fluxo diario:

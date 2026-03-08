@@ -3,6 +3,38 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 20:29 - opcoes claras: editor externo + restaurar padrao
+
+Session timestamp:
+1. start: `2026-03-08 20:11:09 -0300`
+2. end: `2026-03-08 20:29:39 -0300`
+
+Objetivo do slice:
+1. remover ambiguidade de "backup failsafe" no menu de opcoes.
+2. manter abertura do arquivo principal em editor externo.
+3. adicionar acao explicita de restaurar opcoes padrao.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - `Opcoes > Abrir arquivo de opcoes (editor externo)` (renomeado).
+   - nova acao `Opcoes > Restaurar opcoes padrao`.
+   - nova funcao `reset_settings_to_defaults`:
+     - carrega `default_settings.json`,
+     - confirma (fora de pytest),
+     - cria backup de `settings.json`,
+     - salva defaults em `settings.json`.
+   - status de abertura atualizado para deixar claro que abre o arquivo principal.
+2. `tests/test_gui_menu_import_external.py`
+   - menu `Opcoes` passa a 4 acoes.
+   - novo teste de restauracao de defaults com backup e escrita no arquivo real.
+   - assert da acao de abrir opcoes ajustado para texto novo.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `19 passed`
+
 ## Update 2026-03-08 20:10 - refino de menu diario e redundancia controlada
 
 Session timestamp:
