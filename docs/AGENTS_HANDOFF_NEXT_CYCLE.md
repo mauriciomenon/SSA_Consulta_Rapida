@@ -2,6 +2,32 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 19:23 - authoritative block
+
+- Baseline local de documentacao: `4.31`.
+- Menus da GUI reorganizados por atividade:
+  1. `Arquivo`
+  2. `Importacao`
+  3. `DB`
+  4. `Opcoes`
+- Ajuste de nomenclatura aplicado:
+  1. `Abrir pasta de entrada`
+  2. `Abrir pasta processadas`
+  3. `Abrir pasta sem sobreviventes`
+  4. `Reescaneamento completo`
+- DB avancado:
+  1. submenu `DB > Avancado`
+  2. acao `Executar VACUUM/ANALYZE`
+  3. handler novo `run_vacuum_analyze` (manual, sem auto)
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 19:02 - authoritative block
 
 - Baseline local de documentacao: `4.31`.
