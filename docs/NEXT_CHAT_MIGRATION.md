@@ -2,6 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 00:24 - start from here
+
+- Slice de discovery/cache para `processadas` fechado com risco baixo:
+  1. runtime de import agora le `import_settings` (com defaults seguros) via `core/app_logic.py`.
+  2. discovery de arquivos pode incluir `docs_entrada/processadas` e ignorar `processadas/nosurvivor`.
+  3. comportamento default permanece igual ao atual (`include_processadas=false`).
+- Cache/hashing reforcado:
+  1. chaves de cache usam caminho relativo no `docs_dir` quando disponivel.
+  2. fallback por basename mantido para cache legado.
+  3. colisoes de nomes iguais em subpastas deixam de sobrescrever hash.
+- Testes e gates:
+  1. `pytest -q tests/test_caching.py tests/test_app_logic_full_rescan_lock.py` -> `12 passed`
+  2. py_compile + ruff + ty dos arquivos tocados -> pass
+  3. kluster clean para `core/app_logic.py`, `utils/caching.py`, `tests/test_caching.py`
+- Proximo passo planejado:
+  1. Slice B de movimentacao pos-processamento (`processadas` e `nosurvivor`) por flag, sem tocar robust nem GUI layout.
+
 ## CURRENT TRUTH 2026-03-07 22:59 - start from here
 
 - Sentinela A/B final do hot path (4 arquivos criticos, DB isolado por politica):

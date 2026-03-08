@@ -7,6 +7,13 @@ Coordena a verificacao de arquivos modificados, a extracao de dados,
 a atualizacao do banco de dados SQLite e o gerenciamento do cache.
 """
 
+# Module contract:
+# - Orchestrates the main import pipeline and filter/search entry points.
+# - Full rescan is schema-first and promotes a DB candidate only at the end.
+# - Search/filter semantics are shared by CLI and GUI; do not change lightly.
+# - Related modules: extracao.extractor, armazenamento.database,
+#   armazenamento.database_validation, armazenamento.database_integrity.
+
 import os
 import sys
 import logging
@@ -118,7 +125,13 @@ def _resolve_import_targets(docs_dir: str, db_path: str) -> tuple[Path, Path]:
 
 
 def _get_files_to_process(
-    docs_dir: str, cache_file: str, force_import: bool
+    docs_dir: str,
+    cache_file: str,
+    force_import: bool,
+    *,
+    include_processadas: bool = False,
+    processadas_subdir: str = "processadas",
+    ignore_subdirs: Optional[List[str]] = None,
 ) -> List[str]:
     """
     Determina quais arquivos precisam ser processados.
@@ -139,7 +152,12 @@ def _get_files_to_process(
             logger.info(
                 "Modo 'force_import' ativado. Todos os arquivos serao reprocessados."
             )
-            all_files = caching.get_all_xlsx_files(docs_dir)
+            all_files = caching.get_all_xlsx_files(
+                docs_dir,
+                include_processadas=include_processadas,
+                processadas_subdir=processadas_subdir,
+                ignore_subdirs=ignore_subdirs,
+            )
             return all_files
 
         # Verifica se o cache existe
@@ -147,11 +165,22 @@ def _get_files_to_process(
             logger.info(
                 "Arquivo de cache nao encontrado. Todos os arquivos serao processados."
             )
-            all_files = caching.get_all_xlsx_files(docs_dir)
+            all_files = caching.get_all_xlsx_files(
+                docs_dir,
+                include_processadas=include_processadas,
+                processadas_subdir=processadas_subdir,
+                ignore_subdirs=ignore_subdirs,
+            )
             return all_files
 
         # Compara arquivos usando o cache
-        files_to_process = caching.get_files_to_process(docs_dir, cache_file)
+        files_to_process = caching.get_files_to_process(
+            docs_dir,
+            cache_file,
+            include_processadas=include_processadas,
+            processadas_subdir=processadas_subdir,
+            ignore_subdirs=ignore_subdirs,
+        )
         logger.debug(
             f"Arquivos identificados para processamento: {len(files_to_process)}"
         )
@@ -398,9 +427,20 @@ def _is_derivadas_sheet_file(file_path: str) -> bool:
     return base_name.startswith("ssas derivadas e relacionadas") and base_name.endswith(".xlsx")
 
 
-def _discover_derivadas_sheet_files(docs_dir: str) -> List[str]:
+def _discover_derivadas_sheet_files(
+    docs_dir: str,
+    *,
+    include_processadas: bool = False,
+    processadas_subdir: str = "processadas",
+    ignore_subdirs: Optional[List[str]] = None,
+) -> List[str]:
     try:
-        all_xlsx_files = caching.get_all_xlsx_files(docs_dir)
+        all_xlsx_files = caching.get_all_xlsx_files(
+            docs_dir,
+            include_processadas=include_processadas,
+            processadas_subdir=processadas_subdir,
+            ignore_subdirs=ignore_subdirs,
+        )
     except Exception as exc:
         logger.warning("Falha ao listar planilhas especiais de derivadas em '%s': %s", docs_dir, exc)
         return []
@@ -637,7 +677,7 @@ def _update_cache_after_import(
     logger.debug("Atualizando cache...")
     try:
         # Atualiza o cache apenas para os arquivos processados com sucesso
-        caching.update_cache_for_files(processed_files, cache_file)
+        caching.update_cache_for_files(processed_files, cache_file, docs_dir=docs_dir)
         logger.info("Cache atualizado com sucesso.")
     except Exception as exc:
         logger.error("Erro ao atualizar o cache: %s", exc)
@@ -645,7 +685,7 @@ def _update_cache_after_import(
 
 
 def _update_cache_for_deterministic_failures(
-    failed_files: List[str], cache_file: str
+    failed_files: List[str], cache_file: str, docs_dir: str
 ) -> None:
     """Atualiza cache para arquivos com falha deterministica para evitar retrabalho inutil."""
     if not failed_files:
@@ -654,7 +694,7 @@ def _update_cache_for_deterministic_failures(
     if not deduped:
         return
     try:
-        caching.update_cache_for_files(deduped, cache_file)
+        caching.update_cache_for_files(deduped, cache_file, docs_dir=docs_dir)
         logger.info(
             "Cache atualizado para %s arquivo(s) com falha deterministica (aguardando mudanca de hash).",
             len(deduped),
@@ -663,6 +703,44 @@ def _update_cache_for_deterministic_failures(
         logger.warning(
             "Falha ao atualizar cache para arquivos com erro deterministico: %s", exc
         )
+
+
+def _load_import_discovery_settings() -> Dict[str, Any]:
+    """Load import discovery flags from settings.json with safe defaults."""
+    defaults: Dict[str, Any] = {
+        "include_processadas": False,
+        "processadas_subdir": "processadas",
+        "ignore_subdirs": ["nosurvivor"],
+    }
+    try:
+        from core.config_manager import load_settings  # lazy import to avoid startup coupling
+
+        settings = load_settings()
+        import_settings = settings.get("import_settings") or {}
+        include_processadas = bool(
+            import_settings.get("include_processadas_in_full_rescan", False)
+        )
+        processadas_subdir = str(
+            import_settings.get("processadas_subdir", "processadas")
+        ).strip() or "processadas"
+        ignore_nosurvivor = bool(
+            import_settings.get("ignore_nosurvivor_in_full_rescan", True)
+        )
+        nosurvivor_subdir = str(
+            import_settings.get("nosurvivor_subdir", "nosurvivor")
+        ).strip() or "nosurvivor"
+        ignore_subdirs = [nosurvivor_subdir] if ignore_nosurvivor else []
+        return {
+            "include_processadas": include_processadas,
+            "processadas_subdir": processadas_subdir,
+            "ignore_subdirs": ignore_subdirs,
+        }
+    except Exception as exc:
+        logger.warning(
+            "Falha ao carregar import_settings; usando defaults de discovery: %s",
+            exc,
+        )
+        return defaults
 
 
 def _recreate_database_for_full_rescan(db_path: str) -> None:
@@ -1118,8 +1196,21 @@ def run_importer_logic(
                 len(ignored_legacy_excel_files),
                 ", ".join(os.path.basename(path) for path in ignored_legacy_excel_files[:5]),
             )
-        files_to_process = _get_files_to_process(docs_dir, cache_file, force_import)
-        derivadas_sheet_files = _discover_derivadas_sheet_files(docs_dir)
+        discovery_settings = _load_import_discovery_settings()
+        files_to_process = _get_files_to_process(
+            docs_dir,
+            cache_file,
+            force_import,
+            include_processadas=bool(discovery_settings["include_processadas"]),
+            processadas_subdir=str(discovery_settings["processadas_subdir"]),
+            ignore_subdirs=list(discovery_settings["ignore_subdirs"]),
+        )
+        derivadas_sheet_files = _discover_derivadas_sheet_files(
+            docs_dir,
+            include_processadas=bool(discovery_settings["include_processadas"]),
+            processadas_subdir=str(discovery_settings["processadas_subdir"]),
+            ignore_subdirs=list(discovery_settings["ignore_subdirs"]),
+        )
         db_only_derivadas_sync = False
         auto_derivadas_sync_enabled = bool(force_import)
         total_files = len(files_to_process)
@@ -1451,7 +1542,7 @@ def run_importer_logic(
             )
 
         _update_cache_for_deterministic_failures(
-            deterministic_failed_files, cache_file
+            deterministic_failed_files, cache_file, docs_dir
         )
 
         # --- 3. Atualizar cache apenas se houve sucesso ---

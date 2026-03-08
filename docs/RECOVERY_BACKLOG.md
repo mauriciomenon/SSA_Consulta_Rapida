@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 00:24 - discovery processadas/nosurvivor com cache por caminho relativo
+
+Session timestamp:
+1. start: `2026-03-08 00:24:01 -0300`
+2. end: `2026-03-08 00:28:00 -0300`
+
+Decisao entregue:
+1. `core/app_logic.py` agora aplica flags de discovery no runtime de import:
+   - `include_processadas_in_full_rescan` (default `false`)
+   - `processadas_subdir` (default `processadas`)
+   - `ignore_nosurvivor_in_full_rescan` + `nosurvivor_subdir` (default `true` + `nosurvivor`)
+2. `utils/caching.py` agora:
+   - descobre `.xlsx` da raiz e, opcionalmente, de `processadas/*` com ignore de subdirs.
+   - usa chave de cache por caminho relativo (ex.: `processadas/lote_x/arquivo.xlsx`) para evitar colisao de basename.
+   - preserva fallback legado por basename para compatibilidade do cache existente.
+3. cache de sucesso e cache de falha deterministica agora usam `docs_dir` para chave consistente.
+4. testes focados adicionados/atualizados em `tests/test_caching.py` para:
+   - discovery com `processadas` + ignore de `nosurvivor`;
+   - gravacao de cache com chave relativa;
+   - leitura de cache relativo no diff hash.
+5. sem mudanca de GUI/layout e sem mudanca de semantica de extracao.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py utils/caching.py tests/test_caching.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py utils/caching.py tests/test_caching.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py utils/caching.py tests/test_caching.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_caching.py tests/test_app_logic_full_rescan_lock.py` -> `12 passed`
+5. kluster (chat_id `x6pbpykege`):
+   - `core/app_logic.py`: clean
+   - `utils/caching.py;tests/test_caching.py`: clean
+
+Pendencia curta (nao bloqueante):
+1. Slice B: mover arquivos importados para `processadas/` e `processadas/nosurvivor/` via flag, com integracao ao hash/cache.
+
 ## Update 2026-03-07 22:59 - sentinela A/B e limpeza de artefatos pesados
 
 Session timestamp:

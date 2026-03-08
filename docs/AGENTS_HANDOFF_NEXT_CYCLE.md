@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 00:24 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Slice entregue nesta rodada:
+  1. `core/app_logic.py` conectou flags de discovery no caminho real de `run_importer_logic`.
+  2. `utils/caching.py` passou a suportar:
+     - discovery opcional de `processadas/*`
+     - ignore de subpastas (ex.: `nosurvivor`)
+     - chave de cache por caminho relativo com fallback legado por basename
+  3. `tests/test_caching.py` ganhou cobertura de regressao para os cenarios acima.
+- Comportamento garantido:
+  1. default continua sem incluir `processadas`.
+  2. sem alteracao de layout GUI.
+  3. sem alteracao do caminho robust.
+- Validacao desta rodada:
+  1. py_compile/ruff/ty: pass
+  2. `pytest -q tests/test_caching.py tests/test_app_logic_full_rescan_lock.py` -> `12 passed`
+  3. kluster: clean em todos os arquivos tocados no slice.
+- Pendencia de curto prazo:
+  1. implementar fluxo de mover arquivos processados para `processadas` e zero-survivor para `processadas/nosurvivor` sob flag.
+
 ## CURRENT TRUTH 2026-03-07 22:59 - authoritative block
 
 - Estado consolidado do tuning de upsert:
