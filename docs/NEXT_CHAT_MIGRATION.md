@@ -2,6 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 00:29 - start from here
+
+- Slice de pos-processamento de arquivo entregue no runtime padrao:
+  1. `core/app_logic.py` agora suporta mover arquivos processados para `processadas/*` sob flag.
+  2. zero-survivor (`record_count==0`) pode ser roteado para `processadas/nosurvivor` via flag.
+  3. movimentacao acontece no fim do fluxo (apos promocao do DB candidato em full rescan), reduzindo risco de perder input em run com falha.
+- Flags de `import_settings` usadas neste slice:
+  1. `move_processed_after_import` (default `false`)
+  2. `route_zero_survivor_to_nosurvivor` (default `true`)
+  3. `processadas_subdir` e `nosurvivor_subdir` (defaults `processadas` e `nosurvivor`)
+- Cache:
+  1. update de cache usa caminho final movido quando o flag esta habilitado.
+  2. evita reprocessamento acidental apos mover arquivo.
+- Validacao:
+  1. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_caching.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py` -> `19 passed`
+  2. py_compile + ruff + ty -> pass
+  3. kluster clean no patch.
+
 ## CURRENT TRUTH 2026-03-08 00:24 - start from here
 
 - Slice de discovery/cache para `processadas` fechado com risco baixo:

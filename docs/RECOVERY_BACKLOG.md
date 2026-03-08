@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 00:29 - postprocess move para processadas/nosurvivor (flag)
+
+Session timestamp:
+1. start: `2026-03-08 00:29:00 -0300`
+2. end: `2026-03-08 00:35:23 -0300`
+
+Decisao entregue:
+1. `core/app_logic.py` ganhou pos-processamento opcional de arquivo apos importacao bem-sucedida:
+   - `move_processed_after_import` (default `false`)
+   - `route_zero_survivor_to_nosurvivor` (default `true`)
+2. quando habilitado, o runtime move:
+   - arquivo com `record_count > 0` para `processadas/`
+   - arquivo com `record_count == 0` para `processadas/nosurvivor/`
+3. a movimentacao ocorre no fim do fluxo de import (apos promocao do DB candidato), para evitar mover arquivo em execucao que falhou.
+4. cache passa a ser atualizado com caminho final apos movimentacao.
+5. risco de sobrescrita mitigado por destino unico (`__N`) quando nome de arquivo ja existir.
+
+Teste adicionado:
+1. `tests/test_app_logic_postprocess_moves.py`:
+   - roteamento normal para `processadas`
+   - roteamento de zero-survivor para `nosurvivor`
+   - comportamento com `route_zero_survivor_to_nosurvivor=false`
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_app_logic_postprocess_moves.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py tests/test_app_logic_postprocess_moves.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py tests/test_app_logic_postprocess_moves.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_app_logic_postprocess_moves.py tests/test_caching.py tests/test_app_logic_full_rescan_lock.py tests/test_import_run_report.py` -> `19 passed`
+5. kluster (chat_id `x6pbpykege`): clean
+
 ## Update 2026-03-08 00:24 - discovery processadas/nosurvivor com cache por caminho relativo
 
 Session timestamp:
