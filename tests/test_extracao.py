@@ -558,3 +558,37 @@ def test_normalize_datatypes_num_reprogramacoes_text_without_total_becomes_null(
 
     assert str(out["num_reprogramacoes"].dtype) == "Int64"
     assert pd.isna(out["num_reprogramacoes"].iloc[0])
+
+
+def test_extract_data_from_excel_uses_standard_path_and_not_read_report(temp_excel_file, monkeypatch):
+    called = False
+
+    def _fail_fast(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("import_excel_robust called from extract_data_from_excel")
+
+    monkeypatch.setattr("extracao.extractor.import_excel_robust", _fail_fast)
+
+    extracted = extract_data_from_excel(temp_excel_file, _debug_phases=None)
+
+    assert called is False
+    assert not extracted.empty
+
+
+def test_read_report_uses_robust_path(temp_excel_file, monkeypatch):
+    called = False
+    expected = pd.DataFrame({"numero_ssa": ["1"], "descricao_ssa": ["x"]})
+
+    def _robust_fake(file_path):
+        nonlocal called
+        called = True
+        return expected, {"status": "ok"}
+
+    monkeypatch.setattr("extracao.extractor.import_excel_robust", _robust_fake)
+
+    out_df, metadata = read_report(temp_excel_file)
+
+    assert called is True
+    assert out_df.equals(expected)
+    assert metadata["stats_dict"]["status"] == "ok"

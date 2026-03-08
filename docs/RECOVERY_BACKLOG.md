@@ -5,6 +5,36 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 ## Update 2026-03-07 (A/B policy de short-circuit no upsert em full rescan real)
 
+## Update 2026-03-07 22:14 - slice de contrato upsert/robust separado
+
+Session timestamp:
+1. start: `2026-03-07 22:14:00 -0300`
+2. end: `2026-03-07 22:14:47 -0300`
+
+Decisao entregue:
+1. adicionado teste unitario em `tests/test_upsert_fast_path.py` para provar que:
+   - `consulta_only` depende de `arquivo_origem` com prefixo `consulta ssa`.
+   - `all_short` depende somente de chunk com arquivo unicos.
+   - `no_short` sempre desliga o atalho.
+2. adicionado teste em `tests/test_extracao.py` para provar separacao de caminho:
+   - `extract_data_from_excel` roda caminho padrao sem chamar `import_excel_robust`.
+   - `read_report` roda o caminho robust via `import_excel_robust`.
+3. resultado dos gates para o slice:
+   - py_compile: pass
+   - ruff: pass
+   - ty: pass
+   - pytest: `43 passed`
+4. impacto:
+   - nenhum ajuste funcional em runtime.
+   - contrato de responsabilidade entre upsert policy e robust ficou explicitamente travado em teste.
+
+Arquivos alterados:
+1. `tests/test_upsert_fast_path.py`
+2. `tests/test_extracao.py`
+
+Status:
+1. concluido
+
 Session timestamp:
 1. start: `2026-03-07 21:37:13 -0300`
 2. end: `2026-03-07 22:02:16 -0300`

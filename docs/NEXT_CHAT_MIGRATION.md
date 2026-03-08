@@ -2,6 +2,21 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 22:14 - start from here
+
+- Contrato de arquitetura confirmado em testes:
+  - upsert: `consulta_only`, `no_short`, `all_short` permanecem politicas separadas em `armazenamento/database_upsert_logic.py`.
+  - `consulta_only` e valido apenas para chaves de origem `Consulta SSA*`.
+  - `all_short` ativa em chunk de arquivo unico, sem exigir prefixo `Consulta SSA`.
+  - `no_short` desliga atalho de overlap para preservar fluxo seguro.
+  - `robust` **nao** esta no caminho de `extract_data_from_excel` (`core/app_logic.py -> extract_data_from_excel`).
+  - `robust` e exclusivo no caminho `read_report` via `extract_excel_robust`.
+- Evidencia de teste adicionada:
+  - `tests/test_upsert_fast_path.py`
+  - `tests/test_extracao.py`
+- Validação desta rodada:
+  - `uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_upsert_fast_path.py` -> `43 passed`.
+
 ## CURRENT TRUTH 2026-03-07 22:02 - start from here
 
 - Resultado de benchmark A/B desta rodada final:

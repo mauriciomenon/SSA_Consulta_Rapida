@@ -2,6 +2,20 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-07 22:14 - authoritative block
+
+- Confirmacao de separacao de contrato no slice atual:
+  - upsert policy matrix esta travada por teste unitario em `tests/test_upsert_fast_path.py`:
+    - `consulta_only`: apenas arquivo origem com prefixo `Consulta SSA`.
+    - `all_short`: atalho por chunk de unico arquivo.
+    - `no_short`: sem atalho.
+  - separacao de caminhos de extracao:
+    - `extract_data_from_excel` no fluxo padrao nao usa `import_excel_robust`.
+    - `read_report` continua no caminho robust.
+  - evidencias:
+    - `uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_upsert_fast_path.py` -> `43 passed`.
+    - `uv run --python 3.13 py_compile`, `ruff`, `ty` dos mesmos arquivos sem falha.
+
 ## CURRENT TRUTH 2026-03-07 22:02 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
