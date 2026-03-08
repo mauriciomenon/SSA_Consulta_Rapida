@@ -21,6 +21,7 @@ import json
 import sqlite3
 import time
 import uuid
+import shutil
 from datetime import datetime
 import pandas as pd
 import re
@@ -711,6 +712,9 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         "include_processadas": False,
         "processadas_subdir": "processadas",
         "ignore_subdirs": ["nosurvivor"],
+        "nosurvivor_subdir": "nosurvivor",
+        "move_processed_after_import": False,
+        "route_zero_survivor_to_nosurvivor": True,
     }
     try:
         from core.config_manager import load_settings  # lazy import to avoid startup coupling
@@ -729,11 +733,20 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
         nosurvivor_subdir = str(
             import_settings.get("nosurvivor_subdir", "nosurvivor")
         ).strip() or "nosurvivor"
+        move_processed_after_import = bool(
+            import_settings.get("move_processed_after_import", False)
+        )
+        route_zero_survivor_to_nosurvivor = bool(
+            import_settings.get("route_zero_survivor_to_nosurvivor", True)
+        )
         ignore_subdirs = [nosurvivor_subdir] if ignore_nosurvivor else []
         return {
             "include_processadas": include_processadas,
             "processadas_subdir": processadas_subdir,
             "ignore_subdirs": ignore_subdirs,
+            "nosurvivor_subdir": nosurvivor_subdir,
+            "move_processed_after_import": move_processed_after_import,
+            "route_zero_survivor_to_nosurvivor": route_zero_survivor_to_nosurvivor,
         }
     except Exception as exc:
         logger.warning(
@@ -741,6 +754,103 @@ def _load_import_discovery_settings() -> Dict[str, Any]:
             exc,
         )
         return defaults
+
+
+def _build_nonconflicting_destination(path: Path) -> Path:
+    """Return a non-conflicting destination path by suffixing __N when needed."""
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for idx in range(1, 10000):
+        candidate = path.with_name(f"{stem}__{idx}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise OSError(f"Nao foi possivel resolver destino unico para '{path}'")
+
+
+def _move_file_after_import(
+    *,
+    file_path: str,
+    docs_dir: str,
+    processadas_subdir: str,
+    nosurvivor_subdir: str,
+    route_to_nosurvivor: bool,
+) -> str:
+    """Move processed file to processadas (or processadas/nosurvivor) and return final path."""
+    source = Path(file_path).resolve()
+    docs_root = Path(docs_dir).resolve()
+    processadas_root = (docs_root / processadas_subdir).resolve()
+    if not source.exists():
+        logger.warning("Arquivo para pos-processamento nao encontrado: %s", file_path)
+        return file_path
+    try:
+        source.relative_to(docs_root)
+    except ValueError:
+        logger.warning(
+            "Arquivo fora de docs_dir nao sera movido no pos-processamento: %s",
+            file_path,
+        )
+        return file_path
+    if source.is_relative_to(processadas_root):
+        return str(source)
+
+    destination_root = processadas_root
+    if route_to_nosurvivor:
+        destination_root = processadas_root / nosurvivor_subdir
+    destination_root.mkdir(parents=True, exist_ok=True)
+    destination = _build_nonconflicting_destination(destination_root / source.name)
+    if destination == source:
+        return str(source)
+    try:
+        shutil.move(str(source), str(destination))
+    except Exception as exc:
+        logger.warning(
+            "Falha ao mover arquivo pos-importacao '%s' para '%s': %s",
+            file_path,
+            destination,
+            exc,
+        )
+        return file_path
+    try:
+        src_rel = source.relative_to(docs_root).as_posix()
+    except ValueError:
+        src_rel = str(source)
+    try:
+        dst_rel = destination.relative_to(docs_root).as_posix()
+    except ValueError:
+        dst_rel = str(destination)
+    logger.info(
+        "Arquivo pos-importacao movido: %s -> %s",
+        src_rel,
+        dst_rel,
+    )
+    return str(destination)
+
+
+def _apply_postprocess_file_moves(
+    *,
+    successful_files_with_records: List[tuple[str, int]],
+    docs_dir: str,
+    processadas_subdir: str,
+    nosurvivor_subdir: str,
+    route_zero_survivor_to_nosurvivor: bool,
+) -> Dict[str, str]:
+    """Apply post-import moves and return old_path -> final_path mapping."""
+    moved_paths: Dict[str, str] = {}
+    for file_path, record_count in successful_files_with_records:
+        route_to_nosurvivor = bool(
+            route_zero_survivor_to_nosurvivor and int(record_count) <= 0
+        )
+        final_path = _move_file_after_import(
+            file_path=file_path,
+            docs_dir=docs_dir,
+            processadas_subdir=processadas_subdir,
+            nosurvivor_subdir=nosurvivor_subdir,
+            route_to_nosurvivor=route_to_nosurvivor,
+        )
+        moved_paths[file_path] = final_path
+    return moved_paths
 
 
 def _recreate_database_for_full_rescan(db_path: str) -> None:
@@ -1092,6 +1202,7 @@ def run_importer_logic(
     total_files = 0
     ignored_legacy_excel_files: List[str] = []
     successfully_processed_files: List[str] = []
+    successful_regular_files_with_records: List[tuple[str, int]] = []
     critical_errors: List[tuple[str, str, str]] = []
     deterministic_failed_files: List[str] = []
     integrity_report: Dict[str, Any] = {}
@@ -1197,6 +1308,9 @@ def run_importer_logic(
                 ", ".join(os.path.basename(path) for path in ignored_legacy_excel_files[:5]),
             )
         discovery_settings = _load_import_discovery_settings()
+        move_processed_after_import = bool(
+            discovery_settings.get("move_processed_after_import", False)
+        )
         files_to_process = _get_files_to_process(
             docs_dir,
             cache_file,
@@ -1313,6 +1427,9 @@ def run_importer_logic(
                         file_reports.append(file_metrics)
                     if success:
                         successfully_processed_files.append(file_path)
+                        successful_regular_files_with_records.append(
+                            (file_path, int(record_count))
+                        )
                         # Notify file success
                         _emit_progress(
                             "file_success",
@@ -1547,6 +1664,7 @@ def run_importer_logic(
 
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
+            cache_success_paths = list(successfully_processed_files)
             if candidate_db_path is not None:
                 integrity_report = database.verify_database_integrity(
                     working_db_path,
@@ -1583,8 +1701,21 @@ def run_importer_logic(
                         "candidate_promotion_failed",
                         str(exc),
                     )
+            if move_processed_after_import and successful_regular_files_with_records:
+                moved_paths = _apply_postprocess_file_moves(
+                    successful_files_with_records=successful_regular_files_with_records,
+                    docs_dir=docs_dir,
+                    processadas_subdir=str(discovery_settings["processadas_subdir"]),
+                    nosurvivor_subdir=str(discovery_settings["nosurvivor_subdir"]),
+                    route_zero_survivor_to_nosurvivor=bool(
+                        discovery_settings["route_zero_survivor_to_nosurvivor"]
+                    ),
+                )
+                cache_success_paths = [
+                    moved_paths.get(path, path) for path in cache_success_paths
+                ]
             _update_cache_after_import(
-                successfully_processed_files, cache_file, docs_dir
+                cache_success_paths, cache_file, docs_dir
             )
             logger.info("=== Processo de importacao concluido com atualizacoes ===")
             return _finalize_and_return(

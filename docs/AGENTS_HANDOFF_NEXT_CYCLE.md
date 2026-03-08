@@ -2,6 +2,24 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 00:29 - authoritative block
+
+- Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
+- Slice entregue:
+  1. pos-processamento opcional de arquivo em `core/app_logic.py` para mover input importado.
+  2. regras:
+     - `record_count > 0` -> `processadas/`
+     - `record_count == 0` -> `processadas/nosurvivor/` (quando flag de roteamento estiver ativa)
+  3. movimentacao roda somente no fim de importacao bem-sucedida, apos etapa de promocao do DB candidato.
+  4. cache e atualizado com caminho final movido.
+- Flags:
+  1. `move_processed_after_import` (default `false`)
+  2. `route_zero_survivor_to_nosurvivor` (default `true`)
+- Evidencia:
+  1. novo teste: `tests/test_app_logic_postprocess_moves.py`
+  2. pacote focado: `19 passed`
+  3. kluster: clean para arquivos tocados.
+
 ## CURRENT TRUTH 2026-03-08 00:24 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
