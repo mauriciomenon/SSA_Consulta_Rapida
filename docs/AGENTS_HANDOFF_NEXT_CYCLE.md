@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-08 11:52 - authoritative block
+## CURRENT TRUTH 2026-03-08 12:44 - authoritative block
+
+- Full rescan real com move pos-processamento ligado foi concluido com sucesso funcional.
+- Evidencia:
+  1. `logs/import_run_20260308_115621_528621.json`
+  2. `logs/move_policy_full_rescan_summary_20260308_115621.json`
+  3. comparativo contra `logs/import_run_20260307_213713_316719.json`
+- Resultado:
+  1. `431` candidatos, `431` sucesso, `0` erro
+  2. `rows_inserted_total=497162`
+  3. `rows_removed_invalid_identity_total=2763`
+- Performance:
+  1. baseline `354.675s`
+  2. move ligado `2791.239s` (degradacao ~`+687%`)
+  3. degradacao ocorreu em todas as familias de planilha.
+- Diretriz de operacao:
+  1. manter `move_processed_after_import=false` para full rescan pesado.
+  2. manter move para cenario incremental/controlado ate diagnostico dedicado do hot path.
+- Higiene:
+  1. diretorio temporario removido (`data/full_rescan_move_policy_20260308_115621`).
+
+## CURRENT TRUTH 2026-03-08 11:54 - authoritative block
 
 - Mini validacao runtime do move pos-importacao executada:
   1. sem mudanca de codigo.

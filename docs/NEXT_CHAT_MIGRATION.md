@@ -2,7 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-08 11:52 - start from here
+## CURRENT TRUTH 2026-03-08 12:44 - start from here
+
+- Full rescan real com move pos-processamento ligado foi executado e concluido.
+- Evidencia:
+  1. run report: `logs/import_run_20260308_115621_528621.json`
+  2. resumo: `logs/move_policy_full_rescan_summary_20260308_115621.json`
+  3. baseline usado: `logs/import_run_20260307_213713_316719.json`
+- Resultado funcional:
+  1. `431` candidatos, `431` sucesso, `0` erro
+  2. `rows_inserted_total=497162`
+  3. `rows_removed_invalid_identity_total=2763`
+- Resultado de desempenho:
+  1. baseline `354.675s`
+  2. run com move `2791.239s`
+  3. degradacao aproximada `+687%`
+  4. impacto distribuiu por todas as familias (insert_seconds), nao ficou restrito a uma unica familia.
+- Diretriz imediata:
+  1. manter `move_processed_after_import=false` em full rescan pesado.
+  2. manter move ligado apenas para fluxo incremental/controlado ate novo diagnostico de performance.
+- Higiene:
+  1. diretorio temporario de execucao foi removido (`data/full_rescan_move_policy_20260308_115621`).
+
+## CURRENT TRUTH 2026-03-08 11:54 - start from here
 
 - Validacao runtime de `move_processed_after_import` concluida sem alterar codigo:
   1. mini importacao com 2 arquivos controlados (1 valido + 1 sem sobreviventes).
