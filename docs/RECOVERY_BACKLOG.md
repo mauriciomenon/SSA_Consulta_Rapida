@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 00:37 - import_settings explicitos no config padrao
+
+Session timestamp:
+1. start: `2026-03-08 00:37:06 -0300`
+2. end: `2026-03-08 00:39:52 -0300`
+
+Decisao entregue:
+1. `config/default_settings.json` recebeu bloco `import_settings` com contrato explicito:
+   - `include_processadas_in_full_rescan`
+   - `processadas_subdir`
+   - `ignore_nosurvivor_in_full_rescan`
+   - `nosurvivor_subdir`
+   - `move_processed_after_import`
+   - `route_zero_survivor_to_nosurvivor`
+2. backup de seguranca criado antes da alteracao de config:
+   - `config/default_settings.json.bak_20260308_003720`
+3. teste de contrato adicionado:
+   - `tests/test_default_settings_import_settings.py`
+4. comportamento runtime nao foi alterado neste slice (somente explicitacao de defaults no arquivo padrao).
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile tests/test_default_settings_import_settings.py` -> pass
+2. `uv run --python 3.13 ruff check tests/test_default_settings_import_settings.py` -> pass
+3. `uv run --python 3.13 ty check tests/test_default_settings_import_settings.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_default_settings_import_settings.py tests/test_app_logic_postprocess_moves.py tests/test_caching.py` -> `13 passed`
+5. kluster (chat_id `x6pbpykege`): clean
+
 ## Update 2026-03-08 00:29 - postprocess move para processadas/nosurvivor (flag)
 
 Session timestamp:

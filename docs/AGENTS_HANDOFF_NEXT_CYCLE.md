@@ -2,6 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 00:37 - authoritative block
+
+- Slice de config padrao concluido:
+  1. `config/default_settings.json` agora possui bloco `import_settings` completo.
+  2. objetivo: tornar flags de import visiveis e controlaveis sem depender apenas dos defaults internos do runtime.
+- Chaves adicionadas:
+  1. `include_processadas_in_full_rescan`
+  2. `processadas_subdir`
+  3. `ignore_nosurvivor_in_full_rescan`
+  4. `nosurvivor_subdir`
+  5. `move_processed_after_import`
+  6. `route_zero_survivor_to_nosurvivor`
+- Teste novo:
+  1. `tests/test_default_settings_import_settings.py`
+- Evidencia:
+  1. pacote focado da rodada: `13 passed`
+  2. kluster: clean
+- Backup de config:
+  1. `config/default_settings.json.bak_20260308_003720` (local, nao para commit).
+
 ## CURRENT TRUTH 2026-03-08 00:29 - authoritative block
 
 - Branch ativa: `codex/sprint-importacao-grave-fixes-20260305`.
