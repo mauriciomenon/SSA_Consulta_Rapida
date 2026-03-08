@@ -2,6 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 19:32 - authoritative block
+
+- Metadata runtime de release corrigida para `4.31`:
+  1. `VERSION` atualizado para `4.31`
+  2. `config/version.json` atualizado para `4.31`
+  3. `main.py --version` validado em `4.31`
+- Equivalencia botao x menu (principal) completada:
+  1. `Reescanear` (botao) <-> `Importacao > Reescaneamento (perguntar modo)`
+  2. `Ajuda` (botao) <-> `Opcoes > Ajuda`
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+- Arquivos alterados:
+  1. `VERSION`
+  2. `config/version.json`
+  3. `gui/gui_ssa.py`
+  4. `tests/test_gui_menu_import_external.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 19:23 - authoritative block
 
 - Baseline local de documentacao: `4.31`.

@@ -2711,6 +2711,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         rescan_full_action.triggered.connect(self.rescan_full_data)
         cast(Any, importacao_menu).addAction(rescan_full_action)
 
+        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
+        rescan_prompt_action.triggered.connect(self.rescan_data)
+        cast(Any, importacao_menu).addAction(rescan_prompt_action)
+
         derivadas_action = QAction("Atualizar derivadas", self)
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)
         cast(Any, importacao_menu).addAction(derivadas_action)
@@ -2734,6 +2738,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         theme_action = QAction("Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
         cast(Any, opcoes_menu).addAction(theme_action)
+
+        help_action = QAction("Ajuda", self)
+        help_action.triggered.connect(self.show_filter_help)
+        cast(Any, opcoes_menu).addAction(help_action)
 
     def import_external_excel_files(self):
         """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""

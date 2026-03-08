@@ -79,6 +79,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def load_other_database(self) -> None:
             return None
 
+        def rescan_data(self) -> None:
+            return None
+
         def rescan_diff_data(self) -> None:
             return None
 
@@ -103,6 +106,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def toggle_theme_menu(self) -> None:
             return None
 
+        def show_filter_help(self) -> None:
+            return None
+
         def run_vacuum_analyze(self) -> None:
             return None
 
@@ -114,9 +120,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "DB" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
     assert len(window._menu_bar.menus["Arquivo"].actions) == 8
-    assert len(window._menu_bar.menus["Importacao"].actions) == 3
+    assert len(window._menu_bar.menus["Importacao"].actions) == 4
     assert len(window._menu_bar.menus["DB"].actions) == 1
-    assert len(window._menu_bar.menus["Opcoes"].actions) == 2
+    assert len(window._menu_bar.menus["Opcoes"].actions) == 3
     assert "Avancado" in window._menu_bar.menus["DB"].submenus
     assert len(window._menu_bar.menus["DB"].submenus["Avancado"].actions) == 1
 

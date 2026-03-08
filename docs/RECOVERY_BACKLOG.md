@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 19:32 - release runtime 4.31 e equivalencia de menu
+
+Session timestamp:
+1. start: `2026-03-08 19:27:58 -0300`
+2. end: `2026-03-08 19:32:24 -0300`
+
+Objetivo do slice:
+1. corrigir metadata de versao runtime para 4.31.
+2. completar equivalencia principal entre botoes e menu.
+
+Mudancas aplicadas:
+1. versao:
+   - `VERSION` atualizado para `4.31`.
+   - `config/version.json` atualizado para `4.31`.
+2. menu GUI (`gui/gui_ssa.py`):
+   - `Importacao` ganhou `Reescaneamento (perguntar modo)` para equivaler ao botao `Reescanear`.
+   - `Opcoes` ganhou `Ajuda` para equivaler ao botao `Ajuda`.
+3. testes:
+   - `tests/test_gui_menu_import_external.py` ajustado para nova contagem/handlers.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py utils/version.py main.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py utils/version.py main.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py utils/version.py main.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+5. `uv run --python 3.13 python main.py --version` -> `4.31`
+
 ## Update 2026-03-08 19:23 - reorganizacao de menus por atividade
 
 Session timestamp:

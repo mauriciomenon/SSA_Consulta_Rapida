@@ -2,6 +2,20 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 19:32 - start from here
+
+- Metadata de versao runtime alinhada com release:
+  1. `VERSION=4.31`
+  2. `config/version.json.version_short=4.31`
+  3. `main.py --version` retorna `4.31`
+- Equivalencia principal botao x menu reforcada:
+  1. botao `Reescanear` agora tem equivalente no menu:
+     - `Importacao > Reescaneamento (perguntar modo)`
+  2. botao `Ajuda` agora tem equivalente no menu:
+     - `Opcoes > Ajuda`
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `17 passed`
+
 ## CURRENT TRUTH 2026-03-08 19:23 - start from here
 
 - Baseline local de documentacao: `4.31`.
