@@ -2,8 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 18:19 - authoritative block
+
+- Baseline local de documentacao: `4.31`.
+- GUI menu (slice 1/2) entregue:
+  1. menus `Arquivo` e `DB` adicionados sem alterar toolbar existente
+  2. acoes agrupadas de importacao/db/exportacao/tema usando handlers ja existentes
+- Importacao externa entregue:
+  1. metodo `import_external_excel_files` em `gui/gui_ssa.py`
+  2. copia XLS/XLSX para `docs_entrada`
+  3. colisao de nome resolvida com sufixo `__N` (sem overwrite silencioso)
+  4. status atualizado e sumario retornado (`copied/skipped/failed`)
+- Regressao da rodada:
+  1. `tests/test_gui_menu_import_external.py` (novo)
+  2. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `9 passed`
+- Itens desta rodada:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+  3. `README.md`
+
 ## CURRENT TRUTH 2026-03-08 17:56 - authoritative block
 
+- Baseline local de documentacao: `4.31`.
 - Fechamento dos pendentes de organizacao de importacao concluido:
   1. politica de short-circuit por config (`upsert_short_circuit_policy`)
   2. resolucao de alias de tabela consolidada no resolvedor unico de `database.py`

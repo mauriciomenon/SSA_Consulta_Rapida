@@ -2,8 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 18:19 - start from here
+
+- Baseline local de documentacao: `4.31`.
+- GUI menu iniciado (slice 1/2) sem alterar layout da toolbar:
+  1. menu `Arquivo` e `DB` adicionados em `gui/gui_ssa.py`
+  2. acoes agrupadas para importacao/db/exportacao/tema usando handlers existentes
+- Nova funcao de importacao externa:
+  1. `import_external_excel_files` copia XLS/XLSX externo para `docs_entrada`
+  2. sem sobrescrita silenciosa (sufixo `__N`)
+  3. retorna sumario (`copied/skipped/failed`) e atualiza status
+- Testes focados novos:
+  1. `tests/test_gui_menu_import_external.py` (menu + copia com colisao)
+  2. pacote de regressao da rodada: `9 passed`
+- Docs baseline promovidos:
+  1. `README.md` agora em `v4.31`.
+
 ## CURRENT TRUTH 2026-03-08 17:56 - start from here
 
+- Baseline local de documentacao: `4.31`.
 - Pendentes de organizacao de importacao foram fechados neste ciclo.
 - Politica de short-circuit agora vem de config:
   1. `config/default_settings.json` -> `import_settings.upsert_short_circuit_policy`

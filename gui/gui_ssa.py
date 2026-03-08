@@ -531,6 +531,9 @@ except ImportError as exc:
         @staticmethod
         def getOpenFileName(*a, **k):
             return ("", "")
+        @staticmethod
+        def getOpenFileNames(*a, **k):
+            return ([], "")
 
     class QAction:
         def __init__(self, *a, **k):
@@ -1028,6 +1031,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(cast(Any, central_widget))
+        self._setup_app_menus()
 
 
         # --- Barra de Ferramentas Superior ---
@@ -2649,6 +2653,132 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.table_widget.resizeColumnToContents(column_index)
         new_width = self.table_widget.columnWidth(column_index)
         self._on_header_section_resized(column_index, old_width, new_width)
+
+    def _setup_app_menus(self) -> None:
+        menu_bar_getter = getattr(self, "menuBar", None)
+        if not callable(menu_bar_getter):
+            return
+        menu_bar = menu_bar_getter()
+        if menu_bar is None or not hasattr(menu_bar, "addMenu"):
+            return
+
+        arquivo_menu = menu_bar.addMenu("Arquivo")
+        db_menu = menu_bar.addMenu("DB")
+
+        import_action = QAction("Importar XLS/XLSX externo...", self)
+        import_action.triggered.connect(self.import_external_excel_files)
+        cast(Any, arquivo_menu).addAction(import_action)
+
+        open_docs_action = QAction("Abrir pasta docs_entrada", self)
+        open_docs_action.triggered.connect(self.open_docs_folder)
+        cast(Any, arquivo_menu).addAction(open_docs_action)
+
+        export_action = QAction("Exportar lista atual (txt)", self)
+        export_action.triggered.connect(self._export_current_list_txt)
+        cast(Any, arquivo_menu).addAction(export_action)
+
+        cast(Any, arquivo_menu).addSeparator()
+
+        close_action = QAction("Sair", self)
+        close_action.triggered.connect(self.close)
+        cast(Any, arquivo_menu).addAction(close_action)
+
+        load_action = QAction("Carregar dados", self)
+        load_action.triggered.connect(self.load_data)
+        cast(Any, db_menu).addAction(load_action)
+
+        load_other_db_action = QAction("Carregar outro DB...", self)
+        load_other_db_action.triggered.connect(self.load_other_database)
+        cast(Any, db_menu).addAction(load_other_db_action)
+
+        rescan_action = QAction("Reescanear (Diff/Full)", self)
+        rescan_action.triggered.connect(self.rescan_data)
+        cast(Any, db_menu).addAction(rescan_action)
+
+        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
+        cast(Any, db_menu).addAction(derivadas_action)
+
+        theme_action = QAction("Tema", self)
+        theme_action.triggered.connect(self.toggle_theme_menu)
+        cast(Any, db_menu).addAction(theme_action)
+
+    def import_external_excel_files(self):
+        """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
+        selected_files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Selecionar arquivos Excel para importar",
+            os.path.expanduser("~"),
+            "Arquivos Excel (*.xlsx *.xls);;Todos os Arquivos (*)",
+        )
+
+        if not selected_files:
+            return {"copied": 0, "skipped": 0, "failed": 0}
+
+        docs_path = os.path.join(project_root, "docs_entrada")
+        os.makedirs(docs_path, exist_ok=True)
+
+        copied = 0
+        skipped = 0
+        failed = 0
+
+        for source_path in selected_files:
+            source = str(source_path or "").strip()
+            if not source:
+                skipped += 1
+                continue
+            if not os.path.isfile(source):
+                failed += 1
+                continue
+
+            base_name = os.path.basename(source)
+            destination = os.path.join(docs_path, base_name)
+
+            source_abs = os.path.abspath(source)
+            destination_abs = os.path.abspath(destination)
+            if source_abs == destination_abs:
+                skipped += 1
+                continue
+
+            if os.path.exists(destination):
+                stem, ext = os.path.splitext(base_name)
+                idx = 1
+                while True:
+                    candidate_name = f"{stem}__{idx}{ext}"
+                    candidate_path = os.path.join(docs_path, candidate_name)
+                    if not os.path.exists(candidate_path):
+                        destination = candidate_path
+                        break
+                    idx += 1
+
+            try:
+                shutil.copy2(source, destination)
+                copied += 1
+            except Exception as exc:
+                logger.warning("Falha ao copiar arquivo externo '%s': %s", source, exc)
+                failed += 1
+
+        summary = (
+            f"Status: Importacao externa concluida - copiados={copied}, "
+            f"ignorados={skipped}, falhas={failed}."
+        )
+        if hasattr(self, "status_label"):
+            self.status_label.setText(summary)
+
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.information(
+                self,
+                "Importacao externa",
+                (
+                    "Importacao concluida.\n\n"
+                    f"Copiados: {copied}\n"
+                    f"Ignorados: {skipped}\n"
+                    f"Falhas: {failed}\n\n"
+                    f"Destino: {docs_path}"
+                ),
+            )
+
+        return {"copied": copied, "skipped": skipped, "failed": failed}
 
     def rescan_data(self):
         """Reprocessa os arquivos Excel com feedback visual em tempo real."""

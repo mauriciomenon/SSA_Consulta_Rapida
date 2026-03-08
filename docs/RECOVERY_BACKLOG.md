@@ -3,6 +3,42 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 18:19 - baseline docs 4.31 + GUI menu (slice 1/2)
+
+Session timestamp:
+1. start: `2026-03-08 18:13:44 -0300`
+2. end: `2026-03-08 18:19:21 -0300`
+
+Objetivo do slice:
+1. promover baseline de documentacao para `4.31`.
+2. iniciar agrupamento de operacoes em menu superior da GUI sem mexer no layout da toolbar.
+3. adicionar importacao externa de XLS/XLSX para `docs_entrada` com copia segura.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - novo menu superior com grupos `Arquivo` e `DB` e acoes:
+     - importar XLS/XLSX externo
+     - abrir pasta docs_entrada
+     - exportar lista atual
+     - carregar dados / carregar outro DB / reescanear (Diff/Full) / atualizar derivadas / tema
+   - novo handler `import_external_excel_files`:
+     - copia para `docs_entrada`
+     - evita sobrescrita silenciosa (`__N` quando houver colisao)
+     - atualiza status e retorna sumario de resultado
+   - stub headless atualizado com `QFileDialog.getOpenFileNames`.
+2. `tests/test_gui_menu_import_external.py` (novo)
+   - cobre montagem do menu
+   - cobre importacao externa com colisao de nome e sufixo `__1`.
+3. docs/baseline:
+   - `README.md` promovido para `v4.31`.
+   - controle de ciclo segue sincronizado em NEXT/HANDOFF.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 360s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `9 passed`
+
 ## Update 2026-03-08 17:56 - fechamento dos pendentes de organizacao de importacao
 
 Session timestamp:
