@@ -2673,25 +2673,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         else:
             db_avancado_menu = db_menu
 
-        import_action = QAction("Importar XLS/XLSX externo...", self)
-        import_action.triggered.connect(self.import_external_excel_files)
-        cast(Any, arquivo_menu).addAction(import_action)
-
         load_action = QAction("Carregar dados", self)
         load_action.triggered.connect(self.load_data)
         cast(Any, arquivo_menu).addAction(load_action)
 
-        load_other_db_action = QAction("Carregar outro DB...", self)
-        load_other_db_action.triggered.connect(self.load_other_database)
-        cast(Any, arquivo_menu).addAction(load_other_db_action)
+        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
+        rescan_prompt_action.triggered.connect(self.rescan_data)
+        cast(Any, arquivo_menu).addAction(rescan_prompt_action)
 
         rescan_diff_action = QAction("Reescaneamento diff", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
         cast(Any, arquivo_menu).addAction(rescan_diff_action)
-
-        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
-        rescan_prompt_action.triggered.connect(self.rescan_data)
-        cast(Any, arquivo_menu).addAction(rescan_prompt_action)
 
         rescan_full_action = QAction("Reescaneamento completo", self)
         rescan_full_action.triggered.connect(self.rescan_full_data)
@@ -2705,9 +2697,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         consolidate_action.triggered.connect(self.consolidate_input_files)
         cast(Any, arquivo_menu).addAction(consolidate_action)
 
+        cast(Any, arquivo_menu).addSeparator()
+
+        import_action = QAction("Importar XLS/XLSX externo...", self)
+        import_action.triggered.connect(self.import_external_excel_files)
+        cast(Any, arquivo_menu).addAction(import_action)
+
         export_action = QAction("Exportar lista atual (txt)", self)
         export_action.triggered.connect(self._export_current_list_txt)
         cast(Any, arquivo_menu).addAction(export_action)
+
+        cast(Any, arquivo_menu).addSeparator()
 
         open_docs_action = QAction("Abrir pasta de entrada", self)
         open_docs_action.triggered.connect(self.open_docs_folder)
@@ -2721,6 +2721,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
         cast(Any, arquivo_menu).addAction(open_nosurvivor_action)
 
+        cast(Any, arquivo_menu).addSeparator()
+
         theme_action_arquivo = QAction("Tema", self)
         theme_action_arquivo.triggered.connect(self.toggle_theme_menu)
         cast(Any, arquivo_menu).addAction(theme_action_arquivo)
@@ -2729,19 +2731,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         help_action_arquivo.triggered.connect(self.show_filter_help)
         cast(Any, arquivo_menu).addAction(help_action_arquivo)
 
-        cast(Any, arquivo_menu).addSeparator()
-
         close_action = QAction("Sair", self)
         close_action.triggered.connect(self.close)
         cast(Any, arquivo_menu).addAction(close_action)
 
-        rescan_full_action = QAction("Reescaneamento completo", self)
-        rescan_full_action.triggered.connect(self.rescan_full_data)
-        cast(Any, importacao_menu).addAction(rescan_full_action)
+        import_action = QAction("Importar XLS/XLSX externo...", self)
+        import_action.triggered.connect(self.import_external_excel_files)
+        cast(Any, importacao_menu).addAction(import_action)
 
         rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
         rescan_prompt_action.triggered.connect(self.rescan_data)
         cast(Any, importacao_menu).addAction(rescan_prompt_action)
+
+        rescan_diff_action = QAction("Reescaneamento diff", self)
+        rescan_diff_action.triggered.connect(self.rescan_diff_data)
+        cast(Any, importacao_menu).addAction(rescan_diff_action)
+
+        rescan_full_action = QAction("Reescaneamento completo", self)
+        rescan_full_action.triggered.connect(self.rescan_full_data)
+        cast(Any, importacao_menu).addAction(rescan_full_action)
 
         derivadas_action = QAction("Atualizar derivadas", self)
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)

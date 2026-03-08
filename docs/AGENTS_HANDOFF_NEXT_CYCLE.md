@@ -2,6 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 20:10 - authoritative block
+
+- Refino final de navegacao:
+  1. `Arquivo` organizado como fluxo diario com separadores.
+  2. `Importacao`, `Database`, `Opcoes` preservados e operacionais.
+- Redundancia controlada:
+  1. operacoes diarias ficam acessiveis em `Arquivo`.
+  2. menus especializados continuam com as mesmas funcoes.
+- Validacao:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_menu_import_external.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 19:56 - authoritative block
 
 - Menus ajustados por usabilidade:

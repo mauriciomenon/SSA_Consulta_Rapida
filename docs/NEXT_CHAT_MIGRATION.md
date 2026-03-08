@@ -2,6 +2,20 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 20:10 - start from here
+
+- `Arquivo` foi refinado como fluxo diario:
+  1. ordem por uso + separadores.
+  2. atalhos diarios mantidos no topo.
+- Menus de origem preservados:
+  1. `Importacao` continua com operacoes de processamento e agora inclui diff/importar.
+  2. `Database` e `Opcoes` mantidos.
+- Hardening anteriores mantidos:
+  1. pasta inexistente pergunta e cria sob confirmacao.
+  2. menu `Tema` funciona com fallback no cursor.
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+
 ## CURRENT TRUTH 2026-03-08 19:56 - start from here
 
 - Menu operacional ajustado para uso diario:
