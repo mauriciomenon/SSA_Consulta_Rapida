@@ -29,7 +29,9 @@ Leitura consolidada:
 Correcao entregue no runtime (patch minimo):
 1. arquivo alterado: `core/app_logic.py`.
 2. arquivo de teste alterado: `tests/test_import_run_report.py`.
-3. novo bloco `durations` no `import_run_*.json` com:
+3. regra operacional aplicada em runtime:
+   - se `force_import=true` e `move_processed_after_import=true`, o fluxo desativa move com warning explicito.
+4. novo bloco `durations` no `import_run_*.json` com:
    - `sum_file_extraction_seconds`
    - `sum_file_validation_seconds`
    - `sum_file_insert_seconds`
@@ -37,7 +39,7 @@ Correcao entregue no runtime (patch minimo):
    - `run_postprocess_move_seconds`
    - `run_success_cache_update_seconds`
    - `run_deterministic_cache_update_seconds`
-4. comportamento funcional de importacao nao foi alterado.
+5. comportamento funcional de importacao nao foi alterado.
 
 Gates do slice:
 1. `uv run --python 3.13 python -m py_compile core/app_logic.py tests/test_import_run_report.py` -> pass
@@ -45,6 +47,11 @@ Gates do slice:
 3. `uv run --python 3.13 ty check core/app_logic.py tests/test_import_run_report.py` -> pass
 4. `timeout 300s uv run --python 3.13 pytest -q tests/test_import_run_report.py` -> `6 passed`
 5. `timeout 300s uv run --python 3.13 pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+
+Artefatos comparativos (report visual):
+1. `logs/move_policy_comparison_20260308_172923.csv`
+2. `logs/move_policy_family_insert_20260308_172923.csv`
+3. `logs/move_policy_comparison_20260308_172923.svg`
 
 ## Update 2026-03-08 12:44 - full rescan real com move pos-processamento ligado
 
