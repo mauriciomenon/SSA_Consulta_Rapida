@@ -15,6 +15,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Decisao operacional atual:
   1. full rescan pesado: manter `move_processed_after_import=false`
   2. incremental/controlado: `move` pode continuar habilitado
+  3. regra aplicada no runtime: `force_import=true` desativa move com warning explicito
 - Patch minimo de observabilidade entregue no runtime:
   1. `core/app_logic.py`: novo bloco `durations` no report `import_run_*.json`
   2. campos novos:
@@ -31,6 +32,10 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. py_compile + ruff + ty -> pass
   2. `pytest -q tests/test_import_run_report.py` -> `6 passed`
   3. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py` -> `4 passed`
+- Artefatos comparativos prontos:
+  1. `logs/move_policy_comparison_20260308_172923.csv`
+  2. `logs/move_policy_family_insert_20260308_172923.csv`
+  3. `logs/move_policy_comparison_20260308_172923.svg`
 
 ## CURRENT TRUTH 2026-03-08 12:44 - authoritative block
 

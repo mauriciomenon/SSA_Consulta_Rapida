@@ -1338,6 +1338,11 @@ def run_importer_logic(
         move_processed_after_import = bool(
             discovery_settings.get("move_processed_after_import", False)
         )
+        if force_import and move_processed_after_import:
+            logger.warning(
+                "Politica ativa: move_processed_after_import foi desativado em full rescan."
+            )
+            move_processed_after_import = False
         files_to_process = _get_files_to_process(
             docs_dir,
             cache_file,

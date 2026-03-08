@@ -17,6 +17,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
 - Conclusao de operacao:
   1. para full rescan pesado, manter `move_processed_after_import=false`.
   2. manter `move` para fluxo incremental/controlado.
+  3. runtime agora reforca essa politica: em `force_import=true`, o move e desativado com warning explicito.
 - Instrumentacao nova entregue em runtime (sem mudar comportamento):
   1. `core/app_logic.py` agora grava no `import_run_*.json`:
      - `durations.sum_file_extraction_seconds`
@@ -31,6 +32,10 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. py_compile + ruff + ty dos arquivos tocados: pass
   2. `pytest -q tests/test_import_run_report.py`: `6 passed`
   3. `pytest -q tests/test_app_logic_postprocess_moves.py tests/test_app_logic_full_rescan_lock.py`: `4 passed`
+- Artefatos comparativos prontos:
+  1. `logs/move_policy_comparison_20260308_172923.csv`
+  2. `logs/move_policy_family_insert_20260308_172923.csv`
+  3. `logs/move_policy_comparison_20260308_172923.svg`
 
 ## CURRENT TRUTH 2026-03-08 12:44 - start from here
 
