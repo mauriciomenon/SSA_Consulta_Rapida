@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 19:56 - authoritative block
+
+- Menus ajustados por usabilidade:
+  1. `DB` renomeado para `Database`.
+  2. `Arquivo` passou a concentrar atalhos diarios sem remover itens dos menus de origem.
+- Abertura de pasta hardening:
+  1. `open_*_folder` agora pergunta para criar pasta quando ela nao existe.
+  2. cria somente com confirmacao explicita.
+- Tema por menu:
+  1. fallback corrigido para abrir menu de tema no cursor quando sender nao e botao.
+- Evidencia de teste:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_theme.py`
+  3. `tests/test_gui_menu_import_external.py`
+  4. `tests/test_open_docs_folder_nonblocking.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 19:32 - authoritative block
 
 - Metadata runtime de release corrigida para `4.31`:

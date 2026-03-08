@@ -2,6 +2,22 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 19:56 - start from here
+
+- Menu operacional ajustado para uso diario:
+  1. `Arquivo` agora concentra atalhos principais sem remover menus de origem.
+  2. `DB` foi renomeado para `Database` para melhor clique/leitura.
+- Equivalencia e navegacao:
+  1. `Arquivo` ganhou atalhos de reescaneamento (diff/perguntar/completo), derivadas, consolidacao, tema e ajuda.
+  2. `Importacao`, `Database` e `Opcoes` permanecem com as mesmas operacoes especializadas.
+- Pastas:
+  1. ao abrir pasta inexistente, agora a GUI pergunta se deseja criar.
+  2. se confirmado, cria e abre.
+- Tema:
+  1. fallback corrigido para abrir menu de tema no cursor quando acionado por menu action.
+- Validacao da rodada:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `18 passed`
+
 ## CURRENT TRUTH 2026-03-08 19:32 - start from here
 
 - Metadata de versao runtime alinhada com release:

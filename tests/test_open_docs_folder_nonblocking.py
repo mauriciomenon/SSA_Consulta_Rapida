@@ -44,3 +44,40 @@ def test_open_docs_folder_missing_skips_modal_under_pytest(monkeypatch, tmp_path
     monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
 
     gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))
+
+
+def test_open_docs_folder_missing_prompts_and_creates_folder(monkeypatch, tmp_path):
+    from gui import gui_ssa
+
+    if not getattr(gui_ssa, "QT_AVAILABLE", False):
+        pytest.skip("Qt not available in this test environment")
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+
+    class _StdButtons:
+        Yes = 1
+        No = 2
+
+    asks = {"count": 0}
+
+    def _question(*_args, **_kwargs):
+        asks["count"] += 1
+        return _StdButtons.Yes
+
+    class DummyQDesktopServices:
+        @staticmethod
+        def openUrl(_url):
+            return True
+
+    monkeypatch.setattr(gui_ssa, "QDesktopServices", DummyQDesktopServices)
+    monkeypatch.setattr(gui_ssa.QMessageBox, "StandardButton", _StdButtons, raising=False)
+    monkeypatch.setattr(gui_ssa.QMessageBox, "question", _question, raising=False)
+    monkeypatch.setattr(gui_ssa.QMessageBox, "warning", lambda *a, **k: pytest.fail("QMessageBox.warning called"))
+
+    target_folder = tmp_path / "docs_entrada"
+    assert not target_folder.exists()
+    gui_ssa.SSAMainWindow.open_docs_folder(cast(Any, object()))
+
+    assert asks["count"] == 1
+    assert target_folder.exists()

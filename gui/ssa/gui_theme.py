@@ -78,6 +78,7 @@ def persist_gui_preferences(gui_prefs: dict, project_root: str, *, retries: int 
 def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
     from PyQt6.QtWidgets import QMenu, QWidgetAction, QCheckBox
     from functools import partial
+    from PyQt6.QtGui import QCursor
 
     menu = QMenu(window)
     # Em alguns estilos (Windows), QMenu ignora QPalette; aplique paleta/QSS com cores hex calculadas
@@ -224,8 +225,10 @@ def toggle_theme_menu(window, *, gui_prefs: dict, project_root: str) -> None:
         logger.debug("Falha ao calcular largura minima do menu de temas: %s", exc)
     btn = window.sender()
     try:
-        if btn is not None:
+        if btn is not None and hasattr(btn, "mapToGlobal") and hasattr(btn, "rect"):
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+        else:
+            menu.popup(QCursor.pos())
     except Exception as exc:
         logger.warning("Falha ao abrir menu de temas: %s", exc)
 
