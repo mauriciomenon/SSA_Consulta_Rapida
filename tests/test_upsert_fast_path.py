@@ -123,6 +123,43 @@ def test_perform_upsert_falls_back_when_target_has_existing_ssa(
     assert "Fast-path append" not in caplog.text
 
 
+def test_perform_upsert_non_short_policy_uses_lazy_existing_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    conn.execute("ALTER TABLE ssa_table ADD COLUMN arquivo_origem TEXT")
+    conn.execute(
+        "INSERT INTO ssa_table (numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem) VALUES (?, ?, ?, ?, ?)",
+        ("1001", "SSA antiga", "2026-01-01 00:00:00", 202601, "Todas as SSAs - 18-08-2022_1144AM.xlsx"),
+    )
+    conn.commit()
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": "1001",
+                "descricao_ssa": "SSA nova",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+                "arquivo_origem": "Todas as SSAs - 18-08-2022_1144AM.xlsx",
+            }
+        ]
+    )
+
+    def _unexpected_eager_cache(*args, **kwargs) -> dict[str, pd.Series]:
+        raise AssertionError("_build_existing_series_cache nao deve ser chamado no ramo lazy")
+
+    monkeypatch.setattr(upsert_logic, "_build_existing_series_cache", _unexpected_eager_cache)
+
+    processed = upsert_logic._perform_upsert(incoming, "ssa_table", conn, chunk_size=100)
+
+    row = conn.execute(
+        "SELECT numero_ssa, descricao_ssa, data_cadastro, semana_programada, arquivo_origem FROM ssa_table"
+    ).fetchone()
+    assert processed == 1
+    assert row == ("1001", "SSA nova", "2026-01-02 00:00:00", 202602, "Todas as SSAs - 18-08-2022_1144AM.xlsx")
+
+
 def test_insert_dataframe_with_smart_upsert_impl_keeps_mixed_transaction_flow() -> None:
     conn = sqlite3.connect(":memory:")
     conn.execute(

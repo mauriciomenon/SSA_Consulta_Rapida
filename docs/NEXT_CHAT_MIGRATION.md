@@ -2,6 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-07 22:23 - start from here
+
+- Slice fechado no hot path de upsert sem tocar robust:
+  1. `armazenamento/database_upsert_logic.py` agora usa cache lazy de `existing_row` tambem no ramo sem short-circuit.
+  2. tuple de comparacao (`existing_chunk_tuple_by_ssa`) agora so e atualizado quando `enable_exact_overlap_short_circuit=True`.
+  3. `_perform_upsert` foi quebrado de forma minima com helper `_collect_chunk_upsert_delta` para reduzir complexidade local.
+  4. custo de inicializacao por chunk no ramo normal foi reduzido sem alterar regra de merge.
+- Teste novo:
+  1. `tests/test_upsert_fast_path.py::test_perform_upsert_non_short_policy_uses_lazy_existing_cache`
+- Validacao desta rodada:
+  1. py_compile + ruff + ty: pass
+  2. `pytest -q tests/test_upsert_fast_path.py`: `22 passed`
+  3. kluster: `1 P4 -> clean` no mesmo slice.
+- Escopo preservado:
+  1. nenhum ajuste em `extracao/*` nem em robust.
+  2. nenhuma mudanca em GUI/layout.
+
 ## CURRENT TRUTH 2026-03-07 22:14 - start from here
 
 - Contrato de arquitetura confirmado em testes:
