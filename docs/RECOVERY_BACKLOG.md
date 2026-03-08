@@ -3,6 +3,42 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 18:36 - GUI rescan explicito (Diff/Full) sem prompt
+
+Session timestamp:
+1. start: `2026-03-08 18:35:01 -0300`
+2. end: `2026-03-08 18:36:52 -0300`
+
+Objetivo do slice:
+1. deixar o modo de reescaneamento explicito no menu (`Diff` e `Full`) sem depender de prompt.
+2. manter compatibilidade com acao antiga por prompt na toolbar.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_workers.py`
+   - `rescan_data` recebeu parametro `rescan_mode` (`prompt|diff|full`).
+   - `diff` força `force_import=False` sem dialogo.
+   - `full` força `force_import=True` sem dialogo.
+   - `prompt` preserva fluxo anterior.
+2. `gui/gui_ssa.py`
+   - menu `DB` agora expõe:
+     - `Reescanear Diff (hash)`
+     - `Reescanear Full (zera e reprocessa)`
+   - novas funcoes:
+     - `rescan_diff_data`
+     - `rescan_full_data`
+   - `rescan_data` da toolbar continua em modo `prompt` para compatibilidade.
+3. testes:
+   - `tests/test_gui_workers_rescan_data.py`
+     - cobertura de `rescan_mode=diff` e `rescan_mode=full` sem prompt.
+   - `tests/test_gui_menu_import_external.py`
+     - ajuste de contagem de acoes do menu `DB` para 8.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+4. `timeout 420s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py tests/test_open_docs_folder_nonblocking.py` -> `13 passed`
+
 ## Update 2026-03-08 18:32 - GUI menu (slice 2/2): consolidacao + opcoes com failsafe
 
 Session timestamp:

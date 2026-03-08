@@ -904,9 +904,22 @@ def rescan_data(
     retired_ttl_sec: float,
     retired_force_wait_ms: int,
     sip_module,
+    rescan_mode: str = "prompt",
 ) -> None:
+    normalized_mode = str(rescan_mode or "prompt").strip().lower()
+    if normalized_mode not in {"prompt", "diff", "full"}:
+        logger.warning(
+            "Modo de reescaneamento invalido '%s'; usando prompt.",
+            rescan_mode,
+        )
+        normalized_mode = "prompt"
+
     force_import = True
-    if qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
+    if normalized_mode == "diff":
+        force_import = False
+    elif normalized_mode == "full":
+        force_import = True
+    elif qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
         prompt = qmessagebox(window)
         prompt.setWindowTitle("Modo de Reescaneamento")
         prompt.setText("Escolha o modo de reprocessamento dos arquivos.")

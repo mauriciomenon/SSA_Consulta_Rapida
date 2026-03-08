@@ -2,6 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 18:36 - authoritative block
+
+- Baseline local de documentacao: `4.31`.
+- Reescaneamento com modos explicitos no menu `DB`:
+  1. `Reescanear Diff (hash)` sem prompt, com `force_import=false`
+  2. `Reescanear Full (zera e reprocessa)` sem prompt, com `force_import=true`
+- Compatibilidade preservada:
+  1. `rescan_data` antigo continua no modo `prompt` para fluxo existente.
+- Implementacao:
+  1. `gui/ssa/gui_workers.py` recebeu `rescan_mode` em `rescan_data`.
+  2. `gui/gui_ssa.py` adicionou `rescan_diff_data` e `rescan_full_data`.
+- Evidencia:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py tests/test_open_docs_folder_nonblocking.py` -> `13 passed`
+- Arquivos alterados:
+  1. `gui/ssa/gui_workers.py`
+  2. `gui/gui_ssa.py`
+  3. `tests/test_gui_workers_rescan_data.py`
+  4. `tests/test_gui_menu_import_external.py`
+
 ## CURRENT TRUTH 2026-03-08 18:32 - authoritative block
 
 - Baseline local de documentacao: `4.31`.
