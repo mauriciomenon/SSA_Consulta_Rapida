@@ -2,6 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-09 08:41 - start from here
+
+- Baseline ativo promovido para `4.32` neste ciclo.
+- Sincronizacao de versao concluida em:
+  1. `VERSION`
+  2. `config/version.json`
+  3. `README.md`
+  4. `docs/HISTORICO_RELEASES.md`
+  5. `docs/FILTER_TAB_OPTIMIZATIONS.md`
+  6. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+- Regra de leitura para continuidade:
+  1. usar este bloco como ponto inicial.
+  2. tratar blocos abaixo como historico de iteracoes anteriores.
+- Estado de residuos locais fora de escopo mantido:
+  1. `data/ssas.db` (local)
+  2. `config/settings.json.bak_20260308_212715` (backup local)
+
 ## CURRENT TRUTH 2026-03-09 06:45 - start from here
 
 - Pacote unico executado sem etapas manuais:
