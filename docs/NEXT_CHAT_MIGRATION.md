@@ -2,6 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-09 06:45 - start from here
+
+- Pacote unico executado sem etapas manuais:
+  1. backup de DB
+  2. full rescan real
+  3. consolidacao automatica de metricas e saude
+  4. comparativo com baseline anterior
+- Evidencias principais:
+  1. `logs/import_run_20260309_010936_830587.json`
+  2. `logs/full_rescan_runtime_20260309_010934.log`
+  3. `docs/indicios_importacao.md` (secao `Sessao 2026-03-09`)
+  4. `logs/full_rescan_summary_20260309_063007.json`
+- Resultado:
+  1. `status=updated`, `result=true`
+  2. `431/431` arquivos com sucesso
+  3. `497162` linhas inseridas
+  4. DB final sem drift (`id` presente, sem `nan*`, `integrity_check=ok`)
+- Nota de interpretacao de tempo:
+  1. `duration_seconds` total do run inclui tempo em loop CLI apos import.
+  2. para comparar throughput de import, usar `run_file_processing_seconds=1251.979s`.
+
 ## CURRENT TRUTH 2026-03-09 01:05 - start from here
 
 - Slice de performance focado entregue:

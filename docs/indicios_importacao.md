@@ -1,5 +1,108 @@
 # Indicios Importacao - Sessao 2026-03-05
 
+## Sessao 2026-03-09 - full rescan real end-to-end (pacote unico)
+
+### Escopo executado
+- Branch: `codex/sprint-importacao-grave-fixes-20260305`
+- Inicio: `2026-03-09 01:08:50 -0300`
+- Fim: `2026-03-09 04:38:31 -0300`
+- Comando: `uv run --python 3.13 python main.py --force-rescan --log-level INFO`
+- Backup criado antes do rescan:
+  - `data/db_backups/ssas.db.pre_full_rescan_20260309_010934.db`
+- Log runtime:
+  - `logs/full_rescan_runtime_20260309_010934.log`
+- Report principal da rodada:
+  - `logs/import_run_20260309_010936_830587.json`
+
+### Resultado consolidado
+- Status import: `updated` (`result=true`)
+- Arquivos candidatos: `431`
+- Arquivos sucesso: `431`
+- Arquivos erro: `0`
+- XLS legado ignorado por politica: `135`
+- Linhas extraidas: `497162`
+- Linhas removidas por identidade invalida: `2763`
+- Linhas prontas para insert: `497162`
+- Linhas inseridas: `497162`
+
+### Tempo e performance
+- `duration_seconds` total do run: `12522.179s` (inclui tempo no prompt CLI apos concluir import)
+- Tempo efetivo do pipeline de arquivos (`run_file_processing_seconds`): `1251.979s` (~20.9 min)
+- Somatorios por fase (novos campos em `durations`):
+  - `sum_file_extraction_seconds`: `225.817s`
+  - `sum_file_validation_seconds`: `294.541s`
+  - `sum_file_insert_seconds`: `717.991s`
+
+Observacao critica de medicao:
+- O total `12522s` ficou inflado por execucao via `main.py` em modo nao interativo.
+- Apos concluir a importacao, o CLI entrou no loop de input e encerrou por `EOF`.
+- Para benchmark puro de importacao, usar execucao direta de `run_importer_logic(...)` sem loop interativo.
+
+### Gargalos observados (insert por arquivo)
+Top arquivos por `insert_seconds` nesta rodada:
+1. `Consulta SSA - 15-12-2025_0105PM (1).xlsx`: `34.411s`
+2. `Consulta SSA - 18-12-2025_0452PM.xlsx`: `17.790s`
+3. `Todas as SSAs - 18-08-2022_1144AM.xlsx`: `16.914s`
+4. `Consulta SSA - 20-02-2026_1118AM (1).xlsx`: `13.604s`
+5. `Todas as SSAs - 14-07-2022_1010AM - Copia.xlsx`: `13.110s`
+
+Fonte:
+- `logs/full_rescan_top_insert_20260309_063007.csv`
+
+### Gargalos por familia de planilha (insert agregado)
+Top familias por `insert_seconds`:
+1. `Consulta SSA`: `450.954s` (`168` arquivos)
+2. `SSAs Executadas`: `150.935s` (`102` arquivos)
+3. `Todas as SSAs`: `70.972s` (`28` arquivos)
+
+Fonte:
+- `logs/full_rescan_family_insert_20260309_063007.csv`
+
+### Remocoes por identidade invalida
+Top arquivos por `rows_removed_invalid_identity`:
+1. `SSAscomReprogramações_07-01-2026_0225PM.xlsx`: `1778`
+2. `SSAs Pendentes com Execução Parcial_02-02-2026_1141AM.xlsx`: `323`
+3. `SSAs Pendentes com Execução Parcial_10-09-2025_0317PM.xlsx`: `261`
+
+Fonte:
+- `logs/full_rescan_top_invalid_20260309_063007.csv`
+
+### Saude do DB apos rodada
+- `integrity_check`: `ok`
+- `rows_total`: `76426`
+- `distinct_numero_ssa`: `76426`
+- `duplicate_numero_ssa`: `0`
+- `rows_sem_data_cadastro`: `662`
+- `column_count`: `82`
+- `id_column_exists`: `true`
+- `nan_columns`: `[]`
+
+Leitura tecnica:
+- Sem drift de schema detectado nesta rodada (sem colunas `nan*`, coluna `id` presente).
+- Integridade estrutural e deduplicacao de `numero_ssa` permaneceram estaveis.
+
+### Warnings relevantes no runtime log
+- Aviso esperado de politica ativa: `135` arquivos `.xls` legados ignorados.
+- Warnings de remocao de registros invalidos concentrados em:
+  - `SSAscomReprogramações_*`
+  - `SSAs Pendentes com Execução Parcial_*`
+  - `SSAs com Desvio na Programação_*`
+- Warnings de duplicidade exata no export em 2 arquivos `Todas as SSAs` (2 linhas cada).
+
+### Comparativo de referencia (baseline anterior de sucesso)
+- Baseline usado: `logs/import_run_20260308_164411_546107.json`
+- Delta principal:
+  - candidatos/sucessos/linhas: equivalentes
+  - `ignored_legacy_excel_count`: `0 -> 135` (politica agora explicitamente contabilizada)
+  - baseline antigo nao tinha bloco `durations`, entao comparacao de fases ficou disponivel apenas na rodada atual
+
+Artefatos comparativos gerados:
+- `logs/full_rescan_summary_20260309_063007.json`
+- `logs/full_rescan_summary_20260309_063007.csv`
+- `logs/full_rescan_family_insert_20260309_063007.csv`
+- `logs/full_rescan_top_insert_20260309_063007.csv`
+- `logs/full_rescan_top_invalid_20260309_063007.csv`
+
 ## Escopo
 - Objetivo: testar importacao do zero, medir tempo, confiabilidade, perdas e saude do DB.
 - Branch: `codex/sprint-importacao-grave-fixes-20260305`.
