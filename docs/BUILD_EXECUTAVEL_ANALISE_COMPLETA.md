@@ -1,5 +1,12 @@
 # Analise Completa: Build de Executavel para SSA Consulta Rapida
 
+## HISTORICAL SNAPSHOT
+
+Este laudo reflete uma analise pontual de 2025.
+Para fluxo ativo de build no baseline v4.32, usar:
+- `docs/BUILD_SYSTEM.md`
+- `docs/BUILD_MULTIPLATFORM.md`
+
 ## Metadata
 
 | Campo | Valor |

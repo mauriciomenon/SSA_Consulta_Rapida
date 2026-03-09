@@ -2,6 +2,11 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
+## Nota de versao
+
+Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.
+No fluxo ativo, usar a versao corrente definida em `VERSION` e `config/version.json`.
+
 ## Estrutura de Build
 
 ```
