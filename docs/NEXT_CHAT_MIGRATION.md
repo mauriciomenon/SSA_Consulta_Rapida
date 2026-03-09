@@ -2,6 +2,19 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 21:06 - start from here
+
+- Menus atualizados conforme texto aprovado:
+  1. `Arquivo` com rotulos finais (Recarregar Dados, Reescanear, Atualizar Dados, etc.).
+  2. `Importacao`, `Database`, `Database > Avancado`, `Opcoes` ajustados.
+  3. novo menu top-level `Ajuda`.
+- Ajuste de box de reescaneamento:
+  1. prompt de modo com texto refinado (`Reescanear`, `Atualizar Dados (diff)`, `Reescaneamento Completo`).
+  2. diff sem alteracoes nao aparece mais como falha vermelha.
+  3. status final referencia `Recarregar Dados`.
+- Validacao:
+  1. `48 passed` nos testes focados de menu e reescaneamento.
+
 ## CURRENT TRUTH 2026-03-08 20:29 - start from here
 
 - Menu de opcoes clarificado:

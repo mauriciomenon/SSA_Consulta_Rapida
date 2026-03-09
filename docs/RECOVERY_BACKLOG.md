@@ -3,6 +3,42 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 21:06 - menu final conforme texto aprovado + box de reescaneamento
+
+Session timestamp:
+1. start: `2026-03-08 20:36:00 -0300`
+2. end: `2026-03-08 21:06:05 -0300`
+
+Objetivo do slice:
+1. aplicar os rotulos do menu exatamente como solicitado pelo usuario.
+2. substituir textos repetidos em todas as ocorrencias equivalentes.
+3. melhorar texto do box de reescaneamento para diff sem alteracoes.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menus e rotulos ajustados conforme lista aprovada:
+     - `Arquivo` com fluxo diario final.
+     - `Importacao` com a lista solicitada.
+     - `Database` e `Database > Avancado` (`Compactar DB`).
+     - `Opcoes` com 3 itens finais.
+     - novo menu top-level `Ajuda` com acao `Ajuda`.
+2. `gui/ssa/gui_workers.py`
+   - textos do prompt de reescanear ajustados:
+     - titulo `Reescanear`
+     - mensagens com `Atualizar Dados (diff)` e `Reescaneamento Completo`
+   - status final atualizado para `Recarregar Dados`.
+3. `gui/workers/rescan_worker.py`
+   - modo diff sem alteracoes agora conclui como sucesso (nao erro vermelho).
+   - mensagem final do output: `Nenhum arquivo novo ou alterado foi encontrado.`
+4. `tests/test_gui_menu_import_external.py`
+   - validacao explicita das labels de todos os menus e submenu.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py tests/test_rescan_worker_advanced.py` -> `48 passed`
+
 ## Update 2026-03-08 20:29 - opcoes claras: editor externo + restaurar padrao
 
 Session timestamp:

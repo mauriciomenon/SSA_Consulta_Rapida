@@ -2667,57 +2667,58 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         importacao_menu = menu_bar.addMenu("Importacao")
         db_menu = menu_bar.addMenu("Database")
         opcoes_menu = menu_bar.addMenu("Opcoes")
+        ajuda_menu = menu_bar.addMenu("Ajuda")
         db_avancado_menu: Any
         if hasattr(db_menu, "addMenu"):
             db_avancado_menu = cast(Any, db_menu).addMenu("Avancado")
         else:
             db_avancado_menu = db_menu
 
-        load_action = QAction("Carregar dados", self)
+        load_action = QAction("Recarregar Dados", self)
         load_action.triggered.connect(self.load_data)
         cast(Any, arquivo_menu).addAction(load_action)
 
-        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
+        rescan_prompt_action = QAction("Reescanear", self)
         rescan_prompt_action.triggered.connect(self.rescan_data)
         cast(Any, arquivo_menu).addAction(rescan_prompt_action)
 
-        rescan_diff_action = QAction("Reescaneamento diff", self)
+        rescan_diff_action = QAction("Atualizar Dados", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
         cast(Any, arquivo_menu).addAction(rescan_diff_action)
 
-        rescan_full_action = QAction("Reescaneamento completo", self)
+        rescan_full_action = QAction("Reescaneamento Completo", self)
         rescan_full_action.triggered.connect(self.rescan_full_data)
         cast(Any, arquivo_menu).addAction(rescan_full_action)
 
-        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action = QAction("Atualizar Derivadas", self)
         derivadas_action.triggered.connect(self.update_derivadas_from_sources)
         cast(Any, arquivo_menu).addAction(derivadas_action)
 
-        consolidate_action = QAction("Consolidar arquivos de entrada", self)
+        consolidate_action = QAction("Consolidar Arquivos de Entrada", self)
         consolidate_action.triggered.connect(self.consolidate_input_files)
         cast(Any, arquivo_menu).addAction(consolidate_action)
 
         cast(Any, arquivo_menu).addSeparator()
 
-        import_action = QAction("Importar XLS/XLSX externo...", self)
+        import_action = QAction("Importar XLS/XLSX", self)
         import_action.triggered.connect(self.import_external_excel_files)
         cast(Any, arquivo_menu).addAction(import_action)
 
-        export_action = QAction("Exportar lista atual (txt)", self)
+        export_action = QAction("Exportar lista", self)
         export_action.triggered.connect(self._export_current_list_txt)
         cast(Any, arquivo_menu).addAction(export_action)
 
         cast(Any, arquivo_menu).addSeparator()
 
-        open_docs_action = QAction("Abrir pasta de entrada", self)
+        open_docs_action = QAction("Abrir Pasta de Arquivos", self)
         open_docs_action.triggered.connect(self.open_docs_folder)
         cast(Any, arquivo_menu).addAction(open_docs_action)
 
-        open_processadas_action = QAction("Abrir pasta processadas", self)
+        open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
         open_processadas_action.triggered.connect(self.open_processadas_folder)
         cast(Any, arquivo_menu).addAction(open_processadas_action)
 
-        open_nosurvivor_action = QAction("Abrir pasta sem sobreviventes", self)
+        open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
         open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
         cast(Any, arquivo_menu).addAction(open_nosurvivor_action)
 
@@ -2763,11 +2764,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         load_other_db_action.triggered.connect(self.load_other_database)
         cast(Any, db_menu).addAction(load_other_db_action)
 
-        vacuum_analyze_action = QAction("Executar VACUUM/ANALYZE", self)
+        vacuum_analyze_action = QAction("Compactar DB", self)
         vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
         db_avancado_menu.addAction(vacuum_analyze_action)
 
-        open_settings_action = QAction("Abrir arquivo de opcoes (editor externo)", self)
+        open_settings_action = QAction("Abrir arquivo de opcoes", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
         cast(Any, opcoes_menu).addAction(open_settings_action)
 
@@ -2775,13 +2776,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         reset_settings_action.triggered.connect(self.reset_settings_to_defaults)
         cast(Any, opcoes_menu).addAction(reset_settings_action)
 
-        theme_action = QAction("Tema", self)
+        theme_action = QAction("Selecionar Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
         cast(Any, opcoes_menu).addAction(theme_action)
 
         help_action = QAction("Ajuda", self)
         help_action.triggered.connect(self.show_filter_help)
-        cast(Any, opcoes_menu).addAction(help_action)
+        cast(Any, ajuda_menu).addAction(help_action)
 
     def import_external_excel_files(self):
         """Importa arquivos XLS/XLSX externos para docs_entrada com copia segura."""
