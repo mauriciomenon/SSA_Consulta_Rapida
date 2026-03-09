@@ -2,6 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-09 01:05 - authoritative block
+
+- Slice de performance entregue:
+  1. reducao de jank no sort de `num_reprogramacoes`.
+  2. coalescing de recompute no resize (timer unico restartavel).
+  3. prewarm de cache de sort no `on_data_loaded`.
+- Evidencia:
+  1. `pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or on_data_loaded_primes_num_reprogramacoes_sort_cache or resize_event_coalesces_width_recompute_with_restartable_timer or prune_retired_loader_workers_removes_stale_refs_without_finished_signal"` -> `5 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `tests/test_gui_filter_logic.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Deferido:
+  1. offload completo de width compute para worker (fora de escopo deste patch minimo).
+  2. primeira ordenacao em base extrema ainda pode ter custo alto.
+
 ## CURRENT TRUTH 2026-03-09 00:30 - authoritative block
 
 - Correcao entregue no slice:

@@ -732,6 +732,11 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
     try:
+        if hasattr(window, "_prime_num_reprogramacoes_sort_cache"):
+            window._prime_num_reprogramacoes_sort_cache()
+    except Exception as exc:
+        logger.debug("Falha ao preaquecer cache de sort de num_reprogramacoes: %s", exc)
+    try:
         try:
             non_null_mask = df_copy.notna().any(axis=0)
             non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
