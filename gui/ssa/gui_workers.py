@@ -201,6 +201,72 @@ def is_data_loader_worker_running(worker, sip_module) -> bool:
     return False
 
 
+def _classify_workers_for_ttl(
+    workers: list,
+    *,
+    global_meta: dict,
+    now: float,
+    retired_ttl_sec: float,
+    max_global_workers: int,
+    is_running_fn,
+) -> tuple[list, list]:
+    running_workers: list = []
+    expired_workers: list = []
+    for worker in list(workers):
+        if not is_running_fn(worker):
+            global_meta.pop(worker, None)
+            continue
+        started_at = global_meta.get(worker, now)
+        age = now - started_at
+        if age > retired_ttl_sec:
+            expired_workers.append(worker)
+        running_workers.append(worker)
+    if len(running_workers) > max_global_workers:
+        running_workers = running_workers[-max_global_workers:]
+    return running_workers, expired_workers
+
+
+def _drop_orphaned_worker_meta(global_workers: list, global_meta: dict, protected_workers: set | None = None) -> None:
+    protected = protected_workers or set()
+    for worker in list(global_meta.keys()):
+        if worker not in global_workers and worker not in protected:
+            global_meta.pop(worker, None)
+
+
+def _process_expired_workers(
+    expired_workers: list,
+    *,
+    now: float,
+    global_workers: list,
+    global_meta: dict,
+    warn_message: str,
+    stop_worker_fn,
+    stop_error_log: str,
+    skip_workers: set | None = None,
+) -> set:
+    removed_workers: set = set()
+    skip = skip_workers or set()
+    for worker in expired_workers:
+        if worker in skip:
+            continue
+        logger.warning(warn_message)
+        try:
+            stopped = bool(stop_worker_fn(worker))
+        except Exception as exc:
+            logger.debug(stop_error_log, exc)
+            stopped = False
+        if stopped:
+            removed_workers.add(worker)
+            with _GLOBAL_WORKERS_LOCK:
+                if worker in global_workers:
+                    global_workers.remove(worker)
+                global_meta.pop(worker, None)
+        else:
+            with _GLOBAL_WORKERS_LOCK:
+                global_meta[worker] = now
+    return removed_workers
+
+
 def prune_retired_data_loader_workers(
     window,
     *,
@@ -229,79 +295,49 @@ def prune_retired_data_loader_workers(
             if age > retired_ttl_sec:
                 expired_local.append(w)
 
-        running_global = []
-        for w in list(global_workers):
-            if not is_data_loader_worker_running(w, sip_module):
-                global_meta.pop(w, None)
-                continue
-            started_at = global_meta.get(w, now)
-            age = now - started_at
-            if age > retired_ttl_sec:
-                expired_global.append(w)
-            running_global.append(w)
-        if len(running_global) > max_global_workers:
-            running_global = running_global[-max_global_workers:]
+        running_global, expired_global = _classify_workers_for_ttl(
+            global_workers,
+            global_meta=global_meta,
+            now=now,
+            retired_ttl_sec=retired_ttl_sec,
+            max_global_workers=max_global_workers,
+            is_running_fn=lambda worker: is_data_loader_worker_running(worker, sip_module),
+        )
         global_workers[:] = running_global
-    for w in expired_local:
-        logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-        try:
-            stopped = cleanup_data_loader_worker(
-                window,
-                w,
-                wait_ms=retired_force_wait_ms,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-            stopped = False
-        if stopped:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta.pop(w, None)
-            removed_local.add(w)
-        else:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta[w] = now
-    for w in expired_global:
-        if w in removed_local:
-            continue
-        logger.warning("Data loader worker excedeu TTL; solicitando stop.")
-        try:
-            stopped = cleanup_data_loader_worker(
-                window,
-                w,
-                wait_ms=retired_force_wait_ms,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
-        except Exception as exc:
-            logger.debug("Falha ao encerrar data loader worker expirado: %s", exc)
-            stopped = False
-        if stopped:
-            with _GLOBAL_WORKERS_LOCK:
-                if w in global_workers:
-                    global_workers.remove(w)
-                global_meta.pop(w, None)
-        else:
-            with _GLOBAL_WORKERS_LOCK:
-                global_meta[w] = now
+    expired_all = list(expired_local)
+    expired_all.extend([worker for worker in expired_global if worker not in removed_local])
+
+    def _stop_data_loader_worker(worker) -> bool:
+        return cleanup_data_loader_worker(
+            window,
+            worker,
+            wait_ms=retired_force_wait_ms,
+            global_workers=global_workers,
+            global_meta=global_meta,
+            max_global_workers=max_global_workers,
+            retired_ttl_sec=retired_ttl_sec,
+            retired_force_wait_ms=retired_force_wait_ms,
+            sip_module=sip_module,
+        )
+
+    removed_by_ttl = _process_expired_workers(
+        expired_all,
+        now=now,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        warn_message="Data loader worker excedeu TTL; solicitando stop.",
+        stop_worker_fn=_stop_data_loader_worker,
+        stop_error_log="Falha ao encerrar data loader worker expirado: %s",
+        skip_workers=removed_local,
+    )
+    removed_local.update(removed_by_ttl)
     with _GLOBAL_WORKERS_LOCK:
         retired_snapshot = set(getattr(window, "_retired_data_loader_workers", []) or [])
         if removed_local:
             retired_current = list(getattr(window, "_retired_data_loader_workers", []) or [])
             window._retired_data_loader_workers = [w for w in retired_current if w not in removed_local]
             retired_snapshot = set(window._retired_data_loader_workers)
-        for w in list(global_meta.keys()):
-            if w not in global_workers and w not in retired_snapshot:
-                global_meta.pop(w, None)
+        _drop_orphaned_worker_meta(global_workers, global_meta, retired_snapshot)
 
 
 def is_rescan_worker_running(worker, sip_module) -> bool:
@@ -326,48 +362,41 @@ def prune_retired_rescan_workers(
     retired_force_wait_ms: int,
     sip_module,
 ) -> None:
-    # NOTE: TTL/prune logic mirrors data loader flow; keep in sync. Refactor tracked in backlog.
     now = perf_counter()
     expired_global = []
-    running_global = []
     with _GLOBAL_WORKERS_LOCK:
-        for w in list(global_workers):
-            if not is_rescan_worker_running(w, sip_module):
-                global_meta.pop(w, None)
-                continue
-            started_at = global_meta.get(w, now)
-            age = now - started_at
-            if age > retired_ttl_sec:
-                expired_global.append(w)
-            running_global.append(w)
-        if len(running_global) > max_global_workers:
-            running_global = running_global[-max_global_workers:]
+        running_global, expired_global = _classify_workers_for_ttl(
+            global_workers,
+            global_meta=global_meta,
+            now=now,
+            retired_ttl_sec=retired_ttl_sec,
+            max_global_workers=max_global_workers,
+            is_running_fn=lambda worker: is_rescan_worker_running(worker, sip_module),
+        )
         global_workers[:] = running_global
-        for w in list(global_meta.keys()):
-            if w not in global_workers:
-                global_meta.pop(w, None)
-    for w in expired_global:
-        logger.warning("Rescan worker excedeu TTL; solicitando stop.")
-        try:
-            if hasattr(w, "stop"):
-                w.stop()
-            if hasattr(w, "quit"):
-                w.quit()
-            if hasattr(w, "wait"):
-                w.wait(int(retired_force_wait_ms))
-            if hasattr(w, "isRunning") and w.isRunning() and hasattr(w, "terminate"):
-                w.terminate()
-                w.wait(int(retired_force_wait_ms))
-        except Exception as exc:
-            logger.debug("Falha ao encerrar rescan worker expirado: %s", exc)
-        if not is_rescan_worker_running(w, sip_module):
-            with _GLOBAL_WORKERS_LOCK:
-                if w in global_workers:
-                    global_workers.remove(w)
-                global_meta.pop(w, None)
-            continue
-        with _GLOBAL_WORKERS_LOCK:
-            global_meta[w] = now
+        _drop_orphaned_worker_meta(global_workers, global_meta)
+
+    def _stop_rescan_worker(worker) -> bool:
+        if hasattr(worker, "stop"):
+            worker.stop()
+        if hasattr(worker, "quit"):
+            worker.quit()
+        if hasattr(worker, "wait"):
+            worker.wait(int(retired_force_wait_ms))
+        if hasattr(worker, "isRunning") and worker.isRunning() and hasattr(worker, "terminate"):
+            worker.terminate()
+            worker.wait(int(retired_force_wait_ms))
+        return not is_rescan_worker_running(worker, sip_module)
+
+    _process_expired_workers(
+        expired_global,
+        now=now,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        warn_message="Rescan worker excedeu TTL; solicitando stop.",
+        stop_worker_fn=_stop_rescan_worker,
+        stop_error_log="Falha ao encerrar rescan worker expirado: %s",
+    )
 
 
 def cleanup_data_loader_worker(

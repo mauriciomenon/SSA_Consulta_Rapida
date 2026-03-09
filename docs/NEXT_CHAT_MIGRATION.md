@@ -2,6 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-09 00:30 - start from here
+
+- Slice fechado para 3 pontos solicitados:
+  1. `MEDIUM quality`: dedup de manutencao entre prunes de workers.
+  2. `HIGH performance` (escopo local): cache de sort para `num_reprogramacoes` no clique de header.
+  3. versao do guia de instalacao/help alinhada para `v4.31`.
+- Mudancas tecnicas:
+  1. `gui/ssa/gui_workers.py`:
+     - helper comum `_process_expired_workers`;
+     - helper comum `_drop_orphaned_worker_meta`;
+     - ambos prunes reutilizam fluxo compartilhado.
+  2. `gui/gui_ssa.py`:
+     - `_build_num_reprogramacoes_sort_keys` + `_get_num_reprogramacoes_sort_keys`;
+     - `_sort_num_reprogramacoes_robust` agora usa cache por dataset filtrado.
+  3. `tests/test_gui_filter_logic.py`:
+     - novo teste de reuso de cache no toggle de sort.
+  4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`:
+     - cabecalho atualizado para `v4.31`.
+- Validacao da rodada:
+  1. `py_compile` pass
+  2. `ruff` pass
+  3. `ty` pass
+  4. `pytest` focado -> `3 passed` + `19 passed`
+- Risco residual mapeado para proximo ciclo:
+  1. debts amplos de arquitetura/performance em `SSAMainWindow` permanecem fora de escopo.
+  2. reescaneamento prompt/naming continua como tema de UX separado.
+  3. semantica de tooltip/placeholder da busca geral precisa alinhar texto com modos avancados.
+  4. hardening adicional no path opener pode ser aplicado em slice dedicado.
+  5. lock contention potencial no prune global de workers requer medicao sob carga.
+
 ## CURRENT TRUTH 2026-03-09 00:04 - start from here
 
 - Hotfix aplicado para 3 pontos de risco real:
