@@ -2,6 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 21:06 - authoritative block
+
+- Menus finais aplicados conforme solicitacao textual do usuario:
+  1. `Arquivo` completo com fluxo diario.
+  2. `Importacao` com lista dedicada.
+  3. `Database` + `Database > Avancado` (`Compactar DB`).
+  4. `Opcoes` com 3 itens finais.
+  5. menu top-level `Ajuda`.
+- Box de reescaneamento ajustado:
+  1. prompt de escolha com textos novos.
+  2. diff sem alteracoes tratado como conclusao sem erro final.
+  3. status final orienta `Recarregar Dados`.
+- Evidencia:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py tests/test_rescan_worker_advanced.py` -> `48 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `gui/workers/rescan_worker.py`
+  4. `tests/test_gui_menu_import_external.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 20:29 - authoritative block
 
 - `Opcoes` ajustado para evitar ambiguidade:

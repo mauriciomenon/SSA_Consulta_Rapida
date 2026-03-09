@@ -921,14 +921,14 @@ def rescan_data(
         force_import = True
     elif qmessagebox is not None and hasattr(qmessagebox, "StandardButton"):
         prompt = qmessagebox(window)
-        prompt.setWindowTitle("Modo de Reescaneamento")
-        prompt.setText("Escolha o modo de reprocessamento dos arquivos.")
+        prompt.setWindowTitle("Reescanear")
+        prompt.setText("Escolha como atualizar os dados.")
         prompt.setInformativeText(
-            "Diff usa hashes e processa apenas arquivos alterados. "
-            "Full recria o banco do zero e reprocessa tudo."
+            "Atualizar Dados (diff) processa apenas arquivos novos ou alterados. "
+            "Reescaneamento Completo recria o banco do zero e reprocessa tudo."
         )
-        diff_btn = prompt.addButton("Diff (hash)", qmessagebox.ButtonRole.ActionRole)
-        full_btn = prompt.addButton("Full (zera e reprocessa)", qmessagebox.ButtonRole.ActionRole)
+        diff_btn = prompt.addButton("Atualizar Dados (diff)", qmessagebox.ButtonRole.ActionRole)
+        full_btn = prompt.addButton("Reescaneamento Completo", qmessagebox.ButtonRole.ActionRole)
         cancel_btn = prompt.addButton(qmessagebox.StandardButton.Cancel)
         try:
             prompt.setDefaultButton(diff_btn)
@@ -1043,7 +1043,7 @@ def rescan_data(
         _release_worker_ref()
         progress_dialog.set_finished(True)
         window.status_label.setText(
-            "Status: Reescaneamento concluido. Clique em 'Carregar Dados' para atualizar."
+            "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
         )
 
     def on_error(error_msg):
