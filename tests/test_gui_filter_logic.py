@@ -1080,6 +1080,34 @@ class TestGUIFilterLogic:
         assert other_ms < 4000.0
         assert back_ms < 4000.0
 
+    def test_apply_theme_reuses_cached_details_font_when_base_size_unchanged(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        first_font = getattr(self.window, "_details_text_small_font_cached", None)
+        first_size = getattr(self.window, "_details_text_small_font_base_size", None)
+        assert first_font is not None
+        assert isinstance(first_size, (int, float))
+
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        second_font = getattr(self.window, "_details_text_small_font_cached", None)
+        second_size = getattr(self.window, "_details_text_small_font_base_size", None)
+        assert second_font is first_font
+        assert second_size == first_size
+
+    def test_apply_theme_skips_global_qss_rebuild_when_cached_theme_matches(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        assert getattr(self.window, "_last_global_theme_name", None) == "gruvbox"
+        assert isinstance(getattr(self.window, "_last_global_theme_qss", None), str)
+        self.window._current_theme = ""
+
+        with patch("gui.helpers.build_global_widget_qss") as build_qss_mock:
+            self.window.apply_theme("gruvbox")
+            QApplication.processEvents()
+
+        assert build_qss_mock.call_count == 0
+
     def test_repeated_filters_tab_and_theme_actions_keep_state_consistent(self):
         filter_tab_idx = next(
             idx for idx, ctx in enumerate(self.window._tab_contexts)

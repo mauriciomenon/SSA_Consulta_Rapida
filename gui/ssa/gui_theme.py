@@ -157,10 +157,18 @@ def _apply_global_palette(window, normalized: str, same_theme: bool):
         if app is not None:
             app.setPalette(pal)
             try:
-                block = build_global_widget_qss(pal)
-                if getattr(window, "_last_global_theme_qss", None) != block:
-                    app.setStyleSheet(block)
-                    window._last_global_theme_qss = block
+                cached_theme_name = str(getattr(window, "_last_global_theme_name", "") or "")
+                cached_qss = getattr(window, "_last_global_theme_qss", None)
+                if (
+                    cached_theme_name != normalized
+                    or not isinstance(cached_qss, str)
+                    or not cached_qss
+                ):
+                    block = build_global_widget_qss(pal)
+                    if getattr(window, "_last_global_theme_qss", None) != block:
+                        app.setStyleSheet(block)
+                        window._last_global_theme_qss = block
+                window._last_global_theme_name = normalized
             except Exception as exc:
                 logger.debug("Falha ao aplicar QSS global do tema: %s", exc)
         window.setPalette(pal)
@@ -431,13 +439,25 @@ def _apply_theme_widget_styles(
                 try:
                     from PyQt6.QtGui import QFont
                     base_font = window.details_group.font()
-                    small_font = QFont(base_font)
-                    size = small_font.pointSizeF()
+                    size = base_font.pointSizeF()
                     if size <= 0:
-                        size = float(small_font.pointSize())
+                        size = float(base_font.pointSize())
                     if size > 0:
-                        small_font.setPointSizeF(max(size - 1.5, 1.0))
-                    window.details_text.setFont(small_font)
+                        cached_font = getattr(window, "_details_text_small_font_cached", None)
+                        cached_size = getattr(window, "_details_text_small_font_base_size", None)
+                        should_rebuild = (
+                            not isinstance(cached_font, QFont)
+                            or not isinstance(cached_size, (int, float))
+                            or abs(float(cached_size) - float(size)) > 0.01
+                        )
+                        if should_rebuild:
+                            small_font = QFont(base_font)
+                            small_font.setPointSizeF(max(size - 1.5, 1.0))
+                            window._details_text_small_font_cached = small_font
+                            window._details_text_small_font_base_size = float(size)
+                        active_small_font = getattr(window, "_details_text_small_font_cached", None)
+                        if isinstance(active_small_font, QFont):
+                            window.details_text.setFont(active_small_font)
                 except Exception as exc:
                     logger.debug("Falha ao ajustar fonte reduzida no painel de detalhes: %s", exc)
             if normalized in light_themes:

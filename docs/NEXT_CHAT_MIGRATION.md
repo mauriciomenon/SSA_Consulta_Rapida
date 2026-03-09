@@ -2,6 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 22:28 - start from here
+
+- Micro hardening de tema aplicado sem mudanca de layout:
+  1. short-circuit extra em `_apply_global_palette` para evitar rebuild de QSS global quando cache de tema ja esta valido.
+  2. cache da fonte reduzida de `details_text` com reuso quando base size nao muda.
+- Cobertura de regressao adicionada:
+  1. teste de reuso do cache de fonte.
+  2. teste de skip de rebuild global de QSS com cache valido.
+- Validacao da rodada:
+  1. `py_compile` pass
+  2. `ruff` pass
+  3. `ty` pass
+  4. `pytest` focado de tema -> `4 passed`
+- Debt mantido para ciclo dedicado:
+  1. separar responsabilidades em `_apply_global_palette`.
+  2. reduzir custo de setStyleSheet em massa em `_apply_theme_widget_styles`.
+
 ## CURRENT TRUTH 2026-03-08 21:38 - start from here
 
 - Tema agora abre em caixa/dialogo (como ajuda), nao menu popup.

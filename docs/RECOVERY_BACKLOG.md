@@ -48,6 +48,35 @@ Pendencias nao bloqueantes (deferidas):
 3. `gui/ssa/gui_theme.py`: reaplicacao global de QSS a cada refresh de tema pode congelar UI em arvore grande; requer tuning de cache/escopo.
 4. `gui/ssa/gui_theme.py`: ajuste de fonte do painel de detalhes em cada refresh de tema pode gerar custo acumulado; requer condicao de short-circuit por tamanho base.
 
+## Update 2026-03-08 22:28 - micro hardening de tema (cache + short-circuit)
+
+Session timestamp:
+1. start: `2026-03-08 22:18:00 -0300`
+2. end: `2026-03-08 22:28:00 -0300`
+
+Objetivo do slice:
+1. reduzir custo no apply de tema sem alterar layout.
+2. manter robustez e evitar suppress opaco.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_theme.py`
+   - `_apply_global_palette`: short-circuit adicional para pular rebuild de QSS quando tema global cacheado ja corresponde ao tema solicitado.
+   - `_apply_theme_widget_styles`: cache da fonte reduzida de `details_text` por base size, com reuso quando nao ha mudanca.
+2. `tests/test_gui_filter_logic.py`
+   - novo teste para reuso do cache da fonte reduzida.
+   - novo teste para pular rebuild global de QSS com cache valido.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_theme.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_theme.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_theme.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "theme_cycle_smoke_latency_on_filters_tab or reuses_cached_details_font or skips_global_qss_rebuild or switch_to_filters_tab_does_not_reapply_same_theme"` -> `4 passed`
+
+Pendencias nao bloqueantes (deferidas nesta rodada):
+1. `gui/ssa/gui_theme.py`: funcao `_apply_global_palette` ainda concentra palette + estilo global + QSS (debt de separacao de responsabilidade).
+2. `gui/ssa/gui_theme.py`: `_apply_theme_widget_styles` segue extensa e com custo de setStyleSheet em varios widgets; requer plano dedicado para tuning sem risco.
+3. `gui/ssa/gui_theme.py`: acoplamento com atributos privados de janela (`_last_global_theme_qss`, `_details_text_small_font_cached`, `_current_theme_roles`) requer avaliacao de encapsulamento dedicado.
+
 ## Update 2026-03-08 21:06 - menu final conforme texto aprovado + box de reescaneamento
 
 Session timestamp:
