@@ -27,6 +27,9 @@ Validacao planejada do slice:
 1. scan de referencias (`rg`) para confirmar versao ativa.
 2. `python -m py_compile` + `ruff` + `ty` + `pytest` focado (sanidade minima) antes do commit.
 
+Pendencia nao bloqueante registrada:
+1. `README.md` segue grande e acumulando secoes historicas; avaliar extracao para changelog/doc dedicado em ciclo proprio.
+
 ## Update 2026-03-09 06:45 - full rescan real + metricas completas em lote unico
 
 Session timestamp:
