@@ -2,6 +2,24 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-09 06:45 - authoritative block
+
+- Full rescan real executado em lote unico com backup previo.
+- Artefatos de evidencia:
+  1. `logs/import_run_20260309_010936_830587.json`
+  2. `logs/full_rescan_runtime_20260309_010934.log`
+  3. `docs/indicios_importacao.md` (secao nova de 2026-03-09)
+  4. `logs/full_rescan_summary_20260309_063007.json`
+- Resultado funcional:
+  1. `431/431` arquivos sucesso, `0` erro
+  2. `497162` linhas inseridas
+  3. DB final com `integrity_check=ok`, `id` presente, sem colunas `nan*`
+- Nota de metrica:
+  1. `duration_seconds` total inclui espera no loop CLI apos importacao.
+  2. metrica canonica para throughput do pipeline: `run_file_processing_seconds=1251.979s`.
+- Pendencia tecnica:
+  1. benchmark dedicado sem loop CLI (execucao direta de `run_importer_logic`) para baseline de tempo absoluto.
+
 ## CURRENT TRUTH 2026-03-09 01:05 - authoritative block
 
 - Slice de performance entregue:

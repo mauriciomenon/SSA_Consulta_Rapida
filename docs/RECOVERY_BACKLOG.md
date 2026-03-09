@@ -3,6 +3,56 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 06:45 - full rescan real + metricas completas em lote unico
+
+Session timestamp:
+1. start: `2026-03-09 01:08:50 -0300`
+2. end: `2026-03-09 04:38:31 -0300`
+
+Objetivo do slice:
+1. executar full rescan real em ambiente local com backup previo.
+2. coletar metricas completas de desempenho/confiabilidade/saude de schema.
+3. consolidar evidencias e comparativo sem etapas manuais intermediarias.
+
+Execucao e evidencias:
+1. backup anterior ao rescan:
+   - `data/db_backups/ssas.db.pre_full_rescan_20260309_010934.db`
+2. runtime log:
+   - `logs/full_rescan_runtime_20260309_010934.log`
+3. report da rodada:
+   - `logs/import_run_20260309_010936_830587.json`
+4. consolidado tecnico:
+   - `docs/indicios_importacao.md` (nova secao `Sessao 2026-03-09`)
+5. artefatos comparativos:
+   - `logs/full_rescan_summary_20260309_063007.json`
+   - `logs/full_rescan_summary_20260309_063007.csv`
+   - `logs/full_rescan_family_insert_20260309_063007.csv`
+   - `logs/full_rescan_top_insert_20260309_063007.csv`
+   - `logs/full_rescan_top_invalid_20260309_063007.csv`
+
+Resultado principal:
+1. full rescan concluiu com `status=updated` e `result=true`.
+2. candidatos/sucessos: `431/431`; erros: `0`.
+3. linhas:
+   - extraidas: `497162`
+   - removidas por identidade invalida: `2763`
+   - inseridas: `497162`
+4. saude do DB final:
+   - `integrity_check=ok`
+   - `rows_total=76426`
+   - `distinct_numero_ssa=76426`
+   - duplicados de `numero_ssa=0`
+   - `id` presente
+   - sem colunas `nan*`
+
+Observacao de medicao:
+1. `duration_seconds` total (`12522s`) ficou inflado por entrada no loop CLI apos finalizar import.
+2. usar `run_file_processing_seconds` (`1251.979s`) como referencia de tempo efetivo do pipeline de import.
+
+Pendencias nao bloqueantes:
+1. benchmark dedicado sem loop CLI (chamada direta de `run_importer_logic`) para medicao absoluta limpa.
+2. chart PNG nao foi gerado nesta maquina (sem backend disponivel); CSV/JSON ficaram completos para dashboard externo.
+
 ## Update 2026-03-09 01:05 - performance focused (sort jank + resize burst)
 
 Session timestamp:
