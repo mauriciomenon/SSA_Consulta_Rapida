@@ -2,7 +2,22 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 17:35 - authoritative block
+## CURRENT TRUTH 2026-03-09 19:01 - authoritative block
+
+- Ciclo de refinamento de documentacao concluido no baseline `4.32`.
+- Entregas principais:
+  1. index e README de docs canonicos.
+  2. comandos rapidos alinhados para uv-first.
+  3. arquitetura e troubleshooting ativos simplificados.
+  4. snapshots legados movidos para `docs/archive/`.
+- Nao alterado:
+  1. runtime de importacao/GUI/DB.
+  2. suite de testes de runtime.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 17:35
 
 - Baseline ativo de versao/documentacao: `4.32`.
 - Escopo consolidado atual:

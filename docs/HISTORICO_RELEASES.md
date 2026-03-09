@@ -16,6 +16,9 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
   - `VERSION`
   - `config/version.json`
   - docs ativos de referencia
+- Governanca de docs refinada:
+  - `docs/INDEX.md` e `docs/README.md` atualizados como navegacao canonica.
+  - guias longos migrados para versoes ativas curtas com snapshots em `docs/archive/`.
 - Saude do DB apos rescan:
   - `integrity_check=ok`
   - coluna `id` presente

@@ -2,12 +2,28 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 17:35 - start from here
+## CURRENT TRUTH 2026-03-09 19:01 - start from here
+
+- Ciclo de refinamento documental concluido para baseline `4.32`.
+- Principais entregas:
+  1. `docs/INDEX.md` e `docs/README.md` canonicos e consistentes.
+  2. `docs/COMANDOS_RAPIDOS.md` atualizado para uv-first.
+  3. `docs/ARQUITETURA_IMPORTACAO.md` ativo simplificado e snapshot arquivado.
+  4. `docs/TROUBLESHOOTING*.md` ativos simplificados e snapshots arquivados.
+  5. `docs/HISTORICO_RELEASES.md` atualizado com governanca de docs.
+- Regra de continuidade:
+  1. usar somente o bloco do topo deste arquivo.
+  2. consultar `docs/archive/` apenas para contexto historico.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 17:35
 
 - Baseline ativo de versao/documentacao: `4.32`.
 - Refinamento de governanca documental concluido:
   1. somente o bloco de topo e fonte ativa.
-  2. historico antigo foi movido para arquivo de arquivo para reduzir ambiguidade.
+  2. historico antigo foi movido para arquivo dedicado para reduzir ambiguidade.
   3. referencias de release evitam logs efemeros.
 - Escopo desta rodada:
   1. apenas docs e metadados de versao.
