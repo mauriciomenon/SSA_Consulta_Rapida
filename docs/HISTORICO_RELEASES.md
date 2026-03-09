@@ -10,9 +10,8 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 ### **Principais entregas**
 - Full rescan real executado de ponta a ponta com evidencia em:
-  - `logs/import_run_20260309_010936_830587.json`
-  - `logs/full_rescan_runtime_20260309_010934.log`
-  - `docs/indicios_importacao.md`
+  - `docs/indicios_importacao.md` (secao da sessao 2026-03-09)
+  - `docs/RECOVERY_BACKLOG.md` (update de full rescan real)
 - Baseline local promovido para `4.32` em:
   - `VERSION`
   - `config/version.json`
@@ -35,7 +34,7 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Baseline update para sprint de saneamento
-**Status**: Em andamento
+**Status**: Snapshot historico
 
 ### **Principais entregas**
 - Snapshot oficial do estado estavel anterior com tag/release GitHub:
