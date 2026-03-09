@@ -3,6 +3,46 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 19:26 - documentation integrity pass (links and references)
+
+Session timestamp:
+1. start: `2026-03-09 19:26:41 -0300`
+2. end: `2026-03-09 19:39:20 -0300`
+
+Objetivo do slice:
+1. corrigir referencias quebradas em docs ativos.
+2. padronizar links de apoio/local para evitar caminhos inexistentes no repo.
+3. criar ponteiros de compatibilidade para referencias antigas `docs/ARCH_*`.
+
+Mudancas aplicadas:
+1. links corrigidos em:
+   - `README.md`
+   - `docs/INSTRUCOES_LEITURA.md`
+   - `docs/OHMYOPENCODE_MANUAL.md`
+   - `docs/OTIMIZACAO_STARTUP.md`
+   - `docs/ESTRUTURA_PROJETO.md`
+   - `docs/TERMINAL_INTEGRATION.md`
+   - `docs/RELEASE_NOTES_v4.11.0.md`
+   - `docs/CCR_LLM_PROVIDERS_SETUP.md`
+   - `docs/REFACTOR_DEPENDENCY_CYCLES.md`
+2. novos ponteiros de compatibilidade:
+   - `docs/ARCHITECTURE_OVERVIEW.md`
+   - `docs/ARCH_DB_UPSERT.md`
+   - `docs/ARCH_GUI_LOAD_AND_FILTER.md`
+   - `docs/ARCH_IMPORT_PIPELINE.md`
+   - `docs/ARCH_VALIDATION_AND_INTEGRITY.md`
+3. arquivo de archive criado:
+   - `docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md`
+
+Validacao desta rodada:
+1. varredura automatica de referencias `.md` em `README.md` + `docs/*.md` com resultado final `missing=0`.
+2. kluster executado apos cada alteracao de arquivo.
+3. gates tecnicos:
+   - `uv run --python 3.13 python -m py_compile main.py` -> pass
+   - `uv run --python 3.13 ruff check main.py` -> pass
+   - `uv run --python 3.13 ty check main.py` -> pass
+   - `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> `15 passed`
+
 ## Update 2026-03-09 19:01 - full documentation refine v4.32
 
 Session timestamp:

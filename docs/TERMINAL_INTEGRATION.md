@@ -10,7 +10,7 @@ Files added (non-destructive):
 Logs and local docs:
 
 - Default logs are written to `local_ai_private/pytest_terminal_integration.log` and `local_ai_private/pytest_terminal_integration_stream.log`.
-- Detailed usage notes and troubleshooting: `local_ai_private/pytest_instructions.md`.
+- Detailed usage notes and troubleshooting can be stored in `local_ai_private/` per machine.
 
 Usage examples:
 

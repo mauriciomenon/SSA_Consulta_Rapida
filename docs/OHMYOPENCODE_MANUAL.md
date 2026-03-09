@@ -30,7 +30,7 @@ oh-my-opencode run --agent Prometheus "otimizar"
 /explain arquivo.py
 /test arquivo.py
 /secure arquivo.py
-/doc arquivo.md
+/doc caminho/do/arquivo
 ```
 
 ### Verificacao
@@ -100,8 +100,8 @@ kimi config set api_key SUA_CHAVE
 kimi config set model kimi-k2.5
 ```
 
-### Integracao com OhMyOpenCode
-Criar wrapper script `~/.local/bin/kimi-ohmy`:
+### Alternativa de uso via OhMyOpenCode (sem depender da CLI oficial)
+Se voce quiser usar apenas OhMyOpenCode, crie o wrapper `~/.local/bin/kimi-ohmy`:
 ```bash
 #!/bin/bash
 oh-my-opencode run --agent Atlas "$@"
@@ -180,7 +180,7 @@ oh-my-opencode run "/secure armazenamento/database_optimized.py"
 
 ### Documentacao
 ```bash
-oh-my-opencode run "/doc docs/API.md"
+oh-my-opencode run "/doc docs/INDEX.md"
 ```
 
 ## Troubleshooting
@@ -267,6 +267,6 @@ oh-my-opencode run --attach http://127.0.0.1:4321 "tarefa"
 
 ## Ferramentas Opcionais
 - AST-Grep: Instalado via brew
-- Comment-checker: Instalado via pnpm
+- Comment-checker: Instalado via bun
 - LSP: Habilitar sob demanda
 - MCP: Habilitar sob demanda

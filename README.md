@@ -85,8 +85,9 @@ As notas antigas permanecem abaixo para referencia e auditoria tecnica.
 - **Ações realizadas:**
   - Consolidado dependências duplicadas entre arquivos
   - Removidas dependências de runtime de arquivos de CI/CD
-  - Estrutura final com 5 arquivos ativos no repositorio (requirements.txt, requirements_dev.txt, requirements_build.txt, requirements_ci.txt, requirements_clean.txt)
-  - requirements_clean.txt mantido como arquivo documental
+  - Estrutura final com 5 arquivos versionados no repositorio
+  - arquivos operacionais: requirements.txt, requirements_dev.txt, requirements_build.txt, requirements_ci.txt
+  - requirements_clean.txt mantido apenas como arquivo documental
 - **Impacto:**
   - Redução de 40% no número de arquivos de requirements
   - Eliminação de dependências duplicadas
@@ -171,7 +172,7 @@ Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo
 
 - **Non-destructive wrappers (v2)**: added under `scripts/` as `run_pytest_with_timeout_v2.py` and `run_pytest_stream_and_log_v2.py`. They are additive (do not replace existing scripts) and contain improved Windows/Unix process-tree termination fallbacks and stable imports.
 - **pwsh detection helper**: `scripts/pwsh_discovery.py` centralizes discovery of `pwsh`/`powershell` executables across common paths, PATH, and workspace `.vscode` settings.
-- **Logs and local docs**: runtime logs and detailed usage notes live in `local_ai_private/` (this directory is gitignored). See `local_ai_private/pytest_instructions.md` for examples and troubleshooting.
+- **Logs and local docs**: runtime logs and notas locais podem existir em `local_ai_private/` (diretorio gitignored, opcional por maquina).
 - **Usage examples**:
 	- Run with a 10s timeout and write log:
 		python scripts/run_pytest_with_timeout_v2.py --test tests/test_terminal_integration.py --timeout 10
@@ -363,7 +364,7 @@ Resumo do 3.0:
 Ferramenta para consulta rapida de SSAs com CLI e GUI (Python). Foco em previsibilidade, desempenho e paridade de exibicao.
 
 Links uteis:
-- Mapa de Pedidos → Implementacoes: docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md
+- Mapa de Documentacao Ativa: docs/INDEX.md
 - Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
@@ -660,7 +661,7 @@ Gates padrao:
 
 Extensoes:
 - `--extra-config-dir <dir>` (pode repetir): cada diretorio gera um gate adicional nomeado `validate_configs_extra_1`, `validate_configs_extra_2`, ... usando `validate_configs` apontado para aquele diretorio via `--config-dir`.
-- `--extra-doc <arquivo.md>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
+- `--extra-doc <arquivo_markdown>` (pode repetir): adiciona arquivos ao escopo de `check_docs`.
 - `--skip <gate>` / `--only <gate>`: filtram execucao (`validate_configs`, `smoke_cli`, `check_docs`).
 - `--no-fail-on-doc-issues`: torna problemas de documentacao nao-fatais (gate continua reportando issues porem status pode permanecer `ok`).
 
@@ -818,7 +819,7 @@ Regra (_resumida_):
 - “Mapeamento ausente/corrompido”: defina `SSA_CONFIG_DIR` e deixe o loader recriar os JSONs
 
 ## Notas
-- Consulte `docs_saida/MAPA_PEDIDOS_IMPLEMENTACOES.md` para pedidos/entregas/validacao
+- Consulte `docs/INDEX.md` para navegacao canonica da documentacao
 - Consulte `docs_saida/CHANGELOG_IMPLEMENTACOES.md` para decisoes e linha do tempo tecnica
 
 ## Atualizacao 2026-03-01 (ciclo gui-tema-import)
