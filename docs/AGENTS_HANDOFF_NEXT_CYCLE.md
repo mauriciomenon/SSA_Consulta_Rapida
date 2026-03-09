@@ -2,6 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 22:28 - authoritative block
+
+- Slice de estabilidade (tema) executado com patch minimo:
+  1. `gui/ssa/gui_theme.py`
+     - cache por nome de tema para pular rebuild de QSS global redundante.
+     - cache da fonte reduzida de `details_text` por base size.
+  2. `tests/test_gui_filter_logic.py`
+     - adicionados 2 testes de regressao para cache de tema.
+- Evidencia:
+  1. `pytest -q tests/test_gui_filter_logic.py -k "theme_cycle_smoke_latency_on_filters_tab or reuses_cached_details_font or skips_global_qss_rebuild or switch_to_filters_tab_does_not_reapply_same_theme"` -> `4 passed`
+- Itens deferidos:
+  1. separar responsabilidade de `_apply_global_palette` (debt arquitetural).
+  2. reduzir custo de `setStyleSheet` em massa em `_apply_theme_widget_styles` (debt performance).
+- Arquivos alterados:
+  1. `gui/ssa/gui_theme.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 21:38 - authoritative block
 
 - Tema agora abre em caixa/dialogo dedicada:
