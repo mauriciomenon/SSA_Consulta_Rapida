@@ -496,7 +496,11 @@ def load_data(
     window._data_load_request_seq = request_id
     window._active_data_load_request_id = request_id
 
-    window.status_label.setText("Status: Carregando dados...")
+    _set_status_label_text(
+        window,
+        "Status: Carregando dados...",
+        context="load_data.start",
+    )
     window.progress_bar.setVisible(True)
     window.load_button.setEnabled(False)
     window.search_button.setEnabled(False)
@@ -528,7 +532,11 @@ def load_data(
                     "Erro de Carregamento",
                     "Data loader indisponivel neste ambiente. Consulte os logs.",
                 )
-        window.status_label.setText("Status: Erro ao carregar dados.")
+        _set_status_label_text(
+            window,
+            "Status: Erro ao carregar dados.",
+            context="load_data.worker_missing",
+        )
         window.progress_bar.setVisible(False)
         window.load_button.setEnabled(True)
         window.search_button.setEnabled(True)
@@ -737,12 +745,16 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             window._set_filtered_count_status("", suffix=suffix)
         except Exception as exc:
             logger.debug("Falha ao atualizar status padrao de contagem no load_data_worker: %s", exc)
-            window.status_label.setText(
-                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+            _set_status_label_text(
+                window,
+                f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
+                context="on_data_loaded.fallback_set_filtered_count_status",
             )
     else:
-        window.status_label.setText(
-            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar."
+        _set_status_label_text(
+            window,
+            f"Status: {len(window.df_exibido)} SSAs carregadas{profile_hint}. Pronto para filtrar.",
+            context="on_data_loaded.default_status",
         )
 
 
@@ -797,7 +809,11 @@ def on_load_error(
     else:
         if qmessagebox is not None:
             qmessagebox.critical(window, "Erro de Carregamento", safe_error_msg)
-    window.status_label.setText("Status: Erro ao carregar dados.")
+    _set_status_label_text(
+        window,
+        "Status: Erro ao carregar dados.",
+        context="on_load_error",
+    )
     window.load_button.setEnabled(True)
     window.search_button.setEnabled(True)
     window.progress_bar.setVisible(False)
@@ -962,7 +978,11 @@ def rescan_data(
     if active_worker is not None:
         try:
             if is_rescan_worker_running(active_worker, sip_module):
-                window.status_label.setText("Status: Reescaneamento ja em andamento.")
+                _set_status_label_text(
+                    window,
+                    "Status: Reescaneamento ja em andamento.",
+                    context="rescan.already_running",
+                )
                 return
         except Exception as exc:
             logger.debug("Falha ao checar worker ativo de reescaneamento: %s", exc)
@@ -1037,13 +1057,19 @@ def rescan_data(
         nonlocal cancelled
         if cancelled:
             progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            window.status_label.setText("Status: Reescaneamento cancelado.")
+            _set_status_label_text(
+                window,
+                "Status: Reescaneamento cancelado.",
+                context="rescan.success.cancelled",
+            )
             _release_worker_ref()
             return
         _release_worker_ref()
         progress_dialog.set_finished(True)
-        window.status_label.setText(
-            "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar."
+        _set_status_label_text(
+            window,
+            "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar.",
+            context="rescan.success.done",
         )
 
     def on_error(error_msg):
@@ -1051,11 +1077,19 @@ def rescan_data(
         if cancelled or str(error_msg).strip().lower().startswith("processo cancelado"):
             cancelled = True
             progress_dialog.set_finished(False, "Processo cancelado pelo usuario")
-            window.status_label.setText("Status: Reescaneamento cancelado.")
+            _set_status_label_text(
+                window,
+                "Status: Reescaneamento cancelado.",
+                context="rescan.error.cancelled",
+            )
             _release_worker_ref()
             return
         progress_dialog.set_finished(False, error_msg)
-        window.status_label.setText("Status: Erro no reescaneamento.")
+        _set_status_label_text(
+            window,
+            "Status: Erro no reescaneamento.",
+            context="rescan.error",
+        )
         _release_worker_ref()
 
     _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
@@ -1070,7 +1104,11 @@ def rescan_data(
         nonlocal cancelled
         cancelled = True
         running = is_rescan_worker_running(worker, sip_module)
-        window.status_label.setText("Status: Cancelamento solicitado no reescaneamento.")
+        _set_status_label_text(
+            window,
+            "Status: Cancelamento solicitado no reescaneamento.",
+            context="rescan.cancel.requested",
+        )
         if running:
             try:
                 if hasattr(worker, "stop"):

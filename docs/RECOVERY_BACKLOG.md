@@ -3,6 +3,51 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 00:04 - hardening semantico/security/status worker
+
+Session timestamp:
+1. start: `2026-03-08 23:22:00 -0300`
+2. end: `2026-03-09 00:04:10 -0300`
+
+Objetivo do slice:
+1. corrigir contradicao semantica no cabecalho da busca geral.
+2. hardening de abertura de pasta/arquivo (menu) contra caminhos invalidos.
+3. eliminar uso direto de `status_label.setText` no worker de carga/rescan.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - comentario de topo alinhado ao comportamento real da busca.
+   - novos helpers estaticos:
+     - `_validate_local_open_target`
+     - `_resolve_platform_open_command`
+   - `open_settings_file_with_backup`, `open_installation_guide` e `_open_folder_non_blocking`
+     com validacao de caminho e fallback seguro.
+2. `gui/ssa/gui_workers.py`
+   - substituicoes de `window.status_label.setText(...)` por `_set_status_label_text(...)`
+     nos fluxos de load/rescan.
+
+Validacao multi-OS (implementacao):
+1. caminho principal: `QDesktopServices.openUrl` (Qt cross-platform).
+2. fallback por plataforma:
+   - Windows: `explorer`
+   - macOS: `open`
+   - Linux/Debian: `xdg-open`
+3. fallback agora usa caminho validado + comando resolvido via `shutil.which`.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `19 passed`
+
+Pendencias nao bloqueantes (deferidas nesta rodada):
+1. duplicacao entre `prune_retired_data_loader_workers` e `prune_retired_rescan_workers` (debt de manutencao).
+2. `rescan_data` (modo `prompt`) e naming de entrada principal `Reescanear` requer definicao de UX em slice proprio.
+3. performance ampla: sort de `num_reprogramacoes`, custo de `_get_canonical_available_columns`, recompute de best-fit em resize (fora do escopo deste hotfix).
+4. debt arquitetural em `SSAMainWindow` (classe grande) permanece fora de escopo de patch minimo.
+5. check `Nao esta em STE/SCA` permanece oculto por politica atual; revisar visibilidade em slice de UX dedicado.
+6. retencao global de workers requer avaliacao de ciclo longo (cleanup periodico vs modelo atual).
+
 ## Update 2026-03-08 23:05 - padronizacao final de menu e prompt de reescaneamento
 
 Session timestamp:

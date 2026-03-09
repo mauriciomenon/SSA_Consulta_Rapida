@@ -2,6 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-09 00:04 - start from here
+
+- Hotfix aplicado para 3 pontos de risco real:
+  1. semantica: comentario de topo da busca alinhado ao comportamento real.
+  2. security hardening: validacao de caminho em aberturas de arquivo/pasta.
+  3. estabilidade worker: status update via helper seguro no load/rescan.
+- Multi-OS confirmado na implementacao de menus de abertura:
+  1. `QDesktopServices.openUrl` como caminho principal.
+  2. fallback: `explorer` (Windows), `open` (macOS), `xdg-open` (Linux/Debian).
+- Validacao da rodada:
+  1. `py_compile` pass
+  2. `ruff` pass
+  3. `ty` pass
+  4. `pytest` focado -> `19 passed`
+- Debt mantido para ciclo proprio:
+  1. duplicacao prune workers.
+  2. naming/UX de `Reescanear` vs `prompt`.
+  3. perf ampla de sort/recompute/canonical columns.
+
 ## CURRENT TRUTH 2026-03-08 23:05 - start from here
 
 - Menus padronizados conforme grade final aprovada:

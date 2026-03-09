@@ -1,6 +1,6 @@
 # flake8: noqa
 # gui_ssa.py (GUI PyQt6 para SSA_Consulta_Rapida)
-# Last modified: 2025-10-30T16:05:00 (completed search simplification: removed ALL v/OU/OR/AND processing)
+# Last modified: 2025-10-30T16:05:00 (search simplification with explicit semantics in general/column filter tooltips)
 """
 Prova de Conceito Refinada de uma Interface Gráfica (GUI) para o projeto SSA_Consulta_Rapida usando PyQt6.
 
@@ -2833,9 +2833,49 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 return candidate
             idx += 1
 
+    @staticmethod
+    def _validate_local_open_target(
+        target_path: str,
+        *,
+        must_exist: bool,
+        expect_dir: bool | None,
+    ) -> str:
+        raw = str(target_path or "")
+        if not raw.strip():
+            raise ValueError("Caminho vazio para abertura.")
+        if any(ch in raw for ch in ("\x00", "\n", "\r")):
+            raise ValueError("Caminho contem caracteres invalidos.")
+        raw_parts = [part for part in raw.replace("\\", "/").split("/") if part]
+        if ".." in raw_parts:
+            raise ValueError("Caminho com parent traversal nao permitido.")
+        normalized = os.path.abspath(os.path.normpath(raw))
+        if must_exist and not os.path.exists(normalized):
+            raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
+        if expect_dir is True and os.path.exists(normalized) and not os.path.isdir(normalized):
+            raise ValueError(f"Era esperado diretorio: {normalized}")
+        if expect_dir is False and os.path.exists(normalized) and os.path.isdir(normalized):
+            raise ValueError(f"Era esperado arquivo: {normalized}")
+        return normalized
+
+    @staticmethod
+    def _resolve_platform_open_command() -> str:
+        if sys.platform.startswith("win"):
+            cmd = "explorer"
+        elif sys.platform == "darwin":
+            cmd = "open"
+        else:
+            cmd = "xdg-open"
+        resolved = shutil.which(cmd)
+        if not resolved:
+            raise RuntimeError(f"Comando indisponivel para abrir recurso: {cmd}")
+        resolved_abs = os.path.abspath(resolved)
+        if not os.path.isabs(resolved_abs):
+            raise RuntimeError(f"Comando de abertura invalido: {resolved}")
+        return resolved_abs
+
     def open_settings_file_with_backup(self):
         """Abre settings.json para edicao apos criar backup failsafe com timestamp."""
-        settings_path = self._resolve_settings_file_path()
+        settings_path = os.path.abspath(self._resolve_settings_file_path())
         os.makedirs(os.path.dirname(settings_path), exist_ok=True)
 
         try:
@@ -2856,16 +2896,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 )
             return {"opened": False, "backup_created": False, "settings_path": settings_path}
 
+        try:
+            safe_settings_path = SSAMainWindow._validate_local_open_target(
+                settings_path,
+                must_exist=True,
+                expect_dir=False,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de settings invalido para abertura: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Caminho de opcoes invalido: {exc}")
+            return {"opened": False, "backup_created": True, "settings_path": settings_path}
+
         opened = False
         try:
             if QT_AVAILABLE:
-                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(settings_path)))
+                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(safe_settings_path)))
             if not opened:
-                cmd = "open" if sys.platform == "darwin" else ("explorer" if sys.platform.startswith("win") else "xdg-open")
-                resolved = shutil.which(cmd)
-                if not resolved:
-                    raise RuntimeError(f"Comando indisponivel para abrir arquivo: {cmd}")
-                subprocess.Popen([resolved, settings_path])
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_settings_path], shell=False)
                 opened = True
         except Exception as exc:
             logger.warning("Falha ao abrir settings para edicao: %s", exc)
@@ -2877,7 +2926,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self.status_label.setText(
                 "Status: Opcoes abertas no editor externo (arquivo principal)."
             )
-        return {"opened": opened, "backup_created": True, "settings_path": settings_path}
+        return {"opened": opened, "backup_created": True, "settings_path": safe_settings_path}
 
     def reset_settings_to_defaults(self):
         """Restaura settings.json para os valores padrao com backup previo."""
@@ -3166,25 +3215,29 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def open_installation_guide(self):
         """Abre o guia de instalacao no editor/sistema padrao."""
-        doc_path = os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+        doc_path = os.path.abspath(
+            os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+        )
         if not os.path.exists(doc_path):
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 QMessageBox.warning(self, "Erro", f"Guia de instalacao nao encontrado: {doc_path}")
             return {"opened": False, "reason": "missing_file"}
         try:
+            safe_doc_path = SSAMainWindow._validate_local_open_target(
+                doc_path,
+                must_exist=True,
+                expect_dir=False,
+            )
             opened = False
             if QT_AVAILABLE:
-                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(doc_path)))
+                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(safe_doc_path)))
             if not opened:
-                cmd = "open" if sys.platform == "darwin" else ("explorer" if sys.platform.startswith("win") else "xdg-open")
-                resolved = shutil.which(cmd)
-                if not resolved:
-                    raise RuntimeError(f"Comando indisponivel para abrir arquivo: {cmd}")
-                subprocess.Popen([resolved, doc_path])
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_doc_path], shell=False)
                 opened = True
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: Guia de instalacao aberto.")
-            return {"opened": opened, "path": doc_path}
+            return {"opened": opened, "path": safe_doc_path}
         except Exception as exc:
             logger.warning("Falha ao abrir guia de instalacao: %s", exc)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
@@ -3228,6 +3281,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return {"ok": False, "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
+        try:
+            folder_path = SSAMainWindow._validate_local_open_target(
+                folder_path,
+                must_exist=False,
+                expect_dir=True,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de pasta invalido para abertura (%s): %s", folder_label, exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Caminho de pasta invalido: {exc}")
+            return
         if not os.path.exists(folder_path):
             if os.environ.get("PYTEST_CURRENT_TEST"):
                 return
@@ -3253,9 +3317,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 return
 
         try:
+            safe_folder_path = SSAMainWindow._validate_local_open_target(
+                folder_path,
+                must_exist=True,
+                expect_dir=True,
+            )
+        except Exception as exc:
+            logger.warning("Caminho de pasta invalido apos validacao (%s): %s", folder_label, exc)
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                return
+            QMessageBox.warning(self, "Erro", f"Caminho de pasta invalido: {exc}")
+            return
+
+        try:
             # Prefer Qt abstraction to avoid blocking UI and keep cross-platform behavior.
             if QT_AVAILABLE:
-                url = QUrl.fromLocalFile(folder_path)
+                url = QUrl.fromLocalFile(safe_folder_path)
                 ok = QDesktopServices.openUrl(url)
                 if ok:
                     return
@@ -3265,16 +3342,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.warning("Falha ao abrir pasta %s via Qt: %s", folder_label, open_exc)
             try:
                 # Best-effort fallback, non-blocking.
-                if sys.platform.startswith("win"):
-                    cmd = "explorer"
-                elif sys.platform == "darwin":
-                    cmd = "open"
-                else:
-                    cmd = "xdg-open"
-                resolved = shutil.which(cmd)
-                if not resolved:
-                    raise RuntimeError(f"Comando indisponivel para abrir pasta: {cmd}")
-                subprocess.Popen([resolved, folder_path])
+                resolved = SSAMainWindow._resolve_platform_open_command()
+                subprocess.Popen([resolved, safe_folder_path], shell=False)
                 return
             except Exception as fallback_exc:
                 logger.warning("Fallback para abrir pasta falhou: %s", fallback_exc)

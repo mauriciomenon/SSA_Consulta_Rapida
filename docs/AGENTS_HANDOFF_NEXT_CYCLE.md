@@ -2,6 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-09 00:04 - authoritative block
+
+- Correcao entregue no slice:
+  1. `HIGH semantic`: comentario de topo da busca removendo contradicao com logica atual.
+  2. `HIGH security`: hardening de abertura de caminho com validacao antes de fallback por subprocess.
+  3. `CRITICAL logical`: `status_label` no worker agora via helper defensivo.
+- Multi-OS da abertura por menu:
+  1. principal: `QDesktopServices.openUrl`.
+  2. fallback: `explorer` (Windows), `open` (macOS), `xdg-open` (Linux/Debian).
+- Evidencia:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py` -> `19 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Deferido (fora do escopo deste hotfix):
+  1. duplicacao prune workers.
+  2. naming de `Reescanear` vs modo `prompt`.
+  3. performance ampla de sort/canonical columns/resize recompute.
+
 ## CURRENT TRUTH 2026-03-08 23:05 - authoritative block
 
 - Menus finais reorganizados conforme especificacao do usuario:
