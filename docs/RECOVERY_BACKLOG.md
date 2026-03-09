@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 17:35 - docs governance refine on v4.32
+
+Session timestamp:
+1. start: `2026-03-09 17:35:40 -0300`
+2. end: `2026-03-09 17:41:28 -0300`
+
+Objetivo do slice:
+1. reduzir ambiguidade nos docs de continuidade sem alterar historico profundo.
+2. manter baseline `4.32` como unica fonte ativa de referencia.
+3. remover acoplamento com artefatos de log efemeros no historico de release.
+
+Mudancas aplicadas:
+1. `docs/NEXT_CHAT_MIGRATION.md`:
+   - regras de interpretacao adicionadas no topo.
+2. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`:
+   - regras de interpretacao autoritativa adicionadas no topo.
+3. `docs/RECOVERY_BACKLOG.md`:
+   - bloco anterior de 4.32 marcado com validacao executada e commits.
+4. `docs/HISTORICO_RELEASES.md`:
+   - `RELEASE v4.30` marcado como `Snapshot historico`.
+   - referencias de evidencia 4.32 movidas para docs estaveis.
+
+Nao alterado:
+1. nenhum arquivo runtime (`core/gui/armazenamento/extracao/interface/tests`).
+2. nenhum comportamento funcional de importacao/GUI/DB.
+
 ## Update 2026-03-09 08:41 - doc sync release 4.32
 
 Session timestamp:
@@ -23,9 +49,12 @@ Mudancas aplicadas:
 6. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md` topo e rodape alinhados para `v4.32`.
 7. docs de controle atualizados com bloco de continuidade para `4.32`.
 
-Validacao planejada do slice:
+Validacao executada do slice:
 1. scan de referencias (`rg`) para confirmar versao ativa.
 2. `python -m py_compile` + `ruff` + `ty` + `pytest` focado (sanidade minima) antes do commit.
+3. commit/push realizados:
+   - `63a47682` (`DOC_SYNC`)
+   - `09933f69` (`DEFERRED_NOTE`)
 
 Pendencia nao bloqueante registrada:
 1. `README.md` segue grande e acumulando secoes historicas; avaliar extracao para changelog/doc dedicado em ciclo proprio.
