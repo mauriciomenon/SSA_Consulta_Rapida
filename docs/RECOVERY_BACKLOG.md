@@ -3,6 +3,51 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 21:38 - tema em caixa e barra principal simplificada
+
+Session timestamp:
+1. start: `2026-03-08 21:07:19 -0300`
+2. end: `2026-03-08 21:38:26 -0300`
+
+Objetivo do slice:
+1. abrir selecao de tema em caixa/dialogo (nao popup de menu).
+2. tornar o texto do Database avancado user-friendly.
+3. simplificar botoes da barra principal conforme pedido.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_theme.py`
+   - `toggle_theme_menu` agora abre `QDialog` modal:
+     - combo de temas
+     - checkbox para tema padrao
+     - botoes OK/Cancelar
+2. `gui/gui_ssa.py`
+   - barra principal removeu botoes:
+     - `Carregar Outro DB`
+     - `Abrir Pasta`
+     - `Ajuda`
+   - manteve:
+     - `Carregar Dados`
+     - `Reescanear`
+     - `Atualizar Derivadas`
+     - `Tema` no lado direito
+   - `Database > Avancado` continua funcional e com texto amigavel:
+     - prompt: `Compactar DB e atualizar estatisticas agora?`
+     - status: `DB compactado e estatisticas atualizadas`
+3. `tests/test_gui_menu_import_external.py`
+   - assert de texto de sucesso do `Compactar DB` atualizado.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_theme.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_theme.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_theme.py gui/ssa/gui_workers.py gui/workers/rescan_worker.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py tests/test_rescan_worker_advanced.py` -> `48 passed`
+
+Pendencias nao bloqueantes (deferidas):
+1. `gui/gui_ssa.py`: classe `SSAMainWindow` segue com alta concentracao de responsabilidades (debt arquitetural, sem refatoracao ampla neste ciclo).
+2. `gui/gui_ssa.py`: recalculo de largura em `resizeEvent` pode gerar jank em bases grandes; requer estudo dedicado de performance fora deste slice.
+3. `gui/ssa/gui_theme.py`: reaplicacao global de QSS a cada refresh de tema pode congelar UI em arvore grande; requer tuning de cache/escopo.
+4. `gui/ssa/gui_theme.py`: ajuste de fonte do painel de detalhes em cada refresh de tema pode gerar custo acumulado; requer condicao de short-circuit por tamanho base.
+
 ## Update 2026-03-08 21:06 - menu final conforme texto aprovado + box de reescaneamento
 
 Session timestamp:

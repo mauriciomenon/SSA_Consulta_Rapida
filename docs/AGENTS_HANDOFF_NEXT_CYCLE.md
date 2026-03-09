@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 21:38 - authoritative block
+
+- Tema agora abre em caixa/dialogo dedicada:
+  1. `Selecionar Tema` com combo + checkbox de padrao + `OK/Cancelar`.
+- Barra principal simplificada conforme pedido:
+  1. removidos `Carregar Outro DB`, `Abrir Pasta`, `Ajuda`.
+  2. mantidos `Carregar Dados`, `Reescanear`, `Atualizar Derivadas`.
+  3. `Tema` ficou no lado direito.
+- `Database > Avancado` mantido com linguagem amigavel:
+  1. confirmacao: `Compactar DB e atualizar estatisticas agora?`
+  2. status: `DB compactado e estatisticas atualizadas`.
+- Evidencia:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py tests/test_gui_workers_rescan_data.py tests/test_rescan_worker_cleanup.py tests/test_rescan_worker_advanced.py` -> `48 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_theme.py`
+  3. `tests/test_gui_menu_import_external.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 21:06 - authoritative block
 
 - Menus finais aplicados conforme solicitacao textual do usuario:

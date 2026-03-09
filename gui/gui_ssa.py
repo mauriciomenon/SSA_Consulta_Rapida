@@ -1044,28 +1044,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.load_button.clicked.connect(self.load_data)
         toolbar_layout.addWidget(cast(Any, self.load_button))
 
-        self.load_other_db_button = QPushButton("Carregar Outro DB")
-        self.load_other_db_button.setToolTip("Selecionar e carregar outro arquivo de banco de dados")
-        self.load_other_db_button.clicked.connect(self.load_other_database)
-        toolbar_layout.addWidget(cast(Any, self.load_other_db_button))
-
         # Botões de ações
         self.rescan_button = QPushButton("Reescanear")
         self.rescan_button.setToolTip("Reprocessar arquivos Excel da pasta docs_entrada")
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
-        self.explorer_button = QPushButton("Abrir Pasta")
-        self.explorer_button.setToolTip("Abrir pasta de entrada no explorador de arquivos")
-        self.explorer_button.clicked.connect(self.open_docs_folder)
-        toolbar_layout.addWidget(cast(Any, self.explorer_button))
         self.update_derivadas_button = QPushButton("Atualizar Derivadas")
         self.update_derivadas_button.setToolTip(
             "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
         )
         self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
         toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
-        # Semana Atual (YYYYWW) ao lado de 'Abrir Pasta' (informativo)
+        # Semana Atual (YYYYWW) como indicador informativo na barra superior
         try:
             from datetime import date
             y, w, _ = date.today().isocalendar()
@@ -1101,15 +1092,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         toolbar_layout.addWidget(cast(Any, self.status_label))
         toolbar_layout.addWidget(cast(Any, self.progress_bar))
 
-        # Botção de Ajuda (como na PoC)
-        help_button = QPushButton("Ajuda")
-        help_button.setToolTip("Ajuda sobre filtros e uso da interface")
-        help_button.clicked.connect(self.show_filter_help)
-        toolbar_layout.addWidget(cast(Any, help_button))
-
-        # Botção de Tema (Claro/Escuro/Gruvbox)
+        # Botao de Tema no lado direito
         theme_button = QPushButton("Tema")
-        theme_button.setToolTip("Alterar tema (Claro/Escuro/Gruvbox)")
+        theme_button.setToolTip("Selecionar tema em caixa de dialogo")
         theme_button.clicked.connect(self.toggle_theme_menu)
         toolbar_layout.addWidget(cast(Any, theme_button))
 
@@ -3228,7 +3213,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             answer = qmessagebox.question(
                 self,
                 "Confirmar",
-                "Executar VACUUM/ANALYZE no banco atual?",
+                "Compactar DB e atualizar estatisticas agora?",
                 qmessagebox.StandardButton.Yes | qmessagebox.StandardButton.No,
                 qmessagebox.StandardButton.No,
             )
@@ -3240,14 +3225,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 conn.execute("VACUUM")
                 conn.execute("ANALYZE")
             if hasattr(self, "status_label"):
-                self.status_label.setText("VACUUM/ANALYZE concluido com sucesso.")
+                self.status_label.setText("Status: DB compactado e estatisticas atualizadas.")
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.information(self, "Sucesso", "VACUUM/ANALYZE concluido.")
+                QMessageBox.information(self, "Sucesso", "Compactacao e atualizacao do DB concluidas.")
             return {"ok": True, "db_path": db_path}
         except Exception as exc:
-            logger.error("Falha ao executar VACUUM/ANALYZE: %s", exc)
+            logger.error("Falha ao compactar DB e atualizar estatisticas: %s", exc)
             if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(self, "Erro", f"Falha no VACUUM/ANALYZE: {exc}")
+                QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {exc}")
             return {"ok": False, "error": str(exc)}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:

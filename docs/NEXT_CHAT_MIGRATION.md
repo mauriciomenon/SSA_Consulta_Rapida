@@ -2,6 +2,19 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 21:38 - start from here
+
+- Tema agora abre em caixa/dialogo (como ajuda), nao menu popup.
+- Barra principal simplificada conforme pedido:
+  1. removeu `Carregar Outro DB`, `Abrir Pasta`, `Ajuda`.
+  2. manteve `Carregar Dados`, `Reescanear`, `Atualizar Derivadas`.
+  3. `Tema` ficou no lado direito.
+- `Database > Avancado` com linguagem amigavel:
+  1. acao segue `Compactar DB`.
+  2. prompt/status usam texto de compactacao + atualizacao de estatisticas.
+- Validacao da rodada:
+  1. `48 passed` nos testes focados de menu/reescaneamento/worker.
+
 ## CURRENT TRUTH 2026-03-08 21:06 - start from here
 
 - Menus atualizados conforme texto aprovado:
