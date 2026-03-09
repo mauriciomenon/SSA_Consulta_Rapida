@@ -2,6 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-09 00:30 - authoritative block
+
+- Correcao entregue no slice:
+  1. dedup de manutencao entre prunes de workers (`gui/ssa/gui_workers.py`).
+  2. cache de sort de `num_reprogramacoes` no clique de header (`gui/gui_ssa.py`).
+  3. versao de help/instalacao alinhada para `v4.31` (`docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`).
+- Evidencia:
+  1. `pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or prune_retired_loader_workers_removes_stale_refs_without_finished_signal"` -> `3 passed`
+  2. `pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> `19 passed`
+- Arquivos alterados:
+  1. `gui/ssa/gui_workers.py`
+  2. `gui/gui_ssa.py`
+  3. `tests/test_gui_filter_logic.py`
+  4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Deferido (fora de escopo deste slice):
+  1. debt amplo de arquitetura/performance em `SSAMainWindow`.
+  2. acoplamento residual no fluxo de prompt de reescaneamento.
+  3. semantica de tooltip/placeholder da busca geral vs modos avancados.
+  4. hardening adicional do path opener para casos extremos de argumento.
+  5. possivel lock contention em prune global de workers sob alta carga.
+
 ## CURRENT TRUTH 2026-03-09 00:04 - authoritative block
 
 - Correcao entregue no slice:

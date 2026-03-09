@@ -3,6 +3,48 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 00:30 - prune dedup + sort cache num_reprogramacoes + help version
+
+Session timestamp:
+1. start: `2026-03-09 00:12:38 -0300`
+2. end: `2026-03-09 00:30:00 -0300`
+
+Objetivo do slice:
+1. remover duplicacao de manutencao entre prunes de workers.
+2. reduzir custo do sort `num_reprogramacoes` no clique de header.
+3. alinhar versao do guia de instalacao/help para baseline `4.31`.
+4. atualizar trilha de migracao para proximo chat.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_workers.py`
+   - novo helper `_process_expired_workers` para fluxo comum de worker expirado por TTL.
+   - novo helper `_drop_orphaned_worker_meta` para limpar metadado orfao com mesma regra nos dois prunes.
+   - `prune_retired_data_loader_workers` e `prune_retired_rescan_workers` passaram a reutilizar esses blocos.
+2. `gui/gui_ssa.py`
+   - cache de chaves para sort de `num_reprogramacoes`:
+     - `_build_num_reprogramacoes_sort_keys`
+     - `_get_num_reprogramacoes_sort_keys`
+   - `_sort_num_reprogramacoes_robust` usa cache por dataset filtrado para evitar parse repetido a cada toggle.
+3. `tests/test_gui_filter_logic.py`
+   - novo teste: `test_on_header_clicked_reuses_num_reprogramacoes_sort_cache`.
+4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+   - cabecalho atualizado para `v4.31`.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or prune_retired_loader_workers_removes_stale_refs_without_finished_signal"` -> `3 passed`
+5. `timeout 300s uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> `19 passed`
+
+Pendencias nao bloqueantes (deferidas):
+1. debt amplo de arquitetura/performance na `SSAMainWindow` (fora de escopo do patch minimo).
+2. custo de operacoes pesadas ainda no thread da GUI em outros pontos nao tocados neste slice.
+3. naming/UX de `Reescanear` vs prompt continua para ciclo dedicado.
+4. semantica de tooltip/placeholder da busca geral vs modos avancados de termos (revisar texto x comportamento).
+5. hardening adicional de path opener (bloqueio extra para argumentos iniciados com `-` e allow-list mais estrita).
+6. possivel lock contention em prune/retain de workers sob carga intensa (avaliar tuning de frequencia/lock granularity).
+
 ## Update 2026-03-09 00:04 - hardening semantico/security/status worker
 
 Session timestamp:

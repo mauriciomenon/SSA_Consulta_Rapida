@@ -2132,6 +2132,31 @@ class TestGUIFilterLogic:
         assert desc_vals[:3] == [2, "Reprogramacao #1", 0]
         assert desc_vals[-2:] == ["", None]
 
+    def test_on_header_clicked_reuses_num_reprogramacoes_sort_cache(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window._df_last_search_filtered = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+
+        self.window.on_header_clicked(logical_index)
+        cache_after_first = dict(self.window._num_reprog_sort_cache)
+        first_keys_df_id = id(cache_after_first["keys_df"])
+        assert cache_after_first["source_id"] == id(self.window._df_last_search_filtered)
+
+        self.window.on_header_clicked(logical_index)
+        cache_after_second = dict(self.window._num_reprog_sort_cache)
+        assert cache_after_second["source_id"] == id(self.window._df_last_search_filtered)
+        assert id(cache_after_second["keys_df"]) == first_keys_df_id
+
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
         self.window._save_advanced_filters_default()

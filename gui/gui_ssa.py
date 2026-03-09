@@ -1126,6 +1126,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._data_revision = 0
         self._data_revision_request_id = None
         self._data_uuid = None
+        self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         self._active_filter_search_request_id = None
@@ -2081,17 +2082,11 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if "num_reprogramacoes" not in self.df_exibido.columns:
             return self.df_exibido
 
-        raw_series = self.df_exibido["num_reprogramacoes"]
-        numeric = pd.to_numeric(raw_series, errors="coerce")
-        if bool(numeric.isna().any()):
-            extracted = raw_series.astype(str).str.extract(r"(-?\d+)")[0]
-            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
-            numeric = numeric.fillna(extracted_numeric)
-
+        sort_keys = self._get_num_reprogramacoes_sort_keys()
         sort_df = self.df_exibido.assign(
-            __reprog_is_nan=numeric.isna(),
-            __reprog_num=numeric,
-            __reprog_txt=raw_series.astype(str).str.casefold(),
+            __reprog_is_nan=sort_keys["__reprog_is_nan"].values,
+            __reprog_num=sort_keys["__reprog_num"].values,
+            __reprog_txt=sort_keys["__reprog_txt"].values,
         )
         sorted_df = sort_df.sort_values(
             by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
@@ -2100,6 +2095,56 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             kind="mergesort",
         )
         return sorted_df.drop(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+
+    def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
+        raw_series = source_df["num_reprogramacoes"]
+        numeric = pd.to_numeric(raw_series, errors="coerce")
+        missing_numeric_mask = numeric.isna()
+        if bool(missing_numeric_mask.any()):
+            extracted_source = raw_series[missing_numeric_mask].astype(str)
+            extracted = extracted_source.str.extract(r"(-?\d+)")[0]
+            extracted_numeric = pd.to_numeric(extracted, errors="coerce")
+            numeric = numeric.copy()
+            numeric.loc[missing_numeric_mask] = extracted_numeric
+        return pd.DataFrame(
+            {
+                "__reprog_is_nan": numeric.isna(),
+                "__reprog_num": numeric,
+                "__reprog_txt": raw_series.astype(str).str.casefold(),
+            },
+            index=source_df.index,
+        )
+
+    def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
+        source_df = self.df_exibido
+        last_search_df = getattr(self, "_df_last_search_filtered", None)
+        if isinstance(last_search_df, pd.DataFrame) and "num_reprogramacoes" in last_search_df.columns:
+            source_df = last_search_df
+
+        source_id = id(source_df)
+        source_len = len(source_df.index)
+        cache = getattr(self, "_num_reprog_sort_cache", None)
+        keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
+        cache_is_valid = (
+            isinstance(cache, dict)
+            and cache.get("source_id") == source_id
+            and int(cache.get("source_len", -1)) == source_len
+            and isinstance(keys_df, pd.DataFrame)
+        )
+        if not cache_is_valid:
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+            self._num_reprog_sort_cache = {
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        if not isinstance(keys_df, pd.DataFrame):
+            keys_df = self._build_num_reprogramacoes_sort_keys(self.df_exibido)
+        sort_keys = keys_df.reindex(self.df_exibido.index)
+        if bool(sort_keys["__reprog_txt"].isna().any()):
+            # Fallback defensivo: indices divergiram; usa dataframe atual.
+            sort_keys = self._build_num_reprogramacoes_sort_keys(self.df_exibido)
+        return sort_keys
 
     def on_header_clicked(self, logical_index: int):
         try:
