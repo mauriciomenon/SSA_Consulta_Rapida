@@ -1,7 +1,7 @@
-# Guia Completo de Migracao - SSA Consulta Rapida v4.31
+# Guia Completo de Migracao - SSA Consulta Rapida v4.32
 
 **Data de Criacao:** 27 de Agosto de 2025  
-**Versao do Sistema:** v4.31 (Estavel)  
+**Versao do Sistema:** v4.32 (Estavel)  
 **Tipo:** Migracao Completa para Nova Instalacao  
 
 ---
@@ -69,6 +69,7 @@ ls main.py, requirements.txt, README.md
 ### **Passo 3: Configurar Ambiente Virtual**
 ```powershell
 # Fluxo recomendado (uv-first)
+# OBS: usando uv run, nao e necessario ativar venv manualmente
 uv venv
 uv sync
 
@@ -77,10 +78,10 @@ uv sync
 $PY_RUNTIME = "3.13"
 uv run --python $PY_RUNTIME python --version
 
-# Compatibilidade sem uv (fallback)
+# Opcional: fluxo manual sem uv (apenas fallback)
 python -m venv venv
 
-# Ativar ambiente (escolha um dos metodos)
+# Ativar ambiente (apenas para fluxo manual fallback)
 # Metodo 1 - PowerShell
 .\venv\Scripts\Activate.ps1
 
@@ -459,5 +460,5 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 09/03/2026 - v4.31*
+*Ultima atualizacao: 09/03/2026 - v4.32*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*

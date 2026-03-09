@@ -3,6 +3,30 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 08:41 - doc sync release 4.32
+
+Session timestamp:
+1. start: `2026-03-09 08:41:42 -0300`
+2. end: `2026-03-09 17:26:32 -0300`
+
+Objetivo do slice:
+1. promover baseline ativo de documentacao e metadados para `4.32`.
+2. manter historico antigo sem reescrever snapshots.
+3. registrar trilha de migracao para proximo chat.
+
+Mudancas aplicadas:
+1. `VERSION` -> `4.32`.
+2. `config/version.json` -> `version_short=4.32`.
+3. `README.md` topo promovido para `v4.32`.
+4. `docs/HISTORICO_RELEASES.md` com bloco `RELEASE v4.32 - CURRENT RELEASE`.
+5. `docs/FILTER_TAB_OPTIMIZATIONS.md` baseline atualizado para `v4.32`.
+6. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md` topo e rodape alinhados para `v4.32`.
+7. docs de controle atualizados com bloco de continuidade para `4.32`.
+
+Validacao planejada do slice:
+1. scan de referencias (`rg`) para confirmar versao ativa.
+2. `python -m py_compile` + `ruff` + `ty` + `pytest` focado (sanidade minima) antes do commit.
+
 ## Update 2026-03-09 06:45 - full rescan real + metricas completas em lote unico
 
 Session timestamp:

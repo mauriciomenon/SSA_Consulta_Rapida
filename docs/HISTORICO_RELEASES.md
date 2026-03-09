@@ -2,7 +2,36 @@
 
 Este documento consolida todas as notas de lancamento e atualizacoes do projeto SSA Consulta Rapida.
 
-## **RELEASE v4.30 - CURRENT RELEASE**
+## **RELEASE v4.32 - CURRENT RELEASE**
+
+**Data de Lancamento**: Marco 2026
+**Tipo**: Baseline update para full rescan validado com metricas consolidadas
+**Status**: Estavel
+
+### **Principais entregas**
+- Full rescan real executado de ponta a ponta com evidencia em:
+  - `logs/import_run_20260309_010936_830587.json`
+  - `logs/full_rescan_runtime_20260309_010934.log`
+  - `docs/indicios_importacao.md`
+- Baseline local promovido para `4.32` em:
+  - `VERSION`
+  - `config/version.json`
+  - docs ativos de referencia
+- Saude do DB apos rescan:
+  - `integrity_check=ok`
+  - coluna `id` presente
+  - sem colunas `nan*`
+  - duplicidade de `numero_ssa=0`
+
+### **Documentacao da versao**
+- `README.md` (v4.32 no topo)
+- `docs/NEXT_CHAT_MIGRATION.md` (topo atualizado)
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
+- `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.32`)
+
+---
+
+## **RELEASE v4.30**
 
 **Data de Lancamento**: Marco 2026
 **Tipo**: Baseline update para sprint de saneamento
@@ -483,9 +512,9 @@ custom_formatting = True
 
 ---
 
-## **ROADMAP FUTURO**
+## **ROADMAP HISTORICO (SNAPSHOT ANTIGO)**
 
-### **v3.11 - Proximo Release** (Planejado)
+### **v3.11 - Plano antigo** (Arquivado)
 
 #### **Funcionalidades Planejadas**
 - **Web Interface**: Interface web complementar
@@ -499,7 +528,7 @@ custom_formatting = True
 - **Advanced Caching**: Sistema de cache distribuido
 - **Real-time Updates**: Atualizacoes em tempo real
 
-### **v4.0 - Major Rewrite** (Futuro)
+### **v4.0 - Major Rewrite** (Plano antigo)
 
 #### **Arquitetura Nova**
 - **Microservices**: Divisao em microservicos
@@ -512,9 +541,9 @@ custom_formatting = True
 ## **SUPORTE E MANUTENCAO**
 
 ### **Politica de Suporte**
-- **v3.10**: Suporte ativo ate v4.0
-- **v3.0.6**: LTS - Suporte ate 2026
-- **Versoes anteriores**: Suporte limitado
+- **v4.32**: Baseline estavel ativo
+- **v4.31**: Suporte de compatibilidade em migracao
+- **Versoes anteriores**: Tratadas como historico
 
 ### **Canais de Suporte**
 - **Issues GitHub**: Reportar bugs e sugestoes
@@ -522,6 +551,6 @@ custom_formatting = True
 - **Scripts**: Scripts de manutencao e diagnostico
 
 ### **Atualizacao Recomendada**
-Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v3.10).
+Para melhor performance e estabilidade, recomenda-se sempre utilizar a versao mais recente estavel (v4.32).
 
 **Status**: Desenvolvimento ativo com releases regulares a cada 2-3 meses.

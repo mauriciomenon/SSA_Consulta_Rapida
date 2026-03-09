@@ -2,6 +2,22 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-09 08:41 - authoritative block
+
+- Baseline de versao/documentacao promovido para `4.32`.
+- Escopo entregue neste slice:
+  1. `VERSION` e `config/version.json` alinhados em `4.32`.
+  2. topo do `README.md` e release historico ativo em `docs/HISTORICO_RELEASES.md` alinhados para `4.32`.
+  3. baseline de `docs/FILTER_TAB_OPTIMIZATIONS.md` em `v4.32`.
+  4. guia de instalacao/help atualizado para `v4.32`.
+  5. trilha de continuidade atualizada em `docs/RECOVERY_BACKLOG.md` e `docs/NEXT_CHAT_MIGRATION.md`.
+- Nao alterado:
+  1. runtime de importacao/GUI/DB.
+  2. snapshots historicos antigos (v4.30/v4.31) abaixo do topo.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-09 06:45 - authoritative block
 
 - Full rescan real executado em lote unico com backup previo.
