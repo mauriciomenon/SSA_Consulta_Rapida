@@ -20,7 +20,7 @@ Status: Todos os arquivos validados - sintaxe OK
 | 9 | Provider | groq_config.json | C:\Users\menon\git\SSA_Consulta_Rapida\config\llm_providers\groq_config.json |
 | 10 | Provider | ollama_config.json | C:\Users\menon\git\SSA_Consulta_Rapida\config\llm_providers\ollama_config.json |
 | 11 | Provider Doc | README.md | C:\Users\menon\git\SSA_Consulta_Rapida\config\llm_providers\README.md |
-| 12 | Instrucao | ccr_llm_providers.instructions.md | C:\Users\menon\git\SSA_Consulta_Rapida\.github\instructions\ccr_llm_providers.instructions.md |
+| 12 | Instrucao | ccr_llm_providers.instructions (local) | C:\Users\menon\git\SSA_Consulta_Rapida\.github\instructions\ccr_llm_providers.instructions |
 | 13 | Documentacao | CCR_LLM_PROVIDERS_SETUP.md | C:\Users\menon\git\SSA_Consulta_Rapida\docs\CCR_LLM_PROVIDERS_SETUP.md |
 
 ### Arquivos Sincronizados para VS Code Insiders
@@ -97,7 +97,7 @@ explorer "C:\Users\menon\git\SSA_Consulta_Rapida\config\llm_providers"
 
 ### 1.3 Arquivo de Instrucoes para Copilot
 
-**Arquivo:** `C:\Users\menon\git\SSA_Consulta_Rapida\.github\instructions\ccr_llm_providers.instructions.md`
+**Arquivo:** `C:\Users\menon\git\SSA_Consulta_Rapida\.github\instructions\ccr_llm_providers.instructions`
 
 **Proposito:** Instrucoes automaticas para o Copilot sobre uso do CCR
 
@@ -248,7 +248,7 @@ C:\Users\menon\
     |   +-- ollama_config.json         <-- Ollama config
     |
     +-- .github\instructions\
-    |   +-- ccr_llm_providers.instructions.md   <-- Instrucoes Copilot
+    |   +-- ccr_llm_providers.instructions      <-- Instrucoes Copilot
     |   +-- (outros 15 arquivos de instrucoes)
     |
     +-- docs\

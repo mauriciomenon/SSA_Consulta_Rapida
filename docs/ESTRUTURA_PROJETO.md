@@ -49,10 +49,10 @@ SSA_Consulta_Rapida/
 │   └── dist/                    # Executaveis gerados
 ├── 
 ├── docs/                        # Documentacao
-│   ├── CHECKLIST_MASTER.md      # Status e planejamento
-│   ├── ANALISES_TECNICAS.md     # Analises consolidadas
+│   ├── PENDING_ACTION_MATRIX.md # Status e planejamento
+│   ├── ARQUITETURA_IMPORTACAO.md # Analises tecnicas ativas
 │   ├── TROUBLESHOOTING.md       # Solucao de problemas
-│   ├── RELATORIOS_DESENVOLVIMENTO.md # Relatorios
+│   ├── CHANGELOG_IMPLEMENTACOES.md # Historico de implementacao
 │   └── GUIA_MIGRACAO_NOVA_INSTALACAO.md # Setup
 └── 
 └── tests/                       # Testes automatizados
@@ -84,7 +84,7 @@ python -c "from utils import setup_project_structure as s; print(s.setup_dirs())
 - **gui/**: Interface grafica, depende apenas do core
 - **interface/**: CLI, depende apenas do core
 - **armazenamento/**: Persistencia, interface bem definida
-- **utils/**: Funcoes auxiliares, sem dependencias internas
+- **utils/**: Funcoes auxiliares e bootstrap, com dependencias controladas de ambiente quando necessario
 
 #### **2. Configuracao Centralizada**
 - **config/**: Todos os arquivos de configuracao
@@ -110,9 +110,9 @@ python -c "from utils import setup_project_structure as s; print(s.setup_dirs())
 4. **TROUBLESHOOTING.md** - Solucao de problemas
 
 #### **Nivel 2 - Documentos Especializados**
-1. **CHECKLIST_MASTER.md** - Status e planejamento
-2. **ANALISES_TECNICAS.md** - Analises consolidadas
-3. **RELATORIOS_DESENVOLVIMENTO.md** - Historico de desenvolvimento
+1. **PENDING_ACTION_MATRIX.md** - Status e planejamento
+2. **ARQUITETURA_IMPORTACAO.md** - Analises consolidadas
+3. **CHANGELOG_IMPLEMENTACOES.md** - Historico de desenvolvimento
 4. **BUILD_SYSTEM.md** - Sistema de build
 
 #### **Nivel 3 - Documentos de Referencia**

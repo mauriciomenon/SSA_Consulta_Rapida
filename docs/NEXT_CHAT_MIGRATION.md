@@ -2,7 +2,22 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 19:01 - start from here
+## CURRENT TRUTH 2026-03-09 19:26 - start from here
+
+- Integridade de documentacao reforcada no baseline `4.32`.
+- Entregas principais:
+  1. referencias quebradas de `.md` corrigidas nos docs ativos.
+  2. referencias locais opcionais (`local_ai_private`) tratadas como nao obrigatorias.
+  3. stubs `docs/ARCH_*` adicionados para compatibilidade com backlog historico.
+  4. ponteiro de plano legado criado em `docs/archive/PLANO_REFATORACAO_SSA_CONSULTA_RAPIDA.md`.
+- Evidencia de qualidade:
+  1. varredura de referencias markdown em `README.md` + `docs/*.md` com resultado final `missing=0`.
+  2. kluster limpo apos ajustes finais por arquivo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:01
 
 - Ciclo de refinamento documental concluido para baseline `4.32`.
 - Principais entregas:

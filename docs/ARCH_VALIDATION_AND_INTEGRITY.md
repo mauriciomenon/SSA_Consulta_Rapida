@@ -1,0 +1,8 @@
+# ARCH VALIDATION AND INTEGRITY (legacy pointer)
+
+Documento legado mantido para compatibilidade de referencias antigas.
+Fonte ativa no baseline v4.32:
+
+1. `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
+2. `docs/REGRA_NUMERO_SSA.md`
+3. `docs/TROUBLESHOOTING_IMPORTACAO.md`

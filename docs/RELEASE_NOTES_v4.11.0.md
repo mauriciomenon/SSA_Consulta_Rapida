@@ -76,16 +76,11 @@ Movidos para `LocalTemp/03_relatorios_analises/`:
 - report_modularizacao_gui* (3 arquivos)
 - ANALISE_* (3 arquivos)
 - BUILD_SCRIPTS_COMPARISON.md
-- CONFIGURATION_FIXES_2025-09-06.md
-- CORRECOES_2025_11_10.md, CORRECOES_GUI_v3.10.md
-- HISTORICO_ULTIMOS_50_COMMITS.md
+- outros relatorios tecnicos historicos da serie 2025
 - Release notes antigas: v3.0.5, v4.0.1, v4.0.3
 
 **launchers/ (7 arquivos):**
-- RELATORIO_FINAL_CONSOLIDADO.md, RELATORIO_FINAL_v3.0.7.md
-- RELATORIO_TESTES_FINAL.md
-- RESUMO_FINAL_v3.10.md, SUMARIO_EXECUTIVO_v3.10.md
-- STATUS_BUILD_v3.10.md, STATUS_FINAL.md
+- relatorios finais e status historicos da serie v3.x
 
 ### Backups Database
 
@@ -159,7 +154,7 @@ Possivel restaurar qualquer arquivo se necessario via git ou LocalTemp/.
 
 ## Documentacao Detalhada
 
-Consulte `LIMPEZA_COMMIT_5242a65.md` para:
+Consulte o historico do commit `5242a65` para:
 - Tabelas completas DE-PARA de todos arquivos
 - Justificativa detalhada de cada movimentacao
 - Estrutura completa LocalTemp/

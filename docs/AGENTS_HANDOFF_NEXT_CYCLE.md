@@ -2,7 +2,21 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 19:01 - authoritative block
+## CURRENT TRUTH 2026-03-09 19:26 - authoritative block
+
+- Integridade de links/referencias em docs ativos concluida.
+- Entregas principais:
+  1. referencias quebradas em docs ativos corrigidas.
+  2. stubs `docs/ARCH_*` adicionados para compatibilidade com backlog historico.
+  3. referencias locais opcionais (`local_ai_private`) deixadas sem dependencia de arquivo especifico.
+- Nao alterado:
+  1. runtime de importacao/GUI/DB.
+  2. testes de runtime.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:01
 
 - Ciclo de refinamento de documentacao concluido no baseline `4.32`.
 - Entregas principais:
