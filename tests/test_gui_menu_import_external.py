@@ -390,7 +390,7 @@ def test_run_vacuum_analyze_success_updates_status(monkeypatch, tmp_path: Path) 
     result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, window))
 
     assert result["ok"] is True
-    assert "VACUUM/ANALYZE concluido" in window.status_label.text
+    assert "DB compactado" in window.status_label.text
 
 
 def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
