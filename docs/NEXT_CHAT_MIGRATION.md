@@ -2,6 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-08 23:05 - start from here
+
+- Menus padronizados conforme grade final aprovada:
+  1. `Arquivo`: `Recarregar Dados`, `Atualizar Dados`, `Exportar lista`, `Sair`.
+  2. `Importacao`: `Importar XLS/XLSX externo`, `Atualizar Dados`, `Reescaneamento Completo`, 3 atalhos de pasta, `Consolidar arquivos de entrada`.
+  3. `Database`: `Reescanear`, `Atualizar derivadas`, `Carregar outro DB`, `Compactar DB`.
+  4. `Ajuda`: `Instalacao`, `Ajuda`.
+- Prompt de `Reescanear` padronizado:
+  1. texto informativo sem sufixo `(diff)`.
+  2. botao `Atualizar Dados` (sem `(diff)`).
+- Nova acao de ajuda:
+  1. `Instalacao` abre `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`.
+- Validacao da rodada:
+  1. `py_compile` pass
+  2. `ruff` pass
+  3. `ty` pass
+  4. `pytest` focado -> `16 passed`
+
 ## CURRENT TRUTH 2026-03-08 22:28 - start from here
 
 - Micro hardening de tema aplicado sem mudanca de layout:

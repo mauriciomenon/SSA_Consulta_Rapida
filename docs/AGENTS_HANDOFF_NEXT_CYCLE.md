@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-08 23:05 - authoritative block
+
+- Menus finais reorganizados conforme especificacao do usuario:
+  1. `Arquivo`: 4 itens (recarregar/atualizar/exportar/sair).
+  2. `Importacao`: importacao externa + atualizar + full + pastas + consolidacao.
+  3. `Database`: reescanear + derivadas + carregar DB + compactar.
+  4. `Ajuda`: `Instalacao` + `Ajuda`.
+- Prompt de reescaneamento atualizado:
+  1. `Atualizar Dados` sem sufixo `(diff)` em texto e botao.
+- Nova acao:
+  1. `open_installation_guide` abre `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`.
+- Evidencia:
+  1. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `16 passed`
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/ssa/gui_workers.py`
+  3. `tests/test_gui_menu_import_external.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+
 ## CURRENT TRUTH 2026-03-08 22:28 - authoritative block
 
 - Slice de estabilidade (tema) executado com patch minimo:
