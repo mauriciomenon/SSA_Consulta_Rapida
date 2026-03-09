@@ -276,13 +276,13 @@ uv run --python $PY_RUNTIME python main.py --gui
 ### **Teste 3: Executar Testes Automatizados**
 ```powershell
 # Executar testes basicos
-python -m pytest tests\test_imports.py -v
+uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco
-python tests\test_db_check.py
+uv run --python $PY_RUNTIME python tests\test_db_check.py
 
 # Executar teste de sistema completo
-python tests\teste_sistema_completo.py
+uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py
 ```
 
 ---
