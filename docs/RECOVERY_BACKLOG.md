@@ -42,6 +42,8 @@ Validacao desta rodada:
    - `uv run --python 3.13 ruff check main.py` -> pass
    - `uv run --python 3.13 ty check main.py` -> pass
    - `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py tests/test_gui_menu_import_external.py tests/test_open_docs_folder_nonblocking.py` -> `15 passed`
+4. commit de evidencia:
+   - `dcbbb2f3` (`DOC_SYNC`) - integridade de referencias e ponteiros legacy.
 
 ## Update 2026-03-09 19:01 - full documentation refine v4.32
 
