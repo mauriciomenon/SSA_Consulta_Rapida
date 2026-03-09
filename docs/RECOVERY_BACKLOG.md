@@ -3,6 +3,42 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 01:05 - performance focused (sort jank + resize burst)
+
+Session timestamp:
+1. start: `2026-03-09 00:56:08 -0300`
+2. end: `2026-03-09 01:05:00 -0300`
+
+Objetivo do slice:
+1. reduzir jank no sort de `num_reprogramacoes`.
+2. coalescer recompute de best-fit em burst de resize.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - sort `num_reprogramacoes` agora ordena por indice de `sort_keys` (sem `assign` temporario no dataframe inteiro).
+   - novo prewarm/invalidate de cache:
+     - `_prime_num_reprogramacoes_sort_cache`
+     - `_reset_num_reprogramacoes_sort_cache`
+   - resize recompute agora usa timer unico restartavel:
+     - `_schedule_resize_recompute`
+     - `_on_resize_recompute_timeout`
+     - removeu `QTimer.singleShot` repetitivo no `resizeEvent`.
+2. `gui/ssa/gui_workers.py`
+   - `on_data_loaded` agora chama prewarm de cache de sort quando disponivel.
+3. `tests/test_gui_filter_logic.py`
+   - `test_on_data_loaded_primes_num_reprogramacoes_sort_cache`
+   - `test_resize_event_coalesces_width_recompute_with_restartable_timer`
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "on_header_clicked_sorts_num_reprogramacoes_mixed_types or on_header_clicked_reuses_num_reprogramacoes_sort_cache or on_data_loaded_primes_num_reprogramacoes_sort_cache or resize_event_coalesces_width_recompute_with_restartable_timer or prune_retired_loader_workers_removes_stale_refs_without_finished_signal"` -> `5 passed`
+
+Pendencias nao bloqueantes (deferidas):
+1. custo de primeira ordenacao ainda existe em datasets muito grandes (cache so remove custo repetido).
+2. recompute de width ainda roda em UI thread (agora coalescido); offload de calculo fica para ciclo dedicado.
+
 ## Update 2026-03-09 00:30 - prune dedup + sort cache num_reprogramacoes + help version
 
 Session timestamp:

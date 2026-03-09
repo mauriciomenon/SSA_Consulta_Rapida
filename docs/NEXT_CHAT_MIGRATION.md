@@ -2,6 +2,31 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-09 01:05 - start from here
+
+- Slice de performance focado entregue:
+  1. sort de `num_reprogramacoes` com menor custo de memoria/copia.
+  2. prewarm de cache de sort apos `on_data_loaded`.
+  3. recompute de width no resize agora coalescido por timer restartavel unico.
+- Mudancas tecnicas:
+  1. `gui/gui_ssa.py`
+     - `_sort_num_reprogramacoes_robust`: ordena por indice de `sort_keys`.
+     - `_prime_num_reprogramacoes_sort_cache` + `_reset_num_reprogramacoes_sort_cache`.
+     - `_schedule_resize_recompute` + `_on_resize_recompute_timeout`.
+  2. `gui/ssa/gui_workers.py`
+     - prewarm de cache de sort no fim de `on_data_loaded`.
+  3. `tests/test_gui_filter_logic.py`
+     - cobertura para prewarm de cache.
+     - cobertura para coalescing de resize recompute.
+- Validacao:
+  1. `py_compile` pass
+  2. `ruff` pass
+  3. `ty` pass
+  4. `pytest` focado -> `5 passed`
+- Risco residual:
+  1. primeira ordenacao ainda pode custar em base extrema.
+  2. width recompute ainda ocorre em UI thread (agora sem explosao de chamadas por burst).
+
 ## CURRENT TRUTH 2026-03-09 00:30 - start from here
 
 - Slice fechado para 3 pontos solicitados:

@@ -1305,6 +1305,24 @@ class TestGUIFilterLogic:
         assert captured_widths
         assert captured_widths[0] >= 0
 
+    def test_resize_event_coalesces_width_recompute_with_restartable_timer(self):
+        self.window._last_window_width = 900
+        self.window._data_revision = 17
+        self.window.df_exibido = self.base_df.copy()
+        calls: list[int | None] = []
+
+        with patch.object(
+            self.window,
+            "_recompute_column_widths_on_resize",
+            side_effect=lambda expected_revision=None: calls.append(expected_revision),
+        ):
+            self.window.resizeEvent(QResizeEvent(QSize(980, 700), QSize(900, 700)))
+            self.window.resizeEvent(QResizeEvent(QSize(1020, 700), QSize(980, 700)))
+            self.window.resizeEvent(QResizeEvent(QSize(1080, 700), QSize(1020, 700)))
+            cast(Any, QTest).qWait(360)
+
+        assert calls == [17]
+
     def test_apply_theme_updates_tab_stylesheet_in_normal_flow(self):
         self.window.main_tabs.setStyleSheet("")
 
@@ -2623,6 +2641,19 @@ class TestGUIFilterLogic:
         assert self.window.df_completo.loc[0, "numero_ssa"] == "202500777"
         assert self.window.df_completo.loc[1, "numero_ssa"] == "202500778"
         assert self.window.df_completo.loc[0, "derivada_de"] == "202500001"
+
+    def test_on_data_loaded_primes_num_reprogramacoes_sort_cache(self):
+        self.window._active_data_load_request_id = 31
+        df = self.base_df.copy()
+        df["num_reprogramacoes"] = [2, "Reprogramacao #1", 0, "", None]
+
+        self.window.on_data_loaded(df, request_id=31)
+
+        cache = self.window._num_reprog_sort_cache
+        assert cache["source_id"] == id(self.window._df_last_search_filtered)
+        assert int(cache["source_len"]) == len(self.window._df_last_search_filtered.index)
+        assert isinstance(cache["keys_df"], pd.DataFrame)
+        assert "__reprog_num" in cache["keys_df"].columns
 
     def test_on_load_error_ignores_stale_request(self):
         self.window._active_data_load_request_id = 10

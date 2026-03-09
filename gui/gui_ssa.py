@@ -1127,6 +1127,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self._data_revision_request_id = None
         self._data_uuid = None
         self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
+        self._pending_resize_recompute_revision = None
+        self._resize_recompute_timer = QTimer(self)
+        self._resize_recompute_timer.setSingleShot(True)
+        self._resize_recompute_timer.timeout.connect(self._on_resize_recompute_timeout)
         self._filter_request_seq = 0
         self._active_filter_request_id = 0
         self._active_filter_search_request_id = None
@@ -2083,18 +2087,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return self.df_exibido
 
         sort_keys = self._get_num_reprogramacoes_sort_keys()
-        sort_df = self.df_exibido.assign(
-            __reprog_is_nan=sort_keys["__reprog_is_nan"].values,
-            __reprog_num=sort_keys["__reprog_num"].values,
-            __reprog_txt=sort_keys["__reprog_txt"].values,
-        )
-        sorted_df = sort_df.sort_values(
+        ordered_index = sort_keys.sort_values(
             by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
             ascending=[True, bool(ascending), True],
             na_position="last",
             kind="mergesort",
-        )
-        return sorted_df.drop(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+        ).index
+        return self.df_exibido.loc[ordered_index]
 
     def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
         raw_series = source_df["num_reprogramacoes"]
@@ -2145,6 +2144,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             # Fallback defensivo: indices divergiram; usa dataframe atual.
             sort_keys = self._build_num_reprogramacoes_sort_keys(self.df_exibido)
         return sort_keys
+
+    def _reset_num_reprogramacoes_sort_cache(self) -> None:
+        self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
+
+    def _prime_num_reprogramacoes_sort_cache(self) -> None:
+        source_df = getattr(self, "_df_last_search_filtered", None)
+        if not isinstance(source_df, pd.DataFrame):
+            source_df = self.df_exibido
+        if not isinstance(source_df, pd.DataFrame):
+            self._reset_num_reprogramacoes_sort_cache()
+            return
+        if source_df.empty or "num_reprogramacoes" not in source_df.columns:
+            self._reset_num_reprogramacoes_sort_cache()
+            return
+        keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+        self._num_reprog_sort_cache = {
+            "source_id": id(source_df),
+            "source_len": len(source_df.index),
+            "keys_df": keys_df,
+        }
 
     def on_header_clicked(self, logical_index: int):
         try:
@@ -3641,12 +3660,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             hasattr(self, '_last_window_width')):
             width_change = abs(event.size().width() - self._last_window_width)
             if width_change > 12:  # So recalcula se mudanca for > 12px
-                # Delay para evitar recãlculos excessivos durante resize
                 expected_revision = int(getattr(self, "_data_revision", 0) or 0)
-                QTimer.singleShot(
-                    300,
-                    lambda rev=expected_revision: self._recompute_column_widths_on_resize(expected_revision=rev),
-                )
+                self._schedule_resize_recompute(expected_revision=expected_revision)
 
         # Salva largura atual
         self._last_window_width = event.size().width()
@@ -3693,6 +3708,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self._last_resize_width_key = width_key
         except (RuntimeError, AttributeError, KeyError, TypeError, ValueError):
             logger.exception("Column width recompute failed during resize")
+
+    def _schedule_resize_recompute(self, expected_revision: int) -> None:
+        try:
+            self._pending_resize_recompute_revision = int(expected_revision)
+            if hasattr(self, "_resize_recompute_timer") and self._resize_recompute_timer is not None:
+                self._resize_recompute_timer.start(300)
+            else:
+                QTimer.singleShot(
+                    300,
+                    lambda rev=int(expected_revision): self._recompute_column_widths_on_resize(expected_revision=rev),
+                )
+        except Exception as exc:
+            logger.debug("Falha ao agendar recompute de resize: %s", exc)
+
+    def _on_resize_recompute_timeout(self) -> None:
+        expected_revision = getattr(self, "_pending_resize_recompute_revision", None)
+        self._pending_resize_recompute_revision = None
+        self._recompute_column_widths_on_resize(expected_revision=expected_revision)
 
     def _apply_computed_widths_only(self):
         """Aplica apenas as larguras calculadas pelo WidthManager (ignora configurações salvas)."""
