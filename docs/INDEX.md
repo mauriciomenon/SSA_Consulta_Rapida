@@ -1,95 +1,76 @@
-# Documentacao - Sistema de Importacao SSA
+# INDEX de Documentacao (Baseline v4.32)
 
-## Indice de Documentos
+Este arquivo define a navegacao oficial da documentacao ativa.
 
-Esta pasta contem a documentacao do sistema de importacao do SSA_Consulta_Rapida, atualizada em 2026-03-01.
+## Regras de leitura
 
----
+1. Baseline ativo de versao: `4.32`.
+2. Arquivos em `docs/archive/` sao historicos e nao substituem docs ativos.
+3. Em conflito de informacao, prevalece:
+   - `AGENTS.md` (raiz)
+   - `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+   - topo dos docs de controle (`RECOVERY_BACKLOG`, `NEXT_CHAT_MIGRATION`, `AGENTS_HANDOFF_NEXT_CYCLE`)
 
-## Documentos Principais
+## Leitura recomendada (ordem)
 
-### 1. ARQUITETURA_IMPORTACAO.md
-Documento principal da arquitetura de importacao.
+1. `README.md` (raiz do repositorio)
+2. `docs/HISTORICO_RELEASES.md`
+3. `docs/COMANDOS_RAPIDOS.md`
+4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+5. `docs/TROUBLESHOOTING.md`
 
-Conteudo:
-- visao geral em camadas
-- fluxo de dados
-- componentes principais
-- fluxo CLI e GUI
-- erros conhecidos
-- pontos fortes
-- metricas de performance
-- recomendacoes priorizadas
+## Controle operacional
 
-Leitura recomendada: comecar por este arquivo.
+- `docs/RECOVERY_BACKLOG.md`
+- `docs/NEXT_CHAT_MIGRATION.md`
+- `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- `docs/PENDING_ACTION_MATRIX.md`
 
-### 2. RESUMO_EXECUTIVO_IMPORTACAO.md
-Resumo objetivo para decisao tecnica.
+## Importacao e dados
 
-Conteudo:
-- principais achados
-- metricas de performance
-- recomendacoes por impacto
-- checklist de proximos passos
-- riscos
+- `docs/ARQUITETURA_IMPORTACAO.md`
+- `docs/IMPORTACAO_ROBUSTA.md`
+- `docs/SCHEMA_UNIFICADO_IMPORTACAO.md`
+- `docs/DERIVADAS_SYNC_RUNBOOK.md`
+- `docs/indicios_importacao.md`
+- `docs/TROUBLESHOOTING_IMPORTACAO.md`
+- `docs/REGRA_NUMERO_SSA.md`
 
-### 3. TROUBLESHOOTING_IMPORTACAO.md
-Guia de diagnostico e resolucao de problemas.
+## GUI e filtros
 
-Conteudo:
-- erros comuns
-- problemas de performance
-- problemas de dados
-- diagnostico avancado
-- checklist de resolucao
+- `docs/GUI_PYQT6_REGRAS_GERAIS.md`
+- `docs/FILTER_TAB_OPTIMIZATIONS.md`
+- `docs/GUI_ASYNC_LOADING_GUARDRAILS.md`
+- `docs/WORKERS_API_DOCUMENTATION.md`
+- `docs/WORKERS_ARCHITECTURE_DIAGRAMS.md`
 
----
+## Build e distribuicao
 
-## Diagramas (PlantUML)
+- `docs/BUILD_SYSTEM.md`
+- `docs/BUILD_MULTIPLATFORM.md`
+- `docs/GUIA_DISTRIBUICAO.md`
+- `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+- `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+- `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+- `docs/BUILD_SCRIPTS_COMPARISON.md`
 
-### 4. diagrams/arquitetura_importacao.puml
-Diagrama de componentes por camada.
+## Ferramentas e ambiente
 
-### 5. diagrams/fluxo_sequencia_importacao.puml
-Diagrama de sequencia do fluxo de importacao.
+- `docs/TESTING_STRATEGY.md`
+- `docs/TESTING_HEADLESS.md`
+- `docs/LINTING_MINIMAL.md`
+- `docs/OTIMIZACAO_STARTUP.md`
+- `docs/MCP_SERVERS_STATUS.md`
+- `docs/OPENCODE_CONFIG.md`
+- `docs/QWEN_CODE_DELEGATION_CONFIG.md`
 
-### 6. diagrams/diagrama_classes.puml
-Diagrama de classes das entidades principais.
+## Diagramas tecnicos
 
----
+- `docs/diagrams/arquitetura_importacao.puml`
+- `docs/diagrams/fluxo_sequencia_importacao.puml`
+- `docs/diagrams/diagrama_classes.puml`
 
-## Como Usar Esta Documentacao
+## Arquivo historico
 
-### Desenvolvedores
-1. Ler ARQUITETURA_IMPORTACAO.md
-2. Consultar diagrams/
-3. Usar TROUBLESHOOTING_IMPORTACAO.md em incidentes
-
-### Gestao tecnica
-1. Ler RESUMO_EXECUTIVO_IMPORTACAO.md
-2. Revisar recomendacoes priorizadas
-3. Planejar backlog de melhoria
-
-### QA
-1. Revisar troubleshooting e erros conhecidos
-2. Validar cenarios de regressao
-3. Usar scripts de validacao em scripts_manutencao/
-
-### Suporte
-1. Consultar troubleshooting
-2. Escalar com referencia de causa raiz
-
----
-
-## Referencias
-
-- docs/SCHEMA_UNIFICADO_IMPORTACAO.md
-- docs/RECOVERY_BACKLOG.md
-- AGENTS.md
-
----
-
-Gerado por: Atlas (OhMyOpenCode)
-Data: 2026-03-01
-Versao: 1.0
-Status: Completo
+- `docs/archive/NEXT_CHAT_MIGRATION_legacy_until_20260309_1735.md`
+- `docs/archive/AGENTS_HANDOFF_NEXT_CYCLE_legacy_until_20260309_1735.md`
