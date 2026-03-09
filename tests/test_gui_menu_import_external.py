@@ -112,6 +112,9 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
         def show_filter_help(self) -> None:
             return None
 
+        def open_installation_guide(self) -> None:
+            return None
+
         def run_vacuum_analyze(self) -> None:
             return None
 
@@ -123,56 +126,45 @@ def test_setup_app_menus_registers_grouped_menus(monkeypatch) -> None:
     assert "Database" in window._menu_bar.menus
     assert "Opcoes" in window._menu_bar.menus
     assert "Ajuda" in window._menu_bar.menus
-    assert len(window._menu_bar.menus["Arquivo"].actions) == 14
-    assert len(window._menu_bar.menus["Importacao"].actions) == 6
-    assert len(window._menu_bar.menus["Database"].actions) == 1
+    assert len(window._menu_bar.menus["Arquivo"].actions) == 4
+    assert len(window._menu_bar.menus["Importacao"].actions) == 7
+    assert len(window._menu_bar.menus["Database"].actions) == 4
     assert len(window._menu_bar.menus["Opcoes"].actions) == 3
-    assert len(window._menu_bar.menus["Ajuda"].actions) == 1
-    assert "Avancado" in window._menu_bar.menus["Database"].submenus
-    assert len(window._menu_bar.menus["Database"].submenus["Avancado"].actions) == 1
+    assert len(window._menu_bar.menus["Ajuda"].actions) == 2
 
     arquivo_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Arquivo"].actions]
     importacao_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Importacao"].actions]
     database_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Database"].actions]
     opcoes_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Opcoes"].actions]
     ajuda_labels = [getattr(action, "_text", "") for action in window._menu_bar.menus["Ajuda"].actions]
-    avancado_labels = [
-        getattr(action, "_text", "")
-        for action in window._menu_bar.menus["Database"].submenus["Avancado"].actions
-    ]
 
     assert arquivo_labels == [
         "Recarregar Dados",
-        "Reescanear",
         "Atualizar Dados",
-        "Reescaneamento Completo",
-        "Atualizar Derivadas",
-        "Consolidar Arquivos de Entrada",
-        "Importar XLS/XLSX",
         "Exportar lista",
-        "Abrir Pasta de Arquivos",
-        "Abrir Pasta Arquivos Processados",
-        "Abrir Pasta Arquivos Redundantes",
-        "Tema",
-        "Ajuda",
         "Sair",
     ]
     assert importacao_labels == [
-        "Importar XLS/XLSX externo...",
-        "Reescaneamento (perguntar modo)",
-        "Reescaneamento diff",
-        "Reescaneamento completo",
-        "Atualizar derivadas",
+        "Importar XLS/XLSX externo",
+        "Atualizar Dados",
+        "Reescaneamento Completo",
+        "Abrir Pasta de Arquivos",
+        "Abrir Pasta Arquivos Processados",
+        "Abrir Pasta Arquivos Redundantes",
         "Consolidar arquivos de entrada",
     ]
-    assert database_labels == ["Carregar outro DB..."]
-    assert avancado_labels == ["Compactar DB"]
+    assert database_labels == [
+        "Reescanear",
+        "Atualizar derivadas",
+        "Carregar outro DB",
+        "Compactar DB",
+    ]
     assert opcoes_labels == [
         "Abrir arquivo de opcoes",
         "Restaurar opcoes padrao",
         "Selecionar Tema",
     ]
-    assert ajuda_labels == ["Ajuda"]
+    assert ajuda_labels == ["Instalacao", "Ajuda"]
 
 
 def test_import_external_excel_files_copies_and_suffixes_collisions(

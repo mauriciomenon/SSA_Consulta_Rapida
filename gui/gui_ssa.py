@@ -2653,105 +2653,66 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         db_menu = menu_bar.addMenu("Database")
         opcoes_menu = menu_bar.addMenu("Opcoes")
         ajuda_menu = menu_bar.addMenu("Ajuda")
-        db_avancado_menu: Any
-        if hasattr(db_menu, "addMenu"):
-            db_avancado_menu = cast(Any, db_menu).addMenu("Avancado")
-        else:
-            db_avancado_menu = db_menu
 
         load_action = QAction("Recarregar Dados", self)
         load_action.triggered.connect(self.load_data)
         cast(Any, arquivo_menu).addAction(load_action)
 
-        rescan_prompt_action = QAction("Reescanear", self)
-        rescan_prompt_action.triggered.connect(self.rescan_data)
-        cast(Any, arquivo_menu).addAction(rescan_prompt_action)
-
         rescan_diff_action = QAction("Atualizar Dados", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
         cast(Any, arquivo_menu).addAction(rescan_diff_action)
-
-        rescan_full_action = QAction("Reescaneamento Completo", self)
-        rescan_full_action.triggered.connect(self.rescan_full_data)
-        cast(Any, arquivo_menu).addAction(rescan_full_action)
-
-        derivadas_action = QAction("Atualizar Derivadas", self)
-        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
-        cast(Any, arquivo_menu).addAction(derivadas_action)
-
-        consolidate_action = QAction("Consolidar Arquivos de Entrada", self)
-        consolidate_action.triggered.connect(self.consolidate_input_files)
-        cast(Any, arquivo_menu).addAction(consolidate_action)
-
-        cast(Any, arquivo_menu).addSeparator()
-
-        import_action = QAction("Importar XLS/XLSX", self)
-        import_action.triggered.connect(self.import_external_excel_files)
-        cast(Any, arquivo_menu).addAction(import_action)
 
         export_action = QAction("Exportar lista", self)
         export_action.triggered.connect(self._export_current_list_txt)
         cast(Any, arquivo_menu).addAction(export_action)
 
-        cast(Any, arquivo_menu).addSeparator()
-
-        open_docs_action = QAction("Abrir Pasta de Arquivos", self)
-        open_docs_action.triggered.connect(self.open_docs_folder)
-        cast(Any, arquivo_menu).addAction(open_docs_action)
-
-        open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
-        open_processadas_action.triggered.connect(self.open_processadas_folder)
-        cast(Any, arquivo_menu).addAction(open_processadas_action)
-
-        open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
-        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
-        cast(Any, arquivo_menu).addAction(open_nosurvivor_action)
-
-        cast(Any, arquivo_menu).addSeparator()
-
-        theme_action_arquivo = QAction("Tema", self)
-        theme_action_arquivo.triggered.connect(self.toggle_theme_menu)
-        cast(Any, arquivo_menu).addAction(theme_action_arquivo)
-
-        help_action_arquivo = QAction("Ajuda", self)
-        help_action_arquivo.triggered.connect(self.show_filter_help)
-        cast(Any, arquivo_menu).addAction(help_action_arquivo)
-
         close_action = QAction("Sair", self)
         close_action.triggered.connect(self.close)
         cast(Any, arquivo_menu).addAction(close_action)
 
-        import_action = QAction("Importar XLS/XLSX externo...", self)
+        import_action = QAction("Importar XLS/XLSX externo", self)
         import_action.triggered.connect(self.import_external_excel_files)
         cast(Any, importacao_menu).addAction(import_action)
 
-        rescan_prompt_action = QAction("Reescaneamento (perguntar modo)", self)
-        rescan_prompt_action.triggered.connect(self.rescan_data)
-        cast(Any, importacao_menu).addAction(rescan_prompt_action)
-
-        rescan_diff_action = QAction("Reescaneamento diff", self)
+        rescan_diff_action = QAction("Atualizar Dados", self)
         rescan_diff_action.triggered.connect(self.rescan_diff_data)
         cast(Any, importacao_menu).addAction(rescan_diff_action)
 
-        rescan_full_action = QAction("Reescaneamento completo", self)
+        rescan_full_action = QAction("Reescaneamento Completo", self)
         rescan_full_action.triggered.connect(self.rescan_full_data)
         cast(Any, importacao_menu).addAction(rescan_full_action)
 
-        derivadas_action = QAction("Atualizar derivadas", self)
-        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
-        cast(Any, importacao_menu).addAction(derivadas_action)
+        open_docs_action = QAction("Abrir Pasta de Arquivos", self)
+        open_docs_action.triggered.connect(self.open_docs_folder)
+        cast(Any, importacao_menu).addAction(open_docs_action)
+
+        open_processadas_action = QAction("Abrir Pasta Arquivos Processados", self)
+        open_processadas_action.triggered.connect(self.open_processadas_folder)
+        cast(Any, importacao_menu).addAction(open_processadas_action)
+
+        open_nosurvivor_action = QAction("Abrir Pasta Arquivos Redundantes", self)
+        open_nosurvivor_action.triggered.connect(self.open_nosurvivor_folder)
+        cast(Any, importacao_menu).addAction(open_nosurvivor_action)
 
         consolidate_action = QAction("Consolidar arquivos de entrada", self)
         consolidate_action.triggered.connect(self.consolidate_input_files)
         cast(Any, importacao_menu).addAction(consolidate_action)
 
-        load_other_db_action = QAction("Carregar outro DB...", self)
+        rescan_prompt_action = QAction("Reescanear", self)
+        rescan_prompt_action.triggered.connect(self.rescan_data)
+        cast(Any, db_menu).addAction(rescan_prompt_action)
+
+        derivadas_action = QAction("Atualizar derivadas", self)
+        derivadas_action.triggered.connect(self.update_derivadas_from_sources)
+        cast(Any, db_menu).addAction(derivadas_action)
+
+        load_other_db_action = QAction("Carregar outro DB", self)
         load_other_db_action.triggered.connect(self.load_other_database)
         cast(Any, db_menu).addAction(load_other_db_action)
 
         vacuum_analyze_action = QAction("Compactar DB", self)
         vacuum_analyze_action.triggered.connect(self.run_vacuum_analyze)
-        db_avancado_menu.addAction(vacuum_analyze_action)
+        cast(Any, db_menu).addAction(vacuum_analyze_action)
 
         open_settings_action = QAction("Abrir arquivo de opcoes", self)
         open_settings_action.triggered.connect(self.open_settings_file_with_backup)
@@ -2764,6 +2725,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         theme_action = QAction("Selecionar Tema", self)
         theme_action.triggered.connect(self.toggle_theme_menu)
         cast(Any, opcoes_menu).addAction(theme_action)
+
+        install_action = QAction("Instalacao", self)
+        install_action.triggered.connect(self.open_installation_guide)
+        cast(Any, ajuda_menu).addAction(install_action)
 
         help_action = QAction("Ajuda", self)
         help_action.triggered.connect(self.show_filter_help)
@@ -3198,6 +3163,33 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             folder_path=folder_path,
             folder_label="pasta sem sobreviventes",
         )
+
+    def open_installation_guide(self):
+        """Abre o guia de instalacao no editor/sistema padrao."""
+        doc_path = os.path.join(project_root, "docs", "GUIA_MIGRACAO_NOVA_INSTALACAO.md")
+        if not os.path.exists(doc_path):
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Guia de instalacao nao encontrado: {doc_path}")
+            return {"opened": False, "reason": "missing_file"}
+        try:
+            opened = False
+            if QT_AVAILABLE:
+                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(doc_path)))
+            if not opened:
+                cmd = "open" if sys.platform == "darwin" else ("explorer" if sys.platform.startswith("win") else "xdg-open")
+                resolved = shutil.which(cmd)
+                if not resolved:
+                    raise RuntimeError(f"Comando indisponivel para abrir arquivo: {cmd}")
+                subprocess.Popen([resolved, doc_path])
+                opened = True
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Guia de instalacao aberto.")
+            return {"opened": opened, "path": doc_path}
+        except Exception as exc:
+            logger.warning("Falha ao abrir guia de instalacao: %s", exc)
+            if not os.environ.get("PYTEST_CURRENT_TEST"):
+                QMessageBox.warning(self, "Erro", f"Falha ao abrir guia de instalacao: {exc}")
+            return {"opened": False, "reason": "open_failed", "error": str(exc)}
 
     def run_vacuum_analyze(self):
         """Executa VACUUM/ANALYZE manualmente no banco principal."""

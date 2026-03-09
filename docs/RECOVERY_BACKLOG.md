@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-08 23:05 - padronizacao final de menu e prompt de reescaneamento
+
+Session timestamp:
+1. start: `2026-03-08 22:52:00 -0300`
+2. end: `2026-03-08 23:05:15 -0300`
+
+Objetivo do slice:
+1. aplicar exatamente os textos e ordem de menus aprovados pelo usuario.
+2. padronizar prompt de reescaneamento sem sufixo `(diff)` no texto e botao.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - menu `Arquivo` reduzido para: `Recarregar Dados`, `Atualizar Dados`, `Exportar lista`, `Sair`.
+   - menu `Importacao` atualizado com 7 itens na ordem aprovada.
+   - menu `Database` atualizado com 4 itens diretos (sem submenu `Avancado`).
+   - menu `Ajuda` agora com `Instalacao` + `Ajuda`.
+   - nova acao `open_installation_guide` para abrir `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`.
+2. `gui/ssa/gui_workers.py`
+   - prompt `Reescanear` atualizado:
+     - informativo usa `Atualizar Dados` (sem `(diff)`).
+     - botao usa `Atualizar Dados`.
+3. `tests/test_gui_menu_import_external.py`
+   - asserts de contagem/ordem/rotulo atualizados para o novo contrato de menus.
+
+Gates do slice:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `16 passed`
+
+Pendencias nao bloqueantes (deferidas nesta rodada):
+1. `gui/gui_ssa.py`: kluster sinalizou debts antigos de arquitetura/performance em `SSAMainWindow` (fora do escopo deste slice de texto/menu).
+2. `gui/ssa/gui_workers.py`: kluster sinalizou debts antigos de acoplamento/organizacao (fora do escopo deste slice de texto/menu).
+
 ## Update 2026-03-08 21:38 - tema em caixa e barra principal simplificada
 
 Session timestamp:

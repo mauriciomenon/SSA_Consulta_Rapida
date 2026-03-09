@@ -924,10 +924,10 @@ def rescan_data(
         prompt.setWindowTitle("Reescanear")
         prompt.setText("Escolha como atualizar os dados.")
         prompt.setInformativeText(
-            "Atualizar Dados (diff) processa apenas arquivos novos ou alterados. "
+            "Atualizar Dados processa apenas arquivos novos ou alterados. "
             "Reescaneamento Completo recria o banco do zero e reprocessa tudo."
         )
-        diff_btn = prompt.addButton("Atualizar Dados (diff)", qmessagebox.ButtonRole.ActionRole)
+        diff_btn = prompt.addButton("Atualizar Dados", qmessagebox.ButtonRole.ActionRole)
         full_btn = prompt.addButton("Reescaneamento Completo", qmessagebox.ButtonRole.ActionRole)
         cancel_btn = prompt.addButton(qmessagebox.StandardButton.Cancel)
         try:
