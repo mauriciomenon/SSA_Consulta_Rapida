@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 19:01 - full documentation refine v4.32
+
+Session timestamp:
+1. start: `2026-03-09 19:01:11 -0300`
+2. end: `2026-03-09 19:22:01 -0300`
+
+Objetivo do ciclo:
+1. atualizar e refinar documentacao ativa do projeto.
+2. reduzir ambiguidade entre docs ativos e snapshots historicos.
+3. manter baseline unico v4.32 sem tocar runtime.
+
+Slices executados:
+1. Slice A:
+   - docs index/readme canonicos (`docs/INDEX.md`, `docs/README.md`).
+2. Slice B:
+   - normalizacao de versao e snapshot em docs de build/historico/importacao.
+3. Slice C:
+   - alinhamento uv-first no guia de migracao (`docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`).
+4. Slice D:
+   - guias de troubleshooting migrados para versoes ativas curtas + archive.
+5. Slice E:
+   - sync de docs de controle e historico de release para fechar o ciclo.
+
+Nao alterado:
+1. runtime (`core/gui/armazenamento/extracao/interface/tests`).
+2. arquivos frozen (`POLICY_BASELINE_V1_1_FROZEN.md`, `POLICY_BASELINE_V1_FROZEN.md`).
+
+Evidencia de commits desta rodada:
+1. `7df32647` (`DOC_SYNC`) - index/readme de docs canonicos.
+2. `ea7a987c` (`DOC_SYNC`) - normalizacao de docs ativos + snapshots.
+3. `3f1b0945` (`DOC_SYNC`) - guia de migracao alinhado ao padrao uv-first.
+4. `731deebf` (`DOC_SYNC`) - troubleshooting ativo simplificado + archive.
+5. `pending` (`DOC_SYNC`) - sync final de controle/historico desta rodada.
+
 ## Update 2026-03-09 17:35 - docs governance refine on v4.32
 
 Session timestamp:

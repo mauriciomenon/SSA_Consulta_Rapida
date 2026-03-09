@@ -26,6 +26,11 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/PENDING_ACTION_MATRIX.md`
 
+## Politicas (frozen)
+
+- `docs/POLICY_BASELINE_V1_1_FROZEN.md`
+- `docs/POLICY_BASELINE_V1_FROZEN.md`
+
 ## Importacao e dados
 
 - `docs/ARQUITETURA_IMPORTACAO.md`
@@ -70,7 +75,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/diagrams/fluxo_sequencia_importacao.puml`
 - `docs/diagrams/diagrama_classes.puml`
 
-## Arquivo historico
+## Arquivo historico (copias de transicao para auditoria)
+
+Os arquivos abaixo sao snapshots de transicao e nao substituem os docs ativos
+de mesmo tema em `docs/`.
 
 - `docs/archive/NEXT_CHAT_MIGRATION_legacy_until_20260309_1735.md`
 - `docs/archive/AGENTS_HANDOFF_NEXT_CYCLE_legacy_until_20260309_1735.md`
+- `docs/archive/ARQUITETURA_IMPORTACAO_legacy_until_20260309_1901.md`
+- `docs/archive/TROUBLESHOOTING_legacy_until_20260309_1901.md`
+- `docs/archive/TROUBLESHOOTING_IMPORTACAO_legacy_until_20260309_1901.md`
