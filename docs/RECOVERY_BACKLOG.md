@@ -3,6 +3,49 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 02:39 - alinhamento de distribuicao para caminho canonico
+
+Session timestamp:
+1. start: `2026-03-10 02:39:46 -0300`
+2. end: `2026-03-10 06:10:31 -0300`
+
+Objetivo do slice:
+1. alinhar scripts de distribuicao ao caminho canonico `launchers/dist`.
+2. manter fallback legado (`builds/*`) para compatibilidade.
+3. endurecer caminho de instalador Inno e reduzir risco de vazamento acidental de dados locais.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - novo resolve de build com prioridade para `launchers/dist/{windows_amd64,macos_arm64,debian_amd64}`.
+   - fallback legado mantido para `builds/*`.
+   - pacote ZIP em caminho canonico pyinstaller agora copia arvore do build canonico.
+   - README de pacote agora usa executavel detectado dinamicamente.
+   - Inno Setup agora:
+     - resolve exe de origem com suporte a build canonico windows.
+     - aceita `INNO_SETUP_COMPILER` e `iscc` no PATH antes de caminhos hardcoded.
+     - corrige `OutputDir=.` no `.iss`.
+     - corrige `SetupIconFile=..\\assets\\icon.ico`.
+     - sincroniza exclusoes com politica de bundle (`EXCLUDED_BUNDLE_ITEMS`).
+   - exclusoes de bundle adicionadas para evitar empacotar dados locais (`data`, `docs_entrada`, `.db`, `.xlsx`, etc.) no caminho canonico.
+2. `scripts/copy_data_to_builds.py`:
+   - resolve alvos pyinstaller no caminho canonico `launchers/dist/<plataforma>`.
+   - fallback legado mantido para `builds/*`.
+   - inclui bloqueio explicito por seguranca: exige `--allow-local-data` para copiar DB/Excel locais.
+3. `tests/test_create_distribution.py`:
+   - novo teste cobrindo fallback canonico pyinstaller (`launchers/dist/windows_amd64`).
+   - ajuste do teste legado para nova mensagem de erro.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py scripts/copy_data_to_builds.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py scripts/copy_data_to_builds.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py scripts/copy_data_to_builds.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `2 passed`
+
+Deferido (nao bloqueante neste slice):
+1. `scripts/create_distribution.py`: `create_zip_package` ainda concentrando responsabilidade (debt de qualidade, sem refatoracao ampla agora).
+2. `scripts/create_distribution.py`: modelagem de atalhos GUI/CLI no Inno pode ser refinada para bins separados em ciclo dedicado.
+3. consolidacao de constantes compartilhadas entre scripts de distribuicao em modulo comum (debt de manutencao).
+
 ## Update 2026-03-10 01:11 - bugfix real + testes/docs sem mudanca estrutural
 
 Session timestamp:

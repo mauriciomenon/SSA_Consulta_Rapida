@@ -2,7 +2,36 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 01:11 - authoritative block
+## CURRENT TRUTH 2026-03-10 02:39 - authoritative block
+
+- Slice entregue:
+  1. `scripts/create_distribution.py`:
+     - resolve build canonico pyinstaller em `launchers/dist/*` com fallback legado `builds/*`.
+     - exclui dados locais sensiveis no bundle canonico (`data`, `docs_entrada`, `.db`, `.xlsx`, etc.).
+     - README do pacote usa executavel detectado dinamicamente.
+     - Inno Setup:
+       - resolve origem com suporte a build canonico windows;
+       - usa `INNO_SETUP_COMPILER`/PATH antes de caminhos hardcoded;
+       - corrige `OutputDir=.` e `SetupIconFile=..\\assets\\icon.ico`;
+       - aplica exclusoes alinhadas a `EXCLUDED_BUNDLE_ITEMS`.
+  2. `scripts/copy_data_to_builds.py`:
+     - resolve alvos pyinstaller em `launchers/dist/<plataforma>` com fallback legado.
+     - bloqueio de seguranca: copia de dados locais so com `--allow-local-data`.
+  3. `tests/test_create_distribution.py`:
+     - novo teste para fallback canonico pyinstaller.
+     - ajuste de assert de erro no teste legado.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `2 passed`.
+- Pendencia deferida:
+  1. `scripts/create_distribution.py`: funcao `create_zip_package` segue grande (debt de qualidade, fora do escopo de patch minimo).
+  2. template Inno pode receber refinamento de atalhos GUI/CLI por binario dedicado em ciclo proprio.
+  3. constantes de distribuicao ainda duplicadas entre scripts, candidato a modulo compartilhado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 01:11
 
 - Slice entregue:
   1. `armazenamento/database.py`:

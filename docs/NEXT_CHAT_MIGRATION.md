@@ -2,7 +2,41 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 01:11 - start from here
+## CURRENT TRUTH 2026-03-10 02:39 - start from here
+
+- Slice aplicado:
+  1. alinhamento de distribuicao para caminho canonico:
+     - `scripts/create_distribution.py` agora resolve pyinstaller por `launchers/dist/*` com fallback legado `builds/*`.
+     - `scripts/copy_data_to_builds.py` resolve destinos canonicos e legado.
+  2. hardening de seguranca e instalador:
+     - exclusao de dados locais sensiveis no bundle canonico (`data`, `docs_entrada`, `.db`, `.xlsx`, etc.).
+     - `copy_data_to_builds.py` agora exige `--allow-local-data`.
+     - Inno Setup com:
+       - `INNO_SETUP_COMPILER` e lookup no PATH;
+       - `OutputDir=.` e `SetupIconFile=..\\assets\\icon.ico`;
+       - exclusoes sincronizadas com politica de bundle.
+  3. testes:
+     - novo teste para fallback canonico pyinstaller em `tests/test_create_distribution.py`.
+     - ajuste de assert de erro no teste legado.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `scripts/copy_data_to_builds.py`
+  3. `tests/test_create_distribution.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `2 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda grande (sem refatoracao ampla neste ciclo).
+  2. refinamento futuro de atalhos GUI/CLI no template Inno para cenarios com binarios separados.
+  3. extracao de constantes compartilhadas de distribuicao para modulo comum.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 01:11
 
 - Slice aplicado:
   1. bugfix real sem mudar estrutura:

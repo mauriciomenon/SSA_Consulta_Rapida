@@ -7,16 +7,38 @@ Copia automaticamente:
 - Arquivos Excel mais recentes de docs_entrada/
 
 Uso:
-    python scripts/copy_data_to_builds.py --build-system pyinstaller
-    python scripts/copy_data_to_builds.py --build-system pyoxidizer
-    python scripts/copy_data_to_builds.py --build-system nuitka
-    python scripts/copy_data_to_builds.py --all  # Copia para todos os builds
+    python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+    python scripts/copy_data_to_builds.py --build-system pyoxidizer --allow-local-data
+    python scripts/copy_data_to_builds.py --build-system nuitka --allow-local-data
+    python scripts/copy_data_to_builds.py --all --allow-local-data  # Copia para todos os builds
 """
 
 import argparse
 import shutil
 from pathlib import Path
 import sys
+
+PYINSTALLER_CANONICAL_DIRS = (
+    "launchers/dist/windows_amd64",
+    "launchers/dist/macos_arm64",
+    "launchers/dist/debian_amd64",
+)
+
+
+def resolve_target_build_dirs(base_dir: Path, build_system: str) -> list[Path]:
+    """Resolve diretorios de destino para copia de dados."""
+    targets: list[Path] = []
+
+    if build_system == "pyinstaller":
+        for rel_path in PYINSTALLER_CANONICAL_DIRS:
+            candidate = base_dir / rel_path
+            if candidate.exists():
+                targets.append(candidate)
+        if targets:
+            return targets
+
+    legacy_dir = base_dir / "builds" / build_system
+    return [legacy_dir]
 
 
 def copy_data_to_build(
@@ -35,7 +57,6 @@ def copy_data_to_build(
 
     # Diretorio base do projeto (independente do cwd)
     base_dir = Path(__file__).resolve().parents[1]
-
     # Defaults (relativos ao base_dir)
     db_path = db_path or (base_dir / "data" / "ssas.db")
     docs_dir = docs_dir or (base_dir / "docs_entrada")
@@ -145,6 +166,11 @@ def main():
         action="store_true",
         help="Modo silencioso (menos output)"
     )
+    parser.add_argument(
+        "--allow-local-data",
+        action="store_true",
+        help="Confirma explicitamente que dados locais podem ser copiados para build",
+    )
 
     args = parser.parse_args()
 
@@ -152,15 +178,31 @@ def main():
         parser.error("Especifique --build-system ou --all")
 
     verbose = not args.quiet
+    if verbose:
+        print(
+            "WARN Este utilitario copia dados locais para diretorios de build. "
+            "Use apenas em ambiente controlado."
+        )
+    if not args.allow_local_data:
+        print(
+            "ERR Operacao bloqueada por seguranca. Use --allow-local-data para confirmar."
+        )
+        return 2
 
     # Diretorio base do projeto (independente do cwd)
     base_dir = Path(__file__).resolve().parents[1]
+    db_path_arg = Path(args.db_path)
+    docs_dir_arg = Path(args.docs_dir)
+    if not db_path_arg.is_absolute():
+        db_path_arg = (base_dir / db_path_arg).resolve()
+    if not docs_dir_arg.is_absolute():
+        docs_dir_arg = (base_dir / docs_dir_arg).resolve()
 
-    # Mapeamento de build system para diretorio (ancorado ao base_dir)
+    # Mapeamento de build system para diretorios (ancorado ao base_dir)
     build_dirs = {
-        "pyinstaller": base_dir / "builds" / "pyinstaller",
-        "pyoxidizer": base_dir / "builds" / "pyoxidizer",
-        "nuitka": base_dir / "builds" / "nuitka",
+        "pyinstaller": resolve_target_build_dirs(base_dir, "pyinstaller"),
+        "pyoxidizer": resolve_target_build_dirs(base_dir, "pyoxidizer"),
+        "nuitka": resolve_target_build_dirs(base_dir, "nuitka"),
     }
 
     overall_success = True
@@ -171,39 +213,46 @@ def main():
             print("Copiando dados para TODOS os builds encontrados")
             print("=" * 60)
 
-        for build_system, build_dir in build_dirs.items():
-            if build_dir.exists():
+        for build_system, target_dirs in build_dirs.items():
+            existing_dirs = [path for path in target_dirs if path.exists()]
+            if not existing_dirs:
                 if verbose:
-                    print(f"\nFIX Build: {build_system.upper()}")
+                    print(f"\nSKIP Pulando {build_system} (build nao encontrado)")
+                continue
+
+            for build_dir in existing_dirs:
+                if verbose:
+                    print(f"\nFIX Build: {build_system.upper()} -> {build_dir}")
                     print("-" * 60)
                 success = copy_data_to_build(
                     build_dir,
                     verbose,
-                    db_path=Path(args.db_path),
-                    docs_dir=Path(args.docs_dir),
+                    db_path=db_path_arg,
+                    docs_dir=docs_dir_arg,
                     max_excel_files=args.max_excels,
                 )
                 overall_success = overall_success and success
-            elif verbose:
-                print(f"\nSKIP Pulando {build_system} (build nao encontrado)")
     else:
-        build_dir = build_dirs[args.build_system]
-        if not build_dir.exists():
+        target_dirs = build_dirs[args.build_system]
+        existing_dirs = [path for path in target_dirs if path.exists()]
+        if not existing_dirs:
             if verbose:
-                print(f"WARN Build directory not found: {build_dir}")
+                print(f"WARN Build directory not found: {target_dirs[0]}")
             return 1
-        if verbose:
-            print("=" * 60)
-            print(f"Copiando dados para build: {args.build_system.upper()}")
-            print("=" * 60)
-            print()
-        overall_success = copy_data_to_build(
-            build_dir,
-            verbose,
-            db_path=Path(args.db_path),
-            docs_dir=Path(args.docs_dir),
-            max_excel_files=args.max_excels,
-        )
+        for build_dir in existing_dirs:
+            if verbose:
+                print("=" * 60)
+                print(f"Copiando dados para build: {args.build_system.upper()} -> {build_dir}")
+                print("=" * 60)
+                print()
+            success = copy_data_to_build(
+                build_dir,
+                verbose,
+                db_path=db_path_arg,
+                docs_dir=docs_dir_arg,
+                max_excel_files=args.max_excels,
+            )
+            overall_success = overall_success and success
 
     if verbose:
         print()
