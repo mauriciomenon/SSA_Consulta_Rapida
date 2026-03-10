@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 00:42 - sync completo do atalho Setor Executor + popup com rolagem real
+
+Session timestamp:
+1. start: `2026-03-10 00:42:00 -0300`
+2. end: `2026-03-10 00:46:00 -0300`
+
+Objetivo do slice:
+1. sincronizar atalho rapido `Setor Executor` com filtros avancados (executor + emissor).
+2. garantir popup com altura limitada e rolagem no combo rapido.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - combo rapido recebeu:
+     - `maxVisibleItems=14`
+     - estilo `combobox-popup: 0` para evitar popup nativo sem controle de altura
+     - scrollbar vertical `AsNeeded` no `view()`
+   - novo sync explicito no atalho rapido:
+     - `_sync_quick_setor_executor_into_advanced_filters(selected)`
+     - atualiza `_advanced_filters` para `setor_executor` e `setor_emissor`
+     - limpa `setor_executor_exclude_values` e `setor_emissor_exclude_values`
+     - sincroniza UI avancada via `_sync_advanced_filter_ui()`
+   - `_on_quick_setor_executor_changed` agora chama o sync avancado antes do refresh final.
+2. `tests/test_gui_filter_logic.py`:
+   - teste do atalho rapido passou a validar:
+     - estilo popup (`combobox-popup: 0`)
+     - sync em `_advanced_filters` para executor/emissor
+     - excludes limpos no sync rapido.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "quick_setor_executor_combo_applies_filter_and_syncs_panel or quick_setor_executor or num_reprogramacoes"` -> `5 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos em `gui/gui_ssa.py` (God class, performance ampla de resize/sort no UI thread, worker retention global).
+
 ## Update 2026-03-10 00:36 - low-stress hardening (cache sort + tooltip + QUrl explicit)
 
 Session timestamp:

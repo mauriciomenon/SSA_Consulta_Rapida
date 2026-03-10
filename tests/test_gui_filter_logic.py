@@ -162,6 +162,8 @@ class TestGUIFilterLogic:
         assert combo is not None
         assert int(combo.maxVisibleItems()) == 14
         assert getattr(self.window, "persist_filter_config_checkbox", None) is None
+        style_sheet = str(combo.styleSheet() or "")
+        assert "combobox-popup: 0" in style_sheet
 
         idx = combo.findData("MEL4")
         assert idx >= 0
@@ -170,6 +172,11 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "MEL4"
+        adv = dict(getattr(self.window, "_advanced_filters", {}) or {})
+        assert adv.get("setor_executor") == ["MEL4"]
+        assert adv.get("setor_emissor") == ["MEL4"]
+        assert adv.get("setor_executor_exclude_values") == []
+        assert adv.get("setor_emissor_exclude_values") == []
 
         controls = self._get_column_filter_controls()
         setor_key = next(
