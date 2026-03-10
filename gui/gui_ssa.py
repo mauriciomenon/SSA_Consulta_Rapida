@@ -1245,20 +1245,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
 
+        quick_setor_executor_label = QLabel("Setor Executor:")
         quick_setor_executor_combo = QComboBox()
         quick_setor_executor_combo.setToolTip(
             "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
         )
         try:
-            quick_setor_executor_combo.setMinimumWidth(165)
-            quick_setor_executor_combo.setMaximumWidth(225)
+            quick_setor_executor_combo.setMinimumWidth(138)
+            quick_setor_executor_combo.setMaximumWidth(188)
             quick_setor_executor_combo.setMinimumContentsLength(9)
             quick_setor_executor_combo.setMaxVisibleItems(14)
-            control_height = max(
-                int(search_button.sizeHint().height() or 0),
-                int(search_input.sizeHint().height() or 0),
-                28,
-            )
+            control_height = 26
             quick_setor_executor_combo.setMinimumHeight(control_height)
             quick_setor_executor_combo.setMaximumHeight(control_height)
             adjust_policy = getattr(
@@ -1270,10 +1267,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
             if adjust_policy is not None:
                 quick_setor_executor_combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
-            quick_setor_executor_combo.setEditable(True)
-            combo_line_edit = quick_setor_executor_combo.lineEdit()
-            if combo_line_edit is not None and hasattr(combo_line_edit, "setReadOnly"):
-                combo_line_edit.setReadOnly(True)
             quick_setor_executor_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
             combo_view = quick_setor_executor_combo.view()
             if combo_view is not None:
@@ -1320,6 +1313,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         paginator = DataPaginator(self.df_para_tabela)
         paginator.page_changed.connect(self.display_current_page)
         pagination_filters_layout.addWidget(paginator)
+        pagination_filters_layout.addSpacing(8)
+        pagination_filters_layout.addWidget(cast(Any, column_selector))
 
         profile_selector = None
         pagination_filters_layout.addSpacing(12)
@@ -1351,7 +1346,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()
-        pagination_filters_layout.addWidget(cast(Any, column_selector))
+        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_label))
         pagination_filters_layout.addSpacing(8)
         pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
 
@@ -1567,6 +1562,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "clear_filter_button": clear_filter_button,
                 "save_filter_button": save_filter_button,
                 "column_selector": column_selector,
+                "quick_setor_executor_label": quick_setor_executor_label,
                 "quick_setor_executor_combo": quick_setor_executor_combo,
                 "search_help": search_help,
                 "paginator": paginator,
@@ -2529,7 +2525,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             value = str(combo.currentData() or "").strip()
         except Exception as exc:
             logger.debug("Falha ao ler valor atual do combo rapido de setor executor: %s", exc)
-        display_text = f"Setor Executor: {value}" if value else "Setor Executor: Todos"
+        display_text = value if value else "Todos"
         try:
             line_edit = combo.lineEdit()
             if line_edit is not None:
@@ -2631,7 +2627,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             active_filters.pop("setor_executor", None)
         self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
-        self._sync_or_group_values("setor_executor", selected)
         self._sync_advanced_executor_ui_from_active_filter()
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
@@ -2927,12 +2922,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             QMessageBox.information(self, "Aviso", "Falha ao exportar a lista.")
 
     def remove_column_by_index(self, column_index):
-        """Remove uma coluna especáfica baseada no ándice."""
-        if column_index > 0 and column_index < len(self.visible_columns):  # Protege coluna de ándice
-            internal_column = self.visible_columns[column_index - 1]  # -1 porque hã coluna '#'
-            if internal_column in self.visible_columns:
-                self.visible_columns.remove(internal_column)
-                self.on_columns_changed(self.visible_columns)
+        """Remove uma coluna especifica baseada no indice da tabela."""
+        if column_index <= 0:
+            return
+        internal_index = column_index - 1  # Coluna 0 da tabela e '#'
+        if internal_index < 0 or internal_index >= len(self.visible_columns):
+            return
+        internal_column = self.visible_columns[internal_index]
+        if internal_column in self.visible_columns:
+            self.visible_columns.remove(internal_column)
+            self.on_columns_changed(self.visible_columns)
 
     def _compute_best_fit_width_for_column(self, column_index: int, sample_limit: int = 2000) -> int | None:
         if column_index < 0 or column_index >= self.table_widget.columnCount():
@@ -3130,14 +3129,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 skipped += 1
                 continue
 
-            build_unique_destination = getattr(self, "_build_unique_destination_path", None)
-            if callable(build_unique_destination):
-                destination = build_unique_destination(base_destination)
-            else:
-                class_builder = getattr(SSAMainWindow, "_build_unique_destination_path", None)
-                if not callable(class_builder):
-                    raise AttributeError("_build_unique_destination_path indisponivel")
-                destination = class_builder(self, base_destination)
+            destination = self._build_unique_destination_path(base_destination)
 
             try:
                 shutil.copy2(source, destination)

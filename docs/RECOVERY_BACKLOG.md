@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 15:53 - testes de main estaveis + ajuste final de setor executor
+
+Session timestamp:
+1. start: `2026-03-10 15:43:13 -0300`
+2. end: `2026-03-10 15:53:00 -0300`
+
+Objetivo do slice:
+1. eliminar travamento/instabilidade em testes focados de `main`.
+2. ajustar `Setor Executor` e `Colunas Visiveis` no layout da aba Filtros conforme pedido aprovado.
+
+Mudancas aplicadas:
+1. `tests/test_main_import_fallback.py`
+   - teste passou a usar `--force-rescan` para acionar o caminho real de import e nao cair no loop CLI.
+2. `tests/test_main_skip_import.py`
+   - teste de conflito legado foi substituido por teste explicito de prioridade: `--force-rescan` sobrepoe `--skip-import`.
+   - isolamento por monkeypatch para nao executar import real e nao travar em stdin.
+3. `gui/gui_ssa.py`
+   - `Setor Executor` agora usa label externo fixo e combo exibindo apenas o valor (`Todos`, `IEE3`, etc.).
+   - altura do combo rapido reduzida para 26.
+   - `Colunas Visiveis` movido para ficar imediatamente ao lado do paginator (`Linhas por Pagina`).
+   - quick filter de `setor_executor` nao propaga mais para `setor_emissor`.
+   - `remove_column_by_index` corrigido com validacao de indice para evitar remocao incorreta/out-of-range.
+   - importacao externa simplificada para chamada direta de `_build_unique_destination_path`.
+4. `tests/test_gui_filter_logic.py`
+   - asserts atualizados para novo layout/altura/texto do combo rapido.
+   - asserts atualizados para validar que `setor_emissor` nao e alterado pelo atalho rapido de executor.
+
+Evidencia objetiva:
+1. `uv run --python 3.13 python -m py_compile ...` (escopo alterado) -> pass.
+2. `uv run --python 3.13 ruff check ...` (escopo alterado) -> pass.
+3. `uv run --python 3.13 ty check ...` (escopo alterado) -> pass.
+4. `uv run --python 3.13 pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_gui_filter_logic.py` -> `152 passed, 1 skipped`.
+
+Deferido (nao bloqueante neste slice):
+1. apontamentos antigos de arquitetura/performance em `gui/gui_ssa.py` (god class, sort/resize no UI thread).
+2. apontamento semantico antigo sobre texto de busca geral (tooltip vs parser) fora do escopo deste patch.
+
 ## Update 2026-03-10 15:29 - ajuste de barra de filtros + remocao do botao derivadas
 
 Session timestamp:
