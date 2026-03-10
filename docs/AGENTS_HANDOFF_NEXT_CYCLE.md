@@ -2,6 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 12:13 - authoritative block
+
+- Slice entregue:
+  1. icone oficial atualizado para versao azul `SSA` sem raio.
+  2. pacote de icones oficiais cross-OS regenerado (`svg/png/ico/icns`).
+- Mudancas tecnicas principais:
+  1. `resources/app_icon.svg` substituido pela nova base visual.
+  2. `resources/app_icon.png` regenerado em alta resolucao (1024x1024).
+  3. `resources/app_icon.ico` regenerado com multiplos tamanhos para Windows.
+  4. `resources/app_icon.icns` regenerado com `iconutil` para macOS.
+- Evidencia de validacao:
+  1. `file` confirmou formato valido dos 4 artefatos.
+  2. `py_compile`, `ruff`, `ty` em scripts de build/icon -> pass.
+  3. `pytest` focado de build manifest -> `4 passed`.
+- Pendencias deferidas:
+  1. `launchers/convert_icon.py` ainda depende de `cairosvg` com binding nativo `cairo`; fallback automatico no script fica para ciclo de tooling.
+  2. `resources/icon_variants/*` mantido como banco de opcoes de design.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 12:02 - authoritative block
 
 - Slice entregue:

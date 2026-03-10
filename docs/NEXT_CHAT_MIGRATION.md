@@ -2,6 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 12:13 - start from here
+
+- Slice aplicado:
+  1. icone oficial trocado para variante azul com `SSA` central e sem raio.
+  2. artefatos oficiais cross-OS regenerados (`svg/png/ico/icns`).
+- Arquivos alterados:
+  1. `resources/app_icon.svg`
+  2. `resources/app_icon.png`
+  3. `resources/app_icon.ico`
+  4. `resources/app_icon.icns`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado operacional:
+  1. `app_icon.png` em `1024x1024`.
+  2. `app_icon.ico` multi-size valido para Windows.
+  3. `app_icon.icns` valido para macOS.
+  4. `app_icon.svg` mantido como fonte canonica para Linux/build.
+- Observacao tecnica:
+  1. `cairosvg` do venv ainda falha por bind nativo de `cairo`.
+  2. para este slice, geracao foi feita por `rsvg-convert` + `Pillow` + `iconutil`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` em scripts de build/icon -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`.
+- Deferido:
+  1. hardening do `convert_icon.py` para fallback automatico sem dependencia de `cairosvg`.
+  2. variacoes em `resources/icon_variants/*` ficam como material de design.
+
 ## CURRENT TRUTH 2026-03-10 12:02 - start from here
 
 - Slice aplicado:

@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 12:13 - icone oficial cross-OS (blue SSA, sem raio)
+
+Session timestamp:
+1. start: `2026-03-10 12:06:08 -0300`
+2. end: `2026-03-10 12:13:00 -0300`
+
+Objetivo do slice:
+1. fechar um icone oficial simples com tema SSA visivel (versao azul sem raio).
+2. gerar artefatos oficiais compativeis com Windows/macOS/Linux.
+
+Mudancas aplicadas:
+1. `resources/app_icon.svg` atualizado para layout azul com `SSA` central.
+2. geracao oficial:
+   - `resources/app_icon.png` (1024x1024)
+   - `resources/app_icon.ico` (multi-size: 16/24/32/48/64/128/256)
+   - `resources/app_icon.icns` (iconset completo via `iconutil`)
+3. fallback operacional adotado para esta rodada:
+   - `cairosvg` do venv falhou por bind nativo de `cairo`.
+   - geracao feita por `rsvg-convert` + `Pillow` + `iconutil` (sem alterar runtime do app).
+
+Validacao tecnica desta rodada:
+1. `file resources/app_icon.svg resources/app_icon.png resources/app_icon.ico resources/app_icon.icns` -> formatos validos confirmados.
+2. `uv run --python 3.13 python -m py_compile launchers/convert_icon.py launchers/build_multiplatform.py` -> pass
+3. `uv run --python 3.13 ruff check launchers/convert_icon.py launchers/build_multiplatform.py` -> pass
+4. `uv run --python 3.13 ty check launchers/convert_icon.py launchers/build_multiplatform.py` -> pass
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py` -> `4 passed`
+
+Deferido (nao bloqueante neste slice):
+1. ajuste no `launchers/convert_icon.py` para fallback nativo automatico sem dependencia de `cairosvg` fica para slice de tooling.
+2. variacoes de icone em `resources/icon_variants/*` mantidas como opcao de design (nao usadas no build oficial).
+
 ## Update 2026-03-10 12:02 - pipeline macOS com .dmg nativo no build_multiplatform
 
 Session timestamp:
