@@ -2,7 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 14:31 - start from here
+## CURRENT TRUTH 2026-03-10 14:44 - start from here
+
+- Slice aplicado:
+  1. correcao de bug real no robust importer para mapeamento semantico `SN/SN.1`.
+  2. hardening no `RescanWorker` para nao mascarar full-rescan com falha como sucesso.
+- Arquivos alterados:
+  1. `utils/robust_importer.py`
+  2. `gui/workers/rescan_worker.py`
+  3. `tests/test_rescan_worker_advanced.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `SN -> sn_retirado` e `SN.1 -> sn_instalado` no robust importer (alinhado com o extrator principal e com testes).
+  2. full-rescan com `success=False` no worker agora diferencia:
+     - no-op sem contexto de arquivos (`total=0`) -> sucesso sem alteracoes;
+     - ciclo com arquivos (`total>0`) ou erro observado -> erro final.
+  3. o worker marca erro observado via:
+     - evento `file_error` do callback;
+     - observer no `LogHandler` para logs `ERROR+`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_robust_importer.py tests/test_rescan_worker_advanced.py tests/test_rescan_worker_cleanup.py` -> `41 passed`.
+- Deferido:
+  1. comentarios de debt semantico/performance em `RescanWorker` para introducao de sinal dedicado (`finished_no_changes`) e throttling de logs ficam para slice dedicado.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:31 - start from here
 
 - Slice aplicado:
   1. fechamento do refactor minimo em `core/app_logic.py` para reduzir complexidade de orquestracao sem mudar contrato funcional.

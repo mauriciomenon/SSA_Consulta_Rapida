@@ -3,6 +3,47 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 14:44 - bug-real only hotfix (robust SN + full-rescan worker status)
+
+Session timestamp:
+1. start: `2026-03-10 14:37:02 -0300`
+2. end: `2026-03-10 14:44:00 -0300`
+
+Objetivo do slice:
+1. corrigir somente bugs reais abertos no PR, sem refatoracao ampla.
+2. manter patch minimo e verificavel em robust importer e worker de rescan.
+
+Mudancas aplicadas:
+1. `utils/robust_importer.py`
+   - corrigida ordem semantica do grupo `sn` para alinhar `SN -> sn_retirado` e `SN.1 -> sn_instalado`.
+2. `gui/workers/rescan_worker.py`
+   - full-rescan com `run_importer_logic=False` agora diferencia:
+     - no-op sem contexto de arquivos (total=0): `finished_success` com mensagem de sem alteracoes.
+     - ciclo com arquivos (`total>0`) ou erro observado: `finished_error`.
+   - diferenciacao de mensagem final:
+     - com erros observados: `Importacao completa falhou com erros`;
+     - sem erros observados: `Importacao completa sem atualizacoes`.
+   - adicionada marcacao interna de erro em runtime (`_has_runtime_errors`) via callback de evento `file_error` e observer do log handler.
+3. `tests/test_rescan_worker_advanced.py`
+   - teste de no-op sem contexto mantido como sucesso.
+   - novo teste cobrindo full-rescan com arquivos no ciclo e retorno `False` validando `finished_error`.
+
+Evidencia objetiva:
+1. bug real confirmado antes do patch:
+   - `uv run --python 3.13 pytest -q tests/test_robust_importer.py` -> 2 falhas:
+     - `SN/SN.1` invertidos (`sn_retirado` recebia `INS-001`).
+2. apos patch:
+   - `uv run --python 3.13 pytest -q tests/test_robust_importer.py tests/test_rescan_worker_advanced.py tests/test_rescan_worker_cleanup.py` -> `41 passed`.
+
+Validacao tecnica:
+1. `uv run --python 3.13 python -m py_compile utils/robust_importer.py gui/workers/rescan_worker.py tests/test_rescan_worker_advanced.py` -> pass
+2. `uv run --python 3.13 ruff check ...` -> pass
+3. `uv run --python 3.13 ty check ...` -> pass
+
+Deferido (nao bloqueante neste slice):
+1. `gui/workers/rescan_worker.py`: comentario semantico sobre modo DIFF com `success=False` e sinalizacao de sucesso foi mantido por decisao intencional de UX atual (diff sem alteracoes nao deve falhar).
+2. debts antigos de performance/estrutura apontados por kluster (throttling de sinais e logger global).
+
 ## Update 2026-03-10 14:31 - app_logic orchestration hardening
 
 Session timestamp:

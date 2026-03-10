@@ -2,7 +2,31 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 14:31 - authoritative block
+## CURRENT TRUTH 2026-03-10 14:44 - authoritative block
+
+- Slice entregue:
+  1. fix de bug real no mapeamento semantico de `SN/SN.1` no robust importer.
+  2. ajuste de semantica de finalizacao no `RescanWorker` para full-rescan com `success=False`.
+- Arquivos alterados:
+  1. `utils/robust_importer.py`
+  2. `gui/workers/rescan_worker.py`
+  3. `tests/test_rescan_worker_advanced.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_robust_importer.py tests/test_rescan_worker_advanced.py tests/test_rescan_worker_cleanup.py` -> `41 passed`.
+- Regra final aplicada no worker:
+  1. `force_import=False` e `success=False` permanece sucesso sem alteracoes (decisao intencional de UX para diff).
+  2. `force_import=True` e `success=False`:
+     - se houve erro observado ou `total_files>0` -> `finished_error`;
+     - se nao houve contexto de arquivos (`total=0`) -> sucesso sem alteracoes.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:31 - authoritative block
 
 - Slice entregue:
   1. fechamento seguro do refactor minimo em `core/app_logic.py` (orquestracao de importacao).
