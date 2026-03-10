@@ -76,8 +76,34 @@ def test_run_builds_safe_paginated_query_and_emits_data():
 
     assert emitted and not emitted[0].empty
     assert emitted[0]["numero_ssa"].tolist() == ["1"]
+    assert emitted[0].attrs.get("ssa_preprocessed_for_gui") is True
+    assert isinstance(emitted[0].attrs.get("ssa_sanitized_df"), pd.DataFrame)
+    assert isinstance(emitted[0].attrs.get("ssa_non_null_cols"), list)
     assert "ORDER BY numero_ssa DESC" in captured["query"]
     assert "LIMIT 10 OFFSET 5" in captured["query"]
+
+
+def test_prepare_dataframe_for_ui_sanitizes_and_attaches_attrs():
+    worker = DataLoaderWorker(":memory:", "ssa_table")
+    source_df = pd.DataFrame(
+        {
+            "numero_ssa": ["202500002.0", 202500003.0, "SSA-202500001"],
+            "derivada_de": ["202400001.0", None, "nan"],
+            "situacao": ["STE", "SCA", "SCA"],
+        }
+    )
+
+    prepared_df = worker._prepare_dataframe_for_ui(source_df)
+    sanitized_df = prepared_df.attrs.get("ssa_sanitized_df")
+
+    assert prepared_df.attrs.get("ssa_preprocessed_for_gui") is True
+    assert isinstance(sanitized_df, pd.DataFrame)
+    assert sanitized_df.loc[0, "numero_ssa"] == "202500002"
+    assert sanitized_df.loc[1, "numero_ssa"] == "202500003"
+    assert sanitized_df.loc[0, "derivada_de"] == "202400001"
+    assert sanitized_df.loc[2, "derivada_de"] == ""
+    assert isinstance(prepared_df.attrs.get("ssa_non_null_cols"), list)
+    assert set(prepared_df["situacao"].tolist()) == {"STE", "SCA"}
 
 
 def test_run_emits_error_for_invalid_order_by():

@@ -201,7 +201,7 @@ def is_data_loader_worker_running(worker, sip_module) -> bool:
     except Exception as exc:
         logger.debug("Falha ao consultar isRunning() do data loader worker: %s", exc)
         return False
-    return False
+    return True
 
 
 def _classify_workers_for_ttl(
@@ -350,7 +350,7 @@ def is_rescan_worker_running(worker, sip_module) -> bool:
     except Exception as exc:
         logger.debug("Falha ao consultar isRunning() do rescan worker: %s", exc)
         return False
-    return False
+    return True
 
 
 def prune_retired_rescan_workers(
@@ -576,23 +576,34 @@ def load_data(
         worker = data_loader_cls(db_path, table_name)
     except Exception as exc:
         logger.error("Falha ao instanciar DataLoaderWorker: %s", _mask_db_path(str(exc), db_path))
-        handler = getattr(window, "on_load_error", None)
-        if callable(handler):
-            handler(str(exc), request_id=request_id)
-        else:
-            on_load_error(
-                window,
-                str(exc),
-                request_id=request_id,
-                db_path=db_path,
-                qmessagebox=qmessagebox,
-                global_workers=global_workers,
-                global_meta=global_meta,
-                max_global_workers=max_global_workers,
-                retired_ttl_sec=retired_ttl_sec,
-                retired_force_wait_ms=retired_force_wait_ms,
-                sip_module=sip_module,
-            )
+        try:
+            handler = getattr(window, "on_load_error", None)
+            if callable(handler):
+                handler(str(exc), request_id=request_id)
+            else:
+                on_load_error(
+                    window,
+                    str(exc),
+                    request_id=request_id,
+                    db_path=db_path,
+                    qmessagebox=qmessagebox,
+                    global_workers=global_workers,
+                    global_meta=global_meta,
+                    max_global_workers=max_global_workers,
+                    retired_ttl_sec=retired_ttl_sec,
+                    retired_force_wait_ms=retired_force_wait_ms,
+                    sip_module=sip_module,
+                )
+        finally:
+            progress_bar = getattr(window, "progress_bar", None)
+            if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+                progress_bar.setVisible(False)
+            load_button = getattr(window, "load_button", None)
+            if load_button is not None and hasattr(load_button, "setEnabled"):
+                load_button.setEnabled(True)
+            search_button = getattr(window, "search_button", None)
+            if search_button is not None and hasattr(search_button, "setEnabled"):
+                search_button.setEnabled(True)
         return
     window.data_loader_thread = worker
 
@@ -670,13 +681,19 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     if request_id is not None and active_id is not None and request_id != active_id:
         logger.debug("Ignorando resultado de carga obsoleto (request_id=%s, active=%s)", request_id, active_id)
         return
-    df_copy = df.copy()
-    for ssa_col in ("numero_ssa", "derivada_de"):
-        if ssa_col in df_copy.columns:
-            try:
-                df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
-            except Exception as exc:
-                logger.debug("Falha ao sanitizar coluna %s na carga de dados: %s", ssa_col, exc)
+    attrs = getattr(df, "attrs", {})
+    preprocessed_for_gui = bool(attrs.get("ssa_preprocessed_for_gui"))
+    sanitized_df_from_worker = attrs.get("ssa_sanitized_df")
+    if preprocessed_for_gui and isinstance(sanitized_df_from_worker, pd.DataFrame):
+        df_copy = sanitized_df_from_worker
+    else:
+        df_copy = df.copy()
+        for ssa_col in ("numero_ssa", "derivada_de"):
+            if ssa_col in df_copy.columns:
+                try:
+                    df_copy[ssa_col] = df_copy[ssa_col].map(_sanitize_ssa_like_value)
+                except Exception as exc:
+                    logger.debug("Falha ao sanitizar coluna %s na carga de dados: %s", ssa_col, exc)
     window.df_completo = df_copy
     try:
         last_req = getattr(window, "_data_revision_request_id", None)
@@ -710,25 +727,28 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
             timer.stop()
     except Exception as exc:
         logger.debug("Falha ao parar debounce de setor apos carga de dados: %s", exc)
-    base = df_copy
-    try:
-        if 'situacao' in base.columns:
-            is_ste = base['situacao'].astype(str).str.upper().eq('STE')
-        else:
-            is_ste = pd.Series([False] * len(base), index=base.index)
-        if 'numero_ssa' in base.columns:
-            ssa_text = base["numero_ssa"].astype(str)
-            ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
-            ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
-        else:
-            ssa_int = pd.Series([-1] * len(base), index=base.index)
-        base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
-            by=['__is_ste', '__ssa'],
-            ascending=[True, False],
-            na_position='last',
-        ).drop(columns=['__is_ste', '__ssa'])
-    except Exception as e:
-        logger.warning("Falha na ordenacao inicial dos dados: %s", e)
+    if preprocessed_for_gui:
+        base = df
+    else:
+        base = df_copy
+        try:
+            if 'situacao' in base.columns:
+                is_ste = base['situacao'].astype(str).str.upper().eq('STE')
+            else:
+                is_ste = pd.Series([False] * len(base), index=base.index)
+            if 'numero_ssa' in base.columns:
+                ssa_text = base["numero_ssa"].astype(str)
+                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
+                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
+            else:
+                ssa_int = pd.Series([-1] * len(base), index=base.index)
+            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
+                by=['__is_ste', '__ssa'],
+                ascending=[True, False],
+                na_position='last',
+            ).drop(columns=['__is_ste', '__ssa'])
+        except Exception as e:
+            logger.warning("Falha na ordenacao inicial dos dados: %s", e)
     window.df_exibido = base
     window._df_last_search_filtered = df_copy
     window._widths_computed_for_df_hash = None
@@ -738,17 +758,21 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
     except Exception as exc:
         logger.debug("Falha ao preaquecer cache de sort de num_reprogramacoes: %s", exc)
     try:
-        try:
-            non_null_mask = df_copy.notna().any(axis=0)
-            non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
-        except Exception:
-            non_null_cols = set()
-            for col_name in df_copy.columns:
-                try:
-                    if df_copy[col_name].notna().any():
-                        non_null_cols.add(col_name)
-                except Exception:
-                    continue
+        non_null_cols_attr = attrs.get("ssa_non_null_cols") if preprocessed_for_gui else None
+        if isinstance(non_null_cols_attr, list):
+            non_null_cols = {str(col) for col in non_null_cols_attr if str(col)}
+        else:
+            try:
+                non_null_mask = df_copy.notna().any(axis=0)
+                non_null_cols = set(non_null_mask[non_null_mask].index.tolist())
+            except Exception:
+                non_null_cols = set()
+                for col_name in df_copy.columns:
+                    try:
+                        if df_copy[col_name].notna().any():
+                            non_null_cols.add(col_name)
+                    except Exception:
+                        continue
         window._non_null_cols_cache = non_null_cols
         window._non_null_cols_revision = int(getattr(window, "_data_revision", 0) or 0)
     except Exception as exc:
@@ -773,7 +797,8 @@ def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):
         window._refresh_advanced_filter_options()
     except Exception as e:
         logger.warning("Falha ao atualizar opcoes de filtros avancados: %s", e)
-    profile_hint = f" (perfil: {window.current_filter_profile})" if window.current_filter_profile else ""
+    current_filter_profile = getattr(window, "current_filter_profile", None)
+    profile_hint = f" (perfil: {current_filter_profile})" if current_filter_profile else ""
     if hasattr(window, "_set_filtered_count_status"):
         try:
             suffix = f"{profile_hint}." if profile_hint else ""
@@ -849,9 +874,15 @@ def on_load_error(
         "Status: Erro ao carregar dados.",
         context="on_load_error",
     )
-    window.load_button.setEnabled(True)
-    window.search_button.setEnabled(True)
-    window.progress_bar.setVisible(False)
+    load_button = getattr(window, "load_button", None)
+    if load_button is not None and hasattr(load_button, "setEnabled"):
+        load_button.setEnabled(True)
+    search_button = getattr(window, "search_button", None)
+    if search_button is not None and hasattr(search_button, "setEnabled"):
+        search_button.setEnabled(True)
+    progress_bar = getattr(window, "progress_bar", None)
+    if progress_bar is not None and hasattr(progress_bar, "setVisible"):
+        progress_bar.setVisible(False)
     if global_workers is not None and global_meta is not None:
         try:
             prune_retired_data_loader_workers(

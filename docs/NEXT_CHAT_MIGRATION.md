@@ -2,7 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 22:30 - start from here
+## CURRENT TRUTH 2026-03-09 22:49 - start from here
+
+- Heavy pending slice executado (sem mudanca de layout):
+  1. preprocessamento pesado movido para `DataLoaderWorker` (sanitize/sort/non-null cache).
+  2. `on_data_loaded` passou a consumir `df.attrs` (`ssa_preprocessed_for_gui`, `ssa_sanitized_df`, `ssa_non_null_cols`) no caminho padrao.
+  3. fallback legado mantido para chamadas sem attrs.
+  4. `load_data` agora restaura UI mesmo em falha ao instanciar worker.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest` focado (`8 passed`) + `test_workers_advanced.py -k DataLoaderWorker` (`14 passed`) -> pass.
+- Deferido explicitamente:
+  1. `query_db(self.db_path, '', query, ...)` no worker classificado como `FALSO_POSITIVO` por contrato atual de `query_db`.
+  2. debt de concentracao/duplicacao em `on_data_loaded` segue para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:30
 
 - Politica ASCII reforcada para review/documentacao tecnica:
   1. sugestoes ortograficas com acentos/cedilha em texto tecnico devem ser tratadas como `FALSO_POSITIVO` se conflitar com a politica ASCII do repo.
