@@ -202,3 +202,16 @@ def test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime(
     resolved = create_distribution._resolve_build_directory("pyinstaller")
 
     assert resolved == first_dir
+
+
+def test_detect_primary_executable_name_returns_none_when_package_has_no_binary(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "package"
+    package_dir.mkdir(parents=True)
+    (package_dir / "README.md").write_text("no executable", encoding="utf-8")
+    (package_dir / "config.json").write_text("{}", encoding="utf-8")
+
+    detected = create_distribution._detect_primary_executable_name(package_dir)
+
+    assert detected is None

@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 08:43 - authoritative block
+## CURRENT TRUTH 2026-03-10 08:49 - authoritative block
+
+- Slice entregue:
+  1. fallback generico `executavel_principal` foi removido do empacotador.
+  2. `scripts/create_distribution.py`:
+     - `_detect_primary_executable_name` agora retorna `Optional[str]`.
+     - `create_zip_package` aborta com erro explicito quando nao encontra executavel no staged package.
+     - `_build_bundle_ignore` agora usa tipo real de entrada para aplicar filtro.
+  3. `tests/test_create_distribution.py`:
+     - teste novo para retorno `None` quando pacote nao possui binario.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `7 passed`.
+  3. `kluster review` no codigo tocado -> sem blocker novo; ficaram 2 debts medios de arquitetura/semantica.
+- Pendencia deferida:
+  1. `create_zip_package` ainda e funcao longa (qualidade).
+  2. separacao semantica em `_resolve_build_directory` (resolver dir vs validar executavel) fica para slice dedicado.
+  3. hardening de trust para `INNO_SETUP_COMPILER` (allowlist de diretorios) fica para ciclo de seguranca dedicado.
+  4. validacao de path absoluto Inno e heuristica pyinstaller precisam rodada em ambiente Windows dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:43
 
 - Slice entregue:
   1. escolha de build pyinstaller ficou deterministica pela ordem de `canonical_dirs`.

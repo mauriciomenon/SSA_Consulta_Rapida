@@ -2,7 +2,35 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 08:43 - start from here
+## CURRENT TRUTH 2026-03-10 08:49 - start from here
+
+- Slice aplicado:
+  1. removido fallback generico de executavel no pacote staged.
+  2. `scripts/create_distribution.py`:
+     - `_detect_primary_executable_name(...)` agora retorna `Optional[str]`.
+     - sem executavel detectado, `create_zip_package(...)` falha de forma explicita e encerra.
+     - `_build_bundle_ignore(...)` agora detecta tipo real (`arquivo`/`diretorio`) via caminho origem.
+  3. testes:
+     - novo `test_detect_primary_executable_name_returns_none_when_package_has_no_binary`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `7 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda concentrada.
+  2. debt semantico: separacao entre "resolver dir" e "validar executavel" em `_resolve_build_directory` ficou para slice dedicado.
+  3. hardening de trust para `INNO_SETUP_COMPILER` (allowlist de diretorios) fica para ciclo de seguranca dedicado.
+  4. validacao de path absoluto Inno e heuristica pyinstaller precisam rodada em ambiente Windows dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:43
 
 - Slice aplicado:
   1. selecao do build canonico pyinstaller ficou deterministica por ordem de `canonical_dirs`.

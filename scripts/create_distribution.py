@@ -200,13 +200,15 @@ def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
 
 def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
+    src_path = Path(_src)
     for name in names:
-        if _should_skip_bundle_entry(name, True):
+        candidate = src_path / name
+        if _should_skip_bundle_entry(name, candidate.is_file()):
             ignored.add(name)
     return ignored
 
 
-def _detect_primary_executable_name(package_dir: Path) -> str:
+def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
     """Escolhe executavel principal para instrucoes do usuario."""
     preferred = (
         "SSA_Consulta_Rapida.exe",
@@ -230,7 +232,7 @@ def _detect_primary_executable_name(package_dir: Path) -> str:
     if app_like:
         return app_like[0]
 
-    return "executavel_principal"
+    return None
 
 
 def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
@@ -475,6 +477,11 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
 
         # Criar README especifico
         primary_executable_name = _detect_primary_executable_name(package_dir)
+        if primary_executable_name is None:
+            logger.error("Nao foi possivel detectar executavel primario no pacote staged")
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            return None
         create_readme_usuario(
             package_dir,
             build_system,
