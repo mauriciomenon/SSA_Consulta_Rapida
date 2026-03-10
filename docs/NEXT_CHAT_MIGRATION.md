@@ -2,7 +2,23 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 22:11 - start from here
+## CURRENT TRUTH 2026-03-09 22:30 - start from here
+
+- Politica ASCII reforcada para review/documentacao tecnica:
+  1. sugestoes ortograficas com acentos/cedilha em texto tecnico devem ser tratadas como `FALSO_POSITIVO` se conflitar com a politica ASCII do repo.
+- Debts antigos priorizados (proximo ciclo):
+  1. `gui/gui_ssa.py`: debt arquitetural na `SSAMainWindow`.
+  2. `gui/ssa/gui_workers.py`: custo alto em `on_data_loaded` no UI thread.
+  3. `gui/ssa/gui_workers.py`: duplicacao de prune/cleanup entre workers.
+- Slice atual:
+  1. apenas DOC_SYNC de governanca.
+  2. sem alteracao de runtime.
+  3. kluster em docs tocados -> clean.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:11
 
 - Follow-up de comentarios pendentes do PR #45 concluido com patch minimo:
   1. worker prune nao perde mais worker vivo quando ultrapassa cap.

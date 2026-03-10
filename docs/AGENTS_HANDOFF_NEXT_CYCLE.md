@@ -2,7 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 22:11 - authoritative block
+## CURRENT TRUTH 2026-03-09 22:30 - authoritative block
+
+- Politica ASCII para review/documentacao tecnica reforcada:
+  1. sugestoes ortograficas com acentos/cedilha em texto tecnico devem ser classificadas como `FALSO_POSITIVO` quando conflitar com a politica ASCII do repo.
+- Debts antigos priorizados para proximo ciclo:
+  1. `gui/gui_ssa.py`: `SSAMainWindow` com debt arquitetural (classe concentrada).
+  2. `gui/ssa/gui_workers.py`: `on_data_loaded` com custo alto no UI thread.
+  3. `gui/ssa/gui_workers.py`: duplicacao de prune/cleanup entre fluxos de workers.
+- Escopo desta rodada:
+  1. DOC_SYNC de governanca.
+  2. sem alteracao de runtime.
+  3. kluster em docs tocados -> clean.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:11
 
 - Follow-up de comentarios pendentes do PR #45 concluido com patch minimo:
   1. `gui/ssa/gui_workers.py`: cap nao remove mais worker vivo; init de lista de workers sob lock antes de prune.
