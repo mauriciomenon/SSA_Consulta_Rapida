@@ -198,6 +198,46 @@ def test_compile_installer_returns_missing_when_iscc_is_unavailable(monkeypatch)
     assert status == "missing"
 
 
+def test_compile_installer_rejects_relative_env_override(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("INNO_SETUP_COMPILER", "tools/iscc")
+    monkeypatch.setattr(create_distribution.shutil, "which", lambda _: None)
+    monkeypatch.setattr(create_distribution.os.path, "exists", lambda _: False)
+
+    status = create_distribution.compile_installer(Path("installer.iss"))
+
+    assert status == "missing"
+    assert "caminho nao absoluto" in caplog.text
+
+
+def test_compile_installer_accepts_absolute_env_override_in_trusted_parent(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    trusted_iscc = tmp_path / "trusted" / "iscc"
+    trusted_iscc.parent.mkdir(parents=True)
+    trusted_iscc.write_text("fake", encoding="utf-8")
+
+    monkeypatch.setenv("INNO_SETUP_COMPILER", str(trusted_iscc))
+    monkeypatch.setattr(create_distribution.shutil, "which", lambda _: str(trusted_iscc))
+
+    recorded_cmd: dict[str, list[str]] = {}
+
+    class _Result:
+        returncode = 0
+        stderr = ""
+
+    def _fake_run(cmd, **_kwargs):
+        recorded_cmd["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr(create_distribution.subprocess, "run", _fake_run)
+
+    status = create_distribution.compile_installer(Path("installer.iss"))
+
+    assert status == "success"
+    assert recorded_cmd["cmd"][0] == str(trusted_iscc.resolve())
+
+
 def test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime(
     tmp_path: Path,
     monkeypatch,
