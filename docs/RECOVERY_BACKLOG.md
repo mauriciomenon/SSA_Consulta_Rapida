@@ -3,6 +3,30 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 22:30 - ASCII policy guardrails for doc comments
+
+Session timestamp:
+1. start: `2026-03-09 22:30:00 -0300`
+2. end: `2026-03-09 22:34:14 -0300`
+
+Objetivo do slice:
+1. fechar conflito de review ortografico com politica tecnica ASCII do repo.
+2. registrar claramente quais debts antigos seguem ativos e priorizados.
+3. evitar ambiguidade de decisao no proximo ciclo.
+
+Decisao registrada (oficial):
+1. sugestoes ortograficas que introduzem acentos/cedilha em texto tecnico devem ser classificadas como `FALSO_POSITIVO` quando houver conflito com politica ASCII vigente.
+2. esta regra vale para docs de controle e comentarios tecnicos de PR neste ciclo.
+
+Debts antigos priorizados para proximo ciclo (top 3):
+1. `gui/gui_ssa.py`: `SSAMainWindow` com concentracao alta de responsabilidade (debt arquitetural).
+2. `gui/ssa/gui_workers.py`: `on_data_loaded` pesado no UI thread (sanitize/sort + jank em base grande).
+3. `gui/ssa/gui_workers.py`: duplicacao de prune/cleanup de workers entre caminhos de carga e rescan.
+
+Validacao desta rodada:
+1. kluster auto em docs tocados -> clean.
+2. sem alteracao de runtime.
+
 ## Update 2026-03-09 22:11 - PR #45 pending comments follow-up (worker/cache/import/integrity)
 
 Session timestamp:
