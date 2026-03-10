@@ -3,6 +3,54 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 22:49 - heavy pending slice (DataLoaderWorker preprocess)
+
+Session timestamp:
+1. start: `2026-03-09 22:30:00 -0300`
+2. end: `2026-03-09 22:54:17 -0300`
+
+Objetivo do slice:
+1. reduzir custo do hot path em `on_data_loaded` movendo preprocessamento pesado para `DataLoaderWorker`.
+2. manter fallback legado para chamadas diretas sem quebrar contratos atuais.
+3. corrigir aresta de UI stuck quando falha ao instanciar worker de carga.
+
+Mudancas aplicadas:
+1. `gui/workers/data_loader_worker.py`:
+   - novo preprocessamento para GUI:
+     - sanitizacao de `numero_ssa` e `derivada_de`;
+     - ordenacao inicial por `situacao`/`numero_ssa`;
+     - calculo de colunas nao nulas.
+   - metadados enviados via `df.attrs`:
+     - `ssa_preprocessed_for_gui`
+     - `ssa_sanitized_df`
+     - `ssa_non_null_cols`
+2. `gui/ssa/gui_workers.py`:
+   - `on_data_loaded` consome metadados do worker quando presentes e evita reprocessamento pesado no caminho padrao.
+   - fallback legado mantido para chamadas sem attrs.
+   - `load_data`: falha de construtor de worker agora restaura UI (`progress_bar`, `load_button`, `search_button`) no bloco de excecao.
+   - robustez adicional:
+     - `current_filter_profile` agora via `getattr`.
+     - `on_load_error` com guards para widgets opcionais.
+3. testes:
+   - `tests/test_data_loader_worker.py`:
+     - cobrindo attrs de preprocessamento e sanitizacao.
+   - `tests/test_gui_filter_logic.py`:
+     - cobrindo consumo de attrs pre-processados em `on_data_loaded`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_data_loader_worker.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_data_loader_worker.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/workers/data_loader_worker.py gui/ssa/gui_workers.py tests/test_data_loader_worker.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_data_loader_worker.py tests/test_gui_workers_signal_connect.py tests/test_load_data_skips_modal_loader_missing_in_pytest.py tests/test_gui_filter_logic.py -k "on_data_loaded or DataLoaderWorker or load_data_handles_loader_constructor_failure_under_pytest"` -> `8 passed`
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_workers_advanced.py -k DataLoaderWorker` -> `14 passed`
+
+Deferido (nao bloqueante neste slice):
+1. kluster `HIGH knowledge` em `query_db(self.db_path, '', query, ...)` no worker foi classificado como `FALSO_POSITIVO` nesta rodada:
+   - assinatura de `query_db` usa `table_name` somente quando `query` vazio; com query explicita o `''` e contrato historico valido.
+2. debts amplos de arquitetura/performance ainda ativos:
+   - `on_data_loaded` continua concentrando responsabilidades (debt historico);
+   - duplicacao de logica entre caminho fallback e caminho pre-processado.
+
 ## Update 2026-03-09 22:30 - ASCII policy guardrails for doc comments
 
 Session timestamp:

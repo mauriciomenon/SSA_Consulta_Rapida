@@ -2642,6 +2642,22 @@ class TestGUIFilterLogic:
         assert self.window.df_completo.loc[1, "numero_ssa"] == "202500778"
         assert self.window.df_completo.loc[0, "derivada_de"] == "202500001"
 
+    def test_on_data_loaded_uses_preprocessed_attrs_from_worker(self):
+        self.window._active_data_load_request_id = 22
+        sorted_df = self.base_df.copy().iloc[::-1].copy()
+        sanitized_df = self.base_df.copy()
+        sanitized_df["numero_ssa"] = ["202500005", "202500004", "202500003", "202500002", "202500001"]
+        sorted_df.attrs["ssa_preprocessed_for_gui"] = True
+        sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
+        sorted_df.attrs["ssa_non_null_cols"] = ["numero_ssa", "situacao", "descricao_ssa"]
+
+        self.window.on_data_loaded(sorted_df, request_id=22)
+
+        assert self.window.df_completo.equals(sanitized_df)
+        assert self.window.df_exibido.iloc[0]["numero_ssa"] == "202500005"
+        assert self.window.df_exibido.iloc[-1]["numero_ssa"] == "202500001"
+        assert {"numero_ssa", "situacao", "descricao_ssa"}.issubset(self.window._non_null_cols_cache)
+
     def test_on_data_loaded_primes_num_reprogramacoes_sort_cache(self):
         self.window._active_data_load_request_id = 31
         df = self.base_df.copy()

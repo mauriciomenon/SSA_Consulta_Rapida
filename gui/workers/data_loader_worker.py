@@ -112,6 +112,78 @@ class DataLoaderWorker(QThread):
             normalized_parts.append(f"{col} {direction}")
         return ", ".join(normalized_parts)
 
+    def _sanitize_ssa_like_value(self, value) -> str:
+        if value is None:
+            return ""
+        try:
+            if isinstance(value, float):
+                if pd.isna(value):
+                    return ""
+                if value.is_integer():
+                    return str(int(value))
+                return str(value).strip()
+        except (TypeError, ValueError):
+            pass
+        text = str(value).strip()
+        if not text:
+            return ""
+        if text.lower() in {"nan", "none", "nat", "<na>"}:
+            return ""
+        if re.fullmatch(r"\d+\.0+", text):
+            return text.split(".", 1)[0]
+        return text
+
+    def _build_initial_sorted_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        base = df
+        try:
+            if "situacao" in base.columns:
+                is_ste = base["situacao"].astype(str).str.upper().eq("STE")
+            else:
+                is_ste = pd.Series([False] * len(base), index=base.index)
+            if "numero_ssa" in base.columns:
+                ssa_text = base["numero_ssa"].astype(str)
+                ssa_digits = ssa_text.str.replace(r"\D+", "", regex=True)
+                ssa_int = pd.to_numeric(ssa_digits, errors="coerce").fillna(-1).astype("int64")
+            else:
+                ssa_int = pd.Series([-1] * len(base), index=base.index)
+            base = base.assign(__is_ste=is_ste, __ssa=ssa_int).sort_values(
+                by=["__is_ste", "__ssa"],
+                ascending=[True, False],
+                na_position="last",
+            ).drop(columns=["__is_ste", "__ssa"])
+        except Exception as exc:
+            logger.warning("Falha na ordenacao inicial durante preprocessamento do DataLoaderWorker: %s", exc)
+        return base
+
+    def _build_non_null_columns(self, df: pd.DataFrame) -> list[str]:
+        try:
+            non_null_mask = df.notna().any(axis=0)
+            return [str(col) for col in non_null_mask[non_null_mask].index.tolist()]
+        except Exception:
+            non_null_cols = []
+            for col_name in df.columns:
+                try:
+                    if df[col_name].notna().any():
+                        non_null_cols.append(str(col_name))
+                except Exception:
+                    continue
+            return non_null_cols
+
+    def _prepare_dataframe_for_ui(self, df: pd.DataFrame) -> pd.DataFrame:
+        sanitized_df = df.copy()
+        for ssa_col in ("numero_ssa", "derivada_de"):
+            if ssa_col in sanitized_df.columns:
+                sanitized_df[ssa_col] = sanitized_df[ssa_col].map(self._sanitize_ssa_like_value)
+        pre_sorted_df = self._build_initial_sorted_dataframe(sanitized_df)
+        non_null_cols = self._build_non_null_columns(sanitized_df)
+        try:
+            pre_sorted_df.attrs["ssa_preprocessed_for_gui"] = True
+            pre_sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
+            pre_sorted_df.attrs["ssa_non_null_cols"] = non_null_cols
+        except Exception as exc:
+            logger.debug("Falha ao anexar attrs de preprocessamento no DataLoaderWorker: %s", exc)
+        return pre_sorted_df
+
     def run(self):
         try:
             if self._is_cancelled():
@@ -147,6 +219,10 @@ class DataLoaderWorker(QThread):
                 return
             if not isinstance(df, pd.DataFrame):
                 raise TypeError("query_db retornou tipo invalido para DataLoaderWorker")
+            try:
+                df = self._prepare_dataframe_for_ui(df)
+            except Exception as exc:
+                logger.warning("Falha no preprocessamento do DataLoaderWorker; mantendo DataFrame bruto: %s", exc)
             # Resultado vazio eh valido com paginacao (pagina sem linhas).
             self.data_loaded.emit(df)
         except Exception:

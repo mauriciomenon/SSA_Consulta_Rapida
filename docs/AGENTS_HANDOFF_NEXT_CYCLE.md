@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 22:30 - authoritative block
+## CURRENT TRUTH 2026-03-09 22:49 - authoritative block
+
+- Heavy pending slice entregue (foco em performance/stability de carga):
+  1. `gui/workers/data_loader_worker.py`:
+     - preprocessamento de dados para GUI movido para worker (sanitize + sort + non-null cols).
+     - resultado chega com attrs (`ssa_preprocessed_for_gui`, `ssa_sanitized_df`, `ssa_non_null_cols`).
+  2. `gui/ssa/gui_workers.py`:
+     - `on_data_loaded` usa attrs do worker no caminho padrao e evita preprocessamento pesado no UI thread.
+     - fallback legado mantido para compatibilidade.
+     - falha ao instanciar worker de carga agora sempre restaura UI (botoes/progress).
+     - guards extras para atributos opcionais em status/erro.
+  3. testes:
+     - `tests/test_data_loader_worker.py` e `tests/test_gui_filter_logic.py` atualizados para novo contrato.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado (`8 passed`) + `DataLoaderWorker` em `test_workers_advanced` (`14 passed`) -> pass.
+- Pendencias deferidas:
+  1. kluster `HIGH knowledge` sobre `query_db(..., '', query, ...)` classificado como `FALSO_POSITIVO` pelo contrato atual de `query_db`.
+  2. debt historico de concentracao em `on_data_loaded` e duplicacao residual de logica segue para ciclo dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:30
 
 - Politica ASCII para review/documentacao tecnica reforcada:
   1. sugestoes ortograficas com acentos/cedilha em texto tecnico devem ser classificadas como `FALSO_POSITIVO` quando conflitar com a politica ASCII do repo.
