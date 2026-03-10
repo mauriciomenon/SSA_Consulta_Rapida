@@ -2,7 +2,30 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 15:17 - start from here
+## CURRENT TRUTH 2026-03-10 15:29 - start from here
+
+- Slice aplicado:
+  1. reorganizacao da barra de filtros na aba Filtros conforme UX aprovada.
+  2. remocao do botao superior `Atualizar Derivadas` (acao mantida no menu Database).
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `Salvar Filtro` agora fica na mesma linha de `Pesquisa Geral`.
+  2. tooltip de `Salvar Filtro` explicita que salva somente o filtro de busca geral.
+  3. `Colunas Visiveis` + `Setor Executor` migraram para a linha de paginacao.
+  4. `Setor Executor` segue no canto direito com ajuste leve de largura/altura para conforto visual.
+  5. botao superior de derivadas saiu da barra sem remover fluxo de menu.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (5 testes) -> `5 passed`.
+- Deferido:
+  1. debts historicos de performance/arquitetura no `gui/gui_ssa.py` fora do escopo de patch minimo.
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:17 - start from here
 
 - Slice aplicado:
   1. hardening de fallback GUI em `main.py` com escopo minimo.
