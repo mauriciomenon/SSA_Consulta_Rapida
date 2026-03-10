@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:23 - OutputDir do Inno deterministico via SourcePath
+
+Session timestamp:
+1. start: `2026-03-10 09:22:09 -0300`
+2. end: `2026-03-10 09:23:45 -0300`
+
+Objetivo do slice:
+1. remover ambiguidade de saida do instalador Inno em relacao ao cwd.
+2. manter patch minimo sem alterar fluxo de compilacao fora do escopo.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `OutputDir=.` substituido por `OutputDir={#SourcePath}` no template `.iss`.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_create_inno_setup_script_uses_sourcepath_outputdir`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `10 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt de qualidade: `create_zip_package` segue longa.
+2. debt semantico geral de resolucao por build system segue para ciclo dedicado.
+3. duplicacao de setup em testes segue para refino futuro.
+
 ## Update 2026-03-10 09:18 - fallback explicito canonical->legacy para pyinstaller
 
 Session timestamp:

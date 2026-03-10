@@ -2,7 +2,27 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 09:18 - authoritative block
+## CURRENT TRUTH 2026-03-10 09:23 - authoritative block
+
+- Slice entregue:
+  1. `OutputDir` do instalador Inno agora e deterministico via `{{#SourcePath}}`.
+  2. `scripts/create_distribution.py`:
+     - template `.iss` atualizado para reduzir ambiguidade de cwd.
+  3. `tests/test_create_distribution.py`:
+     - teste novo validando `OutputDir={#SourcePath}`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `10 passed`.
+  3. `kluster review` em codigo/docs tocados -> sem blocker funcional neste slice.
+- Pendencia deferida:
+  1. `create_zip_package` continua como debt de funcao longa.
+  2. semantica geral de resolucao por build system fica para ciclo dedicado.
+  3. deduplicacao de setup dos testes fica para manutencao futura.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:18
 
 - Slice entregue:
   1. fallback pyinstaller canonical->legacy ficou explicito no fluxo de resolucao.
