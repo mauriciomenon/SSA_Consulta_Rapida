@@ -1465,6 +1465,12 @@ class FilterGUISSAMixin:
 
         # Atualizar resumo de filtros
         self._update_filters_summary()
+        try:
+            sync_combo = getattr(self, "_sync_quick_setor_executor_combo_from_filters", None)
+            if callable(sync_combo):
+                sync_combo()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar combo rapido de setor executor em clear_all_filters_global: %s", exc)
 
 
     def _update_filters_summary(self):
@@ -1931,6 +1937,12 @@ class FilterGUISSAMixin:
             self._set_filtered_count_status(str(getattr(self, "_pending_search_display", "") or ""))
         except Exception as exc:
             logger.debug("Falha ao atualizar status de total filtrado no refresh: %s", exc)
+        try:
+            sync_combo = getattr(self, "_sync_quick_setor_executor_combo_from_filters", None)
+            if callable(sync_combo):
+                sync_combo()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar combo rapido de setor executor no refresh de filtros: %s", exc)
 
 
     def _snapshot_filter_state(self) -> dict:

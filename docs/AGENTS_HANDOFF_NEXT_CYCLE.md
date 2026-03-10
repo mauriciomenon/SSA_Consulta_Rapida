@@ -2,7 +2,41 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 23:24 - authoritative block
+## CURRENT TRUTH 2026-03-09 23:53 - authoritative block
+
+- Slice entregue:
+  1. `gui/widgets/column_selector.py`:
+     - removeu resumo lateral.
+     - botao agora mostra `Colunas Visiveis: N`.
+  2. `gui/gui_ssa.py`:
+     - removeu seletor de `Perfil de filtro` da UI.
+     - adicionou combo rapido `Setor Executor` ao lado de `Colunas Visiveis`.
+     - ordem do combo: `IEE1..IEE4`, depois `MEL1..MEL4`, depois alfabetica.
+     - adicionou checkbox `Configuracao persistente` (default false) como primeira opcao da faixa.
+     - com persistencia ativa, grava automaticamente:
+       - `gui_settings.persist_quick_filter_config`
+       - `gui_settings.quick_setor_executor`
+       - `display_columns`.
+  3. `gui/mixins/tab_context_gui_ssa_mixin.py`:
+     - bind de perfil tolera ausencia de `profile_selector`.
+  4. `gui/mixins/filter_gui_ssa_mixin.py`:
+     - refresh/clear global sincronizam combo rapido de setor executor.
+  5. `tests/test_gui_filter_logic.py`:
+     - novos testes para:
+       - texto do botao `Colunas Visiveis: N`;
+       - ordenacao priorizada de setores;
+       - aplicacao e persistencia do filtro rapido.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado novo comportamento -> `3 passed`.
+  3. `pytest tests/test_gui_menu_import_external.py` -> `13 passed`.
+- Pendencia deferida:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` e mixins (fora deste patch minimo).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:24
 
 - Micro-slice de correcao pontual entregue:
   1. `gui/gui_ssa.py`: ajuste da chamada fallback de `_build_unique_destination_path` para descriptor bound call.

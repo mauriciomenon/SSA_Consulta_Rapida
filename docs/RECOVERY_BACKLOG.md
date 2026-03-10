@@ -3,6 +3,48 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 23:53 - GUI quick setor executor + persistencia opcional
+
+Session timestamp:
+1. start: `2026-03-09 23:53:13 -0300`
+2. end: `2026-03-10 00:05:00 -0300`
+
+Objetivo do slice:
+1. remover seletor de perfil de filtro da UI (nao agrega no fluxo atual).
+2. adicionar combo rapido `Setor Executor` no topo, ao lado de `Colunas Visiveis`.
+3. mover contador de colunas para o proprio botao (`Colunas Visiveis: N`) e remover box lateral.
+4. adicionar opcao `Configuracao persistente` (default desmarcado) para salvar automaticamente a configuracao rapida.
+
+Mudancas aplicadas:
+1. `gui/widgets/column_selector.py`:
+   - botao passou a exibir `Colunas Visiveis: N`.
+   - resumo lateral removido.
+2. `gui/gui_ssa.py`:
+   - `profile_selector` removido da faixa de opcoes.
+   - combo rapido `Setor Executor` adicionado na linha superior (lado direito de `Colunas Visiveis`).
+   - ordenacao do combo: `IEE1..IEE4`, depois `MEL1..MEL4`, depois restante em ordem alfabetica.
+   - novo checkbox `Configuracao persistente` como primeiro item da faixa de opcoes.
+   - persistencia opcional implementada em `gui_settings.persist_quick_filter_config` e `gui_settings.quick_setor_executor`.
+   - quando persistencia ativa, mudancas em `setor_executor` rapido e `visible_columns` sao gravadas via `_persist_gui_preferences`.
+3. `gui/mixins/tab_context_gui_ssa_mixin.py`:
+   - sync de perfil agora ignora ausencia de `profile_selector` sem ruido.
+4. `gui/mixins/filter_gui_ssa_mixin.py`:
+   - clear global e refresh passam a sincronizar o combo rapido de `Setor Executor`.
+5. `tests/test_gui_filter_logic.py`:
+   - cobertura para texto do botao de colunas.
+   - cobertura para ordenacao de setores priorizada.
+   - cobertura para aplicacao do combo rapido + persistencia opcional.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/widgets/column_selector.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/widgets/column_selector.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/widgets/column_selector.py gui/mixins/filter_gui_ssa_mixin.py gui/mixins/tab_context_gui_ssa_mixin.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "column_selector_button_shows_visible_count_in_text or setor_executor_order_prioritizes_smin_then_mel_then_alpha or quick_setor_executor_combo_applies_filter_and_persistence"` -> `3 passed`
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts estruturais/performance recorrentes apontados por kluster em `gui/gui_ssa.py` e mixins (fora do escopo deste patch minimo).
+
 ## Update 2026-03-09 23:37 - PR45 path/runtime corrections (targeted)
 
 Session timestamp:
