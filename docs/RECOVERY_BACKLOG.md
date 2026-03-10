@@ -7,7 +7,7 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 
 Session timestamp:
 1. start: `2026-03-09 22:11:57 -0300`
-2. end: `2026-03-09 22:33:55 -0300`
+2. end: `2026-03-09 22:20:55 -0300`
 
 Objetivo do slice:
 1. fechar comentarios pendentes de risco real sem refatoracao ampla.
