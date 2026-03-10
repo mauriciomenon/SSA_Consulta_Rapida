@@ -2,7 +2,31 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 12:45 - authoritative block
+## CURRENT TRUTH 2026-03-10 12:56 - authoritative block
+
+- Slice entregue:
+  1. triagem final de pendencias do PR #45, com revisao thread a thread.
+  2. limpeza de ruido de bot (`Rate Limit Exceeded`) e fechamento de threads ja classificadas.
+  3. preservacao somente de bloqueios `BUG_REAL` para proximos slices tecnicos.
+- Resultado operacional no PR:
+  1. `open_threads` antes: `65`
+  2. `open_threads` apos triagem: `9`
+  3. `56` threads encerradas nesta rodada.
+- Threads abertas remanescentes (`BUG_REAL`):
+  1. `armazenamento/database_upsert_logic.py:407`
+  2. `armazenamento/database_upsert_logic.py:951`
+  3. `armazenamento/database_upsert_logic.py:743`
+  4. `armazenamento/database_validation.py:61`
+  5. `armazenamento/database_validation.py` (thread sem linha fixa)
+  6. `extracao/extractor.py:536`
+  7. `gui/ssa/gui_theme.py:458`
+  8. `gui/ssa/gui_workers.py:239`
+  9. `gui/workers/rescan_worker.py:169`
+- Risco ativo:
+  1. gargalo de fechamento do PR ficou concentrado em 9 bugs reais; restante foi saneado.
+  2. checks externos ainda podem bloquear merge por cota/conta (`snyk`) e jobs pendentes de terceiros.
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:45 - authoritative block
 
 - Slice entregue:
   1. fechamento de pendencias reais do PR #45 no escopo build/hook/docs (sem alterar GUI/layout).

@@ -2,7 +2,32 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 12:45 - start from here
+## CURRENT TRUTH 2026-03-10 12:56 - start from here
+
+- Slice aplicado:
+  1. triagem final das threads do PR #45, uma a uma.
+  2. encerradas threads com status `CORRIGIDO`, `FALSO_POSITIVO`, `NAO_BLOQUEANTE_DEFERIDO` e ruido `RATE_LIMIT_REPLY`.
+  3. mantidas abertas apenas as threads `BUG_REAL`.
+- Resultado no PR:
+  1. aberto antes: `65` threads.
+  2. encerradas nesta rodada: `56`.
+  3. aberto apos triagem: `9` threads.
+- Threads que ficaram abertas (todas `BUG_REAL`):
+  1. `armazenamento/database_upsert_logic.py:407`
+  2. `armazenamento/database_upsert_logic.py:951`
+  3. `armazenamento/database_upsert_logic.py:743`
+  4. `armazenamento/database_validation.py:61`
+  5. `armazenamento/database_validation.py` (thread sem linha fixa)
+  6. `extracao/extractor.py:536`
+  7. `gui/ssa/gui_theme.py:458`
+  8. `gui/ssa/gui_workers.py:239`
+  9. `gui/workers/rescan_worker.py:169`
+- Estado de checks no momento da triagem:
+  1. `quality-gates` e `CodeQL`: pass.
+  2. `code/snyk` e `security/snyk`: fail por limite/conta.
+  3. `DeepScan`, `DeepSource Python`, `cubic`, `semgrep`: pendentes.
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:45 - start from here
 
 - Slice aplicado:
   1. fechamento de pendencias reais do PR #45 sem alterar GUI/layout.
