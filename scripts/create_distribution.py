@@ -650,22 +650,57 @@ def compile_installer(iss_path: Path) -> str:
     logger.info("Compilando instalador com Inno Setup...")
 
     # Procurar ISCC.exe (compilador Inno Setup)
-    configured_path = os.environ.get("INNO_SETUP_COMPILER")
     possible_paths: list[str] = []
-    if configured_path:
-        configured_candidate = Path(configured_path).expanduser()
-        allowed_names = {"iscc", "iscc.exe"}
-        if configured_candidate.is_file() and configured_candidate.name.lower() in allowed_names:
-            possible_paths.append(str(configured_candidate))
-        else:
-            logger.warning(
-                "INNO_SETUP_COMPILER ignorado por validacao de seguranca: %s",
-                configured_path,
-            )
+    trusted_inno_parents = [
+        Path(r"C:\Program Files (x86)\Inno Setup 6"),
+        Path(r"C:\Program Files\Inno Setup 6"),
+        Path(r"C:\Program Files (x86)\Inno Setup 5"),
+        Path(r"C:\Program Files\Inno Setup 5"),
+    ]
 
     iscc_in_path = shutil.which("iscc") or shutil.which("ISCC")
     if iscc_in_path:
+        try:
+            trusted_inno_parents.append(Path(iscc_in_path).resolve().parent)
+        except Exception:
+            trusted_inno_parents.append(Path(iscc_in_path).parent)
         possible_paths.append(iscc_in_path)
+
+    configured_path = os.environ.get("INNO_SETUP_COMPILER")
+    if configured_path:
+        configured_candidate = Path(configured_path).expanduser()
+        allowed_names = {"iscc", "iscc.exe"}
+
+        reason = None
+        if not configured_candidate.is_absolute():
+            reason = "caminho nao absoluto"
+        elif configured_candidate.name.lower() not in allowed_names:
+            reason = "nome de executavel nao permitido"
+        elif not configured_candidate.is_file():
+            reason = "arquivo inexistente"
+        else:
+            try:
+                resolved_candidate = configured_candidate.resolve()
+            except Exception:
+                resolved_candidate = configured_candidate
+
+            candidate_parent = resolved_candidate.parent
+            trusted_parent_match = any(
+                candidate_parent == trusted_parent
+                or trusted_parent in candidate_parent.parents
+                for trusted_parent in trusted_inno_parents
+            )
+            if trusted_parent_match:
+                possible_paths.insert(0, str(resolved_candidate))
+            else:
+                reason = "diretorio fora da allowlist confiavel"
+
+        if reason is not None:
+            logger.warning(
+                "INNO_SETUP_COMPILER ignorado por validacao de seguranca (%s): %s",
+                reason,
+                configured_path,
+            )
 
     possible_paths.extend([
         r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",

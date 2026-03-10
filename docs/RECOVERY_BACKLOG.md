@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:33 - hardening de trust para INNO_SETUP_COMPILER
+
+Session timestamp:
+1. start: `2026-03-10 09:31:56 -0300`
+2. end: `2026-03-10 09:33:49 -0300`
+
+Objetivo do slice:
+1. endurecer override de compilador Inno via `INNO_SETUP_COMPILER`.
+2. aceitar override somente quando cumprir regras minimas de confianca.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `compile_installer(...)` agora valida `INNO_SETUP_COMPILER` com regras:
+     - caminho absoluto
+     - nome `iscc`/`iscc.exe`
+     - arquivo existente
+     - parent dentro de allowlist confiavel (Program Files Inno Setup e parent de `shutil.which("iscc")` quando existir).
+   - override invalido nao interrompe fluxo; apenas loga motivo e segue para PATH/hardcoded.
+2. `tests/test_create_distribution.py`:
+   - novo `test_compile_installer_rejects_relative_env_override`.
+   - novo `test_compile_installer_accepts_absolute_env_override_in_trusted_parent`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt de qualidade: `create_zip_package` segue longa.
+2. debt semantico geral de resolucao por build system segue para ciclo dedicado.
+3. validacao de path/semantica do Source do Inno em ambiente Windows real segue para rodada dedicada.
+4. kluster final desta rodada sinalizou HIGH em `Source` relativo do Inno; sem repro nos testes locais, manter para confirmacao em runner Windows com ISCC real.
+
 ## Update 2026-03-10 09:28 - Source do Inno com relpath real + fallback absoluto
 
 Session timestamp:

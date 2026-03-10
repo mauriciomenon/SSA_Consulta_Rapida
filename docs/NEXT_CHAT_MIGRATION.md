@@ -2,7 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 09:28 - start from here
+## CURRENT TRUTH 2026-03-10 09:33 - start from here
+
+- Slice aplicado:
+  1. hardening de confianca para `INNO_SETUP_COMPILER`.
+  2. `scripts/create_distribution.py`:
+     - override por env agora exige caminho absoluto, nome permitido, arquivo existente e parent confiavel.
+     - allowlist minima inclui Program Files Inno Setup e parent do `which iscc` quando presente.
+     - override invalido apenas gera warning e segue fallback normal.
+  3. testes:
+     - `test_compile_installer_rejects_relative_env_override`.
+     - `test_compile_installer_accepts_absolute_env_override_in_trusted_parent`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package`.
+  2. semantica geral de resolucao por build system em ciclo dedicado.
+  3. validacao de Source do Inno em Windows real em rodada dedicada.
+  4. kluster final sinalizou HIGH em `Source` relativo; sem repro local, validar em runner Windows com ISCC real.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:28
 
 - Slice aplicado:
   1. origem `Source` do Inno Setup passou a usar relpath real entre `DIST_OUTPUT` e `source_dir`.

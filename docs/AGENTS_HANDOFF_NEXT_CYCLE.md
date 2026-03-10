@@ -2,7 +2,31 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 09:28 - authoritative block
+## CURRENT TRUTH 2026-03-10 09:33 - authoritative block
+
+- Slice entregue:
+  1. hardening de seguranca no override `INNO_SETUP_COMPILER`.
+  2. `scripts/create_distribution.py`:
+     - validacao estrita de override (absoluto + nome permitido + arquivo existente + parent confiavel).
+     - allowlist inclui Program Files Inno Setup e parent do `which iscc`.
+     - override invalido nao quebra fluxo; segue fallback de descoberta normal.
+  3. `tests/test_create_distribution.py`:
+     - teste de rejeicao para override relativo.
+     - teste de aceite para override absoluto em parent confiavel.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+  3. `kluster review` em codigo/docs tocados -> sem blocker funcional neste slice.
+- Pendencia deferida:
+  1. `create_zip_package` continua como debt de funcao longa.
+  2. semantica geral de resolucao por build system continua para ciclo dedicado.
+  3. validacao de Source do Inno em Windows real segue para rodada dedicada.
+  4. kluster final apontou HIGH em `Source` relativo; sem repro local, confirmar em runner Windows com ISCC real.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:28
 
 - Slice entregue:
   1. `Source` do Inno Setup agora usa relpath real entre `DIST_OUTPUT` e origem do build.
