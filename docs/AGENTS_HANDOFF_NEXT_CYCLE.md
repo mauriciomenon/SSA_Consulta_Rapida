@@ -2,7 +2,24 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 19:26 - authoritative block
+## CURRENT TRUTH 2026-03-09 21:43 - authoritative block
+
+- PR em andamento: `#45` (`dev` <- `codex/sprint-importacao-grave-fixes-20260305`).
+- Slice de hotfix de comentarios/checks concluido:
+  1. ajuste de contrato no teste de cancelamento (`tests/test_import_cancellation.py`).
+  2. correcao de log de warnings de integridade (`core/app_logic.py`).
+  3. limpeza de retorno nao serializavel em validacao (`database_validation.py`).
+  4. contrato `raise_on_error` alinhado para `ValueError` em `query_db` (`database.py`).
+  5. removido suppress silencioso na whitelist do insert simples (`database.py`).
+  6. removido warning falso em reparo opcional (`database_integrity.py`).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` (arquivos tocados) -> pass.
+  2. `pytest` focado (`30 passed`) e pacote equivalente ao `quality-gates` (`73 passed`) -> pass.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:26
 
 - Integridade de links/referencias em docs ativos concluida.
 - Entregas principais:

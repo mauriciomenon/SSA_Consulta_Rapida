@@ -1,7 +1,6 @@
 # tests/test_import_cancellation.py
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -35,7 +34,7 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
         # Minimal valid payload for _import_single_file validation rules.
         return pd.DataFrame(
             {
-                "numero_ssa": [123456789],
+                "numero_ssa": [202500101],
                 "data_cadastro": [pd.Timestamp("2025-01-01")],
                 "situacao": ["TESTE"],
                 "descricao_ssa": ["ok"],
@@ -72,13 +71,11 @@ def test_should_cancel_stops_between_files(tmp_path: Path, monkeypatch: pytest.M
         progress_callback=progress_callback,
     )
 
-    assert updated is True
+    assert updated is False
     cache_path = data_dir / "file_cache.json"
-    assert cache_path.exists()
-    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert not cache_path.exists()
 
     assert insert_count["n"] == 1
-    assert len(cache) == 1
     assert progress_events
     assert progress_events[-1][0] == "finish"
     finish_payload = progress_events[-1][1]

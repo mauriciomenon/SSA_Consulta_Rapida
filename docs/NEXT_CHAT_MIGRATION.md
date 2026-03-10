@@ -2,7 +2,24 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 19:26 - start from here
+## CURRENT TRUTH 2026-03-09 21:43 - start from here
+
+- PR ativo: `#45` (base `dev`, head `codex/sprint-importacao-grave-fixes-20260305`).
+- Hotfix aplicado para comentarios/checks bloqueantes:
+  1. contrato de cancelamento em `tests/test_import_cancellation.py` alinhado ao runtime atual.
+  2. warning de integridade em `core/app_logic.py` voltou a logar no caminho valido.
+  3. `database_validation` nao retorna mais `set` interno em retorno precoce.
+  4. `database.query_db` respeita `raise_on_error=False` tambem para `ValueError`.
+  5. removido suppress silencioso em whitelist de colunas no insert simples.
+  6. removido warning falso `Problemas detectados no banco: []` em `database_integrity`.
+- Evidencia de qualidade desta rodada:
+  1. pacote focado: `30 passed`.
+  2. pacote equivalente ao `quality-gates`: `73 passed`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 19:26
 
 - Integridade de documentacao reforcada no baseline `4.32`.
 - Entregas principais:

@@ -1332,9 +1332,9 @@ def run_importer_logic(
                 raise DatabaseError(f"Problemas gerais no banco: {issues}")
 
         # Log de avisos se houver
-            if integrity_report["warnings"]:
-                for warning in integrity_report["warnings"]:
-                    logger.warning(f"Aviso do banco: {warning}")
+        if integrity_report["warnings"]:
+            for warning in integrity_report["warnings"]:
+                logger.warning(f"Aviso do banco: {warning}")
 
         logger.info(" Integridade do banco de dados verificada")
 

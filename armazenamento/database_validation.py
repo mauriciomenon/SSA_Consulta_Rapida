@@ -230,6 +230,7 @@ def validate_dataframe_before_insert(
     try:
         if df.empty:
             report['warnings'].append("DataFrame vazio - nada para validar")
+            report.pop('_invalid_row_seen', None)
             return report
 
         _validate_required_columns(df, report)

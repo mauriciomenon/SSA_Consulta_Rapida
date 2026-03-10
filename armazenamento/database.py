@@ -197,7 +197,7 @@ def query_db(
             df = pd.read_sql_query(effective_query, conn, params=cast(Any, params))
         logger.debug(f"Consulta retornou {len(df)} linhas.")
         return df
-    except (sqlite3.Error, pd.errors.DatabaseError) as e:
+    except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as e:
         logger.exception(
             "Erro ao executar consulta '%s' com params=%s: %s",
             query or table_name,
@@ -238,8 +238,12 @@ def _prepare_dataframe_for_simple_insert(df: pd.DataFrame, *, legacy_mode: bool)
     try:
         from .database_upsert_logic import apply_column_whitelist as _apply_wl
         work_df = _apply_wl(work_df)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as exc:  # pragma: no cover
+        logger.exception(
+            "Falha ao aplicar whitelist de colunas antes da insercao simples: %s",
+            exc,
+        )
+        raise
 
     if 'numero_ssa' in work_df.columns:
         work_df['numero_ssa'] = work_df['numero_ssa'].apply(_normalize_numero_ssa_value)
