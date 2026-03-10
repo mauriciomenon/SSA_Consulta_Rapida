@@ -2,7 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 14:54 - start from here
+## CURRENT TRUTH 2026-03-10 15:17 - start from here
+
+- Slice aplicado:
+  1. hardening de fallback GUI em `main.py` com escopo minimo.
+  2. novo teste focado para evitar regressao de mascaramento de erro na importacao GUI.
+- Arquivos alterados:
+  1. `main.py`
+  2. `tests/test_main_gui_fallback.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. fallback para CLI ocorre apenas em `ImportError` no import tardio GUI.
+  2. erros inesperados de importacao GUI nao ficam silenciosos (encerram com `SystemExit=1`).
+  3. setup de icone e criacao de janela GUI mantem fallback CLI apenas para falha operacional (`OSError`, `RuntimeError`).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_gui_fallback.py tests/test_main_skip_import.py::test_main_skip_import_does_not_call_importer` -> `3 passed`.
+- Deferido:
+  1. debts antigos de arquitetura em `main.py` fora do trecho de bootstrap GUI.
+  2. testes legados de `main` que hoje disparam importacao real sem isolamento.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:54 - start from here
 
 - Slice aplicado:
   1. fix de bug real em `import_external_excel_files` para compatibilidade com window-stub sem helper de destino.

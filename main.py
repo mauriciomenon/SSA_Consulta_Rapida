@@ -831,8 +831,8 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 from gui.gui_ssa import SSAMainWindow
                 from PyQt6.QtWidgets import QApplication
                 from PyQt6.QtGui import QIcon
-            except Exception as e:
-                logger.error(f"Falha ao iniciar GUI: {e}")
+            except ImportError as e:
+                logger.error("Falha ao iniciar GUI por dependencia/importacao: %s", e)
                 logger.info("Recuando para CLI.")
                 start_cli_loop(db_path, table_name)
                 return
@@ -873,14 +873,14 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                         QApplication.setWindowIcon(app_icon)
                         logger.debug("Icone da aplicacao carregado: %s", icon_path)
                         break
-                except Exception as exc:
+                except (OSError, RuntimeError) as exc:
                     logger.debug("Falha ao configurar icone da aplicacao: %s", exc)
                 window = SSAMainWindow()
                 window.show()
                 # Executa o loop de eventos
                 app.exec()
-            except Exception as e:
-                logger.error(f"Falha ao criar/mostrar janela da GUI: {e}")
+            except (OSError, RuntimeError) as e:
+                logger.error("Falha operacional ao criar/mostrar janela da GUI: %s", e)
                 logger.info("Recuando para CLI.")
                 start_cli_loop(db_path, table_name)
         else:

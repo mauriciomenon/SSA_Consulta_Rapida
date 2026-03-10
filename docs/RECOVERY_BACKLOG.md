@@ -3,6 +3,35 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 15:17 - hardening de fallback GUI em main.py
+
+Session timestamp:
+1. start: `2026-03-10 15:04:53 -0300`
+2. end: `2026-03-10 15:17:00 -0300`
+
+Objetivo do slice:
+1. corrigir bug real de mascaramento de erro no bootstrap GUI em `main.py`.
+2. manter fallback para CLI somente em falha de dependencia/importacao.
+
+Mudancas aplicadas:
+1. `main.py`
+   - import tardio da GUI mudou de `except Exception` para `except ImportError`.
+   - setup de icone mudou para captura operacional especifica (`OSError`, `RuntimeError`).
+   - falha operacional ao criar/mostrar janela GUI tambem ficou restrita a (`OSError`, `RuntimeError`).
+2. `tests/test_main_gui_fallback.py` (novo)
+   - cobre fallback para CLI quando a importacao GUI falha com `ImportError`.
+   - cobre fail-fast (`SystemExit=1`) para erro inesperado de importacao GUI (`RuntimeError`).
+
+Evidencia objetiva:
+1. `py_compile` no escopo alterado -> pass.
+2. `ruff check` no escopo alterado -> pass.
+3. `ty check` no escopo alterado -> pass.
+4. `pytest -q tests/test_main_gui_fallback.py tests/test_main_skip_import.py::test_main_skip_import_does_not_call_importer` -> `3 passed`.
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura em `main.py` (funcao extensa e outros blocos amplos de excecao fora do trecho GUI).
+2. testes legados `test_main_*` que disparam fluxo real de importacao sem isolamento.
+
 ## Update 2026-03-10 14:54 - bug-real only (import external fallback + bundle config sanitizer)
 
 Session timestamp:
