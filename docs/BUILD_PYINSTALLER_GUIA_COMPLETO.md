@@ -1,5 +1,19 @@
 # Guia Completo - Build com PyInstaller 6.16.0
 
+## CURRENT TRUTH (v4.32)
+
+- Caminho operacional principal:
+  - build: `python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - artefatos: `launchers/dist/windows_amd64/`
+  - distribuicao: `python scripts/create_distribution.py --build-system pyinstaller`
+- Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
+- Para fluxo atual, usar `launchers/dist/*` como fonte canonica.
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este documento preserva detalhes de troubleshooting historico.
+Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
+
 **Data**: 2025-11-14
 **Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.11.0
@@ -1225,4 +1239,3 @@ VSVersionInfo(
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
-

@@ -1,5 +1,18 @@
 # Guia Completo - Build com Nuitka 2.8.4
 
+## CURRENT TRUTH (v4.32)
+
+- Nuitka permanece trilha experimental neste baseline.
+- Pipeline oficial de release continua PyInstaller.
+- Quando executar Nuitka, usar somente para validacao laboratorial e empacotar via:
+  - `python scripts/create_distribution.py --build-system nuitka --skip-installer`
+- Referencias a `builds/nuitka` neste guia sao historicas e nao caminho principal.
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este guia registra estudo detalhado de setup/tuning.
+Quando houver conflito com docs operacionais, prevalece CURRENT TRUTH.
+
 **Data**: 2025-11-14
 **Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.11.0
@@ -1344,4 +1357,3 @@ python -m nuitka --clean-cache
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
-

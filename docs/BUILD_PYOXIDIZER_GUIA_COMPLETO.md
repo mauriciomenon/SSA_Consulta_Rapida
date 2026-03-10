@@ -1,5 +1,17 @@
 # Guia Completo - Build com PyOxidizer 0.24.0
 
+## CURRENT TRUTH (v4.32)
+
+- PyOxidizer permanece trilha experimental/laboratorio neste baseline.
+- O repositorio atual nao usa `pyoxidizer.bzl` nem `build_pyoxidizer.bat` como caminho operacional principal.
+- Distribuicao oficial segue PyInstaller + `launchers/dist/*`.
+- Se necessario testar PyOxidizer, tratar este guia como referencia historica de investigacao.
+
+## HISTORICAL SNAPSHOT NOTICE
+
+Este documento foi mantido para contexto tecnico.
+Nao usar como runbook primario de release em v4.32.
+
 **Data**: 2025-11-14
 **Autor**: Claude Code
 **Projeto**: SSA_Consulta_Rapida v4.11.0
@@ -1439,4 +1451,3 @@ parser = argparse.ArgumentParser(
 **Versao do guia**: 1.0
 **Autor**: Claude Code
 **Status**: Completo e testado
-
