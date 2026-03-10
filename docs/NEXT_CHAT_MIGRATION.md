@@ -2,6 +2,46 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 10:38 - start from here
+
+- Slice aplicado:
+  1. pente fino completo de build/distribuicao para `pyinstaller`, `nuitka`, `pyoxidizer`, `pytoexe`.
+  2. correcoes de script para viabilizar pacote pyinstaller no host macOS atual.
+  3. docs operacionais alinhados com status real das tools e backends.
+- Resultado operacional real:
+  1. `pyinstaller --skip-installer` -> OK (ZIP gerado em `dist_packages/SSA_Consulta_Rapida_v4.32_pyinstaller.zip`).
+  2. `pyinstaller` -> ZIP OK, installer FAIL (sem origem Windows/Inno no host atual).
+  3. `nuitka --skip-installer` -> FAIL (build ausente em `builds/nuitka`).
+  4. `pyoxidizer --skip-installer` -> FAIL (build ausente em `builds/pyoxidizer`).
+  5. `pytoexe` -> nao suportado (choice invalida no parser).
+- Ferramentas detectadas:
+  1. `pyinstaller` 6.19.0
+  2. `nuitka` 4.0.1
+  3. `pyoxidizer` 0.24.0
+  4. `iscc` ausente
+  5. `pytoexe/py2exe` ausentes
+- Evidencia local:
+  1. `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  5. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  6. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+  7. `docs/RECOVERY_BACKLOG.md`
+  8. `docs/NEXT_CHAT_MIGRATION.md`
+  9. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster clean nos arquivos tocados.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `17 passed`.
+- Deferido:
+  1. validar installer em host Windows com ISCC e build `windows_amd64` disponivel.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:15 - start from here
 
 - Slice aplicado:

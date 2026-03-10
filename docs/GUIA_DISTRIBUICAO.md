@@ -7,6 +7,30 @@
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
 - Empacotamento: `scripts/create_distribution.py`.
 - Ferramentas historicas e caminhos legados (`build_*.bat`, `builds/*`) nao sao caminho principal neste baseline.
+- Backends reconhecidos pelo parser do empacotador: `pyinstaller`, `nuitka`, `pyoxidizer`.
+- Backend de release operacional neste baseline: `pyinstaller`.
+- `pytoexe`/`py2exe`: nao suportados neste repositorio (fora das choices dos scripts atuais).
+
+## Validacao Operacional 2026-03-10 (host macOS arm64)
+
+Status de ferramentas no host:
+- `pyinstaller`: OK (`6.19.0`)
+- `nuitka`: OK (`4.0.1`)
+- `pyoxidizer`: OK (`0.24.0`)
+- `iscc`: NOT_FOUND
+- `pytoexe`: NOT_FOUND
+- `py2exe`: NOT_FOUND
+
+Resultado de tentativa de pacote (scripts/create_distribution.py):
+- `pyinstaller --skip-installer`: OK (ZIP gerado)
+- `pyinstaller` (com installer): ZIP OK, installer FAIL (origem Windows/Inno nao resolvida neste host)
+- `nuitka --skip-installer`: FAIL (build ausente em `builds/nuitka`)
+- `pyoxidizer --skip-installer`: FAIL (build ausente em `builds/pyoxidizer`)
+- `pytoexe`: FAIL esperado (choice invalida)
+
+Evidencia local desta rodada:
+- logs consolidados: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+- artefato gerado: `dist_packages/SSA_Consulta_Rapida_v4.32_pyinstaller.zip`
 
 ## Visao Geral
 

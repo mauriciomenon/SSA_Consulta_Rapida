@@ -2,6 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 10:38 - authoritative block
+
+- Slice entregue:
+  1. pente fino completo de scripts/docs para `pyinstaller`, `nuitka`, `pyoxidizer`, `pytoexe`.
+  2. check de ferramentas e tentativa real de pacote por backend concluida.
+  3. correcoes no empacotador para detectar executavel primario em bundle macOS e unificar metadados de Inno source.
+- Resultado operacional:
+  1. `pyinstaller --skip-installer` -> ZIP gerado com sucesso.
+  2. `pyinstaller` -> ZIP gerado; installer falhou por falta de origem Windows/Inno neste host.
+  3. `nuitka`/`pyoxidizer` -> sem pacote por ausencia de build local.
+  4. `pytoexe` -> nao suportado (choice invalida).
+- Ferramentas no host:
+  1. `pyinstaller 6.19.0`, `nuitka 4.0.1`, `pyoxidizer 0.24.0`.
+  2. `iscc`, `pytoexe`, `py2exe` ausentes.
+- Evidencia:
+  1. `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+  2. `dist_packages/SSA_Consulta_Rapida_v4.32_pyinstaller.zip`
+- Gates desta rodada:
+  1. kluster clean em script/tests/docs tocados.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `17 passed`.
+- Pendencia deferida:
+  1. rodada dedicada em Windows com ISCC + build `windows_amd64` para validar instalador ponta a ponta.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:15 - authoritative block
 
 - Slice entregue:

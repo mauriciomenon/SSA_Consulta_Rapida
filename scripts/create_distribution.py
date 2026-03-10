@@ -251,7 +251,9 @@ def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
         "SSA_GUI.exe",
         "main.exe",
     )
-    existing = [p.name for p in package_dir.iterdir() if p.is_file()]
+    entries = list(package_dir.iterdir())
+    file_entries = [p for p in entries if p.is_file()]
+    existing = [p.name for p in file_entries]
     for name in preferred:
         if name in existing:
             return name
@@ -260,13 +262,26 @@ def _detect_primary_executable_name(package_dir: Path) -> Optional[str]:
     if gui_like:
         return gui_like[0]
 
-    exe_like = sorted(name for name in existing if name.lower().endswith(".exe"))
+    exe_like = sorted(
+        p.name
+        for p in file_entries
+        if p.name.lower().endswith(".exe")
+        or (p.suffix == "" and os.access(p, os.X_OK))
+    )
     if exe_like:
         return exe_like[0]
 
-    app_like = sorted(name for name in existing if name.lower().endswith(".app"))
+    app_like = sorted(p.name for p in entries if p.is_dir() and p.name.lower().endswith(".app"))
     if app_like:
         return app_like[0]
+
+    embedded_exec_like = sorted(
+        f"{p.name}/{p.name}"
+        for p in entries
+        if p.is_dir() and (p / p.name).is_file() and os.access(p / p.name, os.X_OK)
+    )
+    if embedded_exec_like:
+        return embedded_exec_like[0]
 
     return None
 
@@ -380,7 +395,7 @@ INSTALACAO E USO
    - Extraia o ZIP e abra a pasta principal do pacote
    - Clique duas vezes no executavel principal dentro da pasta extraida
    - Exemplo nesta entrega: {primary_executable_name}
-   - O programa criara automaticamente os diretorios necessarios
+   - A estrutura basica de diretorios ja vem no pacote
 
 2. IMPORTAR DADOS
    - Coloque arquivos Excel na pasta: docs_entrada/

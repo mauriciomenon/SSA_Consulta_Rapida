@@ -1,4 +1,4 @@
-# Guia Completo - Build com PyInstaller 6.16.0
+# Guia Completo (Historico/Referencia) - Build com PyInstaller
 
 ## CURRENT TRUTH (v4.32)
 
@@ -8,11 +8,25 @@
   - distribuicao: `python scripts/create_distribution.py --build-system pyinstaller`
 - Referencias a `build_pyinstaller.bat` e `builds/pyinstaller` neste arquivo sao historicas.
 - Para fluxo atual, usar `launchers/dist/*` como fonte canonica.
+- Sempre que houver conflito entre exemplos antigos e o pipeline atual, prevalece `launchers/dist/*`.
+- Validacao 2026-03-10 (host macOS arm64):
+  - `pyinstaller --version` OK (`6.19.0`)
+  - `python scripts/create_distribution.py --build-system pyinstaller --skip-installer` gerou ZIP com sucesso
+  - `python scripts/create_distribution.py --build-system pyinstaller` gerou ZIP, mas installer falhou por ausencia de origem Windows/Inno no host atual
+- `pytoexe`/`py2exe` nao fazem parte do backend suportado deste repo.
 
 ## HISTORICAL SNAPSHOT NOTICE
 
 Este documento preserva detalhes de troubleshooting historico.
 Quando houver conflito, prevalece o bloco CURRENT TRUTH acima.
+
+## ATENCAO OPERACIONAL
+
+- ESTE ARQUIVO E REFERENCIA HISTORICA.
+- NAO USAR ESTE RUNBOOK COMO FLUXO PRINCIPAL DE RELEASE.
+- PARA OPERACAO ATUAL, USAR:
+  - `python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
+  - `python scripts/create_distribution.py --build-system pyinstaller`
 
 **Data**: 2025-11-14
 **Autor**: Claude Code
@@ -293,6 +307,7 @@ APP_NAME = "SSA Consulta Rapida"
 Conteudo completo:
 
 ```batch
+REM HISTORICO: este trecho usa layout antigo em builds/pyinstaller
 @echo off
 REM Build script para PyInstaller 6.16.0
 REM Autor: Claude Code
@@ -1192,7 +1207,7 @@ Python 3.8 suporta Windows 7+.
 [ ] config/ e data/ foram copiados
 [ ] DLLs Qt presentes (Qt6Core.dll, etc.)
 [ ] python313.dll presente
-[ ] Copiar para builds/pyinstaller/
+[ ] Copiar para launchers/dist/windows_amd64/ (canonico) ou builds/pyinstaller/ (historico)
 [ ] Testar em outro computador (opcional)
 [ ] Comprimir para distribuicao (opcional)
 ```
