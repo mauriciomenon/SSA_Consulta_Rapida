@@ -2,7 +2,72 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 08:18 - start from here
+## CURRENT TRUTH 2026-03-10 08:31 - start from here
+
+- Slice aplicado:
+  1. hardening final do empacotador para status explicito de instalador e copia sanitizada consistente.
+  2. `scripts/create_distribution.py`:
+     - `compile_installer` agora retorna `success|missing|failed`.
+     - caller separa `script_failed` para falha na geracao do `.iss`.
+     - relatorio final diferencia dependencia ausente de falha real de compilacao.
+     - `copytree` de `_internal` e `config` agora passa por filtro sanitizado comum.
+     - `arcname` do ZIP agora deriva de `package_dir` (mais robusto).
+     - validacao de bundle `.app` exige executavel real no conteudo do app.
+     - readme tecnico ajustado: `ANTIVIRUS_EXCLUSOES.md` e copia `LEIA-ME.md`.
+  3. testes:
+     - novo `test_compile_installer_returns_missing_when_iscc_is_unavailable`.
+  4. docs:
+     - `docs/GUIA_DISTRIBUICAO.md` com troubleshooting separado para `missing` vs `failed`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `5 passed`.
+  3. `kluster review` no codigo e docs tocados -> sem blocker novo de runtime.
+- Deferido:
+  1. `create_zip_package` ainda concentrado (debt de qualidade).
+  2. ponto semantico de selecao por mtime em canonical dirs mantido como decisao atual.
+  3. alerta de cleanup de temp_dir em early-return foi classificado como falso positivo (cleanup ja existe no codigo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:28
+
+- Slice aplicado:
+  1. hardening de empacotamento para validar executavel primario no build selecionado.
+  2. `scripts/create_distribution.py`:
+     - `_get_pyinstaller_canonical_dirs()` com fallback para dirs canonicos padrao.
+     - `_has_primary_executable(...)` para barrar diretorio parcial sem binario executavel.
+     - `_resolve_build_directory(...)` agora exige conteudo + executavel valido.
+  3. testes:
+     - novo `test_create_zip_package_returns_none_when_canonical_has_no_primary_executable`.
+     - mocks de `BUILD_SYSTEMS` com `canonical_dirs` explicito.
+  4. docs:
+     - `docs/GUIA_DISTRIBUICAO.md` troubleshooting atualizado com validacao de executavel primario.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `4 passed`.
+  3. `kluster review` em codigo tocado -> clean.
+- Deferido:
+  1. hardening cross-platform mais amplo no empacotador fica para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:18
 
 - Slice aplicado:
   1. alinhamento Debian para fluxo canonico ZIP.
