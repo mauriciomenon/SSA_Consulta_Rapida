@@ -2,7 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 12:13 - start from here
+## CURRENT TRUTH 2026-03-10 12:45 - start from here
+
+- Slice aplicado:
+  1. fechamento de pendencias reais do PR #45 sem alterar GUI/layout.
+  2. hardening do hook de tamanho para blob staged (index), evitando bypass.
+  3. ajuste do pipeline macOS para build `cli-only` com `package=dmg` sem falha falsa por ausencia de `.app`.
+  4. normalizacao de docs para manter 1 unico bloco `CURRENT TRUTH`.
+- Arquivos alterados:
+  1. `scripts/git_hooks/pre-commit`
+  2. `launchers/build_multiplatform.py`
+  3. `tests/test_build_multiplatform_manifest.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. pre-commit agora mede tamanho do blob staged via `git cat-file -s`.
+  2. `post_process` recebe `apps` e pula DMG quando build macOS nao inclui GUI.
+  3. teste de regressao adicionado para esse fluxo (`cli-only` + `package=dmg`).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_build_multiplatform_manifest.py tests/test_create_distribution.py` -> `22 passed`.
+  3. `bash -n scripts/git_hooks/pre-commit` -> pass.
+- Deferido:
+  1. debt antigo de naming/performance/concentracao no `build_multiplatform.py` fica para slice dedicado.
+  2. alerta kluster de `pip_exe` foi falso positivo (inicializacao ja existe no inicio da funcao).
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:13 - start from here
 
 - Slice aplicado:
   1. icone oficial trocado para variante azul com `SSA` central e sem raio.
@@ -30,7 +56,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. hardening do `convert_icon.py` para fallback automatico sem dependencia de `cairosvg`.
   2. variacoes em `resources/icon_variants/*` ficam como material de design.
 
-## CURRENT TRUTH 2026-03-10 12:02 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 12:02 - start from here
 
 - Slice aplicado:
   1. pipeline macOS agora gera `.dmg` no `build_multiplatform.py`, alem de `.app`/onedir.
@@ -56,7 +82,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. pyoxidizer/nuitka continuam fora do pipeline operacional de release neste ciclo.
   2. assinatura/notarizacao macOS permanece pendente para ciclo dedicado de release.
 
-## CURRENT TRUTH 2026-03-10 11:51 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 11:51 - start from here
 
 - Slice aplicado:
   1. remocao dos `try/except` proibidos restantes (`pass` e `continue`) em GUI/worker.
@@ -80,7 +106,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
      - assinatura real aceita `(db_path, table_name, query, params, raise_on_error)` em `armazenamento/database.py`.
   2. debts antigos de arquitetura/performance em `gui_ssa.py` continuam deferidos.
 
-## CURRENT TRUTH 2026-03-10 11:26 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 11:26 - start from here
 
 - Slice aplicado:
   1. hotfix de build/runtime macOS para executavel util (sem erro de modulo ausente por exclusao de stdlib).
@@ -128,7 +154,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:38 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 10:38 - start from here
 
 - Slice aplicado:
   1. pente fino completo de build/distribuicao para `pyinstaller`, `nuitka`, `pyoxidizer`, `pytoexe`.
@@ -168,7 +194,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:15 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 10:15 - start from here
 
 - Slice aplicado:
   1. fechamento dos 3 itens que estavam em loop (ISS Source, reason de resolve, concentracao ZIP).
@@ -196,7 +222,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:08 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 10:08 - start from here
 
 - Slice aplicado:
   1. reforco de testes para alinhar `resolve` vs `failure_reason` em pyinstaller.
@@ -217,7 +243,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:05 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 10:05 - start from here
 
 - Slice aplicado:
   1. modularizacao minima no fluxo ZIP e define explicito de `SourcePath` no `.iss`.
@@ -247,7 +273,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:59 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 09:59 - start from here
 
 - Slice aplicado:
   1. `compile_installer` foi reduzido em concentracao com extracao minima de blocos.
@@ -270,7 +296,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:55 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 09:55 - start from here
 
 - Slice aplicado:
   1. modo de origem do Inno ficou explicito no `.iss` via `SourcePathMode`.
@@ -298,7 +324,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:33 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 09:33 - start from here
 
 - Slice aplicado:
   1. hardening de confianca para `INNO_SETUP_COMPILER`.

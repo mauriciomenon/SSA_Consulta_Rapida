@@ -324,12 +324,13 @@ class MultiPlatformBuilder:
             logger.error(f"Erro construindo {app_type}: {result.stderr}")
             return False
 
-    def post_process(self, platform_name, config):
+    def post_process(self, platform_name, config, apps=None):
         """Pos-processamento dos executaveis"""
         logger.info(f"Pos-processando executaveis para {platform_name}")
 
         post_config = config.get('post_build', {})
         package_mode = str(post_config.get('package', '')).strip().lower()
+        apps_set = set(apps or ['cli', 'gui'])
         platform_dist = self.dist_dir / platform_name
 
         if not platform_dist.exists():
@@ -344,6 +345,9 @@ class MultiPlatformBuilder:
         self._create_manifest(platform_name, platform_dist)
 
         if platform_name == 'macos_arm64' and package_mode == 'dmg':
+            if 'gui' not in apps_set:
+                logger.info("Build macOS sem app GUI; etapa de DMG foi pulada.")
+                return True
             if not self._create_macos_dmg(platform_dist):
                 return False
             # Regerar manifesto para incluir o arquivo DMG no inventario final.
@@ -521,7 +525,7 @@ class MultiPlatformBuilder:
 
         # Pos-processamento
         if success:
-            success = self.post_process(platform_name, config)
+            success = self.post_process(platform_name, config, apps=apps)
 
         return success
 

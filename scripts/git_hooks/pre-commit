@@ -42,11 +42,8 @@ DIFF=$(git diff --cached --unified=0 --no-color || true)
 large_found=0
 while IFS= read -r staged_path; do
   [[ -z "${staged_path:-}" ]] && continue
-  if [[ ! -f "$staged_path" ]]; then
-    continue
-  fi
-  file_size="$(wc -c < "$staged_path" | tr -d '[:space:]')"
-  if [[ -z "$file_size" ]]; then
+  staged_ref=":$staged_path"
+  if ! file_size="$(git cat-file -s "$staged_ref" 2>/dev/null | tr -d '[:space:]')"; then
     continue
   fi
   if (( file_size >= MAX_BYTES )); then

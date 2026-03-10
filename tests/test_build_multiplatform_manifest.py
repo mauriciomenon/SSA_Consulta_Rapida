@@ -151,3 +151,22 @@ def test_post_process_macos_dmg_fails_when_gui_app_missing(tmp_path, monkeypatch
     monkeypatch.setattr("launchers.build_multiplatform.shutil.which", lambda name: "/usr/bin/hdiutil" if name == "hdiutil" else None)
     ok = builder.post_process("macos_arm64", {"post_build": {"compress": False, "package": "dmg"}})
     assert ok is False
+
+
+def test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested(tmp_path, monkeypatch):
+    builder = MultiPlatformBuilder()
+    builder.dist_dir = tmp_path / "dist"
+    platform_dir = builder.dist_dir / "macos_arm64"
+    platform_dir.mkdir(parents=True)
+
+    def _fail_if_called(*_args, **_kwargs):
+        raise AssertionError("hdiutil nao deve ser chamado em build cli-only")
+
+    monkeypatch.setattr("launchers.build_multiplatform.shutil.which", _fail_if_called)
+
+    ok = builder.post_process(
+        "macos_arm64",
+        {"post_build": {"compress": False, "package": "dmg"}},
+        apps=["cli"],
+    )
+    assert ok is True
