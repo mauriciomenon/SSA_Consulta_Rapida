@@ -2,7 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 16:37 - start from here
+## CURRENT TRUTH 2026-03-10 16:45 - start from here
+
+- Slice aplicado:
+  1. reposicionamento dos atalhos/chips de filtro salvo para a mesma linha de `Salvar Filtro`.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. chips de filtro salvo sairam da linha de paginacao e agora ficam ao lado direito de `Salvar Filtro`.
+  2. `Colunas Visiveis` permanece na linha de paginacao ao lado de `Linhas por Pagina`.
+  3. teste de geometria foi atualizado para cobrir o novo posicionamento.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado de layout/filtros -> `3 passed`.
+- Deferido:
+  1. debt transversal de `BLE001` no repo (860 ocorrencias) permanece para sprint dedicado.
+
+## HISTORICAL SNAPSHOT 2026-03-10 16:37 - start from here
 
 - Slice aplicado:
   1. hardening de tratamento de erro para zerar `BLE001` em `main.py` e `data_loader_worker.py`.

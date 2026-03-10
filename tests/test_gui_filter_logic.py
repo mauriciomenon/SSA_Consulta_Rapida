@@ -162,6 +162,7 @@ class TestGUIFilterLogic:
         search_input = main_ctx["search_input"]
         search_button = main_ctx["search_button"]
         save_filter_button = main_ctx["save_filter_button"]
+        filter_tags_widget = main_ctx["filter_tags_widget"]
         paginator = main_ctx["paginator"]
         column_selector = main_ctx["column_selector"]
         quick_label = main_ctx["quick_setor_executor_label"]
@@ -172,6 +173,8 @@ class TestGUIFilterLogic:
         tooltip = str(save_filter_button.toolTip() or "")
         assert "somente o filtro atual da Pesquisa Geral" in tooltip
         assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
+        assert abs(filter_tags_widget.geometry().y() - save_filter_button.geometry().y()) <= 8
+        assert filter_tags_widget.geometry().x() > save_filter_button.geometry().x()
         assert column_selector.geometry().y() > search_input.geometry().y()
         assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
         assert column_selector.geometry().x() > paginator.geometry().x()
