@@ -11,16 +11,8 @@
       "unittest",
       "pydoc",
       "doctest",
-      "argparse",
-      "multiprocessing",
-      "concurrent",
-      "asyncio",
-      "email",
       "html",
-      "http",
-      "urllib",
-      "xml",
-      "json"
+      "xml"
     ],
     "hidden_imports": [
       "pandas._libs.tslibs.base",
@@ -51,6 +43,6 @@
   "post_build": {
     "compress": true,
     "sign": false,
-    "package": "appimage"
+    "package": "zip"
   }
 }

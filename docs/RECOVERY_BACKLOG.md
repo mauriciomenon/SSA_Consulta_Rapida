@@ -3,6 +3,34 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 08:18 - alinhamento Debian para fluxo canonico ZIP
+
+Session timestamp:
+1. start: `2026-03-10 08:07:20 -0300`
+2. end: `2026-03-10 08:18:00 -0300`
+
+Objetivo do slice:
+1. alinhar `debian_amd64` ao comportamento real do pipeline canonico (ZIP).
+2. remover riscos de runtime por exclusao agressiva de modulos core no build Debian.
+3. documentar claramente que AppImage/.deb ficam fora do fluxo oficial atual.
+
+Mudancas aplicadas:
+1. `launchers/platforms/debian_amd64/build_config.json`:
+   - `post_build.package`: `appimage` -> `zip`.
+   - removeu `json` de `exclude_modules` (risco alto de runtime).
+   - removeu `argparse` de `exclude_modules` (risco alto para CLI).
+   - removeu exclusoes core de risco (`multiprocessing`, `concurrent`, `asyncio`, `email`, `http`, `urllib`).
+2. docs operacionais:
+   - `docs/GUIA_DISTRIBUICAO.md`: nota explicita de Debian em ZIP no baseline atual.
+   - `docs/BUILD_MULTIPLATFORM.md`: texto de UPX ajustado para "quando disponivel" e bloco de empacotamento Debian.
+
+Validacao desta rodada:
+1. `kluster review file launchers/platforms/debian_amd64/build_config.json docs/GUIA_DISTRIBUICAO.md docs/BUILD_MULTIPLATFORM.md` -> clean (0 issues) na rodada final.
+
+Deferido (nao bloqueante neste slice):
+1. suporte real a AppImage/.deb como etapa automatica (ciclo dedicado).
+2. revisao equivalente de `exclude_modules` para outras plataformas (windows/macos) em slice proprio.
+
 ## Update 2026-03-10 08:04 - hardening de build para nao embedar dados locais por padrao
 
 Session timestamp:

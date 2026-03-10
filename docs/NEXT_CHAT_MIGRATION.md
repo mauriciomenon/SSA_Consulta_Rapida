@@ -2,7 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 08:04 - start from here
+## CURRENT TRUTH 2026-03-10 08:18 - start from here
+
+- Slice aplicado:
+  1. alinhamento Debian para fluxo canonico ZIP.
+  2. `launchers/platforms/debian_amd64/build_config.json`:
+     - `post_build.package` agora `zip`.
+     - limpeza de exclusoes de risco em `exclude_modules` (`json`, `argparse` e modulos core de concorrencia/rede).
+  3. docs operacionais atualizados:
+     - `docs/GUIA_DISTRIBUICAO.md` (Debian ZIP no baseline atual).
+     - `docs/BUILD_MULTIPLATFORM.md` (UPX "quando disponivel" + nota Debian ZIP).
+- Arquivos tocados:
+  1. `launchers/platforms/debian_amd64/build_config.json`
+  2. `docs/GUIA_DISTRIBUICAO.md`
+  3. `docs/BUILD_MULTIPLATFORM.md`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `kluster review` nos arquivos do slice -> clean na rodada final.
+- Deferido:
+  1. implementacao automatica de AppImage/.deb fora do fluxo ZIP.
+  2. revisao equivalente de exclusoes em `windows_amd64` e `macos_arm64`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:04
 
 - Slice aplicado:
   1. hardening do build canonico para nao embedar `data/` por padrao.

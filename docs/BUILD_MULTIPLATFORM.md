@@ -101,7 +101,7 @@ O script automaticamente:
 
 ### Tecnicas Aplicadas
 1. **Exclusao de modulos desnecessarios**: Remove bibliotecas nao utilizadas
-2. **Compressao UPX**: Reduz tamanho em 50-70% (Windows/Linux)
+2. **Compressao UPX (quando disponivel)**: Pode reduzir tamanho em 50-70% (principalmente Windows/Linux)
 3. **Strip symbols**: Remove informacoes de debug
 4. **Shared libraries**: Reutiliza bibliotecas do sistema
 5. **Tree shaking**: Inclui apenas codigo usado
@@ -132,6 +132,12 @@ Exemplo:
 - `SSA_CLI_v3.10_windows_amd64.exe`
 - `SSA_GUI_v3.10_macos_arm64.app`
 - `SSA_CLI_v3.10_debian_amd64`
+
+### Empacotamento Debian no baseline atual
+
+- Saida operacional oficial para Debian: ZIP.
+- AppImage/.deb nao sao gerados automaticamente pelo pipeline canonico atual.
+- Se necessario, tratar AppImage/.deb como etapa manual/laboratorio fora do fluxo padrao.
 
 ### Manifesto de Release
 Cada build gera um `release_manifest.json`:
