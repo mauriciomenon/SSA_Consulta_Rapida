@@ -165,15 +165,22 @@ class TestGUIFilterLogic:
         assert getattr(self.window, "persist_filter_config_checkbox", None) is None
         style_sheet = str(combo.styleSheet() or "")
         assert "combobox-popup: 0" in style_sheet
+        mel4_idx = combo.findData("MEL4")
+        assert mel4_idx >= 0
+        assert str(combo.itemText(mel4_idx)).startswith("Setor Executor: ")
 
-        idx = combo.findData("MEL4")
-        assert idx >= 0
-        combo.setCurrentIndex(idx)
+        combo.setCurrentIndex(mel4_idx)
         QApplication.processEvents()
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "MEL4"
         assert dict(getattr(self.window, "_advanced_filters", {}) or {}) == advanced_before
+
+        self.window.main_tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert "MEL4" in str(getattr(self.window, "adv_executor_button").text() or "")
+        self.window.main_tabs.setCurrentIndex(0)
+        QApplication.processEvents()
 
         controls = self._get_column_filter_controls()
         setor_key = next(

@@ -3,6 +3,58 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 11:26 - hotfix build macos util + quick setor executor sync + hooks tamanho
+
+Session timestamp:
+1. start: `2026-03-10 10:55:39 -0300`
+2. end: `2026-03-10 11:26:00 -0300`
+
+Objetivo do slice:
+1. remover falha de runtime nos binarios macOS (`No module named 'concurrent'` e derivados).
+2. endurecer bloqueio de arquivos grandes no fluxo git (pre-commit e pre-push).
+3. corrigir UX/sync do quick filter `setor_executor` com filtros avancados, sem persistencia.
+
+Mudancas aplicadas:
+1. build/pacote:
+   - `launchers/platforms/macos_arm64/build_config.json`
+   - `launchers/platforms/windows_amd64/build_config.json`
+   - `launchers/platforms/debian_amd64/build_config.json`
+   - exclusoes agressivas de stdlib removidas; lista reduzida para `tkinter/test/unittest`.
+2. `launchers/build_multiplatform.py`:
+   - `--add-data` agora usa separador correto por plataforma (`;` no Windows, `:` no Unix).
+   - manifesto agora lista artefatos reais de root (arquivos + diretorios), ignora hidden (`.DS_Store`, `build_manifest.json`) e calcula tamanho de diretorio com guarda de `OSError`.
+   - help de `--all` alinhado para comportamento real (apps da plataforma atual, sem cross-compilation).
+3. hooks:
+   - `scripts/git_hooks/pre-commit`: bloqueio de arquivo staged >= 95MB.
+   - `scripts/git_hooks/pre-push` (novo): bloqueio de blob >= 95MB no push.
+   - `scripts/install_hooks.sh`: instalacao deterministica (`pre-commit`, `pre-push`) e `core.hooksPath=.git/hooks`.
+   - `README.md`: secao de hooks atualizada para o fluxo real.
+4. GUI quick filter:
+   - `gui/gui_ssa.py`
+   - `gui/ssa/gui_filters_advanced_ui.py`
+   - `tests/test_gui_filter_logic.py`
+   - `setor_executor` no combo rapido agora exibe prefixo explicito no item (`Setor Executor: ...`).
+   - sincronismo do quick filter com UI de `Executor` nos filtros avancados (inclui troca de aba e refresh), sem gravar `_advanced_filters`.
+5. testes novos:
+   - `tests/test_build_multiplatform_manifest.py` (cobre manifesto com diretorios e hidden skip).
+6. ajustes adicionais de robustez:
+   - `gui/gui_ssa.py`: `import_external_excel_files` simplificado para uso direto de `_build_unique_destination_path` da instancia.
+   - `launchers/build_multiplatform.py`: `_compute_directory_size_bytes` ignora symlink para evitar loop acidental em arvore ciclica.
+
+Validacao tecnica desta rodada:
+1. `uv run --python 3.13 python -m py_compile launchers/build_multiplatform.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filter_logic.py tests/test_build_multiplatform_manifest.py` -> pass
+2. `uv run --python 3.13 ruff check launchers/build_multiplatform.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filter_logic.py tests/test_build_multiplatform_manifest.py` -> pass
+3. `uv run --python 3.13 ty check launchers/build_multiplatform.py gui/gui_ssa.py gui/ssa/gui_filters_advanced_ui.py tests/test_gui_filter_logic.py tests/test_build_multiplatform_manifest.py` -> pass
+4. `uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py tests/test_gui_filter_logic.py -k "quick_setor_executor_combo_applies_filter_and_syncs_or_group_only or setor_executor_order_prioritizes_smin_then_mel_then_alpha"` -> `2 passed`
+5. build real:
+   - `uv run --python 3.13 python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui --skip-venv` -> build OK
+   - smoke runtime:
+     - CLI/GUI nao exibem mais erro de modulo ausente por exclusao de stdlib.
+
+Deferido (nao bloqueante neste slice):
+1. debts estruturais antigos do kluster em `launchers/build_multiplatform.py` e `gui/gui_ssa.py` (SRP/performance/global workers).
+2. revisar em ciclo proprio se `cleanup_online_unnecessary_files` deve ser separado em utilitario dedicado de manutencao git.
+
 ## Update 2026-03-10 10:38 - pente fino completo build/distribuicao (pyinstaller/pyoxidizer/nuitka/pytoexe)
 
 Session timestamp:

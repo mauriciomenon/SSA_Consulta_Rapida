@@ -2,6 +2,48 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 11:26 - authoritative block
+
+- Slice entregue:
+  1. build macOS deixou de gerar binario inutil por exclusao agressiva de stdlib.
+  2. hooks de tamanho ativados no fluxo real (commit/push) com limite de 95MB.
+  3. quick filter de `setor_executor` sincroniza com UI de filtros avancados e mostra rotulo explicito.
+- Mudancas tecnicas principais:
+  1. `build_config.json` de `macos_arm64`, `windows_amd64`, `debian_amd64`:
+     - `exclude_modules` reduzido para `tkinter/test/unittest`.
+     - remove exclusoes de stdlib que quebravam runtime (`concurrent`, `email`, `html`, etc).
+  2. `launchers/build_multiplatform.py`:
+     - `--add-data` com separador correto por plataforma.
+     - manifesto com artefatos reais (file/dir), sem hidden de sistema.
+     - calculo de tamanho de diretorio com guarda de erro.
+     - texto de help `--all` alinhado ao comportamento atual.
+  3. hooks:
+     - `scripts/git_hooks/pre-commit` com bloqueio de staged >= 95MB.
+     - `scripts/git_hooks/pre-push` novo para bloquear blobs >= 95MB.
+     - `scripts/install_hooks.sh` instala hooks por nome e corrige `core.hooksPath`.
+  4. GUI:
+     - `gui/gui_ssa.py` e `gui/ssa/gui_filters_advanced_ui.py`:
+       - itens do combo rapido: `Setor Executor: <valor>`.
+       - sincronismo do quick filter para UI de `Executor` no painel avancado (sem persistencia em `_advanced_filters`).
+       - `import_external_excel_files` simplificado para helper de instancia no destino unico.
+  5. testes:
+     - novo `tests/test_build_multiplatform_manifest.py`.
+     - ajuste em `tests/test_gui_filter_logic.py` para validar prefixo e sync.
+  6. robustez adicional:
+     - `_compute_directory_size_bytes` ignora symlink para evitar loop em arvore ciclica.
+- Evidencia de validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `2 passed`.
+  3. build real `macos_arm64` (CLI+GUI) -> success.
+  4. smoke runtime apos rebuild:
+     - erros `No module named 'concurrent'`, `html`, `email` nao reapareceram.
+- Pendencias deferidas:
+  1. debts antigos de arquitetura/performance apontados por kluster em `launchers/build_multiplatform.py` e `gui/gui_ssa.py`.
+  2. possivel ciclo dedicado para separar manutencao git de `build_multiplatform`.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:38 - authoritative block
 
 - Slice entregue:

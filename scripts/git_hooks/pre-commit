@@ -21,6 +21,11 @@ ALLOW_VALUES=(
 )
 
 MIN_LEN=12
+MAX_MB="${GIT_MAX_BLOB_MB:-95}"
+if [[ ! "$MAX_MB" =~ ^[0-9]+$ ]]; then
+  MAX_MB=95
+fi
+MAX_BYTES=$((MAX_MB * 1024 * 1024))
 
 err(){ echo "[secret-scan][BLOCK] $1" >&2; }
 info(){
@@ -32,6 +37,34 @@ info(){
 
 DIFF=$(git diff --cached --unified=0 --no-color || true)
 [[ -z $DIFF ]] && exit 0
+
+# 0) Arquivos staged grandes (limite GitHub / politicas de release)
+large_found=0
+while IFS= read -r staged_path; do
+  [[ -z "${staged_path:-}" ]] && continue
+  if [[ ! -f "$staged_path" ]]; then
+    continue
+  fi
+  file_size="$(wc -c < "$staged_path" | tr -d '[:space:]')"
+  if [[ -z "$file_size" ]]; then
+    continue
+  fi
+  if (( file_size >= MAX_BYTES )); then
+    large_found=1
+    size_mb="$(awk -v n="$file_size" 'BEGIN { printf "%.2f", n/1024/1024 }')"
+    err "Arquivo staged muito grande: $staged_path (${size_mb} MB)"
+  fi
+done < <(git diff --cached --name-only --diff-filter=AM)
+
+if [[ $large_found -eq 1 ]]; then
+  cat <<EOF >&2
+================ BLOQUEADO ================
+Arquivo staged >= ${MAX_MB} MB detectado.
+Remova do commit ou use estrategia de distribuicao fora do git.
+===========================================
+EOF
+  exit 1
+fi
 
 ADDED=$(
   printf '%s\n' "$DIFF" \

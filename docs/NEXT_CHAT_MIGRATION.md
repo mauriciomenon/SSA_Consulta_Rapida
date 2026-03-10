@@ -2,6 +2,53 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 11:26 - start from here
+
+- Slice aplicado:
+  1. hotfix de build/runtime macOS para executavel util (sem erro de modulo ausente por exclusao de stdlib).
+  2. hardening de hooks para bloqueio de arquivo grande (staged e push).
+  3. ajuste de quick filter `setor_executor` com sync de UI no painel avancado e prefixo de rotulo.
+- Resultado operacional:
+  1. build `macos_arm64` (CLI+GUI) completou com sucesso apos reduzir exclusoes agressivas.
+  2. erro `No module named 'concurrent'` deixou de ocorrer.
+  3. erros subsequentes (`html`, `email`) tambem resolvidos removendo exclusoes stdlib.
+  4. manifesto de build agora lista diretorios reais (inclui `.app`) e ignora hidden.
+- Hooks:
+  1. novo `scripts/git_hooks/pre-push` bloqueia blobs >= 95MB.
+  2. `scripts/git_hooks/pre-commit` agora bloqueia staged >= 95MB.
+  3. `scripts/install_hooks.sh` instala hooks de forma deterministica e seta `core.hooksPath=.git/hooks`.
+- GUI/filtros:
+  1. combo rapido exibe itens como `Setor Executor: <valor>`.
+  2. ao mudar quick filter, UI de `Executor` em filtros avancados reflete o mesmo valor (inclusive apos troca de aba/refresh), sem persistir em `_advanced_filters`.
+  3. `import_external_excel_files` usa apenas helper de instancia para destino unico (sem fallback ambigio via classe).
+- Robustez adicional:
+  1. calculo de tamanho de diretorio no manifesto ignora symlink para evitar ciclo.
+- Arquivos tocados:
+  1. `launchers/build_multiplatform.py`
+  2. `launchers/platforms/macos_arm64/build_config.json`
+  3. `launchers/platforms/windows_amd64/build_config.json`
+  4. `launchers/platforms/debian_amd64/build_config.json`
+  5. `scripts/git_hooks/pre-commit`
+  6. `scripts/git_hooks/pre-push`
+  7. `scripts/install_hooks.sh`
+  8. `README.md`
+  9. `gui/gui_ssa.py`
+  10. `gui/ssa/gui_filters_advanced_ui.py`
+  11. `tests/test_gui_filter_logic.py`
+  12. `tests/test_build_multiplatform_manifest.py`
+  13. `docs/RECOVERY_BACKLOG.md`
+  14. `docs/NEXT_CHAT_MIGRATION.md`
+  15. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (`quick_setor_executor...` + manifesto build) -> pass.
+  3. build real macOS + smoke runtime -> sem `ModuleNotFoundError` de stdlib excluida.
+- Deferido:
+  1. debts estruturais antigos do kluster em `build_multiplatform` e `gui_ssa` (fora de escopo de patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:38 - start from here
 
 - Slice aplicado:

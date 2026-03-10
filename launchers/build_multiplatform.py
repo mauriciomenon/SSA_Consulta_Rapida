@@ -287,16 +287,17 @@ class MultiPlatformBuilder:
         # Dados adicionais
         config_path = self.base_dir / 'config'
         data_path = self.base_dir / 'data'
+        add_data_sep = ';' if platform_name.startswith('windows') else ':'
 
         if config_path.exists():
-            cmd.extend(['--add-data', f'{config_path}:config'])
+            cmd.extend(['--add-data', f'{config_path}{add_data_sep}config'])
         include_local_data = bool(pyinstaller_args.get('include_local_data', False))
         if include_local_data and data_path.exists():
             logger.warning(
                 "include_local_data ativado; data/ sera embedado no build. "
                 "Use apenas em ambiente controlado."
             )
-            cmd.extend(['--add-data', f'{data_path}:data'])
+            cmd.extend(['--add-data', f'{data_path}{add_data_sep}data'])
 
         # Argumentos adicionais
         for arg in app_config.get('additional_args', []):
@@ -369,20 +370,49 @@ class MultiPlatformBuilder:
             'executables': []
         }
 
-        for exe_file in dist_dir.glob('*'):
-            if exe_file.is_file():
-                size_mb = exe_file.stat().st_size / (1024 * 1024)
-                manifest['executables'].append({
-                    'name': exe_file.name,
-                    'size_mb': round(size_mb, 2),
-                    'path': str(exe_file.relative_to(self.dist_dir))
-                })
+        for artifact in sorted(dist_dir.glob('*'), key=lambda path: path.name.casefold()):
+            name = artifact.name
+            if name in {'build_manifest.json', '.DS_Store'}:
+                continue
+            if name.startswith('.'):
+                continue
+
+            if artifact.is_file():
+                size_bytes = artifact.stat().st_size
+                artifact_kind = 'file'
+            elif artifact.is_dir():
+                size_bytes = self._compute_directory_size_bytes(artifact)
+                artifact_kind = 'directory'
+            else:
+                continue
+
+            size_mb = 0.0 if size_bytes <= 0 else (size_bytes / (1024 * 1024))
+            manifest['executables'].append({
+                'name': name,
+                'kind': artifact_kind,
+                'size_mb': round(size_mb, 2),
+                'path': str(artifact.relative_to(self.dist_dir))
+            })
 
         manifest_file = dist_dir / 'build_manifest.json'
         with open(manifest_file, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Manifesto criado: {manifest_file}")
+
+    @staticmethod
+    def _compute_directory_size_bytes(directory: Path) -> int:
+        total = 0
+        for path in directory.rglob('*'):
+            if path.is_symlink():
+                continue
+            if path.is_file():
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    # Ignore transient or permission failures while scanning artifact trees.
+                    continue
+        return total
 
     def build_platform(self, platform_name, apps=None):
         """Constroi executaveis para uma plataforma especifica"""
@@ -661,7 +691,7 @@ def main():
     parser.add_argument(
         '--all',
         action='store_true',
-        help='Build para todas as plataformas compatíveis'
+        help='Build de todos os apps da plataforma atual (sem cross-compilation)'
     )
 
     parser.add_argument(

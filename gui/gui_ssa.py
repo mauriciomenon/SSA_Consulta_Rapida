@@ -1219,7 +1219,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
         )
         try:
-            quick_setor_executor_combo.setMinimumWidth(210)
+            quick_setor_executor_combo.setMinimumWidth(260)
             quick_setor_executor_combo.setMaxVisibleItems(14)
             quick_setor_executor_combo.setSizeAdjustPolicy(
                 cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -1693,6 +1693,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         try:
             self._refresh_advanced_filter_options()
+            self._sync_advanced_executor_ui_from_active_filter()
             self._adv_options_dirty = False
         except Exception as exc:
             logger.warning("Falha ao executar refresh de filtros avancados: %s", exc)
@@ -1707,6 +1708,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             self._refresh_quick_setor_executor_options()
             self._sync_quick_setor_executor_combo_from_filters()
+            self._sync_advanced_executor_ui_from_active_filter()
         except Exception as exc:
             logger.debug("Falha ao sincronizar combo rapido de setor executor na troca de aba: %s", exc)
         if ctx.get("tab_kind") == "filters":
@@ -2076,6 +2078,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             self._refresh_quick_setor_executor_options()
             self._sync_quick_setor_executor_combo_from_filters()
+            self._sync_advanced_executor_ui_from_active_filter()
         except Exception as exc:
             logger.debug("Falha ao atualizar combo rapido de setor executor apos carga: %s", exc)
 
@@ -2457,7 +2460,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             combo.clear()
             combo.addItem("Setor Executor: Todos", "")
             for value in options:
-                combo.addItem(value, value)
+                combo.addItem(f"Setor Executor: {value}", value)
             idx = combo.findData(selected)
             if idx < 0:
                 idx = 0
@@ -2470,6 +2473,52 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             except Exception:
                 pass
             self._quick_setor_executor_syncing = False
+
+    @staticmethod
+    def _split_filter_csv_values(raw_value: str) -> list[str]:
+        values = []
+        seen = set()
+        for part in str(raw_value or "").split(","):
+            item = str(part or "").strip()
+            if not item:
+                continue
+            key = item.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(item)
+        return values
+
+    def _sync_advanced_executor_ui_from_active_filter(self) -> None:
+        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
+        selected_raw = str(active_filters.get("setor_executor", "") or "").strip()
+        selected_values = self._split_filter_csv_values(selected_raw)
+        tab_contexts = getattr(self, "_tab_contexts", None)
+        if not isinstance(tab_contexts, list):
+            return
+        for ctx in tab_contexts:
+            if not isinstance(ctx, dict):
+                continue
+            if ctx.get("tab_kind") != "filters":
+                continue
+            button = ctx.get("adv_executor_button")
+            checks = ctx.get("adv_executor_checks")
+            exclude_checks = ctx.get("adv_executor_exclude_checks")
+            if button is None:
+                continue
+            if checks:
+                self._sync_multiselect_checks(
+                    button,
+                    checks,
+                    selected_values,
+                    exclude_checks,
+                    [],
+                )
+            else:
+                if selected_values:
+                    button.setText(f"Incluir: {', '.join(selected_values)}")
+                else:
+                    button.setText("Selecionar")
 
     def _sync_quick_setor_executor_combo_from_filters(self) -> None:
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
@@ -2519,6 +2568,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             active_filters.pop("setor_executor", None)
         self._active_column_filters = active_filters
         self._sync_or_group_values("setor_executor", selected)
+        self._sync_advanced_executor_ui_from_active_filter()
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
@@ -3017,13 +3067,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 continue
 
             build_unique_destination = getattr(self, "_build_unique_destination_path", None)
-            if callable(build_unique_destination):
-                destination = build_unique_destination(base_destination)
-            else:
-                fallback_builder = getattr(SSAMainWindow, "_build_unique_destination_path", None)
-                if not callable(fallback_builder):
-                    raise AttributeError("_build_unique_destination_path indisponivel")
-                destination = fallback_builder(self, base_destination)
+            if not callable(build_unique_destination):
+                raise AttributeError("_build_unique_destination_path indisponivel")
+            destination = build_unique_destination(base_destination)
 
             try:
                 shutil.copy2(source, destination)
