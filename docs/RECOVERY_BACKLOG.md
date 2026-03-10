@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 14:54 - bug-real only (import external fallback + bundle config sanitizer)
+
+Session timestamp:
+1. start: `2026-03-10 14:54:06 -0300`
+2. end: `2026-03-10 15:00:09 -0300`
+
+Objetivo do slice:
+1. corrigir somente bugs reais abertos no PR sem refatoracao ampla.
+2. manter patches minimos em GUI helper de importacao externa e empacotamento de distribuicao.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - `import_external_excel_files` agora usa fallback para helper da classe quando o `self` recebido nao implementa `_build_unique_destination_path`.
+   - evita `AttributeError` em chamadas com window-like stubs usados em testes/fluxos leves.
+2. `scripts/create_distribution.py`
+   - copia de `build_dir/config` passou a usar `ignore=_build_bundle_ignore`.
+   - impede inclusao acidental de `.db`, `.xlsx`, `.xls` no pacote final.
+3. `tests/test_create_distribution.py`
+   - novo teste `test_create_zip_package_excludes_sensitive_files_from_build_config_dir` cobrindo exclusao de sensiveis vindos de `build_dir/config`.
+
+Evidencia objetiva:
+1. bug real confirmado antes do patch em GUI:
+   - `pytest -q tests/test_gui_menu_import_external.py tests/test_create_distribution.py` -> falha em `AttributeError: _build_unique_destination_path indisponivel`.
+2. apos patch GUI:
+   - `pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`.
+3. apos patch de seguranca em packaging:
+   - `pytest -q tests/test_create_distribution.py` -> `18 passed`.
+
+Validacao tecnica:
+1. `py_compile` no escopo alterado -> pass
+2. `ruff check` no escopo alterado -> pass
+3. `ty check` no escopo alterado -> pass
+
+Deferido (nao bloqueante neste slice):
+1. comentarios antigos de qualidade/performance em `gui/gui_ssa.py` (god class, resize/sort UI thread).
+2. comentario de kluster em `scripts/create_distribution.py` sobre variavel `exe_name` foi classificado como falso positivo (argumento existe na assinatura da funcao).
+
 ## Update 2026-03-10 14:44 - bug-real only hotfix (robust SN + full-rescan worker status)
 
 Session timestamp:

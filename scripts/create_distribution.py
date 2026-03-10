@@ -488,7 +488,12 @@ def _copy_runtime_bundle(
 
     config_src = build_dir / "config"
     if config_src.exists():
-        shutil.copytree(config_src, package_dir / "config", dirs_exist_ok=True)
+        shutil.copytree(
+            config_src,
+            package_dir / "config",
+            dirs_exist_ok=True,
+            ignore=_build_bundle_ignore,
+        )
     else:
         config_src = PROJECT_ROOT / "config"
         if config_src.exists():

@@ -2,7 +2,30 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 14:44 - start from here
+## CURRENT TRUTH 2026-03-10 14:54 - start from here
+
+- Slice aplicado:
+  1. fix de bug real em `import_external_excel_files` para compatibilidade com window-stub sem helper de destino.
+  2. fix de seguranca no empacotamento: `build_dir/config` agora respeita ignore de sensiveis.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `scripts/create_distribution.py`
+  3. `tests/test_create_distribution.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `import_external_excel_files` nao falha mais com `AttributeError` quando chamado com objeto leve sem `_build_unique_destination_path`.
+  2. distribuicao nao inclui `.db/.xlsx/.xls` vindos de `build_dir/config`.
+  3. cobertura de teste nova para esse caminho de configuracao foi adicionada.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`.
+  3. `pytest -q tests/test_create_distribution.py` -> `18 passed`.
+- Deferido:
+  1. debts antigos de qualidade/performance em `gui/gui_ssa.py` seguem fora de escopo deste hotfix.
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:44 - start from here
 
 - Slice aplicado:
   1. correcao de bug real no robust importer para mapeamento semantico `SN/SN.1`.
