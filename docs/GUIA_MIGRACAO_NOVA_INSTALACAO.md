@@ -279,7 +279,7 @@ uv run --python $PY_RUNTIME python main.py --gui
 uv run --python $PY_RUNTIME python -m pytest tests\test_imports.py -v
 
 # Executar teste de banco
-uv run --python $PY_RUNTIME python tests\test_db_check.py
+uv run --python $PY_RUNTIME python -m pytest tests\test_database.py -q
 
 # Executar teste de sistema completo
 uv run --python $PY_RUNTIME python tests\teste_sistema_completo.py

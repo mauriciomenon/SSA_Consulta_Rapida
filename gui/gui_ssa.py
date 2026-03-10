@@ -2809,7 +2809,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
 
         if not selected_files:
-            return {"copied": 0, "skipped": 0, "failed": 0}
+            return {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
 
         docs_path = os.path.join(project_root, "docs_entrada")
         os.makedirs(docs_path, exist_ok=True)
@@ -3389,21 +3389,46 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return SSAMainWindow._finalize_vacuum_analyze_result(self, result)
 
         self._vacuum_analyze_running = True
+        self._vacuum_analyze_pending_result = None
+
+        def _window_alive() -> bool:
+            if self is None:
+                return False
+            # Test stubs and lightweight stand-ins are not Qt widgets.
+            if not hasattr(self, "metaObject"):
+                return True
+            if sip is None:
+                return True
+            try:
+                return not sip.isdeleted(self)
+            except Exception:
+                return False
 
         def _work() -> None:
-            result = SSAMainWindow._execute_vacuum_analyze(db_path)
-
-            def _deliver() -> None:
-                SSAMainWindow._finalize_vacuum_analyze_result(self, result)
-
             try:
-                QTimer.singleShot(0, _deliver)
-            except Exception:
-                _deliver()
+                result = SSAMainWindow._execute_vacuum_analyze(db_path)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc), "db_path": db_path}
+            self._vacuum_analyze_pending_result = result
+
+        def _poll_delivery() -> None:
+            if not _window_alive():
+                self._vacuum_analyze_pending_result = None
+                self._vacuum_analyze_running = False
+                self._vacuum_analyze_thread = None
+                return
+            pending = getattr(self, "_vacuum_analyze_pending_result", None)
+            if pending is None:
+                if bool(getattr(self, "_vacuum_analyze_running", False)):
+                    QTimer.singleShot(100, _poll_delivery)
+                return
+            self._vacuum_analyze_pending_result = None
+            SSAMainWindow._finalize_vacuum_analyze_result(self, pending)
 
         worker = threading.Thread(target=_work, daemon=True)
         self._vacuum_analyze_thread = worker
         worker.start()
+        QTimer.singleShot(100, _poll_delivery)
         return {"ok": True, "started": True, "db_path": db_path}
 
     @staticmethod

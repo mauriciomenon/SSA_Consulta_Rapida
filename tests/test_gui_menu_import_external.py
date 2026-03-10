@@ -207,6 +207,17 @@ def test_import_external_excel_files_copies_and_suffixes_collisions(
     assert "Importacao externa concluida" in window.status_label.text
 
 
+def test_import_external_excel_files_empty_selection_returns_consistent_schema(monkeypatch) -> None:
+    monkeypatch.setattr(
+        gui_ssa.QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: ([], "Arquivos Excel"),
+    )
+
+    result = gui_ssa.SSAMainWindow.import_external_excel_files(cast(Any, object()))
+    assert result == {"copied": 0, "skipped": 0, "failed": 0, "unsupported": 0}
+
+
 def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Path) -> None:
     settings_dir = tmp_path / "config"
     settings_dir.mkdir()
@@ -511,3 +522,68 @@ def test_run_vacuum_analyze_missing_db(monkeypatch, tmp_path: Path) -> None:
     result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, object()))
     assert result["ok"] is False
     assert result["reason"] == "missing_db"
+
+
+def test_run_vacuum_analyze_async_path_delivers_result_and_resets_flags(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "ssas.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE t(a INTEGER)")
+        conn.execute("INSERT INTO t(a) VALUES (1)")
+
+    monkeypatch.setattr(gui_ssa, "DB_PATH", str(db_path))
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    class _ImmediateTimer:
+        @staticmethod
+        def singleShot(_msec: int, callback) -> None:
+            callback()
+
+    class _FakeMessageBox:
+        class StandardButton:
+            Yes = 1
+            No = 0
+
+        @staticmethod
+        def question(*_args, **_kwargs) -> int:
+            return _FakeMessageBox.StandardButton.Yes
+
+        @staticmethod
+        def information(*_args, **_kwargs) -> int:
+            return 0
+
+        @staticmethod
+        def warning(*_args, **_kwargs) -> int:
+            return 0
+
+    class _InlineThread:
+        def __init__(self, target=None, daemon=None, **_kwargs) -> None:
+            self._target = target
+            self.daemon = daemon
+
+        def start(self) -> None:
+            if self._target is not None:
+                self._target()
+
+    monkeypatch.setattr(gui_ssa, "QTimer", _ImmediateTimer)
+    monkeypatch.setattr(gui_ssa, "QMessageBox", _FakeMessageBox)
+    monkeypatch.setattr(gui_ssa.threading, "Thread", _InlineThread)
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+            self._vacuum_analyze_running = False
+            self._vacuum_analyze_thread = None
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.run_vacuum_analyze(cast(Any, window))
+
+    assert result["ok"] is True
+    assert result["started"] is True
+    assert window._vacuum_analyze_running is False
+    assert window._vacuum_analyze_thread is None
+    assert "DB compactado" in window.status_label.text

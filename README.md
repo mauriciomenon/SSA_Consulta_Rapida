@@ -365,7 +365,7 @@ Ferramenta para consulta rapida de SSAs com CLI e GUI (Python). Foco em previsib
 
 Links uteis:
 - Mapa de Documentacao Ativa: docs/INDEX.md
-- Changelog tecnico: docs_saida/CHANGELOG_IMPLEMENTACOES.md
+- Changelog tecnico: docs/CHANGELOG_IMPLEMENTACOES.md
 
 ## Requisitos
 - Python 3.10+ (preferir 3.13+ quando disponivel)
