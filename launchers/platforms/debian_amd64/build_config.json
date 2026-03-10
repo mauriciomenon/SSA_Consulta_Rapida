@@ -8,11 +8,7 @@
     "exclude_modules": [
       "tkinter",
       "test",
-      "unittest",
-      "pydoc",
-      "doctest",
-      "html",
-      "xml"
+      "unittest"
     ],
     "hidden_imports": [
       "pandas._libs.tslibs.base",

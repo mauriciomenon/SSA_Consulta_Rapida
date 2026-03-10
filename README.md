@@ -616,12 +616,12 @@ Se `--report-path` for usado (disponivel no script e via integracao), o relatori
 - CSV/XLSX/JSON em `docs_saida/` com rotulos consistentes (usa `display_mappings`)
 
 ## Hooks de Git (bloqueio de arquivos grandes)
-- Pre-commit (>99MB): `scripts/pre-commit-size-check.ps1`
-- Pre-push (objetos >=99MB no historico): `scripts/pre-push-large-object-check.ps1`
+- Pre-commit (staged >=95MB): `scripts/git_hooks/pre-commit`
+- Pre-push (blobs >=95MB no push): `scripts/git_hooks/pre-push`
 
 Ativacao:
-```pwsh
-pwsh -NoProfile -File scripts/setup-git-hooks.ps1
+```bash
+bash scripts/install_hooks.sh
 ```
 
 ## Testes

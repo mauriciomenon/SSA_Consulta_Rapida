@@ -2944,6 +2944,24 @@ def _refresh_advanced_filter_options(self):
     df = self.df_completo
     logger.debug("_refresh_advanced_filter_options: iniciando com %s registros", len(df))
     filters = self._advanced_filters or {}
+    active_filters = getattr(self, "_active_column_filters", {}) or {}
+    quick_executor_raw = str(active_filters.get("setor_executor", "") or "").strip()
+    if quick_executor_raw:
+        quick_executor_values = []
+        seen_quick = set()
+        for part in quick_executor_raw.split(","):
+            value = str(part or "").strip()
+            if not value:
+                continue
+            key = value.casefold()
+            if key in seen_quick:
+                continue
+            seen_quick.add(key)
+            quick_executor_values.append(value)
+        if quick_executor_values:
+            filters = dict(filters)
+            filters["setor_executor"] = quick_executor_values
+            filters["setor_executor_exclude_values"] = []
     def apply_cb():
         return self._apply_advanced_filters_from_ui()
 
@@ -3000,6 +3018,14 @@ def _refresh_advanced_filter_options(self):
         self._sync_responsavel_button_summaries()
     self._sync_checks_to_tab_context()
     self._sync_advanced_filter_ui()
+    if quick_executor_raw:
+        self._sync_multiselect_checks(
+            getattr(self, "adv_executor_button", None),
+            getattr(self, "adv_executor_checks", None),
+            filters.get("setor_executor"),
+            getattr(self, "adv_executor_exclude_checks", None),
+            filters.get("setor_executor_exclude_values"),
+        )
     try:
         elapsed_ms = (perf_counter() - start) * 1000.0
         logger.debug("Advanced filter options refresh: %.1fms", elapsed_ms)
