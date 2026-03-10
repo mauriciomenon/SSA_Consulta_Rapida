@@ -308,6 +308,72 @@ def test_resolve_build_directory_pyinstaller_falls_back_to_legacy_when_canonical
     assert resolved == legacy_dir
 
 
+def test_failure_reason_pyinstaller_reports_canonical_missing_primary_executable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    legacy_dir = project_root / "builds" / "pyinstaller"
+    canonical_dir.mkdir(parents=True)
+    legacy_dir.mkdir(parents=True)
+
+    (canonical_dir / "manifest.txt").write_text("no exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    resolved = create_distribution._resolve_build_directory("pyinstaller")
+    reason = create_distribution._resolve_build_directory_failure_reason("pyinstaller")
+
+    assert resolved is None
+    assert "Executavel primario ausente em diretorio canonico" in reason
+
+
+def test_failure_reason_pyinstaller_reports_legacy_missing_primary_executable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    legacy_dir = project_root / "builds" / "pyinstaller"
+    legacy_dir.mkdir(parents=True)
+
+    (legacy_dir / "manifest.txt").write_text("no exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    resolved = create_distribution._resolve_build_directory("pyinstaller")
+    reason = create_distribution._resolve_build_directory_failure_reason("pyinstaller")
+
+    assert resolved is None
+    assert "Executavel primario ausente no diretorio" in reason
+
+
 def test_detect_primary_executable_name_returns_none_when_package_has_no_binary(
     tmp_path: Path,
 ) -> None:

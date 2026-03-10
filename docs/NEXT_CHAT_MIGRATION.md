@@ -2,6 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 10:08 - start from here
+
+- Slice aplicado:
+  1. reforco de testes para alinhar `resolve` vs `failure_reason` em pyinstaller.
+  2. runtime de distribuicao nao foi alterado neste micro-slice.
+- Arquivos tocados:
+  1. `tests/test_create_distribution.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `tests/test_create_distribution.py` -> clean.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `15 passed`.
+- Deferido:
+  1. validacao Windows/ISCC real para path `Source` no `.iss`.
+  2. continuar fatiamento de concentracao em `create_zip_package` e `create_inno_setup_script`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:05 - start from here
 
 - Slice aplicado:
