@@ -3,6 +3,31 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 23:24 - targeted fix for unique-destination fallback call
+
+Session timestamp:
+1. start: `2026-03-09 23:23:06 -0300`
+2. end: `2026-03-09 23:24:55 -0300`
+
+Objetivo do slice:
+1. corrigir ponto especifico reportado no PR sobre chamada fallback de `_build_unique_destination_path`.
+2. manter patch minimo sem alterar comportamento funcional de importacao externa.
+
+Mudanca aplicada:
+1. `gui/gui_ssa.py`:
+   - fallback de `import_external_excel_files` passou a usar descriptor bound call:
+     `SSAMainWindow._build_unique_destination_path.__get__(self, SSAMainWindow)(base_destination)`.
+   - objetivo: remover ambiguidade de assinatura em chamada via classe, preservando compatibilidade com janelas stub em testes.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py -k "import_external_excel_files or consolidate_input_files or open_settings_file_with_backup"` -> `5 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance apontados por kluster em `gui/gui_ssa.py` (fora do escopo desta correcao pontual).
+
 ## Update 2026-03-09 23:08 - heavy+simple PR follow-up (vacuum async + rescan/menu fixes)
 
 Session timestamp:

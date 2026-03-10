@@ -2,7 +2,21 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 23:08 - authoritative block
+## CURRENT TRUTH 2026-03-09 23:24 - authoritative block
+
+- Micro-slice de correcao pontual entregue:
+  1. `gui/gui_ssa.py`: ajuste da chamada fallback de `_build_unique_destination_path` para descriptor bound call.
+  2. objetivo: remover ambiguidade de assinatura reportada no PR, sem alterar fluxo funcional.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em importacao/menu -> `5 passed`.
+- Pendencia deferida:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora deste micro-slice.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:08
 
 - Slice entregue: pendencia pesada + comentarios simples do PR.
   1. `gui/gui_ssa.py`:
