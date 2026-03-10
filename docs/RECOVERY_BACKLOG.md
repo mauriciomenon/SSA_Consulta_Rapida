@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 00:36 - low-stress hardening (cache sort + tooltip + QUrl explicit)
+
+Session timestamp:
+1. start: `2026-03-10 00:36:03 -0300`
+2. end: `2026-03-10 00:40:00 -0300`
+
+Objetivo do slice:
+1. reduzir risco semantico de cache no sort de `num_reprogramacoes`.
+2. alinhar tooltip de `Limpar Busca` com o comportamento real de cancelamento da busca em andamento.
+3. reforcar uso explicito de `QUrl.fromLocalFile(...)` em abertura local de guia.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - `_sort_num_reprogramacoes_robust`:
+     - agora valida alinhamento de `sort_keys` com `df_exibido` antes de ordenar.
+     - aplica alinhamento defensivo de indice antes do `.loc`, com log explicito quando houver mismatch.
+   - `on_header_clicked`:
+     - apos sort de `num_reprogramacoes`, chama `_prime_num_reprogramacoes_sort_cache()` para manter cache coerente com dataframe final exibido.
+   - tooltip de `Limpar Busca` atualizado para informar cancelamento da busca em andamento sem limpar filtros de coluna/avancados.
+   - `open_installation_guide` usa variavel `safe_doc_url = QUrl.fromLocalFile(...)` antes de `QDesktopServices.openUrl(...)` (contrato explicito).
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "quick_setor_executor or num_reprogramacoes or clear_search_button_label_and_tooltip_are_explicit_on_both_tabs"` -> `6 passed`
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py -k "import_external_excel_files or open_installation_guide"` -> `2 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (God class, update_derivadas sincrono, resize jank).
+
 ## Update 2026-03-10 00:22 - atalho Setor Executor sem persistencia + sync completo
 
 Session timestamp:

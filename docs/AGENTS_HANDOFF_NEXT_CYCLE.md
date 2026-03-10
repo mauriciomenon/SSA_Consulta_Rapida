@@ -2,7 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 00:22 - authoritative block
+## CURRENT TRUTH 2026-03-10 00:36 - authoritative block
+
+- Slice entregue:
+  1. `gui/gui_ssa.py`:
+     - `_sort_num_reprogramacoes_robust` com alinhamento defensivo de indice para evitar risco de mismatch.
+     - `on_header_clicked` re-prima cache de `num_reprogramacoes` apos sort da coluna.
+     - tooltip de `Limpar Busca` alinhado ao comportamento real (cancelamento da busca em andamento sem reset de filtros de coluna/avancados).
+     - `open_installation_guide` com `QUrl.fromLocalFile` explicito antes de `QDesktopServices.openUrl`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado GUI filtro/sort/tooltip -> `6 passed`.
+  3. `pytest` focado importacao externa/guia -> `2 passed`.
+- Pendencia deferida:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora deste slice).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:22
 
 - Slice entregue:
   1. `gui/gui_ssa.py`:
