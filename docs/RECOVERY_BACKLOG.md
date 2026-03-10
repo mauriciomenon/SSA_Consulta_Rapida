@@ -77,7 +77,7 @@ Evidencia de commits desta rodada:
 2. `ea7a987c` (`DOC_SYNC`) - normalizacao de docs ativos + snapshots.
 3. `3f1b0945` (`DOC_SYNC`) - guia de migracao alinhado ao padrao uv-first.
 4. `731deebf` (`DOC_SYNC`) - troubleshooting ativo simplificado + archive.
-5. `pending` (`DOC_SYNC`) - sync final de controle/historico desta rodada.
+5. `b015e5b2` (`DOC_SYNC`) - sync final de controle/historico desta rodada.
 
 ## Update 2026-03-09 17:35 - docs governance refine on v4.32
 
