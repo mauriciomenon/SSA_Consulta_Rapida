@@ -122,6 +122,52 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         assert not any(name.endswith("input.xlsx") for name in names)
 
 
+def test_create_zip_package_excludes_sensitive_files_from_build_config_dir(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    build_dir = project_root / "builds" / "fake"
+    build_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    exe_path = build_dir / "SSA_Consulta_Rapida.exe"
+    exe_path.write_text("fake exe", encoding="utf-8")
+
+    config_dir = build_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "keep.txt").write_text("ok", encoding="utf-8")
+    (config_dir / "local.db").write_text("db", encoding="utf-8")
+    (config_dir / "entrada.xlsx").write_text("xlsx", encoding="utf-8")
+    (config_dir / "entrada.xls").write_text("xls", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("fake", "1.0.0")
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        names = zf.namelist()
+        assert any(name.endswith("config/keep.txt") for name in names)
+        assert not any(name.endswith("config/local.db") for name in names)
+        assert not any(name.endswith("config/entrada.xlsx") for name in names)
+        assert not any(name.endswith("config/entrada.xls") for name in names)
+
+
 def test_create_zip_package_returns_none_when_canonical_has_no_primary_executable(
     tmp_path: Path,
     monkeypatch,

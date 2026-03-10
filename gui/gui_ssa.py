@@ -3125,9 +3125,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 continue
 
             build_unique_destination = getattr(self, "_build_unique_destination_path", None)
-            if not callable(build_unique_destination):
-                raise AttributeError("_build_unique_destination_path indisponivel")
-            destination = build_unique_destination(base_destination)
+            if callable(build_unique_destination):
+                destination = build_unique_destination(base_destination)
+            else:
+                class_builder = getattr(SSAMainWindow, "_build_unique_destination_path", None)
+                if not callable(class_builder):
+                    raise AttributeError("_build_unique_destination_path indisponivel")
+                destination = class_builder(self, base_destination)
 
             try:
                 shutil.copy2(source, destination)

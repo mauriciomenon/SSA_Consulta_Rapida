@@ -2,7 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 14:44 - authoritative block
+## CURRENT TRUTH 2026-03-10 14:54 - authoritative block
+
+- Slice entregue:
+  1. correcao de bug real em `gui/gui_ssa.py` no fluxo de importacao externa por fallback seguro de helper.
+  2. correcao de bug real de seguranca em `scripts/create_distribution.py` para ignorar arquivos sensiveis em `build_dir/config`.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `scripts/create_distribution.py`
+  3. `tests/test_create_distribution.py`
+  4. `docs/RECOVERY_BACKLOG.md`
+  5. `docs/NEXT_CHAT_MIGRATION.md`
+  6. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`.
+  3. `pytest -q tests/test_create_distribution.py` -> `18 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora do escopo deste slice de bug real).
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:44 - authoritative block
 
 - Slice entregue:
   1. fix de bug real no mapeamento semantico de `SN/SN.1` no robust importer.
