@@ -2,7 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 23:53 - authoritative block
+## CURRENT TRUTH 2026-03-10 00:17 - authoritative block
+
+- Slice entregue:
+  1. `gui/gui_ssa.py`:
+     - `_sort_num_reprogramacoes_robust` agora sincroniza `_num_reprog_sort_cache` com o dataframe ja ordenado.
+     - evita cache stale imediato apos clique em cabecalho de `num_reprogramacoes`.
+  2. `tests/test_gui_filter_logic.py`:
+     - testes de cache ajustados para contratos estruturais (index + keys + source_len), sem dependencia de identidade de objeto.
+     - teste de persistencia do filtro rapido inicializa checkbox de forma deterministica.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado (`num_reprogramacoes` + filtro rapido + colunas visiveis) -> `7 passed`.
+- Pendencia deferida:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora deste slice).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:53
 
 - Slice entregue:
   1. `gui/widgets/column_selector.py`:

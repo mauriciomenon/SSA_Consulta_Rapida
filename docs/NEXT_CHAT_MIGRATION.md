@@ -2,7 +2,28 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 23:53 - start from here
+## CURRENT TRUTH 2026-03-10 00:17 - start from here
+
+- Slice aplicado:
+  1. cache de sort de `num_reprogramacoes` alinhado com `df_exibido` apos ordenacao.
+  2. testes focados de GUI estabilizados para invariantes de cache (index/keys/source_len), sem acoplamento em `id(df)`.
+  3. teste de persistencia do filtro rapido ficou deterministico (nao depende de estado salvo pre-existente).
+- Arquivos tocados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em filtros/cache -> `7 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora deste patch minimo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:53
 
 - Slice aplicado:
   1. remocao do seletor `Perfil de filtro` da UI (mantido apenas `Salvar Filtro`).
