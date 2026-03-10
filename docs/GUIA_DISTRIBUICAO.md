@@ -89,6 +89,12 @@ No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao e
 - `reports`
 - `exportacao`
 
+Politica operacional (v4.32+):
+- build canonico nao embeda `data/` por padrao.
+- se for necessario incluir dados locais para laboratorio, usar fluxo explicito e controlado:
+  - `python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data`
+  - nunca usar isso para pacote de distribuicao geral.
+
 ## Distribuicao para Usuario Final
 
 Texto sugerido:

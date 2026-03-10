@@ -3,6 +3,41 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 08:04 - hardening de build para nao embedar dados locais por padrao
+
+Session timestamp:
+1. start: `2026-03-10 07:47:17 -0300`
+2. end: `2026-03-10 08:04:00 -0300`
+
+Objetivo do slice:
+1. remover inclusao implicita de `data/` no build canonico.
+2. reforcar cobertura de empacotamento para exclusao de arquivos locais sensiveis.
+3. manter trilha de copia de dados apenas por comando explicito com `--allow-local-data`.
+
+Mudancas aplicadas:
+1. `launchers/build_multiplatform.py`:
+   - `data/` nao entra mais por padrao no `--add-data`.
+   - nova chave de controle em runtime de build: `pyinstaller_args.include_local_data` (default `False`).
+   - quando ativada, log explicito de risco operacional.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinstaller`.
+   - cobre exclusao de `.db`, `.xlsx`, `.xls` e ausencia de conteudo sensivel de `data/` e `docs_entrada/`.
+3. docs operacionais:
+   - `docs/GUIA_DISTRIBUICAO.md`: politica de dados locais no build explicitada.
+   - `docs/BUILD_MULTIPLATFORM.md`: regra v4.32+ de nao embedar `data/` por padrao.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile launchers/build_multiplatform.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check launchers/build_multiplatform.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check launchers/build_multiplatform.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `3 passed`
+5. `kluster review file launchers/build_multiplatform.py tests/test_create_distribution.py` -> sem blocker novo do slice; ficaram debts antigos estruturais fora de escopo.
+
+Deferido (nao bloqueante neste slice):
+1. debt antigo de naming/semantica do `MultiPlatformBuilder` versus limitacao de cross-compile.
+2. debt antigo de concentracao de responsabilidades no builder (build + git + cleanup).
+3. debt antigo de performance em varreduras recursive + subprocess por arquivo na limpeza de git/cache.
+
 ## Update 2026-03-10 07:44 - prune workers deduplicado com cobertura de regressao
 
 Session timestamp:

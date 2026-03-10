@@ -2,7 +2,31 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 07:44 - authoritative block
+## CURRENT TRUTH 2026-03-10 08:04 - authoritative block
+
+- Slice entregue:
+  1. hardening de build para nao incluir `data/` por padrao no artefato canonico.
+  2. `launchers/build_multiplatform.py`:
+     - `data/` so entra se `pyinstaller_args.include_local_data=true`.
+     - log explicito de risco quando a flag e ativada.
+  3. `tests/test_create_distribution.py`:
+     - novo teste cobrindo exclusao de `.db`, `.xlsx`, `.xls` e conteudo sensivel de `data/docs_entrada` no pacote canonico.
+  4. docs operacionais alinhados:
+     - `docs/GUIA_DISTRIBUICAO.md`
+     - `docs/BUILD_MULTIPLATFORM.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `3 passed`.
+  3. `kluster review` nos arquivos tocados -> sem blocker novo do slice.
+- Pendencia deferida:
+  1. debt antigo de naming/cross-compile em `build_multiplatform.py`.
+  2. debt antigo de classe concentrada no builder.
+  3. debt antigo de performance em scans recursive + subprocess por arquivo.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 07:44
 
 - Slice entregue:
   1. deduplicacao minima de prune de workers sem mudar semantica de cleanup.

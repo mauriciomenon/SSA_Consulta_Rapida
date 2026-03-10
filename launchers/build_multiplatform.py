@@ -290,7 +290,12 @@ class MultiPlatformBuilder:
 
         if config_path.exists():
             cmd.extend(['--add-data', f'{config_path}:config'])
-        if data_path.exists():
+        include_local_data = bool(pyinstaller_args.get('include_local_data', False))
+        if include_local_data and data_path.exists():
+            logger.warning(
+                "include_local_data ativado; data/ sera embedado no build. "
+                "Use apenas em ambiente controlado."
+            )
             cmd.extend(['--add-data', f'{data_path}:data'])
 
         # Argumentos adicionais

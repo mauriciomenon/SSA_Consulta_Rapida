@@ -68,3 +68,52 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
     with zipfile.ZipFile(result, "r") as zf:
         names = zf.namelist()
         assert any(name.endswith("SSA_GUI_v1_windows_amd64.exe") for name in names)
+
+
+def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinstaller(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    canonical_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    (canonical_dir / "SSA_GUI_v1_windows_amd64.exe").write_text("fake exe", encoding="utf-8")
+    (canonical_dir / "ssas.db").write_text("db", encoding="utf-8")
+    (canonical_dir / "sample.xlsx").write_text("xlsx", encoding="utf-8")
+    (canonical_dir / "sample.xls").write_text("xls", encoding="utf-8")
+    (canonical_dir / "keep.txt").write_text("ok", encoding="utf-8")
+    (canonical_dir / "data").mkdir()
+    (canonical_dir / "data" / "should_not_copy.txt").write_text("secret", encoding="utf-8")
+    (canonical_dir / "docs_entrada").mkdir()
+    (canonical_dir / "docs_entrada" / "input.xlsx").write_text("excel", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("pyinstaller", "1.0.0")
+
+    assert result is not None
+    with zipfile.ZipFile(result, "r") as zf:
+        names = zf.namelist()
+        assert any(name.endswith("SSA_GUI_v1_windows_amd64.exe") for name in names)
+        assert any(name.endswith("keep.txt") for name in names)
+        assert not any(name.endswith(".db") for name in names)
+        assert not any(name.endswith(".xlsx") for name in names)
+        assert not any(name.endswith(".xls") for name in names)
+        assert not any(name.endswith("should_not_copy.txt") for name in names)
+        assert not any(name.endswith("input.xlsx") for name in names)
