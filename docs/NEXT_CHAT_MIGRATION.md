@@ -2,7 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 07:44 - start from here
+## CURRENT TRUTH 2026-03-10 08:04 - start from here
+
+- Slice aplicado:
+  1. hardening do build canonico para nao embedar `data/` por padrao.
+  2. `launchers/build_multiplatform.py` agora so inclui `data/` se `pyinstaller_args.include_local_data=true`.
+  3. cobertura de regressao adicionada em `tests/test_create_distribution.py` para garantir exclusao de `.db/.xlsx/.xls` no pacote canonico.
+  4. docs operacionais atualizados com a politica:
+     - `docs/GUIA_DISTRIBUICAO.md`
+     - `docs/BUILD_MULTIPLATFORM.md`
+- Arquivos tocados:
+  1. `launchers/build_multiplatform.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/GUIA_DISTRIBUICAO.md`
+  4. `docs/BUILD_MULTIPLATFORM.md`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `3 passed`.
+  3. `kluster review` em codigo tocado -> sem blocker novo do slice; sobram debts antigos estruturais fora de escopo.
+- Deferido:
+  1. naming/semantica do `MultiPlatformBuilder` versus limitacao de cross-compile.
+  2. concentracao de responsabilidades em `build_multiplatform.py`.
+  3. performance de scans/cleanup recursive no builder.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 07:44
 
 - Slice aplicado:
   1. deduplicacao minima do prune de workers em `gui/ssa/gui_workers.py`.

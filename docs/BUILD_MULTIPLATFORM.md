@@ -106,6 +106,16 @@ O script automaticamente:
 4. **Shared libraries**: Reutiliza bibliotecas do sistema
 5. **Tree shaking**: Inclui apenas codigo usado
 
+### Politica de dados locais no build (v4.32+)
+
+- O build canonico nao inclui `data/` por padrao.
+- Esta regra reduz risco de vazamento de DB local em artefato final.
+- Para laboratorio controlado, use copia explicita apos build:
+
+```bash
+python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+```
+
 ### Tamanhos Esperados
 - **CLI**: 15-25 MB por plataforma
 - **GUI**: 35-50 MB por plataforma
