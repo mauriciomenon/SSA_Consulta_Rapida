@@ -159,14 +159,24 @@ class DataLoaderWorker(QThread):
         try:
             non_null_mask = df.notna().any(axis=0)
             return [str(col) for col in non_null_mask[non_null_mask].index.tolist()]
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Falha no calculo vetorizado de colunas nao nulas no DataLoaderWorker: %s",
+                exc,
+            )
             non_null_cols = []
             for col_name in df.columns:
+                has_non_null = False
                 try:
-                    if df[col_name].notna().any():
-                        non_null_cols.append(str(col_name))
-                except Exception:
-                    continue
+                    has_non_null = bool(df[col_name].notna().any())
+                except Exception as col_exc:
+                    logger.debug(
+                        "Falha ao verificar nullability da coluna '%s' no DataLoaderWorker: %s",
+                        col_name,
+                        col_exc,
+                    )
+                if has_non_null:
+                    non_null_cols.append(str(col_name))
             return non_null_cols
 
     def _prepare_dataframe_for_ui(self, df: pd.DataFrame) -> pd.DataFrame:

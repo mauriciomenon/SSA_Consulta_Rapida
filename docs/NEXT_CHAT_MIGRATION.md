@@ -2,6 +2,30 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 11:51 - start from here
+
+- Slice aplicado:
+  1. remocao dos `try/except` proibidos restantes (`pass` e `continue`) em GUI/worker.
+  2. patch minimo, sem alteracao de layout e sem mudanca de comportamento de negocio.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `gui/workers/data_loader_worker.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `gui/gui_ssa.py`: bloco `except ... pass` removido do combo rapido; leitor de report agora usa excecoes especificas com log e sem `continue` dentro de `except`.
+  2. `data_loader_worker.py`: fallback de colunas nao nulas mantido com log debug, sem `except ... continue`.
+  3. `bandit` nos dois arquivos nao reporta mais `B110/B112`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `2 passed, 157 deselected`.
+  3. `bandit` focado -> apenas alertas antigos de subprocess/SQL dinamico com sanitizacao.
+- Leitura de risco:
+  1. alerta kluster sobre assinatura de `query_db` em DataLoaderWorker e falso positivo:
+     - assinatura real aceita `(db_path, table_name, query, params, raise_on_error)` em `armazenamento/database.py`.
+  2. debts antigos de arquitetura/performance em `gui_ssa.py` continuam deferidos.
+
 ## CURRENT TRUTH 2026-03-10 11:26 - start from here
 
 - Slice aplicado:
