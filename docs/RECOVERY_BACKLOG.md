@@ -8,6 +8,7 @@ O escopo fica dividido por prioridade para manter a entrega segura e incremental
 Session timestamp:
 1. start: `2026-03-10 10:55:39 -0300`
 2. end: `2026-03-10 11:26:00 -0300`
+3. commit evidencia: `338614c6`
 
 Objetivo do slice:
 1. remover falha de runtime nos binarios macOS (`No module named 'concurrent'` e derivados).

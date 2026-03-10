@@ -8,6 +8,7 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   1. hotfix de build/runtime macOS para executavel util (sem erro de modulo ausente por exclusao de stdlib).
   2. hardening de hooks para bloqueio de arquivo grande (staged e push).
   3. ajuste de quick filter `setor_executor` com sync de UI no painel avancado e prefixo de rotulo.
+  4. commit evidencia: `338614c6`.
 - Resultado operacional:
   1. build `macos_arm64` (CLI+GUI) completou com sucesso apos reduzir exclusoes agressivas.
   2. erro `No module named 'concurrent'` deixou de ocorrer.
