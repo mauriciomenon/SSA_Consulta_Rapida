@@ -3,6 +3,40 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 23:37 - PR45 path/runtime corrections (targeted)
+
+Session timestamp:
+1. start: `2026-03-09 23:37:15 -0300`
+2. end: `2026-03-09 23:49:00 -0300`
+
+Objetivo do slice:
+1. corrigir refs de docs/path sinalizadas no PR.
+2. corrigir retorno inconsistente de `import_external_excel_files`.
+3. remover entrega de callback `vacuum/analyze` de dentro de thread de fundo.
+
+Mudancas aplicadas:
+1. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`:
+   - troca de comando para teste existente: `pytest tests\\test_database.py -q`.
+2. `docs/CCR_LLM_PROVIDERS_SETUP.md`:
+   - referencia de instrucao ajustada para arquivo que existe no repo atual.
+3. `README.md`:
+   - link de changelog tecnico alinhado para `docs/CHANGELOG_IMPLEMENTACOES.md`.
+4. `gui/gui_ssa.py`:
+   - `import_external_excel_files` agora retorna sempre schema com `unsupported`.
+   - `run_vacuum_analyze` agora publica resultado em atributo e finaliza no thread da GUI por polling com `QTimer.singleShot`.
+5. `tests/test_gui_menu_import_external.py`:
+   - novo teste de schema consistente no early return da importacao externa.
+   - novo teste do caminho async de `vacuum/analyze` garantindo reset de flags e entrega de resultado.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. kluster `MEDIUM semantic` em `README.md` sobre contradicao textual de normalizacao `numero_ssa` e recomendacao de decompor README (fora do escopo deste patch minimo).
+
 ## Update 2026-03-09 23:24 - targeted fix for unique-destination fallback call
 
 Session timestamp:
