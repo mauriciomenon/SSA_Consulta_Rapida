@@ -26,6 +26,13 @@ Este arquivo define a navegacao oficial da documentacao ativa.
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - `docs/PENDING_ACTION_MATRIX.md`
 
+### Alertas de curto prazo
+
+1. Debt transversal BLE001 (broad `except Exception`) permanece alto.
+2. Referencia canonica da campanha:
+   - `docs/RECOVERY_BACKLOG.md` (Priority Note 2026-03-10)
+   - `docs/PENDING_ACTION_MATRIX.md` (Update 2026-03-10 near-term stabilization queue)
+
 ## Politicas (frozen)
 
 - `docs/POLICY_BASELINE_V1_1_FROZEN.md`

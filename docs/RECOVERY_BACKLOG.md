@@ -3,6 +3,21 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Priority Note 2026-03-10 - BLE001 campaign (near-term, do not drop)
+
+Fluxo de trabalho registrado para proximo ciclo curto:
+1. `except Exception` amplos (BLE001) no restante do codigo devem ser reduzidos por slices pequenos e validacao focada.
+2. Ultima leitura objetiva:
+   - contagem atual no repo: `860` ocorrencias.
+   - comando de reproduo: `ruff check . --select BLE001`.
+   - hotspots iniciais:
+     - `armazenamento/database*.py`
+     - `core/app_logic.py`
+     - `core/config_manager.py`
+     - `dev_env/streamlit_app.py`
+3. Regra operacional para esse debt:
+   - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
+
 ## Update 2026-03-10 16:45 - chips de filtro salvo na linha de pesquisa
 
 Session timestamp:
