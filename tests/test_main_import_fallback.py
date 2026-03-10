@@ -27,7 +27,7 @@ def test_main_no_automatic_legacy_retry_when_optimized_runtime_fails_by_default(
     monkeypatch.setattr(app_logic, "run_importer_logic", fake_run_importer_logic)
 
     with pytest.raises(SystemExit) as excinfo:
-        main.main(cli_args=["--log-level", "CRITICAL"])
+        main.main(cli_args=["--force-rescan", "--log-level", "CRITICAL"])
     assert excinfo.value.code == 1
 
     assert calls["importer"] == 1

@@ -2,7 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 15:29 - start from here
+## CURRENT TRUTH 2026-03-10 15:53 - start from here
+
+- Slice aplicado:
+  1. estabilizacao dos testes focados de `main` para nao travar em loop CLI durante pytest.
+  2. ajuste final da faixa de filtros: `Setor Executor` com label externo + valor simples na combo.
+  3. reposicionamento de `Colunas Visiveis` ao lado de `Linhas por Pagina`.
+- Arquivos alterados:
+  1. `tests/test_main_import_fallback.py`
+  2. `tests/test_main_skip_import.py`
+  3. `gui/gui_ssa.py`
+  4. `tests/test_gui_filter_logic.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `test_main_import_fallback` agora cobre o caminho correto (`--force-rescan`) sem stdin.
+  2. contrato de prioridade do CLI ficou explicito em teste: `--force-rescan` sobrepoe `--skip-import`.
+  3. quick filter de `setor_executor` nao altera `setor_emissor`.
+  4. combo rapido exibe apenas setor (`Todos`, `IEE3`, `MEL4`) com label externo fixo.
+  5. `remove_column_by_index` ganhou guarda de indice para evitar remocao errada/out-of-range.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_gui_filter_logic.py` -> `152 passed, 1 skipped`.
+- Deferido:
+  1. debts historicos de arquitetura/performance em `gui/gui_ssa.py` fora de escopo.
+  2. alinhamento semantico global de tooltip de busca geral (fora deste slice).
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:29 - start from here
 
 - Slice aplicado:
   1. reorganizacao da barra de filtros na aba Filtros conforme UX aprovada.

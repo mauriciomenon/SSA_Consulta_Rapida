@@ -164,6 +164,7 @@ class TestGUIFilterLogic:
         save_filter_button = main_ctx["save_filter_button"]
         paginator = main_ctx["paginator"]
         column_selector = main_ctx["column_selector"]
+        quick_label = main_ctx["quick_setor_executor_label"]
         quick_combo = main_ctx["quick_setor_executor_combo"]
 
         QApplication.processEvents()
@@ -173,8 +174,14 @@ class TestGUIFilterLogic:
         assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
         assert column_selector.geometry().y() > search_input.geometry().y()
         assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
+        assert column_selector.geometry().x() > paginator.geometry().x()
+        assert (column_selector.geometry().x() - paginator.geometry().right()) <= 40
+        assert str(quick_label.text() or "") == "Setor Executor:"
+        assert abs(quick_label.geometry().y() - quick_combo.geometry().y()) <= 6
+        assert quick_label.geometry().x() < quick_combo.geometry().x()
         assert quick_combo.geometry().x() > column_selector.geometry().x()
-        assert quick_combo.height() >= search_button.height() - 2
+        assert quick_combo.height() <= (search_button.height() + 2)
+        assert quick_combo.height() >= 24
         parent_widget = quick_combo.parentWidget()
         assert parent_widget is not None
         right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
@@ -203,14 +210,14 @@ class TestGUIFilterLogic:
         assert mel4_idx >= 0
         assert str(combo.itemText(0)) == "Todos"
         assert str(combo.itemText(mel4_idx)) == "MEL4"
-        assert str(combo.currentText() or "").startswith("Setor Executor: ")
+        assert "Setor Executor:" not in str(combo.currentText() or "")
 
         combo.setCurrentIndex(mel4_idx)
         QApplication.processEvents()
-        assert str(combo.currentText() or "") == "Setor Executor: MEL4"
+        assert str(combo.currentText() or "") == "MEL4"
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
-        assert self.window._active_column_filters.get("setor_emissor") == "MEL4"
+        assert self.window._active_column_filters.get("setor_emissor") == "IEE3, MEL3"
         assert dict(getattr(self.window, "_advanced_filters", {}) or {}) == advanced_before
 
         self.window.main_tabs.setCurrentIndex(1)

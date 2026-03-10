@@ -2,7 +2,34 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 15:29 - authoritative block
+## CURRENT TRUTH 2026-03-10 15:53 - authoritative block
+
+- Slice entregue:
+  1. estabilizacao dos testes de `main` para evitar travamento em pytest por entrada interativa.
+  2. ajuste final de layout/comportamento do quick filter `Setor Executor`.
+- Arquivos alterados:
+  1. `tests/test_main_import_fallback.py`
+  2. `tests/test_main_skip_import.py`
+  3. `gui/gui_ssa.py`
+  4. `tests/test_gui_filter_logic.py`
+  5. `docs/RECOVERY_BACKLOG.md`
+  6. `docs/NEXT_CHAT_MIGRATION.md`
+  7. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_gui_filter_logic.py` -> `152 passed, 1 skipped`.
+- Decisoes aplicadas:
+  1. `--force-rescan` e tratado como prioridade sobre `--skip-import` nos testes de `main`.
+  2. quick filter `setor_executor` nao sincroniza mais `setor_emissor`.
+  3. label `Setor Executor:` fica fora da combo; combo exibe apenas valor do setor.
+  4. `Colunas Visiveis` fica imediatamente apos o paginator/`Linhas por Pagina`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` fora do escopo.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:29 - authoritative block
 
 - Slice entregue:
   1. realocacao de controles na aba Filtros:
