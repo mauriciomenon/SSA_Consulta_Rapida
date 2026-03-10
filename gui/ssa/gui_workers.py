@@ -1153,6 +1153,10 @@ def rescan_data(
     progress_dialog.cancel_requested.connect(on_cancel_requested)
 
     worker.start()
+    with _GLOBAL_WORKERS_LOCK:
+        if worker not in global_workers:
+            global_workers.append(worker)
+        global_meta[worker] = perf_counter()
     if hasattr(progress_dialog, "show_non_modal"):
         progress_dialog.show_non_modal()
     else:

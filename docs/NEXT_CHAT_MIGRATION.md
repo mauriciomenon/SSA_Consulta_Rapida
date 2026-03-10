@@ -2,7 +2,22 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 21:43 - start from here
+## CURRENT TRUTH 2026-03-09 21:58 - start from here
+
+- Follow-up de comentarios P2 do PR #45 concluido (patch minimo):
+  1. rescan worker registrado em `global_workers/global_meta` logo apos `start()`.
+  2. importacao externa passou a reutilizar helper unico de dedup de destino.
+  3. doc CCR alinhado para `*.instructions`.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> `16 passed`.
+- Deferido explicitamente:
+  1. debt transversal de nao-ascii em testes (fora deste slice de baixo risco).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:43
 
 - PR ativo: `#45` (base `dev`, head `codex/sprint-importacao-grave-fixes-20260305`).
 - Hotfix aplicado para comentarios/checks bloqueantes:
