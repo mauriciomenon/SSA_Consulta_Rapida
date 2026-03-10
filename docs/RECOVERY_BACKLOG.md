@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 16:45 - chips de filtro salvo na linha de pesquisa
+
+Session timestamp:
+1. start: `2026-03-10 16:41:16 -0300`
+2. end: `2026-03-10 16:45:00 -0300`
+
+Objetivo do slice:
+1. corrigir inconsistencia visual: atalhos/chips de filtro salvo devem ficar ao lado de `Salvar Filtro`, na mesma linha.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - `filter_tags_widget` foi movido para a `search_row`, imediatamente apos `Salvar Filtro`.
+   - `filter_tags_widget` deixou de ser renderizado na linha de paginacao.
+2. `tests/test_gui_filter_logic.py`
+   - teste de layout atualizado para validar alinhamento de `filter_tags_widget` na mesma linha de `Salvar Filtro`.
+
+Evidencia objetiva:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+4. `uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k \"search_and_pagination_rows_place_controls_in_expected_lines or persistent_filters_order or quick_setor_executor_combo_applies_filter_and_syncs_or_group_only\"` -> `3 passed`.
+
+Observacao de risco global (fora deste slice):
+1. `ruff --select BLE001` no repo inteiro aponta `860` ocorrencias restantes.
+2. este slice nao altera esse debt transversal; foco foi apenas no ajuste visual aprovado.
+
 ## Update 2026-03-10 16:37 - BLE001 hardening (main + data loader worker)
 
 Session timestamp:

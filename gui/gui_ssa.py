@@ -1231,11 +1231,19 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "Salva somente o filtro atual da Pesquisa Geral como filtro persistente."
         )
         save_filter_button.clicked.connect(self.save_current_filter)
+
+        filter_tags_widget = QWidget()
+        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
+        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
+        filter_tags_layout.setSpacing(5)
+
         left.addWidget(cast(Any, search_label))
         left.addWidget(cast(Any, search_input))
         left.addWidget(cast(Any, search_button))
         left.addWidget(cast(Any, clear_filter_button))
         left.addWidget(cast(Any, save_filter_button))
+        left.addSpacing(8)
+        left.addWidget(cast(Any, filter_tags_widget))
         column_selector = ColumnSelector(
             self.display_map,
             self.visible_columns,
@@ -1337,12 +1345,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         except Exception as exc:
             logger.warning("Falha ao conectar toggle do checkbox excluir STE/SCA: %s", exc)
         persistent_filters_layout.addWidget(cast(Any, exclude_ste_checkbox))
-
-        filter_tags_widget = QWidget()
-        filter_tags_layout = QHBoxLayout(cast(Any, filter_tags_widget))
-        filter_tags_layout.setContentsMargins(0, 0, 0, 0)
-        filter_tags_layout.setSpacing(5)
-        persistent_filters_layout.addWidget(cast(Any, filter_tags_widget))
 
         pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()

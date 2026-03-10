@@ -2,7 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 16:37 - authoritative block
+## CURRENT TRUTH 2026-03-10 16:45 - authoritative block
+
+- Slice entregue:
+  1. ajuste de layout: chips/atalhos de filtro salvo reposicionados para a linha da pesquisa.
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (`3` testes de layout/filtro) -> `3 passed`.
+- Decisao aplicada:
+  1. `filter_tags_widget` agora pertence a `search_row` ao lado de `Salvar Filtro`.
+  2. linha de paginacao mantida para paginator + `Colunas Visiveis` + `Setor Executor`.
+- Observacao global:
+  1. `BLE001` em escopo repo completo continua alto (`860` ocorrencias), nao tratado neste slice de layout.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 16:37 - authoritative block
 
 - Slice entregue:
   1. remocao de `except Exception` amplos em `main.py` e `DataLoaderWorker`.
