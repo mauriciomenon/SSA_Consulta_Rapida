@@ -3,6 +3,42 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 10:15 - fechamento dos 3 itens em loop no ISS/resolve/zip
+
+Session timestamp:
+1. start: `2026-03-10 10:07:22 -0300`
+2. end: `2026-03-10 10:15:45 -0300`
+
+Objetivo do slice:
+1. eliminar risco semantico do path `Source` no `.iss`.
+2. alinhar definitivamente `resolve` vs `failure_reason`.
+3. reduzir concentracao em `create_zip_package` para remover apontamento recorrente.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_resolve_inno_source(...)` agora usa `exe_path` do `BUILD_SYSTEMS` de forma consistente (incluindo pyoxidizer).
+   - `create_inno_setup_script(...)` foi simplificado com helpers:
+     - `_normalize_windows_path(...)`
+     - `_build_inno_excludes_str(...)`
+     - `_build_inno_iss_content(...)`
+   - template ISS passou a usar `SourceDir` macro explicita e mode fixo `absolute`.
+   - `create_zip_package(...)` segue com staging modular e sem voltar ao bloco monolitico.
+2. `tests/test_create_distribution.py`:
+   - ajustes de asserts para `SourceDir` macro e mode `absolute`.
+   - novo teste `test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info`.
+   - mantidos os testes de regressao para `resolve` vs `failure_reason`.
+
+Validacao desta rodada:
+1. `kluster review file scripts/create_distribution.py` -> clean
+2. `kluster review file tests/test_create_distribution.py` -> clean
+3. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+6. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `16 passed`
+
+Deferido (nao bloqueante neste slice):
+1. validacao final em maquina Windows com ISCC real continua recomendada, mesmo com kluster e testes locais verdes.
+
 ## Update 2026-03-10 10:08 - cobertura de regressao para resolve vs failure_reason (pyinstaller)
 
 Session timestamp:

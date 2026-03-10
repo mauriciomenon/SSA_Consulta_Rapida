@@ -420,9 +420,11 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     iss_content = iss_path.read_text(encoding="utf-8")
     assert "OutputDir={#SourcePath}" in iss_content
     expected_output = str(dist_output.resolve()).replace("/", "\\")
+    expected_source = str(canonical_dir.resolve()).replace("/", "\\")
     assert f'#define SourcePath "{expected_output}"' in iss_content
-    assert '#define SourcePathMode "relative"' in iss_content
-    assert "Source: \"..\\launchers\\dist\\windows_amd64\\SSA_GUI.exe\"" in iss_content
+    assert f'#define SourceDir "{expected_source}"' in iss_content
+    assert '#define SourcePathMode "absolute"' in iss_content
+    assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
 
 
 def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(
@@ -452,21 +454,44 @@ def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(
         },
     )
 
-    original_relpath = create_distribution.os.path.relpath
-
-    def _raise_relpath(*_args, **_kwargs):
-        raise ValueError("cross-drive")
-
-    monkeypatch.setattr(create_distribution.os.path, "relpath", _raise_relpath)
-
     iss_path = create_distribution.create_inno_setup_script("pyinstaller", "1.0.0")
-
-    monkeypatch.setattr(create_distribution.os.path, "relpath", original_relpath)
 
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
     expected_abs = str(canonical_dir.resolve()).replace("/", "\\")
     expected_output = str(dist_output.resolve()).replace("/", "\\")
     assert f'#define SourcePath "{expected_output}"' in iss_content
+    assert f'#define SourceDir "{expected_abs}"' in iss_content
     assert '#define SourcePathMode "absolute"' in iss_content
-    assert f"Source: \"{expected_abs}\\SSA_GUI.exe\"" in iss_content
+    assert 'Source: "{#SourceDir}\\SSA_GUI.exe"' in iss_content
+
+
+def test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    source_dir = project_root / "builds" / "pyoxidizer"
+    source_dir.mkdir(parents=True)
+    (source_dir / "SSA_Consulta_Rapida.exe").write_text("exe", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyoxidizer": {
+                "name": "PyOxidizer",
+                "exe_path": "builds/pyoxidizer/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyoxidizer",
+                "internal_dir": "lib",
+            }
+        },
+    )
+
+    resolved = create_distribution._resolve_inno_source("pyoxidizer")
+
+    assert resolved is not None
+    resolved_dir, resolved_exe = resolved
+    assert resolved_dir == source_dir
+    assert resolved_exe == "SSA_Consulta_Rapida.exe"

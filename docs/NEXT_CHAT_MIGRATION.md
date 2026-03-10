@@ -2,6 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 10:15 - start from here
+
+- Slice aplicado:
+  1. fechamento dos 3 itens que estavam em loop (ISS Source, reason de resolve, concentracao ZIP).
+  2. `scripts/create_distribution.py`:
+     - `_resolve_inno_source` usa `exe_path` de forma consistente.
+     - `create_inno_setup_script` simplificado com helpers de path/excludes/template.
+     - `Source` do ISS agora usa macro `SourceDir` explicita.
+  3. `tests/test_create_distribution.py`:
+     - asserts atualizados para `SourceDir` e mode `absolute`.
+     - novo teste para pyoxidizer consumir `exe_path` em `_resolve_inno_source`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em script -> clean.
+  2. kluster em testes -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `16 passed`.
+- Deferido:
+  1. validar em Windows/ISCC real (confirmacao final de ambiente).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:08 - start from here
 
 - Slice aplicado:

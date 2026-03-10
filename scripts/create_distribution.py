@@ -150,6 +150,17 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
     return False
 
 
+def _build_dir_status(build_dir: Path, build_system: str) -> str:
+    """Retorna status do diretorio de build: missing|empty|no_primary|ok."""
+    if not build_dir.exists() or not build_dir.is_dir():
+        return "missing"
+    if not _has_packagable_content(build_dir):
+        return "empty"
+    if not _has_primary_executable(build_dir, build_system):
+        return "no_primary"
+    return "ok"
+
+
 def _resolve_build_directory(build_system: str) -> Optional[Path]:
     """Resolve diretorio de build. PyInstaller usa canonical com fallback legacy."""
     build_info = BUILD_SYSTEMS[build_system]
@@ -160,14 +171,13 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
         for path in candidates:
-            if _has_packagable_content(path) and _has_primary_executable(path, "pyinstaller"):
+            if _build_dir_status(path, "pyinstaller") == "ok":
                 return path
         # Fallback intencional: se nenhum canonical for valido, tentar base_dir legacy.
 
     legacy_dir = PROJECT_ROOT / base_dir_value
-    if _has_packagable_content(legacy_dir):
-        if not _has_primary_executable(legacy_dir, build_system):
-            return None
+    legacy_status = _build_dir_status(legacy_dir, build_system)
+    if legacy_status == "ok":
         return legacy_dir
     return None
 
@@ -178,22 +188,21 @@ def _resolve_build_directory_failure_reason(build_system: str) -> str:
 
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
-        with_content = [path for path in candidates if _has_packagable_content(path)]
-        if with_content:
-            for path in with_content:
-                if not _has_primary_executable(path, "pyinstaller"):
-                    return f"Executavel primario ausente em diretorio canonico: {path}"
+        for path in candidates:
+            if _build_dir_status(path, "pyinstaller") == "no_primary":
+                return f"Executavel primario ausente em diretorio canonico: {path}"
 
     base_dir_value = build_info.get("base_dir")
     if not isinstance(base_dir_value, str):
         return f"Configuracao invalida: base_dir ausente para {build_system}"
 
     legacy_dir = PROJECT_ROOT / base_dir_value
-    if not legacy_dir.exists() or not legacy_dir.is_dir():
+    legacy_status = _build_dir_status(legacy_dir, build_system)
+    if legacy_status == "missing":
         return f"Diretorio de build ausente: {legacy_dir}"
-    if not _has_packagable_content(legacy_dir):
+    if legacy_status == "empty":
         return f"Diretorio de build sem conteudo empacotavel: {legacy_dir}"
-    if not _has_primary_executable(legacy_dir, build_system):
+    if legacy_status == "no_primary":
         return f"Executavel primario ausente no diretorio: {legacy_dir}"
     return f"Diretorio de build nao resolvido para {build_system}"
 
@@ -290,12 +299,14 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
     if not source_dir.exists():
         return None
 
+    exe_path_value = build_info.get("exe_path")
+    if isinstance(exe_path_value, str):
+        return source_dir, Path(exe_path_value).name
     if build_system == "nuitka":
-        exe_path_value = build_info.get("exe_path")
-        if isinstance(exe_path_value, str):
-            return source_dir, Path(exe_path_value).name
         return source_dir, "main.exe"
-    return source_dir, "SSA_Consulta_Rapida.exe"
+    if build_system == "pyoxidizer":
+        return source_dir, "SSA_Consulta_Rapida.exe"
+    return None
 
 
 def _is_canonical_pyinstaller_directory(build_dir: Path) -> bool:
@@ -494,6 +505,36 @@ def _create_package_zip(package_dir: Path, package_name: str, zip_path: Path) ->
                 zipf.write(file_path, arcname)
 
 
+def _prepare_package_staging(
+    build_system: str,
+    build_info: dict[str, object],
+    build_dir: Path,
+    package_dir: Path,
+    version: str,
+    build_name: str,
+) -> bool:
+    """Prepara estrutura staged do pacote antes da compactacao."""
+    if not _copy_runtime_bundle(build_system, build_info, build_dir, package_dir):
+        return False
+
+    create_user_structure(package_dir)
+    copy_documentation(package_dir)
+
+    primary_executable_name = _detect_primary_executable_name(package_dir)
+    if primary_executable_name is None:
+        logger.error("Nao foi possivel detectar executavel primario no pacote staged")
+        return False
+
+    create_readme_usuario(
+        package_dir,
+        build_system,
+        version,
+        primary_executable_name,
+    )
+    _write_package_version_file(package_dir, version, build_name)
+    return True
+
+
 def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     """Cria pacote ZIP portatil."""
     build_info = BUILD_SYSTEMS[build_system]
@@ -520,33 +561,17 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     package_dir.mkdir(exist_ok=True)
 
     try:
-        if not _copy_runtime_bundle(build_system, build_info, build_dir, package_dir):
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-            return None
-
-        # Criar estrutura de diretorios para usuario
-        create_user_structure(package_dir)
-
-        # Copiar documentacao
-        copy_documentation(package_dir)
-
-        # Criar README especifico
-        primary_executable_name = _detect_primary_executable_name(package_dir)
-        if primary_executable_name is None:
-            logger.error("Nao foi possivel detectar executavel primario no pacote staged")
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-            return None
-        create_readme_usuario(
-            package_dir,
+        if not _prepare_package_staging(
             build_system,
+            build_info,
+            build_dir,
+            package_dir,
             version,
-            primary_executable_name,
-        )
-
-        # Criar arquivo de versao
-        _write_package_version_file(package_dir, version, build_name)
+            build_name,
+        ):
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            return None
 
         # Criar ZIP
         zip_name = f"{package_name}.zip"
@@ -571,30 +596,29 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
         return None
 
 
-def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
-    """Cria script Inno Setup para instalador Windows."""
-    logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
-    resolved = _resolve_inno_source(build_system)
-    if resolved is None:
-        logger.error("Nao foi possivel resolver origem para instalador: %s", build_system)
-        return None
+def _normalize_windows_path(raw_value: str) -> str:
+    """Normaliza path para formato Windows e remove aspas."""
+    return raw_value.replace("/", "\\").replace('"', '')
 
-    source_dir, exe_name = resolved
-    source_path_mode = "relative"
-    try:
-        source_dir_spec = os.path.relpath(source_dir, DIST_OUTPUT)
-    except Exception:
-        source_path_mode = "absolute"
-        source_dir_spec = str(source_dir.resolve())
-    source_dir_spec = source_dir_spec.replace("/", "\\").replace('"', '')
-    dist_output_spec = str(DIST_OUTPUT.resolve()).replace("/", "\\").replace('"', '')
-    exe_name = exe_name.replace('"', '')
+
+def _build_inno_excludes_str() -> str:
+    """Monta lista de excludes usada pelo template Inno."""
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
         inno_excludes.append(f"{item}\\*")
-    inno_excludes_str = ",".join(inno_excludes)
+    return ",".join(inno_excludes)
 
-    iss_content = f"""
+
+def _build_inno_iss_content(
+    build_system: str,
+    version: str,
+    exe_name: str,
+    source_dir_spec: str,
+    dist_output_spec: str,
+    inno_excludes_str: str,
+) -> str:
+    """Renderiza conteudo do arquivo ISS."""
+    return f"""
 ; Script Inno Setup para SSA Consulta Rapida
 ; Build System: {BUILD_SYSTEMS[build_system]['name']}
 ; Versao: {version}
@@ -605,7 +629,8 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
 #define MyAppExeName "{exe_name}"
 #define BuildSystem "{build_system}"
 #define SourcePath "{dist_output_spec}"
-#define SourcePathMode "{source_path_mode}"
+#define SourceDir "{source_dir_spec}"
+#define SourcePathMode "absolute"
 
 [Setup]
 AppId={{{{3D8A9B2C-5E1F-4A7B-9C3D-1E2F3A4B5C6D}}}}
@@ -632,8 +657,8 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\\BrazilianPortugu
 Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: "{{cm:AdditionalIcons}}"
 
 [Files]
-Source: "{source_dir_spec}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
-Source: "{source_dir_spec}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
+Source: "{{#SourceDir}}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
+Source: "{{#SourceDir}}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
 
 [Dirs]
 Name: "{{app}}\\data"
@@ -658,6 +683,29 @@ begin
   Result := True;
 end;
 """
+
+
+def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
+    """Cria script Inno Setup para instalador Windows."""
+    logger.info(f"Criando script Inno Setup para {BUILD_SYSTEMS[build_system]['name']}")
+    resolved = _resolve_inno_source(build_system)
+    if resolved is None:
+        logger.error("Nao foi possivel resolver origem para instalador: %s", build_system)
+        return None
+
+    source_dir, exe_name = resolved
+    source_dir_spec = _normalize_windows_path(str(source_dir.resolve()))
+    dist_output_spec = _normalize_windows_path(str(DIST_OUTPUT.resolve()))
+    exe_name = exe_name.replace('"', '')
+    inno_excludes_str = _build_inno_excludes_str()
+    iss_content = _build_inno_iss_content(
+        build_system,
+        version,
+        exe_name,
+        source_dir_spec,
+        dist_output_spec,
+        inno_excludes_str,
+    )
 
     iss_path = DIST_OUTPUT / f"installer_{build_system}.iss"
     with open(iss_path, 'w', encoding='utf-8') as f:
