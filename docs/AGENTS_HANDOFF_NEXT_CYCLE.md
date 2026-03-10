@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 08:31 - authoritative block
+## CURRENT TRUTH 2026-03-10 08:43 - authoritative block
+
+- Slice entregue:
+  1. escolha de build pyinstaller ficou deterministica pela ordem de `canonical_dirs`.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory` para pyinstaller retorna o primeiro candidato valido em ordem.
+     - removida dependencia de `mtime` para decidir diretorio canonico.
+     - filtro de exclusao consolidado em `_should_skip_bundle_entry` para top-level e nested.
+  3. `tests/test_create_distribution.py`:
+     - novo teste cobrindo prioridade por ordem vs `mtime`.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `6 passed`.
+  3. `kluster review` dos arquivos tocados -> sem blocker novo.
+- Pendencia deferida:
+  1. `create_zip_package` ainda e funcao longa (debt de qualidade).
+  2. debt conhecido de path Inno cross-drive segue para slice especifico.
+  3. alerta semantico amplo de caminhos nao-pyinstaller sem evidencia de regressao neste slice.
+  4. fallback generico de `_detect_primary_executable_name` segue para ajuste semantico dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:40
 
 - Slice entregue:
   1. empacotador endurecido para separar status `missing` vs `failed` no instalador.

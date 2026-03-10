@@ -165,3 +165,40 @@ def test_compile_installer_returns_missing_when_iscc_is_unavailable(monkeypatch)
     status = create_distribution.compile_installer(Path("installer.iss"))
 
     assert status == "missing"
+
+
+def test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project_root = tmp_path / "project"
+    first_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    second_dir = project_root / "launchers" / "dist" / "windows_alt"
+    first_dir.mkdir(parents=True)
+    second_dir.mkdir(parents=True)
+
+    (first_dir / "SSA_GUI.exe").write_text("first", encoding="utf-8")
+    (second_dir / "SSA_GUI.exe").write_text("second", encoding="utf-8")
+    (second_dir / "touch.txt").write_text("newer", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": [
+                    "launchers/dist/windows_amd64",
+                    "launchers/dist/windows_alt",
+                ],
+            }
+        },
+    )
+
+    resolved = create_distribution._resolve_build_directory("pyinstaller")
+
+    assert resolved == first_dir

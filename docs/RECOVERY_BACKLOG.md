@@ -3,6 +3,38 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 08:43 - selecao deterministica + consolidacao de filtro sanitizado
+
+Session timestamp:
+1. start: `2026-03-10 08:39:15 -0300`
+2. end: `2026-03-10 08:43:39 -0300`
+
+Objetivo do slice:
+1. remover dependencia de `mtime` na escolha do build canonico de pyinstaller.
+2. tornar selecao deterministica pela ordem declarada em `canonical_dirs`.
+3. unificar regra de exclusao de bundle para evitar divergir top-level e nested.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_resolve_build_directory("pyinstaller")` agora retorna o primeiro path valido na ordem de `canonical_dirs`.
+   - removida selecao por `max(..., st_mtime)`.
+   - novo predicado unico `_should_skip_bundle_entry(...)` usado por `_copy_build_tree_sanitized` e `_build_bundle_ignore`.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `6 passed`
+5. `kluster review` final no codigo/docs tocados -> sem blocker funcional; sobrou 1 debt de qualidade (funcao longa).
+
+Deferido (nao bloqueante neste slice):
+1. `create_zip_package` continua com debt de funcao longa (qualidade).
+2. alerta semantico amplo do kluster sobre caminhos nao-pyinstaller ficou sem alteracao por falta de evidencia de regressao neste slice.
+3. alerta de path cross-drive do Inno permanece como debt conhecido, sem impacto no escopo atual.
+4. fallback generico de `_detect_primary_executable_name` (`executavel_principal`) segue como debt semantico para tratamento dedicado.
+
 ## Update 2026-03-10 08:28 - hardening final do empacotador (status de instalador + copia sanitizada)
 
 Session timestamp:

@@ -2,7 +2,35 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 08:31 - start from here
+## CURRENT TRUTH 2026-03-10 08:43 - start from here
+
+- Slice aplicado:
+  1. selecao do build canonico pyinstaller ficou deterministica por ordem de `canonical_dirs`.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory("pyinstaller")` deixou de usar `mtime`.
+     - primeiro diretorio valido na lista de `canonical_dirs` passa a ser o escolhido.
+     - regra de exclusao de bundle consolidada em `_should_skip_bundle_entry(...)`.
+  3. testes:
+     - novo `test_resolve_build_directory_pyinstaller_prefers_canonical_order_over_mtime`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `6 passed`.
+- Deferido:
+  1. debt de qualidade: `create_zip_package` ainda concentrada.
+  2. debt conhecido do Inno cross-drive permanece fora do escopo deste slice.
+  3. alerta semantico amplo sobre nao-pyinstaller ficou sem evidencias de regressao nesta rodada.
+  4. fallback generico de `_detect_primary_executable_name` segue para slice semantico dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:40
 
 - Slice aplicado:
   1. hardening final do empacotador para status explicito de instalador e copia sanitizada consistente.

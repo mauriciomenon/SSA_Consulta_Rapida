@@ -154,13 +154,9 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
     """Resolve diretorio de build com prioridade para caminho canonico."""
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
-        valid = [
-            path
-            for path in candidates
-            if _has_packagable_content(path) and _has_primary_executable(path, "pyinstaller")
-        ]
-        if valid:
-            return max(valid, key=lambda path: path.stat().st_mtime)
+        for path in candidates:
+            if _has_packagable_content(path) and _has_primary_executable(path, "pyinstaller"):
+                return path
 
     build_info = BUILD_SYSTEMS[build_system]
     base_dir_value = build_info.get("base_dir")
@@ -178,11 +174,7 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
 def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
-        if item.name in {".git", "__pycache__", "logs"}:
-            continue
-        if item.name in EXCLUDED_BUNDLE_ITEMS:
-            continue
-        if item.is_file() and item.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
+        if _should_skip_bundle_entry(item.name, item.is_file()):
             continue
         destination = target_dir / item.name
         if item.is_file():
@@ -196,16 +188,20 @@ def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
             )
 
 
+def _should_skip_bundle_entry(name: str, is_file: bool) -> bool:
+    if name in {".git", "__pycache__", "logs"}:
+        return True
+    if name in EXCLUDED_BUNDLE_ITEMS:
+        return True
+    if is_file and Path(name).suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
+        return True
+    return False
+
+
 def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
-        if name in {".git", "__pycache__", "logs"}:
-            ignored.add(name)
-            continue
-        if name in EXCLUDED_BUNDLE_ITEMS:
-            ignored.add(name)
-            continue
-        if Path(name).suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
+        if _should_skip_bundle_entry(name, True):
             ignored.add(name)
     return ignored
 
