@@ -2,7 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 08:49 - authoritative block
+## CURRENT TRUTH 2026-03-10 09:11 - authoritative block
+
+- Slice entregue:
+  1. erro de empacotamento agora informa causa detalhada na resolucao de build.
+  2. `scripts/create_distribution.py`:
+     - adicionado `_resolve_build_directory_failure_reason(...)`.
+     - `create_zip_package` registra motivo especifico de falha (diretorio ausente, sem conteudo, executavel ausente).
+  3. `tests/test_create_distribution.py`:
+     - assertions atualizados para mensagens especificas.
+     - novo teste para diretorio de build ausente.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `8 passed`.
+  3. `kluster review` em codigo/docs tocados -> sem blocker funcional.
+- Pendencia deferida:
+  1. `create_zip_package` segue como debt de funcao longa.
+  2. separacao semantica mais profunda em `_resolve_build_directory` fica para slice dedicado.
+  3. deduplicacao de setup dos testes de distribuicao fica para ciclo de manutencao.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:49
 
 - Slice entregue:
   1. fallback generico `executavel_principal` foi removido do empacotador.

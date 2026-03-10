@@ -171,6 +171,32 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
     return None
 
 
+def _resolve_build_directory_failure_reason(build_system: str) -> str:
+    """Retorna motivo detalhado quando _resolve_build_directory falha."""
+    build_info = BUILD_SYSTEMS.get(build_system, {})
+
+    if build_system == "pyinstaller":
+        candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
+        with_content = [path for path in candidates if _has_packagable_content(path)]
+        if with_content:
+            for path in with_content:
+                if not _has_primary_executable(path, "pyinstaller"):
+                    return f"Executavel primario ausente em diretorio canonico: {path}"
+
+    base_dir_value = build_info.get("base_dir")
+    if not isinstance(base_dir_value, str):
+        return f"Configuracao invalida: base_dir ausente para {build_system}"
+
+    legacy_dir = PROJECT_ROOT / base_dir_value
+    if not legacy_dir.exists() or not legacy_dir.is_dir():
+        return f"Diretorio de build ausente: {legacy_dir}"
+    if not _has_packagable_content(legacy_dir):
+        return f"Diretorio de build sem conteudo empacotavel: {legacy_dir}"
+    if not _has_primary_executable(legacy_dir, build_system):
+        return f"Executavel primario ausente no diretorio: {legacy_dir}"
+    return f"Diretorio de build nao resolvido para {build_system}"
+
+
 def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
     """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
@@ -404,7 +430,11 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     build_info = BUILD_SYSTEMS[build_system]
     build_dir = _resolve_build_directory(build_system)
     if build_dir is None:
-        logger.error("Diretorio de build ou executavel principal nao encontrado para %s", build_system)
+        logger.error(
+            "Falha na resolucao de build para %s: %s",
+            build_system,
+            _resolve_build_directory_failure_reason(build_system),
+        )
         return None
 
     # Criar diretorio temporario para montagem

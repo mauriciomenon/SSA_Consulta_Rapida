@@ -2,7 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 08:49 - start from here
+## CURRENT TRUTH 2026-03-10 09:11 - start from here
+
+- Slice aplicado:
+  1. clarificado erro de resolucao de build no empacotador.
+  2. `scripts/create_distribution.py`:
+     - novo `_resolve_build_directory_failure_reason(...)`.
+     - `create_zip_package(...)` passa a logar motivo detalhado da falha de resolucao.
+  3. testes:
+     - ajuste de asserts para mensagens especificas.
+     - novo `test_create_zip_package_returns_none_when_build_directory_is_missing`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `8 passed`.
+- Deferido:
+  1. `create_zip_package` ainda concentrada (debt de qualidade).
+  2. semantica de `_resolve_build_directory` (resolver dir vs validar executavel) em slice futuro.
+  3. duplicacao de setup em testes de distribuicao em slice de manutencao futuro.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:49
 
 - Slice aplicado:
   1. removido fallback generico de executavel no pacote staged.
