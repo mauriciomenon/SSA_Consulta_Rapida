@@ -3,6 +3,39 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 16:37 - BLE001 hardening (main + data loader worker)
+
+Session timestamp:
+1. start: `2026-03-10 16:34:44 -0300`
+2. end: `2026-03-10 16:37:00 -0300`
+
+Objetivo do slice:
+1. remover `except Exception` amplos em `main.py` e `data_loader_worker.py`.
+2. manter comportamento funcional atual, sem refatoracao transversal.
+
+Mudancas aplicadas:
+1. `gui/workers/data_loader_worker.py`
+   - 8 blocos `except Exception` trocados por excecoes explicitas por contexto:
+     - cancel/interruption: `RuntimeError`
+     - sqlite lookup: `sqlite3.Error`, `OSError`
+     - preprocess/sort/non-null/attrs: `TypeError`, `ValueError`, `AttributeError`, `KeyError`
+     - bloco externo de `run`: tuple explicita de erros operacionais.
+2. `main.py`
+   - 3 blocos `except Exception` trocados por excecoes explicitas:
+     - enable optimized import
+     - captura de erro de `run_importer_logic` no ciclo de `force_rescan`
+     - cleanup de `disable_optimized_import`
+
+Evidencia objetiva:
+1. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py main.py --select BLE001` -> `All checks passed!` (0 ocorrencias).
+2. `uv run --python 3.13 python -m py_compile gui/workers/data_loader_worker.py main.py` -> pass.
+3. `uv run --python 3.13 ruff check gui/workers/data_loader_worker.py main.py` -> pass.
+4. `uv run --python 3.13 ty check gui/workers/data_loader_worker.py main.py` -> pass.
+5. `uv run --python 3.13 pytest -q tests/test_data_loader_worker.py tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_main_gui_fallback.py` -> `17 passed`.
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos apontados por kluster em `main.py` e `data_loader_worker.py` (god function/class, semantica historica de flags, perf de startup).
+
 ## Update 2026-03-10 15:53 - testes de main estaveis + ajuste final de setor executor
 
 Session timestamp:

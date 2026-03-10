@@ -741,7 +741,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                     logger.debug("Modulo associado: %s", getattr(e, 'name', 'desconhecido'))
                     logger.warning("Modo otimizado nao disponivel, recorrendo ao modo legado")
                     use_optimized = False
-                except Exception as e:
+                except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as e:
                     logger.error("Erro ao executar enable_optimized_import: %s", e)
                     logger.debug("Tipo do erro: %s", type(e).__name__)
                     logger.warning("Modo otimizado falhou, recorrendo ao modo legado")
@@ -763,7 +763,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 logger.debug("Executando run_importer_logic...")
                 db_updated = run_importer_logic(force_import=force_import)
                 logger.debug("Importacao de dados concluida. Resultado: db_updated=%s", db_updated)
-            except Exception as e:
+            except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as e:
                 first_import_error = e
             finally:
                 # Desativar importacao otimizada apos uso
@@ -773,7 +773,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                         disable_optimized_import()
                     except ImportError as e:
                         logger.debug("disable_optimized_import indisponivel no cleanup: %s", e)
-                    except Exception as e:
+                    except (RuntimeError, OSError, TypeError, ValueError, AttributeError) as e:
                         logger.warning(f"Falha ao desativar modo otimizado: {e}")
 
             if first_import_error is not None:

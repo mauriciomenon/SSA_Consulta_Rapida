@@ -2,7 +2,30 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 15:53 - authoritative block
+## CURRENT TRUTH 2026-03-10 16:37 - authoritative block
+
+- Slice entregue:
+  1. remocao de `except Exception` amplos em `main.py` e `DataLoaderWorker`.
+- Arquivos alterados:
+  1. `main.py`
+  2. `gui/workers/data_loader_worker.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `ruff --select BLE001` no escopo alvo -> limpo.
+  2. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  3. `pytest -q tests/test_data_loader_worker.py tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_main_gui_fallback.py` -> `17 passed`.
+- Decisao aplicada:
+  1. manter tratamento de erro por bloco funcional com tuple explicita de excecoes.
+  2. evitar captura generica para reduzir mascaramento de falha real.
+- Deferido:
+  1. debts antigos em `main.py` e `data_loader_worker.py` de arquitetura/performance/semantica (fora deste slice).
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:53 - authoritative block
 
 - Slice entregue:
   1. estabilizacao dos testes de `main` para evitar travamento em pytest por entrada interativa.

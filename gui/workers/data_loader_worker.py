@@ -41,7 +41,7 @@ class DataLoaderWorker(QThread):
         self._cancel_requested = True
         try:
             self.requestInterruption()
-        except Exception as exc:
+        except RuntimeError as exc:
             logger.debug("Falha ao solicitar interrupcao do DataLoaderWorker: %s", exc)
 
     def _is_cancelled(self) -> bool:
@@ -49,7 +49,7 @@ class DataLoaderWorker(QThread):
             return True
         try:
             return bool(self.isInterruptionRequested())
-        except Exception:
+        except RuntimeError:
             return False
 
     def _sanitize_identifier(self, value: str) -> str:
@@ -82,7 +82,7 @@ class DataLoaderWorker(QThread):
             for candidate in candidates:
                 if candidate in existing:
                     return candidate
-        except Exception as exc:
+        except (sqlite3.Error, OSError) as exc:
             logger.debug("Falha ao resolver tabela alvo do DataLoaderWorker: %s", exc)
 
         fallback = candidates[0] if candidates else CANONICAL_SSA_TABLE
@@ -151,7 +151,7 @@ class DataLoaderWorker(QThread):
                 ascending=[True, False],
                 na_position="last",
             ).drop(columns=["__is_ste", "__ssa"])
-        except Exception as exc:
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
             logger.warning("Falha na ordenacao inicial durante preprocessamento do DataLoaderWorker: %s", exc)
         return base
 
@@ -159,7 +159,7 @@ class DataLoaderWorker(QThread):
         try:
             non_null_mask = df.notna().any(axis=0)
             return [str(col) for col in non_null_mask[non_null_mask].index.tolist()]
-        except Exception as exc:
+        except (TypeError, ValueError, AttributeError, KeyError) as exc:
             logger.debug(
                 "Falha no calculo vetorizado de colunas nao nulas no DataLoaderWorker: %s",
                 exc,
@@ -169,7 +169,7 @@ class DataLoaderWorker(QThread):
                 has_non_null = False
                 try:
                     has_non_null = bool(df[col_name].notna().any())
-                except Exception as col_exc:
+                except (TypeError, ValueError, AttributeError, KeyError) as col_exc:
                     logger.debug(
                         "Falha ao verificar nullability da coluna '%s' no DataLoaderWorker: %s",
                         col_name,
@@ -190,7 +190,7 @@ class DataLoaderWorker(QThread):
             pre_sorted_df.attrs["ssa_preprocessed_for_gui"] = True
             pre_sorted_df.attrs["ssa_sanitized_df"] = sanitized_df
             pre_sorted_df.attrs["ssa_non_null_cols"] = non_null_cols
-        except Exception as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             logger.debug("Falha ao anexar attrs de preprocessamento no DataLoaderWorker: %s", exc)
         return pre_sorted_df
 
@@ -231,10 +231,18 @@ class DataLoaderWorker(QThread):
                 raise TypeError("query_db retornou tipo invalido para DataLoaderWorker")
             try:
                 df = self._prepare_dataframe_for_ui(df)
-            except Exception as exc:
+            except (TypeError, ValueError, AttributeError, KeyError) as exc:
                 logger.warning("Falha no preprocessamento do DataLoaderWorker; mantendo DataFrame bruto: %s", exc)
             # Resultado vazio eh valido com paginacao (pagina sem linhas).
             self.data_loaded.emit(df)
-        except Exception:
+        except (
+            sqlite3.Error,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            AttributeError,
+            KeyError,
+        ):
             logger.exception("Erro interno no DataLoaderWorker durante carregamento")
             self.error_occurred.emit("Falha ao carregar dados do banco.")
