@@ -26,7 +26,7 @@ from datetime import datetime
 import pandas as pd
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, cast
 
 # Adiciona o diretorio raiz do projeto ao sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -951,7 +951,7 @@ def _cleanup_sqlite_sidecars(db_path: str) -> None:
         logger.info("Arquivo auxiliar temporario removido: %s", os.path.basename(sidecar))
 
 
-def _promote_full_rescan_candidate(primary_db_path: str, candidate_db_path: str) -> Optional[str]:
+def _promote_full_rescan_candidate(candidate_db_path: str, primary_db_path: str) -> Optional[str]:
     """Promote a validated full-rescan candidate DB into the primary path."""
     if not os.path.exists(candidate_db_path):
         raise DatabaseError(f"DB candidato ausente para promocao final: {candidate_db_path}")
@@ -1159,6 +1159,324 @@ def _build_import_run_payload(
     }
 
 
+def _process_file_with_resilience(
+    *,
+    file_path: str,
+    base_name: str,
+    working_db_path: str,
+    table_name: str,
+    should_cancel: Optional[Callable[[], bool]],
+    candidate_db_path: Optional[str],
+    successfully_processed_files: List[str],
+    successful_regular_files_with_records: List[tuple[str, int]],
+    critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: List[str],
+    file_reports: List[Dict[str, Any]],
+    emit_progress: Callable[[str, Dict[str, Any]], None],
+) -> str:
+    """Processa um arquivo regular com tratamento de erros padrao.
+
+    Retornos:
+    - "ok": seguir fluxo normal.
+    - "break": interromper loop de arquivos.
+    - "cancelled": cancelamento solicitado durante extracao.
+    """
+    try:
+        file_metrics: Dict[str, Any] = {}
+        success, record_count = _import_single_file(
+            file_path,
+            working_db_path,
+            table_name,
+            should_cancel=should_cancel,
+            _metrics_out=file_metrics,
+        )
+        if file_metrics:
+            file_metrics["status"] = "success" if success else "no_rows"
+            file_reports.append(file_metrics)
+        if success:
+            successfully_processed_files.append(file_path)
+            successful_regular_files_with_records.append((file_path, int(record_count)))
+            emit_progress(
+                "file_success",
+                {"filename": base_name, "records": record_count},
+            )
+        return "ok"
+    except DatabaseConnectionError as exc:
+        logger.error(
+            "Erro de conexao com banco ao processar '%s': %s",
+            file_path,
+            exc,
+        )
+        logger.error("Interrompendo processamento devido a falha de conexao")
+        critical_errors.append(("connection", file_path, str(exc)))
+        file_reports.append({"file": base_name, "status": "connection_error", "error": str(exc)})
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "break"
+    except DatabaseCorruptionError as exc:
+        logger.error("Corrupcao detectada ao processar '%s': %s", file_path, exc)
+        logger.info("Tentando reparo automatico do banco...")
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        file_reports.append({"file": base_name, "status": "corruption_error", "error": str(exc)})
+        if database.repair_database_if_needed(working_db_path, table_name=table_name):
+            logger.info("Reparo bem-sucedido, continuando processamento...")
+            critical_errors.append(("corruption_repaired", file_path, str(exc)))
+            return "ok"
+        logger.error("Falha no reparo automatico")
+        critical_errors.append(("corruption_failed", file_path, str(exc)))
+        return "break"
+    except DatabaseSpaceError as exc:
+        logger.error("Espaco em disco insuficiente ao processar '%s': %s", file_path, exc)
+        critical_errors.append(("space", file_path, str(exc)))
+        file_reports.append({"file": base_name, "status": "space_error", "error": str(exc)})
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "break"
+    except DatabaseSchemaError as exc:
+        logger.error("Erro de schema ao processar '%s': %s", file_path, exc)
+        logger.info("Tentando recriacao do schema...")
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        file_reports.append({"file": base_name, "status": "schema_error", "error": str(exc)})
+        if database.initialize_database(working_db_path):
+            logger.info("Schema recriado, continuando processamento...")
+            critical_errors.append(("schema_repaired", file_path, str(exc)))
+            return "ok"
+        logger.error("Falha na recriacao do schema")
+        critical_errors.append(("schema_failed", file_path, str(exc)))
+        return "break"
+    except DataValidationError as exc:
+        logger.warning("Dados invalidos em '%s': %s. Pulando arquivo...", file_path, exc)
+        critical_errors.append(("validation", file_path, str(exc)))
+        file_reports.append({"file": base_name, "status": "validation_error", "error": str(exc)})
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "ok"
+    except ExtractionError as exc:
+        error_code = getattr(exc, "error_code", None)
+        if error_code == "OPERATION_CANCELLED" and should_cancel:
+            logger.info("Cancelamento solicitado; interrompendo importacao.")
+            return "cancelled"
+        if error_code == "MISSING_REQUIRED_COLUMNS":
+            deterministic_failed_files.append(file_path)
+        logger.warning("Erro de extracao em '%s': %s. Pulando arquivo...", file_path, exc)
+        critical_errors.append(("extraction", file_path, str(exc)))
+        file_reports.append(
+            {
+                "file": base_name,
+                "status": "extraction_error",
+                "error": str(exc),
+                "error_code": error_code,
+            }
+        )
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "ok"
+    except DatabaseError as exc:
+        logger.error("Erro de banco ao processar '%s': %s. Continuando...", file_path, exc)
+        critical_errors.append(("database_generic", file_path, str(exc)))
+        file_reports.append({"file": base_name, "status": "database_error", "error": str(exc)})
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "ok"
+    except Exception as exc:
+        logger.error("Erro inesperado ao processar '%s': %s. Continuando...", file_path, exc)
+        critical_errors.append(("unexpected", file_path, str(exc)))
+        file_reports.append({"file": base_name, "status": "unexpected_error", "error": str(exc)})
+        emit_progress("file_error", {"filename": base_name, "error": str(exc)})
+        return "ok"
+
+
+def _process_regular_files_phase(
+    *,
+    files_to_process: List[str],
+    total_files: int,
+    should_cancel: Optional[Callable[[], bool]],
+    candidate_db_path: Optional[str],
+    working_db_path: str,
+    table_name: str,
+    successfully_processed_files: List[str],
+    successful_regular_files_with_records: List[tuple[str, int]],
+    critical_errors: List[tuple[str, str, str]],
+    deterministic_failed_files: List[str],
+    file_reports: List[Dict[str, Any]],
+    emit_progress: Callable[[str, Dict[str, Any]], None],
+) -> bool:
+    """Processa arquivos regulares e retorna flag de cancelamento parcial do full rescan."""
+    cancelled_full_rescan = False
+    for index, file_path in enumerate(files_to_process):
+        if should_cancel and should_cancel():
+            logger.info("Cancelamento solicitado; interrompendo importacao.")
+            if candidate_db_path is not None:
+                cancelled_full_rescan = True
+            break
+        base_name = os.path.basename(file_path)
+        emit_progress(
+            "file_start",
+            {
+                "current": index + 1,
+                "total": total_files,
+                "filename": base_name,
+            },
+        )
+        if base_name.startswith("~$"):
+            logger.info("Ignorando arquivo temporario '%s'", base_name)
+            continue
+        if _is_derivadas_sheet_file(file_path):
+            logger.info(
+                "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
+                base_name,
+            )
+            continue
+        action = _process_file_with_resilience(
+            file_path=file_path,
+            base_name=base_name,
+            working_db_path=working_db_path,
+            table_name=table_name,
+            should_cancel=should_cancel,
+            candidate_db_path=candidate_db_path,
+            successfully_processed_files=successfully_processed_files,
+            successful_regular_files_with_records=successful_regular_files_with_records,
+            critical_errors=critical_errors,
+            deterministic_failed_files=deterministic_failed_files,
+            file_reports=file_reports,
+            emit_progress=emit_progress,
+        )
+        if action == "cancelled":
+            if candidate_db_path is not None:
+                cancelled_full_rescan = True
+            break
+        if action == "break":
+            break
+    return cancelled_full_rescan
+
+
+def _run_optional_derivadas_sync(
+    *,
+    auto_derivadas_sync_enabled: bool,
+    successfully_processed_files: List[str],
+    derivadas_sheet_files: List[str],
+    db_only_derivadas_sync: bool,
+    should_cancel: Optional[Callable[[], bool]],
+    working_db_path: str,
+    table_name: str,
+    docs_dir: str,
+    critical_errors: List[tuple[str, str, str]],
+    emit_progress: Callable[[str, Dict[str, Any]], None],
+) -> tuple[bool, bool]:
+    """Executa sync opcional de derivadas e retorna (sync_materialized, blocking_error)."""
+    sync_materialized = False
+    derivadas_sync_blocking_error = False
+    should_run_derivadas_sync = auto_derivadas_sync_enabled and (
+        bool(successfully_processed_files)
+        or bool(derivadas_sheet_files)
+        or bool(db_only_derivadas_sync)
+    )
+    if not should_run_derivadas_sync:
+        return sync_materialized, derivadas_sync_blocking_error
+    if should_cancel and should_cancel():
+        logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
+        return sync_materialized, derivadas_sync_blocking_error
+    try:
+        sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
+            db_path=working_db_path,
+            table_name=table_name,
+            derivadas_sheet_files=derivadas_sheet_files,
+        )
+        if sync_ok and not derivadas_sync_blocking_error:
+            for special_file in synced_sheets:
+                if special_file not in successfully_processed_files:
+                    successfully_processed_files.append(special_file)
+            db_edges = int(((sync_report.get("db_stats") or {}).get("accepted_edges", 0) or 0))
+            merged_edges = int(((sync_report.get("merge_stats") or {}).get("merged_edges", 0) or 0))
+            if db_edges > 0 or merged_edges > 0:
+                sync_materialized = True
+            emit_progress(
+                "file_success",
+                {
+                    "filename": (
+                        os.path.basename(synced_sheets[0])
+                        if len(synced_sheets) == 1
+                        else f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
+                    ),
+                    "records": int((sync_report.get("merge_stats") or {}).get("merged_edges", 0)),
+                },
+            )
+        if not sync_ok:
+            derivadas_sync_blocking_error = True
+            consistency_scan = sync_report.get("consistency_scan") or {}
+            issue_counts = consistency_scan.get("issue_counts") or {}
+            missing_files = sorted(sync_report.get("sheet_files_without_evidence") or [])
+            issue_text = json.dumps(issue_counts, ensure_ascii=True)
+            error_message = (
+                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
+                if issue_counts
+                else "Sync de derivadas sem evidencia valida"
+            )
+            if missing_files:
+                error_message += f" | files_without_evidence={','.join(missing_files)}"
+            critical_errors.append(("derivadas_sync", docs_dir, error_message))
+            emit_progress(
+                "file_error",
+                {
+                    "filename": "SSAs Derivadas e Relacionadas",
+                    "error": error_message,
+                },
+            )
+    except Exception as exc:
+        derivadas_sync_blocking_error = True
+        logger.error(
+            "Falha ao sincronizar derivadas a partir de planilhas especiais: %s",
+            exc,
+            exc_info=True,
+        )
+        critical_errors.append(("derivadas_sync", docs_dir, str(exc)))
+        emit_progress(
+            "file_error",
+            {"filename": "SSAs Derivadas e Relacionadas", "error": str(exc)},
+        )
+    return sync_materialized, derivadas_sync_blocking_error
+
+
+def _validate_and_promote_candidate_if_needed(
+    *,
+    candidate_db_path: Optional[str],
+    working_db_path: str,
+    primary_db_path: str,
+    table_name: str,
+) -> Dict[str, Any]:
+    """Valida e promove DB candidato quando full rescan usa caminho isolado."""
+    result: Dict[str, Any] = {
+        "ok": True,
+        "integrity_report": {},
+        "promoted_backup_path": None,
+        "working_db_path": working_db_path,
+        "failure_type": "",
+        "failure_message": "",
+    }
+    if candidate_db_path is None:
+        return result
+    integrity_report = database.verify_database_integrity(working_db_path, table_name)
+    result["integrity_report"] = integrity_report
+    if not integrity_report.get("is_valid", False):
+        logger.error(
+            "DB candidato falhou na validacao final antes da promocao: %s",
+            integrity_report.get("issues", []),
+        )
+        result["ok"] = False
+        result["failure_type"] = "candidate_validation"
+        result["failure_message"] = str(integrity_report.get("issues", []))
+        return result
+    try:
+        promoted_backup_path = _promote_full_rescan_candidate(
+            working_db_path,
+            primary_db_path,
+        )
+    except DatabaseError as exc:
+        logger.error("Falha ao promover DB candidato: %s", exc)
+        result["ok"] = False
+        result["failure_type"] = "promotion"
+        result["failure_message"] = str(exc)
+        return result
+    result["promoted_backup_path"] = promoted_backup_path
+    result["working_db_path"] = primary_db_path
+    return result
+
+
 # --- Funcao Principal Refatorada ---
 
 
@@ -1303,6 +1621,11 @@ def run_importer_logic(
                 "Full rescan configurado para DB candidato isolado: %s",
                 os.path.basename(candidate_db_path),
             )
+            if not os.path.exists(working_db_path):
+                if not database.initialize_database(working_db_path):
+                    raise DatabaseSchemaError(
+                        f"Falha ao inicializar DB candidato de full rescan: {working_db_path}"
+                    )
 
         # Verificar e reparar banco se necessario
         if not database.repair_database_if_needed(working_db_path, table_name=table_name):
@@ -1450,236 +1773,32 @@ def run_importer_logic(
         # --- 2. Processar cada arquivo ---
         file_processing_started = time.perf_counter()
         try:
-            for index, file_path in enumerate(files_to_process):
-                if should_cancel and should_cancel():
-                    logger.info("Cancelamento solicitado; interrompendo importacao.")
-                    if candidate_db_path is not None:
-                        cancelled_full_rescan = True
-                    break
-                base_name = os.path.basename(file_path)
-
-                # Notify file start
-                _emit_progress(
-                    "file_start",
-                    {
-                        "current": index + 1,
-                        "total": total_files,
-                        "filename": base_name,
-                    },
-                )
-
-                if base_name.startswith("~$"):
-                    logger.info("Ignorando arquivo temporario '%s'", base_name)
-                    continue
-                if _is_derivadas_sheet_file(file_path):
-                    logger.info(
-                        "Planilha especial de derivadas detectada: '%s' (fase dedicada separada).",
-                        base_name,
-                    )
-                    continue
-                try:
-                    file_metrics: Dict[str, Any] = {}
-                    success, record_count = _import_single_file(
-                        file_path,
-                        working_db_path,
-                        table_name,
-                        should_cancel=should_cancel,
-                        _metrics_out=file_metrics,
-                    )
-                    if file_metrics:
-                        file_metrics["status"] = "success" if success else "no_rows"
-                        file_reports.append(file_metrics)
-                    if success:
-                        successfully_processed_files.append(file_path)
-                        successful_regular_files_with_records.append(
-                            (file_path, int(record_count))
-                        )
-                        # Notify file success
-                        _emit_progress(
-                            "file_success",
-                            {"filename": base_name, "records": record_count},
-                        )
-                except DatabaseConnectionError as e:
-                    logger.error(
-                        f"Erro de conexao com banco ao processar '{file_path}': {e}"
-                    )
-                    logger.error(
-                        "Interrompendo processamento devido a falha de conexao"
-                    )
-                    critical_errors.append(("connection", file_path, str(e)))
-                    file_reports.append({"file": base_name, "status": "connection_error", "error": str(e)})
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    break
-                except DatabaseCorruptionError as e:
-                    logger.error(f"Corrupcao detectada ao processar '{file_path}': {e}")
-                    logger.info("Tentando reparo automatico do banco...")
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    file_reports.append({"file": base_name, "status": "corruption_error", "error": str(e)})
-                    if database.repair_database_if_needed(
-                        working_db_path, table_name=table_name
-                    ):
-                        logger.info("Reparo bem-sucedido, continuando processamento...")
-                        critical_errors.append(
-                            ("corruption_repaired", file_path, str(e))
-                        )
-                        continue
-                    else:
-                        logger.error("Falha no reparo automatico")
-                        critical_errors.append(("corruption_failed", file_path, str(e)))
-                        break
-                except DatabaseSpaceError as e:
-                    logger.error(
-                        f"Espaco em disco insuficiente ao processar '{file_path}': {e}"
-                    )
-                    critical_errors.append(("space", file_path, str(e)))
-                    file_reports.append({"file": base_name, "status": "space_error", "error": str(e)})
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    break
-                except DatabaseSchemaError as e:
-                    logger.error(f"Erro de schema ao processar '{file_path}': {e}")
-                    logger.info("Tentando recriacao do schema...")
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    file_reports.append({"file": base_name, "status": "schema_error", "error": str(e)})
-                    if database.initialize_database(working_db_path):
-                        logger.info("Schema recriado, continuando processamento...")
-                        critical_errors.append(("schema_repaired", file_path, str(e)))
-                        continue
-                    else:
-                        logger.error("Falha na recriacao do schema")
-                        critical_errors.append(("schema_failed", file_path, str(e)))
-                        break
-                except DataValidationError as e:
-                    logger.warning(
-                        f"Dados invalidos em '{file_path}': {e}. Pulando arquivo..."
-                    )
-                    critical_errors.append(("validation", file_path, str(e)))
-                    file_reports.append({"file": base_name, "status": "validation_error", "error": str(e)})
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    continue
-                except ExtractionError as e:
-                    error_code = getattr(e, "error_code", None)
-                    if error_code == "OPERATION_CANCELLED" and should_cancel:
-                        logger.info("Cancelamento solicitado; interrompendo importacao.")
-                        if candidate_db_path is not None:
-                            cancelled_full_rescan = True
-                        break
-                    if error_code == "MISSING_REQUIRED_COLUMNS":
-                        deterministic_failed_files.append(file_path)
-                    logger.warning(
-                        f"Erro de extracao em '{file_path}': {e}. Pulando arquivo..."
-                    )
-                    critical_errors.append(("extraction", file_path, str(e)))
-                    file_reports.append(
-                        {
-                            "file": base_name,
-                            "status": "extraction_error",
-                            "error": str(e),
-                            "error_code": error_code,
-                        }
-                    )
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    continue
-                except DatabaseError as e:
-                    logger.error(
-                        f"Erro de banco ao processar '{file_path}': {e}. Continuando..."
-                    )
-                    critical_errors.append(("database_generic", file_path, str(e)))
-                    file_reports.append({"file": base_name, "status": "database_error", "error": str(e)})
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    continue
-                except Exception as e:
-                    logger.error(
-                        f"Erro inesperado ao processar '{file_path}': {e}. Continuando..."
-                    )
-                    critical_errors.append(("unexpected", file_path, str(e)))
-                    file_reports.append({"file": base_name, "status": "unexpected_error", "error": str(e)})
-                    _emit_progress(
-                        "file_error", {"filename": base_name, "error": str(e)}
-                    )
-                    continue
-            sync_materialized = False
-            derivadas_sync_blocking_error = False
-            should_run_derivadas_sync = auto_derivadas_sync_enabled and (
-                bool(successfully_processed_files)
-                or bool(derivadas_sheet_files)
-                or bool(db_only_derivadas_sync)
+            cancelled_full_rescan = _process_regular_files_phase(
+                files_to_process=files_to_process,
+                total_files=total_files,
+                should_cancel=should_cancel,
+                candidate_db_path=candidate_db_path,
+                working_db_path=working_db_path,
+                table_name=table_name,
+                successfully_processed_files=successfully_processed_files,
+                successful_regular_files_with_records=successful_regular_files_with_records,
+                critical_errors=critical_errors,
+                deterministic_failed_files=deterministic_failed_files,
+                file_reports=file_reports,
+                emit_progress=_emit_progress,
             )
-            if should_run_derivadas_sync:
-                if should_cancel and should_cancel():
-                    logger.info("Cancelamento solicitado; sync de derivadas especiais nao sera executado.")
-                else:
-                    try:
-                        sync_ok, synced_sheets, sync_report = _run_derivadas_sync_phase(
-                            db_path=working_db_path,
-                            table_name=table_name,
-                            derivadas_sheet_files=derivadas_sheet_files,
-                        )
-                        if sync_ok and not derivadas_sync_blocking_error:
-                            for special_file in synced_sheets:
-                                if special_file not in successfully_processed_files:
-                                    successfully_processed_files.append(special_file)
-                            db_edges = int(((sync_report.get("db_stats") or {}).get("accepted_edges", 0) or 0))
-                            merged_edges = int(((sync_report.get("merge_stats") or {}).get("merged_edges", 0) or 0))
-                            if db_edges > 0 or merged_edges > 0:
-                                sync_materialized = True
-                            _emit_progress(
-                                "file_success",
-                                {
-                                    "filename": (
-                                        os.path.basename(synced_sheets[0])
-                                        if len(synced_sheets) == 1
-                                        else f"SSAs Derivadas e Relacionadas ({len(synced_sheets)} arquivos)"
-                                    ),
-                                    "records": int((sync_report.get("merge_stats") or {}).get("merged_edges", 0)),
-                                },
-                            )
-                        if not sync_ok:
-                            derivadas_sync_blocking_error = True
-                            consistency_scan = sync_report.get("consistency_scan") or {}
-                            issue_counts = consistency_scan.get("issue_counts") or {}
-                            missing_files = sorted(sync_report.get("sheet_files_without_evidence") or [])
-                            issue_text = json.dumps(issue_counts, ensure_ascii=True)
-                            error_message = (
-                                f"Sync de derivadas sem evidencia valida (consistency={issue_text})"
-                                if issue_counts
-                                else "Sync de derivadas sem evidencia valida"
-                            )
-                            if missing_files:
-                                error_message += f" | files_without_evidence={','.join(missing_files)}"
-                            critical_errors.append(("derivadas_sync", docs_dir, error_message))
-                            _emit_progress(
-                                "file_error",
-                                {
-                                    "filename": "SSAs Derivadas e Relacionadas",
-                                    "error": error_message,
-                                },
-                            )
-                    except Exception as e:
-                        derivadas_sync_blocking_error = True
-                        logger.error(
-                            "Falha ao sincronizar derivadas a partir de planilhas especiais: %s",
-                            e,
-                            exc_info=True,
-                        )
-                        critical_errors.append(("derivadas_sync", docs_dir, str(e)))
-                        _emit_progress(
-                            "file_error",
-                            {"filename": "SSAs Derivadas e Relacionadas", "error": str(e)},
-                        )
+            sync_materialized, derivadas_sync_blocking_error = _run_optional_derivadas_sync(
+                auto_derivadas_sync_enabled=auto_derivadas_sync_enabled,
+                successfully_processed_files=successfully_processed_files,
+                derivadas_sheet_files=derivadas_sheet_files,
+                db_only_derivadas_sync=db_only_derivadas_sync,
+                should_cancel=should_cancel,
+                working_db_path=working_db_path,
+                table_name=table_name,
+                docs_dir=docs_dir,
+                critical_errors=critical_errors,
+                emit_progress=_emit_progress,
+            )
         finally:
             phase_durations["run_file_processing_seconds"] = (
                 time.perf_counter() - file_processing_started
@@ -1736,42 +1855,37 @@ def run_importer_logic(
         # --- 3. Atualizar cache apenas se houve sucesso ---
         if successfully_processed_files:
             cache_success_paths = list(successfully_processed_files)
-            if candidate_db_path is not None:
-                integrity_report = database.verify_database_integrity(
-                    working_db_path,
-                    table_name,
+            promotion_result = _validate_and_promote_candidate_if_needed(
+                candidate_db_path=candidate_db_path,
+                working_db_path=working_db_path,
+                primary_db_path=primary_db_path,
+                table_name=table_name,
+            )
+            if not bool(promotion_result.get("ok", False)):
+                failure_type = str(promotion_result.get("failure_type", "") or "promotion")
+                failure_message = str(promotion_result.get("failure_message", "") or "promotion_failed")
+                critical_errors.append(
+                    (failure_type, candidate_db_path or working_db_path, failure_message)
                 )
-                if not integrity_report.get("is_valid", False):
-                    logger.error(
-                        "DB candidato falhou na validacao final antes da promocao: %s",
-                        integrity_report.get("issues", []),
-                    )
-                    critical_errors.append(
-                        (
-                            "candidate_validation",
-                            candidate_db_path,
-                            str(integrity_report.get("issues", [])),
-                        )
-                    )
+                if failure_type == "candidate_validation":
                     return _finalize_and_return(
                         False,
                         "candidate_invalid",
                         "candidate_failed_final_integrity",
                     )
-                try:
-                    promoted_backup_path = _promote_full_rescan_candidate(
-                        primary_db_path,
-                        working_db_path,
-                    )
-                    working_db_path = primary_db_path
-                except DatabaseError as exc:
-                    logger.error("Falha ao promover DB candidato: %s", exc)
-                    critical_errors.append(("promotion", candidate_db_path, str(exc)))
-                    return _finalize_and_return(
-                        False,
-                        "candidate_promotion_failed",
-                        str(exc),
-                    )
+                return _finalize_and_return(
+                    False,
+                    "candidate_promotion_failed",
+                    failure_message,
+                )
+            promotion_integrity = promotion_result.get("integrity_report")
+            if isinstance(promotion_integrity, dict) and promotion_integrity:
+                integrity_report = promotion_integrity
+            promoted_backup_path = cast(
+                Optional[str],
+                promotion_result.get("promoted_backup_path"),
+            )
+            working_db_path = str(promotion_result.get("working_db_path", working_db_path))
             if move_processed_after_import and successful_regular_files_with_records:
                 move_started = time.perf_counter()
                 moved_paths = _apply_postprocess_file_moves(
@@ -1803,42 +1917,37 @@ def run_importer_logic(
                 "files_processed_or_cache_updated",
             )
         elif sync_materialized:
-            if candidate_db_path is not None:
-                integrity_report = database.verify_database_integrity(
-                    working_db_path,
-                    table_name,
+            promotion_result = _validate_and_promote_candidate_if_needed(
+                candidate_db_path=candidate_db_path,
+                working_db_path=working_db_path,
+                primary_db_path=primary_db_path,
+                table_name=table_name,
+            )
+            if not bool(promotion_result.get("ok", False)):
+                failure_type = str(promotion_result.get("failure_type", "") or "promotion")
+                failure_message = str(promotion_result.get("failure_message", "") or "promotion_failed")
+                critical_errors.append(
+                    (failure_type, candidate_db_path or working_db_path, failure_message)
                 )
-                if not integrity_report.get("is_valid", False):
-                    logger.error(
-                        "DB candidato falhou na validacao final antes da promocao: %s",
-                        integrity_report.get("issues", []),
-                    )
-                    critical_errors.append(
-                        (
-                            "candidate_validation",
-                            candidate_db_path,
-                            str(integrity_report.get("issues", [])),
-                        )
-                    )
+                if failure_type == "candidate_validation":
                     return _finalize_and_return(
                         False,
                         "candidate_invalid",
                         "candidate_failed_final_integrity",
                     )
-                try:
-                    promoted_backup_path = _promote_full_rescan_candidate(
-                        primary_db_path,
-                        working_db_path,
-                    )
-                    working_db_path = primary_db_path
-                except DatabaseError as exc:
-                    logger.error("Falha ao promover DB candidato: %s", exc)
-                    critical_errors.append(("promotion", candidate_db_path, str(exc)))
-                    return _finalize_and_return(
-                        False,
-                        "candidate_promotion_failed",
-                        str(exc),
-                    )
+                return _finalize_and_return(
+                    False,
+                    "candidate_promotion_failed",
+                    failure_message,
+                )
+            promotion_integrity = promotion_result.get("integrity_report")
+            if isinstance(promotion_integrity, dict) and promotion_integrity:
+                integrity_report = promotion_integrity
+            promoted_backup_path = cast(
+                Optional[str],
+                promotion_result.get("promoted_backup_path"),
+            )
+            working_db_path = str(promotion_result.get("working_db_path", working_db_path))
             logger.info("=== Processo de importacao concluiu sync de derivadas materializado (sem novos arquivos em cache) ===")
             return _finalize_and_return(
                 True,

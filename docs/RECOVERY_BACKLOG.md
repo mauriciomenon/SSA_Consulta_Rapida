@@ -3,6 +3,43 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 14:31 - app_logic orchestration hardening
+
+Session timestamp:
+1. start: `2026-03-10 14:25:52 -0300`
+2. end: `2026-03-10 14:31:42 -0300`
+
+Objetivo do slice:
+1. fechar refactor minimo de orquestracao em `run_importer_logic` sem mudar regra funcional.
+2. remover risco real de runtime (`NameError` de `cast`).
+3. corrigir regressao de full-rescan em cenario com DB candidato nao materializado.
+
+Mudancas aplicadas:
+1. `core/app_logic.py`
+   - import explicito de `cast` em `typing`.
+   - extracao da fase de processamento para helpers dedicados:
+     - `_process_file_with_resilience`
+     - `_process_regular_files_phase`
+     - `_run_optional_derivadas_sync`
+     - `_validate_and_promote_candidate_if_needed`
+   - promocao de DB candidato com assinatura explicita `candidate_db_path, primary_db_path` para remover ambiguidade.
+   - inicializacao explicita do DB candidato em full-rescan (`database.initialize_database`) quando arquivo ainda nao existe, antes de `repair_database_if_needed`.
+
+Validacao tecnica desta rodada:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py` -> pass
+4. `uv run --python 3.13 pytest -q tests/test_import_derivadas_trigger.py` -> `13 passed`
+5. `uv run --python 3.13 pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_derivadas_trigger.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py tests/test_import_cache_integrity.py` -> `27 passed`
+
+Deferido (nao bloqueante neste slice):
+1. performance de `filter_dataframe` com cache em string agregada (debt historico).
+2. simplificacao semantica da busca (`grouped_terms`) vs contrato simplificado.
+3. guardas para colunas nao-texto em `filter_dataframe`.
+4. concentracao de responsabilidade em `run_importer_logic` (debt arquitetural).
+5. custo de regex/padroes na fase de mask em `filter_dataframe`.
+6. rotacao/checkpoint sincrono em `_rotate_database_for_full_rescan` (debt de performance controlada).
+
 ## Update 2026-03-10 13:58 - quick setor executor + app icon startup
 
 Session timestamp:

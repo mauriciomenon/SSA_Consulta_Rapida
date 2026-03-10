@@ -2,7 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 13:58 - start from here
+## CURRENT TRUTH 2026-03-10 14:31 - start from here
+
+- Slice aplicado:
+  1. fechamento do refactor minimo em `core/app_logic.py` para reduzir complexidade de orquestracao sem mudar contrato funcional.
+  2. correcao de runtime (`cast` importado) e correcao de regressao no full-rescan com DB candidato ausente.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `run_importer_logic` passou a delegar fases para helpers especificos de processamento, sync derivadas e promocao.
+  2. fluxo de promocao de DB candidato ficou explicito (`candidate -> primary`) e sem ambiguidade de parametros.
+  3. full-rescan agora inicializa DB candidato explicitamente quando necessario antes da verificacao/reparo.
+  4. suite de derivadas em full-rescan voltou a passar em cenarios mockados sem materializacao implicita de arquivo.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` em `core/app_logic.py` -> pass.
+  2. `pytest -q tests/test_import_derivadas_trigger.py` -> `13 passed`.
+  3. `pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_derivadas_trigger.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py tests/test_import_cache_integrity.py` -> `27 passed`.
+- Deferido:
+  1. debts antigos de performance/arquitetura no bloco de filtro (`filter_dataframe`) e custo de rotacao WAL sincrona.
+
+## HISTORICAL SNAPSHOT 2026-03-10 13:58 - start from here
 
 - Slice aplicado:
   1. ajuste pontual do combo rapido de setor executor no topo (largura + texto popup/display).
