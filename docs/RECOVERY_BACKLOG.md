@@ -3,6 +3,52 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 23:08 - heavy+simple PR follow-up (vacuum async + rescan/menu fixes)
+
+Session timestamp:
+1. start: `2026-03-09 22:57:39 -0300`
+2. end: `2026-03-09 23:08:07 -0300`
+
+Objetivo do slice:
+1. tratar uma pendencia pesada de UX/performance: `VACUUM/ANALYZE` fora da thread principal da GUI.
+2. fechar comentarios simples de PR com risco real (prompt mode, dedup worker list, backup timestamp, consolidate nosurvivor).
+3. manter patch minimo sem alterar layout/posicao da interface.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - `run_vacuum_analyze` agora executa manutencao de DB em thread de fundo no runtime normal.
+   - caminho de teste (`PYTEST_CURRENT_TEST`) mantido sincrono para determinismo.
+   - `_build_unique_destination_path` agora tem limite de tentativas e erro explicito.
+   - backup de `settings.json` passou a usar timestamp com microssegundos (evita colisao).
+   - consolidacao de `nosurvivor` agora considera mutacao real (`rows_inserted`, `rows_updated`, `rows_changed`, `rows_ready_for_insert`) e so incrementa contador apos move bem-sucedido.
+2. `gui/ssa/gui_workers.py`:
+   - `rescan_mode="prompt"` com `QMessageBox` indisponivel agora cai para incremental seguro.
+   - deduplicacao de `expired_all` no prune de data loader workers.
+   - limpeza de `_active_rescan_dialog` garantida tambem em `worker.finished`.
+3. testes:
+   - `tests/test_gui_menu_import_external.py`:
+     - monkeypatch headless de `QUrl` + `QDesktopServices` com `raising=False`;
+     - backup em duas chamadas seguidas -> dois arquivos distintos;
+     - update-only nao vai para `nosurvivor`.
+   - `tests/test_gui_workers_rescan_data.py`:
+     - `show_non_modal_called` agora e validado;
+     - limpeza de `_active_rescan_dialog` no fluxo cancel+finish;
+     - modo `prompt` sem dialogo valida `force_import=False`.
+4. docs:
+   - `docs/CCR_LLM_PROVIDERS_SETUP.md`: nota explicita de snapshot historico para evitar conflito com `instructions` legadas.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/ssa/gui_workers.py tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `20 passed`
+
+Deferido (nao bloqueante neste slice):
+1. kluster em `gui/gui_ssa.py`:
+   - tooltip/UX e debts estruturais antigos (God class, resize/best-fit cost, sort policy) fora deste patch minimo.
+2. kluster em `gui/ssa/gui_workers.py`:
+   - concentracao residual em `on_data_loaded` e debts de arquitetura/performance (ja mapeados em backlog anterior).
+
 ## Update 2026-03-09 22:49 - heavy pending slice (DataLoaderWorker preprocess)
 
 Session timestamp:

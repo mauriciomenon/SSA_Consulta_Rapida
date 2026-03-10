@@ -26,6 +26,7 @@ import re
 import logging
 import copy
 import sqlite3
+import threading
 from datetime import datetime
 from collections import OrderedDict
 from time import perf_counter
@@ -2904,11 +2905,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return destination_path
         base, ext = os.path.splitext(destination_path)
         idx = 1
-        while True:
+        max_attempts = 10000
+        while idx <= max_attempts:
             candidate = f"{base}__{idx}{ext}"
             if not os.path.exists(candidate):
                 return candidate
             idx += 1
+        raise RuntimeError(
+            f"Nao foi possivel gerar nome unico apos {max_attempts} tentativas: {destination_path}"
+        )
 
     @staticmethod
     def _validate_local_open_target(
@@ -2960,7 +2965,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 from core.config_manager import load_settings, save_settings
 
                 save_settings(load_settings())
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             backup_path = f"{settings_path}.bak_{timestamp}"
             shutil.copy2(settings_path, backup_path)
         except Exception as exc:
@@ -3044,7 +3049,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         backup_path = ""
         try:
             if os.path.exists(settings_path):
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 backup_path = f"{settings_path}.bak_{timestamp}"
                 shutil.copy2(settings_path, backup_path)
                 backup_created = True
@@ -3128,6 +3133,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         os.makedirs(nosurvivor_dir, exist_ok=True)
 
         file_rows: dict[str, dict[str, int | str]] = {}
+        mutation_fields = (
+            "rows_inserted",
+            "rows_updated",
+            "rows_changed",
+            "rows_ready_for_insert",
+        )
         for entry in report.get("file_reports", []):
             if not isinstance(entry, dict):
                 continue
@@ -3137,12 +3148,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             status = str(entry.get("status") or "").strip().casefold()
             counts = entry.get("counts") or {}
             rows_inserted = int((counts.get("rows_inserted", 0) or 0))
+            rows_updated = int((counts.get("rows_updated", 0) or 0))
+            rows_changed = int((counts.get("rows_changed", 0) or 0))
             rows_ready_for_insert = int(
                 counts.get("rows_ready_for_insert", rows_inserted) or 0
             )
             file_rows[file_name] = {
                 "status": status,
                 "rows_inserted": rows_inserted,
+                "rows_updated": rows_updated,
+                "rows_changed": rows_changed,
                 "rows_ready_for_insert": rows_ready_for_insert,
             }
 
@@ -3163,25 +3178,25 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
             file_meta = file_rows.get(base_name, {})
             status = str(file_meta.get("status") or "").casefold()
-            rows_inserted = int(file_meta.get("rows_inserted", 0) or 0)
-            rows_ready_for_insert = int(file_meta.get("rows_ready_for_insert", 0) or 0)
-            is_success_status = status in {"", "success", "no_rows"}
-            is_zero_survivor = (
-                is_success_status and rows_inserted <= 0 and rows_ready_for_insert <= 0
+            has_mutation = any(
+                int(file_meta.get(name, 0) or 0) > 0 for name in mutation_fields
             )
+            is_success_status = status in {"", "success", "no_rows"}
+            is_zero_survivor = is_success_status and not has_mutation
             target_dir = processadas_dir
             if not is_success_status:
                 pending += 1
                 continue
             if is_zero_survivor:
                 target_dir = nosurvivor_dir
-                moved_nosurvivor += 1
             destination = self._build_unique_destination_path(
                 os.path.join(target_dir, base_name)
             )
             try:
                 shutil.move(source_path, destination)
                 moved += 1
+                if target_dir == nosurvivor_dir:
+                    moved_nosurvivor += 1
             except Exception as exc:
                 logger.warning(
                     "Falha ao mover arquivo na consolidacao '%s': %s",
@@ -3361,20 +3376,62 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if answer != qmessagebox.StandardButton.Yes:
                 return {"ok": False, "cancelled": True}
 
+        if bool(getattr(self, "_vacuum_analyze_running", False)):
+            if hasattr(self, "status_label"):
+                self.status_label.setText("Status: Compactacao do DB ja em andamento.")
+            return {"ok": False, "reason": "already_running", "db_path": db_path}
+
+        if hasattr(self, "status_label"):
+            self.status_label.setText("Status: Compactando DB e atualizando estatisticas...")
+
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            result = SSAMainWindow._execute_vacuum_analyze(db_path)
+            return SSAMainWindow._finalize_vacuum_analyze_result(self, result)
+
+        self._vacuum_analyze_running = True
+
+        def _work() -> None:
+            result = SSAMainWindow._execute_vacuum_analyze(db_path)
+
+            def _deliver() -> None:
+                SSAMainWindow._finalize_vacuum_analyze_result(self, result)
+
+            try:
+                QTimer.singleShot(0, _deliver)
+            except Exception:
+                _deliver()
+
+        worker = threading.Thread(target=_work, daemon=True)
+        self._vacuum_analyze_thread = worker
+        worker.start()
+        return {"ok": True, "started": True, "db_path": db_path}
+
+    @staticmethod
+    def _execute_vacuum_analyze(db_path: str) -> dict[str, Any]:
         try:
             with sqlite3.connect(db_path, timeout=30.0) as conn:
                 conn.execute("VACUUM")
                 conn.execute("ANALYZE")
+            return {"ok": True, "db_path": db_path}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def _finalize_vacuum_analyze_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        self._vacuum_analyze_running = False
+        self._vacuum_analyze_thread = None
+
+        if bool(result.get("ok")):
             if hasattr(self, "status_label"):
                 self.status_label.setText("Status: DB compactado e estatisticas atualizadas.")
             if not os.environ.get("PYTEST_CURRENT_TEST"):
                 QMessageBox.information(self, "Sucesso", "Compactacao e atualizacao do DB concluidas.")
-            return {"ok": True, "db_path": db_path}
-        except Exception as exc:
-            logger.error("Falha ao compactar DB e atualizar estatisticas: %s", exc)
-            if not os.environ.get("PYTEST_CURRENT_TEST"):
-                QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {exc}")
-            return {"ok": False, "error": str(exc)}
+            return result
+
+        error = str(result.get("error") or "Erro desconhecido")
+        logger.error("Falha ao compactar DB e atualizar estatisticas: %s", error)
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            QMessageBox.warning(self, "Erro", f"Falha na compactacao do DB: {error}")
+        return {"ok": False, "error": error, "db_path": result.get("db_path")}
 
     def _open_folder_non_blocking(self, folder_path: str, folder_label: str) -> None:
         try:

@@ -37,6 +37,7 @@ class _DialogCancelAndFinish:
         self.window = window
         self.cancel_requested = _Signal()
         self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -59,6 +60,7 @@ class _DialogCancelAndFinish:
             worker.finished.emit()
 
     def show_non_modal(self):
+        self.show_non_modal_called = True
         self.show()
 
 
@@ -66,6 +68,7 @@ class _DialogNoop:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
         self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -83,6 +86,7 @@ class _DialogNoop:
         self.show_called = True
 
     def show_non_modal(self):
+        self.show_non_modal_called = True
         self.show()
 
 
@@ -90,6 +94,7 @@ class _DialogCancelNoFinish:
     def __init__(self, _window):
         self.cancel_requested = _Signal()
         self.show_called = False
+        self.show_non_modal_called = False
 
     def append_output(self, *_args, **_kwargs):
         return None
@@ -108,6 +113,7 @@ class _DialogCancelNoFinish:
         self.cancel_requested.emit()
 
     def show_non_modal(self):
+        self.show_non_modal_called = True
         self.show()
 
 
@@ -181,6 +187,7 @@ def test_rescan_data_cancel_does_not_break_when_stop_raises(tmp_path):
     assert created_workers[0].stop_called is True
     assert window.status_label.text == "Status: Cancelamento solicitado no reescaneamento."
     assert window._active_rescan_worker is None
+    assert window._active_rescan_dialog is None
     assert global_workers == []
     assert global_meta == {}
 
@@ -309,6 +316,7 @@ def test_rescan_data_shows_progress_dialog_without_blocking(tmp_path):
 
     assert created_dialogs
     assert created_dialogs[0].show_called is True
+    assert created_dialogs[0].show_non_modal_called is True
     assert window._active_rescan_dialog is created_dialogs[0]
 
 
@@ -380,6 +388,37 @@ def test_rescan_data_full_mode_skips_prompt_and_sets_force_import_true(tmp_path)
     )
 
     assert captured_modes == [True]
+
+
+def test_rescan_data_prompt_without_qmessagebox_uses_incremental_mode(tmp_path):
+    captured_modes: list[bool] = []
+
+    class _WorkerCaptureMode(_BaseWorker):
+        def __init__(self, _main_py_path: str, _project_root: str, force_import: bool = True):
+            super().__init__(_main_py_path, _project_root)
+            captured_modes.append(bool(force_import))
+
+    project_root = _build_main_py(tmp_path)
+    window = _Window()
+    global_workers: list = []
+    global_meta: dict = {}
+
+    ssa_gui_workers.rescan_data(
+        window,
+        project_root=project_root,
+        rescan_worker_cls=_WorkerCaptureMode,
+        rescan_dialog_cls=_DialogNoop,
+        qmessagebox=None,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=8,
+        retired_ttl_sec=30.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+        rescan_mode="prompt",
+    )
+
+    assert captured_modes == [False]
 
 
 def test_classify_workers_for_ttl_keeps_running_workers_even_above_cap():

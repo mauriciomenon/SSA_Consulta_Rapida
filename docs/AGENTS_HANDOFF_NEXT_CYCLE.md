@@ -2,7 +2,33 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 22:49 - authoritative block
+## CURRENT TRUTH 2026-03-09 23:08 - authoritative block
+
+- Slice entregue: pendencia pesada + comentarios simples do PR.
+  1. `gui/gui_ssa.py`:
+     - `run_vacuum_analyze` em worker de fundo (runtime normal), mantendo modo sincrono em teste.
+     - `_build_unique_destination_path` agora limitado (sem loop infinito).
+     - backup de opcoes com timestamp de microssegundos.
+     - consolidacao de arquivos: update-only fica em `processadas`; `nosurvivor` exige zero mutacao real.
+  2. `gui/ssa/gui_workers.py`:
+     - fallback seguro de `rescan_mode="prompt"` para incremental quando dialogo nao existe.
+     - dedup de `expired_all` no prune de data loaders.
+     - limpeza de `_active_rescan_dialog` garantida no `worker.finished`.
+  3. testes:
+     - `tests/test_gui_menu_import_external.py`: patch headless de `QUrl`/`QDesktopServices`, backup duplo unico, update-only fora de `nosurvivor`.
+     - `tests/test_gui_workers_rescan_data.py`: assert de `show_non_modal_called`, dialogo limpo no cancel+finish, `prompt` sem dialogo em incremental.
+  4. docs:
+     - `docs/CCR_LLM_PROVIDERS_SETUP.md`: nota de snapshot historico para evitar ambiguidade sobre `instructions` legadas.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `20 passed`.
+- Pendencias deferidas:
+  1. debts antigos de arquitetura/performance apontados por kluster em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora de escopo deste patch minimo).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:49
 
 - Heavy pending slice entregue (foco em performance/stability de carga):
   1. `gui/workers/data_loader_worker.py`:
