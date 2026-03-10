@@ -152,10 +152,11 @@ class TestGUIFilterLogic:
         )
         assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
-    def test_quick_setor_executor_combo_applies_filter_and_syncs_panel(self):
+    def test_quick_setor_executor_combo_applies_filter_and_syncs_or_group_only(self):
         self.window._register_or_group(["setor_executor", "setor_emissor"], ["IEE3", "MEL3"])
         self.window._active_column_filters["setor_executor"] = "IEE3, MEL3"
         self.window._active_column_filters["setor_emissor"] = "IEE3, MEL3"
+        advanced_before = dict(getattr(self.window, "_advanced_filters", {}) or {})
         self.window._build_column_filters_panel()
         self.window._refresh_quick_setor_executor_options()
         combo = getattr(self.window, "quick_setor_executor_combo", None)
@@ -172,11 +173,7 @@ class TestGUIFilterLogic:
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "MEL4"
-        adv = dict(getattr(self.window, "_advanced_filters", {}) or {})
-        assert adv.get("setor_executor") == ["MEL4"]
-        assert adv.get("setor_emissor") == ["MEL4"]
-        assert adv.get("setor_executor_exclude_values") == []
-        assert adv.get("setor_emissor_exclude_values") == []
+        assert dict(getattr(self.window, "_advanced_filters", {}) or {}) == advanced_before
 
         controls = self._get_column_filter_controls()
         setor_key = next(

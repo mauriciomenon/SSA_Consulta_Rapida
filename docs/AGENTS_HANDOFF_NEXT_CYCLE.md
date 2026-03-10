@@ -2,24 +2,35 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 00:42 - authoritative block
+## CURRENT TRUTH 2026-03-10 00:55 - authoritative block
 
 - Slice entregue:
   1. `gui/gui_ssa.py`:
-     - atalho rapido `Setor Executor` agora sincroniza com filtros avancados de executor e emissor.
-     - excludes avancados de executor/emissor sao limpos no sync rapido para evitar contradicao.
-     - popup do combo rapido com rolagem real (`combobox-popup: 0`, `maxVisibleItems=14`, scrollbar no `view`).
+     - remove sync do quick filter `Setor Executor` com `_advanced_filters`.
+     - mantem sync apenas em OR group/filtros por coluna (`setor_executor`/`setor_emissor`).
+     - popup do combo rapido segue com rolagem real (`combobox-popup: 0`, `maxVisibleItems=14`, scrollbar no `view`).
   2. `tests/test_gui_filter_logic.py`:
-     - cobertura de sync em `_advanced_filters` para executor/emissor.
-     - cobertura de popup com estilo de rolagem ativa.
+     - contrato atualizado: quick combo altera OR group de coluna, sem alterar `_advanced_filters`.
+     - cobertura mantida para popup limitado/rolavel.
 - Gates desta rodada:
   1. `py_compile`, `ruff`, `ty` -> pass.
-  2. `pytest` focado em quick setor/sort -> `5 passed`.
+  2. `pytest` focado em quick setor/OR group -> `2 passed`.
 - Pendencia deferida:
   1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` fora deste slice.
 - Residuos locais fora de escopo (nao commitar):
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:42
+
+- Slice entregue:
+  1. sync do quick filter com avancados (executor/emissor) + limpeza de excludes.
+  2. popup rolavel do combo rapido.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em quick setor/sort -> `5 passed`.
+- Nota:
+  1. comportamento de sync com avancados foi removido no hotfix 00:55.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 00:36
 

@@ -2518,32 +2518,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         else:
             active_filters.pop("setor_executor", None)
         self._active_column_filters = active_filters
-        self._sync_quick_setor_executor_into_advanced_filters(selected)
         self._sync_or_group_values("setor_executor", selected)
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
-
-    def _sync_quick_setor_executor_into_advanced_filters(self, selected: str) -> None:
-        data = dict(getattr(self, "_advanced_filters", None) or {})
-        selected_value = str(selected or "").strip()
-        if selected_value:
-            data["setor_executor"] = [selected_value]
-            data["setor_emissor"] = [selected_value]
-        else:
-            data["setor_executor"] = []
-            data["setor_emissor"] = []
-        data["setor_executor_exclude_values"] = []
-        data["setor_emissor_exclude_values"] = []
-        self._advanced_filters = data
-        try:
-            self._advanced_filters_active = bool(self._has_active_advanced_filters(data))
-        except Exception:
-            self._advanced_filters_active = bool(data)
-        try:
-            self._sync_advanced_filter_ui()
-        except Exception as exc:
-            logger.debug("Falha ao sincronizar UI de filtros avancados com atalho rapido: %s", exc)
 
     def _get_select_all_columns_from_selector(self) -> list[str]:
         selector = getattr(self, "column_selector", None)
