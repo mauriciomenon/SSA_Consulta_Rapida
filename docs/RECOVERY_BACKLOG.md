@@ -3,6 +3,44 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 10:05 - modularizacao minima em create_zip_package + define SourcePath
+
+Session timestamp:
+1. start: `2026-03-10 10:01:24 -0300`
+2. end: `2026-03-10 10:05:18 -0300`
+
+Objetivo do slice:
+1. reduzir concentracao em `create_zip_package` com extracao minima de blocos.
+2. corrigir tipagem de `build_name` em `VERSION.txt`.
+3. eliminar risco de macro indefinida no `.iss` com define explicito de `SourcePath`.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - novos helpers de ZIP:
+     - `_copy_runtime_bundle(...)`
+     - `_write_package_version_file(...)`
+     - `_create_package_zip(...)`
+   - `create_zip_package(...)` ficou como orquestrador dos helpers.
+   - `build_name` normalizado para `str` antes de escrever metadata.
+   - `create_inno_setup_script(...)` agora define `#define SourcePath "{dist_output_resolvido}"`.
+2. `tests/test_create_distribution.py`:
+   - asserts novos para validar `#define SourcePath "..."` nos cenarios relative/absolute.
+
+Validacao desta rodada:
+1. `kluster review file scripts/create_distribution.py` -> 3 issues:
+   - 1 HIGH semantic (path Source absoluto/relativo no .iss, sem repro local)
+   - 2 MEDIUM antigos (fallback reason e funcao longa)
+2. `kluster review file tests/test_create_distribution.py` -> clean
+3. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+6. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. validar em runner Windows com ISCC real o cenario de `Source` absoluto no `.iss`.
+2. debt antigo de sincronia entre `_resolve_build_directory` e `_resolve_build_directory_failure_reason`.
+3. debt de concentracao residual em `create_zip_package` (melhorado, nao zerado).
+
 ## Update 2026-03-10 09:59 - extracao minima de responsabilidades em compile_installer
 
 Session timestamp:

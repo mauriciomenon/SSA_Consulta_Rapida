@@ -2,6 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 10:05 - start from here
+
+- Slice aplicado:
+  1. modularizacao minima no fluxo ZIP e define explicito de `SourcePath` no `.iss`.
+  2. `scripts/create_distribution.py`:
+     - novos helpers: `_copy_runtime_bundle`, `_write_package_version_file`, `_create_package_zip`.
+     - `create_zip_package` simplificado para orquestracao.
+     - tipagem de `build_name` normalizada para `str`.
+     - template Inno recebeu `#define SourcePath "<DIST_OUTPUT resolvido>"`.
+  3. `tests/test_create_distribution.py`:
+     - asserts adicionados para validar `#define SourcePath` em cenario relative e absolute.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 issues (1 HIGH sem repro local + 2 MEDIUM antigos).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. validar path absoluto/relativo de `Source` com ISCC real em Windows.
+  2. alinhar razao de falha entre `_resolve_build_directory` e helper de failure reason.
+  3. continuar reducao de concentracao em `create_zip_package`.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:59 - start from here
 
 - Slice aplicado:

@@ -424,11 +424,83 @@ Para atualizar, substitua apenas o executavel principal mantendo:
     logger.info("README para usuario criado")
 
 
+def _copy_runtime_bundle(
+    build_system: str,
+    build_info: dict[str, object],
+    build_dir: Path,
+    package_dir: Path,
+) -> bool:
+    """Copia executavel/dependencias e config para o pacote staged."""
+    logger.info("  Copiando executavel e dependencias...")
+
+    is_canonical_pyinstaller = (
+        build_system == "pyinstaller" and _is_canonical_pyinstaller_directory(build_dir)
+    )
+    if build_system == "nuitka" or is_canonical_pyinstaller:
+        _copy_build_tree_sanitized(build_dir, package_dir)
+    else:
+        exe_path_value = build_info.get("exe_path")
+        if not isinstance(exe_path_value, str):
+            logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
+            return False
+        exe_src = PROJECT_ROOT / exe_path_value
+        if not exe_src.is_file():
+            logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
+            return False
+        shutil.copy2(exe_src, package_dir / exe_src.name)
+
+        internal_dir_name = build_info.get("internal_dir")
+        if isinstance(internal_dir_name, str) and internal_dir_name:
+            internal_src = build_dir / internal_dir_name
+            if internal_src.exists():
+                shutil.copytree(
+                    internal_src,
+                    package_dir / internal_dir_name,
+                    dirs_exist_ok=True,
+                    ignore=_build_bundle_ignore,
+                )
+
+    config_src = build_dir / "config"
+    if config_src.exists():
+        shutil.copytree(config_src, package_dir / "config", dirs_exist_ok=True)
+    else:
+        config_src = PROJECT_ROOT / "config"
+        if config_src.exists():
+            shutil.copytree(
+                config_src,
+                package_dir / "config",
+                dirs_exist_ok=True,
+                ignore=_build_bundle_ignore,
+            )
+
+    return True
+
+
+def _write_package_version_file(package_dir: Path, version: str, build_name: str) -> None:
+    """Escreve VERSION.txt no pacote staged."""
+    with open(package_dir / "VERSION.txt", 'w') as f:
+        f.write(f"{version}\n")
+        f.write(f"Build System: {build_name}\n")
+        f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+
+def _create_package_zip(package_dir: Path, package_name: str, zip_path: Path) -> None:
+    """Gera arquivo ZIP final a partir do pacote staged."""
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(package_dir):
+            for file in files:
+                file_path = Path(root) / file
+                arcname = Path(package_name) / file_path.relative_to(package_dir)
+                zipf.write(file_path, arcname)
+
+
 def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     """Cria pacote ZIP portatil."""
-    logger.info(f"Criando pacote ZIP para {BUILD_SYSTEMS[build_system]['name']}")
-
     build_info = BUILD_SYSTEMS[build_system]
+    build_name_value = build_info.get("name")
+    build_name = build_name_value if isinstance(build_name_value, str) else build_system
+    logger.info(f"Criando pacote ZIP para {build_name}")
+
     build_dir = _resolve_build_directory(build_system)
     if build_dir is None:
         logger.error(
@@ -448,57 +520,10 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
     package_dir.mkdir(exist_ok=True)
 
     try:
-        # Copiar executavel e dependencias
-        logger.info("  Copiando executavel e dependencias...")
-
-        is_canonical_pyinstaller = (
-            build_system == "pyinstaller" and _is_canonical_pyinstaller_directory(build_dir)
-        )
-        if build_system == "nuitka" or is_canonical_pyinstaller:
-            _copy_build_tree_sanitized(build_dir, package_dir)
-        else:
-            # PyInstaller/PyOxidizer: copiar executavel
-            exe_path_value = build_info.get("exe_path")
-            if not isinstance(exe_path_value, str):
-                logger.error("Configuracao invalida: exe_path ausente para %s", build_system)
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-                return None
-            exe_src = PROJECT_ROOT / exe_path_value
-            if not exe_src.is_file():
-                logger.error("Executavel nao encontrado para empacotamento: %s", exe_src)
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir)
-                return None
-            exe_dest = package_dir / exe_src.name
-            shutil.copy2(exe_src, exe_dest)
-
-            # Copiar pasta _internal ou lib
-            internal_dir_name = build_info.get("internal_dir")
-            if isinstance(internal_dir_name, str) and internal_dir_name:
-                internal_src = build_dir / internal_dir_name
-                if internal_src.exists():
-                    shutil.copytree(
-                        internal_src,
-                        package_dir / internal_dir_name,
-                        dirs_exist_ok=True,
-                        ignore=_build_bundle_ignore,
-                    )
-
-        # Copiar config se existir
-        config_src = build_dir / "config"
-        if config_src.exists():
-            shutil.copytree(config_src, package_dir / "config", dirs_exist_ok=True)
-        else:
-            # Copiar config da raiz do projeto
-            config_src = PROJECT_ROOT / "config"
-            if config_src.exists():
-                shutil.copytree(
-                    config_src,
-                    package_dir / "config",
-                    dirs_exist_ok=True,
-                    ignore=_build_bundle_ignore,
-                )
+        if not _copy_runtime_bundle(build_system, build_info, build_dir, package_dir):
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            return None
 
         # Criar estrutura de diretorios para usuario
         create_user_structure(package_dir)
@@ -521,10 +546,7 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
         )
 
         # Criar arquivo de versao
-        with open(package_dir / "VERSION.txt", 'w') as f:
-            f.write(f"{version}\n")
-            f.write(f"Build System: {BUILD_SYSTEMS[build_system]['name']}\n")
-            f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _write_package_version_file(package_dir, version, build_name)
 
         # Criar ZIP
         zip_name = f"{package_name}.zip"
@@ -532,12 +554,7 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
 
         logger.info(f"  Criando arquivo ZIP: {zip_name}")
 
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(package_dir):
-                for file in files:
-                    file_path = Path(root) / file
-                    arcname = Path(package_name) / file_path.relative_to(package_dir)
-                    zipf.write(file_path, arcname)
+        _create_package_zip(package_dir, package_name, zip_path)
 
         # Limpar diretorio temporario
         shutil.rmtree(temp_dir)
@@ -570,6 +587,7 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
         source_path_mode = "absolute"
         source_dir_spec = str(source_dir.resolve())
     source_dir_spec = source_dir_spec.replace("/", "\\").replace('"', '')
+    dist_output_spec = str(DIST_OUTPUT.resolve()).replace("/", "\\").replace('"', '')
     exe_name = exe_name.replace('"', '')
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
@@ -586,6 +604,7 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
 #define MyAppPublisher "ITAIPU Binacional"
 #define MyAppExeName "{exe_name}"
 #define BuildSystem "{build_system}"
+#define SourcePath "{dist_output_spec}"
 #define SourcePathMode "{source_path_mode}"
 
 [Setup]
