@@ -2,7 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 09:11 - authoritative block
+## CURRENT TRUTH 2026-03-10 09:18 - authoritative block
+
+- Slice entregue:
+  1. fallback pyinstaller canonical->legacy ficou explicito no fluxo de resolucao.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory` reorganizado sem mudanca funcional fora do escopo.
+  3. `tests/test_create_distribution.py`:
+     - teste novo cobrindo fallback para `base_dir` legacy quando canonical e invalido.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `9 passed`.
+  3. `kluster review` em codigo/tests -> sem blocker funcional neste slice.
+- Pendencia deferida:
+  1. `create_zip_package` segue como debt de funcao longa.
+  2. semantica geral de resolucao por build system segue para ciclo dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:11
 
 - Slice entregue:
   1. erro de empacotamento agora informa causa detalhada na resolucao de build.

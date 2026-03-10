@@ -2,7 +2,31 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 09:11 - start from here
+## CURRENT TRUTH 2026-03-10 09:18 - start from here
+
+- Slice aplicado:
+  1. fallback de pyinstaller (canonical -> legacy) ficou explicito no codigo e coberto por teste.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_build_directory` reorganizado com fallback canonical->legacy explicito.
+  3. testes:
+     - novo `test_resolve_build_directory_pyinstaller_falls_back_to_legacy_when_canonical_invalid`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `9 passed`.
+- Deferido:
+  1. `create_zip_package` ainda concentrada (debt de qualidade).
+  2. semantica geral de resolver por build system em slice dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:11
 
 - Slice aplicado:
   1. clarificado erro de resolucao de build no empacotador.

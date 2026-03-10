@@ -151,17 +151,18 @@ def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
 
 
 def _resolve_build_directory(build_system: str) -> Optional[Path]:
-    """Resolve diretorio de build com prioridade para caminho canonico."""
+    """Resolve diretorio de build. PyInstaller usa canonical com fallback legacy."""
+    build_info = BUILD_SYSTEMS[build_system]
+    base_dir_value = build_info.get("base_dir")
+    if not isinstance(base_dir_value, str):
+        return None
+
     if build_system == "pyinstaller":
         candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
         for path in candidates:
             if _has_packagable_content(path) and _has_primary_executable(path, "pyinstaller"):
                 return path
-
-    build_info = BUILD_SYSTEMS[build_system]
-    base_dir_value = build_info.get("base_dir")
-    if not isinstance(base_dir_value, str):
-        return None
+        # Fallback intencional: se nenhum canonical for valido, tentar base_dir legacy.
 
     legacy_dir = PROJECT_ROOT / base_dir_value
     if _has_packagable_content(legacy_dir):
