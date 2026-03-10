@@ -2,7 +2,32 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 09:18 - start from here
+## CURRENT TRUTH 2026-03-10 09:23 - start from here
+
+- Slice aplicado:
+  1. `OutputDir` do Inno Setup ficou deterministico e independente de cwd.
+  2. `scripts/create_distribution.py`:
+     - template `.iss` usa `OutputDir={#SourcePath}`.
+  3. testes:
+     - novo `test_create_inno_setup_script_uses_sourcepath_outputdir`.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `tests/test_create_distribution.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `10 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package`.
+  2. semantica geral de resolucao por build system em ciclo dedicado.
+  3. deduplicacao de setup dos testes em ciclo de manutencao.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 09:18
 
 - Slice aplicado:
   1. fallback de pyinstaller (canonical -> legacy) ficou explicito no codigo e coberto por teste.
