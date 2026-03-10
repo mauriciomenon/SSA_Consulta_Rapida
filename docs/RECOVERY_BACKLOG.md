@@ -3,6 +3,32 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:59 - extracao minima de responsabilidades em compile_installer
+
+Session timestamp:
+1. start: `2026-03-10 09:57:26 -0300`
+2. end: `2026-03-10 09:59:27 -0300`
+
+Objetivo do slice:
+1. reduzir concentracao de responsabilidade em `compile_installer` com patch minimo.
+2. manter comportamento/retornos identicos (`success|missing|failed`).
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - adicionado `_get_iscc_path()` para descoberta/validacao do compilador.
+   - adicionado `_run_iscc_compile(...)` para execucao e tratamento de retorno.
+   - `compile_installer(...)` agora orquestra os dois blocos, sem alterar contrato externo.
+
+Validacao desta rodada:
+1. `timeout 120s kluster review file scripts/create_distribution.py` -> 1 issue (debt antigo de `create_zip_package`, fora de escopo)
+2. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt antigo de qualidade em `create_zip_package` (funcao longa).
+
 ## Update 2026-03-10 09:55 - marcador explicito de modo SourcePath no Inno
 
 Session timestamp:

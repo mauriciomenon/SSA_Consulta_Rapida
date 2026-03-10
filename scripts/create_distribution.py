@@ -648,11 +648,8 @@ end;
     return iss_path
 
 
-def compile_installer(iss_path: Path) -> str:
-    """Compila instalador usando Inno Setup."""
-    logger.info("Compilando instalador com Inno Setup...")
-
-    # Procurar ISCC.exe (compilador Inno Setup)
+def _get_iscc_path() -> Optional[str]:
+    """Resolve caminho do compilador Inno Setup (ISCC)."""
     possible_paths: list[str] = []
     trusted_inno_parents = [
         Path(r"C:\Program Files (x86)\Inno Setup 6"),
@@ -712,17 +709,14 @@ def compile_installer(iss_path: Path) -> str:
         r"C:\Program Files\Inno Setup 5\ISCC.exe",
     ])
 
-    iscc_path = None
     for path in possible_paths:
         if os.path.exists(path):
-            iscc_path = path
-            break
+            return path
+    return None
 
-    if not iscc_path:
-        logger.warning("Inno Setup nao encontrado. Instalador nao sera criado.")
-        logger.info("  Para criar instaladores, instale Inno Setup de: https://jrsoftware.org/isdl.php")
-        return "missing"
 
+def _run_iscc_compile(iscc_path: str, iss_path: Path) -> str:
+    """Executa compilacao do instalador com ISCC."""
     try:
         result = subprocess.run(
             [iscc_path, str(iss_path)],
@@ -744,6 +738,19 @@ def compile_installer(iss_path: Path) -> str:
     except Exception as e:
         logger.error(f"Erro ao executar Inno Setup: {e}")
         return "failed"
+
+
+def compile_installer(iss_path: Path) -> str:
+    """Compila instalador usando Inno Setup."""
+    logger.info("Compilando instalador com Inno Setup...")
+
+    iscc_path = _get_iscc_path()
+    if not iscc_path:
+        logger.warning("Inno Setup nao encontrado. Instalador nao sera criado.")
+        logger.info("  Para criar instaladores, instale Inno Setup de: https://jrsoftware.org/isdl.php")
+        return "missing"
+
+    return _run_iscc_compile(iscc_path, iss_path)
 
 
 def main():
