@@ -2,7 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 08:04 - authoritative block
+## CURRENT TRUTH 2026-03-10 08:18 - authoritative block
+
+- Slice entregue:
+  1. Debian alinhado ao fluxo canonico de pacote ZIP.
+  2. `launchers/platforms/debian_amd64/build_config.json`:
+     - `post_build.package` ajustado para `zip`.
+     - exclusoes de risco removidas de `exclude_modules` (`json`, `argparse` e modulos core de concorrencia/rede).
+  3. docs operacionais refinados:
+     - `docs/GUIA_DISTRIBUICAO.md`: Debian ZIP no baseline atual.
+     - `docs/BUILD_MULTIPLATFORM.md`: UPX como opcional "quando disponivel" e nota de empacotamento Debian.
+- Gates desta rodada:
+  1. `kluster review` nos arquivos do slice -> clean na rodada final.
+- Pendencia deferida:
+  1. automacao AppImage/.deb permanece fora do fluxo oficial atual.
+  2. revisao de `exclude_modules` em outras plataformas fica para slice dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:04
 
 - Slice entregue:
   1. hardening de build para nao incluir `data/` por padrao no artefato canonico.

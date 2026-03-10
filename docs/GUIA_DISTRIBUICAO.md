@@ -13,6 +13,10 @@
 Este guia descreve como gerar pacotes para distribuicao em Windows, macOS e Debian/Linux
 usando o fluxo canonico atual.
 
+Nota Debian:
+- no baseline atual, Debian usa pacote ZIP canonico.
+- AppImage/.deb ficam como trilha futura e nao sao etapa automatica do pipeline oficial.
+
 ## Build Canonico
 
 ### 1) Build da plataforma atual
