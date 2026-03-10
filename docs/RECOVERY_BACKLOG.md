@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 21:58 - PR #45 P2 follow-up (worker/menu/doc)
+
+Session timestamp:
+1. start: `2026-03-09 21:58:49 -0300`
+2. end: `2026-03-09 22:03:00 -0300`
+
+Objetivo do slice:
+1. verificar e tratar 3 comentarios P2 (worker registry, dedup helper, doc instructions).
+2. manter patch minimo sem alterar layout/fluxo de GUI.
+3. deixar debt nao-ascii de testes explicitamente deferido.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_workers.py`:
+   - rescan worker passa a ser registrado em `global_workers/global_meta` logo apos `start()`.
+2. `tests/test_gui_workers_rescan_data.py`:
+   - expectativa ajustada para refletir registro global imediato no caso sem `finished`.
+3. `gui/gui_ssa.py`:
+   - `import_external_excel_files` reutiliza regra unica de destino com `_build_unique_destination_path` (com fallback seguro para stub de teste).
+4. `docs/CCR_LLM_PROVIDERS_SETUP.md`:
+   - padrao de sync de instructions corrigido para `*.instructions`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_workers.py gui/gui_ssa.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py` -> `16 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt transversal de nao-ascii em testes legados e novos; requer plano dedicado para normalizacao sem risco de churn amplo.
+
 ## Update 2026-03-09 21:43 - PR #45 comments hotfix (blockers)
 
 Session timestamp:

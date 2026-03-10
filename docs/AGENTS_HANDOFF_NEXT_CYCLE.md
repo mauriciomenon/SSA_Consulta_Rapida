@@ -2,7 +2,23 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 21:43 - authoritative block
+## CURRENT TRUTH 2026-03-09 21:58 - authoritative block
+
+- Follow-up P2 de comentarios do PR #45 concluido:
+  1. `gui/ssa/gui_workers.py`: registro global imediato de rescan worker apos `start()`.
+  2. `gui/gui_ssa.py`: dedup de destino unificado em importacao externa via helper unico.
+  3. `docs/CCR_LLM_PROVIDERS_SETUP.md`: padrao de instructions corrigido para `*.instructions`.
+  4. `tests/test_gui_workers_rescan_data.py`: expectativa atualizada para novo contrato do registro global.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado GUI workers/menu -> `16 passed`.
+- Pendencia deferida:
+  1. normalizacao nao-ascii em testes (debt transversal, nao blocker funcional imediato).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:43
 
 - PR em andamento: `#45` (`dev` <- `codex/sprint-importacao-grave-fixes-20260305`).
 - Slice de hotfix de comentarios/checks concluido:

@@ -2827,24 +2827,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 continue
 
             base_name = os.path.basename(source)
-            destination = os.path.join(docs_path, base_name)
+            base_destination = os.path.join(docs_path, base_name)
 
             source_abs = os.path.abspath(source)
-            destination_abs = os.path.abspath(destination)
+            destination_abs = os.path.abspath(base_destination)
             if source_abs == destination_abs:
                 skipped += 1
                 continue
 
-            if os.path.exists(destination):
-                stem, ext = os.path.splitext(base_name)
-                idx = 1
-                while True:
-                    candidate_name = f"{stem}__{idx}{ext}"
-                    candidate_path = os.path.join(docs_path, candidate_name)
-                    if not os.path.exists(candidate_path):
-                        destination = candidate_path
-                        break
-                    idx += 1
+            build_unique_destination = getattr(self, "_build_unique_destination_path", None)
+            if callable(build_unique_destination):
+                destination = build_unique_destination(base_destination)
+            else:
+                destination = SSAMainWindow._build_unique_destination_path(
+                    self,
+                    base_destination,
+                )
 
             try:
                 shutil.copy2(source, destination)

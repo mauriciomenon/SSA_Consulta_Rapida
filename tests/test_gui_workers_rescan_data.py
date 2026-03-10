@@ -214,8 +214,8 @@ def test_rescan_data_releases_stale_worker_when_isrunning_raises_after_dialog(tm
     assert created_workers
     assert window._active_rescan_worker is created_workers[0]
     assert window._active_rescan_dialog is not None
-    assert global_workers == []
-    assert global_meta == {}
+    assert global_workers == [created_workers[0]]
+    assert created_workers[0] in global_meta
 
 
 def test_rescan_data_clears_inactive_active_worker_before_start(tmp_path):

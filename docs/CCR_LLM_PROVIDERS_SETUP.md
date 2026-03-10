@@ -28,7 +28,7 @@ Status: Todos os arquivos validados - sintaxe OK
 | Tipo | Origem | Destino |
 |------|--------|---------|
 | mcp.json | %APPDATA%\Code\User\mcp.json | %APPDATA%\Code - Insiders\User\mcp.json |
-| Instructions (16) | .github\instructions\*.md | %APPDATA%\Code - Insiders\User\instructions\*.md |
+| Instructions (16) | .github\instructions\*.instructions | %APPDATA%\Code - Insiders\User\instructions\*.instructions |
 
 ---
 
