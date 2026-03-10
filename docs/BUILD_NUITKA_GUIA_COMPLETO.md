@@ -2,6 +2,7 @@
 
 ## CURRENT TRUTH (v4.32)
 
+- Sync deste guia: `2026-03-10 16:55 -0300`.
 - Nuitka permanece trilha experimental neste baseline.
 - Pipeline oficial de release continua PyInstaller.
 - Quando executar Nuitka, usar somente para validacao laboratorial e empacotar via:

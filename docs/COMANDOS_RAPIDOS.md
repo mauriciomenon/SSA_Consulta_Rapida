@@ -1,5 +1,13 @@
 # Comandos Rapidos - SSA Consulta Rapida v4.32
 
+## Sync desta folha (2026-03-10 16:55 -0300)
+
+1. Este runbook continua valido para baseline `v4.32`.
+2. Fluxo de importacao recomendado:
+   - incremental: `--force-rescan`
+   - full rescan: `--reset-db`
+3. Operacoes de DB auxiliares continuam disponiveis via menu GUI `Database`.
+
 ## Runtime padrao
 
 - Comando padrao: `uv run --python <runtime> ...`

@@ -2,6 +2,7 @@
 
 ## CURRENT TRUTH (v4.32)
 
+- Sync deste guia: `2026-03-10 16:55 -0300`.
 - Caminho operacional principal:
   - build: `python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui`
   - artefatos: `launchers/dist/windows_amd64/`

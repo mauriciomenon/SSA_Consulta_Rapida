@@ -3,6 +3,7 @@
 **Data de Criacao:** 27 de Agosto de 2025  
 **Versao do Sistema:** v4.32 (Estavel)  
 **Tipo:** Migracao Completa para Nova Instalacao  
+**Sync:** 10/03/2026 16:55 -0300  
 
 ---
 
@@ -56,7 +57,7 @@ cd SSA_Consulta_Rapida
 ```powershell
 # Verificar se esta na branch correta
 git branch -v
-# Deve mostrar: * main [commit_hash] [ultima mensagem]
+# Deve mostrar branch valida do seu fluxo (ex.: main/dev/feature em andamento)
 
 # Verificar status
 git status
@@ -460,5 +461,5 @@ print(f'SQLite: {sqlite3.sqlite_version}')
 
 ---
 
-*Ultima atualizacao: 09/03/2026 - v4.32*
+*Ultima atualizacao: 10/03/2026 - v4.32*
 *Para duvidas ou problemas, consulte o repositorio no GitHub*

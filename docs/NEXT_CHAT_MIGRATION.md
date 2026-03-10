@@ -2,32 +2,41 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 16:48 - start from here
+## CURRENT TRUTH 2026-03-10 16:55 - start from here
 
 - Priority note (nao perder no proximo chat):
   1. debt BLE001 no restante do codigo continua alto e deve entrar no proximo ciclo curto.
   2. contagem atual: `860`.
   3. comando: `ruff check . --select BLE001`.
   4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
-  5. status PR na ultima verificacao: sem threads abertas; checks externos ainda podem ficar pendentes (CodeFactor/Snyk quota/scan em andamento).
+  5. estado de PR: `#45` aberto, `0` threads abertas, merge ainda bloqueado por `CodeFactor`, `code/snyk`, `security/snyk`.
 
 - Slice aplicado:
-  1. reposicionamento dos atalhos/chips de filtro salvo para a mesma linha de `Salvar Filtro`.
+  1. sync total da documentacao ativa para baseline `v4.32`.
 - Arquivos alterados:
-  1. `gui/gui_ssa.py`
-  2. `tests/test_gui_filter_logic.py`
-  3. `docs/RECOVERY_BACKLOG.md`
-  4. `docs/NEXT_CHAT_MIGRATION.md`
-  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `README.md`
+  2. `docs/INDEX.md`
+  3. `docs/COMANDOS_RAPIDOS.md`
+  4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+  5. `docs/GUIA_DISTRIBUICAO.md`
+  6. `docs/HISTORICO_RELEASES.md`
+  7. `docs/CHANGELOG_IMPLEMENTACOES.md`
+  8. `docs/PENDING_ACTION_MATRIX.md`
+  9. `docs/RECOVERY_BACKLOG.md`
+  10. `docs/NEXT_CHAT_MIGRATION.md`
+  11. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  12. `docs/BUILD_MULTIPLATFORM.md`
+  13. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  14. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  15. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
 - Resultado tecnico:
-  1. chips de filtro salvo sairam da linha de paginacao e agora ficam ao lado direito de `Salvar Filtro`.
-  2. `Colunas Visiveis` permanece na linha de paginacao ao lado de `Linhas por Pagina`.
-  3. teste de geometria foi atualizado para cobrir o novo posicionamento.
+  1. docs ativos ficaram sincronizados com estado real do branch/PR.
+  2. runbooks de build/distribuicao continuam em `v4.32` com trilha operacional explicita.
+  3. docs de controle receberam o mesmo snapshot de status para migracao limpa.
 - Gates desta rodada:
-  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
-  2. `pytest` focado de layout/filtros -> `3 passed`.
+  1. `pytest -q tests/test_docs_and_priority.py` -> `3 passed`.
 - Deferido:
-  1. debt transversal de `BLE001` no repo (860 ocorrencias) permanece para sprint dedicado.
+  1. campanha BLE001 permanece para ciclo de hardening por modulo (sem refatoracao transversal).
 
 ## HISTORICAL SNAPSHOT 2026-03-10 16:37 - start from here
 

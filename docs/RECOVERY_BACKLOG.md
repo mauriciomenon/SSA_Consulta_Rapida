@@ -18,6 +18,41 @@ Fluxo de trabalho registrado para proximo ciclo curto:
 3. Regra operacional para esse debt:
    - corrigir por modulo (nao transversal), com gates por slice e rollback facil.
 
+## Update 2026-03-10 16:55 - doc sync total (estado real de fechamento)
+
+Session timestamp:
+1. start: `2026-03-10 16:55:29 -0300`
+2. end: `2026-03-10 16:55:29 -0300`
+
+Objetivo do slice:
+1. atualizar todos os docs ativos para estado real do branch/PR sem alterar runtime.
+
+Evidencia operacional consolidada:
+1. branch atual: `codex/sprint-importacao-grave-fixes-20260305`.
+2. PR atual: `#45` (aberto, `UNSTABLE`).
+3. threads abertas no PR: `0`.
+4. checks externos ainda bloqueando merge:
+   - `CodeFactor`
+   - `code/snyk` (limit reached)
+   - `security/snyk` (limit reached)
+
+Docs sincronizados nesta rodada:
+1. `README.md`
+2. `docs/INDEX.md`
+3. `docs/COMANDOS_RAPIDOS.md`
+4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+5. `docs/GUIA_DISTRIBUICAO.md`
+6. `docs/HISTORICO_RELEASES.md`
+7. `docs/CHANGELOG_IMPLEMENTACOES.md`
+8. `docs/PENDING_ACTION_MATRIX.md`
+9. `docs/NEXT_CHAT_MIGRATION.md`
+10. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+11. `docs/BUILD_MULTIPLATFORM.md`
+12. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+13. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+14. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+15. `docs/RECOVERY_BACKLOG.md`
+
 ## Update 2026-03-10 16:45 - chips de filtro salvo na linha de pesquisa
 
 Session timestamp:
