@@ -2,7 +2,36 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 02:39 - start from here
+## CURRENT TRUTH 2026-03-10 06:14 - start from here
+
+- Slice aplicado:
+  1. doc sync de build/distribuicao para baseline v4.32.
+  2. `docs/GUIA_DISTRIBUICAO.md` reescrito para fluxo canonico:
+     - build: `launchers/build_multiplatform.py`
+     - empacotamento: `scripts/create_distribution.py`
+     - artefatos: `launchers/dist/*`
+  3. `launchers/README.md` atualizado para plataformas reais ativas:
+     - `windows_amd64`, `macos_arm64`, `debian_amd64`.
+  4. guias completos de pyinstaller/nuitka/pyoxidizer receberam bloco `CURRENT TRUTH`
+     e rebaixaram referencias antigas para historico.
+- Arquivos tocados:
+  1. `docs/GUIA_DISTRIBUICAO.md`
+  2. `launchers/README.md`
+  3. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  4. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  5. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+  6. `docs/RECOVERY_BACKLOG.md`
+  7. `docs/NEXT_CHAT_MIGRATION.md`
+  8. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `kluster review` nos 5 docs-alvo -> clean.
+- Deferido:
+  1. referencias legadas dentro de secoes historicas extensas dos guias completos mantidas como snapshot.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 02:39
 
 - Slice aplicado:
   1. alinhamento de distribuicao para caminho canonico:

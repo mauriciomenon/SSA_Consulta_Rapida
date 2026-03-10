@@ -3,6 +3,39 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 06:14 - doc sync build/distribuicao v4.32
+
+Session timestamp:
+1. start: `2026-03-10 06:14:00 -0300`
+2. end: `2026-03-10 06:18:25 -0300`
+
+Objetivo do slice:
+1. sincronizar guias de build/distribuicao com o fluxo canonico atual.
+2. remover referencias quebradas como caminho principal (`build_*.bat`, `builds/*`, `pyoxidizer.bzl`).
+3. manter referencias antigas apenas como historico documentado.
+
+Mudancas aplicadas:
+1. `docs/GUIA_DISTRIBUICAO.md`:
+   - documento refeito para v4.32.
+   - build canonico com `launchers/build_multiplatform.py`.
+   - empacotamento com `scripts/create_distribution.py`.
+   - instrucoes de instalador e checklist atualizados.
+2. `launchers/README.md`:
+   - atualizado para plataformas ativas reais (`windows_amd64`, `macos_arm64`, `debian_amd64`).
+   - removeu narrativa antiga de targets `x86/x64/intel` fora do estado atual.
+3. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`:
+   - bloco `CURRENT TRUTH` + aviso de snapshot historico.
+4. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`:
+   - bloco `CURRENT TRUTH` declarando trilha experimental.
+5. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`:
+   - bloco `CURRENT TRUTH` declarando trilha laboratorio e nao operacional.
+
+Validacao desta rodada:
+1. `kluster review file docs/GUIA_DISTRIBUICAO.md launchers/README.md docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md docs/BUILD_NUITKA_GUIA_COMPLETO.md docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md` -> clean (0 issues)
+
+Deferido (nao bloqueante neste slice):
+1. referencias legadas dentro de secoes historicas extensas dos guias completos foram mantidas para contexto tecnico.
+
 ## Update 2026-03-10 02:39 - alinhamento de distribuicao para caminho canonico
 
 Session timestamp:

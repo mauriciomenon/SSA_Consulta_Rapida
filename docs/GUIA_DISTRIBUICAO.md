@@ -1,263 +1,157 @@
 # Guia de Distribuicao - SSA Consulta Rapida
 
-**Versao**: 4.11.1
-**Data**: 2025-11-19
+## CURRENT TRUTH (v4.32)
+
+- Versao de referencia: `4.32` (arquivo `VERSION`).
+- Fluxo canonico de build: `launchers/build_multiplatform.py`.
+- Saida canonica de artefatos: `launchers/dist/<plataforma>/`.
+- Empacotamento: `scripts/create_distribution.py`.
+- Ferramentas historicas e caminhos legados (`build_*.bat`, `builds/*`) nao sao caminho principal neste baseline.
 
 ## Visao Geral
 
-Este guia descreve como criar e distribuir pacotes do SSA Consulta Rapida para usuarios finais.
+Este guia descreve como gerar pacotes para distribuicao em Windows, macOS e Debian/Linux
+usando o fluxo canonico atual.
 
-## Pacotes Disponiveis
+## Build Canonico
 
-O sistema oferece 3 tipos de pacotes, cada um otimizado para um caso de uso diferente:
-
-| Build System | Tamanho ZIP | Executavel | Melhor Para |
-|--------------|-------------|-----------|-------------|
-| PyOxidizer   | 125 MB      | 3.4 MB    | Distribuicao publica (menor download) |
-| PyInstaller  | 169 MB      | 30 MB     | Desenvolvimento e testes rapidos |
-| Nuitka       | 187 MB      | 142 MB    | Performance maxima (codigo nativo) |
-
-## Criando Pacotes de Distribuicao
-
-### Opcao 1: Criar todos os pacotes
+### 1) Build da plataforma atual
 
 ```bash
-python scripts/create_distribution.py --all --skip-installer
+python launchers/build_multiplatform.py --apps cli gui
 ```
 
-Cria arquivos ZIP para os 3 build systems.
-
-### Opcao 2: Criar pacote especifico
+### 2) Build de plataforma especifica
 
 ```bash
-# Apenas PyOxidizer (recomendado para distribuicao)
-python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
-
-# Apenas PyInstaller
-python scripts/create_distribution.py --build-system pyinstaller --skip-installer
-
-# Apenas Nuitka
-python scripts/create_distribution.py --build-system nuitka --skip-installer
+python launchers/build_multiplatform.py --platform windows_amd64 --apps cli gui
+python launchers/build_multiplatform.py --platform macos_arm64 --apps cli gui
+python launchers/build_multiplatform.py --platform debian_amd64 --apps cli gui
 ```
 
-### Opcao 3: Criar instalador Windows (Inno Setup)
-
-Requer Inno Setup instalado: https://jrsoftware.org/isdl.php
+### 3) Verificar saida do build
 
 ```bash
-# Com instalador
-python scripts/create_distribution.py --build-system pyoxidizer
-
-# Apenas instalador (sem ZIP)
-python scripts/create_distribution.py --build-system pyoxidizer --installer-only
+python launchers/test_complete.py
 ```
 
-## Estrutura dos Pacotes
+## Empacotamento para Distribuicao
 
-Cada pacote ZIP contem:
+### 1) Criar ZIP
 
-```
-SSA_Consulta_Rapida_v4.11.1_[build]/
-├── SSA_Consulta_Rapida.exe (ou main.exe para Nuitka)
-├── _internal/                 # Dependencias (PyInstaller)
-├── lib/                       # Bibliotecas (PyOxidizer)
-├── config/                    # Arquivos de configuracao
-├── data/                      # Diretorio para bancos de dados
-│   └── historico_backups/    # Backups automaticos
-├── docs_entrada/             # Coloque arquivos Excel aqui
-├── docs_saida/               # Exportacoes CSV/Excel
-├── logs/                     # Logs de execucao
-├── reports/                  # Relatorios gerados
-├── exportacao/               # Exportacoes personalizadas
-├── docs/                     # Documentacao
-│   └── ANTIVIRUS_EXCLUSOES.txt
-├── LEIA-ME-USUARIO.txt       # Instrucoes para usuario final
-├── LEIA-ME.txt               # README principal
-└── VERSION.txt               # Informacoes de versao
-```
-
-## Distribuindo para Usuarios Finais
-
-### Recomendacoes por Caso de Uso
-
-#### 1. Distribuicao Publica (Internet)
-**Use**: PyOxidizer (125 MB)
-- Menor tamanho de download
-- Executavel compacto (3.4 MB)
-- Python embedado otimizado
-
-#### 2. Distribuicao Interna (Rede Local)
-**Use**: PyInstaller (169 MB) ou Nuitka (187 MB)
-- PyInstaller: Mais facil debug se houver problemas
-- Nuitka: Melhor performance para operacoes intensivas
-
-#### 3. Ambiente Corporativo Seguro
-**Use**: Nuitka (187 MB)
-- Codigo compilado nativo (mais dificil engenharia reversa)
-- Performance maxima
-- Melhor para grandes volumes de dados
-
-### Instrucoes para o Usuario Final
-
-Incluir no email/comunicado:
-
-```
-SSA Consulta Rapida v4.11.1
-
-INSTALACAO:
-
-1. Baixe o arquivo ZIP
-2. Extraia para uma pasta de sua preferencia
-   Exemplo: C:\Programas\SSA_Consulta_Rapida
-3. Leia o arquivo LEIA-ME-USUARIO.txt para instrucoes completas
-
-IMPORTANTE ANTIVIRUS:
-
-Alguns antivirus podem bloquear o executavel na primeira execucao.
-Se isso ocorrer:
-- Adicione a pasta do programa nas exclusoes do antivirus
-- Consulte: docs/ANTIVIRUS_EXCLUSOES.txt
-
-PRIMEIRO USO:
-
-1. Clique duas vezes em SSA_Consulta_Rapida.exe
-2. Coloque arquivos Excel em: docs_entrada/
-3. Execute novamente para importar os dados
-
-SUPORTE:
-
-- Documentacao completa na pasta docs/
-- Logs em: logs/ssa.log
-```
-
-## Atualizando Versao Existente
-
-Instrucoes para usuarios atualizarem sem perder dados:
-
-1. Baixar nova versao
-2. Extrair em pasta temporaria
-3. Copiar apenas o executavel principal e pasta _internal/lib
-4. MANTER as pastas do usuario:
-   - data/ (bancos de dados)
-   - config/ (configuracoes personalizadas)
-   - docs_entrada/ (arquivos do usuario)
-   - docs_saida/ (exportacoes)
-
-## Checklist de Distribuicao
-
-Antes de distribuir, verificar:
-
-- [ ] Versao correta em VERSION.txt
-- [ ] README para usuario incluido
-- [ ] Documentacao de antivirus incluida
-- [ ] Estrutura de diretorios completa
-- [ ] Executavel funcional (testar --version e --help)
-- [ ] Tamanho do ZIP razoavel
-- [ ] Nome do arquivo descritivo (inclui versao e build system)
-
-## Integracao com Build Scripts
-
-Para integrar a criacao de pacotes com os scripts de build existentes:
-
-### build_pyinstaller.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
+```bash
 python scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
-### build_pyoxidizer.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
+### 2) Criar instalador Windows (Inno Setup)
+
+```bash
+python scripts/create_distribution.py --build-system pyinstaller
+```
+
+Notas:
+- O script tenta localizar Inno Setup por:
+  1. `INNO_SETUP_COMPILER`
+  2. `iscc` no PATH
+  3. caminhos padrao do Windows
+- Se Inno Setup nao estiver disponivel, o ZIP continua funcional.
+
+### 3) Criar pacote de outros build systems (laboratorio)
+
+```bash
+python scripts/create_distribution.py --build-system nuitka --skip-installer
 python scripts/create_distribution.py --build-system pyoxidizer --skip-installer
 ```
 
-### build_nuitka.bat
-Adicionar ao final:
-```batch
-echo Criando pacote de distribuicao...
-python scripts/create_distribution.py --build-system nuitka --skip-installer
+Importante:
+- `nuitka` e `pyoxidizer` estao mantidos como trilha experimental neste ciclo.
+- Para release operacional, usar PyInstaller como padrao.
+
+## Estrutura Esperada dos Pacotes
+
+Pacote ZIP:
+
+```text
+SSA_Consulta_Rapida_v<versao>_<build_system>/
+├── <executavel_principal>
+├── config/
+├── docs/
+├── LEIA-ME-USUARIO.txt
+├── LEIA-ME.txt
+└── VERSION.txt
 ```
 
-## Criando Instalador Windows
+No caminho canonico de empacotamento, diretorios de dados locais sensiveis nao entram no bundle:
+- `data`
+- `docs_entrada`
+- `docs_saida`
+- `logs`
+- `reports`
+- `exportacao`
 
-### Requisitos
+## Distribuicao para Usuario Final
 
-1. Baixar e instalar Inno Setup: https://jrsoftware.org/isdl.php
-2. Instalar em: `C:\Program Files (x86)\Inno Setup 6\`
+Texto sugerido:
 
-### Criando o Instalador
+```text
+SSA Consulta Rapida v4.32
+
+INSTALACAO
+1. Baixe o arquivo ZIP.
+2. Extraia para uma pasta local.
+3. Entre na pasta extraida.
+4. Execute o binario principal.
+
+PRIMEIRO USO
+1. Coloque arquivos de entrada em docs_entrada/.
+2. Execute Atualizar Dados ou Reescaneamento Completo conforme o caso.
+
+SUPORTE
+- Logs em logs/ssa.log
+- Guia de antivirus em docs/ANTIVIRUS_EXCLUSOES.md
+```
+
+## Checklist de Release
+
+- [ ] Build canonico concluido em `launchers/dist/<plataforma>/`.
+- [ ] `launchers/test_complete.py` sem erro bloqueante.
+- [ ] ZIP gerado em `dist_packages/`.
+- [ ] Instalador (quando aplicavel) gerado em `dist_packages/`.
+- [ ] Nome inclui versao e build system.
+- [ ] Smoke manual: `--version`, `--help`, `--gui`.
+
+## Troubleshooting Rapido
+
+### ZIP nao gerado
+
+1. Confirmar build em `launchers/dist/<plataforma>/`.
+2. Executar novamente com log:
 
 ```bash
-python scripts/create_distribution.py --build-system pyoxidizer
+python scripts/create_distribution.py --build-system pyinstaller --skip-installer
 ```
 
-O instalador sera criado em: `dist_packages/SSA_Consulta_Rapida_v4.11.1_pyoxidizer_Setup.exe`
+### Instalador nao gerado
 
-### Recursos do Instalador
+1. Verificar Inno Setup instalado.
+2. Opcional: definir compilador explicitamente:
 
-- Instalacao em nivel de usuario (nao requer admin)
-- Cria atalho no desktop
-- Cria grupo no menu Iniciar
-- Cria estrutura de diretorios automaticamente
-- Opcao de executar ao final da instalacao
-- Desinstalador completo
+```bash
+set INNO_SETUP_COMPILER=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
+python scripts/create_distribution.py --build-system pyinstaller
+```
 
-## Troubleshooting
+### Copia de dados locais para build
 
-### Pacote muito grande
+O script `scripts/copy_data_to_builds.py` exige confirmacao explicita:
 
-Se o pacote ZIP estiver muito grande:
+```bash
+python scripts/copy_data_to_builds.py --build-system pyinstaller --allow-local-data
+```
 
-1. Verificar se bancos de dados de teste foram incluidos
-2. Remover logs desnecessarios antes de empacotar
-3. Considerar usar PyOxidizer (menor)
+Use somente em ambiente controlado.
 
-### Executavel nao funciona no cliente
+## Historical Snapshot
 
-1. Verificar se todas as DLLs necessarias foram incluidas
-2. Testar em maquina limpa (sem Python instalado)
-3. Verificar configuracao de antivirus
-4. Consultar logs em logs/ssa.log
-
-### Erro ao criar ZIP
-
-1. Verificar espaco em disco suficiente
-2. Verificar permissoes de escrita em dist_packages/
-3. Fechar programas que possam estar usando os arquivos
-4. Verificar se build existe (executar build antes)
-
-## Metricas de Distribuicao
-
-Comparacao dos pacotes criados:
-
-| Metrica | PyOxidizer | PyInstaller | Nuitka |
-|---------|------------|-------------|--------|
-| Tamanho ZIP | 125 MB | 169 MB | 187 MB |
-| Executavel | 3.4 MB | 30 MB | 142 MB |
-| Tempo criacao | ~4 min | ~2 min | ~1 min |
-| Compressao | Otima | Boa | Regular |
-
-## Proximos Passos
-
-1. **Automatizar no CI/CD**
-   - Gerar pacotes automaticamente a cada release
-   - Publicar em repositorio interno
-
-2. **Assinatura Digital**
-   - Assinar executaveis para evitar avisos do Windows
-   - Usar certificado code signing
-
-3. **Atualizacao Automatica**
-   - Implementar verificacao de versao
-   - Download automatico de atualizacoes
-
-4. **Telemetria (Opcional)**
-   - Coletar metricas de uso anonimas
-   - Identificar problemas comuns
-
----
-
-**Autor**: Sistema automatizado de distribuicao
-**Ultima atualizacao**: 2025-11-19
+- Referencias antigas a `build_*.bat`, `builds/*` e `pyoxidizer.bzl` existem em documentos de analise historica.
+- No baseline atual, elas nao representam o caminho operacional principal.

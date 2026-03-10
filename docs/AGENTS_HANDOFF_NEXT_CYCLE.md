@@ -2,7 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 02:39 - authoritative block
+## CURRENT TRUTH 2026-03-10 06:14 - authoritative block
+
+- Slice entregue:
+  1. DOC_SYNC de build/distribuicao para v4.32 sem tocar runtime.
+  2. `docs/GUIA_DISTRIBUICAO.md` refeito para caminho canonico:
+     - `launchers/build_multiplatform.py`
+     - `launchers/dist/*`
+     - `scripts/create_distribution.py`
+  3. `launchers/README.md` alinhado com plataformas reais ativas.
+  4. guias completos de PyInstaller/Nuitka/PyOxidizer com bloco `CURRENT TRUTH`
+     e snapshot historico explicito para referencias antigas.
+- Gates desta rodada:
+  1. `kluster review` dos docs tocados -> clean.
+- Pendencia deferida:
+  1. secoes historicas extensas com exemplos antigos foram mantidas para contexto tecnico.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 02:39
 
 - Slice entregue:
   1. `scripts/create_distribution.py`:
