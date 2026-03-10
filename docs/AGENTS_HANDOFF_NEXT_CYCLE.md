@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 13:58 - authoritative block
+## CURRENT TRUTH 2026-03-10 14:31 - authoritative block
+
+- Slice entregue:
+  1. fechamento seguro do refactor minimo em `core/app_logic.py` (orquestracao de importacao).
+  2. fix de runtime por import faltante de `cast`.
+  3. fix de regressao em full-rescan para materializacao do DB candidato antes da promocao.
+- Arquivos alterados:
+  1. `core/app_logic.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` em `core/app_logic.py` -> pass.
+  2. `pytest -q tests/test_import_derivadas_trigger.py` -> `13 passed`.
+  3. `pytest -q tests/test_app_logic_full_rescan_lock.py tests/test_import_derivadas_trigger.py tests/test_import_run_report.py tests/test_app_logic_postprocess_moves.py tests/test_import_cache_integrity.py` -> `27 passed`.
+- Deferido:
+  1. debts antigos em `filter_dataframe` (performance/semantica) e debt de rotacao/checkpoint sincrono.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 13:58 - authoritative block
 
 - Slice entregue:
   1. ajuste do combo rapido `setor_executor` na barra superior:
