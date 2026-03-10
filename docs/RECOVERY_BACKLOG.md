@@ -3,6 +3,35 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:11 - erro explicito de resolucao de build (dir vs executavel)
+
+Session timestamp:
+1. start: `2026-03-10 09:09:50 -0300`
+2. end: `2026-03-10 09:11:25 -0300`
+
+Objetivo do slice:
+1. separar no log de empacotamento os casos "diretorio ausente" e "executavel ausente".
+2. manter retorno de `_resolve_build_directory` sem refatoracao ampla.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - novo helper `_resolve_build_directory_failure_reason(build_system)` para detalhar causa de falha.
+   - `create_zip_package(...)` agora loga erro com motivo especifico de resolucao.
+2. `tests/test_create_distribution.py`:
+   - ajuste de asserts para mensagens especificas de "executavel ausente" em diretorio legacy/canonico.
+   - novo teste `test_create_zip_package_returns_none_when_build_directory_is_missing`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `8 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt de qualidade em `create_zip_package` (funcao longa) permanece.
+2. debt semantico em `_resolve_build_directory` (separar resolver dir de validar executavel) permanece para slice dedicado.
+3. duplicacao de setup nos testes de distribuicao permanece como debt de manutencao (nao funcional).
+
 ## Update 2026-03-10 08:49 - remocao de fallback generico de executavel no pacote
 
 Session timestamp:

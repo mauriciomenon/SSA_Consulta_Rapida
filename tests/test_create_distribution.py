@@ -12,6 +12,7 @@ def test_create_zip_package_returns_none_when_exe_missing(tmp_path: Path, monkey
     dist_output = project_root / "dist_packages"
     build_dir.mkdir(parents=True)
     dist_output.mkdir(parents=True)
+    (build_dir / "manifest.txt").write_text("content", encoding="utf-8")
 
     monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
     monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
@@ -31,7 +32,7 @@ def test_create_zip_package_returns_none_when_exe_missing(tmp_path: Path, monkey
     result = create_distribution.create_zip_package("fake", "1.0.0")
 
     assert result is None
-    assert "Diretorio de build ou executavel principal nao encontrado" in caplog.text
+    assert "Executavel primario ausente no diretorio" in caplog.text
 
 
 def test_create_zip_package_uses_canonical_pyinstaller_dir(
@@ -154,7 +155,37 @@ def test_create_zip_package_returns_none_when_canonical_has_no_primary_executabl
     result = create_distribution.create_zip_package("pyinstaller", "1.0.0")
 
     assert result is None
-    assert "Diretorio de build ou executavel principal nao encontrado" in caplog.text
+    assert "Executavel primario ausente em diretorio canonico" in caplog.text
+
+
+def test_create_zip_package_returns_none_when_build_directory_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "fake": {
+                "name": "Fake",
+                "exe_path": "builds/fake/main.exe",
+                "base_dir": "builds/fake",
+                "internal_dir": None,
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("fake", "1.0.0")
+
+    assert result is None
+    assert "Diretorio de build ausente" in caplog.text
 
 
 def test_compile_installer_returns_missing_when_iscc_is_unavailable(monkeypatch) -> None:
