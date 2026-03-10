@@ -2,7 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 15:17 - authoritative block
+## CURRENT TRUTH 2026-03-10 15:29 - authoritative block
+
+- Slice entregue:
+  1. realocacao de controles na aba Filtros:
+     - `Salvar Filtro` na linha de `Pesquisa Geral`;
+     - `Colunas Visiveis` + `Setor Executor` na linha de paginacao.
+  2. remocao visual do botao superior `Atualizar Derivadas` (acao mantida no menu Database).
+- Arquivos alterados:
+  1. `gui/gui_ssa.py`
+  2. `tests/test_gui_filter_logic.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado de GUI/filtros -> `5 passed`.
+- Deferido:
+  1. debts antigos de performance/arquitetura no `gui/gui_ssa.py` apontados por kluster, fora deste slice.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:17 - authoritative block
 
 - Slice entregue:
   1. hardening de bootstrap GUI em `main.py` para nao mascarar erro de importacao inesperado.

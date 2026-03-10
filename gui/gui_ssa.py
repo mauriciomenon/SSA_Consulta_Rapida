@@ -1080,12 +1080,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         self.rescan_button.clicked.connect(self.rescan_data)
         toolbar_layout.addWidget(cast(Any, self.rescan_button))
 
-        self.update_derivadas_button = QPushButton("Atualizar Derivadas")
+        self.update_derivadas_button = QPushButton("Atualizar Derivadas", self)
         self.update_derivadas_button.setToolTip(
             "Atualizar tabelas de derivadas (fase DB e fase planilhas especiais)"
         )
         self.update_derivadas_button.clicked.connect(self.update_derivadas_from_sources)
-        toolbar_layout.addWidget(cast(Any, self.update_derivadas_button))
+        # Botao removido da barra superior por UX; funcionalidade permanece no menu Database.
+        self.update_derivadas_button.setVisible(False)
         # Semana Atual (YYYYWW) como indicador informativo na barra superior
         try:
             from datetime import date
@@ -1224,13 +1225,17 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
+        save_filter_button = QPushButton("Salvar Filtro")
+        save_filter_button.setMaximumWidth(110)
+        save_filter_button.setToolTip(
+            "Salva somente o filtro atual da Pesquisa Geral como filtro persistente."
+        )
+        save_filter_button.clicked.connect(self.save_current_filter)
         left.addWidget(cast(Any, search_label))
         left.addWidget(cast(Any, search_input))
         left.addWidget(cast(Any, search_button))
         left.addWidget(cast(Any, clear_filter_button))
-
-        right = QHBoxLayout()
-        right.setContentsMargins(0, 0, 0, 0)
+        left.addWidget(cast(Any, save_filter_button))
         column_selector = ColumnSelector(
             self.display_map,
             self.visible_columns,
@@ -1239,18 +1244,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             info_font=self._info_font,
         )
         column_selector.columns_changed.connect(self.on_columns_changed)
-        right.addWidget(cast(Any, column_selector))
-        right.addSpacing(8)
 
         quick_setor_executor_combo = QComboBox()
         quick_setor_executor_combo.setToolTip(
             "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
         )
         try:
-            quick_setor_executor_combo.setMinimumWidth(150)
-            quick_setor_executor_combo.setMaximumWidth(210)
-            quick_setor_executor_combo.setMinimumContentsLength(8)
+            quick_setor_executor_combo.setMinimumWidth(165)
+            quick_setor_executor_combo.setMaximumWidth(225)
+            quick_setor_executor_combo.setMinimumContentsLength(9)
             quick_setor_executor_combo.setMaxVisibleItems(14)
+            control_height = max(
+                int(search_button.sizeHint().height() or 0),
+                int(search_input.sizeHint().height() or 0),
+                28,
+            )
+            quick_setor_executor_combo.setMinimumHeight(control_height)
+            quick_setor_executor_combo.setMaximumHeight(control_height)
             adjust_policy = getattr(
                 QComboBox.SizeAdjustPolicy,
                 "AdjustToMinimumContentsLengthWithIcon",
@@ -1283,11 +1293,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         quick_setor_executor_combo.currentIndexChanged.connect(
             lambda _idx, combo=quick_setor_executor_combo: self._on_quick_setor_executor_changed(combo)
         )
-        right.addWidget(cast(Any, quick_setor_executor_combo))
 
         search_row.addLayout(cast(Any, left))
         search_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
-        search_row.addLayout(cast(Any, right))
         tab_layout.addLayout(cast(Any, search_row))
 
         search_help = QLabel(
@@ -1319,12 +1327,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         persistent_filters_layout = QHBoxLayout()
         persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
 
-        save_filter_button = QPushButton("Salvar Filtro")
-        save_filter_button.setMaximumWidth(100)
-        save_filter_button.setToolTip("Salvar filtro atual como persistente")
-        save_filter_button.clicked.connect(self.save_current_filter)
-        persistent_filters_layout.addWidget(cast(Any, save_filter_button))
-
         exclude_ste_checkbox = QCheckBox("Nao esta em STE/SCA")
         exclude_ste_checkbox.setToolTip("Oculta SSAs com situacao STE ou SCA")
         try:
@@ -1349,6 +1351,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         pagination_filters_layout.addLayout(cast(Any, persistent_filters_layout))
         pagination_filters_layout.addStretch()
+        pagination_filters_layout.addWidget(cast(Any, column_selector))
+        pagination_filters_layout.addSpacing(8)
+        pagination_filters_layout.addWidget(cast(Any, quick_setor_executor_combo))
 
         col_filter_indicator = QLabel("")
         try:
@@ -1560,6 +1565,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "search_input": search_input,
                 "search_button": search_button,
                 "clear_filter_button": clear_filter_button,
+                "save_filter_button": save_filter_button,
                 "column_selector": column_selector,
                 "quick_setor_executor_combo": quick_setor_executor_combo,
                 "search_help": search_help,

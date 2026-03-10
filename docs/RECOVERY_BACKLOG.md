@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 15:29 - ajuste de barra de filtros + remocao do botao derivadas
+
+Session timestamp:
+1. start: `2026-03-10 15:21:12 -0300`
+2. end: `2026-03-10 15:29:03 -0300`
+
+Objetivo do slice:
+1. realocar controles na aba Filtros sem mudar logica de filtragem.
+2. remover apenas o botao superior "Atualizar Derivadas", mantendo a acao no menu.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - `Salvar Filtro` movido para a mesma linha de `Pesquisa Geral`.
+   - tooltip de `Salvar Filtro` atualizado para explicitar que salva somente a busca geral.
+   - `Colunas Visiveis` e `Setor Executor` movidos para a linha de paginacao (`Linhas por Pagina`).
+   - `Setor Executor` mantido no canto direito da linha e com ajuste fino de largura/altura.
+   - botao superior `Atualizar Derivadas` retirado da barra (widget oculto), com funcionalidade preservada via menu Database.
+2. `tests/test_gui_filter_logic.py`
+   - novo teste para confirmar ausencia visual do botao superior de derivadas.
+   - novo teste para validar posicionamento de `Salvar Filtro`, `Colunas Visiveis` e `Setor Executor`.
+
+Evidencia objetiva:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass.
+4. `uv run --python 3.13 pytest -q` focado em 5 testes de GUI/filtro -> `5 passed`.
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` apontados por kluster (classe extensa, resize/sort em UI thread).
+
 ## Update 2026-03-10 15:17 - hardening de fallback GUI em main.py
 
 Session timestamp:

@@ -146,6 +146,40 @@ class TestGUIFilterLogic:
         assert text.startswith("Colunas Visiveis:")
         assert not hasattr(selector, "summary_label")
 
+    def test_top_toolbar_hides_update_derivadas_button(self):
+        button = getattr(self.window, "update_derivadas_button", None)
+        assert button is not None
+        assert button.isVisible() is False
+        visible_named = [
+            btn
+            for btn in self.window.findChildren(QPushButton)
+            if str(btn.text() or "") == "Atualizar Derivadas" and btn.isVisible()
+        ]
+        assert visible_named == []
+
+    def test_search_and_pagination_rows_place_controls_in_expected_lines(self):
+        main_ctx = self.window._tab_contexts[0]
+        search_input = main_ctx["search_input"]
+        search_button = main_ctx["search_button"]
+        save_filter_button = main_ctx["save_filter_button"]
+        paginator = main_ctx["paginator"]
+        column_selector = main_ctx["column_selector"]
+        quick_combo = main_ctx["quick_setor_executor_combo"]
+
+        QApplication.processEvents()
+
+        tooltip = str(save_filter_button.toolTip() or "")
+        assert "somente o filtro atual da Pesquisa Geral" in tooltip
+        assert abs(save_filter_button.geometry().y() - search_input.geometry().y()) <= 8
+        assert column_selector.geometry().y() > search_input.geometry().y()
+        assert abs(column_selector.geometry().y() - paginator.geometry().y()) <= 10
+        assert quick_combo.geometry().x() > column_selector.geometry().x()
+        assert quick_combo.height() >= search_button.height() - 2
+        parent_widget = quick_combo.parentWidget()
+        assert parent_widget is not None
+        right_gap = parent_widget.rect().right() - quick_combo.geometry().right()
+        assert right_gap <= 24
+
     def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
         ordered = SSAMainWindow._order_setor_executor_values(
             ["AAA", "ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
