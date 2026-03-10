@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 10:08 - cobertura de regressao para resolve vs failure_reason (pyinstaller)
+
+Session timestamp:
+1. start: `2026-03-10 10:07:22 -0300`
+2. end: `2026-03-10 10:08:49 -0300`
+
+Objetivo do slice:
+1. comprovar por teste que `_resolve_build_directory_failure_reason` nao mascara caso `legacy sem executavel` como `diretorio ausente`.
+2. travar por regressao os casos `canonical sem exe` e `legacy sem exe`.
+
+Mudancas aplicadas:
+1. `tests/test_create_distribution.py`:
+   - novo `test_failure_reason_pyinstaller_reports_canonical_missing_primary_executable`
+   - novo `test_failure_reason_pyinstaller_reports_legacy_missing_primary_executable`
+2. runtime nao alterado neste micro-slice.
+
+Validacao desta rodada:
+1. `kluster review file tests/test_create_distribution.py` -> clean
+2. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `15 passed`
+
+Deferido (nao bloqueante neste slice):
+1. validacao em Windows/ISCC real para risco semantico de path `Source` no `.iss`.
+2. debt de concentracao residual em `create_zip_package` e `create_inno_setup_script`.
+
 ## Update 2026-03-10 10:05 - modularizacao minima em create_zip_package + define SourcePath
 
 Session timestamp:

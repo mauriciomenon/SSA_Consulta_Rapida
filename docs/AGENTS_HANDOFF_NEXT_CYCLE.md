@@ -2,6 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 10:08 - authoritative block
+
+- Slice entregue:
+  1. testes de regressao novos para garantir diagnostico correto de falha em pyinstaller.
+  2. cenarios cobertos:
+     - `canonical` com conteudo mas sem executavel -> reason canonico.
+     - `legacy` com conteudo mas sem executavel -> reason de executavel ausente no legacy.
+  3. runtime nao alterado neste micro-slice.
+- Gates desta rodada:
+  1. kluster em `tests/test_create_distribution.py` -> clean.
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `15 passed`.
+- Pendencia deferida:
+  1. validar em Windows/ISCC real o cenario de `Source` no `.iss`.
+  2. continuar reducao de concentracao em `create_zip_package` e `create_inno_setup_script`.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:05 - authoritative block
 
 - Slice entregue:
