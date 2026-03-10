@@ -2134,7 +2134,15 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             na_position="last",
             kind="mergesort",
         ).index
-        return self.df_exibido.loc[ordered_index]
+        sorted_df = self.df_exibido.loc[ordered_index]
+        if isinstance(sort_keys, pd.DataFrame) and not sort_keys.empty:
+            sorted_keys = sort_keys.loc[ordered_index]
+            self._num_reprog_sort_cache = {
+                "source_id": id(sorted_df),
+                "source_len": len(sorted_df.index),
+                "keys_df": sorted_keys,
+            }
+        return sorted_df
 
     def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
         raw_series = source_df["num_reprogramacoes"]
@@ -2157,19 +2165,26 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _get_num_reprogramacoes_sort_keys(self) -> pd.DataFrame:
         source_df = self.df_exibido
-        last_search_df = getattr(self, "_df_last_search_filtered", None)
-        if isinstance(last_search_df, pd.DataFrame) and "num_reprogramacoes" in last_search_df.columns:
-            source_df = last_search_df
+        if not isinstance(source_df, pd.DataFrame):
+            return pd.DataFrame(columns=["__reprog_is_nan", "__reprog_num", "__reprog_txt"])
+        if "num_reprogramacoes" not in source_df.columns:
+            return pd.DataFrame(index=source_df.index)
 
         source_id = id(source_df)
         source_len = len(source_df.index)
         cache = getattr(self, "_num_reprog_sort_cache", None)
         keys_df = cache.get("keys_df") if isinstance(cache, dict) else None
+        cache_source_len = cache.get("source_len", -1) if isinstance(cache, dict) else -1
+        try:
+            cache_source_len_int = int(cache_source_len)
+        except (TypeError, ValueError):
+            cache_source_len_int = -1
         cache_is_valid = (
             isinstance(cache, dict)
             and cache.get("source_id") == source_id
-            and int(cache.get("source_len", -1)) == source_len
+            and cache_source_len_int == source_len
             and isinstance(keys_df, pd.DataFrame)
+            and keys_df.index.equals(source_df.index)
         )
         if not cache_is_valid:
             keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
@@ -2179,20 +2194,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "keys_df": keys_df,
             }
         if not isinstance(keys_df, pd.DataFrame):
-            keys_df = self._build_num_reprogramacoes_sort_keys(self.df_exibido)
-        sort_keys = keys_df.reindex(self.df_exibido.index)
-        if bool(sort_keys["__reprog_txt"].isna().any()):
-            # Fallback defensivo: indices divergiram; usa dataframe atual.
-            sort_keys = self._build_num_reprogramacoes_sort_keys(self.df_exibido)
-        return sort_keys
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+        if not keys_df.index.equals(source_df.index):
+            keys_df = self._build_num_reprogramacoes_sort_keys(source_df)
+            self._num_reprog_sort_cache = {
+                "source_id": source_id,
+                "source_len": source_len,
+                "keys_df": keys_df,
+            }
+        return keys_df
 
     def _reset_num_reprogramacoes_sort_cache(self) -> None:
         self._num_reprog_sort_cache = {"source_id": None, "source_len": 0, "keys_df": None}
 
     def _prime_num_reprogramacoes_sort_cache(self) -> None:
-        source_df = getattr(self, "_df_last_search_filtered", None)
-        if not isinstance(source_df, pd.DataFrame):
-            source_df = self.df_exibido
+        source_df = self.df_exibido
         if not isinstance(source_df, pd.DataFrame):
             self._reset_num_reprogramacoes_sort_cache()
             return

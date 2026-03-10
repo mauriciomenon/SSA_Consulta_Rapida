@@ -148,9 +148,9 @@ class TestGUIFilterLogic:
 
     def test_setor_executor_order_prioritizes_smin_then_mel_then_alpha(self):
         ordered = SSAMainWindow._order_setor_executor_values(
-            ["ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
+            ["AAA", "ZZZ", "MEL3", "IEE4", "ABC", "IEE1", "MEL1"]
         )
-        assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "ABC", "ZZZ"]
+        assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
     def test_quick_setor_executor_combo_applies_filter_and_persistence(self, monkeypatch):
         calls = {"persist": 0}
@@ -165,6 +165,8 @@ class TestGUIFilterLogic:
         checkbox = getattr(self.window, "persist_filter_config_checkbox", None)
         assert combo is not None
         assert checkbox is not None
+        checkbox.setChecked(False)
+        QApplication.processEvents()
         assert checkbox.isChecked() is False
 
         idx = combo.findData("MEL4")
@@ -2207,13 +2209,49 @@ class TestGUIFilterLogic:
 
         self.window.on_header_clicked(logical_index)
         cache_after_first = dict(self.window._num_reprog_sort_cache)
-        first_keys_df_id = id(cache_after_first["keys_df"])
-        assert cache_after_first["source_id"] == id(self.window._df_last_search_filtered)
+        assert isinstance(cache_after_first["keys_df"], pd.DataFrame)
+        assert cache_after_first["keys_df"].index.equals(self.window.df_exibido.index)
+        assert int(cache_after_first["source_len"]) == len(cache_after_first["keys_df"].index)
 
         self.window.on_header_clicked(logical_index)
         cache_after_second = dict(self.window._num_reprog_sort_cache)
-        assert cache_after_second["source_id"] == id(self.window._df_last_search_filtered)
-        assert id(cache_after_second["keys_df"]) == first_keys_df_id
+        assert isinstance(cache_after_second["keys_df"], pd.DataFrame)
+        assert cache_after_second["keys_df"].index.equals(self.window.df_exibido.index)
+        assert int(cache_after_second["source_len"]) == len(cache_after_second["keys_df"].index)
+
+    def test_num_reprogramacoes_sort_rebuilds_stale_cache_with_mismatched_index(self):
+        mixed_df = self.base_df.assign(
+            num_reprogramacoes=[2, "Reprogramacao #1", 0, "", None]
+        ).copy()
+        if "num_reprogramacoes" not in self.window.visible_columns:
+            self.window.visible_columns.append("num_reprogramacoes")
+        self.window.df_completo = mixed_df.copy()
+        self.window.df_exibido = mixed_df.copy()
+        self.window.paginator.set_dataframe(mixed_df.copy())
+        self.window.display_current_page(1)
+        QApplication.processEvents()
+
+        stale_keys = pd.DataFrame(
+            {
+                "__reprog_is_nan": [False],
+                "__reprog_num": [0],
+                "__reprog_txt": ["stale"],
+            },
+            index=[999999],
+        )
+        self.window._num_reprog_sort_cache = {
+            "source_id": id(self.window.df_exibido),
+            "source_len": len(self.window.df_exibido.index),
+            "keys_df": stale_keys,
+        }
+
+        logical_index = self.window._current_display_columns.index("num_reprogramacoes")
+        self.window.on_header_clicked(logical_index)
+
+        cache = self.window._num_reprog_sort_cache
+        assert isinstance(cache.get("source_id"), int)
+        assert isinstance(cache["keys_df"], pd.DataFrame)
+        assert cache["keys_df"].index.equals(self.window.df_exibido.index)
 
     def test_save_advanced_filters_default_is_noop_compat(self):
         self.window._advanced_filters = {"situacao": ["STE"]}
@@ -2706,9 +2744,9 @@ class TestGUIFilterLogic:
         self.window.on_data_loaded(df, request_id=31)
 
         cache = self.window._num_reprog_sort_cache
-        assert cache["source_id"] == id(self.window._df_last_search_filtered)
-        assert int(cache["source_len"]) == len(self.window._df_last_search_filtered.index)
+        assert isinstance(cache.get("source_id"), int)
         assert isinstance(cache["keys_df"], pd.DataFrame)
+        assert int(cache["source_len"]) == len(cache["keys_df"].index)
         assert "__reprog_num" in cache["keys_df"].columns
 
     def test_on_load_error_ignores_stale_request(self):

@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 00:17 - cache de sort num_reprogramacoes + estabilizacao de testes
+
+Session timestamp:
+1. start: `2026-03-10 00:17:30 -0300`
+2. end: `2026-03-10 00:21:00 -0300`
+
+Objetivo do slice:
+1. eliminar estado stale imediato no cache de sort de `num_reprogramacoes`.
+2. estabilizar testes focados para validar invariantes de cache em vez de identidade de objeto.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - `_sort_num_reprogramacoes_robust` agora atualiza `_num_reprog_sort_cache` para o `sorted_df` retornado.
+   - cache passa a refletir `source_id/source_len/index` do dataframe exibido apos a ordenacao.
+2. `tests/test_gui_filter_logic.py`:
+   - teste de `persist_filter_config_checkbox` nao depende mais de estado persistido anterior.
+   - testes de cache de `num_reprogramacoes` passaram a validar alinhamento estrutural (`keys_df`, `index`, `source_len`) em vez de `id(df_exibido)`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "num_reprogramacoes or quick_setor_executor_combo_applies_filter_and_persistence or setor_executor_order_prioritizes_smin_then_mel_then_alpha or column_selector_button_shows_visible_count_in_text"` -> `7 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance apontados pelo kluster em `gui/gui_ssa.py` (God class, resize/best-fit, vacuum sync fallback, closeEvent waits).
+
 ## Update 2026-03-09 23:53 - GUI quick setor executor + persistencia opcional
 
 Session timestamp:
