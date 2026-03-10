@@ -436,3 +436,51 @@ def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
 
     assert running == ["w2", "w3"]
     assert expired == ["w1"]
+
+
+def test_prune_retired_rescan_workers_expires_oldest_when_above_cap(monkeypatch):
+    class _Worker:
+        def __init__(self, name: str):
+            self.name = name
+            self._running = True
+            self.stop_called = False
+            self.quit_called = False
+            self.wait_calls = 0
+
+        def isRunning(self):
+            return self._running
+
+        def stop(self):
+            self.stop_called = True
+            self._running = False
+
+        def quit(self):
+            self.quit_called = True
+
+        def wait(self, _ms: int):
+            self.wait_calls += 1
+
+        def __repr__(self):
+            return f"Worker({self.name})"
+
+    monkeypatch.setattr(ssa_gui_workers, "perf_counter", lambda: 120.0)
+    window = _Window()
+    older = _Worker("older")
+    newer = _Worker("newer")
+    global_workers = [older, newer]
+    global_meta = {older: 100.0, newer: 110.0}
+
+    ssa_gui_workers.prune_retired_rescan_workers(
+        window,
+        global_workers=global_workers,
+        global_meta=global_meta,
+        max_global_workers=1,
+        retired_ttl_sec=60.0,
+        retired_force_wait_ms=10,
+        sip_module=None,
+    )
+
+    assert global_workers == [newer]
+    assert newer in global_meta
+    assert older not in global_meta
+    assert older.stop_called is True

@@ -2,7 +2,34 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 06:14 - start from here
+## CURRENT TRUTH 2026-03-10 07:44 - start from here
+
+- Slice aplicado:
+  1. deduplicacao minima do prune de workers em `gui/ssa/gui_workers.py`.
+  2. novo helper comum `_classify_and_update_global_workers_locked(...)` usado por:
+     - `prune_retired_data_loader_workers`
+     - `prune_retired_rescan_workers`
+  3. novo teste de regressao em `tests/test_gui_workers_rescan_data.py` para cap de workers e expiracao do mais antigo.
+- Arquivos tocados:
+  1. `gui/ssa/gui_workers.py`
+  2. `tests/test_gui_workers_rescan_data.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py` -> `10 passed`.
+  3. `kluster review file gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> sem novo blocker do slice; sobram debts medios antigos fora de escopo.
+  4. `kluster review file docs/RECOVERY_BACKLOG.md` -> clean.
+- Deferido:
+  1. decompor `on_data_loaded` (god-function) em ciclo dedicado.
+  2. desacoplar prompt de modo em `rescan_data` para caller.
+  3. mover sanitizacao/sort pesado do UI thread para worker.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 06:14
 
 - Slice aplicado:
   1. doc sync de build/distribuicao para baseline v4.32.

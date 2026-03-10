@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 06:14 - authoritative block
+## CURRENT TRUTH 2026-03-10 07:44 - authoritative block
+
+- Slice entregue:
+  1. deduplicacao minima de prune de workers sem mudar semantica de cleanup.
+  2. helper comum `_classify_and_update_global_workers_locked(...)` aplicado nos dois fluxos:
+     - data loader prune
+     - rescan prune
+  3. cobertura nova de regressao para cap de workers em prune de rescan.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py` -> `10 passed`.
+  3. `kluster review file gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> sem novo blocker do slice; restam debts medios antigos fora de escopo.
+  4. `kluster review file docs/RECOVERY_BACKLOG.md docs/NEXT_CHAT_MIGRATION.md docs/AGENTS_HANDOFF_NEXT_CYCLE.md` -> clean.
+- Pendencia deferida:
+  1. decompor `on_data_loaded` (debt de concentracao).
+  2. desacoplar prompt de modo do fluxo `rescan_data`.
+  3. mover sanitizacao/sort pesado do UI thread para worker.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 06:14
 
 - Slice entregue:
   1. DOC_SYNC de build/distribuicao para v4.32 sem tocar runtime.
