@@ -2,6 +2,31 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 10:15 - authoritative block
+
+- Slice entregue:
+  1. resolvidos os 3 apontamentos recorrentes do loop:
+     - risco semantico de path `Source` no ISS;
+     - sincronia de diagnostico `resolve` vs `failure_reason`;
+     - concentracao em `create_zip_package`.
+  2. `scripts/create_distribution.py`:
+     - `_resolve_inno_source` passou a seguir `exe_path` do config para pyoxidizer/nuitka.
+     - `create_inno_setup_script` foi quebrado em helpers de path/excludes/template.
+     - `Source` no ISS usa macro explicita `SourceDir`.
+  3. `tests/test_create_distribution.py`:
+     - novo teste de `exe_path` para pyoxidizer.
+     - asserts ajustados para novo contrato do ISS.
+- Gates desta rodada:
+  1. kluster script -> clean.
+  2. kluster tests -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `16 passed`.
+- Pendencia deferida:
+  1. rodada final em Windows/ISCC real para confirmacao de ambiente.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 10:08 - authoritative block
 
 - Slice entregue:
