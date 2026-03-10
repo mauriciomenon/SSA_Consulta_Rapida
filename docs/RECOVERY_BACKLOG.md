@@ -3,6 +3,38 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 11:51 - remove B110/B112 remanescentes no GUI/worker
+
+Session timestamp:
+1. start: `2026-03-10 11:47:39 -0300`
+2. end: `2026-03-10 11:51:10 -0300`
+
+Objetivo do slice:
+1. remover `try/except` proibido (`pass` e `continue`) reportado em `gui/gui_ssa.py` e `gui/workers/data_loader_worker.py`.
+2. manter patch minimo sem alterar layout GUI nem fluxo de importacao.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - remove `except Exception: pass` no `finally` do combo rapido de setor executor.
+   - remove `except ... continue` na leitura de `import_run_*.json`; troca por:
+     - captura especifica (`OSError`, `UnicodeDecodeError`, `json.JSONDecodeError`) com log debug.
+     - `continue` fora do bloco `except`.
+2. `gui/workers/data_loader_worker.py`:
+   - remove `except ... continue` na verificacao de colunas nao nulas.
+   - mantem fallback com log debug por coluna, sem suppress silencioso.
+
+Validacao tecnica desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py gui/workers/data_loader_worker.py tests/test_gui_filter_logic.py tests/test_data_loader_worker.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py gui/workers/data_loader_worker.py tests/test_gui_filter_logic.py tests/test_data_loader_worker.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py gui/workers/data_loader_worker.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_data_loader_worker.py tests/test_gui_filter_logic.py -k "quick_setor_executor_combo_applies_filter_and_syncs_or_group_only or DataLoaderWorker or non_null"` -> `2 passed, 157 deselected`
+5. `timeout 60s uv run --python 3.13 bandit -q -r gui/gui_ssa.py gui/workers/data_loader_worker.py` -> sem `B110/B112`; sobraram apenas alertas antigos de `subprocess` e SQL dinamico com sanitizacao.
+
+Deferido (nao bloqueante neste slice):
+1. debt antigo de arquitetura/performance em `gui/gui_ssa.py` (God class, resize perf, sort perf).
+2. alerta kluster sobre chamada `query_db(self.db_path, '', query, raise_on_error=True)` classificado como falso positivo:
+   - assinatura real aceita `(db_path, table_name, query, params, raise_on_error)` em `armazenamento/database.py`.
+
 ## Update 2026-03-10 11:26 - hotfix build macos util + quick setor executor sync + hooks tamanho
 
 Session timestamp:

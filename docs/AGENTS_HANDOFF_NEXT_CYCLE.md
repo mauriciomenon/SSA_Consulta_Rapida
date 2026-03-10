@@ -2,6 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 11:51 - authoritative block
+
+- Slice entregue:
+  1. eliminados os `try/except` proibidos que ainda restavam no escopo pedido.
+  2. nenhum ajuste de layout/posicionamento GUI.
+- Mudancas tecnicas principais:
+  1. `gui/gui_ssa.py`:
+     - `except ... pass` removido no restore de signals do combo rapido.
+     - leitura de `import_run_*.json` com excecoes especificas e log debug, sem `continue` dentro de `except`.
+  2. `gui/workers/data_loader_worker.py`:
+     - fallback por coluna para non-null sem `except ... continue`, com log debug.
+- Evidencia de validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado (`test_data_loader_worker.py` + `test_gui_filter_logic.py` com filtro) -> `2 passed, 157 deselected`.
+  3. `bandit` focado em GUI/worker -> `B110/B112` nao aparecem mais.
+- Risco/pendencia:
+  1. alertas kluster de arquitetura/performance em `gui_ssa.py` permanecem como debt antigo.
+  2. alerta kluster de assinatura `query_db` no worker foi classificado como falso positivo apos checagem da assinatura real.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 11:26 - authoritative block
 
 - Slice entregue:

@@ -2470,8 +2470,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         finally:
             try:
                 combo.blockSignals(False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Falha ao reativar sinais do combo rapido de setor executor: %s", exc)
             self._quick_setor_executor_syncing = False
 
     @staticmethod
@@ -3314,10 +3314,13 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         docs_abs = os.path.abspath(docs_path)
         for report_path in report_paths:
+            payload = None
             try:
                 with open(report_path, "r", encoding="utf-8") as handle:
                     payload = json.load(handle)
-            except Exception:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                logger.debug("Ignorando report invalido '%s': %s", report_path, exc)
+            if not isinstance(payload, dict):
                 continue
             payload_docs = str((payload.get("paths") or {}).get("docs_dir") or "")
             if os.path.abspath(payload_docs) != docs_abs:
