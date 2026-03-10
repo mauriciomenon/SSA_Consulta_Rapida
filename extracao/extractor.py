@@ -135,10 +135,16 @@ def _record_debug_phase_columns(
     debug_phases: Optional[dict[str, list[str]]],
     phase_name: str,
     columns: Any,
+    *,
+    context_name: str | None = None,
 ) -> None:
     if debug_phases is None:
         return
-    debug_phases[phase_name] = [str(column) for column in list(columns)]
+    serialized = [str(column) for column in list(columns)]
+    if phase_name not in debug_phases:
+        debug_phases[phase_name] = serialized
+    if context_name:
+        debug_phases[f"{context_name}:{phase_name}"] = serialized
 
 
 def _summarize_invalid_identity_rows(
@@ -344,6 +350,7 @@ def extract_data_from_excel(
                         _debug_phases,
                         "header_raw",
                         sheet_df.columns,
+                        context_name=sheet_name,
                     )
                     # Remove linhas anteriores ao cabecalho e o proprio cabecalho
                     sheet_df = sheet_df.drop(sheet_df.index[:header_row_idx + 1])
@@ -374,6 +381,7 @@ def extract_data_from_excel(
                         _debug_phases,
                         "after_empty_column_prune",
                         sheet_df.columns,
+                        context_name=sheet_name,
                     )
 
                     if not sheet_df.empty:

@@ -2,26 +2,46 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 00:55 - authoritative block
+## CURRENT TRUTH 2026-03-10 01:11 - authoritative block
 
 - Slice entregue:
-  1. `gui/gui_ssa.py`:
-     - remove sync do quick filter `Setor Executor` com `_advanced_filters`.
-     - mantem sync apenas em OR group/filtros por coluna (`setor_executor`/`setor_emissor`).
-     - popup do combo rapido segue com rolagem real (`combobox-popup: 0`, `maxVisibleItems=14`, scrollbar no `view`).
-  2. `tests/test_gui_filter_logic.py`:
-     - contrato atualizado: quick combo altera OR group de coluna, sem alterar `_advanced_filters`.
-     - cobertura mantida para popup limitado/rolavel.
+  1. `armazenamento/database.py`:
+     - cache por chave em `_resolve_target_table`.
+     - hardening de fallback de schema em `initialize_database`.
+  2. `armazenamento/database_validation.py`:
+     - report estruturado para coluna obrigatoria ausente.
+     - erro de validacao com tipo de excecao + stacktrace.
+  3. `extracao/extractor.py` + `utils/robust_importer.py`:
+     - debug phases com namespace por planilha.
+     - ajuste de duplicadas semanticas (`sn` e fallback de sufixo).
+  4. `gui/gui_ssa.py`:
+     - fallback de destino unico retrocompativel.
+     - validacao de caminho local bloqueando basename iniciado em `-`.
+  5. `gui/ssa/gui_workers.py`:
+     - `max_global_workers` efetivo no classificador.
+     - logs de expiracao com contexto de worker.
+     - registro global/meta do data loader logo apos `start()`.
+  6. `gui/mixins/tab_context_gui_ssa_mixin.py`:
+     - unblock de sinais com guarda explicita.
+  7. `gui/ssa/gui_theme.py`:
+     - reaplicacao de QSS global baseada no stylesheet atual do app.
+  8. testes/docs:
+     - `tests/test_gui_workers_rescan_data.py` (cap TTL).
+     - `tests/test_gui_filter_logic.py` (qWait dinamico).
+     - `tests/test_db_reset_and_upsert.py` (assert reforcado).
+     - `docs/TROUBLESHOOTING_IMPORTACAO.md` (`PY_RUNTIME`).
 - Gates desta rodada:
   1. `py_compile`, `ruff`, `ty` -> pass.
-  2. `pytest` focado em quick setor/OR group -> `2 passed`.
+  2. `pytest` focado workers/gui/upsert/validacao/importacao -> `8 passed`.
+  3. `pytest` focado extracao/report/signal -> `35 passed`.
+  4. `pytest` focado tema/resize/quick_filter -> `4 passed`.
 - Pendencia deferida:
-  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` fora deste slice.
+  1. debts estruturais amplos (God class/performance geral) mantidos para slice dedicado.
 - Residuos locais fora de escopo (nao commitar):
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## HISTORICAL SNAPSHOT 2026-03-10 00:42
+## HISTORICAL SNAPSHOT 2026-03-10 00:55
 
 - Slice entregue:
   1. sync do quick filter com avancados (executor/emissor) + limpeza de excludes.

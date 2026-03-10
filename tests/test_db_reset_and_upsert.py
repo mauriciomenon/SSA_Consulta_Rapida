@@ -209,7 +209,7 @@ def test_smart_upsert_reimport_keeps_single_sanitized_column(tmp_path, monkeypat
     assert 'nome_paciente' in cols
     assert 'nome_paciente_1' not in cols
     assert row_count == 2
-    assert int(filled_count) >= 1
+    assert int(filled_count) == row_count
 
 
 def test_smart_upsert_discards_placeholder_dynamic_headers(tmp_path, monkeypatch):

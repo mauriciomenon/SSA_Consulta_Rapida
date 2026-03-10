@@ -3,6 +3,60 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 01:11 - bugfix real + testes/docs sem mudanca estrutural
+
+Session timestamp:
+1. start: `2026-03-10 01:11:31 -0300`
+2. end: `2026-03-10 02:36:33 -0300`
+
+Objetivo do slice:
+1. corrigir bugs reais de baixo/medio risco sem refatoracao ampla.
+2. atacar pendencias principais de testes/docs nao bloqueantes.
+3. manter decisoes intencionais sem alteracao.
+
+Mudancas aplicadas:
+1. `armazenamento/database.py`:
+   - cache de resolucao de tabela agora usa presenca de chave (`cache_key in cache`) em vez de truthy check.
+   - hardening de variaveis locais em `initialize_database` para evitar ambiguidade no fallback do schema.
+2. `armazenamento/database_validation.py`:
+   - coluna obrigatoria ausente deixa de ser skip silencioso; gera violacao estruturada.
+   - erro de validacao agora inclui tipo da excecao e log com stacktrace.
+3. `extracao/extractor.py`:
+   - `_debug_phases` agora preserva fase global e chave por planilha (`<sheet>:<phase>`), sem sobrescrever contexto.
+4. `utils/robust_importer.py`:
+   - ajuste de resolucao semantica para `sn`.
+   - sufixo fora de faixa em duplicadas semanticas deixa de colapsar na ultima opcao fixa.
+5. `gui/gui_ssa.py`:
+   - fallback de nome unico em importacao externa mantido retrocompativel com stubs de teste.
+   - validacao de alvo local bloqueia basename iniciando com `-` (defesa de argumento acidental em fallback externo).
+6. `gui/ssa/gui_workers.py`:
+   - `_classify_workers_for_ttl` passa a usar `max_global_workers` (expira overflow mais antigo).
+   - logs de expiracao incluem identificador do worker.
+   - `load_data` registra worker no global logo apos `start()`.
+7. `gui/mixins/tab_context_gui_ssa_mixin.py`:
+   - unblock de sinais com guarda (`signals_blocked`) para evitar inconsistencias de estado.
+8. `gui/ssa/gui_theme.py`:
+   - reaplicacao de QSS global considera stylesheet atual do app, nao apenas cache local.
+9. `tests/test_gui_workers_rescan_data.py`:
+   - teste de classificacao TTL atualizado para contrato com cap ativo.
+10. `tests/test_gui_filter_logic.py`:
+   - remove `qWait(360)` hardcoded; usa intervalo real do timer + margem.
+11. `tests/test_db_reset_and_upsert.py`:
+   - assert de reimport reforcado (`filled_count == row_count`).
+12. `docs/TROUBLESHOOTING_IMPORTACAO.md`:
+   - comandos usam `PY_RUNTIME` em vez de hardcode fixo de versao.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile ...` (arquivos tocados) -> pass
+2. `uv run --python 3.13 ruff check ...` (arquivos tocados) -> pass
+3. `uv run --python 3.13 ty check ...` (arquivos tocados) -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q ... -k "classify_workers_for_ttl or quick_setor_executor_combo_applies_filter_and_syncs_or_group_only or resize_event_coalesces_width_recompute_with_restartable_timer or apply_theme_skips_global_qss_rebuild_when_cached_theme_matches or smart_upsert_reimport_keeps_single_sanitized_column or validate_missing_data_cadastro_exceptions_keep_non_allowed_invalid or import_external_excel_files"` -> `8 passed`
+5. `timeout 600s uv run --python 3.13 pytest -q tests/test_extracao.py tests/test_import_run_report.py tests/test_gui_workers_signal_connect.py` -> `35 passed`
+6. `timeout 600s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "apply_theme_reuses_cached_details_font_when_base_size_unchanged or apply_theme_skips_global_qss_rebuild_when_cached_theme_matches or quick_setor_executor_combo_applies_filter_and_syncs_or_group_only or resize_event_coalesces_width_recompute_with_restartable_timer"` -> `4 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts estruturais amplos apontados por kluster (God class GUI, performance global de resize/sort, rework de robust_importer por I/O).
+
 ## Update 2026-03-10 00:55 - hotfix rapido de Setor Executor (sem sync avancado)
 
 Session timestamp:

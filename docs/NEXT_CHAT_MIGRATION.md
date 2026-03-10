@@ -2,32 +2,50 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 00:55 - start from here
+## CURRENT TRUTH 2026-03-10 01:11 - start from here
 
 - Slice aplicado:
-  1. hotfix no atalho rapido `Setor Executor`:
-     - remove sync com `_advanced_filters`.
-     - mantem somente sync no OR group de filtros por coluna (`setor_executor`/`setor_emissor`).
-  2. popup rolavel do combo rapido mantido:
-     - `maxVisibleItems=14`
-     - `combobox-popup: 0`
-     - scrollbar vertical no `view()`.
+  1. bugfix real sem mudar estrutura:
+     - cache de tabela em `database.py`.
+     - validacao estruturada para coluna obrigatoria ausente em `database_validation.py`.
+     - `_debug_phases` com namespace por planilha em `extractor.py`.
+     - ajustes de duplicadas semanticas em `robust_importer.py`.
+     - hardening de fallback/path em `gui_ssa.py`.
+     - `max_global_workers` efetivo + registro imediato de worker em `gui_workers.py`.
+     - guarda segura de `blockSignals` no bind de aba.
+     - reaplicacao de QSS global por estado real do app em `gui_theme.py`.
+  2. testes/docs:
+     - qWait dinamico no teste de resize.
+     - assert mais forte no reimport de upsert.
+     - troubleshooting com `PY_RUNTIME`.
 - Arquivos tocados:
-  1. `gui/gui_ssa.py`
-  2. `tests/test_gui_filter_logic.py`
-  3. `docs/RECOVERY_BACKLOG.md`
-  4. `docs/NEXT_CHAT_MIGRATION.md`
-  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `armazenamento/database.py`
+  2. `armazenamento/database_validation.py`
+  3. `extracao/extractor.py`
+  4. `utils/robust_importer.py`
+  5. `gui/gui_ssa.py`
+  6. `gui/ssa/gui_workers.py`
+  7. `gui/mixins/tab_context_gui_ssa_mixin.py`
+  8. `gui/ssa/gui_theme.py`
+  9. `tests/test_gui_workers_rescan_data.py`
+  10. `tests/test_gui_filter_logic.py`
+  11. `tests/test_db_reset_and_upsert.py`
+  12. `docs/TROUBLESHOOTING_IMPORTACAO.md`
+  13. `docs/RECOVERY_BACKLOG.md`
+  14. `docs/NEXT_CHAT_MIGRATION.md`
+  15. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Gates desta rodada:
   1. `py_compile`, `ruff`, `ty` -> pass.
-  2. `pytest` focado quick setor/OR group -> `2 passed`.
+  2. `pytest` focado em workers/gui/upsert/validacao/importacao -> `8 passed`.
+  3. `pytest` focado em extracao/report/signal -> `35 passed`.
+  4. `pytest` focado em tema/resize/quick_filter -> `4 passed`.
 - Deferido:
-  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` fora do patch minimo.
+  1. debts estruturais amplos apontados por kluster (fora de escopo deste patch minimo).
 - Residuos locais fora de escopo mantidos:
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## HISTORICAL SNAPSHOT 2026-03-10 00:42
+## HISTORICAL SNAPSHOT 2026-03-10 00:55
 
 - Slice aplicado:
   1. atalho rapido `Setor Executor` sincronizado com filtros avancados:

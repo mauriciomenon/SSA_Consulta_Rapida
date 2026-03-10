@@ -34,7 +34,7 @@ _DOTTED_DUPLICATE_RE = re.compile(r"^(?P<base>.+)\.(?P<suffix>\d+)$")
 _SEMANTIC_DUPLICATE_COLUMNS: dict[str, list[str]] = {
     "desde": ["desde", "desde_1", "desde_2"],
     "ate": ["ate", "ate_1", "ate_2"],
-    "sn": ["sn_retirado", "sn_instalado", "sn_extra"],
+    "sn": ["sn_instalado", "sn_retirado", "sn_extra"],
     "numero_ssa": [
         "numero_ssa",
         "numero_ssa_relacionada_1",
@@ -185,7 +185,7 @@ def _resolve_semantic_duplicate_columns(
         elif 0 <= suffix_index < len(options):
             candidate = options[suffix_index]
         else:
-            candidate = options[-1]
+            candidate = f"{options[0]}_{suffix_index}"
 
         if candidate not in used:
             used.add(candidate)

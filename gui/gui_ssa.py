@@ -3020,7 +3020,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if callable(build_unique_destination):
                 destination = build_unique_destination(base_destination)
             else:
-                destination = SSAMainWindow._build_unique_destination_path(self, base_destination)
+                fallback_builder = getattr(SSAMainWindow, "_build_unique_destination_path", None)
+                if not callable(fallback_builder):
+                    raise AttributeError("_build_unique_destination_path indisponivel")
+                destination = fallback_builder(self, base_destination)
 
             try:
                 shutil.copy2(source, destination)
@@ -3099,6 +3102,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         if ".." in raw_parts:
             raise ValueError("Caminho com parent traversal nao permitido.")
         normalized = os.path.abspath(os.path.normpath(raw))
+        if os.path.basename(normalized).startswith("-"):
+            raise ValueError("Caminho inicia com '-' e pode ser interpretado como opcao de comando.")
         if must_exist and not os.path.exists(normalized):
             raise FileNotFoundError(f"Caminho nao encontrado: {normalized}")
         if expect_dir is True and os.path.exists(normalized) and not os.path.isdir(normalized):

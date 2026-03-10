@@ -102,6 +102,7 @@ class TabContextGUISSAMixin:
         selector = getattr(self, "profile_selector", None)
         if selector is None:
             return
+        signals_blocked = False
         try:
             if self.current_filter_profile:
                 idx = selector.findData(self.current_filter_profile)
@@ -109,14 +110,16 @@ class TabContextGUISSAMixin:
                 idx = 0
             if idx >= 0:
                 selector.blockSignals(True)
+                signals_blocked = True
                 selector.setCurrentIndex(idx)
         except Exception as exc:
             logger.debug("Falha ao sincronizar seletor de perfil no bind de aba: %s", exc)
         finally:
-            try:
-                selector.blockSignals(False)
-            except Exception as exc:
-                logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
+            if signals_blocked:
+                try:
+                    selector.blockSignals(False)
+                except Exception as exc:
+                    logger.debug("Falha ao reativar sinais do seletor de perfil no bind de aba: %s", exc)
 
     def _sync_bind_table_state(self: _TabContextHostProtocol, ctx: dict, tab_kind: str | None) -> None:
         try:

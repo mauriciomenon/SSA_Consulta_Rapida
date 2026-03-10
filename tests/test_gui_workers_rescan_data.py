@@ -421,9 +421,9 @@ def test_rescan_data_prompt_without_qmessagebox_uses_incremental_mode(tmp_path):
     assert captured_modes == [False]
 
 
-def test_classify_workers_for_ttl_keeps_running_workers_even_above_cap():
+def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
     workers = ["w1", "w2", "w3"]
-    meta = {"w1": 100.0, "w2": 100.0, "w3": 100.0}
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
 
     running, expired = ssa_gui_workers._classify_workers_for_ttl(
         workers,
@@ -434,5 +434,5 @@ def test_classify_workers_for_ttl_keeps_running_workers_even_above_cap():
         is_running_fn=lambda _worker: True,
     )
 
-    assert running == workers
-    assert expired == []
+    assert running == ["w2", "w3"]
+    assert expired == ["w1"]

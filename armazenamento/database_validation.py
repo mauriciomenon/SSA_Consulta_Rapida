@@ -47,6 +47,17 @@ def _validate_required_columns(df: pd.DataFrame, report: dict[str, Any]) -> None
         )
     for column, severity in VALIDATION_REQUIRED_COLUMNS:
         if column not in df.columns:
+            report['violations'].append(
+                {
+                    'rule': f'missing_column_{column}',
+                    'column': column,
+                    'severity': severity,
+                    'count': int(len(df)),
+                    'sample_ssa': [],
+                }
+            )
+            target = report['issues'] if severity == 'error' else report['warnings']
+            target.append(f"Coluna obrigatoria '{column}' ausente no DataFrame")
             continue
         series = df[column]
         missing_mask = series.isna() | (series.astype(str).str.strip() == '')
@@ -248,7 +259,7 @@ def validate_dataframe_before_insert(
         report.pop('_invalid_row_seen', None)
     except Exception as e:  # pragma: no cover
         report.pop('_invalid_row_seen', None)
-        report['issues'].append(f"Erro na validação: {e}")
+        report['issues'].append(f"Erro na validacao ({type(e).__name__}): {e}")
         report['is_valid'] = False
-        logger.error("Erro na validação do DataFrame: %s", e)
+        logger.exception("Erro na validacao do DataFrame: %s", e)
     return report
