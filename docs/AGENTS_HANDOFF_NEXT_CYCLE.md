@@ -8,6 +8,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. build macOS deixou de gerar binario inutil por exclusao agressiva de stdlib.
   2. hooks de tamanho ativados no fluxo real (commit/push) com limite de 95MB.
   3. quick filter de `setor_executor` sincroniza com UI de filtros avancados e mostra rotulo explicito.
+  4. commit evidencia: `338614c6`.
 - Mudancas tecnicas principais:
   1. `build_config.json` de `macos_arm64`, `windows_amd64`, `debian_amd64`:
      - `exclude_modules` reduzido para `tkinter/test/unittest`.
