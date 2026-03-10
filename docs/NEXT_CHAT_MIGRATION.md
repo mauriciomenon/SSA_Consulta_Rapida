@@ -2,7 +2,14 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 16:45 - start from here
+## CURRENT TRUTH 2026-03-10 16:48 - start from here
+
+- Priority note (nao perder no proximo chat):
+  1. debt BLE001 no restante do codigo continua alto e deve entrar no proximo ciclo curto.
+  2. contagem atual: `860`.
+  3. comando: `ruff check . --select BLE001`.
+  4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
+  5. status PR na ultima verificacao: sem threads abertas; checks externos ainda podem ficar pendentes (CodeFactor/Snyk quota/scan em andamento).
 
 - Slice aplicado:
   1. reposicionamento dos atalhos/chips de filtro salvo para a mesma linha de `Salvar Filtro`.

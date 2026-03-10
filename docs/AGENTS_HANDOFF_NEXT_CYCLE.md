@@ -2,7 +2,14 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 16:45 - authoritative block
+## CURRENT TRUTH 2026-03-10 16:48 - authoritative block
+
+- Priority note (carry-over mandatory):
+  1. debt BLE001 no restante do codigo deve ser tratado em breve, por modulo.
+  2. contagem atual: `860`.
+  3. comando base: `ruff check . --select BLE001`.
+  4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
+  5. status PR observado no fechamento: sem threads abertas; manter monitoramento de checks externos pendentes/quota.
 
 - Slice entregue:
   1. ajuste de layout: chips/atalhos de filtro salvo reposicionados para a linha da pesquisa.
