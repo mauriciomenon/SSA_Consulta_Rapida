@@ -2,7 +2,29 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 00:17 - authoritative block
+## CURRENT TRUTH 2026-03-10 00:22 - authoritative block
+
+- Slice entregue:
+  1. `gui/gui_ssa.py`:
+     - removeu persistencia do atalho rapido `Setor Executor`.
+     - removeu checkbox `Configuracao persistente`.
+     - combo rapido agora limita popup (`maxVisibleItems=14`) e sincroniza OR group/filtros de coluna via `_sync_or_group_values` + `_build_column_filters_panel`.
+     - fix critico no fallback de destino unico em importacao externa (sem descriptor `__get__`).
+  2. `tests/test_gui_filter_logic.py`:
+     - contrato atualizado para o atalho rapido sem persistencia.
+     - assert de sincronismo completo entre atalho e painel de filtros.
+     - assert de UX do combo (sem checkbox de persistencia e popup limitado).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado em filtros/cache -> `7 passed`.
+  3. `pytest` focado em importacao externa -> `2 passed`.
+- Pendencia deferida:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (fora deste slice).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:17
 
 - Slice entregue:
   1. `gui/gui_ssa.py`:

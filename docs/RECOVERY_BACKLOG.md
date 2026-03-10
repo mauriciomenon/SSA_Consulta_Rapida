@@ -3,6 +3,41 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 00:22 - atalho Setor Executor sem persistencia + sync completo
+
+Session timestamp:
+1. start: `2026-03-10 00:22:40 -0300`
+2. end: `2026-03-10 00:30:15 -0300`
+
+Objetivo do slice:
+1. remover persistencia do atalho rapido `Setor Executor`.
+2. corrigir sincronismo do atalho rapido com filtros de coluna/OR group.
+3. melhorar usabilidade do popup de setores (lista longa com rolagem).
+4. corrigir ponto critico em importacao externa (`_build_unique_destination_path` fallback call).
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - removeu checkbox `Configuracao persistente` da faixa de opcoes.
+   - removeu carga/aplicacao de `quick_setor_executor` salvo no startup.
+   - removeu persistencia implicita de `display_columns` via atalho rapido.
+   - `quick_setor_executor_combo` agora usa `setMaxVisibleItems(14)`.
+   - `_on_quick_setor_executor_changed` agora sincroniza OR group (`_sync_or_group_values`), reconstrui painel (`_build_column_filters_panel`) e so depois aplica refresh.
+   - `import_external_excel_files`: fallback de destino unico trocado de descriptor `__get__` para chamada de instancia segura.
+2. `tests/test_gui_filter_logic.py`:
+   - teste do atalho rapido atualizado para o novo contrato sem persistencia.
+   - cobertura de sincronismo: mudanca no combo atualiza `setor_executor` e `setor_emissor`.
+   - cobertura de UX: sem `persist_filter_config_checkbox` e popup limitado (`maxVisibleItems=14`).
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py tests/test_gui_menu_import_external.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "quick_setor_executor or num_reprogramacoes or column_selector_button_shows_visible_count_in_text or setor_executor_order_prioritizes_smin_then_mel_then_alpha"` -> `7 passed`
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_menu_import_external.py -k "import_external_excel_files"` -> `2 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (God class, resize/jank, fluxo de derivadas sincrono, retencao global de workers).
+
 ## Update 2026-03-10 00:17 - cache de sort num_reprogramacoes + estabilizacao de testes
 
 Session timestamp:

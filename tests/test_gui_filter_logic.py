@@ -152,34 +152,33 @@ class TestGUIFilterLogic:
         )
         assert ordered == ["IEE1", "IEE4", "MEL1", "MEL3", "AAA", "ABC", "ZZZ"]
 
-    def test_quick_setor_executor_combo_applies_filter_and_persistence(self, monkeypatch):
-        calls = {"persist": 0}
-
-        def _fake_persist():
-            calls["persist"] += 1
-
-        monkeypatch.setattr(self.window, "_persist_gui_preferences", _fake_persist)
-
+    def test_quick_setor_executor_combo_applies_filter_and_syncs_panel(self):
+        self.window._register_or_group(["setor_executor", "setor_emissor"], ["IEE3", "MEL3"])
+        self.window._active_column_filters["setor_executor"] = "IEE3, MEL3"
+        self.window._active_column_filters["setor_emissor"] = "IEE3, MEL3"
+        self.window._build_column_filters_panel()
         self.window._refresh_quick_setor_executor_options()
         combo = getattr(self.window, "quick_setor_executor_combo", None)
-        checkbox = getattr(self.window, "persist_filter_config_checkbox", None)
         assert combo is not None
-        assert checkbox is not None
-        checkbox.setChecked(False)
-        QApplication.processEvents()
-        assert checkbox.isChecked() is False
+        assert int(combo.maxVisibleItems()) == 14
+        assert getattr(self.window, "persist_filter_config_checkbox", None) is None
 
         idx = combo.findData("MEL4")
         assert idx >= 0
         combo.setCurrentIndex(idx)
+        QApplication.processEvents()
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
-        checkbox.setChecked(True)
+        assert self.window._active_column_filters.get("setor_emissor") == "MEL4"
 
-        gui_settings = gui_ssa.GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-        assert bool(gui_settings.get("persist_quick_filter_config")) is True
-        assert str(gui_settings.get("quick_setor_executor") or "") == "MEL4"
-        assert calls["persist"] >= 1
+        controls = self._get_column_filter_controls()
+        setor_key = next(
+            (key for key in controls.keys() if str(key or "").strip().casefold().startswith("setor executor")),
+            None,
+        )
+        assert setor_key is not None
+        setor_input, _, _, _ = controls[setor_key]
+        assert str(setor_input.text() or "").strip() == "MEL4"
 
     def test_profile_or_filters_executor_or_emissor(self):
         """Perfil OR deve considerar executor ou emissor e refletir na UI."""

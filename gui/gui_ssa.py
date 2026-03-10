@@ -941,12 +941,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Configurações de GUI (independentes do CLI)
         gui_settings = GUI_MAIN_PREFERENCES.get("gui_settings", {})
         self._restored_page_size = gui_settings.get("page_size", 50)
-        self._persist_quick_filter_config = bool(
-            gui_settings.get("persist_quick_filter_config", False)
-        )
-        self._quick_setor_executor_saved = str(
-            gui_settings.get("quick_setor_executor", "") or ""
-        ).strip()
         self._quick_setor_executor_syncing = False
 
         # Inicializa managers unificados (substitui codigo frankenstein)
@@ -1032,7 +1026,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             logger.debug("Failed to persist preferred startup theme: %s", exc)
         # Aplica perfil inicial de filtros por setor
         self._apply_initial_filter_profile()
-        self._apply_initial_quick_setor_executor_filter()
 
         # Auto-carregar dados na abertura (assáncrono, mantêm a janela responsiva)
         QTimer.singleShot(150, self.load_data)
@@ -1226,6 +1219,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         )
         try:
             quick_setor_executor_combo.setMinimumWidth(210)
+            quick_setor_executor_combo.setMaxVisibleItems(14)
             quick_setor_executor_combo.setSizeAdjustPolicy(
                 cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents)
             )
@@ -1237,7 +1231,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 OrderedDict(self._active_column_filters or {}).get(
                     "setor_executor", ""
                 )
-                or self._quick_setor_executor_saved
             ).strip(),
         )
         quick_setor_executor_combo.currentIndexChanged.connect(
@@ -1278,18 +1271,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         persistent_filters_layout = QHBoxLayout()
         persistent_filters_layout.setContentsMargins(0, 0, 0, 0)
-
-        persist_filter_config_checkbox = QCheckBox("Configuracao persistente")
-        persist_filter_config_checkbox.setToolTip(
-            "Quando ativo, salva automaticamente o filtro rapido de setor e colunas visiveis."
-        )
-        try:
-            persist_filter_config_checkbox.setChecked(bool(self._persist_quick_filter_config))
-        except Exception as exc:
-            logger.debug("Falha ao restaurar estado do checkbox de persistencia: %s", exc)
-        persist_filter_config_checkbox.toggled.connect(self._on_persist_quick_filter_config_toggled)
-        persistent_filters_layout.addWidget(cast(Any, persist_filter_config_checkbox))
-        persistent_filters_layout.addSpacing(8)
 
         save_filter_button = QPushButton("Salvar Filtro")
         save_filter_button.setMaximumWidth(100)
@@ -1538,7 +1519,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 "paginator": paginator,
                 "profile_selector": profile_selector,
                 "persistent_filters_layout": persistent_filters_layout,
-                "persist_filter_config_checkbox": persist_filter_config_checkbox,
                 "filter_tags_widget": filter_tags_widget,
                 "filter_tags_layout": filter_tags_layout,
                 "exclude_ste_checkbox": exclude_ste_checkbox,
@@ -2403,12 +2383,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 self.column_selector.set_selected_columns(new_columns)
             except Exception as exc:
                 logger.debug("Falha ao sincronizar colunas selecionadas no selector: %s", exc)
-        if bool(getattr(self, "_persist_quick_filter_config", False)):
-            try:
-                GUI_MAIN_PREFERENCES["display_columns"] = list(new_columns)
-                self._persist_quick_filter_config_state()
-            except Exception as exc:
-                logger.warning("Falha ao persistir colunas visiveis com persistencia ativa: %s", exc)
         # Reexibe a pãgina atual com as novas colunas
         self.display_current_page(self.paginator.current_page)
         # Nota: Persistencia de preferencias removida para isolamento do CLI
@@ -2506,6 +2480,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             return
         active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
         selected_value = str(active_filters.get("setor_executor", "") or "").strip()
+        if "," in selected_value:
+            selected_value = ""
         for ctx in tab_contexts:
             if not isinstance(ctx, dict):
                 continue
@@ -2513,43 +2489,6 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if combo is None:
                 continue
             self._populate_quick_setor_executor_combo(combo, selected_value=selected_value)
-
-    def _persist_quick_filter_config_state(self) -> None:
-        try:
-            gui_settings = GUI_MAIN_PREFERENCES.setdefault("gui_settings", {})
-            gui_settings["persist_quick_filter_config"] = bool(self._persist_quick_filter_config)
-            if self._persist_quick_filter_config and self._quick_setor_executor_saved:
-                gui_settings["quick_setor_executor"] = str(self._quick_setor_executor_saved).strip()
-            else:
-                gui_settings.pop("quick_setor_executor", None)
-            self._persist_gui_preferences()
-        except Exception as exc:
-            logger.warning("Falha ao persistir estado do filtro rapido de setor executor: %s", exc)
-
-    def _on_persist_quick_filter_config_toggled(self, checked: bool) -> None:
-        self._persist_quick_filter_config = bool(checked)
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
-        current_setor = str(active_filters.get("setor_executor", "") or "").strip()
-        self._quick_setor_executor_saved = current_setor if self._persist_quick_filter_config else ""
-        tab_contexts = getattr(self, "_tab_contexts", None)
-        if isinstance(tab_contexts, list):
-            for ctx in tab_contexts:
-                if not isinstance(ctx, dict):
-                    continue
-                checkbox = ctx.get("persist_filter_config_checkbox")
-                if checkbox is None:
-                    continue
-                try:
-                    checkbox.blockSignals(True)
-                    checkbox.setChecked(self._persist_quick_filter_config)
-                except Exception as exc:
-                    logger.debug("Falha ao sincronizar checkbox de persistencia entre abas: %s", exc)
-                finally:
-                    try:
-                        checkbox.blockSignals(False)
-                    except Exception:
-                        pass
-        self._persist_quick_filter_config_state()
 
     def _on_quick_setor_executor_changed(self, combo) -> None:
         if bool(getattr(self, "_quick_setor_executor_syncing", False)):
@@ -2566,21 +2505,9 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         else:
             active_filters.pop("setor_executor", None)
         self._active_column_filters = active_filters
+        self._sync_or_group_values("setor_executor", selected)
         self._mark_profile_as_custom()
-        self._refresh_after_filter_change()
-        self._quick_setor_executor_saved = selected if self._persist_quick_filter_config else ""
-        if self._persist_quick_filter_config:
-            self._persist_quick_filter_config_state()
-
-    def _apply_initial_quick_setor_executor_filter(self) -> None:
-        if not bool(getattr(self, "_persist_quick_filter_config", False)):
-            return
-        selected = str(getattr(self, "_quick_setor_executor_saved", "") or "").strip()
-        if not selected:
-            return
-        active_filters = OrderedDict(getattr(self, "_active_column_filters", {}) or {})
-        active_filters["setor_executor"] = selected
-        self._active_column_filters = active_filters
+        self._build_column_filters_panel()
         self._refresh_after_filter_change()
 
     def _get_select_all_columns_from_selector(self) -> list[str]:
@@ -3080,10 +3007,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if callable(build_unique_destination):
                 destination = build_unique_destination(base_destination)
             else:
-                destination = SSAMainWindow._build_unique_destination_path.__get__(
-                    self,
-                    SSAMainWindow,
-                )(base_destination)
+                destination = SSAMainWindow._build_unique_destination_path(self, base_destination)
 
             try:
                 shutil.copy2(source, destination)
