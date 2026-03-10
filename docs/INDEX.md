@@ -2,6 +2,16 @@
 
 Este arquivo define a navegacao oficial da documentacao ativa.
 
+## Sync status (2026-03-10 16:55 -0300)
+
+1. Baseline ativo confirmado: `4.32`.
+2. PR de trabalho atual: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
+3. Threads abertas no PR: `0` na ultima leitura.
+4. Checks externos ainda bloqueando merge:
+   - `CodeFactor`
+   - `code/snyk`
+   - `security/snyk`
+
 ## Regras de leitura
 
 1. Baseline ativo de versao: `4.32`.

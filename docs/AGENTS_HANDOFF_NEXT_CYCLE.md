@@ -2,31 +2,43 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 16:48 - authoritative block
+## CURRENT TRUTH 2026-03-10 16:55 - authoritative block
 
 - Priority note (carry-over mandatory):
   1. debt BLE001 no restante do codigo deve ser tratado em breve, por modulo.
   2. contagem atual: `860`.
   3. comando base: `ruff check . --select BLE001`.
   4. hotspots iniciais: `armazenamento/database*.py`, `core/app_logic.py`, `core/config_manager.py`, `dev_env/streamlit_app.py`.
-  5. status PR observado no fechamento: sem threads abertas; manter monitoramento de checks externos pendentes/quota.
+  5. status PR observado neste fechamento:
+     - PR `#45` aberto.
+     - `0` threads abertas.
+     - checks externos bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
 
 - Slice entregue:
-  1. ajuste de layout: chips/atalhos de filtro salvo reposicionados para a linha da pesquisa.
+  1. sync total da documentacao ativa para baseline `v4.32`.
 - Arquivos alterados:
-  1. `gui/gui_ssa.py`
-  2. `tests/test_gui_filter_logic.py`
-  3. `docs/RECOVERY_BACKLOG.md`
-  4. `docs/NEXT_CHAT_MIGRATION.md`
-  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `README.md`
+  2. `docs/INDEX.md`
+  3. `docs/COMANDOS_RAPIDOS.md`
+  4. `docs/GUIA_MIGRACAO_NOVA_INSTALACAO.md`
+  5. `docs/GUIA_DISTRIBUICAO.md`
+  6. `docs/HISTORICO_RELEASES.md`
+  7. `docs/CHANGELOG_IMPLEMENTACOES.md`
+  8. `docs/PENDING_ACTION_MATRIX.md`
+  9. `docs/RECOVERY_BACKLOG.md`
+  10. `docs/NEXT_CHAT_MIGRATION.md`
+  11. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  12. `docs/BUILD_MULTIPLATFORM.md`
+  13. `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+  14. `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+  15. `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
 - Validacao:
-  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
-  2. `pytest` focado (`3` testes de layout/filtro) -> `3 passed`.
+  1. `uv run --python 3.13 pytest -q tests/test_docs_and_priority.py` -> `3 passed`.
 - Decisao aplicada:
-  1. `filter_tags_widget` agora pertence a `search_row` ao lado de `Salvar Filtro`.
-  2. linha de paginacao mantida para paginator + `Colunas Visiveis` + `Setor Executor`.
+  1. estado de baseline/PR/checks alinhado nos docs ativos.
+  2. trilhas operacionais de build mantidas (PyInstaller operacional, Nuitka/PyOxidizer laboratoriais).
 - Observacao global:
-  1. `BLE001` em escopo repo completo continua alto (`860` ocorrencias), nao tratado neste slice de layout.
+  1. `BLE001` em escopo repo completo continua alto (`860` ocorrencias), nao tratado neste slice documental.
 - Estado de residuos locais fora de escopo:
   1. `data/ssas.db` (mantido local, nao commitar).
   2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).

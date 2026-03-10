@@ -2,6 +2,15 @@
 
 Sistema automatizado para criacao de executaveis SSA Consulta Rapida para Windows, macOS e Linux.
 
+## CURRENT TRUTH (v4.32)
+
+- Sync deste guia: `2026-03-10 16:55 -0300`.
+- Fluxo operacional:
+  1. build com `launchers/build_multiplatform.py`.
+  2. distribuicao com `scripts/create_distribution.py`.
+- Backend de release no ciclo atual: `pyinstaller`.
+- `nuitka` e `pyoxidizer` permanecem como trilha laboratorial.
+
 ## Nota de versao
 
 Exemplos de nomes versionados neste documento (v3.10/v3.11) sao snapshots historicos.

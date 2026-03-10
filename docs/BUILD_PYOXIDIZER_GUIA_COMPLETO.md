@@ -2,6 +2,7 @@
 
 ## CURRENT TRUTH (v4.32)
 
+- Sync deste guia: `2026-03-10 16:55 -0300`.
 - PyOxidizer permanece trilha experimental/laboratorio neste baseline.
 - O repositorio atual nao usa `pyoxidizer.bzl` nem `build_pyoxidizer.bat` como caminho operacional principal.
 - Distribuicao oficial segue PyInstaller + `launchers/dist/*`.

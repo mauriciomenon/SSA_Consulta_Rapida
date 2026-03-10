@@ -2,6 +2,7 @@
 
 ## CURRENT TRUTH (v4.32)
 
+- Sync deste guia: `2026-03-10 16:55 -0300`.
 - Versao de referencia: `4.32` (arquivo `VERSION`).
 - Fluxo canonico de build: `launchers/build_multiplatform.py`.
 - Saida canonica de artefatos: `launchers/dist/<plataforma>/`.

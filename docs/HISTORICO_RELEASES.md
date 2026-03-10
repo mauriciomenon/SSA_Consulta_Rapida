@@ -31,6 +31,17 @@ Este documento consolida todas as notas de lancamento e atualizacoes do projeto 
 - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` (topo atualizado)
 - `docs/FILTER_TAB_OPTIMIZATIONS.md` (baseline `v4.32`)
 
+### **Sync documental 2026-03-10**
+- Estado consolidado na rodada:
+  - PR `#45` segue aberto contra `dev`.
+  - sem threads abertas na revisao.
+  - merge bloqueado por checks externos (`CodeFactor`, `code/snyk`, `security/snyk`).
+- Docs de controle sincronizados com esse estado:
+  - `docs/RECOVERY_BACKLOG.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/PENDING_ACTION_MATRIX.md`
+
 ---
 
 ## **RELEASE v4.30**

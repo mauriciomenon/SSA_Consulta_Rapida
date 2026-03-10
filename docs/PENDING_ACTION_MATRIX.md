@@ -3,6 +3,18 @@
 Fonte: docs/RECOVERY_BACKLOG.md
 Total itens: 108
 
+## Update 2026-03-10 16:55 (docs full sync)
+
+1. Estado operacional confirmado:
+   - PR ativo: `#45` (`codex/sprint-importacao-grave-fixes-20260305` -> `dev`).
+   - threads abertas: `0`.
+2. Bloqueios externos ainda ativos no merge:
+   - `CodeFactor`
+   - `code/snyk` (quota)
+   - `security/snyk` (quota)
+3. Debt de curto prazo mantido:
+   - campanha `BLE001` segue prioritaria com contagem base `860`.
+
 ## Update 2026-03-10 (near-term stabilization queue)
 
 1. Mandatory carry-over debt:

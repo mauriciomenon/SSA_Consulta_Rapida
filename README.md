@@ -2,6 +2,20 @@
 
 Release 4.32 define o baseline atual apos validacao de full rescan real com metricas consolidadas, sem regressao de integridade no DB.
 
+## Atualizacao documental total (2026-03-10 16:55 -0300)
+
+- Baseline ativo mantido em `v4.32`.
+- Estado operacional desta rodada:
+  - PR `#45` aberto contra `dev`.
+  - sem threads abertas no PR.
+  - checks externos ainda bloqueando merge: `CodeFactor`, `code/snyk`, `security/snyk`.
+- Documentos de controle sincronizados nesta rodada:
+  - `docs/RECOVERY_BACKLOG.md`
+  - `docs/NEXT_CHAT_MIGRATION.md`
+  - `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  - `docs/PENDING_ACTION_MATRIX.md`
+  - `docs/INDEX.md`
+
 ## Release v4.32 (2026-03)
 
 ### Destaques
