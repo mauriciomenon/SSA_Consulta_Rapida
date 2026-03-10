@@ -3,11 +3,11 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
-## Update 2026-03-10 09:57 - marcador explicito de modo SourcePath no Inno
+## Update 2026-03-10 09:55 - marcador explicito de modo SourcePath no Inno
 
 Session timestamp:
 1. start: `2026-03-10 09:51:50 -0300`
-2. end: `2026-03-10 09:57:00 -0300`
+2. end: `2026-03-10 09:55:10 -0300`
 
 Objetivo do slice:
 1. manter `OutputDir={#SourcePath}` e tornar explicito se a origem de `Source` foi resolvida em modo relativo ou absoluto.
