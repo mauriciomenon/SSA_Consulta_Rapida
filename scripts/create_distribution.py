@@ -563,9 +563,11 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
         return None
 
     source_dir, exe_name = resolved
+    source_path_mode = "relative"
     try:
         source_dir_spec = os.path.relpath(source_dir, DIST_OUTPUT)
     except Exception:
+        source_path_mode = "absolute"
         source_dir_spec = str(source_dir.resolve())
     source_dir_spec = source_dir_spec.replace("/", "\\").replace('"', '')
     exe_name = exe_name.replace('"', '')
@@ -584,6 +586,7 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
 #define MyAppPublisher "ITAIPU Binacional"
 #define MyAppExeName "{exe_name}"
 #define BuildSystem "{build_system}"
+#define SourcePathMode "{source_path_mode}"
 
 [Setup]
 AppId={{{{3D8A9B2C-5E1F-4A7B-9C3D-1E2F3A4B5C6D}}}}

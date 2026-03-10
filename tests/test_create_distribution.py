@@ -353,6 +353,7 @@ def test_create_inno_setup_script_uses_sourcepath_outputdir(
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
     assert "OutputDir={#SourcePath}" in iss_content
+    assert '#define SourcePathMode "relative"' in iss_content
     assert "Source: \"..\\launchers\\dist\\windows_amd64\\SSA_GUI.exe\"" in iss_content
 
 
@@ -397,4 +398,5 @@ def test_create_inno_setup_script_uses_absolute_source_when_relpath_fails(
     assert iss_path is not None
     iss_content = iss_path.read_text(encoding="utf-8")
     expected_abs = str(canonical_dir.resolve()).replace("/", "\\")
+    assert '#define SourcePathMode "absolute"' in iss_content
     assert f"Source: \"{expected_abs}\\SSA_GUI.exe\"" in iss_content

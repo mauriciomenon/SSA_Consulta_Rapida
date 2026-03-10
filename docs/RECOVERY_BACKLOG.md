@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:57 - marcador explicito de modo SourcePath no Inno
+
+Session timestamp:
+1. start: `2026-03-10 09:51:50 -0300`
+2. end: `2026-03-10 09:57:00 -0300`
+
+Objetivo do slice:
+1. manter `OutputDir={#SourcePath}` e tornar explicito se a origem de `Source` foi resolvida em modo relativo ou absoluto.
+2. reforcar cobertura de teste para evitar regressao de fallback.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `create_inno_setup_script(...)` agora define `source_path_mode` (`relative` por padrao, `absolute` no fallback de `relpath`).
+   - template `.iss` ganhou `#define SourcePathMode "..."`
+2. `tests/test_create_distribution.py`:
+   - teste de caminho relativo agora valida `#define SourcePathMode "relative"`.
+   - teste de fallback absoluto agora valida `#define SourcePathMode "absolute"`.
+
+Validacao desta rodada:
+1. `timeout 120s kluster review file scripts/create_distribution.py` -> 3 issues (1 semantico intencional + 2 debts fora de escopo)
+2. `timeout 120s kluster review file tests/test_create_distribution.py` -> clean
+3. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+6. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `13 passed`
+
+Deferido (nao bloqueante neste slice):
+1. manter `OutputDir={#SourcePath}` como decisao intencional deste ciclo.
+2. debt de qualidade em `create_zip_package` e `compile_installer` seguem para ciclo dedicado.
+
 ## Update 2026-03-10 09:33 - hardening de trust para INNO_SETUP_COMPILER
 
 Session timestamp:
