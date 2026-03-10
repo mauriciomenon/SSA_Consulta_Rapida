@@ -3,6 +3,39 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 12:45 - PR45 pendencias (hook staged-size + DMG cli-only + docs current truth)
+
+Session timestamp:
+1. start: `2026-03-10 12:38:31 -0300`
+2. end: `2026-03-10 12:45:00 -0300`
+
+Objetivo do slice:
+1. fechar pendencias reais do PR em build/distribuicao sem tocar GUI/layout.
+2. corrigir false-pass de limite de arquivo em hook pre-commit.
+3. alinhar docs de migracao/handoff com politica de um unico bloco `CURRENT TRUTH`.
+
+Mudancas aplicadas:
+1. `scripts/git_hooks/pre-commit`:
+   - validacao de tamanho passou para blob staged (`git cat-file -s :path`), evitando bypass por diferenca entre working tree e index.
+2. `launchers/build_multiplatform.py`:
+   - `post_process(..., apps=...)` agora recebe o escopo de apps.
+   - em `macos_arm64` + `package=dmg`, build `cli-only` pula etapa DMG com sucesso (sem exigir `.app`).
+3. `tests/test_build_multiplatform_manifest.py`:
+   - novo teste cobrindo skip de DMG quando `apps=["cli"]`.
+4. docs de controle:
+   - `docs/NEXT_CHAT_MIGRATION.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` normalizados para manter apenas o primeiro bloco como `CURRENT TRUTH`; blocos seguintes viraram `HISTORICAL SNAPSHOT`.
+
+Validacao tecnica desta rodada:
+1. `uv run --python 3.13 python -m py_compile launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+2. `uv run --python 3.13 ruff check launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+3. `uv run --python 3.13 ty check launchers/build_multiplatform.py tests/test_build_multiplatform_manifest.py` -> pass
+4. `timeout 300s uv run --python 3.13 pytest -q tests/test_build_multiplatform_manifest.py tests/test_create_distribution.py` -> `22 passed`
+5. `bash -n scripts/git_hooks/pre-commit` -> pass
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos em `launchers/build_multiplatform.py` (naming de metodo "online", concentracao de responsabilidades e custo de manifest em arvores profundas).
+2. alerta kluster `pip_exe used before assignment` classificado como falso positivo; variavel e inicializada antes dos ramos condicionais em `setup_virtual_environment`.
+
 ## Update 2026-03-10 12:13 - icone oficial cross-OS (blue SSA, sem raio)
 
 Session timestamp:

@@ -2,7 +2,35 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 12:13 - authoritative block
+## CURRENT TRUTH 2026-03-10 12:45 - authoritative block
+
+- Slice entregue:
+  1. fechamento de pendencias reais do PR #45 no escopo build/hook/docs (sem alterar GUI/layout).
+  2. validacao staged-size do hook pre-commit corrigida para blob do index.
+  3. fluxo macOS `cli-only` com `package=dmg` agora nao falha por falta de `.app`.
+  4. docs de transicao normalizados para manter um unico `CURRENT TRUTH`.
+- Mudancas tecnicas principais:
+  1. `scripts/git_hooks/pre-commit`:
+     - troca de `wc -c` no working tree por `git cat-file -s :<path>` no staged.
+  2. `launchers/build_multiplatform.py`:
+     - `post_process(..., apps=None)` com regra `apps=["cli"]` -> skip DMG controlado.
+     - `build_platform(...)` passa `apps` para `post_process`.
+  3. `tests/test_build_multiplatform_manifest.py`:
+     - novo teste `test_post_process_macos_dmg_cli_only_skips_when_gui_not_requested`.
+  4. docs:
+     - `docs/NEXT_CHAT_MIGRATION.md` e `docs/AGENTS_HANDOFF_NEXT_CYCLE.md` com um unico bloco ativo `CURRENT TRUTH`.
+- Evidencia de validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo -> pass.
+  2. `pytest` focado -> `22 passed`.
+  3. `bash -n scripts/git_hooks/pre-commit` -> pass.
+- Pendencias deferidas:
+  1. debts antigos do `build_multiplatform.py` (naming/performance/SRP) seguem para slice dedicado.
+  2. alerta kluster de `pip_exe` classificado como falso positivo apos leitura do fluxo.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:13 - authoritative block
 
 - Slice entregue:
   1. icone oficial atualizado para versao azul `SSA` sem raio.
@@ -23,7 +51,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 12:02 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 12:02 - authoritative block
 
 - Slice entregue:
   1. build macOS passou a gerar instalador `.dmg` no fluxo oficial `build_multiplatform`.
@@ -50,7 +78,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 11:51 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 11:51 - authoritative block
 
 - Slice entregue:
   1. eliminados os `try/except` proibidos que ainda restavam no escopo pedido.
@@ -72,7 +100,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 11:26 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 11:26 - authoritative block
 
 - Slice entregue:
   1. build macOS deixou de gerar binario inutil por exclusao agressiva de stdlib.
@@ -115,7 +143,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:38 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 10:38 - authoritative block
 
 - Slice entregue:
   1. pente fino completo de scripts/docs para `pyinstaller`, `nuitka`, `pyoxidizer`, `pytoexe`.
@@ -142,7 +170,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:15 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 10:15 - authoritative block
 
 - Slice entregue:
   1. resolvidos os 3 apontamentos recorrentes do loop:
@@ -167,7 +195,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:08 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 10:08 - authoritative block
 
 - Slice entregue:
   1. testes de regressao novos para garantir diagnostico correto de falha em pyinstaller.
@@ -186,7 +214,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 10:05 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 10:05 - authoritative block
 
 - Slice entregue:
   1. modularizacao minima em `create_zip_package` com helpers dedicados.
@@ -206,7 +234,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:59 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 09:59 - authoritative block
 
 - Slice entregue:
   1. extracao minima em `compile_installer` sem mudanca de comportamento.
@@ -224,7 +252,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:55 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 09:55 - authoritative block
 
 - Slice entregue:
   1. `SourcePathMode` explicito no template Inno para sinalizar origem relativa vs absoluta.
@@ -246,7 +274,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
 
-## CURRENT TRUTH 2026-03-10 09:33 - authoritative block
+## HISTORICAL SNAPSHOT 2026-03-10 09:33 - authoritative block
 
 - Slice entregue:
   1. hardening de seguranca no override `INNO_SETUP_COMPILER`.
