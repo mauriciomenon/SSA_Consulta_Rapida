@@ -830,6 +830,7 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Import tardio para evitar dependencia obrigatoria em ambientes sem PyQt6
                 from gui.gui_ssa import SSAMainWindow
                 from PyQt6.QtWidgets import QApplication
+                from PyQt6.QtGui import QIcon
             except Exception as e:
                 logger.error(f"Falha ao iniciar GUI: {e}")
                 logger.info("Recuando para CLI.")
@@ -840,6 +841,40 @@ Mais detalhes: README.md e GUIA_MODO_OPTIMIZED.md
                 # Permite multiplas janelas da GUI
                 # O SQLite tem seus proprios mecanismos de lock
                 app = QApplication(sys.argv)
+                try:
+                    if sys.platform == "darwin":
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                        ]
+                    elif sys.platform.startswith("win"):
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                        ]
+                    else:
+                        icon_candidates = [
+                            os.path.join(project_root, "resources", "app_icon.png"),
+                            os.path.join(project_root, "resources", "app_icon.svg"),
+                            os.path.join(project_root, "resources", "app_icon.ico"),
+                            os.path.join(project_root, "resources", "app_icon.icns"),
+                        ]
+                    for icon_path in icon_candidates:
+                        if not os.path.exists(icon_path):
+                            continue
+                        app_icon = QIcon(icon_path)
+                        if app_icon.isNull():
+                            continue
+                        app.setWindowIcon(app_icon)
+                        QApplication.setWindowIcon(app_icon)
+                        logger.debug("Icone da aplicacao carregado: %s", icon_path)
+                        break
+                except Exception as exc:
+                    logger.debug("Falha ao configurar icone da aplicacao: %s", exc)
                 window = SSAMainWindow()
                 window.show()
                 # Executa o loop de eventos

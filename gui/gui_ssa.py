@@ -885,13 +885,41 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         # Icone da janela (prioriza .ico no Windows)
         try:
             from PyQt6.QtGui import QIcon
-            ico_path = os.path.join(project_root, 'resources', 'app_icon.ico')
-            if os.path.exists(ico_path):
-                self.setWindowIcon(QIcon(ico_path))
+            if sys.platform == "darwin":
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                ]
+            elif sys.platform.startswith("win"):
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                ]
             else:
-                svg_path = os.path.join(project_root, 'resources', 'app_icon.svg')
-                if os.path.exists(svg_path):
-                    self.setWindowIcon(QIcon(svg_path))
+                icon_candidates = [
+                    os.path.join(project_root, "resources", "app_icon.png"),
+                    os.path.join(project_root, "resources", "app_icon.svg"),
+                    os.path.join(project_root, "resources", "app_icon.ico"),
+                    os.path.join(project_root, "resources", "app_icon.icns"),
+                ]
+            for icon_path in icon_candidates:
+                if not os.path.exists(icon_path):
+                    continue
+                app_icon = QIcon(icon_path)
+                if app_icon.isNull():
+                    continue
+                self.setWindowIcon(app_icon)
+                app_instance_getter = getattr(QApplication, "instance", None)
+                app_instance = app_instance_getter() if callable(app_instance_getter) else None
+                if app_instance is not None and hasattr(app_instance, "setWindowIcon"):
+                    app_instance.setWindowIcon(app_icon)
+                if hasattr(QApplication, "setWindowIcon"):
+                    QApplication.setWindowIcon(app_icon)
+                break
         except Exception as exc:
             logger.debug("Failed to load window icon resources: %s", exc)
 
@@ -1219,11 +1247,23 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             "Filtro rapido de Setor Executor (aplica junto com os demais filtros)."
         )
         try:
-            quick_setor_executor_combo.setMinimumWidth(260)
+            quick_setor_executor_combo.setMinimumWidth(150)
+            quick_setor_executor_combo.setMaximumWidth(210)
+            quick_setor_executor_combo.setMinimumContentsLength(8)
             quick_setor_executor_combo.setMaxVisibleItems(14)
-            quick_setor_executor_combo.setSizeAdjustPolicy(
-                cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents)
+            adjust_policy = getattr(
+                QComboBox.SizeAdjustPolicy,
+                "AdjustToMinimumContentsLengthWithIcon",
+                None,
             )
+            if adjust_policy is None:
+                adjust_policy = getattr(QComboBox.SizeAdjustPolicy, "AdjustToContents", None)
+            if adjust_policy is not None:
+                quick_setor_executor_combo.setSizeAdjustPolicy(cast(Any, adjust_policy))
+            quick_setor_executor_combo.setEditable(True)
+            combo_line_edit = quick_setor_executor_combo.lineEdit()
+            if combo_line_edit is not None and hasattr(combo_line_edit, "setReadOnly"):
+                combo_line_edit.setReadOnly(True)
             quick_setor_executor_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
             combo_view = quick_setor_executor_combo.view()
             if combo_view is not None:
@@ -2458,13 +2498,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         try:
             combo.blockSignals(True)
             combo.clear()
-            combo.addItem("Setor Executor: Todos", "")
+            combo.addItem("Todos", "")
             for value in options:
-                combo.addItem(f"Setor Executor: {value}", value)
+                combo.addItem(value, value)
             idx = combo.findData(selected)
             if idx < 0:
                 idx = 0
             combo.setCurrentIndex(idx)
+            self._update_quick_setor_executor_combo_display(combo)
         except Exception as exc:
             logger.debug("Falha ao popular combo rapido de setor executor: %s", exc)
         finally:
@@ -2473,6 +2514,22 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             except Exception as exc:
                 logger.debug("Falha ao reativar sinais do combo rapido de setor executor: %s", exc)
             self._quick_setor_executor_syncing = False
+
+    def _update_quick_setor_executor_combo_display(self, combo) -> None:
+        if combo is None:
+            return
+        value = ""
+        try:
+            value = str(combo.currentData() or "").strip()
+        except Exception as exc:
+            logger.debug("Falha ao ler valor atual do combo rapido de setor executor: %s", exc)
+        display_text = f"Setor Executor: {value}" if value else "Setor Executor: Todos"
+        try:
+            line_edit = combo.lineEdit()
+            if line_edit is not None:
+                line_edit.setText(display_text)
+        except Exception as exc:
+            logger.debug("Falha ao atualizar texto exibido do combo rapido de setor executor: %s", exc)
 
     @staticmethod
     def _split_filter_csv_values(raw_value: str) -> list[str]:
@@ -2566,6 +2623,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             active_filters["setor_executor"] = selected
         else:
             active_filters.pop("setor_executor", None)
+        self._update_quick_setor_executor_combo_display(combo)
         self._active_column_filters = active_filters
         self._sync_or_group_values("setor_executor", selected)
         self._sync_advanced_executor_ui_from_active_filter()

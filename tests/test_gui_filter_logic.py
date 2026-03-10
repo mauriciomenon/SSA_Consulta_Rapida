@@ -167,10 +167,13 @@ class TestGUIFilterLogic:
         assert "combobox-popup: 0" in style_sheet
         mel4_idx = combo.findData("MEL4")
         assert mel4_idx >= 0
-        assert str(combo.itemText(mel4_idx)).startswith("Setor Executor: ")
+        assert str(combo.itemText(0)) == "Todos"
+        assert str(combo.itemText(mel4_idx)) == "MEL4"
+        assert str(combo.currentText() or "").startswith("Setor Executor: ")
 
         combo.setCurrentIndex(mel4_idx)
         QApplication.processEvents()
+        assert str(combo.currentText() or "") == "Setor Executor: MEL4"
 
         assert self.window._active_column_filters.get("setor_executor") == "MEL4"
         assert self.window._active_column_filters.get("setor_emissor") == "MEL4"

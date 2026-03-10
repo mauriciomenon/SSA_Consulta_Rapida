@@ -3,6 +3,46 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 13:58 - quick setor executor + app icon startup
+
+Session timestamp:
+1. start: `2026-03-10 13:50:27 -0300`
+2. end: `2026-03-10 13:58:00 -0300`
+
+Objetivo do slice:
+1. reduzir largura excessiva do combo rapido de setor executor no topo.
+2. manter popup com texto curto (apenas setor) e exibicao fechada com prefixo.
+3. garantir icone da aplicacao tambem no startup via `python main.py --gui`.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`
+   - combo rapido de setor executor:
+     - largura limitada (`min=150`, `max=210`), popup com scroll mantido.
+     - itens do popup agora: `Todos`, `IEE3`, `MEL4`, etc (sem prefixo repetido).
+     - texto exibido no combo fechado agora e atualizado como `Setor Executor: <valor>`.
+   - icone:
+     - bloco de carga de icone da janela passou a considerar ordem por plataforma.
+     - icone valido agora tambem e aplicado no `QApplication` ativo.
+2. `main.py`
+   - startup GUI passou a setar icone no `QApplication` antes de criar a janela, com fallback por extensao (`icns/png/ico/svg`) por plataforma.
+3. `tests/test_gui_filter_logic.py`
+   - teste focado do combo ajustado para validar:
+     - popup curto (`Todos`, `MEL4`);
+     - texto exibido com prefixo (`Setor Executor: MEL4`).
+
+Validacao tecnica desta rodada:
+1. `py_compile` (`main.py`, `gui/gui_ssa.py`, `tests/test_gui_filter_logic.py`) -> pass
+2. `ruff check` no escopo -> pass
+3. `ty check` no escopo -> pass
+4. `pytest -q tests/test_gui_filter_logic.py -k quick_setor_executor_combo_applies_filter_and_syncs_or_group_only` -> pass
+5. smoke GUI offscreen:
+   - `window_icon_null=False`
+   - `app_icon_null=False`
+   - `combo_item0=Todos`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` apontados por kluster (god class/sort UI thread/resize cost), fora do escopo deste ajuste pontual.
+
 ## Update 2026-03-10 13:45 - PR45 checks unblock (CodeFactor config)
 
 Session timestamp:
