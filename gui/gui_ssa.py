@@ -1224,6 +1224,12 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             quick_setor_executor_combo.setSizeAdjustPolicy(
                 cast(Any, QComboBox.SizeAdjustPolicy.AdjustToContents)
             )
+            quick_setor_executor_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+            combo_view = quick_setor_executor_combo.view()
+            if combo_view is not None:
+                scroll_bar_policy = getattr(getattr(Qt, "ScrollBarPolicy", None), "ScrollBarAsNeeded", None)
+                if scroll_bar_policy is not None:
+                    combo_view.setVerticalScrollBarPolicy(cast(Any, scroll_bar_policy))
         except Exception as exc:
             logger.debug("Falha ao configurar combo rapido de setor executor: %s", exc)
         self._populate_quick_setor_executor_combo(
@@ -2117,6 +2123,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             na_position="last",
             kind="mergesort",
         ).index
+        sorted_keys = sort_keys.loc[ordered_index]
+        self._last_num_reprog_sorted_keys = sorted_keys
         return source_df.loc[ordered_index]
 
     def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
@@ -2224,7 +2232,16 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 if self.sort_column == "num_reprogramacoes":
                     self.df_exibido = self._sort_num_reprogramacoes_robust(self.sort_ascending)
-                    self._prime_num_reprogramacoes_sort_cache()
+                    sorted_keys = getattr(self, "_last_num_reprog_sorted_keys", None)
+                    if isinstance(sorted_keys, pd.DataFrame) and sorted_keys.index.equals(self.df_exibido.index):
+                        self._num_reprog_sort_cache = {
+                            "source_id": id(self.df_exibido),
+                            "source_len": len(self.df_exibido.index),
+                            "keys_df": sorted_keys,
+                        }
+                    else:
+                        self._prime_num_reprogramacoes_sort_cache()
+                    self._last_num_reprog_sorted_keys = None
                 else:
                     self.df_exibido = self.df_exibido.sort_values(
                         by=self.sort_column,
@@ -2501,10 +2518,32 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         else:
             active_filters.pop("setor_executor", None)
         self._active_column_filters = active_filters
+        self._sync_quick_setor_executor_into_advanced_filters(selected)
         self._sync_or_group_values("setor_executor", selected)
         self._mark_profile_as_custom()
         self._build_column_filters_panel()
         self._refresh_after_filter_change()
+
+    def _sync_quick_setor_executor_into_advanced_filters(self, selected: str) -> None:
+        data = dict(getattr(self, "_advanced_filters", None) or {})
+        selected_value = str(selected or "").strip()
+        if selected_value:
+            data["setor_executor"] = [selected_value]
+            data["setor_emissor"] = [selected_value]
+        else:
+            data["setor_executor"] = []
+            data["setor_emissor"] = []
+        data["setor_executor_exclude_values"] = []
+        data["setor_emissor_exclude_values"] = []
+        self._advanced_filters = data
+        try:
+            self._advanced_filters_active = bool(self._has_active_advanced_filters(data))
+        except Exception:
+            self._advanced_filters_active = bool(data)
+        try:
+            self._sync_advanced_filter_ui()
+        except Exception as exc:
+            logger.debug("Falha ao sincronizar UI de filtros avancados com atalho rapido: %s", exc)
 
     def _get_select_all_columns_from_selector(self) -> list[str]:
         selector = getattr(self, "column_selector", None)
