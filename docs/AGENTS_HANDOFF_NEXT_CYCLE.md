@@ -2,6 +2,26 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 10:05 - authoritative block
+
+- Slice entregue:
+  1. modularizacao minima em `create_zip_package` com helpers dedicados.
+  2. fix de tipagem para `build_name` em metadata de versao.
+  3. define explicito `SourcePath` no template Inno para evitar macro indefinida.
+  4. testes de distribuicao atualizados para validar define `SourcePath`.
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 3 apontamentos (1 HIGH sem repro local + 2 MEDIUM antigos/debt).
+  2. kluster em `tests/test_create_distribution.py` -> clean.
+  3. `py_compile`, `ruff`, `ty` -> pass.
+  4. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Pendencia deferida:
+  1. validar em Windows/ISCC real o cenario de path absoluto/relativo em `Source`.
+  2. alinhar mensagem de falha entre `_resolve_build_directory` e helper de reason.
+  3. continuar fatiamento de `create_zip_package` em ciclo dedicado.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:59 - authoritative block
 
 - Slice entregue:
