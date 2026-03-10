@@ -292,17 +292,19 @@ class TestRescanWorkerIntegration:
         assert "Iniciando Reescaneamento" in signal_collector.output_lines[0]
         assert signal_collector.finished_success is True
 
-    def test_run_emits_error_on_failure(self, rescan_worker, signal_collector):
-        """Testa que run() emite error em falha."""
-        rescan_worker.error_line.connect(signal_collector.on_error)
+    def test_run_full_without_updates_emits_success(self, rescan_worker, signal_collector):
+        """Full sem atualizacoes e caso valido e deve sinalizar sucesso."""
+        rescan_worker.output_line.connect(signal_collector.on_output)
+        rescan_worker.finished_success.connect(signal_collector.on_finished_success)
         rescan_worker.finished_error.connect(signal_collector.on_finished_error)
 
         # Mock run_importer_logic para retornar falha
         with patch("gui.workers.rescan_worker.run_importer_logic", return_value=False):
             rescan_worker.run()
 
-        assert signal_collector.finished_error is not None
-        assert "nenhum dado foi atualizado" in signal_collector.finished_error
+        assert signal_collector.finished_success is True
+        assert signal_collector.finished_error is None
+        assert any("Reescaneamento Completo Concluido (sem alteracoes)" in line for line in signal_collector.output_lines)
 
     def test_run_emits_error_on_exception(self, rescan_worker, signal_collector):
         """Testa que run() emite error em exceção."""

@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any, cast
 import os
 import sqlite3 as _sqlite3_typehint
+import sys
 import pandas as pd
 import logging
 import numpy as np
@@ -38,6 +39,7 @@ _INVALID_IDENTIFIER_CHARS_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VALID_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VALID_UPSERT_POLICIES = {"consulta_only", "no_short", "all_short"}
 _RUNTIME_SHORT_CIRCUIT_POLICY: str | None = None
+_SQLITE_IN_MAX_VARS = 900
 
 # Constantes removidas (vindas do util central). Mantidas só se necessário futuro.
 
@@ -139,6 +141,68 @@ def _quote_identifier(name: str) -> str:
     if _VALID_IDENTIFIER_RE.fullmatch(safe_name) is None:
         raise ValueError(f"Invalid SQL identifier: {name!r}")
     return f'"{safe_name}"'
+
+
+def _coerce_sqlite_scalar(value: Any) -> Any:
+    if isinstance(value, np.generic) and np.isscalar(value):
+        scalar_value = cast(np.generic, value)
+        value = scalar_value.item()
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:  # pragma: no cover
+        pass
+    return value
+
+
+def _append_dataframe_rows(
+    conn: Any,
+    table_name: str,
+    frame: pd.DataFrame,
+    *,
+    chunk_size: int | None = None,
+) -> int:
+    if frame.empty:
+        return 0
+    columns = [str(col) for col in frame.columns]
+    if not columns:
+        return 0
+    effective_chunk_size = int(chunk_size) if chunk_size and chunk_size > 0 else max(1, min(500, 999 // len(columns)))
+    quoted_table = _quote_identifier(table_name)
+    quoted_columns = ", ".join(_quote_identifier(col) for col in columns)
+    placeholders = ", ".join(["?"] * len(columns))
+    insert_sql = f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+    cursor = conn.cursor()
+    total_inserted = 0
+    for start in range(0, len(frame), effective_chunk_size):
+        chunk = frame.iloc[start:start + effective_chunk_size]
+        rows = [
+            tuple(_coerce_sqlite_scalar(value) for value in row)
+            for row in chunk.itertuples(index=False, name=None)
+        ]
+        if not rows:
+            continue
+        cursor.executemany(insert_sql, rows)
+        total_inserted += len(rows)
+    return total_inserted
+
+
+def _begin_transaction_if_needed(conn: Any, *, context: str) -> None:
+    in_transaction = getattr(conn, "in_transaction", None)
+    if in_transaction is not None and bool(in_transaction):
+        return
+    try:
+        conn.execute("BEGIN")
+    except _sqlite3_typehint.OperationalError as exc:
+        in_transaction_after_error = getattr(conn, "in_transaction", None)
+        if in_transaction_after_error is not None and bool(in_transaction_after_error):
+            logger.debug("BEGIN ignorado em %s (transacao ja ativa apos erro): %s", context, exc)
+            return
+        logger.error("Falha ao iniciar transacao em %s: %s", context, exc)
+        raise
+    except Exception as exc:
+        logger.error("Erro inesperado ao iniciar transacao em %s: %s", context, exc)
+        raise
 
 
 def _sync_dynamic_columns_and_schema(
@@ -391,7 +455,7 @@ def _merge_complement_row(
     return result
 
 
-def _merge_preserve_existing_row(existing_row: pd.Series, new_row: pd.Series) -> pd.Series:
+def _merge_overwrite_with_incoming_non_empty(existing_row: pd.Series, new_row: pd.Series) -> pd.Series:
     incoming = new_row.reindex(existing_row.index, fill_value=None)
     empty_mask = incoming.apply(
         lambda value: pd.isna(value) or value in (None, '') or (isinstance(value, str) and value.strip() == '')
@@ -401,7 +465,7 @@ def _merge_preserve_existing_row(existing_row: pd.Series, new_row: pd.Series) ->
         if col not in merged.index:
             merged[col] = new_row[col]
     if not isinstance(merged, pd.Series):
-        raise TypeError("Expected pd.Series from _merge_preserve_existing_row")
+        raise TypeError("Expected pd.Series from _merge_overwrite_with_incoming_non_empty")
     return merged
 
 
@@ -411,19 +475,7 @@ def _persist_upsert_chunk(
     rows_to_persist: dict[Any, pd.Series],
     delete_keys: set[Any],
 ) -> None:
-    def _coerce_sqlite_scalar(value: Any) -> Any:
-        if isinstance(value, np.generic) and np.isscalar(value):
-            scalar_value = cast(np.generic, value)
-            return scalar_value.item()
-        return value
-
-    in_transaction = getattr(conn, "in_transaction", None)
-    if in_transaction is not None and not bool(in_transaction):
-        try:
-            conn.execute("BEGIN")
-        except Exception as exc:
-            if "within a transaction" not in str(exc).lower():
-                raise
+    _begin_transaction_if_needed(conn, context="_persist_upsert_chunk")
     quoted_table_name = _quote_identifier(table_name)
     if delete_keys:
         placeholders = ", ".join(["?"] * len(delete_keys))
@@ -443,7 +495,7 @@ def _persist_upsert_chunk(
         for col in persist_df.columns:
             if persist_df[col].dtype == object:
                 persist_df[col] = persist_df[col].map(_coerce_sqlite_scalar)
-        persist_df.to_sql(table_name, conn, if_exists='append', index=False)
+        _append_dataframe_rows(conn, table_name, persist_df)
 
 
 def _prepare_upsert_target_row(
@@ -460,7 +512,7 @@ def _prepare_upsert_target_row(
     if not complementary_mode:
         if not _should_update_existing(existing_row, row):
             return existing_row.copy(), False
-        merged_row = _merge_preserve_existing_row(existing_row, row)
+        merged_row = _merge_overwrite_with_incoming_non_empty(existing_row, row)
         if merged_row.equals(existing_row):
             return existing_row.copy(), False
         return merged_row, True
@@ -523,7 +575,10 @@ def _should_enable_exact_overlap_short_circuit(
     chunk: pd.DataFrame,
     *,
     policy: str | None = None,
+    complementary_mode: bool = False,
 ) -> bool:
+    if complementary_mode:
+        return False
     resolved_policy = _resolve_short_circuit_policy(policy)
     if resolved_policy == "no_short":
         return False
@@ -558,11 +613,21 @@ def _load_existing_chunk_caches(
 ) -> tuple[pd.DataFrame, dict[str, tuple[Any, ...]], dict[str, tuple[Any, ...]]]:
     if not chunk_num_ssa:
         return pd.DataFrame(), {}, {}
-    placeholders = ", ".join(["?"] * len(chunk_num_ssa))
-    existing_chunk = pd.read_sql_query(
-        f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
-        conn,
-        params=chunk_num_ssa,
+    existing_parts: list[pd.DataFrame] = []
+    for start in range(0, len(chunk_num_ssa), _SQLITE_IN_MAX_VARS):
+        query_ids = chunk_num_ssa[start:start + _SQLITE_IN_MAX_VARS]
+        placeholders = ", ".join(["?"] * len(query_ids))
+        part = pd.read_sql_query(
+            f"SELECT * FROM {quoted_table_name} WHERE numero_ssa IN ({placeholders})",
+            conn,
+            params=query_ids,
+        )
+        if not part.empty:
+            existing_parts.append(part)
+    existing_chunk = (
+        pd.concat(existing_parts, ignore_index=True, sort=False)
+        if existing_parts
+        else pd.DataFrame()
     )
     if existing_chunk.empty or 'numero_ssa' not in existing_chunk.columns:
         return existing_chunk, {}, {}
@@ -697,6 +762,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
     effective_chunk_size = chunk_size if chunk_size is not None else _resolve_upsert_chunk_size(len(has_ssa))
     total_upserted = 0
     quoted_table_name = _quote_identifier(table_name)
+    _begin_transaction_if_needed(conn, context="_perform_upsert")
     logger.debug(
         "Chunk size do upsert: %s para %s registros com numero_ssa",
         effective_chunk_size,
@@ -709,6 +775,7 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
         enable_exact_overlap_short_circuit = _should_enable_exact_overlap_short_circuit(
             chunk,
             policy=effective_policy,
+            complementary_mode=complementary_mode,
         )
 
         chunk_num_ssa: list[Any] = (
@@ -728,18 +795,12 @@ def _perform_upsert(has_ssa: pd.DataFrame, table_name: str, conn, *, chunk_size:
             enable_exact_overlap_short_circuit=enable_exact_overlap_short_circuit,
         )
         if existing_chunk.empty and len(chunk_num_ssa) == len(chunk):
-            chunk.to_sql(table_name, conn, if_exists='append', index=False)
+            _append_dataframe_rows(conn, table_name, chunk)
             total_upserted += len(chunk)
             logger.info(
                 "Fast-path append de %s registros com numero_ssa unicos e ausentes no banco",
                 len(chunk),
             )
-            if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
-                try:
-                    conn.execute("BEGIN")
-                except Exception as exc:
-                    if "within a transaction" not in str(exc).lower():
-                        raise
             continue
 
         rows_to_persist, delete_keys, changed_rows = _collect_chunk_upsert_delta(
@@ -836,6 +897,7 @@ def insert_dataframe_with_smart_upsert_impl(
     work = prepare_dataframe_for_upsert(df)
     work = apply_column_whitelist(work)
     from . import database as _db_mod  # lazy import evita circularidade
+    conn: Any = None
     conn_cm = None
     if hasattr(db_path, 'cursor'):  # conexão externa
         conn: Any = db_path
@@ -860,19 +922,7 @@ def insert_dataframe_with_smart_upsert_impl(
             if isinstance(db_path, str):
                 _db_mod.initialize_database(db_path, "config/schema.sql")
             else:
-                cursor.execute("PRAGMA database_list")
-                db_list = cursor.fetchall()
-                main_db_path = None
-                for row in db_list:
-                    if len(row) >= 3 and row[1] == "main" and row[2]:
-                        main_db_path = str(row[2])
-                        break
-                if not main_db_path:
-                    logger.error(
-                        "Nao foi possivel identificar caminho do DB principal para bootstrap de schema."
-                    )
-                    return False
-                _db_mod.initialize_database(main_db_path, "config/schema.sql")
+                _db_mod.initialize_database(conn, "config/schema.sql")
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             existing_tables = {r[0] for r in cursor.fetchall()}
             table_name = _db_mod._resolve_target_table(
@@ -910,48 +960,32 @@ def insert_dataframe_with_smart_upsert_impl(
         else:
             has_ssa = work[work['numero_ssa'].notna()].copy()
             no_ssa = work[work['numero_ssa'].isna()].copy()
-        if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
-            try:
-                cursor.execute("BEGIN")
-            except Exception as exc:
-                if "within a transaction" not in str(exc).lower():
-                    raise
+        _begin_transaction_if_needed(conn, context="insert_dataframe_with_smart_upsert_impl")
         if not no_ssa.empty:
             # Cálculo dinâmico do chunk size para evitar "too many SQL variables"
             chunk_size = min(500, max(1, 999 // len(no_ssa.columns))) if len(no_ssa.columns) > 0 else 500
             logger.debug(f"Chunk size calculado para inserção sem SSA: {chunk_size} linhas para {len(no_ssa.columns)} colunas")
-            no_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
+            _append_dataframe_rows(conn, table_name, no_ssa, chunk_size=chunk_size)
             logger.info("Inseridos %s registros sem numero_ssa", len(no_ssa))
         if not has_ssa.empty:
-            target_has_existing_ssa = _table_has_existing_ssa_rows(conn, table_name)
-            if not target_has_existing_ssa and has_ssa['numero_ssa'].is_unique:
-                chunk_size = (
-                    min(500, max(1, 999 // len(has_ssa.columns)))
-                    if len(has_ssa.columns) > 0
-                    else 500
-                )
-                has_ssa.to_sql(table_name, conn, if_exists='append', index=False, chunksize=chunk_size)
-                inserted = len(has_ssa)
-                logger.info(
-                    "Fast-path append de %s registros com numero_ssa unicos em tabela sem SSA previa",
-                    inserted,
-                )
-            else:
-                # pandas.to_sql may end the previous transaction. Re-open it for atomic upsert.
-                if hasattr(conn, "in_transaction") and not bool(conn.in_transaction):
-                    try:
-                        cursor.execute("BEGIN")
-                    except Exception as exc:
-                        if "within a transaction" not in str(exc).lower():
-                            raise
-                inserted = _perform_upsert(has_ssa, table_name, conn)
-                logger.info("Processados %s registros com numero_ssa via upsert", inserted)
+            inserted = _perform_upsert(has_ssa, table_name, conn)
+            logger.info("Processados %s registros com numero_ssa via upsert", inserted)
         conn.commit()  # type: ignore[attr-defined]
         logger.info("Inserção completada com sucesso")
         return True
+    except Exception:
+        if conn is not None and hasattr(conn, "in_transaction") and bool(conn.in_transaction):
+            try:
+                rollback_fn = getattr(conn, "rollback", None)
+                if callable(rollback_fn):
+                    rollback_fn()
+            except Exception as rollback_exc:
+                logger.warning("Falha no rollback de upsert: %s", rollback_exc)
+        raise
     finally:
         if close_after and conn_cm is not None:
+            exc_type, exc_value, exc_tb = sys.exc_info()
             try:
-                conn_cm.__exit__(None, None, None)
-            except Exception:  # pragma: no cover
-                pass
+                conn_cm.__exit__(exc_type, exc_value, exc_tb)
+            except Exception as close_exc:  # pragma: no cover
+                logger.warning("Falha ao fechar conexao de upsert: %s", close_exc)

@@ -21,7 +21,7 @@ if project_root not in sys.path:
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QLabel  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtCore import Qt, QSize, QUrl, QPoint  # noqa: E402
-from PyQt6.QtGui import QCloseEvent, QResizeEvent  # noqa: E402
+from PyQt6.QtGui import QCloseEvent, QResizeEvent, QFont  # noqa: E402
 
 from gui.gui_ssa import SSAMainWindow  # noqa: E402
 from gui import gui_ssa  # noqa: E402
@@ -990,7 +990,7 @@ class TestGUIFilterLogic:
         if button is None:
             button = getattr(self.window, "_adv_ctx", {}).get("adv_responsavel_solicitante_button")
         assert button is not None
-        assert "Incluir:" in button.text()
+        assert button.text().startswith(("Incluir:", "Diferente:"))
 
     def test_apply_advanced_filters_preserves_responsavel_when_not_materialized(self):
         self.window._advanced_filters = {
@@ -1146,6 +1146,23 @@ class TestGUIFilterLogic:
         second_size = getattr(self.window, "_details_text_small_font_base_size", None)
         assert second_font is first_font
         assert second_size == first_size
+
+    def test_apply_theme_rebuilds_cached_details_font_when_base_font_changes(self):
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        first_font = getattr(self.window, "_details_text_small_font_cached", None)
+        assert first_font is not None
+
+        base_font = self.window.details_group.font()
+        base_font.setFamily("Courier New")
+        base_font.setWeight(QFont.Weight.Black)
+        self.window.details_group.setFont(base_font)
+
+        self.window.apply_theme("gruvbox")
+        QApplication.processEvents()
+        second_font = getattr(self.window, "_details_text_small_font_cached", None)
+        assert second_font is not None
+        assert second_font is not first_font
 
     def test_apply_theme_skips_global_qss_rebuild_when_cached_theme_matches(self):
         self.window.apply_theme("gruvbox")
