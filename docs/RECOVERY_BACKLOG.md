@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 07:44 - prune workers deduplicado com cobertura de regressao
+
+Session timestamp:
+1. start: `2026-03-10 06:21:27 -0300`
+2. end: `2026-03-10 07:44:19 -0300`
+
+Objetivo do slice:
+1. reduzir duplicacao entre prunes de workers sem refatoracao ampla.
+2. preservar semantica atual de TTL/cap e limpeza de meta.
+3. adicionar cobertura focada no fluxo real de prune de rescan.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_workers.py`:
+   - novo helper `_classify_and_update_global_workers_locked(...)` para consolidar classificacao global TTL/cap e atualizacao de `global_workers`.
+   - `prune_retired_data_loader_workers(...)` passou a reutilizar o helper no bloco global.
+   - `prune_retired_rescan_workers(...)` passou a reutilizar o helper com `drop_orphaned_meta=True`.
+2. `tests/test_gui_workers_rescan_data.py`:
+   - novo teste `test_prune_retired_rescan_workers_expires_oldest_when_above_cap` cobrindo expurgo do worker mais antigo quando estoura `max_global_workers`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py` -> `10 passed`
+5. `kluster review file gui/ssa/gui_workers.py tests/test_gui_workers_rescan_data.py` -> 3 issues medias fora de escopo (arquitetura/performance em `on_data_loaded` e prompt em `rescan_data`), sem novo blocker deste slice.
+
+Deferido (nao bloqueante neste slice):
+1. separar `on_data_loaded` (god-function) em ciclo dedicado.
+2. desacoplar prompt interativo de `rescan_data` para caller.
+3. mover sanitizacao/sort pesado do UI thread para worker em slice de performance dedicado.
+
 ## Update 2026-03-10 06:14 - doc sync build/distribuicao v4.32
 
 Session timestamp:

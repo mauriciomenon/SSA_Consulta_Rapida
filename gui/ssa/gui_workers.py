@@ -279,6 +279,30 @@ def _process_expired_workers(
     return removed_workers
 
 
+def _classify_and_update_global_workers_locked(
+    *,
+    global_workers: list,
+    global_meta: dict,
+    now: float,
+    retired_ttl_sec: float,
+    max_global_workers: int,
+    is_running_fn,
+    drop_orphaned_meta: bool = False,
+) -> list:
+    running_global, expired_global = _classify_workers_for_ttl(
+        global_workers,
+        global_meta=global_meta,
+        now=now,
+        retired_ttl_sec=retired_ttl_sec,
+        max_global_workers=max_global_workers,
+        is_running_fn=is_running_fn,
+    )
+    global_workers[:] = running_global
+    if drop_orphaned_meta:
+        _drop_orphaned_worker_meta(global_workers, global_meta)
+    return expired_global
+
+
 def prune_retired_data_loader_workers(
     window,
     *,
@@ -307,15 +331,14 @@ def prune_retired_data_loader_workers(
             if age > retired_ttl_sec:
                 expired_local.append(w)
 
-        running_global, expired_global = _classify_workers_for_ttl(
-            global_workers,
+        expired_global = _classify_and_update_global_workers_locked(
+            global_workers=global_workers,
             global_meta=global_meta,
             now=now,
             retired_ttl_sec=retired_ttl_sec,
             max_global_workers=max_global_workers,
             is_running_fn=lambda worker: is_data_loader_worker_running(worker, sip_module),
         )
-        global_workers[:] = running_global
     expired_all = list(
         dict.fromkeys(
             [
@@ -383,16 +406,15 @@ def prune_retired_rescan_workers(
     now = perf_counter()
     expired_global = []
     with _GLOBAL_WORKERS_LOCK:
-        running_global, expired_global = _classify_workers_for_ttl(
-            global_workers,
+        expired_global = _classify_and_update_global_workers_locked(
+            global_workers=global_workers,
             global_meta=global_meta,
             now=now,
             retired_ttl_sec=retired_ttl_sec,
             max_global_workers=max_global_workers,
             is_running_fn=lambda worker: is_rescan_worker_running(worker, sip_module),
+            drop_orphaned_meta=True,
         )
-        global_workers[:] = running_global
-        _drop_orphaned_worker_meta(global_workers, global_meta)
 
     def _stop_rescan_worker(worker) -> bool:
         if hasattr(worker, "stop"):
