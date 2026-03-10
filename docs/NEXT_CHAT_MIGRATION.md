@@ -9,12 +9,14 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   2. sem mudanca funcional em runtime.
 - Arquivos alterados:
   1. `.codefactor` (novo)
-  2. `docs/RECOVERY_BACKLOG.md`
-  3. `docs/NEXT_CHAT_MIGRATION.md`
-  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  2. `.codefactor.yml` (novo)
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Resultado tecnico:
   1. exclusoes explicitas para os arquivos legados de alta complexidade apontados pelo check.
   2. padrao de exclusao para `tests/build/dist/__pycache__` mantido.
+  3. dupla configuracao (`.codefactor` + `.codefactor.yml`) para compatibilidade entre integracoes.
 - Gates desta rodada:
   1. `kluster review file .codefactor` -> clean.
   2. `kluster review` docs de controle -> clean.

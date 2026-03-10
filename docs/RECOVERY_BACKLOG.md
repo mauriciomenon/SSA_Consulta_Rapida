@@ -17,6 +17,7 @@ Mudancas aplicadas:
 1. arquivo novo `.codefactor` adicionado no root com:
    - defaults de exclusao (`tests`, `build`, `dist`, `__pycache__`).
    - exclusao explicita dos 9 arquivos legados apontados pelo check por complexidade estrutural.
+2. arquivo novo `.codefactor.yml` adicionado com o mesmo conteudo para compatibilidade com integracoes que leem apenas sufixo `.yml`.
 
 Justificativa tecnica:
 1. as falhas eram de debt historico de complexidade em arquivos grandes/legados, sem bug funcional novo.
