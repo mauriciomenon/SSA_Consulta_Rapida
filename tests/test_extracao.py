@@ -131,6 +131,7 @@ def test_extract_data_from_excel_fails_when_required_columns_missing(tmp_path):
         extract_data_from_excel(str(file_path))
 
     assert "Missing required columns" in str(excinfo.value)
+    assert "available_columns=" in str(excinfo.value)
 
 
 def test_extract_data_from_excel_empty_mapping_keeps_original_columns_and_fails_required(

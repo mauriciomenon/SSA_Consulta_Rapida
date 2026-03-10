@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 12:56 - authoritative block
+## CURRENT TRUTH 2026-03-10 13:32 - authoritative block
+
+- Slice entregue:
+  1. correcao tecnica das 9 threads `BUG_REAL` remanescentes no PR #45.
+  2. foco em atomicidade de upsert, validacao/extracao observavel e consistencia de workers.
+- Resultado tecnico principal:
+  1. upsert sem `to_sql` no hot-path (evita commit implicito de pandas).
+  2. `BEGIN` robusto por estado real de transacao (`in_transaction`) e rollback explicito em falha.
+  3. bootstrap com conexao externa passou a usar `initialize_database(conn, ...)`.
+  4. carga de cache existente por sublotes (`IN` limitado) para evitar `too many SQL variables`.
+  5. erro de validacao com `error_details` estruturado.
+  6. erro de extracao `MISSING_REQUIRED_COLUMNS` com `available_columns` e `debug_phases`.
+  7. full rescan sem alteracoes agora conclui sucesso (nao erro).
+  8. classificador TTL sem side-effect local; sync da lista global no wrapper locked.
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest` focado -> `252 passed, 1 skipped`.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 12:56 - authoritative block
 
 - Slice entregue:
   1. triagem final de pendencias do PR #45, com revisao thread a thread.

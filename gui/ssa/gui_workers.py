@@ -213,6 +213,8 @@ def _classify_workers_for_ttl(
     max_global_workers: int,
     is_running_fn,
 ) -> tuple[list, list]:
+    # Classifica snapshot; nao altera lista de origem para evitar side-effects
+    # fora da secao protegida por lock.
     running_workers: list = []
     expired_workers: list = []
     for worker in list(workers):

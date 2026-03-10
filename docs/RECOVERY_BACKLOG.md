@@ -3,6 +3,64 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 13:12 - PR45 bug-real round (9 threads tecnicas)
+
+Session timestamp:
+1. start: `2026-03-10 13:03:49 -0300`
+2. end: `2026-03-10 13:32:00 -0300`
+
+Objetivo do slice:
+1. corrigir as threads abertas classificadas como `BUG_REAL` no PR #45.
+2. manter patch minimo sem refatoracao transversal.
+
+Mudancas aplicadas:
+1. `armazenamento/database_upsert_logic.py`
+   - remove `to_sql` dos caminhos de upsert/fast-path para evitar commit implicito.
+   - adiciona insercao via `executemany` (`_append_dataframe_rows`) com controle explicito de transacao.
+   - adiciona `_begin_transaction_if_needed` com guarda por `in_transaction` (sem parser fragil por substring).
+   - adiciona rollback defensivo em excecao no entrypoint de upsert.
+   - blinda carga de cache existente por sublotes (`_SQLITE_IN_MAX_VARS=900`) para evitar `too many SQL variables`.
+   - desabilita short-circuit exato em modo complementar no proprio helper de politica.
+   - bootstrap de schema com conexao externa agora usa `initialize_database(conn, ...)` no mesmo handle.
+2. `armazenamento/database_validation.py`
+   - enriquece `sample_ssa` para coluna obrigatoria ausente.
+   - adiciona `error_details` estruturado no report de excecao inesperada.
+3. `extracao/extractor.py`
+   - erro `MISSING_REQUIRED_COLUMNS` passa a incluir `available_columns` e `debug_phases` para diagnostico rastreavel.
+4. `gui/ssa/gui_theme.py`
+   - cache de fonte reduzida agora considera tamanho + familia + peso.
+5. `gui/ssa/gui_workers.py`
+   - `_classify_workers_for_ttl` passou a classificar snapshot sem side-effect.
+   - atualizacao da lista fonte ficou centralizada em `_classify_and_update_global_workers_locked`.
+6. `gui/workers/rescan_worker.py`
+   - full rescan sem alteracoes deixa de emitir erro; passa a concluir com sucesso e mensagem explicita.
+
+Testes adicionados/ajustados:
+1. `tests/test_upsert_fast_path.py`
+   - transacao permanece ativa no fast-path multi-chunk.
+   - rollback completo quando falha na fase de upsert apos insercao parcial.
+2. `tests/test_database_verification.py`
+   - missing required column gera violation estruturada.
+   - excecao inesperada popula `error_details`.
+3. `tests/test_extracao.py`
+   - valida presenca de `available_columns` na mensagem de `MISSING_REQUIRED_COLUMNS`.
+4. `tests/test_gui_filter_logic.py`
+   - cache de fonte e reconstruido quando muda familia/peso da base.
+5. `tests/test_gui_workers_rescan_data.py`
+   - classificador TTL preserva snapshot local; wrapper locked atualiza lista global.
+6. `tests/test_rescan_worker_advanced.py`
+   - full sem atualizacoes sinaliza sucesso (nao erro).
+
+Validacao tecnica desta rodada:
+1. `py_compile` no escopo alterado -> pass
+2. `ruff check` no escopo alterado -> pass
+3. `ty check` no escopo alterado -> pass
+4. `pytest` focado:
+   - `252 passed, 1 skipped` -> pass
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `database_upsert_logic.py`, `gui_theme.py` e `gui_workers.py` apontados por kluster fora do escopo de patch minimo.
+
 ## Update 2026-03-10 12:56 - PR45 triagem final de threads
 
 Session timestamp:

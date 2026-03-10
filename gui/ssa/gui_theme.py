@@ -446,16 +446,22 @@ def _apply_theme_widget_styles(
                     if size > 0:
                         cached_font = getattr(window, "_details_text_small_font_cached", None)
                         cached_size = getattr(window, "_details_text_small_font_base_size", None)
+                        cached_family = getattr(window, "_details_text_small_font_base_family", None)
+                        cached_weight = getattr(window, "_details_text_small_font_base_weight", None)
                         should_rebuild = (
                             not isinstance(cached_font, QFont)
                             or not isinstance(cached_size, (int, float))
                             or abs(float(cached_size) - float(size)) > 0.01
+                            or cached_family != base_font.family()
+                            or cached_weight != int(base_font.weight())
                         )
                         if should_rebuild:
                             small_font = QFont(base_font)
                             small_font.setPointSizeF(max(size - 1.5, 1.0))
                             window._details_text_small_font_cached = small_font
                             window._details_text_small_font_base_size = float(size)
+                            window._details_text_small_font_base_family = base_font.family()
+                            window._details_text_small_font_base_weight = int(base_font.weight())
                         active_small_font = getattr(window, "_details_text_small_font_cached", None)
                         if isinstance(active_small_font, QFont):
                             window.details_text.setFont(active_small_font)

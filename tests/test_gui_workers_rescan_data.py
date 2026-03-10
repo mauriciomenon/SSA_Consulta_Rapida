@@ -438,6 +438,43 @@ def test_classify_workers_for_ttl_expires_oldest_when_above_cap():
     assert expired == ["w1"]
 
 
+def test_classify_workers_for_ttl_keeps_source_snapshot_immutable():
+    workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
+
+    running, expired = ssa_gui_workers._classify_workers_for_ttl(
+        workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=10,
+        is_running_fn=lambda worker: worker != "w2",
+    )
+
+    assert running == ["w1", "w3"]
+    assert expired == []
+    assert workers == ["w1", "w2", "w3"]
+    assert "w2" not in meta
+
+
+def test_classify_and_update_global_workers_locked_updates_source_list():
+    global_workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 101.0, "w3": 102.0}
+
+    expired = ssa_gui_workers._classify_and_update_global_workers_locked(
+        global_workers=global_workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=10,
+        is_running_fn=lambda worker: worker != "w2",
+    )
+
+    assert expired == []
+    assert global_workers == ["w1", "w3"]
+    assert "w2" not in meta
+
+
 def test_prune_retired_rescan_workers_expires_oldest_when_above_cap(monkeypatch):
     class _Worker:
         def __init__(self, name: str):

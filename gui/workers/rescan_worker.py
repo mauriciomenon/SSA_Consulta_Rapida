@@ -164,9 +164,11 @@ class RescanWorker(QThread):
                     self.output_line.emit("Nenhum arquivo novo ou alterado foi encontrado.")
                     self.finished_success.emit()
                 else:
-                    self.finished_error.emit(
-                        "Reescaneamento completo concluido, mas nenhum dado foi atualizado"
-                    )
+                    self.progress.emit(100, "Concluido sem alteracoes")
+                    self.output_line.emit("")
+                    self.output_line.emit("=== Reescaneamento Completo Concluido (sem alteracoes) ===")
+                    self.output_line.emit("Importacao concluida sem dados atualizados.")
+                    self.finished_success.emit()
 
         except Exception as exc:
             logger.exception("Erro inesperado no reescaneamento")

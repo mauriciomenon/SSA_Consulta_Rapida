@@ -9,6 +9,7 @@ import sqlite3
 
 import pandas as pd
 import pytest
+import armazenamento.database_validation as database_validation
 
 from armazenamento.database import (
     ensure_column_exists,
@@ -269,6 +270,43 @@ class TestDataValidation:
         assert report['is_valid'] is False
         assert "Coluna 'data_cadastro' possui 1 valores ausentes" in report['issues']
         assert report['invalid_by_column']['data_cadastro'] == [3]
+
+    def test_validate_missing_required_column_reports_violation(self):
+        """Ausencia de coluna obrigatoria deve gerar issue e violation estruturada."""
+        df = pd.DataFrame(
+            {
+                'numero_ssa': [202500100],
+                'situacao': ['APV'],
+                'descricao_ssa': ['Sem data de cadastro'],
+            }
+        )
+
+        report = validate_dataframe_before_insert(df)
+
+        assert report['is_valid'] is False
+        assert "Coluna obrigatoria 'data_cadastro' ausente no DataFrame" in report['issues']
+        rules = {violation['rule'] for violation in report['violations']}
+        assert 'missing_column_data_cadastro' in rules
+
+    def test_validate_sets_structured_error_details_on_unexpected_exception(self, monkeypatch):
+        """Falhas inesperadas devem preencher bloco error_details no report."""
+        df = pd.DataFrame(
+            {
+                'numero_ssa': [202500200],
+                'situacao': ['APV'],
+                'data_cadastro': ['2025-01-01 00:00:00'],
+            }
+        )
+
+        def _explode(*_args, **_kwargs):
+            raise RuntimeError("forced validation crash")
+
+        monkeypatch.setattr(database_validation, "_validate_required_columns", _explode)
+        report = validate_dataframe_before_insert(df)
+
+        assert report['is_valid'] is False
+        assert report['error_details']['type'] == 'RuntimeError'
+        assert "forced validation crash" in report['error_details']['message']
 
 
 class TestDatabaseRepair:

@@ -532,8 +532,14 @@ def extract_data_from_excel(
 
         missing_required = MANDATORY_SCHEMA_COLUMNS.difference(set(combined_df.columns))
         if missing_required:
+            missing_required_sorted = sorted(missing_required)
+            available_columns = sorted(str(col) for col in combined_df.columns)
+            debug_phase_names = sorted(_debug_phases.keys()) if isinstance(_debug_phases, dict) else []
             raise ExtractionError(
-                f"Missing required columns after normalization: {sorted(missing_required)}",
+                "Missing required columns after normalization: "
+                f"{missing_required_sorted}; "
+                f"available_columns={available_columns[:40]}; "
+                f"debug_phases={debug_phase_names}",
                 error_code="MISSING_REQUIRED_COLUMNS",
             )
 

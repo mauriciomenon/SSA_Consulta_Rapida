@@ -208,6 +208,7 @@ def test_perform_upsert_fast_path_handles_multiple_chunks_in_same_transaction() 
     )
 
     processed = upsert_logic._perform_upsert(incoming, "ssa_table", conn, chunk_size=50)
+    assert bool(conn.in_transaction) is True
     conn.commit()
 
     count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
@@ -219,9 +220,41 @@ def test_perform_upsert_fast_path_handles_multiple_chunks_in_same_transaction() 
     assert blob_count == 0
 
 
-def test_insert_dataframe_with_smart_upsert_impl_skips_upsert_when_only_null_rows_exist(
+def test_insert_dataframe_with_smart_upsert_impl_rolls_back_if_upsert_phase_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    conn = sqlite3.connect(":memory:")
+    _create_test_table(conn)
+    incoming = pd.DataFrame(
+        [
+            {
+                "numero_ssa": None,
+                "descricao_ssa": "sem identidade",
+                "data_cadastro": "2026-01-01 00:00:00",
+                "semana_programada": 202601,
+            },
+            {
+                "numero_ssa": "202600999",
+                "descricao_ssa": "com identidade",
+                "data_cadastro": "2026-01-02 00:00:00",
+                "semana_programada": 202602,
+            },
+        ]
+    )
+
+    def _raise_upsert(*_args, **_kwargs):
+        raise RuntimeError("forced upsert failure")
+
+    monkeypatch.setattr(upsert_logic, "_perform_upsert", _raise_upsert)
+
+    with pytest.raises(RuntimeError, match="forced upsert failure"):
+        upsert_logic.insert_dataframe_with_smart_upsert_impl(incoming, conn, "ssa_table")
+
+    persisted_count = conn.execute("SELECT COUNT(*) FROM ssa_table").fetchone()[0]
+    assert persisted_count == 0
+
+
+def test_insert_dataframe_with_smart_upsert_impl_persists_no_ssa_and_has_ssa_rows() -> None:
     conn = sqlite3.connect(":memory:")
     _create_test_table(conn)
     incoming = pd.DataFrame(
@@ -246,11 +279,6 @@ def test_insert_dataframe_with_smart_upsert_impl_skips_upsert_when_only_null_row
             },
         ]
     )
-
-    def _unexpected_upsert(*args, **kwargs) -> int:
-        raise AssertionError("_perform_upsert nao deveria ser chamado quando a tabela so tem numero_ssa nulo")
-
-    monkeypatch.setattr(upsert_logic, "_perform_upsert", _unexpected_upsert)
 
     assert upsert_logic.insert_dataframe_with_smart_upsert_impl(incoming, conn, "ssa_table") is True
 
