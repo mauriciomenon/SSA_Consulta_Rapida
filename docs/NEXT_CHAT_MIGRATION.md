@@ -2,14 +2,13 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 00:42 - start from here
+## CURRENT TRUTH 2026-03-10 00:55 - start from here
 
 - Slice aplicado:
-  1. atalho rapido `Setor Executor` agora sincroniza tambem filtros avancados:
-     - `setor_executor`
-     - `setor_emissor`
-     - limpa excludes dos dois para evitar estado contraditorio.
-  2. popup do combo rapido com rolagem real:
+  1. hotfix no atalho rapido `Setor Executor`:
+     - remove sync com `_advanced_filters`.
+     - mantem somente sync no OR group de filtros por coluna (`setor_executor`/`setor_emissor`).
+  2. popup rolavel do combo rapido mantido:
      - `maxVisibleItems=14`
      - `combobox-popup: 0`
      - scrollbar vertical no `view()`.
@@ -21,12 +20,26 @@ Use este arquivo para migrar contexto para um novo chat sem perder qualidade de 
   5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Gates desta rodada:
   1. `py_compile`, `ruff`, `ty` -> pass.
-  2. `pytest` focado quick setor/sort -> `5 passed`.
+  2. `pytest` focado quick setor/OR group -> `2 passed`.
 - Deferido:
   1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` fora do patch minimo.
 - Residuos locais fora de escopo mantidos:
   1. `data/ssas.db`
   2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:42
+
+- Slice aplicado:
+  1. atalho rapido `Setor Executor` sincronizado com filtros avancados:
+     - `setor_executor`
+     - `setor_emissor`
+     - excludes limpos.
+  2. popup do combo rapido com rolagem real.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado quick setor/sort -> `5 passed`.
+- Nota:
+  1. comportamento foi revertido no hotfix 00:55 para remover sync indevido com avancados.
 
 ## HISTORICAL SNAPSHOT 2026-03-10 00:36
 

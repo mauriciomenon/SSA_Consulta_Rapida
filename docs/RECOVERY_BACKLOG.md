@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 00:55 - hotfix rapido de Setor Executor (sem sync avancado)
+
+Session timestamp:
+1. start: `2026-03-10 00:55:26 -0300`
+2. end: `2026-03-10 01:00:00 -0300`
+
+Objetivo do slice:
+1. remover acoplamento indevido do atalho rapido `Setor Executor` com `_advanced_filters`.
+2. manter apenas sync no OR group de filtros por coluna (`setor_executor`/`setor_emissor`).
+3. preservar popup rolavel e sem persistencia.
+
+Mudancas aplicadas:
+1. `gui/gui_ssa.py`:
+   - remove chamada `_sync_quick_setor_executor_into_advanced_filters(selected)` em `_on_quick_setor_executor_changed`.
+   - remove helper `_sync_quick_setor_executor_into_advanced_filters`.
+   - mantem sync de OR group via `_sync_or_group_values("setor_executor", selected)`.
+2. `tests/test_gui_filter_logic.py`:
+   - atualiza teste para novo contrato:
+     - quick combo sincroniza apenas filtros por coluna/OR group.
+     - `_advanced_filters` permanece inalterado.
+     - popup continua limitado (`maxVisibleItems=14` + `combobox-popup: 0`).
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+2. `uv run --python 3.13 ruff check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+3. `uv run --python 3.13 ty check gui/gui_ssa.py tests/test_gui_filter_logic.py` -> pass
+4. `timeout 240s uv run --python 3.13 pytest -q tests/test_gui_filter_logic.py -k "quick_setor_executor_combo_applies_filter_and_syncs_or_group_only or profile_or_filters_executor_or_emissor or sync_or_group_values"` -> `2 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` (God class, resize/sort no UI thread, worker retention global, vacuum/analyze).
+
 ## Update 2026-03-10 00:42 - sync completo do atalho Setor Executor + popup com rolagem real
 
 Session timestamp:
