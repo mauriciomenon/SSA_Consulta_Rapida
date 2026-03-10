@@ -2849,10 +2849,10 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             if callable(build_unique_destination):
                 destination = build_unique_destination(base_destination)
             else:
-                destination = SSAMainWindow._build_unique_destination_path(
+                destination = SSAMainWindow._build_unique_destination_path.__get__(
                     self,
-                    base_destination,
-                )
+                    SSAMainWindow,
+                )(base_destination)
 
             try:
                 shutil.copy2(source, destination)

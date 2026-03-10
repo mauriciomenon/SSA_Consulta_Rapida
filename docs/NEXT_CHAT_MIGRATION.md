@@ -2,7 +2,22 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 23:08 - start from here
+## CURRENT TRUTH 2026-03-09 23:24 - start from here
+
+- Micro-slice aplicado:
+  1. correcao pontual na chamada fallback de `_build_unique_destination_path` em `gui/gui_ssa.py`.
+  2. fallback agora usa descriptor bound call para evitar ambiguidade de assinatura em chamada via classe.
+  3. comportamento funcional mantido (incluindo compatibilidade com janela stub de teste).
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado de importacao/menu -> `5 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora de escopo neste micro-slice.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 23:08
 
 - Slice concluido: pendencia pesada + comentarios simples do PR.
   1. `gui/gui_ssa.py`:
