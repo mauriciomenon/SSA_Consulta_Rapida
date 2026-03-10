@@ -7,7 +7,7 @@ Este handoff esta pronto para reutilizacao no proximo ciclo.
 - Slice entregue:
   1. desbloqueio do check `CodeFactor` no PR #45 sem mudanca de runtime.
 - Mudanca aplicada:
-  1. adicao do arquivo `.codefactor` no root.
+  1. adicao dos arquivos `.codefactor` e `.codefactor.yml` no root.
   2. exclusao explicita de arquivos legados com complexidade estrutural historica apontada pelo check.
 - Resultado operacional esperado:
   1. `CodeFactor` deixa de bloquear por debt legado fora do escopo funcional desta sprint.
