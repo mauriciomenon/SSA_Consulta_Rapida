@@ -2,42 +2,26 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 13:32 - start from here
+## CURRENT TRUTH 2026-03-10 13:45 - start from here
 
 - Slice aplicado:
-  1. correcoes das 9 threads `BUG_REAL` remanescentes do PR #45.
-  2. foco em atomicidade de upsert, consistencia de validacao/extracao e semantica de workers GUI.
+  1. desbloqueio do check `CodeFactor` no PR #45 via configuracao local.
+  2. sem mudanca funcional em runtime.
 - Arquivos alterados:
-  1. `armazenamento/database_upsert_logic.py`
-  2. `armazenamento/database_validation.py`
-  3. `extracao/extractor.py`
-  4. `gui/ssa/gui_theme.py`
-  5. `gui/ssa/gui_workers.py`
-  6. `gui/workers/rescan_worker.py`
-  7. `tests/test_upsert_fast_path.py`
-  8. `tests/test_database_verification.py`
-  9. `tests/test_extracao.py`
-  10. `tests/test_gui_filter_logic.py`
-  11. `tests/test_gui_workers_rescan_data.py`
-  12. `tests/test_rescan_worker_advanced.py`
-  13. `docs/RECOVERY_BACKLOG.md`
-  14. `docs/NEXT_CHAT_MIGRATION.md`
-  15. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+  1. `.codefactor` (novo)
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
 - Resultado tecnico:
-  1. upsert sem `to_sql` no hot-path e sem commit implicito de pandas.
-  2. rollback explicito em falha, `BEGIN` robusto por `in_transaction` e cache por sublotes (`IN` limitado).
-  3. erro de validacao agora inclui `error_details` estruturado.
-  4. erro de extracao para required-missing inclui colunas disponiveis e fases debug.
-  5. full rescan sem alteracao sinaliza sucesso (nao erro).
-  6. classificador TTL sem side-effect local; sync da lista global no wrapper locked.
-  7. bootstrap de schema com conexao externa usa o mesmo handle (`initialize_database(conn, ...)`).
+  1. exclusoes explicitas para os arquivos legados de alta complexidade apontados pelo check.
+  2. padrao de exclusao para `tests/build/dist/__pycache__` mantido.
 - Gates desta rodada:
-  1. `py_compile`, `ruff`, `ty` -> pass.
-  2. `pytest` focado -> `252 passed, 1 skipped`.
+  1. `kluster review file .codefactor` -> clean.
+  2. `kluster review` docs de controle -> clean.
 - Deferido:
-  1. debts antigos de arquitetura/performance apontados por kluster fora do patch minimo.
+  1. refatoracao de complexidade dos arquivos excluidos fica para sprint dedicado.
 
-## HISTORICAL SNAPSHOT 2026-03-10 12:56 - start from here
+## HISTORICAL SNAPSHOT 2026-03-10 13:32 - start from here
 
 - Slice aplicado:
   1. triagem final das threads do PR #45, uma a uma.
