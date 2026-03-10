@@ -119,6 +119,9 @@ def retain_data_loader_worker_until_finished(
 ) -> None:
     if worker is None:
         return
+    with _GLOBAL_WORKERS_LOCK:
+        if getattr(window, "_retired_data_loader_workers", None) is None:
+            window._retired_data_loader_workers = []
     now = perf_counter()
     prune_retired_data_loader_workers(
         window,
@@ -129,8 +132,8 @@ def retain_data_loader_worker_until_finished(
         retired_force_wait_ms=retired_force_wait_ms,
         sip_module=sip_module,
     )
-    retired = getattr(window, "_retired_data_loader_workers", None)
     with _GLOBAL_WORKERS_LOCK:
+        retired = getattr(window, "_retired_data_loader_workers", None)
         if retired is None:
             retired = []
             window._retired_data_loader_workers = retired
@@ -221,8 +224,6 @@ def _classify_workers_for_ttl(
         if age > retired_ttl_sec:
             expired_workers.append(worker)
         running_workers.append(worker)
-    if len(running_workers) > max_global_workers:
-        running_workers = running_workers[-max_global_workers:]
     return running_workers, expired_workers
 
 

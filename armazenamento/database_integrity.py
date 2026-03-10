@@ -40,13 +40,14 @@ def _resolve_report_table_name(conn, requested_table_name: str) -> str:
         raise ValueError(f"Invalid SQL identifier: {requested_table_name!r}")
 
     table_candidates = list(dict.fromkeys([safe_table_name, CANONICAL_SSA_TABLE, *ALL_SSA_TABLE_NAMES]))
-    for candidate in table_candidates:
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name=?",
-            (candidate,),
-        )
-        if cursor.fetchone():
-            return candidate
+    for object_type in ("table", "view"):
+        for candidate in table_candidates:
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type=? AND name=?",
+                (object_type, candidate),
+            )
+            if cursor.fetchone():
+                return candidate
     return safe_table_name
 
 

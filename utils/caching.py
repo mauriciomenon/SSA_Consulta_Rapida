@@ -89,7 +89,8 @@ def get_all_xlsx_files(
 
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
-        if os.path.isfile(file_path) and filename.endswith(".xlsx"):
+        lowered = filename.casefold()
+        if os.path.isfile(file_path) and lowered.endswith(".xlsx"):
             xlsx_files.append(file_path)
 
     if include_processadas:
@@ -107,7 +108,7 @@ def get_all_xlsx_files(
                         if dirname.strip().casefold() not in ignored
                     ]
                 for filename in filenames:
-                    if filename.endswith(".xlsx"):
+                    if filename.casefold().endswith(".xlsx"):
                         xlsx_files.append(os.path.join(root, filename))
 
     # Deterministic ordering for stable runs and tests.
@@ -126,7 +127,7 @@ def get_ignored_legacy_excel_files(directory: str) -> List[str]:
     legacy_xls_files: List[str] = []
     if os.path.exists(directory):
         for filename in os.listdir(directory):
-            if filename.endswith(".xls"):
+            if filename.casefold().endswith(".xls"):
                 legacy_xls_files.append(os.path.join(directory, filename))
     logger.debug(
         "Encontrados %s arquivo(s) .xls ignorado(s) em '%s'.",

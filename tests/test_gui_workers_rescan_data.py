@@ -380,3 +380,20 @@ def test_rescan_data_full_mode_skips_prompt_and_sets_force_import_true(tmp_path)
     )
 
     assert captured_modes == [True]
+
+
+def test_classify_workers_for_ttl_keeps_running_workers_even_above_cap():
+    workers = ["w1", "w2", "w3"]
+    meta = {"w1": 100.0, "w2": 100.0, "w3": 100.0}
+
+    running, expired = ssa_gui_workers._classify_workers_for_ttl(
+        workers,
+        global_meta=meta,
+        now=120.0,
+        retired_ttl_sec=60.0,
+        max_global_workers=2,
+        is_running_fn=lambda _worker: True,
+    )
+
+    assert running == workers
+    assert expired == []
