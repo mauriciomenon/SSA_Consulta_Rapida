@@ -3,6 +3,69 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 10:38 - pente fino completo build/distribuicao (pyinstaller/pyoxidizer/nuitka/pytoexe)
+
+Session timestamp:
+1. start: `2026-03-10 10:22:33 -0300`
+2. end: `2026-03-10 10:38:24 -0300`
+
+Objetivo do slice:
+1. revisar scripts e docs de build/distribuicao para pyinstaller, pyoxidizer, nuitka e pytoexe.
+2. validar ferramentas instaladas no host.
+3. executar dry-run operacional/tentativa real de pacote e corrigir bloqueadores reais.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_detect_primary_executable_name(...)` agora cobre bundle `.app` e executavel embutido em pasta.
+   - `_resolve_inno_source(...)` usa `exe_path` de forma consistente para pyoxidizer/nuitka.
+   - `create_inno_setup_script(...)` simplificado com helpers:
+     - `_normalize_windows_path(...)`
+     - `_build_inno_excludes_str(...)`
+     - `_build_inno_iss_content(...)`
+   - texto do README gerado alinhado com estrutura pre-criada no pacote.
+2. `tests/test_create_distribution.py`:
+   - novo `test_detect_primary_executable_name_accepts_app_bundle_directory`.
+   - novo `test_resolve_inno_source_pyoxidizer_uses_exe_path_from_build_info`.
+   - asserts do ISS atualizados para `SourceDir` macro e mode `absolute`.
+3. docs operacionais:
+   - `docs/GUIA_DISTRIBUICAO.md`
+   - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+   - `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+   - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+   - alinhados com status real, trilha historica e suporte `pytoexe/py2exe` (nao suportado).
+
+Verificacao de ferramentas no host:
+1. `pyinstaller --version` -> `6.19.0`
+2. `nuitka --version` -> `4.0.1`
+3. `pyoxidizer --version` -> `0.24.0`
+4. `iscc` -> `NOT_FOUND`
+5. `pytoexe`/`py2exe` -> `NOT_FOUND`
+
+Dry-run/tentativa real de pacote:
+1. `pyinstaller --skip-installer` -> OK (ZIP gerado)
+2. `pyinstaller` -> ZIP OK, installer FAIL (origem Windows/Inno nao resolvida neste host)
+3. `nuitka --skip-installer` -> FAIL (`builds/nuitka` ausente)
+4. `pyoxidizer --skip-installer` -> FAIL (`builds/pyoxidizer` ausente)
+5. `pytoexe` -> FAIL esperado (choice invalida)
+6. evidencia consolidada: `/tmp/ssa_pack_audit_20260310_1030/summary.log`
+
+Validacao tecnica desta rodada:
+1. kluster clean em:
+   - `scripts/create_distribution.py`
+   - `tests/test_create_distribution.py`
+   - `docs/GUIA_DISTRIBUICAO.md`
+   - `docs/BUILD_PYINSTALLER_GUIA_COMPLETO.md`
+   - `docs/BUILD_NUITKA_GUIA_COMPLETO.md`
+   - `docs/BUILD_PYOXIDIZER_GUIA_COMPLETO.md`
+2. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+5. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `17 passed`
+
+Deferido (nao bloqueante neste slice):
+1. validar fluxo de installer em host Windows com ISCC e build `windows_amd64` disponivel.
+2. debt de qualidade em `_has_primary_executable` (funcao ainda concentrada).
+
 ## Update 2026-03-10 10:15 - fechamento dos 3 itens em loop no ISS/resolve/zip
 
 Session timestamp:

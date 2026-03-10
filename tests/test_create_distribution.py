@@ -387,6 +387,18 @@ def test_detect_primary_executable_name_returns_none_when_package_has_no_binary(
     assert detected is None
 
 
+def test_detect_primary_executable_name_accepts_app_bundle_directory(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "package"
+    app_dir = package_dir / "SSA_GUI_v3.10_macos_arm64.app"
+    app_dir.mkdir(parents=True)
+
+    detected = create_distribution._detect_primary_executable_name(package_dir)
+
+    assert detected == "SSA_GUI_v3.10_macos_arm64.app"
+
+
 def test_create_inno_setup_script_uses_sourcepath_outputdir(
     tmp_path: Path,
     monkeypatch,
