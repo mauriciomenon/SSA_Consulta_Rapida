@@ -3,6 +3,38 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 12:56 - PR45 triagem final de threads
+
+Session timestamp:
+1. start: `2026-03-10 12:45:33 -0300`
+2. end: `2026-03-10 12:56:00 -0300`
+
+Objetivo do slice:
+1. revisar pendencias do PR #45 uma a uma.
+2. reduzir ruido de threads antigas/rate-limit mantendo abertas apenas as bloqueantes reais.
+
+Resultado aplicado no PR:
+1. threads abertas antes: `65`
+2. threads encerradas nesta rodada: `56`
+3. threads abertas apos saneamento: `9` (todas classificadas como `BUG_REAL`)
+
+Threads que permanecem abertas (BUG_REAL):
+1. `armazenamento/database_upsert_logic.py:407`
+2. `armazenamento/database_upsert_logic.py:951`
+3. `armazenamento/database_upsert_logic.py:743` (atomicidade fast-path)
+4. `armazenamento/database_validation.py:61`
+5. `armazenamento/database_validation.py:235/261` (agrupadas em discussao de validacao)
+6. `extracao/extractor.py:536`
+7. `gui/ssa/gui_theme.py:458`
+8. `gui/ssa/gui_workers.py:239`
+9. `gui/workers/rescan_worker.py:169`
+
+Criterio usado para encerramento:
+1. `CORRIGIDO`: thread encerrada.
+2. `FALSO_POSITIVO`: thread encerrada com justificativa tecnica.
+3. `NAO_BLOQUEANTE_DEFERIDO`: thread encerrada com referencia de follow-up.
+4. `RATE_LIMIT_REPLY`: thread encerrada por ruido de bot sem conteudo tecnico novo.
+
 ## Update 2026-03-10 12:45 - PR45 pendencias (hook staged-size + DMG cli-only + docs current truth)
 
 Session timestamp:
