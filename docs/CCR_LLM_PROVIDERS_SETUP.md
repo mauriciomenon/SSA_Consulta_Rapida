@@ -2,6 +2,9 @@
 
 Data: 27/11/2025
 Status: Todos os arquivos validados - sintaxe OK
+Nota (2026-03-09): este documento e snapshot historico de setup local no Windows.
+Referencias a `.github/instructions/*.instructions` sao legadas e podem nao
+existir no estado atual deste repo.
 
 ---
 

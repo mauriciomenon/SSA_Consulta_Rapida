@@ -2,7 +2,33 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 22:49 - start from here
+## CURRENT TRUTH 2026-03-09 23:08 - start from here
+
+- Slice concluido: pendencia pesada + comentarios simples do PR.
+  1. `gui/gui_ssa.py`:
+     - `run_vacuum_analyze` agora roda `VACUUM/ANALYZE` em thread de fundo no runtime normal.
+     - `_build_unique_destination_path` com limite de tentativas e erro explicito.
+     - backup de opcoes com timestamp de microssegundos.
+     - consolidacao: update-only nao vai para `nosurvivor`; contador `nosurvivor` incrementa so apos `move` bem-sucedido.
+  2. `gui/ssa/gui_workers.py`:
+     - `prompt` sem `QMessageBox` cai para modo incremental seguro.
+     - `expired_all` deduplicado no prune.
+     - `_active_rescan_dialog` limpo tambem em `worker.finished`.
+  3. testes:
+     - `tests/test_gui_menu_import_external.py`: monkeypatch `QUrl`/`QDesktopServices` headless, backup duplo unico, update-only fora de `nosurvivor`.
+     - `tests/test_gui_workers_rescan_data.py`: `show_non_modal_called`, limpeza de dialogo em cancel+finish, `prompt` sem dialogo => incremental.
+  4. docs:
+     - `docs/CCR_LLM_PROVIDERS_SETUP.md`: nota de snapshot historico para `instructions` legadas.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_menu_import_external.py tests/test_gui_workers_rescan_data.py` -> `20 passed`.
+- Deferido explicitamente:
+  1. debts estruturais/performance antigos reportados por kluster em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora deste patch minimo).
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 22:49
 
 - Heavy pending slice executado (sem mudanca de layout):
   1. preprocessamento pesado movido para `DataLoaderWorker` (sanitize/sort/non-null cache).

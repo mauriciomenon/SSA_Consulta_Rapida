@@ -305,8 +305,14 @@ def prune_retired_data_loader_workers(
             is_running_fn=lambda worker: is_data_loader_worker_running(worker, sip_module),
         )
         global_workers[:] = running_global
-    expired_all = list(expired_local)
-    expired_all.extend([worker for worker in expired_global if worker not in removed_local])
+    expired_all = list(
+        dict.fromkeys(
+            [
+                *expired_local,
+                *(worker for worker in expired_global if worker not in removed_local),
+            ]
+        )
+    )
 
     def _stop_data_loader_worker(worker) -> bool:
         return cleanup_data_loader_worker(
@@ -996,7 +1002,7 @@ def rescan_data(
         )
         normalized_mode = "prompt"
 
-    force_import = True
+    force_import = False
     if normalized_mode == "diff":
         force_import = False
     elif normalized_mode == "full":
@@ -1026,6 +1032,10 @@ def rescan_data(
             )
             return
         force_import = clicked == full_btn
+    else:
+        logger.warning(
+            "QMessageBox indisponivel em modo prompt; usando Atualizar Dados por seguranca."
+        )
 
     try:
         prune_retired_rescan_workers(
@@ -1129,9 +1139,11 @@ def rescan_data(
                 context="rescan.success.cancelled",
             )
             _release_worker_ref()
+            _release_dialog_ref()
             return
         _release_worker_ref()
         progress_dialog.set_finished(True)
+        _release_dialog_ref()
         _set_status_label_text(
             window,
             "Status: Reescaneamento concluido. Clique em 'Recarregar Dados' para atualizar.",
@@ -1149,8 +1161,10 @@ def rescan_data(
                 context="rescan.error.cancelled",
             )
             _release_worker_ref()
+            _release_dialog_ref()
             return
         progress_dialog.set_finished(False, error_msg)
+        _release_dialog_ref()
         _set_status_label_text(
             window,
             "Status: Erro no reescaneamento.",
@@ -1161,6 +1175,7 @@ def rescan_data(
     _connect_signal(worker.finished_success, on_success, label="rescan.finished_success")
     _connect_signal(worker.finished_error, on_error, label="rescan.finished_error")
     _connect_signal(worker.finished, _release_worker_ref, label="rescan.finished.release")
+    _connect_signal(worker.finished, _release_dialog_ref, label="rescan.finished.dialog_release")
     _connect_signal(worker.finished, _prune_retired_workers_after_finish, label="rescan.finished.prune")
     _connect_signal(worker.finished, worker.deleteLater, label="rescan.finished.deleteLater")
     if hasattr(progress_dialog, "finished"):

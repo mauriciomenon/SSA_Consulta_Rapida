@@ -216,8 +216,15 @@ def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(gui_ssa, "QT_AVAILABLE", True)
     monkeypatch.setattr(
         gui_ssa,
+        "QUrl",
+        type("DummyQUrl", (), {"fromLocalFile": staticmethod(lambda path: path)}),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        gui_ssa,
         "QDesktopServices",
         type("DummyDesktopServices", (), {"openUrl": staticmethod(lambda *args, **kwargs: True)}),
+        raising=False,
     )
 
     class _Window:
@@ -235,6 +242,11 @@ def test_open_settings_file_with_backup_creates_backup(monkeypatch, tmp_path: Pa
     assert result["backup_created"] is True
     assert len(backups) == 1
     assert "editor externo" in window.status_label.text
+
+    result_second = gui_ssa.SSAMainWindow.open_settings_file_with_backup(cast(Any, window))
+    backups_after_second = list(settings_dir.glob("settings.json.bak_*"))
+    assert result_second["opened"] is True
+    assert len(backups_after_second) == 2
 
 
 def test_reset_settings_to_defaults_overwrites_user_file(monkeypatch, tmp_path: Path) -> None:
@@ -372,6 +384,63 @@ def test_consolidate_input_files_does_not_route_error_status_to_nosurvivor(
     assert result["pending"] == 1
     assert (docs_dir / "error.xlsx").exists()
     assert not (docs_dir / "processadas" / "nosurvivor" / "error.xlsx").exists()
+
+
+def test_consolidate_input_files_keeps_update_only_out_of_nosurvivor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs_entrada"
+    logs_dir = tmp_path / "logs"
+    docs_dir.mkdir()
+    logs_dir.mkdir()
+
+    (docs_dir / "update_only.xlsx").write_text("update_only", encoding="utf-8")
+
+    payload = {
+        "paths": {"docs_dir": str(docs_dir)},
+        "file_reports": [
+            {
+                "file": "update_only.xlsx",
+                "status": "success",
+                "counts": {
+                    "rows_inserted": 0,
+                    "rows_updated": 5,
+                    "rows_changed": 5,
+                    "rows_ready_for_insert": 0,
+                },
+            },
+        ],
+    }
+    (logs_dir / "import_run_20260309_000002_000001.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(gui_ssa, "project_root", str(tmp_path))
+    monkeypatch.setattr(gui_ssa.QMessageBox, "information", lambda *args, **kwargs: None)
+
+    class _Window:
+        def __init__(self) -> None:
+            self.status_label = _DummyLabel()
+
+        def _resolve_latest_project_import_report(self, docs_path: str):
+            return gui_ssa.SSAMainWindow._resolve_latest_project_import_report(
+                cast(Any, self), docs_path
+            )
+
+        def _build_unique_destination_path(self, destination_path: str) -> str:
+            return gui_ssa.SSAMainWindow._build_unique_destination_path(
+                cast(Any, self), destination_path
+            )
+
+    window = _Window()
+    result = gui_ssa.SSAMainWindow.consolidate_input_files(cast(Any, window))
+
+    assert result["moved"] == 1
+    assert result["nosurvivor"] == 0
+    assert (docs_dir / "processadas" / "update_only.xlsx").exists()
+    assert not (docs_dir / "processadas" / "nosurvivor" / "update_only.xlsx").exists()
 
 
 def test_open_processadas_folder_routes_to_helper(monkeypatch, tmp_path: Path) -> None:
