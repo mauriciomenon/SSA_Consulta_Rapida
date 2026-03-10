@@ -2,7 +2,28 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 14:54 - authoritative block
+## CURRENT TRUTH 2026-03-10 15:17 - authoritative block
+
+- Slice entregue:
+  1. hardening de bootstrap GUI em `main.py` para nao mascarar erro de importacao inesperado.
+  2. cobertura de regressao com novo teste focado (`tests/test_main_gui_fallback.py`).
+- Arquivos alterados:
+  1. `main.py`
+  2. `tests/test_main_gui_fallback.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Validacao:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_main_gui_fallback.py tests/test_main_skip_import.py::test_main_skip_import_does_not_call_importer` -> `3 passed`.
+- Deferido:
+  1. debts antigos de arquitetura em `main.py` (funcao extensa e blocos amplos fora do trecho GUI).
+  2. testes legados de `main` que nao isolam importacao real.
+- Estado de residuos locais fora de escopo:
+  1. `data/ssas.db` (mantido local, nao commitar).
+  2. `config/settings.json.bak_20260308_212715` (backup local, nao commitar).
+
+## HISTORICAL SNAPSHOT 2026-03-10 14:54 - authoritative block
 
 - Slice entregue:
   1. correcao de bug real em `gui/gui_ssa.py` no fluxo de importacao externa por fallback seguro de helper.
