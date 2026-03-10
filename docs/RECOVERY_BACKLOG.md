@@ -3,6 +3,33 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:18 - fallback explicito canonical->legacy para pyinstaller
+
+Session timestamp:
+1. start: `2026-03-10 09:16:57 -0300`
+2. end: `2026-03-10 09:18:24 -0300`
+
+Objetivo do slice:
+1. deixar explicito no fluxo que pyinstaller tenta canonical e cai para legacy quando canonical nao for valido.
+2. cobrir fallback com teste dedicado para reduzir ambiguidade semantica.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_resolve_build_directory` reorganizado para tornar fallback canonical->legacy explicito no corpo da funcao.
+   - sem mudanca de comportamento fora do escopo.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_resolve_build_directory_pyinstaller_falls_back_to_legacy_when_canonical_invalid`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `9 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt de qualidade em `create_zip_package` (funcao longa) permanece.
+2. debt semantico geral de tratamento por build system (resolver unificado vs especifico) permanece para ciclo dedicado.
+
 ## Update 2026-03-10 09:11 - erro explicito de resolucao de build (dir vs executavel)
 
 Session timestamp:
