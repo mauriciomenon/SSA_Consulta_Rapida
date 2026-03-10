@@ -34,7 +34,7 @@ _DOTTED_DUPLICATE_RE = re.compile(r"^(?P<base>.+)\.(?P<suffix>\d+)$")
 _SEMANTIC_DUPLICATE_COLUMNS: dict[str, list[str]] = {
     "desde": ["desde", "desde_1", "desde_2"],
     "ate": ["ate", "ate_1", "ate_2"],
-    "sn": ["sn_instalado", "sn_retirado", "sn_extra"],
+    "sn": ["sn_retirado", "sn_instalado", "sn_extra"],
     "numero_ssa": [
         "numero_ssa",
         "numero_ssa_relacionada_1",
