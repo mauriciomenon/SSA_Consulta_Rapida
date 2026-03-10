@@ -1192,7 +1192,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             lambda _checked=False, tab=tab_kind: self._on_general_search_clear_clicked(tab)
         )
         clear_filter_button.setToolTip(
-            "Limpa apenas a busca geral. Filtros de coluna e avancados continuam ativos."
+            "Limpa apenas a busca geral e cancela a busca em andamento. "
+            "Filtros de coluna e avancados continuam ativos."
         )
         clear_filter_button.setEnabled(False)
         left.addWidget(cast(Any, search_label))
@@ -2102,27 +2103,21 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
     def _sort_num_reprogramacoes_robust(self, ascending: bool) -> pd.DataFrame:
         """Sort num_reprogramacoes with mixed legacy values without TypeError."""
-        if self.df_exibido is None or self.df_exibido.empty:
-            return self.df_exibido
-        if "num_reprogramacoes" not in self.df_exibido.columns:
-            return self.df_exibido
+        source_df = self.df_exibido
+        if source_df is None or source_df.empty:
+            return source_df
+        if "num_reprogramacoes" not in source_df.columns:
+            return source_df
 
-        sort_keys = self._get_num_reprogramacoes_sort_keys()
+        sort_keys = self._build_num_reprogramacoes_sort_keys(source_df)
+        sort_direction = bool(ascending)
         ordered_index = sort_keys.sort_values(
             by=["__reprog_is_nan", "__reprog_num", "__reprog_txt"],
-            ascending=[True, bool(ascending), True],
+            ascending=[True, sort_direction, sort_direction],
             na_position="last",
             kind="mergesort",
         ).index
-        sorted_df = self.df_exibido.loc[ordered_index]
-        if isinstance(sort_keys, pd.DataFrame) and not sort_keys.empty:
-            sorted_keys = sort_keys.loc[ordered_index]
-            self._num_reprog_sort_cache = {
-                "source_id": id(sorted_df),
-                "source_len": len(sorted_df.index),
-                "keys_df": sorted_keys,
-            }
-        return sorted_df
+        return source_df.loc[ordered_index]
 
     def _build_num_reprogramacoes_sort_keys(self, source_df: pd.DataFrame) -> pd.DataFrame:
         raw_series = source_df["num_reprogramacoes"]
@@ -2229,6 +2224,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             try:
                 if self.sort_column == "num_reprogramacoes":
                     self.df_exibido = self._sort_num_reprogramacoes_robust(self.sort_ascending)
+                    self._prime_num_reprogramacoes_sort_cache()
                 else:
                     self.df_exibido = self.df_exibido.sort_values(
                         by=self.sort_column,
@@ -3496,7 +3492,8 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             )
             opened = False
             if QT_AVAILABLE:
-                opened = bool(QDesktopServices.openUrl(QUrl.fromLocalFile(safe_doc_path)))
+                safe_doc_url = QUrl.fromLocalFile(safe_doc_path)
+                opened = bool(QDesktopServices.openUrl(safe_doc_url))
             if not opened:
                 resolved = SSAMainWindow._resolve_platform_open_command()
                 subprocess.Popen([resolved, safe_doc_path], shell=False)

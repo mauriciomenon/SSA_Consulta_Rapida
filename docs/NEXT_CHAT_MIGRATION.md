@@ -2,7 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 00:22 - start from here
+## CURRENT TRUTH 2026-03-10 00:36 - start from here
+
+- Slice aplicado:
+  1. hardening de sort `num_reprogramacoes` com alinhamento defensivo de indice.
+  2. apos sort por `num_reprogramacoes`, cache e re-primado para coerencia com `df_exibido`.
+  3. tooltip de `Limpar Busca` atualizado para refletir cancelamento da busca em andamento.
+  4. abertura do guia de instalacao com `QUrl` explicito antes de `openUrl`.
+- Arquivos tocados:
+  1. `gui/gui_ssa.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado GUI filtro/sort/tooltip -> `6 passed`.
+  3. `pytest` focado importacao externa/guia -> `2 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance em `gui/gui_ssa.py` seguem fora deste patch minimo.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 00:22
 
 - Slice aplicado:
   1. atalho rapido `Setor Executor` deixou de ter persistencia de estado.
