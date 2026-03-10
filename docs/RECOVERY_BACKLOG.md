@@ -3,6 +3,44 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 22:11 - PR #45 pending comments follow-up (worker/cache/import/integrity)
+
+Session timestamp:
+1. start: `2026-03-09 22:11:57 -0300`
+2. end: `2026-03-09 22:33:55 -0300`
+
+Objetivo do slice:
+1. fechar comentarios pendentes de risco real sem refatoracao ampla.
+2. manter patch minimo com foco em concorrencia, consolidacao e consistencia de runtime.
+3. preservar layout/fluxo GUI fora do escopo.
+
+Mudancas aplicadas:
+1. `gui/ssa/gui_workers.py`:
+   - removido corte cego por cap em `_classify_workers_for_ttl` para nao perder worker vivo.
+   - inicializacao de `_retired_data_loader_workers` protegida por lock antes de prune.
+2. `gui/gui_ssa.py`:
+   - `import_external_excel_files` agora copia somente `.xlsx` (case-insensitive) e separa contagem de `nao_suportados`.
+   - consolidacao de arquivos passa a rotear `nosurvivor` apenas quando status e contagens indicam sucesso sem sobreviventes.
+3. `utils/caching.py`:
+   - descoberta de `.xlsx`/`.xls` tornou-se case-insensitive.
+4. `armazenamento/database_integrity.py`:
+   - `_resolve_report_table_name` prioriza `type='table'` e usa `view` apenas como fallback.
+5. testes:
+   - `tests/test_gui_workers_rescan_data.py` (novo teste de cap sem perder worker vivo).
+   - `tests/test_gui_menu_import_external.py` (import externo `.xlsx` e consolidacao de status de erro).
+   - `tests/test_caching.py` (extensoes uppercase).
+   - `tests/test_database_verification.py` (preferencia table sobre view).
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile gui/ssa/gui_workers.py gui/gui_ssa.py utils/caching.py armazenamento/database_integrity.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> pass
+2. `uv run --python 3.13 ruff check gui/ssa/gui_workers.py gui/gui_ssa.py utils/caching.py armazenamento/database_integrity.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> pass
+3. `uv run --python 3.13 ty check gui/ssa/gui_workers.py gui/gui_ssa.py utils/caching.py armazenamento/database_integrity.py tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> `47 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts de arquitetura/performance geral sinalizados por kluster em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora de escopo de patch minimo).
+2. possivel revisao semantica de `database_exists` para arquivo SQLite 0-byte em `database_integrity` (mantido por compatibilidade de contrato atual de testes).
+
 ## Update 2026-03-09 21:58 - PR #45 P2 follow-up (worker/menu/doc)
 
 Session timestamp:

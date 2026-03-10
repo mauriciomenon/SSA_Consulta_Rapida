@@ -177,11 +177,16 @@ def test_get_ignored_legacy_excel_files_lists_only_xls(tmp_path):
     docs_dir.mkdir()
     (docs_dir / "legado_a.xls").write_text("a", encoding="utf-8")
     (docs_dir / "legado_b.xls").write_text("b", encoding="utf-8")
+    (docs_dir / "legado_c.XLS").write_text("c", encoding="utf-8")
     (docs_dir / "atual.xlsx").write_text("c", encoding="utf-8")
 
     ignored = caching.get_ignored_legacy_excel_files(str(docs_dir))
 
-    assert [os.path.basename(path) for path in ignored] == ["legado_a.xls", "legado_b.xls"]
+    assert [os.path.basename(path) for path in ignored] == [
+        "legado_a.xls",
+        "legado_b.xls",
+        "legado_c.XLS",
+    ]
 
 
 def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path):
@@ -195,12 +200,14 @@ def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path
     other.mkdir()
 
     (docs_dir / "raiz.xlsx").write_text("a", encoding="utf-8")
+    (docs_dir / "raiz_upper.XLSX").write_text("au", encoding="utf-8")
     (processadas / "proc_root.xlsx").write_text("b", encoding="utf-8")
+    (processadas / "proc_root_upper.XLSX").write_text("bu", encoding="utf-8")
     (other / "proc_child.xlsx").write_text("c", encoding="utf-8")
     (nosurvivor / "ignorar.xlsx").write_text("d", encoding="utf-8")
 
     root_only = get_all_xlsx_files(str(docs_dir))
-    assert [os.path.basename(path) for path in root_only] == ["raiz.xlsx"]
+    assert [os.path.basename(path) for path in root_only] == ["raiz.xlsx", "raiz_upper.XLSX"]
 
     with_processadas = get_all_xlsx_files(
         str(docs_dir),
@@ -208,7 +215,13 @@ def test_get_all_xlsx_files_includes_processadas_and_ignores_nosurvivor(tmp_path
         ignore_subdirs=["nosurvivor"],
     )
     names = sorted(os.path.basename(path) for path in with_processadas)
-    assert names == ["proc_child.xlsx", "proc_root.xlsx", "raiz.xlsx"]
+    assert names == [
+        "proc_child.xlsx",
+        "proc_root.xlsx",
+        "proc_root_upper.XLSX",
+        "raiz.xlsx",
+        "raiz_upper.XLSX",
+    ]
 
 
 def test_update_cache_for_files_uses_relative_keys_when_docs_dir_provided(tmp_path):

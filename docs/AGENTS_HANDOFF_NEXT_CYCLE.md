@@ -2,7 +2,25 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-09 21:58 - authoritative block
+## CURRENT TRUTH 2026-03-09 22:11 - authoritative block
+
+- Follow-up de comentarios pendentes do PR #45 concluido com patch minimo:
+  1. `gui/ssa/gui_workers.py`: cap nao remove mais worker vivo; init de lista de workers sob lock antes de prune.
+  2. `gui/gui_ssa.py`: importacao externa copia somente `.xlsx` e reporta `nao_suportados`; consolidacao de `nosurvivor` depende de sucesso sem sobreviventes.
+  3. `utils/caching.py`: descoberta de extensoes Excel case-insensitive.
+  4. `armazenamento/database_integrity.py`: resolucao de alias passa a preferir `table` sobre `view`.
+  5. testes focados adicionados/ajustados para cobrir os contratos acima.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest` focado (`47 passed`) -> pass.
+- Pendencias deferidas:
+  1. debts de arquitetura/performance em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora deste slice).
+  2. revisao de semantica de `database_exists` em arquivo SQLite vazio (ciclo dedicado).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:58
 
 - Follow-up P2 de comentarios do PR #45 concluido:
   1. `gui/ssa/gui_workers.py`: registro global imediato de rescan worker apos `start()`.

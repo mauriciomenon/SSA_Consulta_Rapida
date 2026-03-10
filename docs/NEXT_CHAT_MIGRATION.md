@@ -2,7 +2,25 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-09 21:58 - start from here
+## CURRENT TRUTH 2026-03-09 22:11 - start from here
+
+- Follow-up de comentarios pendentes do PR #45 concluido com patch minimo:
+  1. worker prune nao perde mais worker vivo quando ultrapassa cap.
+  2. importacao externa aceita/copia somente `.xlsx` e separa `nao_suportados`.
+  3. consolidacao para `nosurvivor` exige sucesso sem sobreviventes (status+contagem), evitando falso positivo.
+  4. cache de descoberta de Excel agora e case-insensitive.
+  5. integridade de DB passa a preferir tabela sobre view ao resolver alias.
+- Testes/gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` dos arquivos tocados -> pass.
+  2. `pytest -q tests/test_gui_workers_rescan_data.py tests/test_gui_menu_import_external.py tests/test_caching.py tests/test_database_verification.py` -> `47 passed`.
+- Deferido explicitamente:
+  1. debts estruturais/performance amplos em `gui/gui_ssa.py` e `gui/ssa/gui_workers.py` (fora do escopo de estabilidade minima).
+  2. revisao semantica de `database_exists` em arquivo 0-byte mantida para ciclo dedicado por compatibilidade.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-09 21:58
 
 - Follow-up de comentarios P2 do PR #45 concluido (patch minimo):
   1. rescan worker registrado em `global_workers/global_meta` logo apos `start()`.

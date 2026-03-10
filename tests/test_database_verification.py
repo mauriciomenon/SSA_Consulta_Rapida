@@ -97,6 +97,30 @@ class TestDatabaseVerification:  # noqa: D101
         assert report['table_name'] == 'ssa_table'
         assert report['table_exists'] is True
 
+    def test_verify_prefers_table_over_view_when_both_exist(self, tmp_path):
+        """Quando alias existe como view e tabela canonica existe, deve priorizar tabela."""
+        db_path = os.path.join(tmp_path, 'prefer_table_over_view.db')
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE ssa_table (
+                numero_ssa INTEGER,
+                situacao TEXT,
+                data_cadastro TEXT,
+                descricao_ssa TEXT
+            )
+            """
+        )
+        conn.execute("CREATE VIEW ssas AS SELECT * FROM ssa_table")
+        conn.commit()
+        conn.close()
+
+        report = verify_database_integrity(db_path, table_name='ssas')
+
+        assert report['is_valid'] is True
+        assert report['table_name'] == 'ssa_table'
+        assert report['table_exists'] is True
+
     def test_verify_corrupted_database(self, tmp_path):
         """Testa verificação de banco corrompido."""
         # Criar arquivo corrompido (não é SQLite válido)

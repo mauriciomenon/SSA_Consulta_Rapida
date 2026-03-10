@@ -2804,7 +2804,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
             self,
             "Selecionar arquivos Excel para importar",
             os.path.expanduser("~"),
-            "Arquivos Excel (*.xlsx *.xls);;Todos os Arquivos (*)",
+            "Arquivos Excel (*.xlsx);;Todos os Arquivos (*)",
         )
 
         if not selected_files:
@@ -2816,6 +2816,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         copied = 0
         skipped = 0
         failed = 0
+        unsupported = 0
 
         for source_path in selected_files:
             source = str(source_path or "").strip()
@@ -2827,6 +2828,14 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 continue
 
             base_name = os.path.basename(source)
+            lowered_name = base_name.casefold()
+            if not lowered_name.endswith(".xlsx"):
+                unsupported += 1
+                logger.info(
+                    "Importacao externa ignorou arquivo nao suportado pelo pipeline: %s",
+                    source,
+                )
+                continue
             base_destination = os.path.join(docs_path, base_name)
 
             source_abs = os.path.abspath(source)
@@ -2853,7 +2862,7 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
 
         summary = (
             f"Status: Importacao externa concluida - copiados={copied}, "
-            f"ignorados={skipped}, falhas={failed}."
+            f"ignorados={skipped}, nao_suportados={unsupported}, falhas={failed}."
         )
         if hasattr(self, "status_label"):
             self.status_label.setText(summary)
@@ -2866,12 +2875,18 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                     "Importacao concluida.\n\n"
                     f"Copiados: {copied}\n"
                     f"Ignorados: {skipped}\n"
+                    f"Nao suportados: {unsupported}\n"
                     f"Falhas: {failed}\n\n"
                     f"Destino: {docs_path}"
                 ),
             )
 
-        return {"copied": copied, "skipped": skipped, "failed": failed}
+        return {
+            "copied": copied,
+            "skipped": skipped,
+            "failed": failed,
+            "unsupported": unsupported,
+        }
 
     def _resolve_settings_file_path(self) -> str:
         try:
@@ -3112,16 +3127,24 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
         os.makedirs(processadas_dir, exist_ok=True)
         os.makedirs(nosurvivor_dir, exist_ok=True)
 
-        file_rows: dict[str, int] = {}
+        file_rows: dict[str, dict[str, int | str]] = {}
         for entry in report.get("file_reports", []):
             if not isinstance(entry, dict):
                 continue
             file_name = str(entry.get("file") or "").strip()
             if not file_name:
                 continue
+            status = str(entry.get("status") or "").strip().casefold()
             counts = entry.get("counts") or {}
             rows_inserted = int((counts.get("rows_inserted", 0) or 0))
-            file_rows[file_name] = rows_inserted
+            rows_ready_for_insert = int(
+                counts.get("rows_ready_for_insert", rows_inserted) or 0
+            )
+            file_rows[file_name] = {
+                "status": status,
+                "rows_inserted": rows_inserted,
+                "rows_ready_for_insert": rows_ready_for_insert,
+            }
 
         moved = 0
         moved_nosurvivor = 0
@@ -3138,9 +3161,20 @@ class SSAMainWindow(QMainWindow, FilterGUISSAMixin, TabContextGUISSAMixin):
                 pending += 1
                 continue
 
-            rows_inserted = file_rows.get(base_name, 0)
-            target_dir = processadas_dir if rows_inserted > 0 else nosurvivor_dir
-            if rows_inserted <= 0:
+            file_meta = file_rows.get(base_name, {})
+            status = str(file_meta.get("status") or "").casefold()
+            rows_inserted = int(file_meta.get("rows_inserted", 0) or 0)
+            rows_ready_for_insert = int(file_meta.get("rows_ready_for_insert", 0) or 0)
+            is_success_status = status in {"", "success", "no_rows"}
+            is_zero_survivor = (
+                is_success_status and rows_inserted <= 0 and rows_ready_for_insert <= 0
+            )
+            target_dir = processadas_dir
+            if not is_success_status:
+                pending += 1
+                continue
+            if is_zero_survivor:
+                target_dir = nosurvivor_dir
                 moved_nosurvivor += 1
             destination = self._build_unique_destination_path(
                 os.path.join(target_dir, base_name)
