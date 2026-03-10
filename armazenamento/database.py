@@ -119,6 +119,8 @@ def initialize_database(db_path: str | _sqlite3_typehint.Connection, schema_file
         Exception: Erros ao aplicar o schema serao propagados.
     """
     # Resolve o caminho do schema respeitando o parametro
+    candidate = ""
+    config_dir = ""
     # 1) Se for absoluto, deve existir; caso contrario, erro imediato
     if os.path.isabs(schema_file):
         if not os.path.exists(schema_file):
@@ -313,9 +315,8 @@ def _resolve_target_table(conn: _sqlite3_typehint.Connection, table_name: str) -
         raise ValueError(f"Invalid SQL identifier for table: {table_name!r}")
 
     cache_key = (_get_connection_db_path(conn), safe_table_name)
-    cached_table_name = _resolved_table_cache.get(cache_key)
-    if cached_table_name:
-        return cached_table_name
+    if cache_key in _resolved_table_cache:
+        return _resolved_table_cache[cache_key]
 
     if safe_table_name in LEGACY_SSA_TABLE_ALIASES:
         canonical_row = conn.execute(

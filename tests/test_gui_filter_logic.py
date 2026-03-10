@@ -1364,7 +1364,8 @@ class TestGUIFilterLogic:
             self.window.resizeEvent(QResizeEvent(QSize(980, 700), QSize(900, 700)))
             self.window.resizeEvent(QResizeEvent(QSize(1020, 700), QSize(980, 700)))
             self.window.resizeEvent(QResizeEvent(QSize(1080, 700), QSize(1020, 700)))
-            cast(Any, QTest).qWait(360)
+            debounce_ms = int(getattr(self.window._resize_recompute_timer, "interval", lambda: 300)())
+            cast(Any, QTest).qWait(debounce_ms + 80)
 
         assert calls == [17]
 

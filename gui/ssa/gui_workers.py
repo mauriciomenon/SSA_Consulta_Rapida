@@ -224,6 +224,17 @@ def _classify_workers_for_ttl(
         if age > retired_ttl_sec:
             expired_workers.append(worker)
         running_workers.append(worker)
+    if max_global_workers > 0 and len(running_workers) > max_global_workers:
+        overflow_count = len(running_workers) - max_global_workers
+        overflow_workers = sorted(
+            running_workers,
+            key=lambda candidate: float(global_meta.get(candidate, now)),
+        )[:overflow_count]
+        overflow_set = set(overflow_workers)
+        for worker in overflow_workers:
+            if worker not in expired_workers:
+                expired_workers.append(worker)
+        running_workers = [worker for worker in running_workers if worker not in overflow_set]
     return running_workers, expired_workers
 
 
@@ -250,7 +261,7 @@ def _process_expired_workers(
     for worker in expired_workers:
         if worker in skip:
             continue
-        logger.warning(warn_message)
+        logger.warning("%s [worker=%r]", warn_message, worker)
         try:
             stopped = bool(stop_worker_fn(worker))
         except Exception as exc:
@@ -680,6 +691,10 @@ def load_data(
     _connect_signal(worker.finished, _handle_load_finished, label="data_loader.finished")
     _connect_signal(worker.finished, worker.deleteLater, label="data_loader.finished.deleteLater")
     worker.start()
+    with _GLOBAL_WORKERS_LOCK:
+        if worker not in global_workers:
+            global_workers.append(worker)
+        global_meta[worker] = perf_counter()
 
 
 def on_data_loaded(window, df: pd.DataFrame, request_id: int | None = None):

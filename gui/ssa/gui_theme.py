@@ -165,9 +165,10 @@ def _apply_global_palette(window, normalized: str, same_theme: bool):
                     or not cached_qss
                 ):
                     block = build_global_widget_qss(pal)
-                    if getattr(window, "_last_global_theme_qss", None) != block:
+                    current_app_qss = str(app.styleSheet() or "")
+                    if current_app_qss != block:
                         app.setStyleSheet(block)
-                        window._last_global_theme_qss = block
+                    window._last_global_theme_qss = block
                 window._last_global_theme_name = normalized
             except Exception as exc:
                 logger.debug("Falha ao aplicar QSS global do tema: %s", exc)

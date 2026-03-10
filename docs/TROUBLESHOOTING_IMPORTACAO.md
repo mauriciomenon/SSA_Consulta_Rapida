@@ -12,17 +12,20 @@ Guia ativo para diagnosticar falhas de importacao de planilhas.
 ## Comandos uteis
 
 ```bash
+# definir runtime alvo (padrao recomendado do repo)
+PY_RUNTIME=3.13
+
 # executar importacao pelo fluxo padrao
-uv run --python 3.13 python main.py --force-rescan
+uv run --python "${PY_RUNTIME}" python main.py --force-rescan
 
 # verificar testes focados de importacao
-uv run --python 3.13 pytest -q tests/test_extracao.py
-uv run --python 3.13 pytest -q tests/test_import_run_report.py
+uv run --python "${PY_RUNTIME}" pytest -q tests/test_extracao.py
+uv run --python "${PY_RUNTIME}" pytest -q tests/test_import_run_report.py
 
 # checks de sanidade
-uv run --python 3.13 python -m py_compile extracao/extractor.py
-uv run --python 3.13 ruff check extracao/extractor.py
-uv run --python 3.13 ty check extracao/extractor.py
+uv run --python "${PY_RUNTIME}" python -m py_compile extracao/extractor.py
+uv run --python "${PY_RUNTIME}" ruff check extracao/extractor.py
+uv run --python "${PY_RUNTIME}" ty check extracao/extractor.py
 ```
 
 ## Causas comuns
