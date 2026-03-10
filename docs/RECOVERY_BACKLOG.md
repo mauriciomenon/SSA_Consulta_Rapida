@@ -3,6 +3,41 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-09 21:43 - PR #45 comments hotfix (blockers)
+
+Session timestamp:
+1. start: `2026-03-09 21:43:43 -0300`
+2. end: `2026-03-09 21:55:41 -0300`
+
+Objetivo do slice:
+1. corrigir bloqueadores reais apontados em comentarios/checks do PR #45.
+2. fechar falha de CI (`quality-gates`) sem refatoracao ampla.
+3. manter escopo minimo em contrato/log/teste.
+
+Mudancas aplicadas:
+1. `tests/test_import_cancellation.py`:
+   - contrato alinhado ao fluxo atual de cancelamento (retorno `False` e sem persistencia de cache no cancelamento).
+   - fixture de `numero_ssa` ajustada para valor valido.
+2. `core/app_logic.py`:
+   - bloco de warnings de integridade desindentado para voltar a ser executado no caminho valido.
+3. `armazenamento/database_validation.py`:
+   - removido campo interno `_invalid_row_seen` tambem no retorno precoce de `df.empty`.
+4. `armazenamento/database.py`:
+   - `query_db` agora trata `ValueError` no mesmo contrato de `raise_on_error=False`.
+   - removido suppress silencioso em whitelist de colunas (agora loga e propaga erro real).
+5. `armazenamento/database_integrity.py`:
+   - removido warning falso `"Problemas detectados no banco: []"` em caminho de reparo opcional.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile core/app_logic.py armazenamento/database_validation.py armazenamento/database.py armazenamento/database_integrity.py tests/test_import_cancellation.py` -> pass
+2. `uv run --python 3.13 ruff check core/app_logic.py armazenamento/database_validation.py armazenamento/database.py armazenamento/database_integrity.py tests/test_import_cancellation.py` -> pass
+3. `uv run --python 3.13 ty check core/app_logic.py armazenamento/database_validation.py armazenamento/database.py armazenamento/database_integrity.py tests/test_import_cancellation.py` -> pass
+4. `timeout 180s uv run --python 3.13 pytest -q tests/test_import_cancellation.py tests/test_database.py tests/test_database_verification.py` -> `30 passed`
+5. `timeout 180s uv run --python 3.13 pytest -q tests/test_cli_enhancement_manager_lock_usage.py tests/test_import_cancellation.py tests/test_database_optimized_identifier_guards.py tests/test_gui_filters_advanced_logic.py tests/test_streamlit_filter_cache.py` -> `73 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debts estruturais/performance apontados por kluster em `core/app_logic.py`, `armazenamento/database.py` e `armazenamento/database_integrity.py` (fora do escopo do hotfix minimo).
+
 ## Update 2026-03-09 19:26 - documentation integrity pass (links and references)
 
 Session timestamp:
