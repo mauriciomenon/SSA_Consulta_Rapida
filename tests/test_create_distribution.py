@@ -58,6 +58,7 @@ def test_create_zip_package_uses_canonical_pyinstaller_dir(
                 "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
                 "base_dir": "builds/pyinstaller",
                 "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
             }
         },
     )
@@ -101,6 +102,7 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
                 "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
                 "base_dir": "builds/pyinstaller",
                 "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
             }
         },
     )
@@ -117,3 +119,49 @@ def test_create_zip_package_excludes_local_data_and_excel_from_canonical_pyinsta
         assert not any(name.endswith(".xls") for name in names)
         assert not any(name.endswith("should_not_copy.txt") for name in names)
         assert not any(name.endswith("input.xlsx") for name in names)
+
+
+def test_create_zip_package_returns_none_when_canonical_has_no_primary_executable(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    project_root = tmp_path / "project"
+    canonical_dir = project_root / "launchers" / "dist" / "windows_amd64"
+    canonical_dir.mkdir(parents=True)
+    dist_output = project_root / "dist_packages"
+    dist_output.mkdir(parents=True)
+
+    (canonical_dir / "build_manifest.json").write_text("{}", encoding="utf-8")
+    (canonical_dir / "keep.txt").write_text("not executable", encoding="utf-8")
+
+    monkeypatch.setattr(create_distribution, "PROJECT_ROOT", project_root)
+    monkeypatch.setattr(create_distribution, "DIST_OUTPUT", dist_output)
+    monkeypatch.setattr(
+        create_distribution,
+        "BUILD_SYSTEMS",
+        {
+            "pyinstaller": {
+                "name": "PyInstaller",
+                "exe_path": "builds/pyinstaller/SSA_Consulta_Rapida.exe",
+                "base_dir": "builds/pyinstaller",
+                "internal_dir": "_internal",
+                "canonical_dirs": ["launchers/dist/windows_amd64"],
+            }
+        },
+    )
+
+    result = create_distribution.create_zip_package("pyinstaller", "1.0.0")
+
+    assert result is None
+    assert "Diretorio de build ou executavel principal nao encontrado" in caplog.text
+
+
+def test_compile_installer_returns_missing_when_iscc_is_unavailable(monkeypatch) -> None:
+    monkeypatch.delenv("INNO_SETUP_COMPILER", raising=False)
+    monkeypatch.setattr(create_distribution.shutil, "which", lambda _: None)
+    monkeypatch.setattr(create_distribution.os.path, "exists", lambda _: False)
+
+    status = create_distribution.compile_installer(Path("installer.iss"))
+
+    assert status == "missing"

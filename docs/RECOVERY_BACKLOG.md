@@ -3,6 +3,80 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 08:28 - hardening final do empacotador (status de instalador + copia sanitizada)
+
+Session timestamp:
+1. start: `2026-03-10 08:22:45 -0300`
+2. end: `2026-03-10 08:31:40 -0300`
+
+Objetivo do slice:
+1. remover ambiguidade de status no fluxo de compilacao de instalador.
+2. aplicar sanitizacao consistente de copia em todos os caminhos de bundle.
+3. fechar ajustes sem alterar conceito de empacotamento canonico.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_copy_build_tree` renomeado para `_copy_build_tree_sanitized`.
+   - novo `SENSITIVE_LOCAL_EXTENSIONS` e helper `_build_bundle_ignore(...)`.
+   - `copytree` de `_internal` e `config` agora aplica `ignore` sanitizado.
+   - `compile_installer(...)` agora retorna status explicito: `success|missing|failed`.
+   - status `script_failed` adicionado no caller para separar falha de geracao `.iss`.
+   - relatorio final diferencia "Inno Setup nao disponivel" de "falha na compilacao".
+   - `arcname` do ZIP agora usa base em `package_dir` para maior robustez.
+   - validacao de `.app` exige binario executavel em `Contents/MacOS` ou fallback executavel no bundle.
+   - referencia de antivirus no readme corrigida para `ANTIVIRUS_EXCLUSOES.md`.
+   - copia de `README.md` no bundle mantida como `LEIA-ME.md`.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_compile_installer_returns_missing_when_iscc_is_unavailable`.
+3. `docs/GUIA_DISTRIBUICAO.md`:
+   - troubleshooting separado para "compiler ausente" vs "falha de compilacao".
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `5 passed`
+5. `kluster review` no codigo/docs tocados -> sem blocker funcional apos ajustes; sobram debts de qualidade/semantica catalogados abaixo.
+
+Deferido (nao bloqueante neste slice):
+1. `scripts/create_distribution.py`: `create_zip_package` continua concentrando responsabilidades (debt de qualidade).
+2. `kluster` apontou risco de selecao por mtime em canonical dirs; comportamento atual e intencional por prioridade de build mais recente e ficou sem alteracao neste slice.
+3. `kluster` apontou risco cross-drive em source de Inno; fluxo atual ja trata caminho absoluto via fallback de `ValueError`, sem regressao funcional observada nos gates.
+4. `kluster` apontou cleanup de temp em early-return; fluxo ja remove `temp_dir` nesses caminhos (classificado como falso positivo na rodada final).
+
+## Update 2026-03-10 08:25 - validacao de executavel primario no empacotamento
+
+Session timestamp:
+1. start: `2026-03-10 08:15:30 -0300`
+2. end: `2026-03-10 08:25:00 -0300`
+
+Objetivo do slice:
+1. evitar pacote ZIP invalido quando diretorio canonico tem conteudo parcial.
+2. exigir executavel primario antes de aceitar build dir no empacotamento.
+3. manter comportamento default e adicionar configurabilidade minima para canonical dirs em teste/laboratorio.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - novo helper `_get_pyinstaller_canonical_dirs()` para canonical dirs configuraveis via `BUILD_SYSTEMS["pyinstaller"]["canonical_dirs"]` com fallback default.
+   - novo helper `_has_primary_executable(build_dir, build_system)` para validar executavel primario.
+   - `_resolve_build_directory(...)` agora filtra candidatos por conteudo + executavel valido.
+   - `_resolve_inno_source(...)` e `_is_canonical_pyinstaller_directory(...)` passam a usar a mesma origem de canonical dirs.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_create_zip_package_returns_none_when_canonical_has_no_primary_executable`.
+   - mocks de `BUILD_SYSTEMS` atualizados para declarar `canonical_dirs`.
+3. `docs/GUIA_DISTRIBUICAO.md`:
+   - troubleshooting atualizado com regra de validacao de executavel primario.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `4 passed`
+5. `kluster review file scripts/create_distribution.py tests/test_create_distribution.py` -> clean.
+
+Deferido (nao bloqueante neste slice):
+1. hardening mais profundo de matriz por plataforma no empacotador (slice dedicado de distribuicao cross-platform).
+
 ## Update 2026-03-10 08:18 - alinhamento Debian para fluxo canonico ZIP
 
 Session timestamp:

@@ -2,7 +2,57 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
-## CURRENT TRUTH 2026-03-10 08:18 - authoritative block
+## CURRENT TRUTH 2026-03-10 08:31 - authoritative block
+
+- Slice entregue:
+  1. empacotador endurecido para separar status `missing` vs `failed` no instalador.
+  2. `scripts/create_distribution.py`:
+     - filtro sanitizado unificado (`_build_bundle_ignore`) aplicado tambem em copias de `_internal/config`.
+     - `compile_installer` retorna `success|missing|failed`.
+     - caller distingue `script_failed` para falha na geracao do script `.iss`.
+     - ZIP usa `arcname` baseado em `package_dir`.
+     - validacao de `.app` agora exige executavel real no bundle.
+     - readme tecnico alinhado para `ANTIVIRUS_EXCLUSOES.md` e `LEIA-ME.md`.
+  3. `tests/test_create_distribution.py`:
+     - cobertura nova para caminho `missing` do compilador Inno.
+  4. docs:
+     - guia de distribuicao com troubleshooting separado para dependencia ausente vs falha de compilacao.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `5 passed`.
+  3. `kluster review` de codigo e docs tocados -> sem blocker novo.
+- Pendencia deferida:
+  1. `create_zip_package` ainda e funcao longa (debt de qualidade).
+  2. regra de selecao por mtime em canonical dirs mantida como comportamento intencional no momento.
+  3. alerta de cleanup de temp_dir em early-return ficou classificado como falso positivo apos revisao de codigo.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:28
+
+- Slice entregue:
+  1. empacotador agora valida executavel primario antes de aceitar build dir.
+  2. `scripts/create_distribution.py`:
+     - canonical dirs PyInstaller podem ser configurados via `BUILD_SYSTEMS["pyinstaller"]["canonical_dirs"]`.
+     - fallback mantido para canonical dirs padrao.
+     - `_resolve_build_directory` endurecido para barrar diretorio parcial sem executavel.
+  3. `tests/test_create_distribution.py`:
+     - novo teste cobrindo cenario de canonical sem executavel primario.
+     - mocks com `canonical_dirs` explicito.
+  4. docs:
+     - troubleshooting de distribuicao atualizado para nova regra de validacao.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` -> pass.
+  2. `pytest -q tests/test_create_distribution.py` -> `4 passed`.
+  3. `kluster review` em codigo tocado -> clean.
+- Pendencia deferida:
+  1. hardening cross-platform mais amplo de deteccao/selecao de artefato no empacotador.
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
+## HISTORICAL SNAPSHOT 2026-03-10 08:18
 
 - Slice entregue:
   1. Debian alinhado ao fluxo canonico de pacote ZIP.

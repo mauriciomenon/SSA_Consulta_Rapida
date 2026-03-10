@@ -135,7 +135,10 @@ SUPORTE
 ### ZIP nao gerado
 
 1. Confirmar build em `launchers/dist/<plataforma>/`.
-2. Executar novamente com log:
+2. Confirmar que existe executavel primario no diretorio alvo (nao apenas manifesto/log).
+3. Para PyInstaller, o empacotador agora valida executavel antes de aceitar o build canonico.
+4. Em laboratorio, `canonical_dirs` pode ser configurado em `BUILD_SYSTEMS["pyinstaller"]`.
+5. Executar novamente com log:
 
 ```bash
 python scripts/create_distribution.py --build-system pyinstaller --skip-installer
@@ -143,8 +146,9 @@ python scripts/create_distribution.py --build-system pyinstaller --skip-installe
 
 ### Instalador nao gerado
 
-1. Verificar Inno Setup instalado.
-2. Opcional: definir compilador explicitamente:
+1. Se log mostrar `Inno Setup nao encontrado`, instalar Inno Setup ou definir `INNO_SETUP_COMPILER`.
+2. Se log mostrar `Falha na compilacao`, revisar saida de erro do ISCC e dependencias do build.
+3. Opcional: definir compilador explicitamente:
 
 ```bash
 set INNO_SETUP_COMPILER=C:\Program Files (x86)\Inno Setup 6\ISCC.exe

@@ -48,6 +48,8 @@ EXCLUDED_BUNDLE_ITEMS = {
     "historico_backups",
 }
 
+SENSITIVE_LOCAL_EXTENSIONS = {".db", ".xlsx", ".xls"}
+
 # Informacoes dos build systems
 BUILD_SYSTEMS = {
     "pyinstaller": {
@@ -99,11 +101,64 @@ def _has_packagable_content(directory: Path) -> bool:
     return False
 
 
+def _get_pyinstaller_canonical_dirs() -> tuple[str, ...]:
+    """Retorna lista de diretorios canonicos do PyInstaller (configuravel)."""
+    build_info = BUILD_SYSTEMS.get("pyinstaller", {})
+    configured = build_info.get("canonical_dirs")
+    if isinstance(configured, (list, tuple)):
+        normalized = tuple(str(item) for item in configured if isinstance(item, str))
+        if normalized:
+            return normalized
+    return PYINSTALLER_CANONICAL_DIRS
+
+
+def _has_primary_executable(build_dir: Path, build_system: str) -> bool:
+    """Valida existencia de executavel primario esperado no diretorio de build."""
+    if not build_dir.exists() or not build_dir.is_dir():
+        return False
+
+    if build_system == "pyinstaller":
+        for item in build_dir.iterdir():
+            if item.is_file():
+                if item.suffix.lower() == ".exe":
+                    return True
+                if item.suffix == "" and os.access(item, os.X_OK):
+                    return True
+            elif item.is_dir():
+                if item.suffix.lower() == ".app":
+                    contents_candidate = item / "Contents" / "MacOS"
+                    if contents_candidate.is_dir():
+                        for child in contents_candidate.iterdir():
+                            if child.is_file() and os.access(child, os.X_OK):
+                                return True
+                embedded = item / item.name
+                if embedded.is_file() and os.access(embedded, os.X_OK):
+                    return True
+        return False
+
+    build_info = BUILD_SYSTEMS.get(build_system, {})
+    exe_path_value = build_info.get("exe_path")
+    if isinstance(exe_path_value, str):
+        expected = PROJECT_ROOT / exe_path_value
+        if expected.is_file():
+            return True
+        expected_local = build_dir / Path(exe_path_value).name
+        if expected_local.is_file():
+            return True
+        if expected_local.suffix and (build_dir / expected_local.stem).is_file():
+            return True
+    return False
+
+
 def _resolve_build_directory(build_system: str) -> Optional[Path]:
     """Resolve diretorio de build com prioridade para caminho canonico."""
     if build_system == "pyinstaller":
-        candidates = [PROJECT_ROOT / rel for rel in PYINSTALLER_CANONICAL_DIRS]
-        valid = [path for path in candidates if _has_packagable_content(path)]
+        candidates = [PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()]
+        valid = [
+            path
+            for path in candidates
+            if _has_packagable_content(path) and _has_primary_executable(path, "pyinstaller")
+        ]
         if valid:
             return max(valid, key=lambda path: path.stat().st_mtime)
 
@@ -114,30 +169,45 @@ def _resolve_build_directory(build_system: str) -> Optional[Path]:
 
     legacy_dir = PROJECT_ROOT / base_dir_value
     if _has_packagable_content(legacy_dir):
-        if build_system != "nuitka":
-            exe_path_value = build_info.get("exe_path")
-            if isinstance(exe_path_value, str):
-                legacy_exe = PROJECT_ROOT / exe_path_value
-                if not legacy_exe.is_file():
-                    return None
+        if not _has_primary_executable(legacy_dir, build_system):
+            return None
         return legacy_dir
     return None
 
 
-def _copy_build_tree(source_dir: Path, target_dir: Path) -> None:
-    """Copia arvore de build para diretorio de pacote."""
+def _copy_build_tree_sanitized(source_dir: Path, target_dir: Path) -> None:
+    """Copia build para distribuicao, removendo dados locais sensiveis."""
     for item in source_dir.iterdir():
         if item.name in {".git", "__pycache__", "logs"}:
             continue
         if item.name in EXCLUDED_BUNDLE_ITEMS:
             continue
-        if item.is_file() and item.suffix.lower() in {".db", ".xlsx", ".xls"}:
+        if item.is_file() and item.suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
             continue
         destination = target_dir / item.name
         if item.is_file():
             shutil.copy2(item, destination)
         elif item.is_dir():
-            shutil.copytree(item, destination, dirs_exist_ok=True)
+            shutil.copytree(
+                item,
+                destination,
+                dirs_exist_ok=True,
+                ignore=_build_bundle_ignore,
+            )
+
+
+def _build_bundle_ignore(_src: str, names: list[str]) -> set[str]:
+    ignored: set[str] = set()
+    for name in names:
+        if name in {".git", "__pycache__", "logs"}:
+            ignored.add(name)
+            continue
+        if name in EXCLUDED_BUNDLE_ITEMS:
+            ignored.add(name)
+            continue
+        if Path(name).suffix.lower() in SENSITIVE_LOCAL_EXTENSIONS:
+            ignored.add(name)
+    return ignored
 
 
 def _detect_primary_executable_name(package_dir: Path) -> str:
@@ -172,7 +242,14 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
     build_info = BUILD_SYSTEMS[build_system]
 
     if build_system == "pyinstaller":
-        canonical_windows = PROJECT_ROOT / "launchers" / "dist" / "windows_amd64"
+        canonical_windows = next(
+            (
+                PROJECT_ROOT / rel
+                for rel in _get_pyinstaller_canonical_dirs()
+                if "windows_amd64" in rel
+            ),
+            PROJECT_ROOT / "launchers" / "dist" / "windows_amd64",
+        )
         if _has_packagable_content(canonical_windows):
             gui_candidates = sorted(canonical_windows.glob("*GUI*.exe"))
             if gui_candidates:
@@ -198,7 +275,7 @@ def _resolve_inno_source(build_system: str) -> Optional[tuple[Path, str]]:
 
 def _is_canonical_pyinstaller_directory(build_dir: Path) -> bool:
     """Retorna True quando o build_dir aponta para launchers/dist canonico."""
-    canonical = {PROJECT_ROOT / rel for rel in PYINSTALLER_CANONICAL_DIRS}
+    canonical = {PROJECT_ROOT / rel for rel in _get_pyinstaller_canonical_dirs()}
     return build_dir in canonical
 
 
@@ -243,7 +320,7 @@ def copy_documentation(target_dir: Path):
         src = PROJECT_ROOT / doc_file
         if src.exists():
             if doc_file == "README.md":
-                dest = target_dir / "LEIA-ME.txt"
+                dest = target_dir / "LEIA-ME.md"
             else:
                 dest = docs_dir / src.name
 
@@ -299,7 +376,7 @@ CONFIGURACAO DE ANTIVIRUS
 
 Caso o antivirus bloqueie o executavel, adicione excecao para:
 - Pasta completa do programa
-- Consulte: docs/ANTIVIRUS_EXCLUSOES.txt para instrucoes detalhadas
+- Consulte: docs/ANTIVIRUS_EXCLUSOES.md para instrucoes detalhadas
 
 SUPORTE
 
@@ -349,7 +426,7 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
             build_system == "pyinstaller" and _is_canonical_pyinstaller_directory(build_dir)
         )
         if build_system == "nuitka" or is_canonical_pyinstaller:
-            _copy_build_tree(build_dir, package_dir)
+            _copy_build_tree_sanitized(build_dir, package_dir)
         else:
             # PyInstaller/PyOxidizer: copiar executavel
             exe_path_value = build_info.get("exe_path")
@@ -368,13 +445,15 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
             shutil.copy2(exe_src, exe_dest)
 
             # Copiar pasta _internal ou lib
-            if build_info["internal_dir"]:
-                internal_src = build_dir / build_info["internal_dir"]
+            internal_dir_name = build_info.get("internal_dir")
+            if isinstance(internal_dir_name, str) and internal_dir_name:
+                internal_src = build_dir / internal_dir_name
                 if internal_src.exists():
                     shutil.copytree(
                         internal_src,
-                        package_dir / build_info["internal_dir"],
-                        dirs_exist_ok=True
+                        package_dir / internal_dir_name,
+                        dirs_exist_ok=True,
+                        ignore=_build_bundle_ignore,
                     )
 
         # Copiar config se existir
@@ -385,7 +464,12 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
             # Copiar config da raiz do projeto
             config_src = PROJECT_ROOT / "config"
             if config_src.exists():
-                shutil.copytree(config_src, package_dir / "config", dirs_exist_ok=True)
+                shutil.copytree(
+                    config_src,
+                    package_dir / "config",
+                    dirs_exist_ok=True,
+                    ignore=_build_bundle_ignore,
+                )
 
         # Criar estrutura de diretorios para usuario
         create_user_structure(package_dir)
@@ -418,7 +502,7 @@ def create_zip_package(build_system: str, version: str) -> Optional[Path]:
             for root, dirs, files in os.walk(package_dir):
                 for file in files:
                     file_path = Path(root) / file
-                    arcname = file_path.relative_to(temp_dir)
+                    arcname = Path(package_name) / file_path.relative_to(package_dir)
                     zipf.write(file_path, arcname)
 
         # Limpar diretorio temporario
@@ -445,10 +529,15 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
         return None
 
     source_dir, exe_name = resolved
+    source_dir_absolute = False
     try:
         source_dir_rel = source_dir.relative_to(PROJECT_ROOT).as_posix().replace("/", "\\")
     except ValueError:
+        source_dir_absolute = True
         source_dir_rel = str(source_dir).replace("/", "\\")
+    source_dir_spec = source_dir_rel if source_dir_absolute else f"..\\..\\{source_dir_rel}"
+    source_dir_spec = source_dir_spec.replace('"', '')
+    exe_name = exe_name.replace('"', '')
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):
         inno_excludes.append(f"{item}\\*")
@@ -490,8 +579,8 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\\BrazilianPortugu
 Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: "{{cm:AdditionalIcons}}"
 
 [Files]
-Source: "..\\..\\{source_dir_rel}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
-Source: "..\\..\\{source_dir_rel}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
+Source: "{source_dir_spec}\\{exe_name}"; DestDir: "{{app}}"; Flags: ignoreversion
+Source: "{source_dir_spec}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "{inno_excludes_str}"
 
 [Dirs]
 Name: "{{app}}\\data"
@@ -525,7 +614,7 @@ end;
     return iss_path
 
 
-def compile_installer(iss_path: Path) -> bool:
+def compile_installer(iss_path: Path) -> str:
     """Compila instalador usando Inno Setup."""
     logger.info("Compilando instalador com Inno Setup...")
 
@@ -533,7 +622,15 @@ def compile_installer(iss_path: Path) -> bool:
     configured_path = os.environ.get("INNO_SETUP_COMPILER")
     possible_paths: list[str] = []
     if configured_path:
-        possible_paths.append(configured_path)
+        configured_candidate = Path(configured_path).expanduser()
+        allowed_names = {"iscc", "iscc.exe"}
+        if configured_candidate.is_file() and configured_candidate.name.lower() in allowed_names:
+            possible_paths.append(str(configured_candidate))
+        else:
+            logger.warning(
+                "INNO_SETUP_COMPILER ignorado por validacao de seguranca: %s",
+                configured_path,
+            )
 
     iscc_in_path = shutil.which("iscc") or shutil.which("ISCC")
     if iscc_in_path:
@@ -555,7 +652,7 @@ def compile_installer(iss_path: Path) -> bool:
     if not iscc_path:
         logger.warning("Inno Setup nao encontrado. Instalador nao sera criado.")
         logger.info("  Para criar instaladores, instale Inno Setup de: https://jrsoftware.org/isdl.php")
-        return False
+        return "missing"
 
     try:
         result = subprocess.run(
@@ -567,17 +664,17 @@ def compile_installer(iss_path: Path) -> bool:
 
         if result.returncode == 0:
             logger.info("  Instalador compilado com sucesso!")
-            return True
+            return "success"
         else:
             logger.error(f"Erro ao compilar instalador: {result.stderr}")
-            return False
+            return "failed"
 
     except subprocess.TimeoutExpired:
         logger.error("Timeout ao compilar instalador")
-        return False
+        return "failed"
     except Exception as e:
         logger.error(f"Erro ao executar Inno Setup: {e}")
-        return False
+        return "failed"
 
 
 def main():
@@ -641,10 +738,10 @@ def main():
         # Criar instalador
         if not args.skip_installer:
             iss_path = create_inno_setup_script(bs, version)
-            if iss_path and compile_installer(iss_path):
-                results[bs]["installer"] = True
+            if iss_path:
+                results[bs]["installer"] = compile_installer(iss_path)
             else:
-                results[bs]["installer"] = False
+                results[bs]["installer"] = "script_failed"
 
     # Relatorio final
     logger.info(f"\n{'='*60}")
@@ -657,10 +754,15 @@ def main():
             logger.info(f"  ZIP: {result['zip'].name}")
         elif not args.installer_only:
             logger.info("  ZIP: Nao criado")
-        if result["installer"]:
+        installer_status = result["installer"]
+        if installer_status == "success":
             logger.info("  Instalador: Criado com sucesso")
-        elif result["installer"] is False:
+        elif installer_status == "missing":
             logger.info("  Instalador: Nao criado (Inno Setup nao disponivel)")
+        elif installer_status == "failed":
+            logger.info("  Instalador: Falha na compilacao")
+        elif installer_status == "script_failed":
+            logger.info("  Instalador: Falha na geracao do script")
         logger.info("")
 
     logger.info(f"Pacotes salvos em: {DIST_OUTPUT}")
