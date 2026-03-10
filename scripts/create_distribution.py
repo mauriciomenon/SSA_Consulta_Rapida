@@ -563,14 +563,11 @@ def create_inno_setup_script(build_system: str, version: str) -> Optional[Path]:
         return None
 
     source_dir, exe_name = resolved
-    source_dir_absolute = False
     try:
-        source_dir_rel = source_dir.relative_to(PROJECT_ROOT).as_posix().replace("/", "\\")
-    except ValueError:
-        source_dir_absolute = True
-        source_dir_rel = str(source_dir).replace("/", "\\")
-    source_dir_spec = source_dir_rel if source_dir_absolute else f"..\\..\\{source_dir_rel}"
-    source_dir_spec = source_dir_spec.replace('"', '')
+        source_dir_spec = os.path.relpath(source_dir, DIST_OUTPUT)
+    except Exception:
+        source_dir_spec = str(source_dir.resolve())
+    source_dir_spec = source_dir_spec.replace("/", "\\").replace('"', '')
     exe_name = exe_name.replace('"', '')
     inno_excludes = ["*.log", "*.tmp", "__pycache__"]
     for item in sorted(EXCLUDED_BUNDLE_ITEMS):

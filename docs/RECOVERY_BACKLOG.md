@@ -3,6 +3,36 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 09:28 - Source do Inno com relpath real + fallback absoluto
+
+Session timestamp:
+1. start: `2026-03-10 09:26:49 -0300`
+2. end: `2026-03-10 09:28:34 -0300`
+
+Objetivo do slice:
+1. remover prefixo fixo `..\\..\\` na origem do Inno Setup.
+2. usar caminho relativo real entre `DIST_OUTPUT` e `source_dir`, com fallback absoluto seguro.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `create_inno_setup_script` agora calcula `source_dir_spec` via `os.path.relpath(source_dir, DIST_OUTPUT)`.
+   - se `relpath` falhar, cai para `str(source_dir.resolve())`.
+   - normalizacao unica para formato Windows: `replace("/", "\\")` + remocao de aspas.
+2. `tests/test_create_distribution.py`:
+   - `test_create_inno_setup_script_uses_sourcepath_outputdir` agora tambem valida `Source` relativo esperado.
+   - novo `test_create_inno_setup_script_uses_absolute_source_when_relpath_fails`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `11 passed`
+
+Deferido (nao bloqueante neste slice):
+1. debt de qualidade: `create_zip_package` continua longa.
+2. debt semantico geral de resolucao por build system continua para ciclo dedicado.
+3. deduplicacao de setup dos testes continua para ciclo de manutencao.
+
 ## Update 2026-03-10 09:23 - OutputDir do Inno deterministico via SourcePath
 
 Session timestamp:
