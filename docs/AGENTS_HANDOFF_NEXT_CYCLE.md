@@ -2,6 +2,24 @@
 
 Este handoff esta pronto para reutilizacao no proximo ciclo.
 
+## CURRENT TRUTH 2026-03-10 09:59 - authoritative block
+
+- Slice entregue:
+  1. extracao minima em `compile_installer` sem mudanca de comportamento.
+  2. `scripts/create_distribution.py`:
+     - `_get_iscc_path()` isola descoberta/validacao de compilador.
+     - `_run_iscc_compile(...)` isola execucao e tratamento de retorno.
+     - `compile_installer(...)` ficou como orquestrador simples.
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 1 apontamento medio (debt antigo em `create_zip_package`, fora de escopo).
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Pendencia deferida:
+  1. `create_zip_package` continua com debt de funcao longa (ciclo dedicado).
+- Residuos locais fora de escopo (nao commitar):
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:55 - authoritative block
 
 - Slice entregue:

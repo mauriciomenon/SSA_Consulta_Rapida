@@ -2,6 +2,29 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
+## CURRENT TRUTH 2026-03-10 09:59 - start from here
+
+- Slice aplicado:
+  1. `compile_installer` foi reduzido em concentracao com extracao minima de blocos.
+  2. `scripts/create_distribution.py`:
+     - novo `_get_iscc_path()` para descoberta/validacao de caminho.
+     - novo `_run_iscc_compile(...)` para execucao do compilador.
+     - `compile_installer(...)` mantido com mesmo contrato e mesmos status.
+- Arquivos tocados:
+  1. `scripts/create_distribution.py`
+  2. `docs/RECOVERY_BACKLOG.md`
+  3. `docs/NEXT_CHAT_MIGRATION.md`
+  4. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Gates desta rodada:
+  1. kluster em `scripts/create_distribution.py` -> 1 issue (`create_zip_package` longa, debt antigo fora de escopo).
+  2. `py_compile`, `ruff`, `ty` -> pass.
+  3. `pytest -q tests/test_create_distribution.py` -> `13 passed`.
+- Deferido:
+  1. debt de qualidade em `create_zip_package` segue para ciclo dedicado.
+- Residuos locais fora de escopo mantidos:
+  1. `data/ssas.db`
+  2. `config/settings.json.bak_20260308_212715`
+
 ## CURRENT TRUTH 2026-03-10 09:55 - start from here
 
 - Slice aplicado:
