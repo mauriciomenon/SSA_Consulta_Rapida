@@ -3,6 +3,37 @@
 Este arquivo registra hardening e limpeza pos-merge da branch de recovery.
 O escopo fica dividido por prioridade para manter a entrega segura e incremental.
 
+## Update 2026-03-10 08:49 - remocao de fallback generico de executavel no pacote
+
+Session timestamp:
+1. start: `2026-03-10 08:48:01 -0300`
+2. end: `2026-03-10 08:49:45 -0300`
+
+Objetivo do slice:
+1. remover fallback literal `executavel_principal` na deteccao do binario do pacote.
+2. falhar explicitamente quando nao houver executavel detectavel no staged package.
+
+Mudancas aplicadas:
+1. `scripts/create_distribution.py`:
+   - `_detect_primary_executable_name(...)` agora retorna `Optional[str]`.
+   - retorno fallback foi removido (`None` quando nao ha executavel).
+   - `create_zip_package(...)` agora aborta com erro explicito se a deteccao retornar `None`.
+   - `_build_bundle_ignore(...)` passou a inferir tipo real (`arquivo`/`diretorio`) via `_src/name` antes de aplicar `_should_skip_bundle_entry(...)`.
+2. `tests/test_create_distribution.py`:
+   - novo teste `test_detect_primary_executable_name_returns_none_when_package_has_no_binary`.
+
+Validacao desta rodada:
+1. `uv run --python 3.13 python -m py_compile scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+2. `uv run --python 3.13 ruff check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+3. `uv run --python 3.13 ty check scripts/create_distribution.py tests/test_create_distribution.py` -> pass
+4. `timeout 600s uv run --python 3.13 pytest -q tests/test_create_distribution.py` -> `7 passed`
+
+Deferido (nao bloqueante neste slice):
+1. `create_zip_package` continua com debt de funcao longa (qualidade).
+2. alerta semantico amplo do kluster para `_resolve_build_directory` (separacao de responsabilidade entre resolver dir e validar executavel) fica para slice dedicado.
+3. rodada agregada do kluster sinalizou risco de trust em `INNO_SETUP_COMPILER`; fluxo atual ja valida nome permitido + existencia de arquivo, e hardening de trust por allowlist de diretorios fica para ciclo de seguranca dedicado.
+4. rodada agregada tambem sinalizou path absoluto do Inno e heuristica de executavel pyinstaller; sem repro de regressao nos gates desta rodada, mantido como debt para validacao com ambiente Windows dedicado.
+
 ## Update 2026-03-10 08:43 - selecao deterministica + consolidacao de filtro sanitizado
 
 Session timestamp:
