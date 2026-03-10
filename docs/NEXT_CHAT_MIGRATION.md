@@ -2,7 +2,27 @@
 
 Use este arquivo para migrar contexto para um novo chat sem perder qualidade de execucao.
 
-## CURRENT TRUTH 2026-03-10 15:53 - start from here
+## CURRENT TRUTH 2026-03-10 16:37 - start from here
+
+- Slice aplicado:
+  1. hardening de tratamento de erro para zerar `BLE001` em `main.py` e `data_loader_worker.py`.
+- Arquivos alterados:
+  1. `main.py`
+  2. `gui/workers/data_loader_worker.py`
+  3. `docs/RECOVERY_BACKLOG.md`
+  4. `docs/NEXT_CHAT_MIGRATION.md`
+  5. `docs/AGENTS_HANDOFF_NEXT_CYCLE.md`
+- Resultado tecnico:
+  1. `except Exception` amplos removidos dos 2 arquivos alvo.
+  2. `ruff --select BLE001` no escopo alvo ficou limpo.
+  3. fluxo de importacao em `main` e fluxo de carregamento em `DataLoaderWorker` mantidos.
+- Gates desta rodada:
+  1. `py_compile`, `ruff`, `ty` no escopo alterado -> pass.
+  2. `pytest -q tests/test_data_loader_worker.py tests/test_main_import_fallback.py tests/test_main_skip_import.py tests/test_main_gui_fallback.py` -> `17 passed`.
+- Deferido:
+  1. debts antigos de arquitetura/performance e semantica historica em `main.py` e `data_loader_worker.py`.
+
+## HISTORICAL SNAPSHOT 2026-03-10 15:53 - start from here
 
 - Slice aplicado:
   1. estabilizacao dos testes focados de `main` para nao travar em loop CLI durante pytest.
